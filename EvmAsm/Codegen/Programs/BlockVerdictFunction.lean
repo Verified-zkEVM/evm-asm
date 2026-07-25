@@ -289,6 +289,13 @@ def blockVerdictFunction : String :=
   -- either path so a self-sponsored authorization observes the transaction
   -- nonce increment exactly as `process_transaction` does.
   "  ld a0, 24(t2); la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  -- Use the same live intrinsic/auth writer as the MTx lane.  The shortcut's
+  -- former replay-based producer is deliberately not invoked afterwards.
+  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_i; sd zero, 0(t0); la t2, bv_simple_transfer_tx; ld a0, 8(t2); ld a1, 16(t2); ld a2, 176(t2); ld a3, 184(t2); la a4, bv_stx_sender_addr; ld a5, 160(t2); li a6, 0; jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
@@ -598,7 +605,7 @@ def blockVerdictFunction : String :=
   -- them to form the same combined pre-refund charge that execution-specs uses
   -- for `tx.gas - gas_left - state_gas_left`.
   "  la t1, runtime_tx_intrinsic_regular; ld t4, 0(t1)\n" ++
-  "  la t1, bv_runtime_intrinsic_state_gas; ld t3, 0(t1)\n" ++
+  "  la t1, bvgr_tx_state_gas; ld t3, 0(t1)\n" ++
   "  la t1, bv_simple_transfer_tx; ld t5, 40(t1); add t6, t4, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
@@ -629,6 +636,7 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   -- Direct EOA settlement has completed the transaction effects, but historically
   -- jumped past the body-effect reconciliation below.  That let a forged payload
   -- omit a withdrawal while retaining its BAL/state-root credit.  Enter at the
@@ -853,6 +861,10 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  -- Finalize only after the runtime status has reached its authoritative
+  -- per-transaction cell; a reverted contract body must not retain executed
+  -- state gas, while a successful body must.
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   -- fva3w: the tx errored (a4 == 0 = REVERT / exceptional abort) -> roll back the exec effect
   -- logs to the pre-tx snapshot, discarding the rolled-back value-transfer / CREATE effects so
   -- the all-accounts non-storage/code comparators see net-zero for a touched-but-aborted account
@@ -1408,6 +1420,11 @@ def blockVerdictFunction : String :=
   blockVerdictCreateCollisionBranch ++
   bvReceiptsShapeSet 60 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
+  -- A failed/unsupported single-tx runtime has no executed-state component,
+  -- but its already-prepared intrinsic/auth state charge still belongs to the
+  -- receipt and EIP-8037 settlement.  This is the failed arm of the same
+  -- per-transaction finalizer used after successful runtime dispatch.
+  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
   bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
@@ -1416,44 +1433,22 @@ def blockVerdictFunction : String :=
   -- arena incomplete; their pre-execution EIP-8037 admission was already checked
   -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
-  -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
-  -- remaining-block-gas check below can apply the spec's 2D regular admission
-  -- test min(TX_MAX_GAS_LIMIT, tx.gas). block_verdict_tx_state_gas_array depends only on the
-  -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
-  -- same conservative skip. (Moved up from just below the EIP-7778 check.)
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
-  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
-  "  la a3, bvgr_tx_state_gas\n" ++
-  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
-  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array_replay\n" ++
-  -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
-  -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
-  -- Do NOT skip the EIP-7778 reject check on that bail (that would be a regression: the check
-  -- ran unconditionally before this reorder). Instead ZERO bvgr_tx_state_gas and fall through:
-  -- the check below then uses intrinsic.state == 0 = the legacy min(TX_MAX, tx.gas) over-approx
-  -- (= the pre-fix behaviour, sound), and the block_state floor sums 0 (no false-reject). The
-  -- floor/ceiling still run, so this is strictly >= the old conservative skip.
-  "  beqz a0, .Lbv_state_gas_filled\n" ++
-  "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
-  ".Lbv_state_gas_zero:\n" ++
-  "  beq t4, t3, .Lbv_state_gas_filled\n" ++
-  "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_state_gas_zero\n" ++
-  ".Lbv_state_gas_filled:\n" ++
+  -- The live per-transaction boundary has already populated
+  -- bvgr_tx_state_gas.  Keep the common total-state and regular-settlement
+  -- consumers below, but never reconstruct intrinsic/auth charges here from
+  -- the block-final transaction list.
   -- 0w05f.17.2: materialize the v0.6 per-tx settlement identity (fork.py:1174)
   --   tx_state_gas = intrinsic.state + executed state gas
   -- into bvgr_tx_total_state_gas BEFORE the EIP-7778 gate, so the per-tx
   -- regular increment below can subtract it (fork.py:1176-1181). The executed
-  -- component was captured per tx by dispatcher_capture_exec_state_gas; on the
-  -- tx_state_gas_array bail above the intrinsic component is zero (the legacy
-  -- over-approximation, reject-conservative as before).
-  "  la a0, bvgr_tx_state_gas\n" ++
-  "  la a1, bvgr_tx_exec_state_gas\n" ++
-  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
-  "  la a3, bvgr_tx_total_state_gas\n" ++
-  "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
-  "  la t2, bv_exact_net_status; sd a0, 0(t2)\n" ++
-  "  la t2, bv_exact_net_index; sd a1, 0(t2)\n" ++
+  -- component was captured per tx by dispatcher_capture_exec_state_gas.  A
+  -- failed/unsupported transaction finalizes only its intrinsic/auth component
+  -- at its own transaction boundary.
+  -- Each supported transaction finalizes its total state-gas cell immediately
+  -- after execution settles.  The current state-refund substrate is
+  -- identically zero, so no late block-wide netting pass is needed.
+  "  la t2, bv_exact_net_status; sd zero, 0(t2)\n" ++
+  "  la t2, bv_exact_net_index; sd zero, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++

@@ -1301,21 +1301,6 @@ theorem blockVerdictTxStateGasArrayFunction_eq_prog :
 #guard blockVerdictTxStateGasArrayFunction.startsWith "block_verdict_tx_state_gas_array:\n"
 #guard blockVerdictTxStateGasArray_prog.length = 96
 
-/-- Replay wrapper for the state-gas array. The runtime has already mutated
-    the authority table to final block state, so each gas pass reconstructs
-    it from immutable transaction input before replaying in transaction order. -/
-def blockVerdictTxStateGasArrayReplayFunction : String :=
-  "block_verdict_tx_state_gas_array_replay:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 56(sp); sd a0, 0(sp); sd a1, 8(sp); sd a2, 16(sp); sd a3, 24(sp); sd a4, 32(sp); sd a5, 40(sp); sd a6, 48(sp)\n" ++
-  "  jal ra, block_verdict_eip7702_authority_replay_materialize\n" ++
-  "  bnez a0, .Lbvtgar_fail\n" ++
-  "  ld a0, 0(sp); ld a1, 8(sp); ld a2, 16(sp); ld a3, 24(sp); ld a4, 32(sp); ld a5, 40(sp); ld a6, 48(sp); jal ra, block_verdict_tx_state_gas_array\n" ++
-  "  j .Lbvtgar_ret\n" ++
-  ".Lbvtgar_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbvtgar_ret:\n" ++
-  "  ld ra, 56(sp); addi sp, sp, 64; ret\n"
 def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
   [ .ADDI .x2 .x2 (-88 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),

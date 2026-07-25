@@ -506,7 +506,6 @@ def statelessVerdictV2GuestClosure : String :=
   txIntrinsicStateGasFunction ++ "\n" ++
   blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
-  blockVerdictTxStateGasArrayReplayFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
@@ -537,6 +536,10 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
   balAccountNonceBeforeIndexFunction ++ "\n" ++
+  eip7702AuthorityAsOfFunction ++ "\n" ++
+  eip7702AuthStatePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
   txEip7702ExistingAuthorityRefundWithSenderNonceFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++

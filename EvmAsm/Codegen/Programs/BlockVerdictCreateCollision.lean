@@ -47,6 +47,7 @@ def blockVerdictCreateCollisionBranch : String :=
   "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n" ++
   "  li t5, 1; la t4, bv_tx_is_creation_arr; sd t5, 0(t4)   # intrinsic state reservoir is unspent\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++

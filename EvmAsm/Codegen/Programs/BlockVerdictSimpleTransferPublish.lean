@@ -31,6 +31,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  la t4, evm_state_gas_used; sd zero, 0(t4)\n  la t4, evm_state_gas_spilled; sd zero, 0(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
@@ -111,6 +112,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_runtime_publish_fail:\n" ++

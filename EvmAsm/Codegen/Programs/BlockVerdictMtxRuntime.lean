@@ -82,6 +82,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
   "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
   ".Lbv_mtx_sender_count_zero_done:\n" ++
+  -- The historical S1 authority materialization below is retained only as a
+  -- frozen reference for the old proof artifact.  It is not a valid live
+  -- state source: it is block-final/header seeded and can reject before the
+  -- ordered AccountState transaction pass runs.  The sole live parser and
+  -- writer is `eip7702_auth_state_prepare` at the common transaction boundary.
+  "  j .Lbv_mtx_state_init\n" ++
   -- S1: materialize the ordered authority state once at the multi-tx pass
   -- boundary.  The event stream starts with every transaction sender, then
   -- adds each successfully recovered type-4 authority.  It intentionally
@@ -127,6 +133,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_tx_loop\n" ++
   ".Lbv_eas_materialize:\n" ++
   "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   -- Execution CodeState is block-lived in the sequential lane.  The callable
   -- dispatcher resets only its pending overlay; durable state and retained
@@ -152,6 +159,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_bf_rev_done:\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
+  -- The dispatcher resets this marker only when it is reached.  Every MTx
+  -- iteration must begin phase-zero as well: a pre-dispatch rejection or an
+  -- EOA/non-runtime route otherwise inherits a previous transaction's
+  -- successful preparation and incorrectly retains staged authorization gas.
+  "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
@@ -215,11 +227,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- payload.  This is the execution-specs order: process_transaction first,
   -- process_authorization_list second.
   "  addi t5, t5, 1; sd t5, 32(t6)\n" ++
-  -- The shared authorization helper derives the current sender from the
-  -- authenticated public key and applies the sender increment when validating
-  -- a self-funded authority.  Keep S1's persistent delta limited to applied
-  -- authorizations so runtime and the gas replay have identical state.
-  "  la t0, bv_mtx_ctx; ld a0, 176(t0); ld a1, 184(t0); ld a5, 160(t0); la a2, bv_mtx_sender_addr; la a3, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a4, 0(t0); li a6, 1; jal ra, b1_eip7702_apply_tx\n" ++
+  -- Sole EIP-7702 state/gas writer: run at the common per-transaction
+  -- boundary, before recipient routing.  The old B1 replay is a frozen
+  -- reference only; executing it here would be a second writer and can bail
+  -- a later transaction before it observes AccountState's prior commit.
+  -- Authorization recovery is part of the preparation phase itself.  The EOA
+  -- shortcut installs this backend later, so the common boundary must stage it
+  -- first or valid authorizations are silently skipped before their charges.
+  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
+  -- One live intrinsic/auth accounting boundary.  It uses AccountState as of
+  -- this transaction and writes the ordinary intrinsic-state settlement cell
+  -- directly; no block-final BAL replay or auth overlay follows later.
+  "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
@@ -375,6 +394,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
+  -- The sole MTx terminal state-gas finalizer.  Every supported terminal
+  -- route (contract, creation, and EOA) reaches this postlude exactly once;
+  -- a zero receipt status retains only intrinsic/auth state gas after a body
+  -- rollback, while a successful status includes the captured execution part.
+  "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
   -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
   -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
@@ -394,9 +418,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Commit the just-successful transaction's current CodeState overlay before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
-  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit\n" ++
+  -- Match `process_message`'s two snapshots: a successful body commits all
+  -- pending AccountState; a failed body still commits the authorization phase
+  -- iff the dispatcher reached the post-preparation coverage point.  A
+  -- preparation OOG never reaches that point and therefore drops pending auth.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_auth_phase_applied; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); ld a1, 184(t0); la a2, bv_mtx_sender_addr; ld a3, 160(t0); li a4, 1; jal ra, eip7702_auth_state_prepare; bnez a0, .Lbv_mtx_bail\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   -- `account_state_commit_pending` uses a1/a2 for durable-map operations.
   -- Reconstruct the successful transaction's captured storage slice before the
