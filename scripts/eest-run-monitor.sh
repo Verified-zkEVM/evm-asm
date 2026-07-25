@@ -82,7 +82,17 @@ snapshot() {
   selected=0
   [[ -f "$MANIFEST" ]] && selected="$(wc -l < "$MANIFEST" | tr -d ' ')"
   completed="$(find "$RUN_DIR" -maxdepth 1 -name '*.result.tsv' 2>/dev/null | wc -l | tr -d ' ')"
-  running="$(pgrep -fc "ziskemu .*${RUN_DIR}" || true)"
+  # Count in-flight workers for EITHER backend. Two bugs were fixed here:
+  #  * matching only `ziskemu` reported 0 for Spike-backed runs, and Spike is
+  #    the normal full-corpus backend — so the column read "nothing running"
+  #    for exactly the runs where it mattered most;
+  #  * `pgrep -f '<backend> .*RUN_DIR'` OVER-counts, because the harness's
+  #    per-case `bash` wrappers carry the backend name and the run dir in their
+  #    own command lines too (observed 53 matches for 22 real workers).
+  # So: select on the process NAME (-C, same list as the `ps` block below) and
+  # filter on the run dir appearing in the args.
+  running="$(ps -o comm=,args= -C ziskemu -C spike -C spike_run 2>/dev/null \
+    | awk -v run="$RUN_DIR" 'index($0, run) { n++ } END { print n+0 }')"
   note=""
   if [[ -n "$PID" ]]; then
     if kill -0 "$PID" 2>/dev/null; then
@@ -92,21 +102,46 @@ snapshot() {
     fi
   fi
 
+  # The result-file list is STREAMED on stdin (NUL-separated) and each file is
+  # opened by awk via getline. It must never be passed as argv: a full-corpus
+  # run dir holds tens of thousands of files (72,393 observed for a
+  # 26,104-fixture sweep), which exceeds ARG_MAX, so `awk … "$RUN_DIR"/*` never
+  # execs. That failure USED to fall through to `echo "0 0 0 …"`, printing
+  # `fail=0` — a broken instrument that reads as a clean sweep. It also
+  # degraded silently *as a run progressed*: correct while few files existed,
+  # all-zero once the count crossed the limit.
+  #
+  # The fallback now emits `ERR` per field rather than zeros, and stderr is NOT
+  # suppressed, so a failure is unmistakable and its cause is visible.
   read -r ok err full succ root tail fail rod < <(
-    awk -F '\t' '
-      BEGIN { ok=err=full=succ=root=tail=fail=rod=0 }
-      FNR==NR {
-        expected_by_label[$1] = substr($3, 1, 210)
-        rel[$1] = $7
-        next
+    # `-print` (newline-separated), NOT `-print0`: `RS` is global in awk, so a
+    # NUL record separator would also apply to the `getline < file` reads below,
+    # making each whole file a single record — which silently mis-parses the
+    # manifest into one giant record and yields wrong counts rather than an
+    # error. Result-file names are harness-generated (`<label>.result.tsv`) and
+    # contain no newlines, so newline separation is safe here.
+    find "$RUN_DIR" -maxdepth 1 -name '*.result.tsv' -print \
+    | awk -v manifest="$MANIFEST" '
+      BEGIN {
+        ok=err=full=succ=root=tail=fail=rod=0
+        while ((getline mline < manifest) > 0) {
+          n = split(mline, mc, "\t")
+          if (n >= 3) expected_by_label[mc[1]] = substr(mc[3], 1, 210)
+        }
+        close(manifest)
       }
       {
-        label = FILENAME
+        path = $0
+        if (path == "") next
+        label = path
         sub(/^.*\//, "", label)
         sub(/\.result\.tsv$/, "", label)
-        if ($1 != "OK") { err++; next }
+        if ((getline rline < path) <= 0) { close(path); next }
+        close(path)
+        split(rline, rf, "\t")
+        if (rf[1] != "OK") { err++; next }
         ok++
-        actual = $2
+        actual = rf[2]
         expected = expected_by_label[label]
         r = (substr(actual, 1, 64) == substr(expected, 1, 64))
         s = (substr(actual, 65, 2) == substr(expected, 65, 2))
@@ -121,13 +156,16 @@ snapshot() {
         }
       }
       END { print ok, err, full, succ, root, tail, fail, rod }
-    ' "$MANIFEST" "$RUN_DIR"/*.result.tsv 2>/dev/null || echo "0 0 0 0 0 0 0 0"
+    ' || echo "ERR ERR ERR ERR ERR ERR ERR ERR"
   )
 
-  printf '%s run=%s selected=%s completed=%s ok=%s err=%s full=%s succ=%s root=%s tail=%s fail=%s root_only=%s ziskemu=%s %s\n' \
+  # `workers=` rather than `ziskemu=`: the column counts either backend now, and
+  # a backend-specific label invited the same Spike-blind misreading the count
+  # itself had.
+  printf '%s run=%s selected=%s completed=%s ok=%s err=%s full=%s succ=%s root=%s tail=%s fail=%s root_only=%s workers=%s %s\n' \
     "$now" "$RUN_DIR" "$selected" "$completed" "$ok" "$err" "$full" "$succ" "$root" "$tail" "$fail" "$rod" "$running" "$note"
 
-  ps -o pid,ppid,rss,comm,args -C ziskemu 2>/dev/null \
+  ps -o pid,ppid,rss,comm,args -C ziskemu -C spike -C spike_run 2>/dev/null \
     | awk -v run="$RUN_DIR" 'NR == 1 || index($0, run) { print "  " $0 }'
 }
 
