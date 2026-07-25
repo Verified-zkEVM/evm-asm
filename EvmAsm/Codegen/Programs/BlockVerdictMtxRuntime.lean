@@ -313,6 +313,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_mtx_is_contract\n" ++
+  blockVerdictMtxPrecompileSettlement ++
   blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
   -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
