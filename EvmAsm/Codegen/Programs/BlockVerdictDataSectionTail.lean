@@ -289,6 +289,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
   "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- Nonzero only while the shared scalar direct-precompile kernel is
+  -- publishing an MTx result into the indexed arena.
+  "bv_mtx_precompile_lane:\n  .zero 8\n" ++
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
