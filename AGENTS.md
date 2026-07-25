@@ -406,6 +406,17 @@ Pitfalls:
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*
+  behind mirroring `execution-specs`: align the guest to the spec's MODEL even at a temporary
+  `+FR` cost (`FA = 0` the one gate); replacing a proven routine with unverified emitted code to
+  land a correctness fix is allowed (axiom-clean + empirical `FA = 0` are the only hard gates);
+  build the spec-aligned FINAL form instead of salvaging a near-working stage with a hybrid;
+  represent the spec's Python control flow as a *derived value* in RISC-V memory (e.g. an
+  `auth_phase_applied` cell mirroring a `try/except`), never as free-standing invented state;
+  honor the spec's exact temporal scopes; exact-discrepancy-first / single-writer / ground-truth
+  debugging. **Load when:** a fix touches guest state/gas semantics and you're choosing between
+  mirroring the spec and patching the guest's reconstruction, a fix would break a formal proof,
+  or you're about to add guest state with "no obvious spec counterpart."
 - [`docs/agents/roadmap-4ch8f.md`](docs/agents/roadmap-4ch8f.md) — the epic's master map:
   layer DAG + pick-next rules, recipe-by-routine-shape table, the gate matrix (what CI runs
   vs what you must run per change type), non-negotiable conventions, the family-bead
