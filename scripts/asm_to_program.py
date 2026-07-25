@@ -908,9 +908,6 @@ def _collect_guest_addr_syms():
     # manifest, but their Program views still use GuestAddrs constants.
     need.update({
         'evm_state_gas_spilled',
-        # The legacy replay is no longer called on the live gas-gate path, but
-        # its standalone checked Program still carries guest-linked jal offsets.
-        'block_verdict_tx_state_gas_array',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

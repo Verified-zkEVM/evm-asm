@@ -504,7 +504,6 @@ def statelessVerdictV2GuestClosure : String :=
   -- already in this closure; only the EIP-8037 state-gas bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
-  blockVerdictTxStateGasArrayFunction ++ "\n" ++
   blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
@@ -540,8 +539,6 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
-  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
-  txEip7702ExistingAuthorityRefundWithSenderNonceFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
