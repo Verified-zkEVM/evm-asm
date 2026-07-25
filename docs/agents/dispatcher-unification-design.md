@@ -60,11 +60,22 @@ The shared prologue and terminal mean the unification is **bounded to the middle
 Per-tx context base differs only by register + struct pointer: single-tx keeps
 the ctx ptr in `t2` at `bv_simple_transfer_tx` (`BlockVerdictFunction.lean:280`),
 MTx in `t0` at `bv_mtx_ctx` indexed by `bv_mtx_i` (`BlockVerdictMtxRuntime.lean:99`).
-**Both structs share the identical simple_transfer layout** (offsets: +0 status,
-+8 tx ptr, +16 tx len, +24 sender key, +40 gas_limit, +48 is_creation, +72
-recipient[20], +96 value[32], +160 tx type, +176/+184 raw ptr/len). **This layout
-identity is the concrete alias-stability fact** that lets the single-tx body be
-folded into the loop with the index fixed at 0. Prove it before aliasing.
+**Both structs share the identical 192-byte simple_transfer layout** (offsets: +0
+status, +8 tx ptr, +16 tx len, +24 sender key, +32 base-fee ptr, +40 gas_limit,
++48 is_creation, +56/+64 data ptr/len, +72 recipient[20], +96 value[32],
++128/+136/+144/+152 extractor statuses, +160 tx type, +168 inner-off, +176/+184
+inner ptr/len; both builders zero 24 qwords then use the same tx extractors).
+**This layout identity is the concrete alias-stability fact** that lets the
+single-tx body be folded into the loop with the index fixed at 0.
+
+**Phase-1 verified (2026-07-25, on 3dceb5ebf) — with two builder-stage caveats
+the unification must handle:** `multi_tx_nth_context` deliberately leaves **+24
+(sender pubkey)** and **+32 (BE base-fee ptr)** ZERO; MTxRuntime fills +24
+separately at `BVMtxRuntime:202-206` before dispatch and uses a shared
+`bv_mtx_base_fee_be` (writing +32 only in the creation lane, `:467`). So: **alias
+the single-tx body into the loop only AFTER +24 is normalized, and keep base-fee
+explicit — do NOT assume +32 is initialized by the MTx builder.** No offset
+conflict exists in the intrinsic fields; the caveats are init-ordering, not layout.
 
 Hook-by-hook (from the current-main map):
 
@@ -73,7 +84,7 @@ Hook-by-hook (from the current-main map):
 | Fee validity (`tx_effective_gas_pricing`) | `BVFunction:305-310` | `BVMtxRuntime:112-117` | same helper, dedupe to one call in the loop |
 | **Nonce check** | `== pre` (`:704-708`) | `== pre + running_count` (`b1_sender_table_find`, `:131-151`) | **MTx form is general**; single is the degenerate count==0 case — adopt running-count |
 | Upfront-balance lower bound | `:709-746` | `:163-196` | near-identical inline block, dedupe |
-| **Pending credit publish** | per-tx pending flags (`:759-803`) | cumulative sender-balance table B2.2/B2.3 (`BVMtxTail:106-227`) | **MTx cumulative model is general**; adopt it, single reduces to one-row |
+| **Pending credit publish** | per-tx pending flags (`:759-803`) | B2.2/B2.3 cumulative-balance table (`BVMtxTail:106-227`) is **DEAD** (phase-1: `.Lbv_b2_entry` has no live predecessor); live MTx exec-vs-BAL is the B1 path via `.Lbv_mtx_storage` (`BVMtxTail:95`) | **Do NOT adopt B2** as the general form — it is not live. Derive the unified balance model from the LIVE paths (single pending-flags + live MTx B1), and it **MUST preserve the EIP-7708 self-recipient value-subtraction exception** (`tx_gas_bal_post_verify_runtime:214-229`) that B2 lacks — see FA-risk in Risks. Characterize the live B1 credit model in phase-1b before designing the unified one. |
 | **Result store** | scalars, index 0 (`:837-878`) | strided by `bv_mtx_i` (`:275-286`) | **strided form is general**; count==1 is stride-with-one-element |
 | EIP-7702 auth-state setup | shared helper (contract) / re-inlined for EOA (`BVMtxEoa:52-60`) | same helper (contract) / MtxEoa mirror | one shared auth helper for BOTH contract and EOA — kill the MtxEoa duplicate |
 | Effect-log snapshot + REVERT/OOG truncation | `.Lbv_tx0_effects_kept` (`:820-869`) | `.Lbv_mtx_effects_kept` (`:262-296`) | near-verbatim, dedupe |
@@ -106,9 +117,13 @@ as the `i==0`/`count==1` case:
 1. Build ctx via one context builder into a single ctx base (normalize the
    register: pick one of `t0`/`t2`, prove the offset layout, alias the single-tx
    body in with `i` fixed at 0 for the count==1 entry).
-2. Run every per-tx hook in the general (MTx) form — running-count nonce,
-   cumulative-balance credit, strided result store, single shared auth helper,
-   always-run access-index/user-storage/committed-snapshot.
+2. Run every per-tx hook in the general (MTx) form — running-count nonce (reduces
+   to `==pre` at count 0), strided result store (reduces to scalar at stride-1),
+   single shared auth helper, always-run access-index/user-storage/committed-
+   snapshot. **Balance/credit is the exception:** the MTx B2 cumulative form is
+   dead and FA-unsafe for self-transfers, so the unified credit model is designed
+   in phase-1b from the live paths (not inherited) and must carry the EIP-7708
+   self-recipient exception.
 3. Three-way recipient routing (creation / contract / EOA) inside the loop —
    restoring creation support that MTx lacks.
 4. Feed the one shared terminal (`.Lbv_after_tx_gas_precharge`) with count =
@@ -144,18 +159,29 @@ reversal `bv_mtx_base_fee_be` (`:92-96`), sorted sender index `bv_b1_sender_tabl
 
 ## Risks / open items
 
-- **`.Lbv_b2_entry` appears defined-but-unwired** (`BVMtxTail:106`, returns to
-  `.Lbv_mtx_b2_return:231`) — the map found no active jump into it (only comments
-  at `:101,123`). Investigate before unification: either a latent
-  cumulative-sender-debit path that should be wired, or dead code to remove
-  (coordinate with 7r7w9). Resolve which before adopting the B2 cumulative model
-  as the general credit form.
+- **FA-RISK — self-transfer balance exception (phase-1 finding, highest-value):**
+  the B2.2/B2.3 cumulative-balance form debits `receipt_gas*egp + value` from the
+  header pre-balance (`BVMtxTail:122-156`) with **no self-recipient exception**,
+  whereas the live single-tx `tx_gas_bal_post_verify_runtime` **skips the value
+  subtraction when recipient==sender** (EIP-7708 self-transfer, `:214-229`). So a
+  count=1 self-transfer diverges: **adopting/wiring B2 without adding the
+  self-transfer exception is a false-accept risk.** The unified balance model must
+  carry this exception. (Non-self transfers match, blob-add included.)
+- **`.Lbv_b2_entry` is DEAD on current main (phase-1 confirmed).** `git grep`
+  finds only its definition/comments (`BVMtxTail:106`, `:101,123`); ReceiptsTail
+  starts directly at `.Lbv_mtx_b2_return`, and there is no emitted
+  `j/call .Lbv_b2_entry`. B1 jumps `.Lbv_mtx_storage` (`:95`) instead. So B2.2/B2.3
+  is NOT a live path to inherit — remove it as dead (a future cleanup pass) or
+  deliberately wire a correct version (with the self-transfer exception above);
+  do not treat it as an existing credit model.
 - **Register normalization** (`t2` vs `t0`) — a clobber here is the classic
   register-clobber trap; prove the ctx base is stable across every per-tx `jal`.
-- **Divergent-model reductions** must be verified, not assumed: confirm the
-  running-count nonce reduces to `==pre` at count 0, the cumulative-balance
-  credit reduces to the single pending-flag result for one tx, and the strided
-  store reduces to the scalar store at stride-1. A false reduction is an FA risk.
+- **Divergent-model reductions** (phase-1 status): running-count nonce **REDUCES**
+  (tx0 count 0 ⇒ `==pre`, verified `BVMtxRuntime:212-229`); strided result store
+  **REDUCES** (count=1 consumer reads index 0 = the sole scalar, `:374-381`); the
+  cumulative-balance credit **does NOT universally reduce** (the self-transfer
+  gap above) and B2 is dead regardless — the unified credit model is an open
+  phase-1b design item, not an inheritance.
 - **Creation inside the loop** is new for the multi-tx shape — the highest-value
   new capability and the least-tested; build the multi-tx-with-creation control
   fixtures first.
