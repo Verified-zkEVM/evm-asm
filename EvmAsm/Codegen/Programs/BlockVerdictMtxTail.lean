@@ -27,7 +27,8 @@ def blockVerdictMtxValidationTail : String :=
   -- at .Lbv_mtx_done, so EVERY tx reached a status-0 supported shape -> re-deriving
   -- each is safe (address_from_pubkey already ran @474, multi_tx_nth_context @438):
   --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)   (as @473-474)
-  --   skip[2i+1] = recipient_i = multi_tx_nth_context(bv_mtx_skip_ctx,i)+72 (pure re-extract)
+  --   skip[2i+1] = effective recipient_i = the dispatch-settled target
+  --                 (raw recipient for CALL/EOA, derived CREATE address for creation)
   --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)            (as @161-164)
   --   skip[2N+1..2N+6] = the genesis system/predeploy contracts plus SYSTEM_ADDRESS
   -- count = 2N+7. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
@@ -42,10 +43,9 @@ def blockVerdictMtxValidationTail : String :=
   "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t4; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
   "  slli t5, t1, 6; la a1, bv_mtx_skip_list; add a1, a1, t5\n" ++      -- a1 = &skip[2i] (offset i*64)
   "  jal ra, address_from_pubkey\n" ++
-  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t5, t1, 6; addi t5, t5, 32\n" ++
   "  la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++                      -- t6 = &skip[2i+1] (offset i*64+32)
-  "  la t2, bv_mtx_skip_ctx; addi t2, t2, 72; li t3, 0\n" ++            -- src = recipient (ctx+72)
+  "  la t2, bv_mtx_skip_idx; ld t1, 0(t2); slli t1, t1, 5; la t2, bv_mtx_effective_recipient_table; add t2, t2, t1; li t3, 0\n" ++ -- src = effective recipient
   ".Lbv_skl_rcopy:\n  li t4, 20; beq t3, t4, .Lbv_skl_rcopy_d\n  add t4, t2, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_rcopy\n.Lbv_skl_rcopy_d:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_skl_loop\n" ++
   ".Lbv_skl_done:\n" ++
