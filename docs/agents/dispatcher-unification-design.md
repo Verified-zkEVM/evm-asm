@@ -1,7 +1,7 @@
 # Dispatcher unification design (lhkn7)
 
-**Status:** design — approved direction, implementation pending (follows the
-7r7w9 dead-code cleanup). **Load when:** working on `block_verdict` transaction
+**Status:** phase-2 design drafted; implementation is held for maintainer
+review. **Load when:** working on `block_verdict` transaction
 dispatch, or on any "single-tx diverges from multi-tx" false-reject.
 
 ## Why
@@ -84,7 +84,7 @@ Hook-by-hook (from the current-main map):
 | Fee validity (`tx_effective_gas_pricing`) | `BVFunction:305-310` | `BVMtxRuntime:112-117` | same helper, dedupe to one call in the loop |
 | **Nonce check** | `== pre` (`:704-708`) | `== pre + running_count` (`b1_sender_table_find`, `:131-151`) | **MTx form is general**; single is the degenerate count==0 case — adopt running-count |
 | Upfront-balance lower bound | `:709-746` | `:163-196` | near-identical inline block, dedupe |
-| **Pending credit publish** | per-tx pending flags (`:759-803`) | B2.2/B2.3 cumulative-balance table (`BVMtxTail:106-227`) is **DEAD** (phase-1: `.Lbv_b2_entry` has no live predecessor); live MTx exec-vs-BAL is the B1 path via `.Lbv_mtx_storage` (`BVMtxTail:95`) | **Do NOT adopt B2** as the general form — it is not live. Derive the unified balance model from the LIVE paths (single pending-flags + live MTx B1), and it **MUST preserve the EIP-7708 self-recipient value-subtraction exception** (`tx_gas_bal_post_verify_runtime:214-229`) that B2 lacks — see FA-risk in Risks. Characterize the live B1 credit model in phase-1b before designing the unified one. |
+| **Pending credit publish** | per-tx pending flags (`:759-803`) | B2.2/B2.3 cumulative-balance table (`BVMtxTail:106-227`), now reached after the gas-result gate (`BlockVerdictReceiptsTail:20-25`, restored by #10516) | B2 is live only as final sender validation. #10517 makes its value debit success-gated; it remains incomplete as a general credit model until it shares the self-transfer, recipient, and coinbase rules below. |
 | **Result store** | scalars, index 0 (`:837-878`) | strided by `bv_mtx_i` (`:275-286`) | **strided form is general**; count==1 is stride-with-one-element |
 | EIP-7702 auth-state setup | shared helper (contract) / re-inlined for EOA (`BVMtxEoa:52-60`) | same helper (contract) / MtxEoa mirror | one shared auth helper for BOTH contract and EOA — kill the MtxEoa duplicate |
 | Effect-log snapshot + REVERT/OOG truncation | `.Lbv_tx0_effects_kept` (`:820-869`) | `.Lbv_mtx_effects_kept` (`:262-296`) | near-verbatim, dedupe |
@@ -120,10 +120,8 @@ as the `i==0`/`count==1` case:
 2. Run every per-tx hook in the general (MTx) form — running-count nonce (reduces
    to `==pre` at count 0), strided result store (reduces to scalar at stride-1),
    single shared auth helper, always-run access-index/user-storage/committed-
-   snapshot. **Balance/credit is the exception:** the MTx B2 cumulative form is
-   dead and FA-unsafe for self-transfers, so the unified credit model is designed
-   in phase-1b from the live paths (not inherited) and must carry the EIP-7708
-   self-recipient exception.
+   snapshot. **Balance/credit is the exception:** it must use the one model
+   below rather than inheriting either existing lane verbatim.
 3. Three-way recipient routing (creation / contract / EOA) inside the loop —
    restoring creation support that MTx lacks.
 4. Feed the one shared terminal (`.Lbv_after_tx_gas_precharge`) with count =
@@ -132,6 +130,87 @@ as the `i==0`/`count==1` case:
 Pre-loop MTx setup that must be preserved or hoisted for all counts: base-fee
 reversal `bv_mtx_base_fee_be` (`:92-96`), sorted sender index `bv_b1_sender_table`
 (`:64-81`), committed cross-tx tables reset (`:83-84`).
+
+## Fresh-main hook inventory and boundaries
+
+This map is from merged main `573a0e031` (the #10517 baseline).  It is the
+implementation boundary for the future change, not permission to change the
+emitted program yet.
+
+- **Once per block:** `BlockVerdictFunction` establishes the witness/header
+  globals and calls `blockVerdictMtxRuntimeLoop`; MTx setup initializes the
+  sender table, the AccountState/CodeState mirrors, committed logs, and the
+  explicit BE base-fee buffer before the loop.
+- **Once per transaction:** the MTx loop clears the auth-phase scratch, calls
+  `multi_tx_nth_context`, normalizes the omitted context `+24` sender key,
+  applies fee/nonce/auth preparation, dispatches creation/contract/EOA, stores
+  the indexed result/status, captures storage rows, then commits or rolls back
+  effects according to that transaction's status.  The future unified loop
+  must execute this full sequence even when `bv_tx_count == 1`.
+- **Shared terminal only after all transactions:** both lanes feed
+  `.Lbv_after_tx_gas_precharge`, then exact gas checking and
+  `blockVerdictReceiptsTail`.  No per-tx balance calculation may reread the
+  header balance at this terminal; it consumes the ordered per-tx records.
+
+The two important per-tx boundaries are therefore (1) immediately after the
+transaction's status is known, where its credit/debit record becomes final, and
+(2) the ordered cross-tx commit, which is the only source for the next
+transaction's as-of balance/existence.
+
+## Phase-2 unified credit model (design only)
+
+The unified loop must compute **one ordered credit/debit record per
+transaction**, after the transaction status and its exact receipt gas are
+available.  All consumers — AccountState, nonstorage effects, B2.3 final
+comparison, and receipt/gas accounting — must consume that same record rather
+than recomputing an adjacent variant.
+
+For transaction `i`:
+
+- `gasDebit(i)` is charged unconditionally from exact gas used and the existing
+  exact fee calculation (including blob fee where applicable).  A reverting or
+  OOG body still pays its consumed gas.
+- `committedValue(i)` is `tx.value` only when the runtime status for `i` is
+  successful; otherwise it is zero.  This is the #10517 rule expressed in the
+  shared model, not a B2-only exception.
+- The sender is debited by `gasDebit(i)`.  It is debited by
+  `committedValue(i)` only when recipient and sender differ.  A self-transfer
+  therefore pays gas but does not manufacture a transient value debit/credit
+  pair; this preserves the EIP-7708 self-recipient rule.
+- A distinct recipient receives `committedValue(i)` from the prior committed
+  transaction state.  Failed/reverted bodies and self-transfers publish no
+  recipient value credit.
+- Coinbase receives the exact priority-fee component for `i`, accumulated on
+  its already-committed live balance.  It must not be rebuilt from a
+  header-pre-state balance for each transaction.
+
+The record is appended/published in transaction order to the same committed
+state used by subsequent transactions.  This makes a later transaction observe
+only earlier committed credits, while the terminal B2.3 comparison observes the
+whole block result.  The implementation must reuse the existing exact fee
+calculator rather than duplicate fee arithmetic here.
+
+## Eventual fixture and safety-control matrix
+
+Any implementation of the design must run a full A/B, but these are mandatory
+focused controls first:
+
+- **B2.3 false-accept forge:** `scripts/make-mtx-sender-balance-forge.py` and
+  `/tmp/sender_balance_forge.bin` must reject (output success byte 32 is zero).
+- **Reverted/OOG value semantics:** #10517's nine controls remain accepted:
+  deposits `23016/23018/23024/23057/23058`, withdrawals `23191/23193`, and
+  consolidations `23345/23347`.
+- **Multi-tx creation:** `11617/11618/11619`
+  `dynamic_create2_selfdestruct_collision_multi_tx` must route through the
+  unified creation path rather than the present MTx creation bailout.
+- **Self transfer:** `00236` `transfer_to_self_no_log` and `00504`
+  `bal_self_transfer` guard the no-value-net-debit rule; a multi-tx self-transfer
+  fixture must be added or constructed before implementation because the
+  current named controls are single-block variants.
+- **Cross-tx sender/cumulative state:** `00624`
+  `bal_7702_delegation_update` and a multi-tx same-sender block exercise the
+  ordered sender/coinbase credit source.  The latter must be chosen from the
+  manifest (or added) before the implementation gate.
 
 ## Migration strategy
 
@@ -159,29 +238,21 @@ reversal `bv_mtx_base_fee_be` (`:92-96`), sorted sender index `bv_b1_sender_tabl
 
 ## Risks / open items
 
-- **FA-RISK — self-transfer balance exception (phase-1 finding, highest-value):**
-  the B2.2/B2.3 cumulative-balance form debits `receipt_gas*egp + value` from the
-  header pre-balance (`BVMtxTail:122-156`) with **no self-recipient exception**,
-  whereas the live single-tx `tx_gas_bal_post_verify_runtime` **skips the value
-  subtraction when recipient==sender** (EIP-7708 self-transfer, `:214-229`). So a
-  count=1 self-transfer diverges: **adopting/wiring B2 without adding the
-  self-transfer exception is a false-accept risk.** The unified balance model must
-  carry this exception. (Non-self transfers match, blob-add included.)
-- **`.Lbv_b2_entry` is DEAD on current main (phase-1 confirmed).** `git grep`
-  finds only its definition/comments (`BVMtxTail:106`, `:101,123`); ReceiptsTail
-  starts directly at `.Lbv_mtx_b2_return`, and there is no emitted
-  `j/call .Lbv_b2_entry`. B1 jumps `.Lbv_mtx_storage` (`:95`) instead. So B2.2/B2.3
-  is NOT a live path to inherit — remove it as dead (a future cleanup pass) or
-  deliberately wire a correct version (with the self-transfer exception above);
-  do not treat it as an existing credit model.
+- **FA-RISK — self-transfer balance exception:** the live B2.2/B2.3 sender
+  table still needs an explicit recipient-equals-sender exception, while
+  `tx_gas_bal_post_verify_runtime` already has it (`:214-229`).  Reusing B2
+  without the unified record's self-transfer rule can create a false accept.
+- **B2 is live but intentionally interim:** #10516 restored the receipts-tail
+  predecessor to `.Lbv_b2_entry`; #10517 added the success gate for its value
+  debit.  It remains sender-only and cannot be lifted wholesale: recipient and
+  cumulative coinbase credits need the shared ordered model above.
 - **Register normalization** (`t2` vs `t0`) — a clobber here is the classic
   register-clobber trap; prove the ctx base is stable across every per-tx `jal`.
 - **Divergent-model reductions** (phase-1 status): running-count nonce **REDUCES**
   (tx0 count 0 ⇒ `==pre`, verified `BVMtxRuntime:212-229`); strided result store
   **REDUCES** (count=1 consumer reads index 0 = the sole scalar, `:374-381`); the
   cumulative-balance credit **does NOT universally reduce** (the self-transfer
-  gap above) and B2 is dead regardless — the unified credit model is an open
-  phase-1b design item, not an inheritance.
+  gap above) — the unified credit model is not an inheritance from either lane.
 - **Creation inside the loop** is new for the multi-tx shape — the highest-value
   new capability and the least-tested; build the multi-tx-with-creation control
   fixtures first.
