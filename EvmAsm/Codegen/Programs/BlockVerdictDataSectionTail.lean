@@ -442,6 +442,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "bv_mtx_created_recipient_count:\n  .zero 8\n" ++
   "bv_mtx_created_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
+  -- Effective recipient for each settled MTx item. Unlike the raw context
+  -- recipient, this holds the derived CREATE address for a creation tx.
+  ".balign 8\n" ++
+  "bv_mtx_effective_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): per-account aggregation of exec_nonstorage_effect_log
   -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
   -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed

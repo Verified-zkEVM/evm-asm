@@ -394,6 +394,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
+  -- Contract/EOA contexts retain their raw recipient here; the creation route
+  -- above has re-keyed ctx+72 to bv_create_addr before joining this postlude.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 5; la t2, bv_mtx_effective_recipient_table; add t2, t2, t1; la t0, bv_mtx_ctx; addi t0, t0, 72; li t3, 20\n" ++
+  ".Lbv_mtx_effective_recipient_copy:\n  beqz t3, .Lbv_mtx_effective_recipient_done; lbu t4, 0(t0); sb t4, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_effective_recipient_copy\n" ++
+  ".Lbv_mtx_effective_recipient_done:\n" ++
   -- The sole MTx terminal state-gas finalizer.  Every supported terminal
   -- route (contract, creation, and EOA) reaches this postlude exactly once;
   -- a zero receipt status retains only intrinsic/auth state gas after a body
