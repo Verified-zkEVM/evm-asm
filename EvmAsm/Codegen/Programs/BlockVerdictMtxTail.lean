@@ -124,6 +124,10 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_fee_egp_scratch; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_mul_u64_be\n" ++                                            -- debit = eff_price * gas_used
   "  bnez a0, .Lbv_b2_next\n" ++                                              -- overflow (unreachable for real values)
+  -- A reverted / exceptional transaction still pays gas, but its call value is
+  -- rolled back.  `bv_tx_status_arr[i]` is the authoritative settle status
+  -- published by the MTx runtime, so add value only for a committed body.
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3; la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); beqz t0, .Lbv_b2_after_value\n" ++
   "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_mtx_skip_ctx; addi a1, a1, 96; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_add_be\n" ++                                               -- debit += tx.value
   "  bnez a0, .Lbv_b2_next\n" ++
