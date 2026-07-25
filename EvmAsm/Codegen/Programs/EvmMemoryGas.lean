@@ -606,9 +606,28 @@ def keccakRangeGuardAsm : String :=
 
 /-- KECCAK256/SHA3 word gas. The dispatch loop already charges the fixed
     opcode base cost (30), so this charges only `6 * ceil(size / 32)` against
-    `env.gasRemaining`. `sizeReg` is preserved; x5/x6 are clobbered. -/
+    `env.gasRemaining`. `sizeReg` is preserved; x5/x6 are clobbered.
+
+    The `bltu` after the `addi` is the `ceil32` wraparound guard (the same one
+    `copyWordGasAsm` carries). Without it `size ∈ [2^64-31, 2^64-1]` — which
+    `keccakRangeGuardAsm` admits, since its high limbs are zero and
+    `offset + size` need not wrap — makes `size + 31` wrap to a small value,
+    so `srli` yields **0** words and this charges nothing. The subsequent
+    `updateActiveMemorySizeAsm` also rounds to 0 and charges nothing, and the
+    handler then hands the unclamped `size` to `zkvm_keccak256`, whose absorb
+    loop is skipped by a signed compare and whose byte tail then walks ~456M
+    bytes off the end of RAM: ≈3.6e9 RISC-V steps for the 30-gas static base.
+    execution-specs charges `6 * (ceil32(size) // 32)` on unbounded `Uint`
+    (`amsterdam/vm/instructions/keccak.py:46-48`, `OPCODE_KECCAK256_PER_WORD`
+    = 6 at `vm/gas.py:229`), i.e. `6 * 2^59` here — an OOG. The guard restores
+    that: a wrapping `ceil32` is exactly the case whose true cost exceeds any
+    gas limit, so routing it to `.exit_outofgas` is the spec outcome, reached
+    in constant steps. Sound in the FA direction by construction — it can only
+    turn a should-OOG input from a trivial charge into the correct OOG, never
+    lower `gas_used`. -/
 def keccakWordGasAsm (sizeReg : String) : String :=
   "  addi x5, " ++ sizeReg ++ ", 31\n" ++
+  "  bltu x5, " ++ sizeReg ++ ", .exit_outofgas\n" ++
   "  srli x5, x5, 5\n" ++
   "  slli x6, x5, 2\n" ++
   "  add x6, x6, x5\n" ++
