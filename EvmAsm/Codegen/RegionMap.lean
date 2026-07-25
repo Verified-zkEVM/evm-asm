@@ -306,7 +306,7 @@ def schemeAAnchors : List GuestRegion :=
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
     (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x6195c
+def textSizeBytes : Nat := 0x62170
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -333,7 +333,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b20b120
+def bssSizeBytes : Nat := 0x1b20b160
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

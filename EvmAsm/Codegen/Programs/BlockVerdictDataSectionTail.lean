@@ -484,6 +484,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- the table row's count word remains the accumulated block-global nonce delta.
   "b1an_auth_off:\n  .zero 8\n" ++
   "b1an_auth_len:\n  .zero 8\n" ++
+  "b1an_target_off:\n  .zero 8\n" ++
+  "b1an_target_len:\n  .zero 8\n" ++
   "b1an_auth_count:\n  .zero 8\n" ++
   "b1an_auth_i:\n  .zero 8\n" ++
   "b1an_item_off:\n  .zero 8\n" ++

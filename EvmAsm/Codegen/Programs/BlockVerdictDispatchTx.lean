@@ -459,7 +459,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s0, a1                    # witness.state ptr\n" ++
   "  mv s1, a2                    # witness.state len\n" ++
   "  mv s2, a0                    # context record ptr\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  -- The common MTx EIP-7702 boundary has already charged this transaction's
+  -- first-write ACCOUNT_WRITE entries.  Preserve that base through dispatch;
+  -- delegation access below is an additional warm/cold cost, not a replacement.
+  "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
@@ -525,7 +528,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t1, 3000; beqz a0, .Ldtrc_prior_access_cold\n" ++
   "  li t1, 100\n" ++
   ".Ldtrc_prior_access_cold:\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   -- Amsterdam prepare_dispatch charges this delegated access before reading
   -- the target account/code.  Keep the marker payload until the callable
   -- runtime reaches that existing OOG branch, then materialize on success.
@@ -545,7 +548,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t1, 3000; beqz a0, .Ldtrc_sb_access_cold\n" ++
   "  li t1, 100\n" ++
   ".Ldtrc_sb_access_cold:\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++
@@ -1013,6 +1016,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, runtime_tx_auth_list_ptr; sd t2, 0(t0)\n" ++
   "  la t1, dtrc_auth_len; ld t2, 0(t1); la t0, runtime_tx_auth_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_warm_fn; la t1, eip7702_warm_recovered_authorities; sd t1, 0(t0)\n" ++
+  -- The dispatcher owns the intrinsic regular-gas setup.  Re-materialize the
+  -- immutable authorization count after its per-dispatch reset so
+  -- `runtime_dispatcher_call` charges REGULAR_PER_AUTH_BASE_COST before the
+  -- staged top-frame EIP-7702 state charges.
+  "  ld a0, 176(s2); la t0, dtrc_auth_off; ld t0, 0(t0); add a0, a0, t0; la t0, dtrc_auth_len; ld a1, 0(t0); la a2, runtime_tx_auth_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Ldtrc_auth_done\n" ++
   ".Ldtrc_auth_done:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
@@ -1022,32 +1031,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 `set_delegation` refunds NEW_ACCOUNT state gas into the message
-  -- reservoir and ACCOUNT_WRITE regular gas into `tx_output.refund_counter` when
-  -- the recovered authority already exists. The callable dispatcher resets its
-  -- state-gas cells during setup, so compute both refunds here and stage them.
-  "  la t4, teer_records_ptr; la t5, basr_records; sd t5, 0(t4)\n" ++
-  "  la t4, teer_auth_count; sd zero, 0(t4)\n" ++
-  "  la t4, teer_predelegated_count; sd zero, 0(t4)\n" ++
-  "  la t4, runtime_tx_auth_state_refund; sd zero, 0(t4)\n" ++
+  -- EIP-7702 preparation ran at the common MTx transaction boundary before
+  -- recipient routing; do not invoke a second writer in this contract arm.
   "  la t4, runtime_tx_create_state_charge; sd zero, 0(t4)\n" ++
-  "  la t4, runtime_tx_auth_regular_refund; sd zero, 0(t4)\n" ++
-  "  ld a0, 8(s2); ld a1, 16(s2)\n" ++
-  "  la t4, bv_bal_start; ld a2, 0(t4); la t4, bv_bal_len; ld a3, 0(t4)\n" ++
-  "  la t4, bv_chain_id; ld a4, 0(t4); la t4, current_block_access_index; ld a5, 0(t4)\n" ++
-  "  jal ra, tx_eip7702_existing_authority_refund_with_sender_nonce\n" ++
-  -- v0.6.0: the runtime pools are driven by the WOULD-BE charges (a
-  -- rolled-back prep still charges up to its OOG point); the APPLIED
-  -- a0/a1 returns feed only the block-state arrays.
-  "  la t5, teer_wouldbe_state; ld t5, 0(t5); la t4, runtime_tx_auth_state_refund; sd t5, 0(t4)\n" ++
-  "  la t5, teer_wouldbe_regular; ld t5, 0(t5); la t4, runtime_tx_auth_regular_refund; sd t5, 0(t4)\n" ++
-  "  la t4, runtime_tx_top_frame_regular_gas; ld t6, 0(t4); add t6, t6, t5; sd t6, 0(t4)\n" ++
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
   "  la t3, teer_predelegated_count; ld t3, 0(t3); sd t3, 0(t4)\n" ++
   ".Ldtrc_auth_predelegated_stored:\n" ++
-  "  la t4, teer_auth_count; ld t5, 0(t4); la t4, runtime_tx_auth_count; sd t5, 0(t4)\n" ++
   -- The callable dispatcher will reread calldata_len at payload+8+round8(code_len)
   -- before it has any verdict-side bounds context. If later staging accidentally
   -- clobbers that word, ziskemu panics on the derived slot-count address instead

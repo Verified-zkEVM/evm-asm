@@ -315,6 +315,49 @@ def accountStateRecordCodeFunction : String :=
   ".Lasrc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
+/-! ## EIP-7702 AccountState adapters
+
+    An accepted authorization mutates account existence, nonce, and delegation
+    before message execution.  Store those execution facts in the same pending
+    overlay as CREATE so the next transaction reads the committed prior-tx
+    state, never a post-state BAL reconstruction.  Flag bit 3 denotes a known
+    delegation designator; bit 5 retains the authoritative nonce convention
+    used by the existing non-storage adapter. -/
+def accountStateRecordAuthFunction : String :=
+  "account_state_record_auth:\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Lasra_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Lasra_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasra_zero\n" ++
+  ".Lasra_clone:\n" ++
+  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
+  ".Lasra_fields:\n" ++
+  "  la t0, account_state_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 0\n" ++
+  ".Lasra_addr:\n" ++
+  "  li t2, 20; beq t1, t2, .Lasra_nonce; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasra_addr\n" ++
+  ".Lasra_nonce:\n" ++
+  "  sd s1, 64(t0); ld t1, 88(t0); ori t1, t1, 35; li t2, -9; and t1, t1, t2; beqz s2, .Lasra_flags; ori t1, t1, 8\n" ++
+  ".Lasra_flags:\n" ++
+  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasra_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lasra_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 56; ret"
+
+def accountStateAuthCurrentFunction : String :=
+  "account_state_auth_current:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasac_entry\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasac_miss\n" ++
+  ".Lasac_entry:\n" ++
+  "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .Lasac_dead; andi t1, t0, 32; beqz t1, .Lasac_miss; sd t0, 0(s2); ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasac_ret\n" ++
+  ".Lasac_dead:\n" ++
+  "  li a0, 2; j .Lasac_ret\n" ++
+  ".Lasac_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lasac_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 32; ret"
+
 /-! ## AccountState read adapters
 
     These are the only execution-read interfaces the atomic cutover will

@@ -523,6 +523,11 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- us to scatter the identical settled result at its current index.
   "  la t4, bv_creation_output_mode; ld t5, 0(t4); bnez t5, .Lbvcr_mtx_publish\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  -- Every terminal transaction route finalizes its one combined EIP-8037
+  -- state-gas cell after execution capture and authoritative status are known.
+  -- A successful creation keeps its captured execution component; a reverted
+  -- creation retains only its intrinsic/auth component.
+  "  li a0, 0; snez a1, s3; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++

@@ -29,7 +29,7 @@ eip8037_tx_gas_gate:
   la t2, bv_bal_start; ld a4, 0(t2)
   la t2, bv_bal_len; ld a5, 0(t2)
   la t2, bv_chain_id; ld a6, 0(t2)
-  jal ra, block_verdict_tx_state_gas_array
+  li a0, 0
   bnez a0, .Letg_state_array_ready
   la t0, bsg_exact_state_ok; li t1, 1; sd t1, 0(t0)
 .Letg_state_array_ready:

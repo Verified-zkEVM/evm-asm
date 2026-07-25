@@ -1967,6 +1967,8 @@ def emitDispatcherEpilogueCore
     accountStateCommitPendingFunction ++ "\n" ++
     accountStateRecordNonstorageFunction ++ "\n" ++
     accountStateRecordCodeFunction ++ "\n" ++
+    accountStateRecordAuthFunction ++ "\n" ++
+    accountStateAuthCurrentFunction ++ "\n" ++
     accountStateLatestBalanceFunction ++ "\n" ++
     accountStateLatestNonceFunction ++ "\n" ++
     accountStateLookupCurrentFunction ++ "\n" ++
@@ -2463,6 +2465,11 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
+  -- This is a memoized control-flow fact, not independent guest state: it is
+  -- set only after the common intrinsic, auth-state, and top-frame regular
+  -- pre-dispatch charges have all passed their gas-coverage checks below.
+  -- A pre-dispatch ExceptionalHalt leaves it zero; a later body REVERT keeps it.
+  "  la x28, runtime_tx_auth_phase_applied; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_count; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_next_epoch; li x29, 1; sd x29, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_epoch_by_depth; sd x0, 0(x28)\n" ++
@@ -2866,6 +2873,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sub x6, x6, x9\n" ++
   "  sd x6, 568(x20)\n" ++
   ".runtime_tx_top_frame_regular_done:\n" ++
+  "  la x11, runtime_tx_auth_phase_applied; li x9, 1; sd x9, 0(x11)\n" ++
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
@@ -3132,6 +3140,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   accountStateCommitPendingFunction ++ "\n" ++
   accountStateRecordNonstorageFunction ++ "\n" ++
   accountStateRecordCodeFunction ++ "\n" ++
+  accountStateRecordAuthFunction ++ "\n" ++
+  accountStateAuthCurrentFunction ++ "\n" ++
   accountStateLatestBalanceFunction ++ "\n" ++
   accountStateLatestNonceFunction ++ "\n" ++
   accountStateLookupCurrentFunction ++ "\n" ++
@@ -3534,6 +3544,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_top_frame_regular_gas:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_phase_applied:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_post_top_frame_fn:\n" ++
   "  .zero 8\n" ++
