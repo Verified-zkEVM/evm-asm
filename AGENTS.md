@@ -319,6 +319,31 @@ Verified `Program`s are emitted to RV64 ELFs and run on `ziskemu` — roadmap in
 line) is the build-time gate for `emitInstr` drift. The conformance harness for
 guest changes is `scripts/codegen-eest-stateless-check.sh` (EEST A/B).
 
+#### Choosing the guest ELF, and knowing which one you ran (GH #10617)
+
+Override the guest with the **flag** `--guest-elf <path>`; it implies
+`--no-build`. There is no environment override: `GUEST_ELF` (and its internal
+twin `USER_GUEST_ELF`) now make the script **fail** and point at the flag.
+The variable used to be read as `USER_GUEST_ELF="${GUEST_ELF:-…}"`, so exporting
+the internal name was silently ignored — three consecutive sweeps reported clean
+passes on the default guest, and a 120-row false-reject population was declared
+fixed on that evidence. A misspelled argument fails loudly; a misspelled
+variable is indistinguishable from an unset one.
+
+Every run now echoes the resolved guest path and its **sha256** before running
+anything, and records both (plus `repo_head`, `repo_dirty`, backend and fixture
+tag) in `$RUN_DIR/run-provenance.tsv`; the sha is also in
+`eest-baseline.txt`. `scripts/eest-ab-compare.py` reads that file, so
+self-check 0 (“the two legs are distinct artifacts”) now runs even when a leg's
+guest came from outside the run dir instead of being skipped. The same
+`# guest_elf` / `# guest_elf_sha256` header is written by
+`scripts/lhkn7-semantic-boundary-v2-sweep.py`, and `scripts/spike/parity-check.sh`
+takes `--guest-elf` on the same terms.
+
+**Before believing any result that depends on an override, read back the sha the
+run printed.** An artifact that is not what it says it is has been the shape of
+every measurement failure on this harness so far.
+
 ## Architecture fitness functions (`scripts/check-*.sh`)
 
 The `scripts/check-*.sh` suite **is** a set of *architecture fitness

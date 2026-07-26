@@ -595,10 +595,16 @@ The pattern of `ChainIdSAsm.lean` / `ActiveForkSAsm.lean`:
    - baseline ELF: `git stash -u`, then
      `lake exe codegen --program stateless_guest --halt linux93 -o gen-out/<base>`,
      `git stash pop`; candidate ELF likewise from the branch;
-   - per leg: `GUEST_ELF=<elf> EEST_RUN_DIR=<dir>
-     scripts/codegen-eest-stateless-check.sh --no-build --backend spike
+   - per leg: `EEST_RUN_DIR=<dir>
+     scripts/codegen-eest-stateless-check.sh --guest-elf <elf> --backend spike
      --random --seed 4242 --limit 200 --jobs 8 --quiet-passes`
-     (note: `--all` bypasses `--limit`);
+     (note: `--all` bypasses `--limit`; `--guest-elf` implies `--no-build`.
+     The guest is chosen with the **flag** — the old `GUEST_ELF` environment
+     variable is removed and setting it is now an error, because in one of its
+     two spellings it was silently ignored and ran the default guest, GH #10617.
+     Each leg echoes its resolved guest path and sha256 and records both in
+     `<dir>/run-provenance.tsv`; **check that the two legs' shas differ** before
+     believing any delta);
    - diff the per-case `PASS/FAIL/ERROR/BUDGET` labels between legs —
      **failures are acceptable only if identical on both legs**; also
      sanity-diff the two `.s` files (only the expected expansion).
