@@ -51,6 +51,7 @@ import argparse
 import json
 import os
 import struct
+import random
 import sys
 from pathlib import Path
 
@@ -171,6 +172,17 @@ def main() -> int:
     ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument(
+        "--random",
+        action="store_true",
+        help="shuffle the fixture FILE list before applying --skip/--limit, so "
+             "the cap selects a spread across the corpus rather than its front "
+             "(GH #10596). Requires --seed.",
+    )
+    ap.add_argument(
+        "--seed", type=int, default=None,
+        help="seed for --random; required with it so a run is reproducible",
+    )
+    ap.add_argument(
         "--filter",
         default="",
         help="keep blocks whose fixture relpath or test label contains this",
@@ -196,6 +208,10 @@ def main() -> int:
         ap.error("--skip must be nonnegative")
     if args.limit < 0:
         ap.error("--limit must be nonnegative")
+    if args.random and args.seed is None:
+        ap.error("--random requires --seed (a run that cannot be reproduced is not a result)")
+    if args.seed is not None and not args.random:
+        ap.error("--seed is meaningless without --random")
 
     fixtures_dir: Path = args.fixtures_dir
     out_dir: Path = args.out_dir
@@ -216,6 +232,22 @@ def main() -> int:
         p for p in fixtures_dir.rglob("*.json")
         if ".meta" not in p.parts
     )
+
+    # GH #10596: --limit is applied AFTER the shuffle, which is what the flag has
+    # always documented. Previously the harness shuffled the manifest the
+    # converter had ALREADY truncated, so `--random --limit N` returned the first
+    # N fixtures in a random ORDER rather than N drawn from the corpus -- and
+    # manifest order tracks fixture family, so the result was a clustered sample
+    # presented as a spread one.
+    #
+    # The shuffle is over the FILE list, not the block list: blocks are streamed
+    # out of each file by `iter_blocks`, so sampling at block granularity would
+    # mean parsing all ~6.3k fixtures up front, which is most of the conversion
+    # cost the cap exists to avoid. At ~4.1 blocks per file the residual is that
+    # a selected file contributes its handful of blocks together; the
+    # family-level clustering that made the old behaviour misleading is gone.
+    if args.random:
+        random.Random(args.seed).shuffle(json_files)
 
     selected = 0
     n = 0
