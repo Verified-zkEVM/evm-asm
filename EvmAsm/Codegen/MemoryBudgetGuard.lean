@@ -399,4 +399,99 @@ theorem storageColdDelta_completes_cold :
       = EvmAsm.Stateless.SpecRef.GasCosts.COLD_STORAGE_ACCESS := by
   decide
 
+/-! ## Guard 8 — the SSTORE refund literals (GH #10574)
+
+`REFUND_STORAGE_CLEAR` is the deepest derivation in the gas surface: the spec
+does not state it as a number at all. `amsterdam/vm/gas.py:92-94` computes it as
+`(STORAGE_WRITE + COLD_STORAGE_ACCESS) * 4800 // 5000`, i.e.
+`(10000 + 3000) * 4800 // 5000 = 12480`. The guest emits the **result** as a bare
+literal. Both values are **correct today** — these pins are drift protection.
+
+Three properties make this a worse coincidence than the flat coefficients above:
+
+* **two upstream inputs**, either of which moves it — and `COLD_STORAGE_ACCESS`
+  is already pinned separately by `storageColdDelta_completes_cold`, which stays
+  green through a reprice while silently invalidating this refund, because
+  neither guard knows the second is downstream of the first;
+* **the derivation is not reconstructable from the literal** — a `4800/5000`
+  ratio inside an integer truncation gives a reader updating `STORAGE_WRITE` no
+  cue that a refund constant three files away depends on it;
+* **`STORAGE_WRITE` breaks both literals at once, by different amounts** — the
+  restore refund directly, and the clear refund through the derivation. A fixer
+  who updates the obvious one and not the derived one leaves the refund counter
+  wrong in the harder-to-notice direction.
+
+Amsterdam already performed exactly this reprice, halving `STORAGE_WRITE` from
+20000 to 10000 and moving `REFUND_STORAGE_CLEAR` from 22080 to 12480.
+
+`SpecRef/Gas.lean:229` already guards `REFUND_STORAGE_CLEAR == 12480`, but that
+ties the **SpecRef port** to the literal; nothing tied the **guest's** emissions
+to it. These two theorems close that.
+
+### Why there is no theorem for the derivation itself
+
+Per this file's admission test, the derivation is **construction**, not
+coincidence: `SpecRef/Gas.lean:81-82` *defines* `REFUND_STORAGE_CLEAR` as
+`(STORAGE_WRITE + COLD_STORAGE_ACCESS) * 4800 / 5000`, so a theorem asserting
+that equality restates the definition and cannot fail — redundant ceremony, and
+misleading, since a reader would take it for a check that the derivation still
+holds. What is genuinely coincidental is that the derivation's *output* equals
+the number the guest emits, and that is `sstoreRefundClear_is_12480`. Pin the
+quantity that is used; the inputs need nothing here because Lean recomputes them.
+
+### Where to edit when this fires — the sites are not equivalent
+
+Each guard fires once; the fix is several edits, and three of them are in files
+`#10574` does not name. **Never edit the theorems.**
+
+`REFUND_STORAGE_CLEAR` (`li t0, 12480`) — 2 sites, both live:
+
+| site | destination |
+|---|---|
+| `Programs/SstoreGasRefund.lean:107` | `add s7` — refund accumulator, **LIVE** |
+| `Programs/SstoreGasRefund.lean:111` | `sub s7` — refund accumulator, **LIVE** |
+
+`STORAGE_WRITE` (`li …, 10000`) — 5 sites across 3 files, and only three matter:
+
+| site | destination | status |
+|---|---|---|
+| `Programs/Storage.lean:159` | debits the gas cell `568(x20)` | **LIVE — actually charges gas** |
+| `Programs/Storage.lean:168` | debits the gas cell `568(x20)` | **LIVE — actually charges gas** |
+| `Programs/SstoreGasRefund.lean:115` | `add s7` — refund accumulator | **LIVE** |
+| `Programs/SstoreGasRefund.lean:97` | `add s6` — gas accumulator | **DEAD** — see below |
+| `Programs/SstoreRegularGas.lean:74` | returns in `a0` | **PROBE-ONLY** — no production call site |
+
+The two sites that actually charge `STORAGE_WRITE` are in `Storage.lean`, not in
+the refund helper. Fix those first.
+
+`EvmAsm/Codegen/Programs/EvmAccessGas.lean:553` also emits `li t1, 10000`, but it
+is a gas-budget **seed** written straight to `568(x20)` in a seed routine — the
+same number, a different quantity. Not a site.
+
+### Why `SstoreGasRefund.lean:97` is dead
+
+`sstore_gas_refund_outcome` documents five outputs; its only production caller
+(`Programs/Storage.lean:443-453`) reads two — offset 8 (refund delta) and offset
+32 (zero-restore credit flag) — and never offset 0, the gas cost. The regular-gas
+charge happens earlier in `sstoreValueTransitionGasAsm`. So the routine's whole
+gas accumulator `s6`, and the `:97` literal feeding it, are computed and
+discarded. It is listed here so the census does not go stale silently, not
+because editing it changes behaviour. -/
+
+/-- Ties the guest's `li t0, 12480` to SpecRef's **derived** constant, so a
+    reprice of `STORAGE_WRITE`, of `COLD_STORAGE_ACCESS`, or of the 4800/5000
+    ratio fails the build rather than silently over-refunding. If this fires,
+    read which upstream constant moved, then fix both emission sites listed
+    above — never this theorem. -/
+theorem sstoreRefundClear_is_12480 :
+    EvmAsm.Stateless.SpecRef.GasCosts.REFUND_STORAGE_CLEAR = 12480 := by decide
+
+/-- The restore-path refund and the clean-changing charge both implement
+    `STORAGE_WRITE`. This pins the value they emit; note that a reprice moves
+    `sstoreRefundClear_is_12480` too, by a different amount. Fix the three LIVE
+    sites above — the two in `Storage.lean` first, since those are the ones that
+    charge gas. -/
+theorem sstoreStorageWrite_is_10000 :
+    EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE = 10000 := by decide
+
 end EvmAsm.Codegen.MemoryBudgetGuard
