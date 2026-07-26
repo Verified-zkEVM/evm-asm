@@ -36,11 +36,6 @@ Usage:
 per-block EEST test label contains the given substring.  ``--skip`` drops the
 first N selected stateless blocks after filtering, then ``--limit`` caps the
 number of guest invocations emitted.
-``--random --seed S`` first enumerates the filtered block rows and samples the
-requested cap uniformly without replacement.  The positive control for this
-mode is the sampled failure count: it should track the corpus failure rate;
-an all-pass draw from a corpus with roughly a thousand failures signals a
-clustered selection rather than evidence that the screen is clean.
 ``--verify-input-parity`` unpacks each emitted ziskemu input and checks that
 the guest-visible blob is byte-for-byte the fixture's ``statelessInputBytes``.
 ``--verify-execution-spec-input`` additionally decodes that same blob through
@@ -56,7 +51,6 @@ import argparse
 import json
 import os
 import struct
-import random
 import sys
 from pathlib import Path
 
@@ -177,17 +171,6 @@ def main() -> int:
     ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument(
-        "--random",
-        action="store_true",
-        help="sample stateless blocks uniformly without replacement before "
-             "applying --skip/--limit; --filter narrows the population first. "
-             "Requires --seed.",
-    )
-    ap.add_argument(
-        "--seed", type=int, default=None,
-        help="seed for --random; required with it so a run is reproducible",
-    )
-    ap.add_argument(
         "--filter",
         default="",
         help="keep blocks whose fixture relpath or test label contains this",
@@ -213,10 +196,6 @@ def main() -> int:
         ap.error("--skip must be nonnegative")
     if args.limit < 0:
         ap.error("--limit must be nonnegative")
-    if args.random and args.seed is None:
-        ap.error("--random requires --seed (a run that cannot be reproduced is not a result)")
-    if args.seed is not None and not args.random:
-        ap.error("--seed is meaningless without --random")
 
     fixtures_dir: Path = args.fixtures_dir
     out_dir: Path = args.out_dir
@@ -242,118 +221,6 @@ def main() -> int:
     n = 0
     used_labels: set[str] = set()
     with manifest_path.open("w") as mf:
-        def write_block(
-            label: str,
-            ib: bytes,
-            ob: bytes,
-            gas_limit: int,
-            relpath: str,
-        ) -> bool:
-            nonlocal n
-            # Make the label unique across fixtures by prefixing a counter.
-            # Truncate the descriptive part so the on-disk filename stays
-            # within the OS limit (255 bytes) -- blob test names with full
-            # parametrization can be 200+ chars. The counter prefix already
-            # guarantees uniqueness; the collision guard handles truncation
-            # clashes.
-            uniq = f"{n:05d}_{label[:96]}"
-            if uniq in used_labels:
-                uniq = f"{uniq}_{len(used_labels)}"
-            used_labels.add(uniq)
-
-            input_file = out_dir / f"{uniq}.input"
-            packed = pack_ziskemu_input(ib)
-            if args.verify_input_parity or decode_spec_input is not None:
-                try:
-                    recovered = unpack_ziskemu_input(packed)
-                except ValueError as exc:
-                    print(
-                        f"  error: ziskemu input packing mismatch for "
-                        f"{relpath} {label}: {exc}",
-                        file=sys.stderr,
-                    )
-                    return False
-                if recovered != ib:
-                    print(
-                        f"  error: ziskemu input blob differs from "
-                        f"statelessInputBytes for {relpath} {label}",
-                        file=sys.stderr,
-                    )
-                    return False
-            if decode_spec_input is not None:
-                try:
-                    decode_spec_input(ib)
-                except Exception as exc:
-                    print(
-                        f"  error: execution-specs cannot decode "
-                        f"statelessInputBytes for {relpath} {label}: {exc}",
-                        file=sys.stderr,
-                    )
-                    return False
-            if run_spec is not None:
-                spec_output = run_spec(ib)
-                if spec_output != ob:
-                    print(
-                        f"  error: run_stateless_guest output differs from "
-                        f"statelessOutputBytes for {relpath} {label}",
-                        file=sys.stderr,
-                    )
-                    print(f"    spec:    {spec_output.hex()}", file=sys.stderr)
-                    print(f"    fixture: {ob.hex()}", file=sys.stderr)
-                    return False
-            input_file.write_bytes(packed)
-            succ_bit = ob[32] if len(ob) > 32 else -1
-            mf.write(
-                "\t".join(
-                    [
-                        uniq,
-                        str(input_file),
-                        ob.hex(),
-                        str(succ_bit),
-                        str(len(ib)),
-                        str(gas_limit),
-                        relpath,
-                    ]
-                )
-                + "\n"
-            )
-            n += 1
-            return True
-
-        if args.random:
-            # A fixture file often contains several blocks from the same
-            # scenario. Shuffling files therefore samples fixture families,
-            # not the individual blocks that the harness executes. Enumerate
-            # the filtered block population, then draw rows directly.
-            candidates = []
-            for fp in json_files:
-                relpath = str(fp.relative_to(fixtures_dir))
-                for label, ib, ob, gas_limit in iter_blocks(fp):
-                    if args.filter and args.filter not in relpath and args.filter not in label:
-                        continue
-                    candidates.append((label, ib, ob, gas_limit, relpath))
-
-            if args.limit == 0 and args.skip == 0:
-                # `--all --random` selects every row already; avoid creating a
-                # needless complete permutation merely to change run order.
-                sampled = candidates
-            else:
-                sample_count = len(candidates) if args.limit == 0 else min(
-                    len(candidates), args.skip + args.limit
-                )
-                sampled = random.Random(args.seed).sample(candidates, sample_count)
-            for label, ib, ob, gas_limit, relpath in sampled[args.skip:]:
-                if not write_block(label, ib, ob, gas_limit, relpath):
-                    return 1
-            if args.limit and len(candidates) > args.skip + args.limit:
-                print(
-                    f"==> limit {args.limit} reached; sampled blocks uniformly "
-                    f"without replacement from {len(candidates)} candidates",
-                    file=sys.stderr,
-                )
-            print(f"wrote {n} input(s) + manifest {manifest_path}")
-            return 0
-
         for fp in json_files:
             relpath = str(fp.relative_to(fixtures_dir))
             for label, ib, ob, gas_limit in iter_blocks(fp):
@@ -372,8 +239,74 @@ def main() -> int:
                     mf.flush()
                     print(f"wrote {n} input(s) + manifest {manifest_path}")
                     return 0
-                if not write_block(label, ib, ob, gas_limit, relpath):
-                    return 1
+                # Make the label unique across fixtures by prefixing a counter.
+                # Truncate the descriptive part so the on-disk filename stays
+                # within the OS limit (255 bytes) -- blob test names with full
+                # parametrization can be 200+ chars. The counter prefix already
+                # guarantees uniqueness; the collision guard handles truncation
+                # clashes.
+                uniq = f"{n:05d}_{label[:96]}"
+                if uniq in used_labels:
+                    uniq = f"{uniq}_{len(used_labels)}"
+                used_labels.add(uniq)
+
+                input_file = out_dir / f"{uniq}.input"
+                packed = pack_ziskemu_input(ib)
+                if args.verify_input_parity or decode_spec_input is not None:
+                    try:
+                        recovered = unpack_ziskemu_input(packed)
+                    except ValueError as exc:
+                        print(
+                            f"  error: ziskemu input packing mismatch for "
+                            f"{relpath} {label}: {exc}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    if recovered != ib:
+                        print(
+                            f"  error: ziskemu input blob differs from "
+                            f"statelessInputBytes for {relpath} {label}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                if decode_spec_input is not None:
+                    try:
+                        decode_spec_input(ib)
+                    except Exception as exc:
+                        print(
+                            f"  error: execution-specs cannot decode "
+                            f"statelessInputBytes for {relpath} {label}: {exc}",
+                            file=sys.stderr,
+                        )
+                        return 1
+                if run_spec is not None:
+                    spec_output = run_spec(ib)
+                    if spec_output != ob:
+                        print(
+                            f"  error: run_stateless_guest output differs from "
+                            f"statelessOutputBytes for {relpath} {label}",
+                            file=sys.stderr,
+                        )
+                        print(f"    spec:    {spec_output.hex()}", file=sys.stderr)
+                        print(f"    fixture: {ob.hex()}", file=sys.stderr)
+                        return 1
+                input_file.write_bytes(packed)
+                succ_bit = ob[32] if len(ob) > 32 else -1
+                mf.write(
+                    "\t".join(
+                        [
+                            uniq,
+                            str(input_file),
+                            ob.hex(),
+                            str(succ_bit),
+                            str(len(ib)),
+                            str(gas_limit),
+                            relpath,
+                        ]
+                    )
+                    + "\n"
+                )
+                n += 1
 
     print(f"wrote {n} input(s) + manifest {manifest_path}")
     return 0
