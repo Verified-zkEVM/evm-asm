@@ -114,8 +114,9 @@
 #   and recorded in $RUN_DIR/run-provenance.tsv, so a result can never be
 #   silently about a different artifact than the one that was chosen.
 #
-#   The former `GUEST_ELF` environment override is REMOVED and setting it is now
-#   a hard error. It read `USER_GUEST_ELF="${GUEST_ELF:-...}"`, where
+#   The former `GUEST_ELF` environment override is REMOVED: having it PRESENT in
+#   the environment -- even empty, even alongside a correct `--guest-elf` -- is a
+#   hard error. It read `USER_GUEST_ELF="${GUEST_ELF:-...}"`, where
 #   USER_GUEST_ELF is the script's *internal* name -- so exporting the internal
 #   name was silently ignored and ran the default guest with no error and no
 #   warning. Three consecutive sweeps reported clean passes on an artifact
@@ -210,12 +211,21 @@ NO_BUILD="${EEST_NO_BUILD:-0}"
 # the old public name and the old internal name are rejected loudly here rather
 # than honoured or ignored -- an ignored override is the most persuasive wrong
 # answer available, because its output is exactly what a working setup produces.
+#
+# Three deliberate choices:
+#  * PRESENCE, not a non-empty value (`${var+x}`, not `-n`): an empty export is
+#    still someone attempting an override, and deserves the same complaint.
+#  * unconditional, even when --guest-elf is also given: a lingering export beside
+#    a correct flag is ambiguous about intent, and a stale export in a shell
+#    profile or a wrapper is exactly how someone comes to believe a run used an
+#    artifact it did not. Failing on presence is unambiguous; precedence is not.
+#  * before argument parsing, so no run can begin under an ambiguous guest.
 for stale_var in GUEST_ELF USER_GUEST_ELF; do
-  if [[ -n "${!stale_var:-}" ]]; then
-    echo "error: the $stale_var environment override was removed (GH #10617)." >&2
-    echo "  use: --guest-elf ${!stale_var}" >&2
-    echo "  (the old variable was silently ignored in one of its two spellings," >&2
-    echo "   which reported clean passes on the default guest; the flag fails loudly.)" >&2
+  if [[ -n "${!stale_var+x}" ]]; then
+    echo "error: $stale_var is no longer supported; pass --guest-elf <path> instead (GH #10617)." >&2
+    echo "  unset $stale_var and put the path in the flag${!stale_var:+, e.g.: --guest-elf ${!stale_var}}" >&2
+    echo "  (the variable was silently ignored in one of its two spellings, which" >&2
+    echo "   reported clean passes on the default guest; the flag fails loudly.)" >&2
     exit 1
   fi
 done

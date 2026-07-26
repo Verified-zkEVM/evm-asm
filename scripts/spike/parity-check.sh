@@ -13,11 +13,16 @@
 set -uo pipefail
 INVOCATION_CWD="$PWD"
 cd "$(dirname "$0")/../.."   # worktree root
-if [[ -n "${GUEST_ELF:-}" || -n "${USER_GUEST_ELF:-}" ]]; then
-  echo "error: the GUEST_ELF environment override was removed (GH #10617)." >&2
-  echo "  use: $0 --guest-elf ${GUEST_ELF:-${USER_GUEST_ELF:-}} [N] [SEED]" >&2
-  exit 1
-fi
+# Presence, not a non-empty value, and unconditional: an empty export is still an
+# attempted override, and a stale export beside a correct flag is ambiguous about
+# intent (GH #10617).
+for stale_var in GUEST_ELF USER_GUEST_ELF; do
+  if [[ -n "${!stale_var+x}" ]]; then
+    echo "error: $stale_var is no longer supported; pass --guest-elf <path> instead (GH #10617)." >&2
+    echo "  usage: $0 [--guest-elf PATH] [N] [SEED]" >&2
+    exit 1
+  fi
+done
 ELF_OVERRIDE=""
 if [[ "${1:-}" == "--guest-elf" ]]; then
   [[ -n "${2:-}" ]] || { echo "--guest-elf requires an argument" >&2; exit 1; }
