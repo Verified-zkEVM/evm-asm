@@ -293,14 +293,30 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   sibling of `countdownLoop_spec`): `hp_decode_nibbles_spec` is the
   whole-routine `abiFrame_spec` contract against the guest-exact decode
   `hdnRes` = `hpDecode` (`hdnRes_eq_hpDecode` is a TOTAL definitional
-  agreement post `evm-asm-3umhl`, which relaxed the EVEN-PATH PADDING
-  NIBBLE divergence with a guest re-emit + full EEST A/B).
-  **That agreement is with `hpDecode`, a GUEST MIRROR — not with SpecRef**
-  (GH #10528). `hpDecode` still rejects a head nibble `≥ 4` where
-  `SpecRef.compact_to_nibbles` masks bits 2–3 and accepts, so the guest is
-  stricter than the spec on that input: a false-reject shape, not a
-  soundness gap. No theorem relates `hpDecode` to `compact_to_nibbles`, and
-  the divergence is pinned by `#guard hdnRes [0x4a] = none`.
+  agreement post `evm-asm-3umhl`: the guest ignores the even-path
+  padding nibble exactly like execution-specs `compact_to_nibbles` —
+  the original strict-reject divergence was relaxed away with a guest
+  re-emit + full EEST A/B). **Second relaxation, GH #10528**: the flag
+  nibble is now decoded MOD 4 on both sides — bits 2–3 are ignored
+  rather than rejected, matching execution-specs. `hpDecode` matches on
+  `(b0.toNat / 16) % 4`; `hpDecode_cons_div0..3` take `hi % 4 = N` (a
+  strictly simpler proof under masking); the guest lost its
+  `li x28, 4` / `bgeu x6, x28` guard pair, so `hp_decode_nibbles` is
+  **51 instructions** and reads only the two live bits
+  (`andi x28, x6, 2` is-leaf, `andi x6, x6, 1` parity). **No path
+  theorem was spent**: Paths D/E split on bit 0, which masking does not
+  touch, so deleting the `hi < 4` case split leaves them covering the
+  full domain; only Path B — the theorem about the *removed* guard —
+  went. Exit indices moved 38 → 36 (step bounds are upper bounds, so
+  most needed no change). Layout: 377 symbols shifted by exactly −8
+  bytes, `textSizeBytes` `0x61408` → `0x61400`, plus three pinned
+  address literals in `AccountAccessorTopSpec` / `RlpItemSpanSpec` /
+  `RlpSpliceHelperSpec`.
+  **The SpecRef link is still owed**: the proved chain is
+  `guest → hdnRes → hpDecode`, and `hpDecode → SpecRef.compact_to_nibbles`
+  is not stated as a theorem. It is no longer *false* — `compact_to_nibbles`
+  reads only `first_nibble &&& 0x02` and `&&& 0x01`, so bits 2–3 are dead on
+  both sides — but behavioural agreement is not a proof.
 - **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
   Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
   (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler

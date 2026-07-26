@@ -472,12 +472,10 @@ def hpDecodeNibbles_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BEQ .x9 .x0 (128 : BitVec 13),
+    .BEQ .x9 .x0 (120 : BitVec 13),
     .LBU .x5 .x8 (0 : BitVec 12),
     .SRLI .x6 .x5 (4 : BitVec 6),
     .ANDI .x7 .x5 (15 : BitVec 12),
-    .LI .x28 (4 : Word),
-    .BGEU .x6 .x28 (108 : BitVec 13),
     .ANDI .x28 .x6 (2 : BitVec 12),
     .SRLI .x28 .x28 (1 : BitVec 6),
     .SD .x20 .x28 (0 : BitVec 12),
@@ -525,7 +523,7 @@ theorem hpDecodeNibblesFunction_eq_prog :
     hpDecodeNibblesFunction = "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog := rfl
 
 #guard hpDecodeNibblesFunction.startsWith "hp_decode_nibbles:\n"
-#guard hpDecodeNibbles_prog.length = 53
+#guard hpDecodeNibbles_prog.length = 51
 /-- `zisk_hp_decode_nibbles`: probe BuildUnit. Reads
     (path_len, path_bytes) from host input, writes
     (status, count, is_leaf, nibbles...) to OUTPUT.
