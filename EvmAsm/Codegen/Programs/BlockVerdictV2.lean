@@ -115,6 +115,28 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- The base V2 verdict closure already emits address_from_pubkey and the
     -- EIP-7702 authorization-recovery helpers for tx-state-gas accounting.
     -- Re-emitting them in this debug-only helper block duplicates symbols.
+    -- GH #10619: this debug unit mirrors the guest's handlers and helpers, so every
+    -- routine the read containers hook is present here too -- h_SLOAD/h_SSTORE,
+    -- account_state_commit_pending, code_at_header_state_root, seed_callee_storage,
+    -- dispatch_tx_runtime_code, block_verdict_withdrawal_nonstorage_effects. It
+    -- therefore needs the recorders, both tracked accessors and the promotion
+    -- boundary, or it fails to LINK with undefined references to
+    -- storage_read_record, code_read_fetch, read_sets_incorporate_tx and
+    -- account_at_header_state_root_tracked.
+    --
+    -- `lake build` stays GREEN while this is missing: the fault is in emitted asm
+    -- for a build unit that only the EEST harness links, so neither the build nor
+    -- the byte-tie sees it. It surfaced as a link error buried inside an A/B leg.
+    -- Same class as the earlier code_reads constant (a6c31440a) -- an emit is only
+    -- verified once the `.elf` EXISTS, and this unit has its own `.elf`.
+    storageReadRecordFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
+    accountAtHeaderStateRootTrackedFunction ++ "\n" ++
+    codeReadRecordFunction ++ "\n" ++
+    codeReadFetchFunction ++ "\n" ++
+    readSetsMergeOneFunction ++ "\n" ++
+    readSetsIncorporateTxFunction ++ "\n" ++
+    readSetsDiscardTxFunction ++ "\n" ++
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -190,6 +212,14 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
+    -- GH #10619: cursors/overflow flags for the recorders mirrored into this unit
+    -- above. `ziskStatelessVerdictV2DataSection` carries only the shared verdict
+    -- labels; the read-log cursors live in `statelessVerdictV2GuestData`, which
+    -- this unit does not use -- so they must be repeated here, not inherited.
+    storageReadLogDataSection ++ "\n" ++
+    accountReadLogDataSection ++ "\n" ++
+    codeReadLogDataSection ++ "\n" ++
+    readSetsBlockDataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
     -- Data labels for the request-derivation/predeploy-storage helpers above.
     -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
