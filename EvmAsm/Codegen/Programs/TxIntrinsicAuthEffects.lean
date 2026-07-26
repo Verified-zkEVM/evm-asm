@@ -106,17 +106,14 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
   "  j .Lteanse_have_pre\n" ++
   ".Lteanse_have_pre:\n" ++
-  -- This post-runtime producer must recognize an authorization that the ordered
-  -- auth preparation has already applied.  That preparation increments the
-  -- authority nonce before message execution, so the live AccountState value is
-  -- signed_nonce + 1 (not signed_nonce).  This preserves per-entry ordering:
-  -- a second valid authorization for the same authority observes its own next
-  -- nonce after the first increment.
+  -- Each authorization validates the authority's current nonce.  Earlier valid
+  -- tuples in this transaction already recorded the increment, so use that
+  -- latest effect when present instead of repeatedly comparing to header state.
   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct\n" ++
   "  jal ra, account_state_latest_nonce\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-  "  la t0, teer_pre_acct; ld t1, 0(t0); addi t2, s11, 1; bne t1, t2, .Lteanse_next\n" ++
+  "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
   ".Lteanse_record:\n" ++
   -- This producer runs after execution has appended any value-CALL effects, although
   -- EIP-7702 authorization is semantically before message execution.  Preserve an
