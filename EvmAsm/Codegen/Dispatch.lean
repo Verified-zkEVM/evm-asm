@@ -2858,15 +2858,29 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-7702 execution seam: run the authorization traversal once, after the
+  -- state-gas reservoir exists and before its staged charge is consumed.
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
+  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
+  "  jalr ra, x9, 0; mv x9, x10\n" ++
+  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
+  "  bnez x9, .exit_outofgas\n" ++
+  ".runtime_tx_auth_exec_done:\n" ++
   -- v0.6.0 (EIP-7702 rework): set_delegation CHARGES its exact
   -- state-dependent costs at the top frame -- reservoir first, spilling
   -- the remainder into regular gas (OOG halts the frame without
-  -- dispatching, mirroring the spec's prep rollback). Transaction-aware
-  -- callers stage the exact BAL/pre-state charge in
-  -- runtime_tx_auth_state_refund (cell name kept) before this setup runs.
+  -- dispatching, mirroring the spec's prep rollback). The execution callback
+  -- stages the exact charge in runtime_tx_auth_state_refund (cell name kept)
+  -- immediately before this setup. Fold the charge into the per-tx intrinsic
+  -- state cell so prep charges survive body rollback without being counted as
+  -- body execution state.
   "  la x11, runtime_tx_auth_state_refund\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
   "  la x11, evm_state_gas_left\n" ++
   "  ld x8, 0(x11)\n" ++
   "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
@@ -2879,6 +2893,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x9, .exit_outofgas\n" ++
   "  sub x6, x6, x9\n" ++
   ".runtime_tx_auth_state_refund_done:\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  ".runtime_tx_auth_state_used_done:\n" ++
   -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
   -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
   -- reservoir first, spilling the remainder into regular gas; an unaffordable
@@ -3557,7 +3573,21 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_count:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_exec_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_inner_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_inner_len:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_sender_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_type:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_auth_state_refund:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_charge:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
   "  .zero 8\n" ++

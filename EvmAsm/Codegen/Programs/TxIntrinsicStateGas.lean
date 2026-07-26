@@ -149,25 +149,24 @@ def eip7702AuthorityAsOfFunction : String :=
     AccountState then provides the as-of state to the next transaction only
     after the ordinary success commit.
 
-    a0/a1: inner RLP transaction bytes; a2: sender address; a3: tx type;
-    a4: mode (0 = compute this tx's gas, 1 = success-boundary publish only).
-    COMPENSATION (two-pass guest versus one-pass spec): compute mode writes the
-    runtime auth gas/count cells and publish mode writes only AccountState after
-    the transaction has succeeded.  The split is deliberately documented here
-    because the shared transaction overlay is the upstream repair that will
-    remove this boundary.  Bad individual authorizations are ignored, matching
-    `validate_authorization`.  Malformed outer RLP returns one so the caller
-    fails closed. -/
+    a0/a1: inner RLP transaction bytes; a2: sender address; a3: tx type.
+    This is the single execution-time traversal for EIP-7702 preparation:
+    it charges the state-dependent costs, records the regular ACCOUNT_WRITE
+    component, and writes accepted authorities to AccountState's pending
+    overlay in one pass.  The dispatcher invokes it after the state-gas
+    reservoir exists and before prepare_dispatch consumes the staged charge.
+    Bad individual authorizations are ignored, matching `validate_authorization`.
+    Malformed outer RLP returns one so the caller fails closed. -/
 def eip7702AuthStatePrepareFunction : String :=
   "eip7702_auth_state_prepare:\n" ++
   "  addi sp, sp, -176; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; sd a4, 136(sp)\n" ++
-  "  ld t0, 136(sp); bnez t0, .L77prep_mode_ready; la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0); la t0, teer_success_count; sd zero, 0(t0); .L77prep_mode_ready:\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0); la t0, teer_success_count; sd zero, 0(t0)\n" ++
   "  li t0, 4; bne s3, t0, .L77prep_ok\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item; bnez a0, .L77prep_bad_outer\n" ++
   "  la t0, b1an_auth_off; ld t0, 0(t0); add s4, s0, t0; la t0, b1an_auth_len; ld s5, 0(t0)\n" ++
   "  mv a0, s4; mv a1, s5; la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .L77prep_bad_list\n" ++
-  "  la t0, b1an_auth_count; ld s6, 0(t0); ld t0, 136(sp); bnez t0, .L77prep_auth_intrinsic_done; la t0, runtime_tx_auth_count; sd s6, 0(t0); .L77prep_auth_intrinsic_done: li s7, 0\n" ++
+  "  la t0, b1an_auth_count; ld s6, 0(t0); li s7, 0\n" ++
   -- `set_delegation` seeds `written_accounts` with the transaction origin and,
   -- for a value transfer, its recipient.  Retain the typed transaction's
   -- recipient/value shape while walking auth tuples so ACCOUNT_WRITE is charged
@@ -242,7 +241,6 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_seen_stored:\n" ++
   "  sw zero, 20(t4); la t0, teer_success_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".L77prep_charges:\n" ++
-  "  ld t0, 136(sp); bnez t0, .L77prep_record\n" ++
   -- state charge = NEW_ACCOUNT iff absent, plus AUTH_BASE for a non-null
   -- delegation target when the current state is not already delegated.
   "  ld t0, 104(sp); bnez t0, .L77prep_no_new; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString amsterdamNewAccountStateGas ++ "; add t1, t1, t2; sd t1, 0(t0)\n" ++
@@ -262,13 +260,17 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
-  "  ld t0, 136(sp); beqz t0, .L77prep_next; la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- A one-transaction block has no later tx that can observe this overlay;
+  -- publishing its auth snapshot would nevertheless feed the block-level
+  -- non-storage comparator as an extra effect and regress the existing
+  -- single-tx surface.  Keep the execution-time AccountState write on the
+  -- MTx lane, where the next transaction reads the committed prior-tx state.
+  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next; la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
   -- `set_delegation` increments the recovered authority once per valid
   -- authorization entry, even when the same authority appears repeatedly.
   -- B1 tracks only transaction senders, so replay that increment only when
-  -- this valid authority has a sender-table row.  This runs only in mode 1:
-  -- successful preparation persists across a body revert, while preparation
-  -- failure never reaches the publish pass.
+  -- this valid authority has a sender-table row.  AccountState pending is
+  -- committed or discarded by the caller's ordinary transaction outcome gate.
   "  la a0, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a1, 0(t0); la a2, b1an_authority; jal ra, b1_sender_table_find; bnez a0, .L77prep_next; ld t0, 32(a1); addi t0, t0, 1; sd t0, 32(a1)\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
@@ -298,10 +300,15 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- a0/a1 = full typed envelope; a2/a3 = inner RLP; a4 = sender;
   -- a5 = tx type; a6 = transaction index.
   "  addi sp, sp, -64; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); sd a6, 56(sp)\n" ++
-  "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
+  "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtgip_ret\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
-  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, 0; jal ra, eip7702_auth_state_prepare\n" ++
+  -- The direct single-tx lane has no callable dispatcher seam.  Preserve its
+  -- historical execution ordering by running the same writer immediately
+  -- after ordinary intrinsic decoding, while the sequential MTx lane uses the
+  -- post-reservoir callback below.  The active flag is set only by MTx setup.
+  "  la t3, code_state_mtx_active; ld t3, 0(t3); bnez t3, .Lbvtgip_ret\n" ++
+  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
   "  bnez a0, .Lbvtgip_ret\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1); la t3, runtime_tx_auth_state_refund; ld t3, 0(t3); add t2, t2, t3; sd t2, 0(t1)\n" ++
   ".Lbvtgip_ret:\n" ++
