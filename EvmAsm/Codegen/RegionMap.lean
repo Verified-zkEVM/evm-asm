@@ -375,7 +375,7 @@ def schemeAAnchors : List GuestRegion :=
     net REMOVAL of emitted bytes on this branch, and the shrink is the
     measurement that the collapse actually went away rather than becoming a
     no-op. -/
-def textSizeBytes : Nat := 0x061d68
+def textSizeBytes : Nat := 0x061e4c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

@@ -63,6 +63,14 @@ open EvmAsm.Rv64
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
 def nonstorageEffectLogCap : Nat := 40960
 
+/-! The 32-byte address field stores a 20-byte address followed by twelve
+padding bytes. Byte 20 is a component-validity mask: it is outside the key
+used by every address comparison and radix pass, so the fixed 112-byte layout
+can represent the spec's independent balance and nonce changes without a
+parallel log. -/
+def nonstorageEffectHasBalance : Nat := 1
+def nonstorageEffectHasNonce : Nat := 2
+
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
     a0 = 20-byte big-endian address ptr   a1 = pre_balance ptr (32B BE)
@@ -88,6 +96,7 @@ def recordNonstorageEffectFunction : String :=
   "  beqz t6, .Lrnse_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lrnse_cpa\n" ++
   ".Lrnse_cpa_d:\n" ++
+  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; sb t4, 20(t3)\n" ++
   "  ld t4, 0(s1); sd t4, 32(t3); ld t4, 8(s1); sd t4, 40(t3); ld t4, 16(s1); sd t4, 48(t3); ld t4, 24(s1); sd t4, 56(t3)\n" ++  -- pre_balance
   "  ld t4, 0(s2); sd t4, 64(t3); ld t4, 8(s2); sd t4, 72(t3); ld t4, 16(s2); sd t4, 80(t3); ld t4, 24(s2); sd t4, 88(t3)\n" ++  -- post_balance
   "  sd s3, 96(t3)               # pre_nonce\n" ++
@@ -113,8 +122,8 @@ def recordNonstorageEffectFunction : String :=
     live-value read: an account's current balance during execution = its latest recorded
     post_balance, falling back to the pre-state when no value transfer touched it. Mirrors
     exec_log_latest_value (storage) at the 112-byte non-storage stride.
-    a0 = address ptr (32B: 20-byte BE address in bytes 0..19, bytes 20..31 = 0 -- matches the
-      record's zero-padded addr@0)   a1 = out ptr (32B BE post_balance, written only on a hit).
+    a0 = address ptr (20-byte BE key in bytes 0..19; bytes 20..31 are ignored because
+      record byte 20 is the component-validity mask)   a1 = out ptr (32B BE post_balance, written only on a hit).
     Returns a0 = 1 found / 0 not found (out left untouched on a miss). Leaf; only t-regs + a0-a2. -/
 def nonstorageEffectLatestBalance_prog : Program :=
   [ .LI .x31 (0 : Word),
@@ -134,12 +143,12 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .LD .x28 .x7 (8 : BitVec 12),
     .LD .x29 .x10 (8 : BitVec 12),
     .BNE .x28 .x29 (64 : BitVec 13),
-    .LD .x28 .x7 (16 : BitVec 12),
-    .LD .x29 .x10 (16 : BitVec 12),
+    .LWU .x28 .x7 (16 : BitVec 12),
+    .LWU .x29 .x10 (16 : BitVec 12),
     .BNE .x28 .x29 (52 : BitVec 13),
-    .LD .x28 .x7 (24 : BitVec 12),
-    .LD .x29 .x10 (24 : BitVec 12),
-    .BNE .x28 .x29 (40 : BitVec 13),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .LD .x28 .x7 (64 : BitVec 12),
     .SD .x11 .x28 (0 : BitVec 12),
     .LD .x28 .x7 (72 : BitVec 12),
@@ -400,9 +409,25 @@ def nonstorageEffectAggregateFunction : String :=
   "  li t3, 112; beq t2, t3, .Lnea_emit_post\n" ++
   "  add t3, s9, t2; lbu t4, 0(t3); add t3, s11, t2; sb t4, 0(t3)\n" ++
   "  addi t2, t2, 1; j .Lnea_emit_copy\n" ++
-  ".Lnea_emit_post:\n" ++                                           -- overwrite post_balance@64 (32B) + post_nonce@104 from last
-  "  addi t0, s10, -1; li t1, 112; mul t1, t0, t1; add t0, s5, t1\n" ++
-  "  ld t1, 64(t0); sd t1, 64(s11); ld t1, 72(t0); sd t1, 72(s11); ld t1, 80(t0); sd t1, 80(s11); ld t1, 88(t0); sd t1, 88(s11); ld t1, 104(t0); sd t1, 104(s11)\n" ++
+  ".Lnea_emit_post:\n" ++
+  -- The raw record's byte 20 independently marks balance and nonce. Fold the
+  -- run component-wise: first valid pre, last valid post. This is the same
+  -- shape as execution-specs' independent field emission, so a nonce-only
+  -- record never writes or overwrites a balance component.
+  "  sb zero, 20(s11); mv t6, s8\n" ++
+  ".Lnea_emit_component_loop:\n" ++
+  "  bgeu t6, s10, .Lnea_emit_component_done; li t0, 112; mul t0, t6, t0; add t0, s5, t0; lbu t1, 20(t0)\n" ++
+  "  andi t2, t1, " ++ toString nonstorageEffectHasBalance ++ "; beqz t2, .Lnea_emit_nonce; lbu t2, 20(s11); andi t3, t2, " ++ toString nonstorageEffectHasBalance ++ "; bnez t3, .Lnea_emit_balance_post\n" ++
+  "  ld t3, 32(t0); sd t3, 32(s11); ld t3, 40(t0); sd t3, 40(s11); ld t3, 48(t0); sd t3, 48(s11); ld t3, 56(t0); sd t3, 56(s11)\n" ++
+  ".Lnea_emit_balance_post:\n" ++
+  "  ld t3, 64(t0); sd t3, 64(s11); ld t3, 72(t0); sd t3, 72(s11); ld t3, 80(t0); sd t3, 80(s11); ld t3, 88(t0); sd t3, 88(s11); lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasBalance ++ "; sb t2, 20(s11)\n" ++
+  ".Lnea_emit_nonce:\n" ++
+  "  andi t2, t1, " ++ toString nonstorageEffectHasNonce ++ "; beqz t2, .Lnea_emit_component_next; lbu t2, 20(s11); andi t3, t2, " ++ toString nonstorageEffectHasNonce ++ "; bnez t3, .Lnea_emit_nonce_post; ld t3, 96(t0); sd t3, 96(s11)\n" ++
+  ".Lnea_emit_nonce_post:\n" ++
+  "  ld t3, 104(t0); sd t3, 104(s11); lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasNonce ++ "; sb t2, 20(s11)\n" ++
+  ".Lnea_emit_component_next:\n" ++
+  "  addi t6, t6, 1; j .Lnea_emit_component_loop\n" ++
+  ".Lnea_emit_component_done:\n" ++
   "  addi s7, s7, 1\n" ++
   "  mv s8, s10; j .Lnea_run_loop\n" ++
   ".Lnea_done:\n" ++
