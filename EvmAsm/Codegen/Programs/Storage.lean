@@ -60,6 +60,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Stateless.SpecRef.Gas
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
@@ -156,7 +157,7 @@ def sstoreValueTransitionGasAsm : String :=
   "  bnez x15, .Lsstore_clean_changing\n" ++
   "  li x9, 1\n" ++
   ".Lsstore_clean_changing:\n" ++
-  "  li x14, 10000\n" ++             -- STORAGE_WRITE
+  s!"  li x14, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}\n" ++
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_missing_slot:\n" ++
   "  li x9, 0\n" ++
@@ -165,7 +166,7 @@ def sstoreValueTransitionGasAsm : String :=
   ".Lsstore_missing_nonzero:\n" ++   -- missing slot = original = current = 0: creation
   "  li x9, 1\n" ++
 
-  "  li x14, 10000\n" ++             -- STORAGE_WRITE
+  s!"  li x14, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}\n" ++
 
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_dirty_or_noop:\n" ++
