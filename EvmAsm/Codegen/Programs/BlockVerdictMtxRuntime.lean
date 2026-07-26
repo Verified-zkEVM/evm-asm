@@ -18,8 +18,7 @@ namespace EvmAsm.Codegen
 /-- Gated multi-transaction runtime-gas loop fragment, ending before `.Lbv_singletx`. -/
 def blockVerdictMtxRuntimeLoop : String :=
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
-  -- tx_count==1 (and the degenerate 0-tx block) fall through to the existing
-  -- single-tx path BYTE-IDENTICALLY. For 2..16 transactions, only when the block
+  -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
   -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
   -- by more than one tx_index) AND every recipient is a self-contained contract,
   -- dispatch each tx against the block-PRE state to measure its runtime gas,
@@ -32,8 +31,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- tx shape / EOA recipient / dispatch miss bails to the conservative path
   -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
-  "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
-  "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
+  -- Production MTx selector: the empty block keeps the existing single-tx/empty
+  -- path, while every non-empty block enters MTx.  The now-unrouted legacy
+  -- count==1 implementation is deleted separately after this baseline is
+  -- measured independently.
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_singletx\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
