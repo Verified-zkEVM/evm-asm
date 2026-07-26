@@ -143,13 +143,20 @@ export MALLOC_ARENA_MAX
 ALL=0
 SKIP=0
 LIMIT=50
+# No default scope: --limit N or --all must be chosen explicitly (see the
+# hard error below).  LIMIT keeps a value so the smoke path is unchanged
+# once the flag IS passed; LIMIT_SET records whether it was.
+LIMIT_SET=0
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
 # runaway/very-large runs; a case that halts earlier consumes only the steps it
 # needs. The EIP-8037 state_gas_reservoir max-gas fixture can require more than
 # the default on current ziskemu builds, so high-gas BUDGET rows get one larger
 # retry before they are reported as budget exhaustion.
-BACKEND="${EEST_BACKEND:-ziskemu}"
+# No default backend (GH #10533).  EEST_BACKEND remains an opt-in override
+# for scripted callers; what was removed is the fallback when neither the
+# flag nor the variable is set.
+BACKEND="${EEST_BACKEND:-}"
 STEPS="${EEST_STEPS:-5000000000}"
 BUDGET_RETRY_STEPS="${EEST_BUDGET_RETRY_STEPS:-50000000000}"
 BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
@@ -251,7 +258,7 @@ while [[ $# -gt 0 ]]; do
     --all) ALL=1; shift ;;
     --backend) require_arg "$1" "${2:-}"; BACKEND="$2"; shift 2 ;;
     --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
-    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
+    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; LIMIT_SET=1; shift 2 ;;
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
     --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
     --budget-retry-steps) require_arg "$1" "${2:-}"; BUDGET_RETRY_STEPS="$2"; shift 2 ;;
@@ -282,6 +289,61 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+MISSING_CHOICE=0
+
+if [[ "$ALL" -eq 0 && "$LIMIT_SET" -eq 0 ]]; then
+  MISSING_CHOICE=1
+  cat >&2 <<'SCOPE_ERR'
+error: a run scope is required (no default).
+
+  --all         the full 26104-case corpus.  Required for a HIGH-BLAST-RADIUS
+                change -- a gas constant, a shared helper, anywhere you cannot
+                trust path-targeting -- and for re-baselining after main moves.
+                Use --backend spike; it is parallel-tolerant.
+  --limit N     a subset of N cases.  Use for iteration, and for a FOCUSED run
+                on a targeted change: known-failing cases, plus fixtures
+                touching the changed path, plus a random control drawn from the
+                PASSING set (a focused set built only from known-failing and
+                path-touching cases is blind in the OK->FR direction).
+
+Pick deliberately, and state the scope with every number you report.  A subset
+run reports honestly over its N cases and reads exactly like a corpus pass, so
+an unscoped run is how a 50-case result gets mistaken for a 26104-case one.
+
+(If you invoked a wrapper script rather than this one, add the flag to that
+wrapper's own invocation.)
+SCOPE_ERR
+fi
+
+if [[ -z "$BACKEND" ]]; then
+  MISSING_CHOICE=1
+  cat >&2 <<'BACKEND_ERR'
+error: --backend is required (no default).
+
+  --backend spike     fast verdict-level A/B gate; parallel-tolerant.
+                      Use for anything whose observable effect is a verdict or
+                      gas outcome, and for full-corpus sweeps (--jobs 30).
+  --backend ziskemu   ground-truth oracle. Use to CONFIRM a divergence Spike
+                      reported, and for probes needing the real loader or the
+                      accelerators. MUST be run serially (--jobs 1): it is
+                      memory-hungry and an earlyoom kill presents as a 0-byte
+                      log plus a non-zero exit that looks like a real failure.
+
+  If Spike and ziskemu disagree, ziskemu wins.
+
+EEST_BACKEND=spike|ziskemu also works, for scripted callers.
+
+If you reached this from one of the codegen-eest-*-check.sh probes rather than
+by running this script directly: those inherited the old silent default and now
+have to say what they mean. Pick the backend for what THAT probe measures, and
+add the flag to its own invocation. Background: GH #10533, GH #10582.
+BACKEND_ERR
+fi
+
+if [[ "$MISSING_CHOICE" -eq 1 ]]; then
+  exit 1
+fi
 
 case "$BACKEND" in
   ziskemu|spike) ;;
@@ -511,6 +573,14 @@ compute_job_cap() {
 }
 
 CPUS="$(nproc 2>/dev/null || echo 1)"
+if [[ "$BACKEND" == "ziskemu" && "$JOBS" != "1" ]]; then
+  echo "==> WARNING: --backend ziskemu forces --jobs 1 (requested: $JOBS)." >&2
+  echo "    ziskemu is memory-hungry; in parallel an earlyoom kill presents as a" >&2
+  echo "    0-byte log plus a non-zero exit that looks like a real failure." >&2
+  echo "    Use --backend spike if you want parallelism (GH #10533)." >&2
+  JOBS=1
+fi
+
 JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
 if [[ "$JOBS" == "auto" ]]; then
@@ -1503,8 +1573,11 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
-cp "$BASELINE" "$REPO_ROOT/gen-out/eest-baseline.txt"
-echo "==> updated latest baseline: $REPO_ROOT/gen-out/eest-baseline.txt"
+# No global "latest baseline" copy.  It was only ever a convenience, and during
+# a parallel A/B it is actively wrong: both legs raced to write one file and the
+# second writer silently won, so anyone reading gen-out/eest-baseline.txt got
+# the other leg's numbers.  The per-run baseline above is the authoritative
+# artifact and is already scoped to its own --run-dir.
 
 rc=0
 if [[ "$SPECREF_ORACLE" -eq 1 && "$oracleDiff" -gt 0 ]]; then

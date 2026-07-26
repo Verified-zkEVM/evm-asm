@@ -45,11 +45,29 @@ Override that with `EEST_FIXTURES_DIR=/path/to/fixtures` when needed. Use
 
 ## Common Commands
 
-Run the default smoke subset:
+Run a smoke subset (there is no default scope — `--limit N` or `--all` is
+required, and `--backend` likewise):
 
 ```bash
-scripts/codegen-eest-stateless-check.sh
+scripts/codegen-eest-stateless-check.sh --backend spike --limit 50
 ```
+
+`--all` runs the full 26,104-case corpus. It is required for a **high-blast-radius**
+change — a gas constant, a shared helper, anywhere path-targeting cannot be
+trusted — and for re-baselining after `main` moves. The full sweep is expensive
+and most of its passing cases re-confirm what is already known, so for a
+**targeted** change prefer a focused set: known-failing cases, plus fixtures
+touching the changed path, plus a random control drawn from the *passing* set
+with a fixed seed. That control is not optional — a set built only from
+known-failing and path-touching cases is blind in the OK→FR direction by
+construction.
+
+**State the scope with every number you report.** A subset run reports honestly
+over its N cases and reads exactly like a corpus pass. A sequential partial is
+depth in *manifest order*, and manifest order tracks fixture family, so it says
+much about the families it reached and nothing about the rest; a random sample
+is the orthogonal breadth half. A number without its scope is the same defect as
+a number without its denominator.
 
 Run a focused fixture subset:
 
@@ -701,7 +719,6 @@ Important files:
 - `<case>.result.tsv`: per-case harness status and output hex.
 - `stateless_guest.{s,o,elf}`: guest artifacts for this invocation.
 - `eest-baseline.txt`: run summary for this invocation.
-- `gen-out/eest-baseline.txt`: copy of the latest harness summary.
 
 The summary reports:
 
