@@ -122,8 +122,8 @@ def recordNonstorageEffectFunction : String :=
     live-value read: an account's current balance during execution = its latest recorded
     post_balance, falling back to the pre-state when no value transfer touched it. Mirrors
     exec_log_latest_value (storage) at the 112-byte non-storage stride.
-    a0 = address ptr (32B: 20-byte BE address in bytes 0..19, bytes 20..31 = 0 -- matches the
-      record's zero-padded addr@0)   a1 = out ptr (32B BE post_balance, written only on a hit).
+    a0 = address ptr (20-byte BE key in bytes 0..19; bytes 20..31 are ignored because
+      record byte 20 is the component-validity mask)   a1 = out ptr (32B BE post_balance, written only on a hit).
     Returns a0 = 1 found / 0 not found (out left untouched on a miss). Leaf; only t-regs + a0-a2. -/
 def nonstorageEffectLatestBalance_prog : Program :=
   [ .LI .x31 (0 : Word),
@@ -146,8 +146,6 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .LWU .x28 .x7 (16 : BitVec 12),
     .LWU .x29 .x10 (16 : BitVec 12),
     .BNE .x28 .x29 (52 : BitVec 13),
-    -- The effect record reserves byte 20 for its component-validity mask. The
-    -- key is exactly bytes 0..19, so do not compare the padding at 20..31.
     .ADDI .x0 .x0 (0 : BitVec 12),
     .ADDI .x0 .x0 (0 : BitVec 12),
     .ADDI .x0 .x0 (0 : BitVec 12),
