@@ -730,7 +730,7 @@ fi
 rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 GUEST_PREFIX="$RUN_DIR/stateless_guest"
-GUEST_ELF="$GUEST_PREFIX.elf"
+RESOLVED_GUEST_ELF="$GUEST_PREFIX.elf"
 
 resolve_riscv_tool() {
   local env_var="$1"; shift
@@ -778,7 +778,7 @@ PYPATCH
 patch_bsr_caps_and_relink() {
   local asm="$GUEST_PREFIX.s"
   local obj="$GUEST_PREFIX.o"
-  local elf="$GUEST_ELF"
+  local elf="$RESOLVED_GUEST_ELF"
   local as_tool ld_tool
 
   patch_bsr_caps_asm "$asm"
@@ -811,9 +811,9 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
   fi
 else
   echo "==> skipping build (--no-build)"
-  GUEST_ELF="${GUEST_ELF_OVERRIDE:-$REPO_ROOT/gen-out/stateless_guest.elf}"
-  if [[ ! -f "$GUEST_ELF" ]]; then
-    echo "--no-build requested, but stateless_guest ELF does not exist: $GUEST_ELF" >&2
+  RESOLVED_GUEST_ELF="${GUEST_ELF_OVERRIDE:-$REPO_ROOT/gen-out/stateless_guest.elf}"
+  if [[ ! -f "$RESOLVED_GUEST_ELF" ]]; then
+    echo "--no-build requested, but stateless_guest ELF does not exist: $RESOLVED_GUEST_ELF" >&2
     echo "pass --guest-elf /path/to/stateless_guest.elf, or run without --no-build" >&2
     exit 1
   fi
@@ -823,7 +823,7 @@ fi
 # the run dir.  This is the property that makes a result self-describing: no
 # comparison can silently be about a different guest than the one printed here,
 # whatever mechanism supplied it.
-GUEST_ELF_SHA256="$(sha256sum "$GUEST_ELF" | cut -d' ' -f1)"
+GUEST_ELF_SHA256="$(sha256sum "$RESOLVED_GUEST_ELF" | cut -d' ' -f1)"
 if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
   GUEST_ELF_SOURCE="--guest-elf"
 elif [[ "$NO_BUILD" -eq 1 ]]; then
@@ -831,16 +831,16 @@ elif [[ "$NO_BUILD" -eq 1 ]]; then
 else
   GUEST_ELF_SOURCE="built"
 fi
-echo "==> guest ELF: $GUEST_ELF"
+echo "==> guest ELF: $RESOLVED_GUEST_ELF"
 echo "    sha256:    $GUEST_ELF_SHA256  (source: $GUEST_ELF_SOURCE)"
 GUEST_PROVENANCE="$RUN_DIR/run-provenance.tsv"
 {
   printf '# schema=run-provenance-v1\n'
   printf 'field\tvalue\n'
-  printf 'guest_elf\t%s\n' "$GUEST_ELF"
+  printf 'guest_elf\t%s\n' "$RESOLVED_GUEST_ELF"
   printf 'guest_elf_sha256\t%s\n' "$GUEST_ELF_SHA256"
   printf 'guest_elf_source\t%s\n' "$GUEST_ELF_SOURCE"
-  printf 'guest_elf_bytes\t%s\n' "$(stat -c %s "$GUEST_ELF")"
+  printf 'guest_elf_bytes\t%s\n' "$(stat -c %s "$RESOLVED_GUEST_ELF")"
   printf 'backend\t%s\n' "$BACKEND"
   printf 'fixture_tag\t%s\n' "$TAG"
   printf 'repo_head\t%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -1305,7 +1305,7 @@ run_case() {
   run_emulator_case() {
     local steps="$1"
     local run_log="$2"
-    run_guest_elf "$GUEST_ELF" "$input" "$out" "$run_log" "$steps"
+    run_guest_elf "$RESOLVED_GUEST_ELF" "$input" "$out" "$run_log" "$steps"
   }
 
   retry_budget_case() {
@@ -1651,7 +1651,7 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
   echo "  selection:   $selection"
-  echo "  guest elf:   $GUEST_ELF ($GUEST_ELF_SOURCE)"
+  echo "  guest elf:   $RESOLVED_GUEST_ELF ($GUEST_ELF_SOURCE)"
   echo "  guest sha256:$GUEST_ELF_SHA256"
   echo "  backend:     $BACKEND"
   if [[ "$BACKEND" == "ziskemu" ]]; then
