@@ -363,8 +363,19 @@ def schemeAAnchors : List GuestRegion :=
     (`slli`→`mul`, `addi`→`sub`, and `mv s5, a5` reusing a dead `mv s6, a1`
     slot); the 4 bytes are the one `li a5, 128` added at the guest's single call
     site in `BlockVerdictFunction.lean`. The two probe call sites are in the
-    probe unit and contribute nothing here. -/
-def textSizeBytes : Nat := 0x061da8
+    probe unit and contribute nothing here.
+
+    Then SHRANK by `0x40` -- 16 instructions -- to `0x61d68` for GH #10619's
+    net-zero deletion: the tx-abort path's `.Lbv_tx0_storage_revert` loop, which
+    walked the aborted transaction's storage exec-log rows setting
+    `current := original`, is replaced by a single four-instruction truncation of
+    the row count. The loop existed to keep the rows so the slots stayed
+    "accessed" for the recipient `storage_reads` check; that check now reads the
+    `storage_reads` container, so the rows no longer have to survive. First
+    net REMOVAL of emitted bytes on this branch, and the shrink is the
+    measurement that the collapse actually went away rather than becoming a
+    no-op. -/
+def textSizeBytes : Nat := 0x061d68
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
