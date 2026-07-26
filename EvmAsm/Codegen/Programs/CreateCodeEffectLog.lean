@@ -366,6 +366,12 @@ def accountStateAuthCurrentFunction : String :=
     fallback exactly as they do today.  No raw comparison-log read is used. -/
 def accountStateLatestBalanceFunction : String :=
   "account_state_latest_balance:\n" ++
+  -- GH #10619: record the account READ (unconditional, state_tracker.py:139).
+  -- Hooked INSIDE the accessor so every caller is covered and the recording
+  -- point mirrors the spec's (inside get_account_before_tx, not at callers).
+  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslb_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Laslb_hit\n" ++
   ".Laslb_durable:\n" ++
@@ -379,6 +385,12 @@ def accountStateLatestBalanceFunction : String :=
 
 def accountStateLatestNonceFunction : String :=
   "account_state_latest_nonce:\n" ++
+  -- GH #10619: record the account READ (unconditional, state_tracker.py:139).
+  -- Hooked INSIDE the accessor so every caller is covered and the recording
+  -- point mirrors the spec's (inside get_account_before_tx, not at callers).
+  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Lasln_hit\n" ++
   ".Lasln_durable:\n" ++
