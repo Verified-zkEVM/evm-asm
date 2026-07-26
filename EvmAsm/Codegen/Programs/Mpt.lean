@@ -472,7 +472,7 @@ def hpDecodeNibbles_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BEQ .x9 .x0 (120 : BitVec 13),   -- GH #10528: -8, the deleted reject pair
+    .BEQ .x9 .x0 (120 : BitVec 13),
     .LBU .x5 .x8 (0 : BitVec 12),
     .SRLI .x6 .x5 (4 : BitVec 6),
     .ANDI .x7 .x5 (15 : BitVec 12),
