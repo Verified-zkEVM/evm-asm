@@ -256,4 +256,57 @@ theorem copyPerWord_is_three :
     EvmAsm.Stateless.SpecRef.GasCosts.OPCODE_COPY_PER_WORD = 3 := by
   decide
 
+/-! ## Guard 5 — the remaining inline dynamic-gas coefficients (GH #10565)
+
+Every inline helper in `Programs/EvmMemoryGas.lean` synthesises its per-unit cost
+as bare arithmetic, with no reference to the spec symbol it implements. All are
+**correct today** — verified against `execution-specs` Amsterdam — so these pins
+are drift protection, not bug fixes. Each records the emitted arithmetic so a
+reader can check the pin against the code it stands for:
+
+| helper | emitted arithmetic | value | spec symbol |
+|---|---|---|---|
+| `keccakWordGasAsm` | `slli w,2` + `add` + `add` | 6/word | `OPCODE_KECCAK256_PER_WORD` |
+| `expDynamicGasAsm` | `li x7, 50; mul` | 50/byte | `OPCODE_EXP_PER_BYTE` |
+| `logDynamicGasAsm` | `li x18, topics*375` | 375/topic | `OPCODE_LOG_TOPIC` |
+| `logDynamicGasAsm` | `slli x5, x15, 3` | 8/byte | `OPCODE_LOG_DATA_PER_BYTE` |
+| `createInitcodeGasAsm` | `li gas, 2` (no salt) | 2/word | `CODE_INIT_PER_WORD` |
+| `createInitcodeGasAsm` | `li gas, 8` (salt) | 8/word | **a SUM — see below** |
+
+### CREATE2's 8 is a sum of two independently editable constants
+
+`createInitcodeGasAsm` uses `perWordCost := if hasSalt then 8 else 2`. The spec
+(`vm/instructions/system.py:244-250`) charges CREATE2
+`OPCODE_KECCAK256_PER_WORD * words + init_code_cost(...)`, i.e. `6 + 2 = 8` per
+word, because CREATE2 additionally hashes the initcode; CREATE (`:190-193`)
+charges only `init_code_cost`, i.e. `2`.
+
+This is a **worse collapse than the copy case**. There, two constants had to stay
+*equal*, and equality is at least a relation someone might notice. Here a single
+literal must equal a *sum*, so repricing **either** input silently mis-charges
+CREATE2 with nothing to compare against. `create2PerWord_is_sum` states the
+decomposition, so the build fails if either summand moves.
+
+When any of these fails, the fix is to **update the helper's arithmetic to match
+the new spec value** — never to edit the theorem. For `create2PerWord_is_sum`
+specifically, check which summand changed before touching the `8`. -/
+
+open EvmAsm.Stateless.SpecRef.GasCosts
+
+theorem keccakPerWord_is_six : OPCODE_KECCAK256_PER_WORD = 6 := by decide
+
+theorem expPerByte_is_fifty : OPCODE_EXP_PER_BYTE = 50 := by decide
+
+theorem logTopic_is_375 : OPCODE_LOG_TOPIC = 375 := by decide
+
+theorem logDataPerByte_is_eight : OPCODE_LOG_DATA_PER_BYTE = 8 := by decide
+
+theorem createPerWord_is_two : CODE_INIT_PER_WORD = 2 := by decide
+
+/-- CREATE2's hardcoded `8` decomposes as keccak-per-word plus init-code-per-word.
+    If this fails, one of the two summands was repriced: fix the `8` in
+    `createInitcodeGasAsm`, not this theorem. -/
+theorem create2PerWord_is_sum :
+    OPCODE_KECCAK256_PER_WORD + CODE_INIT_PER_WORD = 8 := by decide
+
 end EvmAsm.Codegen.MemoryBudgetGuard
