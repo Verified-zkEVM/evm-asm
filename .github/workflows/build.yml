@@ -27,6 +27,8 @@ jobs:
         run: scripts/check-unimported.sh
       - name: Round-trip coverage fence (every Instr ctor has a #guard)
         run: scripts/check-roundtrip-coverage.sh
+      - name: EEST sampler span check (negative control on the --random guard)
+        run: scripts/check-eest-sampler-span.py
       # Conventions-as-fitness-functions (Phase 5 / R-D1). Pure source scans,
       # no build needed — kept cheap on the PR push path. See AGENTS.md
       # "Architecture fitness functions".
