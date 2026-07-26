@@ -105,9 +105,10 @@ symaddr() { "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n {print $2; exit}'; }
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
   "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
   "$(symaddr baap_storage_values)" \
-  "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" <<'PY' || fail=1
+  "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" \
+  "$(symaddr evm_memory)" <<'PY' || fail=1
 import sys
-(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend) = [int(x,16) for x in sys.argv[1:]]
+(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend, emem) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
 syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
@@ -141,6 +142,29 @@ bad |= (not sys_ok)
 pool_ok = pool == cfa + frameArrayBytes and pend - pool == 0x6000000 and pend <= bbase + bsize
 print(f"  {'OK  ' if pool_ok else 'DRIFT'} evm_memory_pool adjacent, 96 MiB, and within .bss")
 bad |= (not pool_ok)
+# GH #10557: SECOND LINE OF DEFENCE for the memory-clamp fill loops. An overshoot
+# past a dense arena's top end corrupts whatever is mapped above it -- and
+# rb_running_block_bloom sits at exactly evm_memory_pool_end with zero slack, so
+# on that boundary an off-by-N reaches verdict state (see the layout invariant at
+# the pool's emission site in Programs/BlockVerdictDataSectionTail.lean).
+#
+# The mitigation that costs nothing is that ONE of the two arenas ends exactly at
+# __BSS_END__, whose neighbour is ~7.2 MiB of UNMAPPED address space: nothing
+# there can be corrupted into a committed value. Today that is evm_memory
+# (evm_memory + 0x400000 == __BSS_END__ exactly). This is a COINCIDENCE between an
+# arena size and a section layout, not a construction, so it is pinned here --
+# appending any new .bss section would otherwise silently push both arenas away
+# from the boundary and remove the backstop with no other signal.
+#
+# Deliberately written as "whichever arena is last", not "evm_memory is last", so
+# it survives the #10557 reorder that would put evm_memory_pool at the top
+# instead. It fails only if NEITHER arena ends at __BSS_END__.
+bss_end = bbase + bsize
+backstop_ok = bss_end in (emem + 0x400000, pend)
+which = "evm_memory" if bss_end == emem + 0x400000 else ("evm_memory_pool" if bss_end == pend else "NEITHER")
+print(f"  {'OK  ' if backstop_ok else 'DRIFT'} a dense arena ends at __BSS_END__ "
+      f"(unmapped backstop): {which}")
+bad |= (not backstop_ok)
 sys.exit(1 if bad else 0)
 PY
 
