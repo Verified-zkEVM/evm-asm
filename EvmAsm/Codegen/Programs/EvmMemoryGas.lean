@@ -142,12 +142,29 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     `clampToArena` has NO default: every call site must state its claim, so a
     future caller cannot inherit the wrong one silently.
 
-    * `clampToArena = false` asserts **the caller has already proved
-      `rounded ≤ frame limit`** (via `memConstOffsetOogGuardAsm`,
-      `memDynamicArenaOogGuardAsm`, or its own arena bail). The fresh-zero loop
-      then runs to exactly `x13 + rounded`, and its `beq` equality exit is safe
-      because both endpoints are 32-byte multiples and `current < rounded`, so
-      the pointer lands exactly on the end.
+    * `clampToArena = false` asserts that `rounded ≤ frame limit` holds, on
+      **either** of two warrants — and which one applies differs by call site:
+
+      (a) **The caller bounds it.** Verified for `memConstOffsetOogGuardAsm`
+          (MSTORE8), `memDynamicArenaOogGuardAsm` (the COPY family),
+          `returnRevertMemoryGasAsm`, and `callMemoryExpansionGasAsm` (both
+          windows) — each calls `memoryArenaLimitAsm` and bails past the bound.
+      (b) **The range cannot exceed the dense bound within the per-tx REGULAR
+          gas cap.** Exceeding it costs ≈3.4e7 at depth 0 and ≈6.4e7 nested,
+          against a 1.68e7 cap — see the affordability analysis in GH #10535,
+          now kernel-enforced by `Codegen/MemoryBudgetGuard.lean` (#10540).
+
+      Sites relying on **(b), not (a)**: `h_KECCAK256` (`keccakRangeGuardAsm`
+      deliberately omits an arena bound — GH #10521), LOG0..LOG4
+      (`logDynamicGasAsm`), and the CREATE initcode range
+      (`ChildFrameCreateTail`). If `MemoryBudgetGuard` ever fails, those three
+      are the call sites that stop being safe, and they must gain a caller-side
+      bound — or `clampToArena = true` — before any arena resize.
+
+      Either warrant gives the same property, and the fresh-zero loop then runs
+      to exactly `x13 + rounded`, so its `beq` equality exit is safe: both
+      endpoints are 32-byte multiples and `current < rounded`, so the pointer
+      lands exactly on the end.
     * `clampToArena = true` is for callers that deliberately allow
       `rounded > frame limit` — today only `updateActiveMemorySizeConstSparseAsm`
       (MLOAD/MSTORE), whose beyond-dense bytes are served by the sparse word
