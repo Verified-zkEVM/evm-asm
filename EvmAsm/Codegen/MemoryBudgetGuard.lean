@@ -100,6 +100,8 @@ import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Stateless.SpecRef.Transactions
 import EvmAsm.Stateless.SpecRef.InstructionsCore
 import EvmAsm.Stateless.SpecRef.InstructionsEnv
+import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 
 namespace EvmAsm.Codegen.MemoryBudgetGuard
 
@@ -352,5 +354,49 @@ theorem gasTier_low_is_five : EvmAsm.Stateless.SpecRef.GasCosts.LOW = 5 := by de
 theorem gasTier_mid_is_eight : EvmAsm.Stateless.SpecRef.GasCosts.MID = 8 := by decide
 
 theorem gasTier_high_is_ten : EvmAsm.Stateless.SpecRef.GasCosts.HIGH = 10 := by decide
+
+/-! ## Guard 7 — the cold/warm access decomposition (GH #10569)
+
+EIP-2929 access gas is charged in **two pieces** by the guest: a flat
+`WARM_ACCESS` debited inline, then the cold delta added by
+`runtime_access_account_charge` / `evm_storage_access_charge_key` when the address
+or slot is newly accessed. The spec states only the totals
+(`amsterdam/vm/gas.py:69-71`: `WARM_ACCESS = 100`, `COLD_ACCOUNT_ACCESS = 3000`,
+`COLD_STORAGE_ACCESS = 3000`), so the *split* is the guest's own invention and
+the sum is what must match.
+
+Four independently editable places participate:
+
+* the inline `li …, 100` (28 sites in the emitted image) — unpinned literal;
+* `runtimeAccessColdDeltaGas = 2900` (`Programs/EvmAccessGas.lean:33`);
+* `storageAccessColdDeltaGas = 2900` (`Programs/EvmStorageAccessGas.lean:35`);
+* the two spec totals above.
+
+The two guest deltas being **separate** constants is correct — the account and
+storage paths track distinct spec symbols and should be able to diverge. What was
+missing is any tie from either to its spec total, so a fork repricing
+`COLD_ACCOUNT_ACCESS` alone would leave both paths charging the old sum.
+
+Same *sum*-decomposition shape as `create2PerWord_is_sum`, and the same failure
+instruction: when one of these fails, **fix the guest's delta constant (or the
+inline 100), never the theorem** — and check which side of the sum the spec moved
+before choosing. -/
+
+theorem warmAccess_is_hundred :
+    EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS = 100 := by decide
+
+/-- The account path's split reconstitutes `COLD_ACCOUNT_ACCESS`. -/
+theorem accountColdDelta_completes_cold :
+    EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS
+        + EvmAsm.Codegen.runtimeAccessColdDeltaGas
+      = EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS := by
+  decide
+
+/-- The storage path's split reconstitutes `COLD_STORAGE_ACCESS`. -/
+theorem storageColdDelta_completes_cold :
+    EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS
+        + EvmAsm.Codegen.storageAccessColdDeltaGas
+      = EvmAsm.Stateless.SpecRef.GasCosts.COLD_STORAGE_ACCESS := by
+  decide
 
 end EvmAsm.Codegen.MemoryBudgetGuard
