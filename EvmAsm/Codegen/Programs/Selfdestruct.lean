@@ -525,7 +525,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   -- Account struct at sp+32: nonce@0, balance@8..40 BE, storage root, code hash.
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, sdai_origin_address; li a3, 20\n" ++
   "  ld a4, 592(x20); ld a5, 600(x20); addi a6, sp, 32\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n" ++
   "  bnez a0, .L_sd7708_created_env\n" ++
   "  ld t0, 40(sp); la t1, evm_selfdestruct_balance_scratch; sd t0, 0(t1)\n" ++
   "  ld t0, 48(sp); sd t0, 8(t1); ld t0, 56(sp); sd t0, 16(t1); ld t0, 64(sp); sd t0, 24(t1)\n" ++
@@ -728,7 +728,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- args: header_ptr=576(x20), header_len=584(x20), addr=evm_selfdestruct_beneficiary(20B),
   -- state_ptr=592(x20), state_len=600(x20), out=acct@sp+128 (nonce@0, balance@8..40). status!=0 -> pre 0.
   "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, evm_selfdestruct_beneficiary\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  addi a6, sp, 128\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n" ++
   "  beqz a0, .L_sdbn_ci_pre_from_acct\n" ++
   "  sd zero, 64(sp); sd zero, 72(sp); sd zero, 80(sp); sd zero, 88(sp)\n" ++   -- not found -> pre 0
   "  j .L_sdbn_ci_have_pre\n" ++

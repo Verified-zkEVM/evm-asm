@@ -144,7 +144,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. Aspirational —
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
+    the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
     internally consistent, but they are NOT part of `guestRegionMap`. -/
 def schemeAAnchors : List GuestRegion :=
@@ -171,7 +172,33 @@ def schemeAAnchors : List GuestRegion :=
     { name := "ecrecover_scratch",      base := 0xa1b80000, size := 0x10000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout ECRECOVER_SCRATCH; 64 KiB slab" },
     { name := "sha256_scratch",         base := 0xa1b90000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" } ]
+      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" },
+    -- GH #10619: the spec's THREE read sets, each with the BLOCK-long lifetime
+    -- `restore_tx_state` gives them by restoring only the write structures
+    -- (state_tracker.py:809-826; the TransactionState docstring at :90-93 calls
+    -- them "shared references that survive rollback").  Separate regions rather
+    -- than one merged set because the spec has three and looking-the-same is the
+    -- point; separate from `state_tracker_area` because rollback truncates that
+    -- one and must not reach these.
+    { name := "storage_reads_area",     base := 0xa1ba0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_READS_AREA; 1 MiB = 16384x64 (addrHash++slotKey), "
+        ++ "matching the write log's 16384 rows so reads cannot overflow first" },
+    { name := "account_reads_area",     base := 0xa1ca0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_READS_AREA; 512 KiB = 16384x32 (addrHash)" },
+    { name := "code_reads_area",        base := 0xa1d20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout CODE_READS_AREA; 512 KiB = 8192x64 (addrHash++codeHash); "
+        ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" },
+    -- GH #10619 review gate 3: the TRANSACTION level of the same three sets.  The
+    -- spec has two levels (TransactionState's fresh sets, merged up at
+    -- state_tracker.py:858-861 and CLEARED at :879-881), and a block-level-only
+    -- mirror has nowhere to express fork.py:745-752 -- a throwaway TransactionState
+    -- whose reads are deliberately NOT promoted.
+    { name := "tx_storage_reads_area",  base := 0xa1da0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_READS_AREA; per-tx storage_reads, merged up and cleared" },
+    { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
+    { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -313,8 +340,21 @@ def schemeAAnchors : List GuestRegion :=
     plus a `beq`→`bgeu` swap in each of the two sparse handlers, and in NEITHER
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
-    keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x6162c
+    keccak guard above: `0x61160 + 0x60`. Grew by `0x54` for GH #10619's tracked
+    account accessor (`account_at_header_state_root_tracked`,
+    `AccountReadLog.lean`): 21 instructions — an 8-slot save/restore of `ra` and
+    `a0`-`a6` around one `account_read_record` call, then a tail `j` to the raw
+    entry. The 11 execution call sites retargeted onto it contribute **zero**
+    bytes: a retarget only lengthens a `jal`'s symbol *name*, not the instruction.
+
+    Now `0x61da4` after merging `main`, and the merge is exactly additive:
+    `0x61510` (merge-base) `+ 0x79c` (this branch's six read containers, three
+    producers, two-level promotion and tracked accessor) `+ 0xf8` (what landed on
+    `main` meanwhile, including the BLS MSM discounts). Measured from the relinked
+    ELF, not computed — the sum is stated because it *reconciles*, which is the
+    check that the merge composed rather than one side silently winning. `.data`
+    and `.bss` are unchanged by this branch's merge resolution. -/
+def textSizeBytes : Nat := 0x061e88
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -341,7 +381,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b2557c0
+def bssSizeBytes : Nat := 0x1b255820
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -509,7 +549,14 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.EVM_MEMORY_AREA).toNat,
         (EvmAsm.Stateless.KECCAK_SCRATCH).toNat,
         (EvmAsm.Stateless.ECRECOVER_SCRATCH).toNat,
-        (EvmAsm.Stateless.SHA256_SCRATCH).toNat ] := by decide
+        (EvmAsm.Stateless.SHA256_SCRATCH).toNat,
+        -- GH #10619: the spec's three read sets (state_tracker.py:67-77, :96-104).
+        (EvmAsm.Stateless.STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.CODE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -726,6 +773,8 @@ def stableGuestBases : List (String × Nat) :=
     (".sszscratch",       sszScratchRegion.base) ]
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
-theorem stableGuestBases_length : stableGuestBases.length = 20 := by decide
+-- 20 -> 23: the three read-container anchors added for GH #10619.
+-- 23 -> 26: the three per-transaction read containers (GH #10619 gate 3).
+theorem stableGuestBases_length : stableGuestBases.length = 26 := by decide
 
 end EvmAsm.Codegen.RegionMap

@@ -871,7 +871,7 @@ def codeAtHeaderStateRoot_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.code_at_header_state_root + 84)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (4 : Word),
-    .JAL .x0 (96 : BitVec 21),
+    .JAL .x0 (100 : BitVec 21),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 108)),
@@ -882,7 +882,7 @@ def codeAtHeaderStateRoot_prog : Program :=
     .ADDI .x15 .x15 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 124)),
     .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.code_at_header_state_root + 132)),
     .BEQ .x10 .x0 (8 : BitVec 13),
-    .JAL .x0 (52 : BitVec 21),
+    .JAL .x0 (56 : BitVec 21),
     .MV .x10 .x21,
     .MV .x11 .x22,
     .AUIPC .x12 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 152)),
@@ -892,7 +892,8 @@ def codeAtHeaderStateRoot_prog : Program :=
     .ADDI .x13 .x13 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 164)),
     .AUIPC .x14 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
     .ADDI .x14 .x14 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
-    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_at_header_state_root + 180)),
+    .MV .x15 .x18,
+    .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.code_at_header_state_root + 184)),
     .BEQ .x10 .x0 (8 : BitVec 13),
     .LI .x10 (5 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -919,7 +920,7 @@ def codeAtHeaderStateRoot_relocs : RelocTable :=
     (38, .la .x12 "cahsr_acct_struct"),
     (41, .la .x13 "cahsr_code_offset"),
     (43, .la .x14 "cahsr_code_length"),
-    (45, .jal .x1 "witness_codes_lookup_by_hash") ]
+    (46, .jal .x1 "code_read_fetch") ]
 
 def codeAtHeaderStateRootFunction : String :=
   "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs
@@ -933,7 +934,7 @@ theorem codeAtHeaderStateRootFunction_eq_prog :
     codeAtHeaderStateRootFunction = "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs := rfl
 
 #guard codeAtHeaderStateRootFunction.startsWith "code_at_header_state_root:\n"
-#guard codeAtHeaderStateRoot_prog.length = 59
+#guard codeAtHeaderStateRoot_prog.length = 60
 /-- `zisk_code_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -1157,7 +1158,7 @@ def extcodesizeAtHeaderStateRoot_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extcodesize_at_header_state_root + 96)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (4 : Word),
-    .JAL .x0 (184 : BitVec 21),
+    .JAL .x0 (188 : BitVec 21),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.ecsahsr_state_root (GuestAddrs.extcodesize_at_header_state_root + 120)),
@@ -1171,9 +1172,9 @@ def extcodesizeAtHeaderStateRoot_prog : Program :=
     .BEQ .x10 .x0 (24 : BitVec 13),
     .LI .x5 (1 : Word),
     .BEQ .x10 .x5 (8 : BitVec 13),
-    .JAL .x0 (128 : BitVec 21),
+    .JAL .x0 (132 : BitVec 21),
     .LI .x10 (0 : Word),
-    .JAL .x0 (120 : BitVec 21),
+    .JAL .x0 (124 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.ecsahsr_empty_code_hash (GuestAddrs.extcodesize_at_header_state_root + 176)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_empty_code_hash (GuestAddrs.extcodesize_at_header_state_root + 176)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -1189,7 +1190,7 @@ def extcodesizeAtHeaderStateRoot_prog : Program :=
     .LD .x7 .x23 (96 : BitVec 12),
     .BNE .x6 .x7 (12 : BitVec 13),
     .LI .x10 (0 : Word),
-    .JAL .x0 (56 : BitVec 21),
+    .JAL .x0 (60 : BitVec 21),
     .MV .x10 .x21,
     .MV .x11 .x22,
     .ADDI .x12 .x23 (72 : BitVec 12),
@@ -1197,10 +1198,11 @@ def extcodesizeAtHeaderStateRoot_prog : Program :=
     .ADDI .x13 .x13 (laLo GuestAddrs.ecsahsr_dummy_offset (GuestAddrs.extcodesize_at_header_state_root + 252)),
     .AUIPC .x14 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 260)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 260)),
-    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.extcodesize_at_header_state_root + 268)),
+    .MV .x15 .x18,
+    .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.extcodesize_at_header_state_root + 272)),
     .BEQ .x10 .x0 (20 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 276)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 276)),
+    .AUIPC .x5 (laHi GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 280)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecsahsr_code_len (GuestAddrs.extcodesize_at_header_state_root + 280)),
     .SD .x5 .x0 (0 : BitVec 12),
     .LI .x10 (5 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -1228,8 +1230,8 @@ def extcodesizeAtHeaderStateRoot_relocs : RelocTable :=
     (44, .la .x5 "ecsahsr_empty_code_hash"),
     (63, .la .x13 "ecsahsr_dummy_offset"),
     (65, .la .x14 "ecsahsr_code_len"),
-    (67, .jal .x1 "witness_codes_lookup_by_hash"),
-    (69, .la .x5 "ecsahsr_code_len") ]
+    (68, .jal .x1 "code_read_fetch"),
+    (70, .la .x5 "ecsahsr_code_len") ]
 
 def extcodesizeAtHeaderStateRootFunction : String :=
   "extcodesize_at_header_state_root:\n" ++ emitProgramR extcodesizeAtHeaderStateRoot_prog extcodesizeAtHeaderStateRoot_relocs
@@ -1243,7 +1245,7 @@ theorem extcodesizeAtHeaderStateRootFunction_eq_prog :
     extcodesizeAtHeaderStateRootFunction = "extcodesize_at_header_state_root:\n" ++ emitProgramR extcodesizeAtHeaderStateRoot_prog extcodesizeAtHeaderStateRoot_relocs := rfl
 
 #guard extcodesizeAtHeaderStateRootFunction.startsWith "extcodesize_at_header_state_root:\n"
-#guard extcodesizeAtHeaderStateRoot_prog.length = 84
+#guard extcodesizeAtHeaderStateRoot_prog.length = 85
 /-- `zisk_extcodesize_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
