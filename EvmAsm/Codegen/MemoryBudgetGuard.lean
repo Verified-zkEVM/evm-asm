@@ -98,6 +98,8 @@
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Stateless.SpecRef.Transactions
+import EvmAsm.Stateless.SpecRef.InstructionsCore
+import EvmAsm.Stateless.SpecRef.InstructionsEnv
 
 namespace EvmAsm.Codegen.MemoryBudgetGuard
 
@@ -222,6 +224,36 @@ theorem clampEnd_alignment_minRemaining : minRemainingPoolBytes % 8 = 0 := by
     because memory is unaffordable in general — only past the dense bounds. -/
 theorem affordable_memory_is_substantial :
     memoryGasCostWords 91917 ≤ gasCap ∧ gasCap < memoryGasCostWords 91918 := by
+  decide
+
+/-! ## Guard 4 — the copy coefficient serves two spec constants (GH #10565)
+
+`copyWordGasAsm` (`Programs/EvmMemoryGas.lean`) charges `3 * ceil32(len)/32` with the
+`3` synthesised arithmetically (`slli words, 1` then `add`), and it is the **single**
+helper used for both copy families:
+
+* `OPCODE_COPY_PER_WORD` — MCOPY, CALLDATACOPY, CODECOPY, EXTCODECOPY
+  (`EvmCalldataHandlers.lean:94`, `EvmCodeHandlers.lean:55`, `EvmExtcodecopy.lean:88`);
+* `OPCODE_RETURNDATACOPY_PER_WORD` — RETURNDATACOPY (`NoopReturnData.lean:49`).
+
+The spec keeps these as **two independently editable symbols**
+(`execution-specs` Amsterdam `vm/gas.py:218,225`). They are equal today; nothing
+enforces that. A fork repricing one family would leave the guest charging the old
+shared value for the other, **silently** — no build error, and an EEST sweep would
+show only unexplained mispricing on one opcode family. Coincidence class, so pinned.
+
+`copyPerWord_families_agree` is the load-bearing one: when it fails, the fix is to
+**split or parameterise `copyWordGasAsm`**, never to edit this theorem.
+`copyPerWord_is_three` pins the value the emitted `slli`/`add` actually implements,
+so a reprice of *both* families also fails loudly rather than mis-charging. -/
+
+theorem copyPerWord_families_agree :
+    EvmAsm.Stateless.SpecRef.GasCosts.OPCODE_COPY_PER_WORD
+      = EvmAsm.Stateless.SpecRef.GasCosts.OPCODE_RETURNDATACOPY_PER_WORD := by
+  decide
+
+theorem copyPerWord_is_three :
+    EvmAsm.Stateless.SpecRef.GasCosts.OPCODE_COPY_PER_WORD = 3 := by
   decide
 
 end EvmAsm.Codegen.MemoryBudgetGuard
