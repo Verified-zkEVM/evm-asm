@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -515,7 +516,7 @@ private def selfdestructTailAsm : String :=
   -- x10 restore clobbers it.
   "  beqz a0, .L_selfdestruct_access_floor_done\n" ++
   "  ld t0, 568(x20)\n" ++
-  "  li t1, 100\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   "  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n" ++
   "  sd t0, 568(x20)\n" ++

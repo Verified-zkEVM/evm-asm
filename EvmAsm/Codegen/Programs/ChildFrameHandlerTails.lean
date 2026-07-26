@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
+import EvmAsm.Stateless.SpecRef.Gas
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
@@ -53,7 +54,7 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
-  "  ld t0, 568(x20)\n  li t1, 100\n  bltu t0, t1, .exit_outofgas\n" ++
+  s!"  ld t0, 568(x20)\n  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 

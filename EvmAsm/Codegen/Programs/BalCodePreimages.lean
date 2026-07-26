@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BalCodePreimagesAux
 import EvmAsm.Codegen.Programs.BalCodePreimagesCreateCollision
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -1126,7 +1127,7 @@ def balCodePreimagesValidFunction : String :=
   -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
   "  li t2, 1; bne s10, t2, .Lbsbd_skip_charge\n" ++
   "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
-  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
+  s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
