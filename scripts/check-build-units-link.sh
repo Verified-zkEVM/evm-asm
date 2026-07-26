@@ -31,9 +31,17 @@
 # are allowlisted below with the symbols that make them so — the point of the
 # allowlist is that a NEW failure is a regression even though old ones are not.
 #
+# Allowlisted units ARE attempted, and the exemption EXPIRES: if one of them starts
+# producing an `.elf`, the run fails with "stale allowlist" and names the entry to
+# delete. Otherwise the allowlist would be documentation formatted as code — a branch
+# that never executes, whose entries nobody can distinguish from ones that outlived
+# their reason. An exemption that cannot expire is a promise rather than a mechanism,
+# which is precisely the distinction this script exists to enforce.
+#
 # Usage:  scripts/check-build-units-link.sh [--units "a b c"]
-# Exit:   0 all expected-linkable units linked; 1 a regression; 0 with a skip
-#         message if the RISC-V toolchain is absent (mirrors the other guards).
+# Exit:   0 expected-linkable units linked AND every exemption is still warranted;
+#         1 a new link failure or a stale exemption; 0 with a skip message if the
+#         RISC-V toolchain is absent (mirrors the other guards).
 set -uo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,10 +57,22 @@ cd "$REPO"
 # one exists — linking only the guest is the wrong SHAPE, not merely incomplete,
 # because its scope silently narrows every time someone adds a build unit, whereas a
 # per-unit list grows with the units rather than with anyone's memory.
-UNITS_DEFAULT="zisk_stateless_verdict zisk_stateless_verdict_v2 zisk_step2_verdict"
+#
+# The known-nonlinkable units below are INCLUDED in this sweep on purpose. Listing
+# an exemption without ever attempting the unit would make the allowlist
+# documentation formatted as code: the branch would never execute, and nobody could
+# tell a year from now whether the entry still describes reality or outlived its
+# reason.
+UNITS_DEFAULT="zisk_stateless_verdict zisk_stateless_verdict_v2 zisk_step2_verdict \
+runtime_dispatcher runtime_dispatcher_call_probe zisk_runtime_access_list_seeded_sload"
 
 # Structurally non-linkable; NOT failures. Reason recorded so a reader can tell an
 # expected gap from a regression.
+#
+# THE EXEMPTION EXPIRES. If one of these starts producing an `.elf`, the run FAILS
+# with "stale allowlist" and names the entry to delete. An exemption that cannot
+# expire is a promise rather than a mechanism — which is the distinction this whole
+# script exists to enforce, so it has to hold for the script's own exemptions too.
 declare -A KNOWN_NONLINKABLE=(
   [runtime_dispatcher]="spliced into the guest; references bsr_addr_4788, account_extract_nonce and other cross-unit symbols (documented in scripts/gen-symbol-addresses.py)"
   [runtime_dispatcher_call_probe]="same family as runtime_dispatcher"
@@ -85,10 +105,20 @@ for u in $UNITS; do
   # The ELF's EXISTENCE is the check. codegen can exit 0 having written only the
   # .s/.o, which is the whole failure mode this script exists to catch -- so do not
   # trust the exit status here.
-  if [ -f "$OUT/$u.elf" ]; then
+  #
+  # Branch on the ALLOWLIST first, not on the .elf: an allowlisted unit that now
+  # links must be reported as a stale exemption rather than silently reported OK.
+  if [ -n "${KNOWN_NONLINKABLE[$u]+x}" ]; then
+    if [ -f "$OUT/$u.elf" ]; then
+      echo "  STALE    $u — this unit now LINKS; its allowlist entry is obsolete."
+      echo "             delete KNOWN_NONLINKABLE[$u] in $0"
+      echo "             (recorded reason, no longer true: ${KNOWN_NONLINKABLE[$u]})"
+      fail=1
+    else
+      echo "  KNOWN    $u — ${KNOWN_NONLINKABLE[$u]}"
+    fi
+  elif [ -f "$OUT/$u.elf" ]; then
     echo "  OK       $u"
-  elif [ -n "${KNOWN_NONLINKABLE[$u]+x}" ]; then
-    echo "  KNOWN    $u — ${KNOWN_NONLINKABLE[$u]}"
   else
     echo "  FAIL     $u — no .elf produced"
     grep -oE "undefined reference to \`[A-Za-z0-9_]+'" "$log" | sort -u | sed 's/^/             /'
@@ -97,10 +127,13 @@ for u in $UNITS; do
 done
 
 if [ "$fail" -ne 0 ]; then
-  echo "check-build-units-link: FAILED — a build unit does not link."
-  echo "  A unit that mirrors guest handlers must also define every routine those"
-  echo "  handlers call, and repeat any data section it does not inherit."
+  echo "check-build-units-link: FAILED."
+  echo "  FAIL  — a unit that mirrors guest handlers must also define every routine"
+  echo "          those handlers call, and repeat any data section it does not inherit."
+  echo "  STALE — an allowlisted unit started linking; delete its entry so the"
+  echo "          exemption does not outlive its reason."
   exit 1
 fi
 
-echo "check-build-units-link: OK — every expected-linkable unit produced an .elf."
+echo "check-build-units-link: OK — expected-linkable units produced an .elf, and every"
+echo "  allowlisted unit is still genuinely non-linkable."
