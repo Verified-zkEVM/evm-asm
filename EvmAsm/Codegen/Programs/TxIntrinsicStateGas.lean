@@ -243,6 +243,13 @@ def eip7702AuthStatePrepareFunction : String :=
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
   "  ld t0, 136(sp); beqz t0, .L77prep_next; la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- `set_delegation` increments the recovered authority once per valid
+  -- authorization entry, even when the same authority appears repeatedly.
+  -- B1 tracks only transaction senders, so replay that increment only when
+  -- this valid authority has a sender-table row.  This runs only in mode 1:
+  -- successful preparation persists across a body revert, while preparation
+  -- failure never reaches the publish pass.
+  "  la a0, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a1, 0(t0); la a2, b1an_authority; jal ra, b1_sender_table_find; bnez a0, .L77prep_next; ld t0, 32(a1); addi t0, t0, 1; sd t0, 32(a1)\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
