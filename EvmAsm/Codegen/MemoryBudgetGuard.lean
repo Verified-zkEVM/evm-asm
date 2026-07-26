@@ -26,6 +26,35 @@
   than only `evmMemoryPoolBytes`, `SpecRef.MEMORY_PER_WORD` rather than a
   local copy.
 
+  ### Boundary: constants only — link-chosen addresses belong in the ELF gate
+
+  "Constant-relationship" is the literal limit of this file's remit. Every
+  statement here is closed by `decide` over values Lean can **see**. An
+  invariant that involves an address the **linker** chooses — a symbol's
+  address, a section's base or end, `__BSS_END__` — cannot be stated here
+  honestly: Lean has no access to the linked image, so a `decide` on such a
+  relationship would pin a number nobody had checked against the ELF, which is
+  worse than no guard because it *looks* verified.
+
+  Those belong in `scripts/check-region-map.sh`, which already reads the symbol
+  table with `readelf` and exists to gate link-layout drift. Worked example
+  (GH #10559): "one of the two dense arenas ends exactly at `__BSS_END__`, whose
+  neighbour is unmapped space" is a genuine coincidence between an arena size
+  (a Lean constant) and a section layout (a linker decision) — so it needs a
+  guard, but not one here. It is checked against the ELF instead.
+
+  Rule of thumb: if you cannot write the invariant without naming a symbol or a
+  section, it is an ELF-gate invariant. If both sides are `Nat`s defined in
+  Lean, it is ours.
+
+  One more transferable lesson from that gate, worth applying to assertions
+  here too: **pin the property, not the instance.** #10559 asserts *whichever*
+  arena ends at `__BSS_END__`, not that `evm_memory` does — so it stays silent
+  through an intended layout change and still fires on accidental drift. A gate
+  pinned to the current instance fires on the first deliberate change, gets
+  weakened by whoever is making that change, and disappears exactly when the
+  thing it protects is in motion.
+
   ## What this file protects
 
   Three constants currently sit in a relationship that makes two latent defects
