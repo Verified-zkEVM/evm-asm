@@ -95,8 +95,8 @@
 #                        execution-specs run_stateless_guest's input path
 #     --specref-oracle   also run SpecRef on each input and fail on any
 #                        byte-for-byte guest↔SpecRef divergence
-#     --random           shuffle fixtures into a random order before applying
-#                        --limit; use to sample a different subset on each run
+#     --random           sample individual stateless blocks uniformly before
+#                        applying --limit; use a seed to reproduce a sample
 #                        and discover failures outside the default first-N fixtures
 #     --seed N           integer seed for --random (default: auto-generated and
 #                        printed so any discovery run can be exactly reproduced)
@@ -233,10 +233,9 @@ Options:
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
-  --random                 shuffle the fixture FILE list BEFORE --limit, so the cap
-                           selects a spread across the corpus rather than its front.
-                           Sampling is at file granularity (~4 blocks/file); run
-                           repeatedly with different seeds to seek discoveries
+  --random                 after --filter, sample individual stateless blocks
+                           uniformly WITHOUT replacement BEFORE --limit
+                           (requires --seed)
   --seed N                 integer seed for --random (default: auto-generated and printed)
   --reverse                process the selected fixtures last-to-first (applied after --random)
   --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
@@ -1137,18 +1136,11 @@ for i in "${!manifestLines[@]}"; do
 done
 
 if [[ "$RANDOM_ORDER" -eq 1 ]]; then
-  # The SELECTION was randomised in the converter above (GH #10596); this
-  # shuffle only randomises the EXECUTION order of what was selected.
-  echo "==> random selection + order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
-  mapfile -t manifestLines < <(
-    printf '%s\n' "${manifestLines[@]}" | python3 -c "
-import sys, random
-lines = sys.stdin.read().splitlines()
-random.Random(int(sys.argv[1])).shuffle(lines)
-print('\n'.join(lines))
-" "$RANDOM_SEED"
-  )
-  selection="$selection, random(seed=$RANDOM_SEED)"
+  # The converter sampled individual blocks with this seed; preserve that
+  # selected order rather than building a second full permutation merely to
+  # alter execution order.
+  echo "==> random block selection: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
+  selection="$selection, random-blocks(seed=$RANDOM_SEED)"
 fi
 
 if [[ "$REVERSE_ORDER" -eq 1 ]]; then
