@@ -275,7 +275,22 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   agreement post `evm-asm-3umhl`: the guest ignores the even-path
   padding nibble exactly like execution-specs `compact_to_nibbles` —
   the original strict-reject divergence was relaxed away with a guest
-  re-emit + full EEST A/B).
+  re-emit + full EEST A/B). **Second relaxation, GH #10528**: the flag
+  nibble is now decoded MOD 4 on both sides — bits 2–3 are ignored
+  rather than rejected, matching execution-specs. `hpDecode` matches on
+  `(b0.toNat / 16) % 4`; `hpDecode_cons_div0..3` take `hi % 4 = N` (a
+  strictly simpler proof under masking); the guest lost its
+  `li x28, 4` / `bgeu x6, x28` guard pair, so `hp_decode_nibbles` is
+  **51 instructions** and reads only the two live bits
+  (`andi x28, x6, 2` is-leaf, `andi x6, x6, 1` parity). **No path
+  theorem was spent**: Paths D/E split on bit 0, which masking does not
+  touch, so deleting the `hi < 4` case split leaves them covering the
+  full domain; only Path B — the theorem about the *removed* guard —
+  went. Exit indices moved 38 → 36 (step bounds are upper bounds, so
+  most needed no change). Layout: 377 symbols shifted by exactly −8
+  bytes, `textSizeBytes` `0x61408` → `0x61400`, plus three pinned
+  address literals in `AccountAccessorTopSpec` / `RlpItemSpanSpec` /
+  `RlpSpliceHelperSpec`.
 - **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
   Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
   (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler
