@@ -95,7 +95,7 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .MV .x22 .x16,
     .MV .x23 .x17,
     .LUI .x5 (8 : BitVec 20),
-    .BLTU .x5 .x20 (340 : BitVec 13),
+    .BLTU .x5 .x20 (344 : BitVec 13),
     .MV .x5 .x21,
     .MV .x6 .x20,
     .BEQ .x6 .x0 (20 : BitVec 13),
@@ -110,7 +110,7 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.extcodecopy_at_header_state_root + 132)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (4 : Word),
-    .JAL .x0 (284 : BitVec 21),
+    .JAL .x0 (288 : BitVec 21),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.ecc_state_root (GuestAddrs.extcodecopy_at_header_state_root + 156)),
@@ -124,9 +124,9 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .BEQ .x10 .x0 (24 : BitVec 13),
     .LI .x5 (1 : Word),
     .BEQ .x10 .x5 (8 : BitVec 13),
-    .JAL .x0 (228 : BitVec 21),
+    .JAL .x0 (232 : BitVec 21),
     .LI .x10 (0 : Word),
-    .JAL .x0 (220 : BitVec 21),
+    .JAL .x0 (224 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.ecc_empty_code_hash (GuestAddrs.extcodecopy_at_header_state_root + 212)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ecc_empty_code_hash (GuestAddrs.extcodecopy_at_header_state_root + 212)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -142,7 +142,7 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .LD .x7 .x24 (96 : BitVec 12),
     .BNE .x6 .x7 (12 : BitVec 13),
     .LI .x10 (0 : Word),
-    .JAL .x0 (156 : BitVec 21),
+    .JAL .x0 (160 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 276)),
     .ADDI .x5 .x5 (laLo GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 276)),
     .LD .x10 .x5 (0 : BitVec 12),
@@ -154,19 +154,22 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .ADDI .x13 .x13 (laLo GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 304)),
     .AUIPC .x14 (laHi GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 312)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 312)),
-    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.extcodecopy_at_header_state_root + 320)),
+    -- GH #10619: a5 = address ptr for the tracked code accessor.  x18 still
+    -- holds it (it was a0 to account_at_address above, with a1 = 20).
+    .MV .x15 .x18,
+    .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.extcodecopy_at_header_state_root + 324)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (5 : Word),
     .JAL .x0 (96 : BitVec 21),
-    .AUIPC .x5 (laHi GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 336)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 336)),
+    .AUIPC .x5 (laHi GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 340)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.eccp_codes_ptr (GuestAddrs.extcodecopy_at_header_state_root + 340)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 348)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 348)),
+    .AUIPC .x5 (laHi GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 352)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 352)),
     .LD .x7 .x5 (0 : BitVec 12),
     .ADD .x25 .x6 .x7,
-    .AUIPC .x5 (laHi GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 364)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 364)),
+    .AUIPC .x5 (laHi GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 368)),
     .LD .x28 .x5 (0 : BitVec 12),
     .LI .x5 (0 : Word),
     .BEQ .x5 .x20 (36 : BitVec 13),
@@ -209,10 +212,10 @@ def extcodecopyAtHeaderStateRoot_relocs : RelocTable :=
     (72, .la .x5 "eccp_codes_len"),
     (76, .la .x13 "ecc_match_offset"),
     (78, .la .x14 "ecc_match_len"),
-    (80, .jal .x1 "witness_codes_lookup_by_hash"),
-    (84, .la .x5 "eccp_codes_ptr"),
-    (87, .la .x5 "ecc_match_offset"),
-    (91, .la .x5 "ecc_match_len") ]
+    (81, .jal .x1 "code_read_fetch"),
+    (85, .la .x5 "eccp_codes_ptr"),
+    (88, .la .x5 "ecc_match_offset"),
+    (92, .la .x5 "ecc_match_len") ]
 
 def extcodecopyAtHeaderStateRootFunction : String :=
   "extcodecopy_at_header_state_root:\n" ++ emitProgramR extcodecopyAtHeaderStateRoot_prog extcodecopyAtHeaderStateRoot_relocs
@@ -226,7 +229,7 @@ theorem extcodecopyAtHeaderStateRootFunction_eq_prog :
     extcodecopyAtHeaderStateRootFunction = "extcodecopy_at_header_state_root:\n" ++ emitProgramR extcodecopyAtHeaderStateRoot_prog extcodecopyAtHeaderStateRoot_relocs := rfl
 
 #guard extcodecopyAtHeaderStateRootFunction.startsWith "extcodecopy_at_header_state_root:\n"
-#guard extcodecopyAtHeaderStateRoot_prog.length = 120
+#guard extcodecopyAtHeaderStateRoot_prog.length = 121
 /-- `zisk_extcodecopy_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

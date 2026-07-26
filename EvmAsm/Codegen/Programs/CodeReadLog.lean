@@ -149,7 +149,7 @@ def codeReadFetchFunction : String :=
   "  sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp)\n" ++
   -- EMPTY_CODE_HASH check, byte-wise (the hash ptr has no alignment guarantee)
-  "  la t0, code_read_empty_hash\n" ++
+  "  la t0, ecc_empty_code_hash\n" ++
   "  li t1, 0\n" ++
   ".Lcrf_empty_cmp:\n" ++
   "  li t2, 32; beq t1, t2, .Lcrf_skip\n" ++
@@ -173,21 +173,13 @@ def codeReadFetchFunction : String :=
 def codeReadLogDataSection : String :=
   "code_reads_count:\n  .zero 8\n" ++
   "code_reads_overflow:\n  .zero 8\n" ++
-  -- EMPTY_CODE_HASH is INITIALIZED bytes, and the ambient section here is NOBITS
-  -- `.bss` -- `as` rejects a non-zero value there ("attempt to store non-zero
-  -- value in section `.bss'"), and it rejects it at LINK time rather than in
-  -- `lake build`, so the Lean side stays green while the guest stops assembling.
-  -- Switch to PROGBITS for the constant and resume `.bss` after, which is the
-  -- same idiom (and the same hazard) as the deposit constants in
-  -- `BlockVerdictV2.statelessVerdictV2GuestData`.
-  ".section .data\n" ++
-  ".balign 32\n" ++
-  "code_read_empty_hash:\n" ++
-  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
-  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
-  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
-  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
-  ".section .bss, \"aw\", @nobits\n" ++
-  ".balign 8\n"
+  -- NO new EMPTY_CODE_HASH constant here, deliberately.  It would be INITIALIZED
+  -- bytes in a NOBITS `.bss` context (which `as` rejects outright), and emitting it
+  -- into `.data` instead grows that section and shifts every later data symbol --
+  -- which broke pinned data addresses in Bn254FieldMulMod*/Bls12G1Lt* SAsm modules.
+  -- The guest already emits this exact 32-byte constant SEVEN times
+  -- (`ecc_empty_code_hash`, `chahsr_empty_code_hash`, ...), so `code_read_fetch`
+  -- references an existing one rather than adding an eighth copy plus a layout shift.
+  ""
 
 end EvmAsm.Codegen

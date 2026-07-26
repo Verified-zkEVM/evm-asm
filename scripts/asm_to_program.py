@@ -908,6 +908,10 @@ def _collect_guest_addr_syms():
     # manifest, but their Program views still use GuestAddrs constants.
     need.update({
         'evm_state_gas_spilled',
+        # GH #10619: the tracked code accessor.  Called from the hand-maintained
+        # extcodecopy/extcodesize/code-at-state-root Program views, which are not
+        # in the asm-fixture manifest, so it is not discovered by the scan above.
+        'code_read_fetch',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

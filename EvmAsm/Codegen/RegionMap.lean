@@ -330,7 +330,7 @@ def schemeAAnchors : List GuestRegion :=
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
     keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x617f4
+def textSizeBytes : Nat := 0x619d4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -357,7 +357,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b2557e0
+def bssSizeBytes : Nat := 0x1b255800
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
