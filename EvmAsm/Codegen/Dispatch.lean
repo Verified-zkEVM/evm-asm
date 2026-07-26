@@ -2372,6 +2372,23 @@ def emitDispatcherDataSection
     prologue's `la x10, evm_code` swaps to `li x10, 0x40000010`
     and the `.data` section drops the `evm_code:` block. -/
 
+/-- Seed the per-transaction access-list warm sets from the pending tx span.
+    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
+    the globals zero, so this is inert. It must run after the per-tx warm-set
+    reset and before any preparation charge consults accessed addresses. -/
+def emitTxAccessListSeedLoop : String :=
+  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
+  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
+  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
+  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
+  "  beqz x28, .Ltx_access_seed_done\n" ++
+  "  beqz a0, .Ltx_access_seed_done\n" ++
+  "  beqz a1, .Ltx_access_seed_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
+  ".Ltx_access_seed_done:\n" ++
+  "  mv x10, x21\n"
+
 /-- Runtime-bytecode dispatcher prologue. Same fetch/decode/dispatch
     loop as `emitDispatcherPrologue`; differs only in how `x10` is
     initialised — pointed at the input region instead of an
@@ -2897,6 +2914,11 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  -- execution-specs applies the transaction access list before prepare_dispatch
+  -- tests the delegated address against accessed_addresses (interpreter.py:295-300).
+  -- This runs after the per-tx storage-warm reset above, so it establishes both
+  -- access-list account and storage warmth before the deferred callback charges.
+  emitTxAccessListSeedLoop ++ "\n" ++
   "  la x5, runtime_tx_post_top_frame_fn\n" ++
   "  ld x28, 0(x5)\n" ++
   "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
@@ -3036,23 +3058,6 @@ def emitCalleeStorageSeedLoop : String :=
   "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
   ".Lcallee_seed_done:\n"
 
-/-- Seed the per-transaction storage warm set from a pending tx access-list span.
-    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
-    the globals zero, so this is inert. Runs after callable setup resets
-    `evm_storage_access_count` and before opcode execution. -/
-def emitTxAccessListSeedLoop : String :=
-  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
-  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
-  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
-  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
-  "  beqz x28, .Ltx_access_seed_done\n" ++
-  "  beqz a0, .Ltx_access_seed_done\n" ++
-  "  beqz a1, .Ltx_access_seed_done\n" ++
-  "  jalr ra, x28, 0\n" ++
-  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
-  ".Ltx_access_seed_done:\n" ++
-  "  mv x10, x21\n"
-
 /-- coc3g.5 multi-hop: seed the EIP-7702 RECOVERED-AUTHORITY warm set from the
     pending authorization_list span. The span/fn are prepared by
     `dispatch_tx_runtime_code` and cleared one-shot here; standalone callers leave
@@ -3117,7 +3122,6 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   ".Lrtd_top_create_nonce_done:\n" ++
   "  ld x10, 0(sp); addi sp, sp, 16\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
-  emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop depthAwareStop

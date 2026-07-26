@@ -483,7 +483,7 @@ stateless_guest	.runtime_tx_create_state_done	0x80034bdc	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_gas_done	0x80034c0c	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_prepare_prefix_continue	0x80034c0c	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_top_frame_regular_done	0x80034c30	.text	LINK_DEPENDENT
-stateless_guest	.runtime_tx_post_top_frame_done	0x80034c78	.text	LINK_DEPENDENT
+stateless_guest	.runtime_tx_post_top_frame_done	0x80034cbc	.text	LINK_DEPENDENT
 stateless_guest	.jdbm_len_ok	0x80034e54	.text	LINK_DEPENDENT
 stateless_guest	.jdbm_scan	0x80034e60	.text	LINK_DEPENDENT
 stateless_guest	.jdbm_not_jumpdest	0x80034e9c	.text	LINK_DEPENDENT
