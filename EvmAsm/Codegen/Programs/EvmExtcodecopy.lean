@@ -132,7 +132,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  ld t0, 568(x20)
 " ++
-    "  li t1, 100
+    s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}
 " ++
     "  bltu t0, t1, .exit_outofgas
 " ++

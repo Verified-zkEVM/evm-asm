@@ -5,9 +5,14 @@ The diagnostic schema uses output bytes 112..255.  It is intentionally
 diagnostic-only and must not be used to establish production verdict results.
 Set LHKN7_SELECTOR_MODE to record whether the input ELF uses normal or forced
 routing.  Optional LHKN7_PROVENANCE is copied verbatim into the TSV header.
+
+The resolved ELF path and its sha256 are printed at startup and written to the
+TSV header as `# guest_elf` / `# guest_elf_sha256` (GH #10617), so a sweep is
+self-describing about which artifact produced it.
 """
 
 import csv
+import hashlib
 import os
 import shutil
 import subprocess
@@ -72,7 +77,19 @@ elif prior_tsv:
         fail(f"focused labels missing from manifest: wanted={len(wanted)} found={len(rows)}")
     mode = "focused-prior-FR"
     print(f"focused mode: {len(rows)} labels selected from {prior_tsv}", flush=True)
-print(f"loaded {len(rows)} rows; elf={elf}; workers={workers}", flush=True)
+
+# GH #10617: state the artifact's identity before using it, and record it in the
+# header.  A sweep whose ELF sha is written down cannot later be mistaken for a
+# sweep of a different build -- which is how a superseded forced-routing ELF made
+# a whole failure surface look phantom.
+try:
+    with open(elf, "rb") as handle:
+        elf_sha = hashlib.sha256(handle.read()).hexdigest()
+except OSError as exc:
+    fail(f"cannot read ELF {elf}: {exc}")
+elf_abs = os.path.abspath(elf)
+print(f"loaded {len(rows)} rows; elf={elf_abs}; workers={workers}", flush=True)
+print(f"  elf sha256={elf_sha}", flush=True)
 
 
 def classify(row):
@@ -127,6 +144,8 @@ with open(out_tsv, "w") as output:
     fields = ["label", "oracle_succ", "guest_succ"] + [f"u64_{offset}" for offset in range(112, 256, 8)] + ["match", "rc", "len", "cat"]
     output.write("# schema=semantic-boundary-v2\n")
     output.write(f"# selector_mode={selector_mode}\n")
+    output.write(f"# guest_elf={elf_abs}\n")
+    output.write(f"# guest_elf_sha256={elf_sha}\n")
     if provenance := os.environ.get("LHKN7_PROVENANCE"):
         output.write(f"# provenance={provenance}\n")
     output.write(f"# selected_rows={len(rows)}; mode={mode}; root-analysis population=FR rows only\n")

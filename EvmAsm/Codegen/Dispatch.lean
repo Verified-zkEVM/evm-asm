@@ -586,7 +586,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x5c => OPCODE_TLOAD      | 0x5d => OPCODE_TSTORE
     | 0x5e => OPCODE_MCOPY_BASE
     -- child frames (base; dynamic call/create costs charged elsewhere)
-    | 0xf0 => 11000 | 0xf5 => 11000                      -- CREATE, CREATE2: no SpecRef symbol
+    | 0xf0 => CREATE_ACCESS | 0xf5 => CREATE_ACCESS      -- CREATE, CREATE2 (system.py:193,247)
     | 0xf1 => WARM_ACCESS       -- CALL         (warm floor)
     | 0xf2 => WARM_ACCESS       -- CALLCODE
     | 0xf4 => WARM_ACCESS       -- DELEGATECALL

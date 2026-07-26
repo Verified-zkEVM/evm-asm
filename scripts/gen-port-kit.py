@@ -168,9 +168,11 @@ def main():
        git stash -u && lake exe codegen --program stateless_guest \\
          --halt linux93 -o gen-out/base && git stash pop
        lake exe codegen --program stateless_guest --halt linux93 -o gen-out/cand
-       GUEST_ELF=<elf> EEST_RUN_DIR=<dir> \\
-         scripts/codegen-eest-stateless-check.sh --no-build --backend spike \\
+       EEST_RUN_DIR=<dir> scripts/codegen-eest-stateless-check.sh \\
+         --guest-elf <elf> --backend spike \\
          --random --seed 4242 --limit 200 --jobs 8 --quiet-passes
+       (--guest-elf implies --no-build and echoes the resolved path + sha256;
+        the GUEST_ELF env var is removed and is now an error, GH #10617)
   3. PLAN.md + docs/agents/top-theorem-ledger.md updated; bead closed only
      after the PR lands on main.
 -/

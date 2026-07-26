@@ -340,15 +340,21 @@ def schemeAAnchors : List GuestRegion :=
     plus a `beq`→`bgeu` swap in each of the two sparse handlers, and in NEITHER
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
-    keccak guard above: `0x61160 + 0x60`. Grew by `0x54` to `0x61cac` for GH
-    #10619's tracked account accessor
-    (`account_at_header_state_root_tracked`, `AccountReadLog.lean`): 21
-    instructions — an 8-slot save/restore of `ra` and `a0`-`a6` around one
-    `account_read_record` call, then a tail `j` to the raw entry. The 11 execution
-    call sites that were retargeted onto it contribute **zero** bytes: a retarget
-    only lengthens a `jal`'s symbol *name*, not the instruction. `.data` and
-    `.bss` are unchanged, which is the check that the wrapper added no data. -/
-def textSizeBytes : Nat := 0x061cac
+    keccak guard above: `0x61160 + 0x60`. Grew by `0x54` for GH #10619's tracked
+    account accessor (`account_at_header_state_root_tracked`,
+    `AccountReadLog.lean`): 21 instructions — an 8-slot save/restore of `ra` and
+    `a0`-`a6` around one `account_read_record` call, then a tail `j` to the raw
+    entry. The 11 execution call sites retargeted onto it contribute **zero**
+    bytes: a retarget only lengthens a `jal`'s symbol *name*, not the instruction.
+
+    Now `0x61da4` after merging `main`, and the merge is exactly additive:
+    `0x61510` (merge-base) `+ 0x79c` (this branch's six read containers, three
+    producers, two-level promotion and tracked accessor) `+ 0xf8` (what landed on
+    `main` meanwhile, including the BLS MSM discounts). Measured from the relinked
+    ELF, not computed — the sum is stated because it *reconciles*, which is the
+    check that the merge composed rather than one side silently winning. `.data`
+    and `.bss` are unchanged by this branch's merge resolution. -/
+def textSizeBytes : Nat := 0x061da4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
