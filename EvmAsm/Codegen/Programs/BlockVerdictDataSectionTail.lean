@@ -311,6 +311,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- Nonzero only while the shared scalar direct-precompile kernel is
   -- publishing an MTx result into the indexed arena.
   "bv_mtx_precompile_lane:\n  .zero 8\n" ++
+  -- A status-2 recipient lookup is deferred only through the shared auth
+  -- preparation boundary.  It is reset for every MTx item and never provides
+  -- code or an execution-body fallback.
+  "bv_mtx_recipient_lookup_deferred:\n  .zero 8\n" ++
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++

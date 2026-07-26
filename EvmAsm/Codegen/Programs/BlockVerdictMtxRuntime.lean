@@ -166,6 +166,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- EOA/non-runtime route otherwise inherits a previous transaction's
   -- successful preparation and incorrectly retains staged authorization gas.
   "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
@@ -295,15 +297,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
-  -- pre-state root. The recipient is ACCESSED (the tx sends to it), so a complete stateless
-  -- witness MUST carry it -> code 2 means the witness genuinely lacks a node on its path
-  -- (verified: the multi_transaction_gas_accounting GAS_USED_OVERFLOW witness omits tx1's
-  -- recipient node, 22 vs the valid variant's 24 nodes). An unverifiable accessed account =>
-  -- the block cannot be statelessly validated as valid => REJECT (not conservative-accept,
-  -- which was the false-accept). A valid block's witness always resolves the recipient
-  -- (code 0), so this never false-rejects. Codes 3/4 (decode/header) stay conservative.
-  "  li t1, 2; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  -- A status-2 recipient lookup stays a hard failure after preparation.  It is
+  -- routed only through the shared EIP-7702 preparation prefix first: an
+  -- ExceptionalHalt there restores the auth snapshot before the spec reads
+  -- recipient code, while a completed prefix returns to the same status-2
+  -- failure without executing a body.
+  "  li t1, 2; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_eoa\n" ++
+  ".Lbv_mtx_recipient_lookup_resolved:\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++

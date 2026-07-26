@@ -28,6 +28,21 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Charge the delegated-code access at the execution-specification boundary.
+    `runtime_access_account_charge` supplies the cold delta and records a cold
+    address; the unconditional warm floor belongs here because delegation
+    access is not an opcode table entry.  This is deliberately called only
+    after `runtime_access_seed_initial_accounts` has populated the tx's
+    accessed-addresses mirror. -/
+def delegationAccessChargeAsm (addressLabel : String) : String :=
+  "  ld t0, 568(x20); li t1, " ++
+  toString EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS ++
+  "; bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
+  "  la a0, " ++ addressLabel ++ "; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n"
+
 /-! ## dispatch_tx_runtime_code
 
     Measure one contract-recipient transaction's runtime gas by staging its
@@ -404,6 +419,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi sp, sp, -40\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
+  -- This is `prepare_dispatch`'s delegated-address charge.  The callback is
+  -- invoked after the initial accessed-address seeds and before the dispatcher
+  -- commits `runtime_tx_auth_phase_applied`; an OOG therefore remains a
+  -- preparation failure and rolls back set_delegation exactly as the spec does.
+  delegationAccessChargeAsm "dtrc_deleg_target" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   -- A delegation target may itself have been successfully CREATEd by an
@@ -451,6 +471,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_materialize_done:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 40\n" ++
+  "  ret\n" ++
+  "\n" ++
+  -- Same-block delegation already selected the exact target code before the
+  -- runtime is staged.  It still needs the identical post-seed access charge,
+  -- but no second code materialization.
+  "dtrc_charge_deferred_delegation:\n" ++
+  -- `delegationAccessChargeAsm` contains a nested `jal`; preserve the
+  -- dispatcher continuation before invoking the charge-only callback.
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  delegationAccessChargeAsm "dtrc_deleg_target" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "\n" ++
   "dispatch_tx_runtime_code:\n" ++
@@ -522,17 +553,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz t6, .Ldtrc_deleg_copied\n" ++
   "  lbu t2, 0(t5); sb t2, 0(t1); addi t5, t5, 1; addi t1, t1, 1; addi t6, t6, -1; j .Ldtrc_deleg_copy\n" ++
   ".Ldtrc_deleg_copied:\n" ++
-  -- v0.6.0 (C7): warm (100) vs cold (3000) delegated-code access by
-  -- pre-execution accessed-set membership.
-  "  la a0, dtrc_deleg_target; mv a1, s2\n" ++
-  "  jal ra, dtrc_delegate_warm_probe\n" ++
-  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS}; beqz a0, .Ldtrc_prior_access_cold\n" ++
-  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
-  ".Ldtrc_prior_access_cold:\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
-  -- Amsterdam prepare_dispatch charges this delegated access before reading
-  -- the target account/code.  Keep the marker payload until the callable
-  -- runtime reaches that existing OOG branch, then materialize on success.
+  -- Keep the marker payload until the post-seed prepare_dispatch callback can
+  -- charge and materialize it against the real accessed-address set.
   "  la t0, dtrc_deleg_deferred; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_materialize_deferred_delegation; sd t1, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
@@ -542,14 +564,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, cahsr_code_length; sd zero, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
   ".Ldtrc_same_block_delegation_code:\n" ++
-  -- v0.6.0 (C7): warm/cold by accessed-set membership (delegate address
-  -- exported by bal_same_block_delegation_code_resolve).
-  "  la a0, bsbd_deleg_target; mv a1, s2\n" ++
-  "  jal ra, dtrc_delegate_warm_probe\n" ++
-  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS}; beqz a0, .Ldtrc_sb_access_cold\n" ++
-  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
-  ".Ldtrc_sb_access_cold:\n" ++
-  "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
+  -- Export the same-block resolver's target for the post-seed charge-only
+  -- callback.  The resolver-selected code below remains authoritative.
+  "  la t0, bsbd_deleg_target; la t1, dtrc_deleg_target; li t2, 20\n" ++
+  ".Ldtrc_sb_target_copy:\n" ++
+  "  beqz t2, .Ldtrc_sb_target_copied\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_sb_target_copy\n" ++
+  ".Ldtrc_sb_target_copied:\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_charge_deferred_delegation; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
   "  la t0, sv_pre_rlp_len; ld t1, 0(t0); la t2, dtrc_hdr_len; sd t1, 0(t2)\n" ++
   ".Ldtrc_have_code:\n" ++
