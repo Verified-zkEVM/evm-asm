@@ -81,6 +81,14 @@ snapshot() {
   now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   selected=0
   [[ -f "$MANIFEST" ]] && selected="$(wc -l < "$MANIFEST" | tr -d ' ')"
+  # Residual hole in the NR >= completed assertion below: if RUN_DIR vanishes
+  # mid-run, BOTH enumerations fail, so completed=0 and NR=0 and the assertion
+  # passes with zeros. The directory is only checked once at startup, so check it
+  # per snapshot and say so loudly rather than reporting a clean-looking run.
+  if [[ ! -d "$RUN_DIR" ]]; then
+    printf '%s run=%s DIRECTORY MISSING -- counters unavailable\n' "$now" "$RUN_DIR"
+    return 0
+  fi
   completed="$(find "$RUN_DIR" -maxdepth 1 -name '*.result.tsv' 2>/dev/null | wc -l | tr -d ' ')"
   # Count in-flight workers for EITHER backend. Two bugs were fixed here:
   #  * matching only `ziskemu` reported 0 for Spike-backed runs, and Spike is
@@ -102,8 +110,8 @@ snapshot() {
     fi
   fi
 
-  # The result-file list is STREAMED on stdin (NUL-separated) and each file is
-  # opened by awk via getline. It must never be passed as argv: a full-corpus
+  # The result-file list is STREAMED on stdin and each file is opened by awk via
+  # getline. It must never be passed as argv: a full-corpus
   # run dir holds tens of thousands of files (72,393 observed for a
   # 26,104-fixture sweep), which exceeds ARG_MAX, so `awk … "$RUN_DIR"/*` never
   # execs. That failure USED to fall through to `echo "0 0 0 …"`, printing
@@ -121,10 +129,12 @@ snapshot() {
     # error. Result-file names are harness-generated (`<label>.result.tsv`) and
     # contain no newlines, so newline separation is safe here.
     find "$RUN_DIR" -maxdepth 1 -name '*.result.tsv' -print \
-    | awk -v manifest="$MANIFEST" '
+    | awk -v manifest="$MANIFEST" -v completed="$completed" '
       BEGIN {
         ok=err=full=succ=root=tail=fail=rod=0
+        mrows = 0
         while ((getline mline < manifest) > 0) {
+          mrows++
           n = split(mline, mc, "\t")
           if (n >= 3) expected_by_label[mc[1]] = substr(mc[3], 1, 210)
         }
@@ -136,6 +146,11 @@ snapshot() {
         label = path
         sub(/^.*\//, "", label)
         sub(/\.result\.tsv$/, "", label)
+        # FIRST LINE ONLY. Equivalent to the old per-line argv pass iff every
+        # *.result.tsv holds exactly one record, which is the current harness
+        # format ("<STATUS>\t<output_hex>"). The NR >= completed assertion below
+        # is what makes a future multi-line format fail loudly instead of
+        # silently counting one row per file.
         if ((getline rline < path) <= 0) { close(path); next }
         close(path)
         split(rline, rf, "\t")
@@ -155,7 +170,30 @@ snapshot() {
           if (!r && s && t) rod++
         }
       }
-      END { print ok, err, full, succ, root, tail, fail, rod }
+      END {
+        # DENOMINATOR ASSERTION -- the oracle lives in the script, not in the
+        # operator head. The `|| echo ERR` on this pipeline is NOT sufficient on
+        # its own: the pipeline exit status is awks, so if `find` fails and awk
+        # succeeds over EMPTY input, awk prints a well-formed "0 0 0 ..." and the
+        # fallback never fires -- reproducing the exact silent-zeros defect this
+        # rewrite exists to remove.
+        #
+        # `completed` was counted independently by the safe `find` above, so
+        # require NR >= completed. Deliberately >= and not ==: the run is LIVE,
+        # the awk pass runs strictly after the count, and the directory grows in
+        # between (observed completed=9799 with NR=9804 on a live sweep), so
+        # exact equality would false-alarm on every healthy snapshot. NR BELOW
+        # the independent count is the real signal -- it catches a failed
+        # enumeration, a truncated list, a partially consumed stream, and a
+        # multi-record result format, i.e. the invariant rather than one failure
+        # mode. A manifest that failed to load is caught too: it would leave
+        # every expectation empty and silently count every row as a failure.
+        if (NR < completed || (completed > 0 && mrows == 0)) {
+          print "ERR ERR ERR ERR ERR ERR ERR ERR"
+          exit 0
+        }
+        print ok, err, full, succ, root, tail, fail, rod
+      }
     ' || echo "ERR ERR ERR ERR ERR ERR ERR ERR"
   )
 
