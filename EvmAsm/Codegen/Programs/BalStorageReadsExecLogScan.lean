@@ -108,23 +108,80 @@ private def scanRegs (logBase addrPtr krevBase : Word)
   bytesRegion krevBase key32 **
   F
 
-/-- The head `ADDI x28, x28, -128` steps the past-end cursor of entry
-    `count - j` down to the base of entry `count - j - 1`. -/
-private theorem scan_cursor_step (logBase : Word) (count j : Nat)
-    (hj : j < count) (_hcnt : 128 * count < 2 ^ 64) :
-    logBase + BitVec.ofNat 64 (128 * (count - j)) + signExtend12 (-128 : BitVec 12)
-      = logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) := by
-  rw [show signExtend12 (-128 : BitVec 12) = (-128 : Word) from by decide]
+/-! ### Cursor arithmetic, generic in the entry STRIDE (GH #10619)
+
+    The scan below walks 128-byte entries, but `bal_storage_reads_in_exec_log` is
+    being re-pointed at the `storage_reads` container, whose entries are **64**
+    bytes (`addrHash ++ slotKey`). Rather than duplicate the cursor lemmas per
+    stride, they are proved once for a symbolic stride `S = 8 * D` and instantiated.
+
+    **Why the sign-extension is a HYPOTHESIS rather than an internal `decide`.**
+    The obvious parameterisation — proving `signExtend12 (-(BitVec.ofNat 12 S))
+    = -(BitVec.ofNat 64 S)` — does **not** go through: `bv_omega` cannot reason
+    through `signExtend` of a symbolic value. Taking the fact as a hypothesis means
+    each instantiation discharges it on its own **concrete** immediate, so the
+    arithmetic is proved once for every stride while the `decide` stays concrete and
+    kernel-checkable. No `native_decide`/`bv_decide`, per CLAUDE.md.
+
+    The other obstacle is a genuine **nonlinearity** (`D * m`, a product of two
+    variables). It is removed by eliminating the `Nat` subtraction first
+    (`count - j = m + 1`) and then generalising the product, after which the goal is
+    linear and `bv_omega` closes it. -/
+
+/-- Stride-generic form of `scan_cursor_step`. -/
+private theorem scan_cursor_step_gen (logBase : Word) (S D count j : Nat)
+    (imm : BitVec 12) (hSD : S = 8 * D)
+    (himm : signExtend12 imm = -(BitVec.ofNat 64 S))
+    (hj : j < count) (hcnt : S * count < 2 ^ 64) :
+    logBase + BitVec.ofNat 64 (S * (count - j)) + signExtend12 imm
+      = logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))) := by
+  rw [himm]
+  obtain ⟨m, hm⟩ : ∃ m, count - j = m + 1 := ⟨count - j - 1, by omega⟩
+  rw [hm, Nat.add_sub_cancel]
+  have hSm : 8 * (D * m) = S * m := by rw [hSD, Nat.mul_assoc]
+  have hsplit : S * (m + 1) = S * m + S := Nat.mul_succ S m
+  rw [hsplit, hSm]
+  have hb : S * m + S < 2 ^ 64 := by
+    have h1 : S * (m + 1) ≤ S * count := Nat.mul_le_mul_left _ (by omega)
+    rw [Nat.mul_succ] at h1
+    omega
+  generalize S * m = P at hb ⊢
   bv_omega
+
+/-- Stride-generic form of `scan_cursor_ne`. -/
+private theorem scan_cursor_ne_gen (logBase : Word) (S D T : Nat)
+    (hSD : S = 8 * D) (hD : 0 < D) (h1 : 1 ≤ T) (h2 : S * T < 2 ^ 64) :
+    logBase + BitVec.ofNat 64 (8 * (D * T)) ≠ logBase := by
+  have hDT : 8 * (D * T) = S * T := by rw [hSD, Nat.mul_assoc]
+  -- `0 < D` is genuinely REQUIRED, not defensive: at `D = 0` the stride is zero, the
+  -- cursor never leaves the base, and the statement is FALSE.
+  have hS : 0 < S := by omega
+  have hpos : 0 < S * T := Nat.mul_pos hS h1
+  rw [hDT]
+  clear hDT hSD hS h1
+  -- The product is the only nonlinearity; name it so the goal is linear in P.
+  generalize S * T = P at h2 hpos ⊢
+  bv_omega
+
+/-- The head `ADDI x28, x28, -128` steps the past-end cursor of entry
+    `count - j` down to the base of entry `count - j - 1`.
+
+    Instantiates `scan_cursor_step_gen` at the exec log's `S = 128, D = 16`. -/
+private theorem scan_cursor_step (logBase : Word) (count j : Nat)
+    (hj : j < count) (hcnt : 128 * count < 2 ^ 64) :
+    logBase + BitVec.ofNat 64 (128 * (count - j)) + signExtend12 (-128 : BitVec 12)
+      = logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) :=
+  scan_cursor_step_gen logBase 128 16 count j (-128) (by omega) (by decide) hj hcnt
 
 /-- While entries remain (`1 ≤ T`), the stepped cursor differs from the log
     base — no wraparound thanks to the log-size bound. -/
 private theorem scan_cursor_ne (logBase : Word) (T : Nat)
     (h1 : 1 ≤ T) (h2 : 128 * T < 2 ^ 64) :
-    logBase + BitVec.ofNat 64 (8 * (16 * T)) ≠ logBase := by
-  bv_omega
+    logBase + BitVec.ofNat 64 (8 * (16 * T)) ≠ logBase :=
+  scan_cursor_ne_gen logBase 128 16 T (by omega) (by omega) h1 h2
 
-/-- At the first entry (`T = 0`) the stepped cursor IS the log base. -/
+/-- At the first entry (`T = 0`) the stepped cursor IS the log base. Stride-free:
+    the cursor offset is `0` whatever the entry width. -/
 private theorem scan_cursor_eq_zero (logBase : Word) :
     logBase + BitVec.ofNat 64 (8 * (16 * 0)) = logBase := by
   bv_omega
