@@ -880,22 +880,29 @@ def blockVerdictFunction : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  -- bbow4.2: NET-ZERO the aborted tx's storage exec-log rows (set current := original for each
-  -- row in [snap_count, count)). The tx's SSTORE writes are reverted, so the change comparators
-  -- (bal_all_accounts_storage_consistent fwd / bal_storage_covers_exec_log rev) see net-zero;
-  -- but the rows STAY so the slots remain "accessed" for the recipient storage_reads check
-  -- (bal_storage_reads_in_exec_log, bv_fail=38). Truncating the rows instead would drop the
-  -- aborted tx's READ slots -> bv38. Rows: addrHash@0, slotKey@32, original@64, current@96
-  -- (128 B stride at 0xa0630000). We do NOT change evm_env+448 (keep every row).
-  "  la t0, bv_tx_effect_snap_storage_count; ld t0, 0(t0)\n" ++          -- t0 = i = pre-tx row count
-  "  la t1, evm_env; ld t1, 448(t1)\n" ++                                -- t1 = post-dispatch row count
-  "  li t2, 0xa0630000\n" ++                                            -- t2 = storage exec-log base
-  ".Lbv_tx0_storage_revert:\n" ++
-  "  bgeu t0, t1, .Lbv_tx0_effects_kept\n" ++
-  "  slli t3, t0, 7; add t3, t2, t3\n" ++                               -- t3 = &row[i] = base + i*128
-  "  ld t4, 64(t3); sd t4, 96(t3); ld t4, 72(t3); sd t4, 104(t3)\n" ++  -- current := original (32 B)
-  "  ld t4, 80(t3); sd t4, 112(t3); ld t4, 88(t3); sd t4, 120(t3)\n" ++
-  "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
+  -- GH #10619: TRUNCATE the aborted tx's storage exec-log rows to the pre-tx count,
+  -- replacing the net-zero-and-keep loop that stood here.
+  --
+  -- That loop existed for TWO reasons, and only one of them is now obsolete. Its own
+  -- note recorded both: the rows were net-zeroed so the change comparators
+  -- (`bal_all_accounts_storage_consistent` fwd / `bal_storage_covers_exec_log` rev)
+  -- would see no change for a touched-but-aborted account, AND the rows were KEPT
+  -- rather than truncated so the slots stayed "accessed" for the recipient
+  -- `storage_reads` check -- "Truncating the rows instead would drop the aborted tx's
+  -- READ slots -> bv38", in its own words. Reads now live in the `storage_reads`
+  -- container, which rollback does not touch and which `bal_storage_reads_in_exec_log`
+  -- reads directly, so that second reason is gone.
+  --
+  -- The FIRST reason is NOT gone, which is why this is a truncation rather than a bare
+  -- deletion. Simply removing the loop would leave the aborted tx's SSTORE values in
+  -- the write log as apparent changes the BAL never declares. Truncation discharges it
+  -- more directly than net-zeroing did -- no rows at all means no changes -- and it is
+  -- what the spec does: `restore_tx_state` (state_tracker.py:809-826) restores only the
+  -- WRITE structures and leaves the read sets alone, and `frame_return` already
+  -- truncates a reverted child the same way. The value-derived read-vs-write
+  -- distinction in the 128-byte row therefore stops being load-bearing here, which is
+  -- the collapse #10619 exists to remove rather than to preserve as a no-op.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   -- dispatch_tx_runtime_code already snapshots recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
@@ -1284,8 +1291,19 @@ def blockVerdictFunction : String :=
   "  li t0, 2; beq a0, t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la a0, evm_env\n" ++
   "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
-  "  li a3, 0xa0630000\n" ++
-  "  la t0, evm_env; ld a4, 448(t0)\n" ++
+  -- GH #10619: this compare now reads the block-level `storage_reads` CONTAINER
+  -- (`STORAGE_READS_AREA` = 0xa1ba0000, `storage_reads_count`, 64-byte
+  -- `addrHash ++ slotKey` entries) rather than the 128-byte exec log. The
+  -- container mirrors the spec's `BlockState.storage_reads` set, which rollback
+  -- does not touch, so a read taken inside a frame that later reverted is still
+  -- present — which is the divergence #10619 exists to remove. The container is
+  -- exactly the exec log's key prefix, and this comparator never reads past
+  -- offset 56, so the comparison itself is unchanged; only the population is.
+  -- a5 = entry stride, travelling WITH the base/count so a base cannot be
+  -- re-pointed without it.
+  "  li a3, 0xa1ba0000\n" ++
+  "  la t0, storage_reads_count; ld a4, 0(t0)\n" ++
+  "  li a5, 64\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after
