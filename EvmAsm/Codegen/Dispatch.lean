@@ -60,6 +60,7 @@ import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameReturn
 import EvmAsm.Codegen.Programs.StaticContext
+import EvmAsm.Stateless.SpecRef.InstructionsEnv
 
 namespace EvmAsm.Codegen
 
@@ -485,6 +486,7 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
   "opcode_handlers:\n" ++
   String.intercalate "\n" entries
 
+open EvmAsm.Stateless.SpecRef.GasCosts in
 /-- M30 (gas metering, first slice): the **static base** gas cost of each
     EVM opcode byte, used by the dispatch loop to charge gas per instruction.
 
@@ -505,53 +507,91 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
 
     Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
     not assigned a real opcode are 0, so trusted programs never spuriously
-    run out of gas on a terminator or an unwired byte. -/
+    run out of gas on a terminator or an unwired byte.
+
+    ## Sourced from SpecRef rather than transcribed (GH #10569)
+
+    Every entry with a SpecRef symbol now names it, so a fork repricing an
+    opcode fails the build here instead of silently charging the old value.
+    Before substituting, each symbol's value was compared against the literal it
+    replaces and **all agreed** — so this records that the table was *correct*,
+    not merely that it is now pinned.
+
+    Entries that keep a bare literal, and why:
+    * `CREATE`/`CREATE2` (11000) and `SELFDESTRUCT` (5000) — no SpecRef symbol
+      exists for these base charges;
+    * halt and unwired bytes — deliberately 0 per the note above, so there is
+      no static constant to name. -/
 def staticGasCost (op : Nat) : Nat :=
-  if op = 0x5f then 2                     -- PUSH0 (BASE)
-  else if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
-  else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
-  else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
-  else if 0xe6 ≤ op ∧ op ≤ 0xe8 then 3   -- DUPN/SWAPN/EXCHANGE (EIP-8024, VERYLOW)
-  else if 0xa0 ≤ op ∧ op ≤ 0xa4 then 375 -- LOG0..LOG4 (base)
+  if op = 0x5f then OPCODE_PUSH0
+  else if 0x60 ≤ op ∧ op ≤ 0x7f then OPCODE_PUSH        -- PUSH1..PUSH32
+  else if 0x80 ≤ op ∧ op ≤ 0x8f then OPCODE_DUP         -- DUP1..DUP16
+  else if 0x90 ≤ op ∧ op ≤ 0x9f then OPCODE_SWAP        -- SWAP1..SWAP16
+  else if op = 0xe6 then OPCODE_DUPN                    -- EIP-8024
+  else if op = 0xe7 then OPCODE_SWAPN
+  else if op = 0xe8 then OPCODE_EXCHANGE
+  else if 0xa0 ≤ op ∧ op ≤ 0xa4 then OPCODE_LOG_BASE    -- LOG0..LOG4
   else match op with
     -- arithmetic
-    | 0x01 => 3 | 0x03 => 3                                  -- ADD, SUB
-    | 0x02 => 5 | 0x04 => 5 | 0x05 => 5 | 0x06 => 5 | 0x07 => 5  -- MUL,DIV,SDIV,MOD,SMOD
-    | 0x0b => 5                                              -- SIGNEXTEND
-    | 0x08 => 8 | 0x09 => 8                                  -- ADDMOD, MULMOD
-    | 0x0a => 10                                             -- EXP (base)
-    -- comparison & bitwise (all VERYLOW)
-    | 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 => 3
-    | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a => 3
-    | 0x1b | 0x1c | 0x1d => 3
-    | 0x1e => 5                                             -- CLZ (EIP-7939, LOW)
-    | 0x20 => 30                                             -- KECCAK256 (base)
+    | 0x01 => OPCODE_ADD        | 0x03 => OPCODE_SUB
+    | 0x02 => OPCODE_MUL        | 0x04 => OPCODE_DIV
+    | 0x05 => OPCODE_SDIV       | 0x06 => OPCODE_MOD
+    | 0x07 => OPCODE_SMOD       | 0x0b => OPCODE_SIGNEXTEND
+    | 0x08 => OPCODE_ADDMOD     | 0x09 => OPCODE_MULMOD
+    | 0x0a => OPCODE_EXP_BASE
+    -- comparison & bitwise
+    | 0x10 => OPCODE_LT         | 0x11 => OPCODE_GT
+    | 0x12 => OPCODE_SLT        | 0x13 => OPCODE_SGT
+    | 0x14 => OPCODE_EQ         | 0x15 => OPCODE_ISZERO
+    | 0x16 => OPCODE_AND        | 0x17 => OPCODE_OR
+    | 0x18 => OPCODE_XOR        | 0x19 => OPCODE_NOT
+    | 0x1a => OPCODE_BYTE
+    | 0x1b => OPCODE_SHL        | 0x1c => OPCODE_SHR
+    | 0x1d => OPCODE_SAR
+    | 0x1e => OPCODE_CLZ                                 -- EIP-7939
+    | 0x20 => OPCODE_KECCAK256_BASE
     -- environment / context
-    | 0x30 => 2 | 0x32 => 2 | 0x33 => 2 | 0x34 => 2 | 0x3a => 2  -- ADDRESS,ORIGIN,CALLER,CALLVALUE,GASPRICE
-    | 0x35 => 3                                              -- CALLDATALOAD (VERYLOW)
-    | 0x36 => 2 | 0x38 => 2 | 0x3d => 2                      -- CALLDATASIZE,CODESIZE,RETURNDATASIZE
-    | 0x37 => 3 | 0x39 => 3 | 0x3e => 3                      -- CALLDATACOPY,CODECOPY,RETURNDATACOPY (base)
-    | 0x31 => 100 | 0x3b => 100 | 0x3f => 100               -- BALANCE,EXTCODESIZE,EXTCODEHASH (warm floor)
-    | 0x3c => 100                                            -- EXTCODECOPY (warm floor, base)
-    | 0x40 => 20                                             -- BLOCKHASH
-    | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x4a | 0x4b => 2  -- COINBASE..BASEFEE, BLOBBASEFEE, SLOTNUM
-    | 0x47 => 5                                              -- SELFBALANCE (LOW)
-    | 0x49 => 3                                              -- BLOBHASH
+    | 0x30 => OPCODE_ADDRESS    | 0x32 => OPCODE_ORIGIN
+    | 0x33 => OPCODE_CALLER     | 0x34 => OPCODE_CALLVALUE
+    | 0x3a => OPCODE_GASPRICE
+    | 0x35 => OPCODE_CALLDATALOAD
+    | 0x36 => OPCODE_CALLDATASIZE
+    | 0x38 => OPCODE_CODESIZE   | 0x3d => OPCODE_RETURNDATASIZE
+    | 0x37 => OPCODE_CALLDATACOPY_BASE
+    | 0x39 => OPCODE_CODECOPY_BASE
+    | 0x3e => OPCODE_RETURNDATACOPY_BASE
+    -- account-access opcodes: the STATIC entry is the warm floor; the cold
+    -- delta is added by the access-charge path, not here.
+    | 0x31 => WARM_ACCESS       -- BALANCE
+    | 0x3b => WARM_ACCESS       -- EXTCODESIZE
+    | 0x3c => WARM_ACCESS       -- EXTCODECOPY
+    | 0x3f => WARM_ACCESS       -- EXTCODEHASH
+    | 0x40 => OPCODE_BLOCKHASH
+    | 0x41 => OPCODE_COINBASE   | 0x42 => OPCODE_TIMESTAMP
+    | 0x43 => OPCODE_NUMBER     | 0x44 => OPCODE_PREVRANDAO
+    | 0x45 => OPCODE_GASLIMIT   | 0x46 => OPCODE_CHAINID
+    | 0x48 => OPCODE_BASEFEE    | 0x4a => OPCODE_BLOBBASEFEE
+    | 0x4b => OPCODE_SLOTNUM
+    | 0x47 => LOW                                        -- SELFBALANCE
+    | 0x49 => OPCODE_BLOBHASH
     -- stack / memory / flow
-    | 0x50 => 2                                              -- POP (BASE)
-    | 0x51 | 0x52 | 0x53 => 3                                -- MLOAD,MSTORE,MSTORE8 (VERYLOW)
-    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base)
-    | 0x56 => 8                                              -- JUMP (MID)
-    | 0x57 => 10                                             -- JUMPI (HIGH)
-    | 0x58 | 0x59 | 0x5a => 2                                -- PC,MSIZE,GAS (BASE)
-    | 0x5b => 1                                              -- JUMPDEST
-    | 0x5c => 100 | 0x5d => 100                              -- TLOAD,TSTORE
-    | 0x5e => 3                                              -- MCOPY (base)
-    | 0x5f => 2                                              -- PUSH0 (BASE)
-    -- child frames (base; dynamic call/create costs dropped)
-    | 0xf0 => 11000 | 0xf5 => 11000                            -- CREATE, CREATE2
-    | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
-    | 0xff => 5000                                           -- SELFDESTRUCT (base)
+    | 0x50 => OPCODE_POP
+    | 0x51 => OPCODE_MLOAD_BASE | 0x52 => OPCODE_MSTORE_BASE
+    | 0x53 => OPCODE_MSTORE8_BASE
+    | 0x54 => WARM_ACCESS       -- SLOAD  (warm floor)
+    | 0x55 => WARM_ACCESS       -- SSTORE (warm floor)
+    | 0x56 => OPCODE_JUMP       | 0x57 => OPCODE_JUMPI
+    | 0x58 => OPCODE_PC         | 0x59 => OPCODE_MSIZE
+    | 0x5a => OPCODE_GAS        | 0x5b => OPCODE_JUMPDEST
+    | 0x5c => OPCODE_TLOAD      | 0x5d => OPCODE_TSTORE
+    | 0x5e => OPCODE_MCOPY_BASE
+    -- child frames (base; dynamic call/create costs charged elsewhere)
+    | 0xf0 => 11000 | 0xf5 => 11000                      -- CREATE, CREATE2: no SpecRef symbol
+    | 0xf1 => WARM_ACCESS       -- CALL         (warm floor)
+    | 0xf2 => WARM_ACCESS       -- CALLCODE
+    | 0xf4 => WARM_ACCESS       -- DELEGATECALL
+    | 0xfa => WARM_ACCESS       -- STATICCALL
+    | 0xff => 5000                                       -- SELFDESTRUCT: no SpecRef symbol
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
     -- and all unwired bytes → 0.
     | _ => 0
