@@ -20,6 +20,9 @@ start() {
 
 codegen_checks() {
   scripts/codegen-stateless-link-check.sh --no-build
+  # GH #10637: the line above links stateless_guest ONLY, so a unit that mirrors
+  # guest handlers can reference an undefined symbol with every gate green.
+  scripts/check-build-units-link.sh
   scripts/check-region-map.sh
   scripts/check-guarded-handler-bytes.sh
 }
