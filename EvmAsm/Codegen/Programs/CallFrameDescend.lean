@@ -673,7 +673,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li t0, 16777216; sd t0, 568(s8); sd zero, 488(s8)\n" ++
   "  mv x13, s7; mv x20, s8\n" ++
   "  li x14, 0x30000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  li t0, 0x1122334455667788; add t1, s7, x14; sd t0, 0(t1)\n" ++
   -- Enter depth 2. Its base must be parent base + parent MSIZE.
   "  la t0, frame_parent_bases; addi t0, t0, 32; sd s7, 0(t0); sd s8, 8(t0)\n" ++
@@ -683,7 +683,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li t0, 16777216; sd t0, 568(s10); sd zero, 488(s10)\n" ++
   "  mv x13, s9; mv x20, s10\n" ++
   "  li x14, 0x40000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  li t0, 0x8877665544332211; add t1, s9, x14; sd t0, 0(t1)\n" ++
   -- Record child isolation and parent readback.
   "  sub t0, s9, s7; sd t0, 0(s0)\n" ++
@@ -693,7 +693,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li a0, 2; jal ra, call_frame_enter\n" ++
   "  mv s11, a0; mv s6, a2; li t0, 16777216; sd t0, 568(s6); sd zero, 488(s6)\n" ++
   "  mv x13, s11; mv x20, s6; li x14, 0x40000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  add t1, s11, x14; ld t0, 0(t1); sd t0, 24(s0)\n" ++
   "  li t0, 0xaabbccddeeff0011; sd t0, 0(t1); ld t0, 0(t1); sd t0, 32(s0)\n" ++
   "  li t2, 0x30000; add t1, s7, t2; ld t0, 0(t1); sd t0, 40(s0)\n" ++

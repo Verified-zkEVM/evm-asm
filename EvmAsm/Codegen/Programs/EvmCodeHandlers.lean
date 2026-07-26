@@ -53,7 +53,7 @@ def codeHandlers : List OpcodeHandlerSpec :=
                  ".Lcodecopy_source_ok:\n" ++
                  memDynamicArenaOogGuardAsm "codecopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "codecopy" "x15" "x16" "x17" "x18" ++
-                 updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true
+                 updateActiveMemorySizeAsm "codecopy" "x14" "x15" "x16" "x17" "x18" "x6" true false
       body    := EvmAsm.Evm64.Code.evm_codecopy
                    .x20 .x13 .x21 .x14 .x15 .x16 .x17 .x18
       tail    := .advanceAndRet 1 } ]

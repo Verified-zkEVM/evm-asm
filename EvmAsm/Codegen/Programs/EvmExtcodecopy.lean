@@ -86,7 +86,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
     "  sd x5, 0(sp)
 " ++
     copyWordGasAsm "extcodecopy" "x15" "x16" "x17" "x18" ++
-    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true ++
+    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true false ++
     "  ld x5, 0(sp)
 " ++
     "  addi sp, sp, 8
