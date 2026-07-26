@@ -41,6 +41,41 @@ notation "Word" => BitVec 64
   | Legacy | `0x20..0x78000000` | scratch/heap touched by verified opcodes |
   | Input  | `0x40000000..0x40002000` | ziskemu `INPUT_ADDR` (8 KiB) |
   | RAM    | `0xa0000000..0xc0000000` | ziskemu `.data` + `OUTPUT_ADDR` |
+
+  **"Disjoint" above is inaccurate: `Input ⊆ Legacy`.** `0x20 ≤ 0x40000000`
+  and `0x40002000 ≤ 0x78000000`, so the Input disjunct accepts nothing the
+  Legacy disjunct does not already accept — it is redundant, and there are
+  effectively two zones, not three. Nothing is built on the disjointness claim
+  (no lemma proves or assumes it), but do not rely on it. Note also that real
+  host inputs greatly exceed the 8 KiB Input window — measured up to ≈8 MiB —
+  so input reads are admitted by the **Legacy** disjunct, not the Input one.
+  Retiring Legacy as dead therefore requires first extending Input to reach
+  real input sizes; see GH #10560.
+
+  **The `.text`/`.rodata` window `[0x80000000, 0xa0000000)` is deliberately
+  NOT a zone, and this is load-bearing for soundness — do not add a disjunct
+  for it.** `isValidMemAddr` governs *data* accesses only (every consumer is a
+  load or a store). Code lives in a separate `CodeMem` map on `MachineState`
+  which is provably immutable across execution — `code_execInstrBr`,
+  `code_step`, `code_stepN` (`EvmAsm/Rv64/Execution.lean:234,846,878`). Those
+  lemmas and this exclusion are two halves of one invariant: code is immutable
+  **and** unreachable by stores. Admitting text-window stores would let the
+  model update `mem` while still proving `s'.code = s.code`, i.e. claim the
+  instruction stream is unchanged for a write that corrupts code on the real
+  machine — the model being more optimistic than the machine. Weakening either
+  half alone is unsound; changing this means making `code` mutable and
+  revisiting every proof that uses those simp lemmas.
+
+  Ranges are **closed** `[lo, hi]`, as written below (`addr ≤ …_END`). Note
+  that `Codegen/RegionMap.lean`'s `RegionZone` describes its zones as
+  half-open `[lo, hi)`; where the two disagree, the code here is authoritative
+  and `RegionZone` serves a different purpose (classifying where sections are
+  *linked*, not which addresses a load/store may touch).
+
+  KNOWN GAP (GH #10560): the access predicates below check only the access's
+  START address, never its extent, so at a zone top an aligned multi-byte
+  access is admitted whose bytes lie outside every zone. Do not read
+  `isValidDwordAccess` as "this 8-byte access is in bounds".
 -/
 
 /-- Legacy valid memory region start (low-scratch zone, unchanged
