@@ -9,6 +9,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -94,7 +95,7 @@ def sstoreGasRefundOutcomeFunction : String :=
   ".Lsgr_access_done:\n" ++
   "  beqz s3, .Lsgr_warm_access_cost\n" ++
   "  bnez s4, .Lsgr_warm_access_cost\n" ++
-  "  li t0, 10000                # clean-changing: STORAGE_WRITE\n" ++
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}                # clean-changing: STORAGE_WRITE\n" ++
   "  add s6, s6, t0\n" ++        -- (Amsterdam: no SET split; zero-origin creation is EIP-8037 state gas)
   "  j .Lsgr_refund\n" ++
   ".Lsgr_warm_access_cost:\n" ++
@@ -104,15 +105,15 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  bnez s0, .Lsgr_restore_check\n" ++
   "  bnez s1, .Lsgr_reverse_clear\n" ++
   "  beqz s2, .Lsgr_restore_check\n" ++
-  "  li t0, 12480\n" ++
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.REFUND_STORAGE_CLEAR}\n" ++
   "  add s7, s7, t0\n" ++
   "  j .Lsgr_restore_check\n" ++
   ".Lsgr_reverse_clear:\n" ++
-  "  li t0, 12480\n" ++
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.REFUND_STORAGE_CLEAR}\n" ++
   "  sub s7, s7, t0\n" ++
   ".Lsgr_restore_check:\n" ++
   "  beqz s5, .Lsgr_store\n" ++
-  "  li t0, 10000                # restore: STORAGE_WRITE\n" ++
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}                # restore: STORAGE_WRITE\n" ++
   "  add s7, s7, t0\n" ++
   "  beqz s0, .Lsgr_store\n" ++
   "  li t2, 1                    # zero restore: caller credits state gas (EIP-8037)\n" ++
