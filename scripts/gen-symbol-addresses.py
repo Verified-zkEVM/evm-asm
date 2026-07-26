@@ -65,6 +65,10 @@ STABLE_BASES = {
     "storage_reads_area":     0xa1ba0000,
     "account_reads_area":     0xa1ca0000,
     "code_reads_area":        0xa1d20000,
+    # GH #10619 gate 3: the per-transaction level of the same three sets.
+    "tx_storage_reads_area":  0xa1da0000,
+    "tx_account_reads_area":  0xa1ea0000,
+    "tx_code_reads_area":     0xa1f20000,
 }
 
 

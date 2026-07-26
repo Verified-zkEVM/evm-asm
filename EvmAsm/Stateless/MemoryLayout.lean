@@ -97,6 +97,9 @@
   | `STORAGE_READS_AREA`         | `0xa1ba0000`     | 1 MiB       |
   | `ACCOUNT_READS_AREA`         | `0xa1ca0000`     | 512 KiB     |
   | `CODE_READS_AREA`            | `0xa1d20000`     | 512 KiB     |
+  | `TX_STORAGE_READS_AREA`      | `0xa1da0000`     | 1 MiB       |
+  | `TX_ACCOUNT_READS_AREA`      | `0xa1ea0000`     | 512 KiB     |
+  | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -242,6 +245,34 @@ def STORAGE_READS_AREA      : Word := 0xa1ba0000
 def ACCOUNT_READS_AREA      : Word := 0xa1ca0000
 /-- `code_reads` — 8192 × 64 B (`addrHash ++ codeHash`). -/
 def CODE_READS_AREA         : Word := 0xa1d20000
+
+/-! ### The TRANSACTION level of the same three sets (GH #10619, review gate 3)
+
+    The spec has **two** levels, not one. `TransactionState` gets FRESH read sets per
+    transaction (`field(default_factory=set)`; `fork.py:1043`), the recorders target
+    the *transaction* level (`tx_state.storage_reads.add(...)` at `:295`/`:578`,
+    `account_reads` at `:139`/`:199`, `code_reads` at `:269`), and
+    `incorporate_tx_into_block` (`:832`) merges upward at `:858-861` and then CLEARS
+    the tx sets at `:879-881`.
+
+    Mirroring only the block level would be the weaker reasoned-to-be-the-same form,
+    and it fails on one concrete case rather than merely on style: `fork.py:745-752`
+    uses a **throwaway** `TransactionState` to pre-check that a system contract has
+    code — in the spec's own words *"never propagated back to BlockState (no
+    `incorporate_tx_into_block` call)"* — whose reads are deliberately DISCARDED.
+    With block-level containers only, every recorded read is promoted by
+    construction and there is nowhere to express that path.
+
+    Same entry layouts and capacities as their block-level counterparts, so a merge
+    is a straight set-insert per entry. -/
+
+/-- Per-transaction `storage_reads` — merged up and cleared by
+    `read_sets_incorporate_tx`. -/
+def TX_STORAGE_READS_AREA   : Word := 0xa1da0000
+/-- Per-transaction `account_reads`. -/
+def TX_ACCOUNT_READS_AREA   : Word := 0xa1ea0000
+/-- Per-transaction `code_reads`. -/
+def TX_CODE_READS_AREA      : Word := 0xa1f20000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 

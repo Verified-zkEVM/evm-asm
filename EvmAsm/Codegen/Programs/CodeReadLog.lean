@@ -55,13 +55,26 @@
       +0  address  (20 B big-endian, zero-padded to 32)
       +32 codeHash (32 B)
 
-  64 B stride over `CODE_READS_AREA` (`0xa1d20000`, 8192 entries). All comparisons
+  64 B stride over `CODE_READS_AREA` (`0xa1f20000`, 8192 entries). All comparisons
   and copies here are **byte-wise** (`lbu`/`sb`): the hash and address pointers come
   from SSZ/witness structures with no guaranteed 8-alignment, and the verified RV64
   semantics require `ld`/`sd` to be 8-aligned.
 
   Block lifetime: never reset per transaction, never restored on rollback,
   mirroring `restore_tx_state` (`:809-826`) leaving `code_reads` alone.
+  ## Two levels (GH #10619 review gate 3)
+
+  This recorder targets the **TRANSACTION-level** arena, which is where the spec's
+  `.add()` calls point (`tx_state.*_reads.add(...)`). The block-level arena is filled
+  only by `read_sets_incorporate_tx`, mirroring `incorporate_tx_into_block`
+  (`state_tracker.py:832`): merge up at `:858-861`, then CLEAR the tx set at
+  `:879-881`. The clear is load-bearing — a merge without it double-counts across
+  transactions in a multi-tx block, which a single-tx smoke test cannot see.
+
+  `fork.py:745-752`'s throwaway `TransactionState`, whose reads are deliberately NOT
+  promoted, is expressed by `read_sets_discard_tx` — a named operation rather than an
+  absence.
+
 -/
 
 import EvmAsm.Rv64.Program
@@ -77,10 +90,10 @@ def codeReadRecordFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, code_reads_count; ld t1, 0(t0)\n" ++
+  "  la t0, tx_code_reads_count; ld t1, 0(t0)\n" ++
   "  li t2, 8192\n" ++
   "  bgeu t1, t2, .Lcrr_overflow\n" ++
-  "  li t2, 0xa1d20000\n" ++
+  "  li t2, 0xa1f20000\n" ++
   "  li t3, 0\n" ++                                          -- i
   ".Lcrr_scan:\n" ++
   "  bgeu t3, t1, .Lcrr_append\n" ++
@@ -101,7 +114,7 @@ def codeReadRecordFunction : String :=
   "  bne t6, t0, .Lcrr_next\n" ++
   "  addi t5, t5, 1; j .Lcrr_cmp_hash_loop\n" ++
   ".Lcrr_next:\n" ++
-  "  la t0, code_reads_count\n" ++
+  "  la t0, tx_code_reads_count\n" ++
   "  addi t3, t3, 1; j .Lcrr_scan\n" ++
   ".Lcrr_append:\n" ++
   "  slli t4, t1, 6; add t4, t2, t4\n" ++
@@ -121,10 +134,10 @@ def codeReadRecordFunction : String :=
   "  add t0, t4, t5; sb t6, 32(t0)\n" ++
   "  addi t5, t5, 1; j .Lcrr_cp_hash_loop\n" ++
   ".Lcrr_bump:\n" ++
-  "  la t0, code_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_code_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lcrr_done\n" ++
   ".Lcrr_overflow:\n" ++
-  "  la t0, code_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_code_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lcrr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
@@ -181,8 +194,8 @@ def codeReadFetchFunction : String :=
 /-- Cursor, overflow flag, and `keccak256(b"")` = EMPTY_CODE_HASH for the skip.
     Block-lifetime: never reset per transaction, never restored on rollback. -/
 def codeReadLogDataSection : String :=
-  "code_reads_count:\n  .zero 8\n" ++
-  "code_reads_overflow:\n  .zero 8\n" ++
+  "tx_code_reads_count:\n  .zero 8\n" ++
+  "tx_code_reads_overflow:\n  .zero 8\n" ++
   -- NO new EMPTY_CODE_HASH constant here, deliberately.  It would be INITIALIZED
   -- bytes in a NOBITS `.bss` context (which `as` rejects outright), and emitting it
   -- into `.data` instead grows that section and shifts every later data symbol --

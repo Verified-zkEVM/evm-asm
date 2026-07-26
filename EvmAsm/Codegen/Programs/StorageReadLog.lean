@@ -30,7 +30,7 @@
 
   ## Overflow is recorded, never silently dropped
 
-  On a full arena the routine sets `storage_reads_overflow` instead of discarding
+  On a full arena the routine sets `tx_storage_reads_overflow` instead of discarding
   the read. A dropped read is not FA-safe to ignore *quietly*: it leaves a BAL
   read with no exec-log support, which reads downstream as a genuine mismatch. The
   flag lets a consumer distinguish "this block has no such read" from "we stopped
@@ -42,9 +42,22 @@
       +0  addrHash (32 B)  the frame's env.ADDRESS, keyed exactly as the write log
       +32 slotKey  (32 B)  the EVM stack word
 
-  64 B stride over `STORAGE_READS_AREA` (`0xa1ba0000`, 16384 entries). Base and
+  64 B stride over `STORAGE_READS_AREA` (`0xa1da0000`, 16384 entries). Base and
   stride are both 8-aligned, so every `ld`/`sd` below is 8-aligned as the RV64
   operational semantics require.
+  ## Two levels (GH #10619 review gate 3)
+
+  This recorder targets the **TRANSACTION-level** arena, which is where the spec's
+  `.add()` calls point (`tx_state.*_reads.add(...)`). The block-level arena is filled
+  only by `read_sets_incorporate_tx`, mirroring `incorporate_tx_into_block`
+  (`state_tracker.py:832`): merge up at `:858-861`, then CLEAR the tx set at
+  `:879-881`. The clear is load-bearing — a merge without it double-counts across
+  transactions in a multi-tx block, which a single-tx smoke test cannot see.
+
+  `fork.py:745-752`'s throwaway `TransactionState`, whose reads are deliberately NOT
+  promoted, is expressed by `read_sets_discard_tx` — a named operation rather than an
+  absence.
+
 -/
 
 import EvmAsm.Rv64.Program
@@ -71,10 +84,10 @@ def storageReadRecordFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
+  "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Lsrr_overflow\n" ++
-  "  li t3, 0xa1ba0000\n" ++                                 -- t3 = STORAGE_READS_AREA
+  "  li t3, 0xa1da0000\n" ++                                 -- t3 = STORAGE_READS_AREA
   "  li t4, 0\n" ++                                          -- t4 = i
   ".Lsrr_scan:\n" ++
   "  bgeu t4, t1, .Lsrr_append\n" ++
@@ -105,7 +118,7 @@ def storageReadRecordFunction : String :=
   "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Lsrr_done\n" ++
   ".Lsrr_overflow:\n" ++
-  "  la t0, storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lsrr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
@@ -120,7 +133,7 @@ def storageReadRecordFunction : String :=
     and nothing restores them on rollback, mirroring `restore_tx_state` leaving
     `storage_reads` alone. -/
 def storageReadLogDataSection : String :=
-  "storage_reads_count:\n  .zero 8\n" ++
-  "storage_reads_overflow:\n  .zero 8\n"
+  "tx_storage_reads_count:\n  .zero 8\n" ++
+  "tx_storage_reads_overflow:\n  .zero 8\n"
 
 end EvmAsm.Codegen

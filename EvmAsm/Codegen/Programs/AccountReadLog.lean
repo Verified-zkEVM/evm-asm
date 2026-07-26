@@ -41,7 +41,7 @@
 
       +0  address (20 B, big-endian) zero-padded to 32 B
 
-  32 B stride over `ACCOUNT_READS_AREA` (`0xa1ca0000`, 16384 entries). The key is
+  32 B stride over `ACCOUNT_READS_AREA` (`0xa1ea0000`, 16384 entries). The key is
   20 bytes because that is what the guest's own `account_state_find` compares
   (`li t4, 20`, byte-wise); the dedup loop below mirrors that shape deliberately.
   Bytes 20..31 are **explicitly zeroed** rather than left as whatever the slab
@@ -51,6 +51,19 @@
   Block lifetime: nothing here is reset per transaction and nothing is restored on
   rollback, mirroring `restore_tx_state` (`:809-826`) leaving `account_reads`
   alone.
+  ## Two levels (GH #10619 review gate 3)
+
+  This recorder targets the **TRANSACTION-level** arena, which is where the spec's
+  `.add()` calls point (`tx_state.*_reads.add(...)`). The block-level arena is filled
+  only by `read_sets_incorporate_tx`, mirroring `incorporate_tx_into_block`
+  (`state_tracker.py:832`): merge up at `:858-861`, then CLEAR the tx set at
+  `:879-881`. The clear is load-bearing — a merge without it double-counts across
+  transactions in a multi-tx block, which a single-tx smoke test cannot see.
+
+  `fork.py:745-752`'s throwaway `TransactionState`, whose reads are deliberately NOT
+  promoted, is expressed by `read_sets_discard_tx` — a named operation rather than an
+  absence.
+
 -/
 
 import EvmAsm.Rv64.Program
@@ -73,10 +86,10 @@ def accountReadRecordFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, account_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
+  "  la t0, tx_account_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Larr_overflow\n" ++
-  "  li t2, 0xa1ca0000\n" ++                                 -- t2 = ACCOUNT_READS_AREA
+  "  li t2, 0xa1ea0000\n" ++                                 -- t2 = ACCOUNT_READS_AREA
   "  li t3, 0\n" ++                                          -- t3 = i
   ".Larr_scan:\n" ++
   "  bgeu t3, t1, .Larr_append\n" ++
@@ -90,7 +103,7 @@ def accountReadRecordFunction : String :=
   "  bne t6, t0, .Larr_next\n" ++
   "  addi t5, t5, 1; j .Larr_bytes\n" ++
   ".Larr_next:\n" ++
-  "  la t0, account_reads_count\n" ++                         -- t0 was clobbered by the compare
+  "  la t0, tx_account_reads_count\n" ++                         -- t0 was clobbered by the compare
   "  addi t3, t3, 1; j .Larr_scan\n" ++
   ".Larr_append:\n" ++
   "  slli t4, t1, 5; add t4, t2, t4\n" ++                     -- t4 = &entry[count]
@@ -104,10 +117,10 @@ def accountReadRecordFunction : String :=
   "  add t0, t4, t5; sb t6, 0(t0)\n" ++
   "  addi t5, t5, 1; j .Larr_copy\n" ++
   ".Larr_bump:\n" ++
-  "  la t0, account_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_account_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  j .Larr_done\n" ++
   ".Larr_overflow:\n" ++
-  "  la t0, account_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_account_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Larr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
@@ -117,7 +130,7 @@ def accountReadRecordFunction : String :=
 /-- Cursor + overflow flag for the `account_reads` container. Block-lifetime:
     never reset per transaction, never restored on rollback. -/
 def accountReadLogDataSection : String :=
-  "account_reads_count:\n  .zero 8\n" ++
-  "account_reads_overflow:\n  .zero 8\n"
+  "tx_account_reads_count:\n  .zero 8\n" ++
+  "tx_account_reads_overflow:\n  .zero 8\n"
 
 end EvmAsm.Codegen

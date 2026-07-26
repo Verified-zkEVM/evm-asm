@@ -67,6 +67,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.ReadSetsPromote
 
 namespace EvmAsm.Codegen
 
@@ -493,6 +494,13 @@ def statelessVerdictV2GuestClosure : String :=
   -- -- the opposite condition from the account/storage recorders.
   codeReadRecordFunction ++ "\n" ++
   codeReadFetchFunction ++ "\n" ++
+  -- GH #10619 gate 3: the PROMOTION BOUNDARY.  Recorders write the tx level;
+  -- these merge it up and clear it, mirroring incorporate_tx_into_block
+  -- (state_tracker.py:832, merge :858-861, clear :879-881).  discard_tx is what
+  -- makes fork.py:745-752's never-promoted throwaway state expressible.
+  readSetsMergeOneFunction ++ "\n" ++
+  readSetsIncorporateTxFunction ++ "\n" ++
+  readSetsDiscardTxFunction ++ "\n" ++
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
@@ -589,6 +597,7 @@ def statelessVerdictV2GuestData : String :=
   -- mirroring restore_tx_state leaving storage_reads alone.
   storageReadLogDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
-  codeReadLogDataSection
+  codeReadLogDataSection ++ "\n" ++
+  readSetsBlockDataSection
 
 end EvmAsm.Codegen

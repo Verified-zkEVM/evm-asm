@@ -203,6 +203,15 @@ def accountStateUpsertDurableFunction : String :=
     next transaction sees the durable tombstone. -/
 def accountStateCommitPendingFunction : String :=
   "account_state_commit_pending:\n" ++
+  -- GH #10619 gate 3: this is the guest's incorporate_tx_into_block for the
+  -- account/code overlay, so it is where the READ sets are promoted too --
+  -- merge the three tx-level sets up and clear them (state_tracker.py:832,
+  -- merge :858-861, clear :879-881).  Ordered BEFORE the write merge below,
+  -- matching the spec: update_builder_from_tx and the read merges run before
+  -- account_writes/storage_writes are folded into the block.
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
   "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_loop:\n" ++

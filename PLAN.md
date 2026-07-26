@@ -188,6 +188,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
+  GH #10619): inserting one instruction into a `Program` literal moves **four**
+  separate things, and getting any wrong yields assembly that LINKS CLEANLY while
+  jumping into the middle of an instruction — silent corruption no build, diff or
+  `#guard` catches. The script computes them from an anchor annotation:
+  `GuestAddrs.<routine> + N` bumps, relative branches whose **span crosses** the
+  insertion point (measured: 5 / 2 / 4 in the three routines routed for #10619), the
+  **instruction-indexed** reloc side-table, and the `_prog.length` pin. Read-only.
+  Prefer `asm_to_program.py rewrite` where an asm fixture exists — it derives all
+  four — and use this as the independent check on it (that cross-check is how the
+  branch-span and reloc-index classes were found).
+
 - **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
   GH #10540): kernel-checked (`decide`, classical-3) assertions that the
   MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding

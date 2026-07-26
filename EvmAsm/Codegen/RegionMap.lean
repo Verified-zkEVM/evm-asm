@@ -144,8 +144,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1da0000` (the upper three are
-    the GH #10619 read containers). Aspirational —
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
+    the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
     internally consistent, but they are NOT part of `guestRegionMap`. -/
 def schemeAAnchors : List GuestRegion :=
@@ -187,7 +187,18 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout ACCOUNT_READS_AREA; 512 KiB = 16384x32 (addrHash)" },
     { name := "code_reads_area",        base := 0xa1d20000, size := 0x80000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout CODE_READS_AREA; 512 KiB = 8192x64 (addrHash++codeHash); "
-        ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" } ]
+        ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" },
+    -- GH #10619 review gate 3: the TRANSACTION level of the same three sets.  The
+    -- spec has two levels (TransactionState's fresh sets, merged up at
+    -- state_tracker.py:858-861 and CLEARED at :879-881), and a block-level-only
+    -- mirror has nowhere to express fork.py:745-752 -- a throwaway TransactionState
+    -- whose reads are deliberately NOT promoted.
+    { name := "tx_storage_reads_area",  base := 0xa1da0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_READS_AREA; per-tx storage_reads, merged up and cleared" },
+    { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
+    { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -330,7 +341,7 @@ def schemeAAnchors : List GuestRegion :=
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
     keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x061a24
+def textSizeBytes : Nat := 0x061c58
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -357,7 +368,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b255800
+def bssSizeBytes : Nat := 0x1b255820
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -529,7 +540,10 @@ theorem schemeA_matches_layout :
         -- GH #10619: the spec's three read sets (state_tracker.py:67-77, :96-104).
         (EvmAsm.Stateless.STORAGE_READS_AREA).toNat,
         (EvmAsm.Stateless.ACCOUNT_READS_AREA).toNat,
-        (EvmAsm.Stateless.CODE_READS_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.CODE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -747,6 +761,7 @@ def stableGuestBases : List (String × Nat) :=
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
 -- 20 -> 23: the three read-container anchors added for GH #10619.
-theorem stableGuestBases_length : stableGuestBases.length = 23 := by decide
+-- 23 -> 26: the three per-transaction read containers (GH #10619 gate 3).
+theorem stableGuestBases_length : stableGuestBases.length = 26 := by decide
 
 end EvmAsm.Codegen.RegionMap
