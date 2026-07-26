@@ -218,6 +218,16 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
       BOTH constants 8-aligned. That half is arithmetic, so it is pinned by
       `Codegen/MemoryBudgetGuard.lean`'s `clampEnd_alignment_*` guards.
 
+    TRIGGER for the nested half: it is unguarded *only* because the end IS the
+    label, so nothing arithmetic can drift it. **If you ever change that end to
+    be computed rather than to reduce to `evm_memory_pool_end` itself, it moves
+    from construction class to coincidence class and needs a pin alongside the
+    depth-0 ones.** That half is also the one whose overshoot is most costly:
+    `rb_running_block_bloom` begins at *exactly* `evm_memory_pool_end` with zero
+    bytes of slack (verified in the linked image; see the layout invariant at
+    the pool's emission site in `Programs/BlockVerdictDataSectionTail.lean`), so
+    an inexact exit there corrupts verdict state rather than padding.
+
     Gas and MSIZE semantics are deliberately UNCHANGED by the clamp — the charge
     stays the full spec `extend_memory.cost` and `env+488` still records the full
     `ceil32(offset+size)`. Only the *materialization* is bounded, which loses no
