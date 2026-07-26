@@ -10,6 +10,25 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
 namespace EvmAsm.Codegen
 
+/-- Enter the shared direct-precompile kernel from the MTx empty-code route.
+    The kernel consumes the scalar transaction scratch, so this bounded adapter
+    copies the current fixed-layout context and sender, marks the publication
+    lane, and lets the common kernel distinguish active precompiles from
+    ordinary empty-code recipients. -/
+def blockVerdictMtxPrecompileSettlement : String :=
+  ".Lbv_mtx_precompile_entry:\n" ++
+  "  la t0, bv_mtx_ctx; la t1, bv_simple_transfer_tx; li t2, 24\n" ++
+  ".Lbv_mtx_precompile_ctx_copy:\n" ++
+  "  beqz t2, .Lbv_mtx_precompile_sender_init; ld t3, 0(t0); sd t3, 0(t1); addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1; j .Lbv_mtx_precompile_ctx_copy\n" ++
+  ".Lbv_mtx_precompile_sender_init:\n" ++
+  "  la t0, bv_mtx_sender_addr; la t1, bmvmx_sender_addr; li t2, 20\n" ++
+  ".Lbv_mtx_precompile_sender_copy:\n" ++
+  "  beqz t2, .Lbv_mtx_precompile_kernel; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_precompile_sender_copy\n" ++
+  ".Lbv_mtx_precompile_kernel:\n" ++
+  "  la t0, bv_mtx_precompile_lane; li t1, 1; sd t1, 0(t0); la t2, bv_simple_transfer_tx; j .Lbv_tx_gas_precharge_pc0_prefix\n" ++
+  ".Lbv_mtx_precompile_not_active:\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0); j .Lbv_mtx_is_eoa\n"
+
 /-- Multi-tx EOA recipient settlement fragment, concatenated at the empty-code
     recipient branch in `block_verdict`. -/
 def blockVerdictMtxEoaSettlement : String :=
