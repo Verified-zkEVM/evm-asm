@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
@@ -25,7 +26,6 @@ import EvmAsm.Codegen.Proofs.GuestImageEntries
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
-import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs

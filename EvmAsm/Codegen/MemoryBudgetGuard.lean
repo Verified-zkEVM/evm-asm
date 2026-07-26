@@ -51,9 +51,18 @@ namespace EvmAsm.Codegen.MemoryBudgetGuard
 
 open EvmAsm.Codegen (rootRuntimeMemoryArenaLimitBytes evmMemoryPoolBytes)
 
-/-- `calculate_memory_gas_cost` in words: `GAS_MEMORY·w + ⌊w²/512⌋` with
-    `GAS_MEMORY = 3` (`SpecRef/Gas.lean:180-182`, `MEMORY_PER_WORD`). -/
-def memoryGasCostWords (w : Nat) : Nat := 3 * w + (w * w) / 512
+/-- The linear memory coefficient, pinned to the SpecRef constant for the same
+    reason as `gasCap`: if a future fork reprices memory, `gasCap` would follow
+    the spec while a hardcoded coefficient silently would not, and this guard
+    would quietly stop meaning what its docstring says. -/
+def memoryPerWord : Nat := EvmAsm.Stateless.SpecRef.GasCosts.MEMORY_PER_WORD
+
+theorem memoryPerWord_eq : memoryPerWord = 3 := by decide
+
+/-- `calculate_memory_gas_cost` in words: `MEMORY_PER_WORD·w + ⌊w²/512⌋`
+    (`SpecRef/Gas.lean:180-182`). The `512` divisor is a bare literal in the
+    spec too (`Gas.lean:182`), so there is no named constant to pin it to. -/
+def memoryGasCostWords (w : Nat) : Nat := memoryPerWord * w + (w * w) / 512
 
 /-- The per-tx regular-gas cap, pinned to the SpecRef constant so a fork change
     cannot drift this guard away from the value the guest enforces. -/
