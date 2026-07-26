@@ -46,7 +46,7 @@ def hashHandlers : List OpcodeHandlerSpec :=
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 32(x12)\n" ++
                  keccakWordGasAsm "x15" ++
-                 updateActiveMemorySizeAsm "keccak" "x14" "x15" "x16" "x17" "x18" "x6" true
+                 updateActiveMemorySizeAsm "keccak" "x14" "x15" "x16" "x17" "x18" "x6" true false
     , body    := []
     , tail    := .custom (
         "  mv s10, x10\n" ++           -- save EVM code ptr

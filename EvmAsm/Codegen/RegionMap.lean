@@ -305,8 +305,13 @@ def schemeAAnchors : List GuestRegion :=
     (`fix/nested-create-nonce-seed`), which preserves the live nonce for
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
-    (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x61158
+    (`fix/extcodehash-selfdestruct-empty`). Grew by `0x60` to `0x611b8` for the
+    MLOAD/MSTORE fresh-zero-loop arena clamp (`fix/memsize-zero-loop-clamp`,
+    #10522): 13 added instructions plus a `beq`→`bgeu` swap in each of the two
+    sparse handlers, and in NEITHER of the other 15
+    `updateActiveMemorySizeAsm` call sites — they pass `clampToArena = false`
+    and stay byte-identical. -/
+def textSizeBytes : Nat := 0x611b8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
