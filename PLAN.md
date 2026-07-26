@@ -199,6 +199,44 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   configuration. **Ordering constraint**: if it ever fails, the sparse path goes
   live, #10522's write becomes reachable, and the global 4096-entry sparse cap
   becomes a reachable FR — see #10535.
+
+  **Grown since #10540 into the home for constant-relationship invariants
+  generally** — seven guards over three remits: #10522's unreachability
+  precondition, the achievable steps-per-gas constant `k` behind the top
+  theorem's fuel (#10552), and the clamped fill loop's exit exactness
+  (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
+  header records the **admission test** (coincidence needs a kernel-checked pin;
+  construction does not, and a pin there is redundant ceremony), the rule to
+  guard only the coincidental half of a two-half bound *and say why the other
+  needs nothing*, the rule to pin the quantity that is **used** rather than its
+  inputs, and — added in #10563 — the **boundary**: constants Lean can *see*
+  only. An invariant involving a link-chosen address belongs in the ELF gate
+  below, because a `decide` on one would pin a number nobody had checked against
+  the image, which is worse than no guard because it *looks* verified.
+- **Gas-coefficient pins** (`MemoryBudgetGuard.lean`, GH #10565–#10567, #10570,
+  #10571): every inline dynamic-gas coefficient and static tier tied to its
+  SpecRef symbol by a red-tested `decide`, each carrying the instruction for what
+  to fix when it fires (*update the helper's arithmetic, never the theorem*). All
+  were **correct when pinned** — this is drift protection. Three
+  coincidence-class collapses found in the process: `copyWordGasAsm`'s `3` serves
+  two spec constants that must stay *equal* (#10566) **and is emitted from two
+  files** (#10568); CREATE2's `8` is a **sum** of `CODE_INIT_PER_WORD` and
+  `OPCODE_KECCAK256_PER_WORD` (#10567); and the access split `100 + 2900` must
+  reconstitute `COLD_{ACCOUNT,STORAGE}_ACCESS`, where a reprice of `WARM_ACCESS`
+  alone would leave the sum right and the warm path silently wrong (#10571).
+  Residuals filed, not absorbed: the 256-entry static table is unpinned per
+  opcode (#10569) and the flat `WARM_ACCESS` is a bare literal at every emission
+  site (#10572).
+- **Link-layout ELF gate** (`scripts/check-region-map.sh`, GH #10559): asserts
+  that **whichever** dense arena ends at `__BSS_END__` does so exactly, so the
+  boundary above it faces ~7.2 MiB of unclaimed address space rather than mapped
+  data. Written as a property, not an instance, so it survives an intentional
+  reorder (#10557) and fires only if *neither* arena backstops. Complements the
+  layout invariant recorded at the pool's emission site: `rb_running_block_bloom`
+  begins at **exactly** `evm_memory_pool_end` with zero slack, so any overshoot
+  in a pool-fill loop corrupts verdict state rather than padding (#10556).
+  Note the gap is *unclaimed*, **not** trapping — it lies inside the verified RAM
+  window, so a store there is legal and silent.
 - **A/B comparator with self-checks** (`scripts/eest-ab-compare.py`, GH #10546):
   compares two `codegen-eest-stateless-check` run dirs and **refuses to report a
   verdict** unless three assertions hold — both sides scored every manifest row
