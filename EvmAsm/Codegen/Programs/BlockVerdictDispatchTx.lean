@@ -477,7 +477,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- runtime is staged.  It still needs the identical post-seed access charge,
   -- but no second code materialization.
   "dtrc_charge_deferred_delegation:\n" ++
+  -- `delegationAccessChargeAsm` contains a nested `jal`; preserve the
+  -- dispatcher continuation before invoking the charge-only callback.
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   delegationAccessChargeAsm "dtrc_deleg_target" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "\n" ++
   "dispatch_tx_runtime_code:\n" ++
