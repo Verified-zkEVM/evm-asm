@@ -297,15 +297,19 @@ if [[ "$ALL" -eq 0 && "$LIMIT_SET" -eq 0 ]]; then
   cat >&2 <<'SCOPE_ERR'
 error: a run scope is required (no default).
 
-  --all         the full 26104-case corpus.  This is the MERGE GATE: any change
-                that alters emitted bytes needs a full-corpus A/B before it can
-                land.  Use --backend spike; it is parallel-tolerant.
-  --limit N     a smoke subset of N cases, for iteration.  CANNOT support a
-                corpus verdict.
+  --all         the full 26104-case corpus.  Required for a HIGH-BLAST-RADIUS
+                change -- a gas constant, a shared helper, anywhere you cannot
+                trust path-targeting -- and for re-baselining after main moves.
+                Use --backend spike; it is parallel-tolerant.
+  --limit N     a subset of N cases.  Use for iteration, and for a FOCUSED run
+                on a targeted change: known-failing cases, plus fixtures
+                touching the changed path, plus a random control drawn from the
+                PASSING set (a focused set built only from known-failing and
+                path-touching cases is blind in the OK->FR direction).
 
-Pick deliberately: a smoke run reports honestly over its N cases and reads
-exactly like a corpus pass, so an unscoped run is how a 50-case result gets
-mistaken for a 26104-case one.
+Pick deliberately, and state the scope with every number you report.  A subset
+run reports honestly over its N cases and reads exactly like a corpus pass, so
+an unscoped run is how a 50-case result gets mistaken for a 26104-case one.
 
 (If you invoked a wrapper script rather than this one, add the flag to that
 wrapper's own invocation.)
