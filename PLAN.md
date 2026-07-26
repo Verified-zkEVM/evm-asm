@@ -224,9 +224,30 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `OPCODE_KECCAK256_PER_WORD` (#10567); and the access split `100 + 2900` must
   reconstitute `COLD_{ACCOUNT,STORAGE}_ACCESS`, where a reprice of `WARM_ACCESS`
   alone would leave the sum right and the warm path silently wrong (#10571).
-  Residuals filed, not absorbed: the 256-entry static table is unpinned per
-  opcode (#10569) and the flat `WARM_ACCESS` is a bare literal at every emission
-  site (#10572).
+  **Those residuals are now closed, and by a stronger mechanism than pinning.**
+  Rather than adding more `decide`s, the emission sites were changed to
+  *interpolate the SpecRef symbol*, so the guest can no longer hold a value that
+  disagrees with the spec:
+  * SSTORE's `STORAGE_WRITE` and `REFUND_STORAGE_CLEAR` (#10574 → PR #10579) —
+    seven sites over three files, and the guest now inherits SpecRef's
+    *derivation* of `REFUND_STORAGE_CLEAR` rather than its output;
+  * the flat `WARM_ACCESS`, plus the adjacent `COLD_ACCOUNT_ACCESS`
+    (#10572 → PR #10585);
+  * the 256-entry static gas table (#10569 → PR #10586) — every entry that has a
+    SpecRef symbol now names one; only `CREATE`/`CREATE2` (11000) and
+    `SELFDESTRUCT` (5000) keep literals, having no symbol to name.
+
+  All three were verified **byte-identical**, which is also what establishes each
+  symbol choice was right: a wrong symbol with a coincidentally equal value moves
+  no byte, so byte-identity alone does not catch it — `SELFBALANCE` was
+  substituted as `LOW` and corrected to `FAST_STEP`, both being 5. Those cases
+  were settled by reading `execution-specs`, not the value.
+
+  This makes the relationship **construction class** by `MemoryBudgetGuard`'s own
+  admission test, so the surviving pins are now redundancy checks rather than the
+  only line of defence. The remaining audit item on #10569 — whether each
+  access-priced opcode actually *reaches* a cold-delta charge — was checked
+  separately and holds on every non-halting path.
 - **Link-layout ELF gate** (`scripts/check-region-map.sh`, GH #10559): asserts
   that **whichever** dense arena ends at `__BSS_END__` does so exactly, so the
   boundary above it faces ~7.2 MiB of unclaimed address space rather than mapped
