@@ -346,6 +346,17 @@ def accountStateRecordAuthFunction : String :=
 
 def accountStateAuthCurrentFunction : String :=
   "account_state_auth_current:\n" ++
+  -- GH #10619 (review gate 2): a third EXECUTION account read, missed by the
+  -- latest_balance/latest_nonce hooks.  Reached as
+  -- block_verdict_eip7702_auth_nonstorage_effects_array ->
+  -- eip7702_auth_nonstorage_effects -> eip7702_authority_asof -> here.  The
+  -- block_verdict_ prefix is misleading: applying EIP-7702 authorizations IS
+  -- transaction execution in the spec (it mutates nonce/code through
+  -- get_account), so these reads belong in account_reads.  Recorded
+  -- UNCONDITIONALLY, per state_tracker.py:139.
+  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasac_entry\n" ++
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasac_miss\n" ++
