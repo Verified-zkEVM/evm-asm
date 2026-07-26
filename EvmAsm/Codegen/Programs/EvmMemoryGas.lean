@@ -178,6 +178,21 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     The clamp and the `beq`→`bgeu` swap are therefore a single change, not two:
     the equality exit is unsafe exactly when the end can be clamped downward.
 
+    **ALIGNMENT PRECONDITION (`clampToArena = true`): the frame limit must be
+    8-aligned.** The fill loop stores with `sd` and steps the pointer by 8, so
+    the `bgeu` exit is *exact* only if the clamped end is a multiple of 8. A
+    misaligned end would let the pointer step OVER it, exiting after writing the
+    8 bytes at the previous position — overshooting by up to 7 bytes past the
+    very bound the clamp exists to enforce, i.e. a smaller version of the bug
+    being fixed. It holds on both paths today, for different reasons:
+    * nested — the clamped end reduces algebraically to the `evm_memory_pool_end`
+      LABEL (`x13 + (pool_end - x13)`), so its alignment is the assembler's
+      (`.balign 8`, and `evmMemoryPoolBytes` is 8-aligned). Construction, not
+      arithmetic.
+    * depth 0 — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
+      BOTH constants 8-aligned. That half is arithmetic, so it is pinned by
+      `Codegen/MemoryBudgetGuard.lean`'s `clampEnd_alignment_*` guards.
+
     Gas and MSIZE semantics are deliberately UNCHANGED by the clamp — the charge
     stays the full spec `extend_memory.cost` and `env+488` still records the full
     `ceil32(offset+size)`. Only the *materialization* is bounded, which loses no
