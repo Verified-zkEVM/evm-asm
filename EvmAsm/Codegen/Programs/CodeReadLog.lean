@@ -173,9 +173,21 @@ def codeReadFetchFunction : String :=
 def codeReadLogDataSection : String :=
   "code_reads_count:\n  .zero 8\n" ++
   "code_reads_overflow:\n  .zero 8\n" ++
-  ".balign 8\n" ++
+  -- EMPTY_CODE_HASH is INITIALIZED bytes, and the ambient section here is NOBITS
+  -- `.bss` -- `as` rejects a non-zero value there ("attempt to store non-zero
+  -- value in section `.bss'"), and it rejects it at LINK time rather than in
+  -- `lake build`, so the Lean side stays green while the guest stops assembling.
+  -- Switch to PROGBITS for the constant and resume `.bss` after, which is the
+  -- same idiom (and the same hazard) as the deposit constants in
+  -- `BlockVerdictV2.statelessVerdictV2GuestData`.
+  ".section .data\n" ++
+  ".balign 32\n" ++
   "code_read_empty_hash:\n" ++
-  "  .byte 0xc5,0xd2,0x46,0x01,0x86,0xf7,0x23,0x3c,0x92,0x7e,0x7d,0xb2,0xdc,0xc7,0x03,0xc0\n" ++
-  "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b,0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n"
+  "  .byte 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c\n" ++
+  "  .byte 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0\n" ++
+  "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
+  "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70\n" ++
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 8\n"
 
 end EvmAsm.Codegen
