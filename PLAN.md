@@ -200,6 +200,40 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   four — and use this as the independent check on it (that cross-check is how the
   branch-span and reloc-index classes were found).
 
+- **EIP-7928 read containers** (GH #10619): the spec's three read sets
+  (`state_tracker.py` `storage_reads` / `account_reads` / `code_reads`) mirrored at
+  **both** of the spec's two levels — per-transaction arenas that the recorders
+  write, and block-level arenas filled only by `read_sets_incorporate_tx`
+  (`state_tracker.py:832`; merge `:858-861`, then **clear** `:879-881`).
+  `read_sets_discard_tx` names the never-promoted path (`fork.py:745-752`).
+  Producers: `StorageReadLog` / `AccountReadLog` / `CodeReadLog`, deliberately
+  **three routines rather than one parameterised by kind** — the firing conditions
+  differ (account/storage record unconditionally *before* consulting writes, `:139`
+  / `:295`; code records only on a pre-state fallthrough and skips
+  `EMPTY_CODE_HASH`, `:263-270`), so a shared recorder would over-record code reads
+  and invent witness codes.
+  **Tracked/raw accessor pairs** mirror the spec's tracked-accessor-vs-raw-store
+  distinction: `code_read_fetch` over `witness_codes_lookup_by_hash`, and
+  `account_at_header_state_root_tracked` over `account_at_header_state_root`.
+  Execution call sites route to the tracked entry; verification sites
+  (`block_verdict` ×6, `bal_code_preimages_valid`) and guest-only sites keep the raw
+  one, because recording verification reads is an **over**-record — the direction
+  that produces a false ACCEPT.
+  Why a split and not a classification table: **five** separate instruments
+  mis-measured that one caller set (a single-call-form `jal ra` grep, a
+  lowercase-only label pattern that skipped `h_CALL:`, a hand table that lost three
+  rows, a source-level reading of a parameterised generator, and an
+  end-of-line-anchored attributor that dropped every compound `jal x; mv y`). A
+  table is a promise maintained by whoever last ran the search; the call graph is
+  not. **Rule adopted:** never report a count you did not measure in the emitted
+  image, and reconcile any attributed breakdown against an independent flat count —
+  a breakdown whose rows do not sum to the flat count has *failed*, not
+  approximated.
+  The six arenas cost **zero** ELF bytes (absolute-addressed carve-outs of the
+  pre-existing working-RAM window, not `.bss` objects); the whole ELF cost is 96
+  bytes of cursors and overflow flags. `MemoryBudgetGuard` does **not** cover these
+  regions — it is a gas-affordability guard, not a footprint guard (open follow-up).
+
 - **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
   GH #10540): kernel-checked (`decide`, classical-3) assertions that the
   MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding
