@@ -135,7 +135,32 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     Register use: `offsetReg` and `roundedReg` are preserved across the
     block; `lengthReg` is preserved (so MCOPY can keep the copy length in
     it across two calls); `maskReg`, `currentReg`, and `gasTmpReg` are
-    clobbered as scratch.
+    clobbered as scratch. Verified at all 17 call sites: the three
+    preserved roles never share a register with the three clobbered ones.
+
+    **The role→register mapping is NOT uniform across call sites, so reason
+    about roles and never about register numbers.** Two verified examples:
+    `x17` is `currentReg` at the `codecopy`/`extcodecopy`/`log`/`call_*`
+    sites but `roundedReg` at the `mcopy_*`/`returndatacopy` ones, and `x18`
+    is `maskReg` at `codecopy` but `currentReg` at `mcopy_src`. So a claim of
+    the form 'x17 holds the rounded size' is true at some sites and false at
+    others. (The sparse/const wrappers below thread these roles through as
+    parameters, so an opcode's effective assignment is set by *its* caller,
+    not visible here — one more reason to reason by role.)
+
+    Consequence for editors: **do not introduce a hardcoded register into
+    this block.** A literal `xN` here is `maskReg` at one site and
+    `roundedReg` at another, so it would silently clobber a value the caller
+    is entitled to keep, at only some sites — the worst failure shape to
+    debug. The block currently hardcodes only `x13` (EVM-memory base) and
+    `x20` (frame base), and both are safe *because they are read-only*:
+    `x20` appears solely as a load/store base and `x13` solely as an `add`
+    source, neither ever as a destination. That is a property of today's
+    body, not one anything enforces — if you make either a destination, or
+    add a third literal, the clobber list above stops being complete. (The
+    sibling helper `keccakWordGasAsm` does hardcode `x5`, which *is*
+    `maskReg` at the CALL/LOG sites; it is safe only because it is never
+    reached from inside this block.)
 
     ## `clampToArena` — ONE coupled invariant, do not take half of it
 
@@ -192,6 +217,16 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     * depth 0 — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
       BOTH constants 8-aligned. That half is arithmetic, so it is pinned by
       `Codegen/MemoryBudgetGuard.lean`'s `clampEnd_alignment_*` guards.
+
+    TRIGGER for the nested half: it is unguarded *only* because the end IS the
+    label, so nothing arithmetic can drift it. **If you ever change that end to
+    be computed rather than to reduce to `evm_memory_pool_end` itself, it moves
+    from construction class to coincidence class and needs a pin alongside the
+    depth-0 ones.** That half is also the one whose overshoot is most costly:
+    `rb_running_block_bloom` begins at *exactly* `evm_memory_pool_end` with zero
+    bytes of slack (verified in the linked image; see the layout invariant at
+    the pool's emission site in `Programs/BlockVerdictDataSectionTail.lean`), so
+    an inexact exit there corrupts verdict state rather than padding.
 
     Gas and MSIZE semantics are deliberately UNCHANGED by the clamp — the charge
     stays the full spec `extend_memory.cost` and `env+488` still records the full
