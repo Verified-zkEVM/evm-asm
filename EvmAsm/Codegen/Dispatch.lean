@@ -2884,7 +2884,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sub x6, x6, x9\n" ++
   "  sd x6, 568(x20)\n" ++
   ".runtime_tx_top_frame_regular_done:\n" ++
-  "  la x11, runtime_tx_auth_phase_applied; li x9, 1; sd x9, 0(x11)\n" ++
   "  ld x6, 0(x5)\n" ++            -- x6 = header_len
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
@@ -2903,19 +2902,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
   "  jalr ra, x28, 0\n" ++
   ".runtime_tx_post_top_frame_done:\n" ++
-  -- 5tmlt (Part B): warm tx.to's (env.ADDRESS) EIP-7702 delegation target AFTER the
-  -- reset above. The spec warms the delegated_address at the first/free top-level
-  -- access (interpreter.py:152-153); the guest's pre-reset resolutions of it are wiped
-  -- by runtime_access_seed_initial_accounts, so a later CALL/reentry would re-charge
-  -- the target COLD (+2500, bv_fail=53 pointer_to_static_reentry). Convert env.ADDRESS
-  -- (env+0, LE stack word) to a BE-20 scratch, then resolve with a3=0 (no charge) ->
-  -- the resolver's free-warm (Part A) seeds the target into the now-post-reset table.
-  -- No-op when there's no BAL (standalone: bv_bal_start=0) or env.ADDRESS isn't delegated.
-  "  addi x5, x20, 19; la x6, rt_deleg_warm_be; li x7, 20\n" ++
-  ".Lrt_dwarm_be:\n" ++
-  "  lbu x28, 0(x5); sb x28, 0(x6); addi x5, x5, -1; addi x6, x6, 1; addi x7, x7, -1; bnez x7, .Lrt_dwarm_be\n" ++
-  "  la a0, rt_deleg_warm_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  -- All preparation charges, including a deferred delegated-code access, have
+  -- now passed.  Only this point commits the auth phase; callback OOG above is
+  -- still a preparation ExceptionalHalt and must roll its auths back.
+  "  la x11, runtime_tx_auth_phase_applied; li x9, 1; sd x9, 0(x11)\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
