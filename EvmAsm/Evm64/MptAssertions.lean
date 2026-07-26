@@ -141,63 +141,64 @@ def hpEncode (isLeaf : Bool) (nibbles : List (BitVec 8)) : List (BitVec 8) :=
   hpEncodeAux (if isLeaf then 2 else 0) nibbles
 
 /-- Hex-prefix decode: the leaf flag and the nibble path. Mirrors the
-    guest's parse (`mpt_leaf_extract` prog lines 591-616): high nibble
-    `≥ 4` is a parse failure, bit 1 is the leaf flag, bit 0 the parity. -/
+    guest's parse: bit 1 of the head nibble is the leaf flag, bit 0 the
+    parity, and **bits 2-3 are ignored** — the `% 4` is the spec's masking
+    (`compact_to_nibbles`, `amsterdam/incremental_mpt.py:878-889`, ported at
+    `SpecRef/IncrementalMpt.lean:76-86`, computes `first_nibble & 0x02` and
+    `& 0x01` and never inspects the high two bits).  This decoder used to
+    reject a head nibble `≥ 4`; GH #10528 removed that, so the guest is no
+    longer stricter than the spec and a guest-equals-spec statement carries
+    one fewer side-condition. -/
 def hpDecode (bs : List (BitVec 8)) : Option (Bool × List (BitVec 8)) :=
   match bs with
   | [] => none
   | b0 :: rest =>
-    match b0.toNat / 16 with
+    match (b0.toNat / 16) % 4 with
     | 0 => some (false, hpUnpackPairs rest)
     | 1 => some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
     | 2 => some (true, hpUnpackPairs rest)
-    | 3 => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
-    | _ => none
+    | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
 
 theorem hpDecode_cons_div0 (b0 : BitVec 8) (rest : List (BitVec 8))
-    (h : b0.toNat / 16 = 0) :
+    (h : b0.toNat / 16 % 4 = 0) :
     hpDecode (b0 :: rest) = some (false, hpUnpackPairs rest) := by
-  show (match b0.toNat / 16 with
+  show (match (b0.toNat / 16) % 4 with
     | 0 => some (false, hpUnpackPairs rest)
     | 1 => some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
     | 2 => some (true, hpUnpackPairs rest)
-    | 3 => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
-    | _ => none) = _
+    | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
 
 theorem hpDecode_cons_div1 (b0 : BitVec 8) (rest : List (BitVec 8))
-    (h : b0.toNat / 16 = 1) :
+    (h : b0.toNat / 16 % 4 = 1) :
     hpDecode (b0 :: rest) =
       some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest) := by
-  show (match b0.toNat / 16 with
+  show (match (b0.toNat / 16) % 4 with
     | 0 => some (false, hpUnpackPairs rest)
     | 1 => some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
     | 2 => some (true, hpUnpackPairs rest)
-    | 3 => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
-    | _ => none) = _
+    | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
 
 theorem hpDecode_cons_div2 (b0 : BitVec 8) (rest : List (BitVec 8))
-    (h : b0.toNat / 16 = 2) :
+    (h : b0.toNat / 16 % 4 = 2) :
     hpDecode (b0 :: rest) = some (true, hpUnpackPairs rest) := by
-  show (match b0.toNat / 16 with
+  show (match (b0.toNat / 16) % 4 with
     | 0 => some (false, hpUnpackPairs rest)
     | 1 => some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
     | 2 => some (true, hpUnpackPairs rest)
-    | 3 => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
-    | _ => none) = _
+    | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
 
 theorem hpDecode_cons_div3 (b0 : BitVec 8) (rest : List (BitVec 8))
-    (h : b0.toNat / 16 = 3) :
+    (h : b0.toNat / 16 % 4 = 3) :
     hpDecode (b0 :: rest) =
       some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest) := by
-  show (match b0.toNat / 16 with
+  show (match (b0.toNat / 16) % 4 with
     | 0 => some (false, hpUnpackPairs rest)
     | 1 => some (false, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
     | 2 => some (true, hpUnpackPairs rest)
-    | 3 => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)
-    | _ => none) = _
+    | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
 
 theorem hpUnpackPairs_hpPackPairs : ∀ (nibs : List (BitVec 8)),
@@ -250,7 +251,7 @@ theorem hpDecode_hpEncodeAux_ext (nibs : List (BitVec 8))
             (by simp only [List.length_cons] at hodd ⊢; omega)]
   · rw [if_neg hodd]
     have hdiv : (BitVec.ofNat 8 (0 * 16)).toNat / 16 = 0 := by decide
-    rw [hpDecode_cons_div0 _ _ hdiv,
+    rw [hpDecode_cons_div0 _ _ (by omega),
         hpUnpackPairs_hpPackPairs nibs hn (by omega)]
 
 /-- Round trip at the leaf flag. -/
@@ -277,7 +278,7 @@ theorem hpDecode_hpEncodeAux_leaf (nibs : List (BitVec 8))
             (by simp only [List.length_cons] at hodd ⊢; omega)]
   · rw [if_neg hodd]
     have hdiv : (BitVec.ofNat 8 (2 * 16)).toNat / 16 = 2 := by decide
-    rw [hpDecode_cons_div2 _ _ hdiv,
+    rw [hpDecode_cons_div2 _ _ (by omega),
         hpUnpackPairs_hpPackPairs nibs hn (by omega)]
 
 /-- **Hex-prefix round-trip** — the faithfulness tie for the path

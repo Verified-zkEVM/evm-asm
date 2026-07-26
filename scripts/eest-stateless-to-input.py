@@ -97,6 +97,42 @@ def stateless_input_block_gas_limit(blob: bytes) -> int:
     return int.from_bytes(blob[off:end], "little")
 
 
+# A uniform draw must SPAN the corpus. This is asserted in the script rather
+# than described in the help text because the help text has now twice claimed
+# corpus-wide sampling and been wrong -- first when --random never reached the
+# converter at all (GH #10596), then when it sampled fixture FILES rather than
+# blocks (GH #10597). Prose does not hold this contract.
+#
+# Exempted below a threshold because a genuinely small draw can legitimately
+# land anywhere, and a check that fires on correct input is worse than none.
+SPAN_CHECK_MIN_DRAW = 20
+SPAN_CHECK_MIN_CORPUS_RATIO = 4
+
+
+def selection_span_error(picked: list[int], corpus_len: int) -> str | None:
+    """Return an error message if `picked` is not plausibly a uniform draw.
+
+    `picked` are positions into the enumerated corpus. A uniform draw of k
+    from n lands entirely in the first half with probability 2**-k, so for any
+    non-tiny k a wholly front-loaded selection means the sampler is not
+    sampling. Returns None when the selection is acceptable or the draw is too
+    small for the test to carry.
+    """
+    k = len(picked)
+    if k < SPAN_CHECK_MIN_DRAW or corpus_len <= SPAN_CHECK_MIN_CORPUS_RATIO * k:
+        return None
+    hi = max(picked)
+    if hi < corpus_len // 2:
+        return (
+            f"sampler self-check FAILED -- {k} blocks drawn from {corpus_len} "
+            f"but the highest corpus index is {hi}, entirely within the first "
+            f"half. Under uniform sampling that is a 2**-{k} event, so the "
+            f"selection is almost certainly not uniform. Refusing to emit a "
+            f"manifest that would be reported as corpus-wide coverage."
+        )
+    return None
+
+
 def iter_blocks(fixture_path: Path):
     """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
     try:
@@ -341,7 +377,19 @@ def main() -> int:
                 sample_count = len(candidates) if args.limit == 0 else min(
                     len(candidates), args.skip + args.limit
                 )
-                sampled = random.Random(args.seed).sample(candidates, sample_count)
+                # Sample POSITIONS rather than elements so the selection can
+                # be span-checked. random.sample picks indices independently
+                # of element values, so for a population of the same length
+                # this selects exactly what sample(candidates, k) would --
+                # verified across seeds; existing seeds reproduce unchanged.
+                picked = random.Random(args.seed).sample(
+                    range(len(candidates)), sample_count
+                )
+                span_err = selection_span_error(picked, len(candidates))
+                if span_err is not None:
+                    print(f"error: {span_err}", file=sys.stderr)
+                    return 1
+                sampled = [candidates[i] for i in picked]
             for label, ib, ob, gas_limit, relpath in sampled[args.skip:]:
                 if not write_block(label, ib, ob, gas_limit, relpath):
                     return 1
