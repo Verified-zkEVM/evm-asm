@@ -29,11 +29,25 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   -- published array; otherwise a preceding top-frame value charge survives as
   -- executed state gas even though the transaction rolled back.
   "  la t4, evm_state_gas_used; sd zero, 0(t4)\n  la t4, evm_state_gas_spilled; sd zero, 0(t4)\n" ++
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_fail_publish\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_precompile_fail_publish:\n" ++
+  -- The shared kernel computed the exceptional halt in scalar scratch. Publish
+  -- it at the current MTx index and let the common MTx postlude finalize once.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3\n" ++
+  "  la t3, bv_runtime_gas_left; ld t4, 0(t3); la t3, bv_mtx_gas_left; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_refund_counter; ld t4, 0(t3); la t3, bv_mtx_refund; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  li a4, 0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
@@ -107,6 +121,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   ".Lbv_stp_status_one:\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_publish_status_store:\n" ++
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_publish\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
@@ -115,6 +130,19 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_precompile_publish:\n" ++
+  -- `t5` is the shared kernel's final status. Transfer scalar outputs to the
+  -- current MTx record; never clobber transaction zero for tx i > 0.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3\n" ++
+  "  la t3, bv_runtime_gas_left; ld t4, 0(t3); la t3, bv_mtx_gas_left; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_refund_counter; ld t4, 0(t3); la t3, bv_mtx_refund; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd t5, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; slli t2, t1, 3; add t0, t0, t2; ld a4, 0(t0)\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_simple_transfer_runtime_publish_fail:\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
