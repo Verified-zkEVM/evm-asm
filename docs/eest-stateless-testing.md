@@ -45,11 +45,16 @@ Override that with `EEST_FIXTURES_DIR=/path/to/fixtures` when needed. Use
 
 ## Common Commands
 
-Run the default smoke subset:
+Run a smoke subset (there is no default scope — `--limit N` or `--all` is
+required, and `--backend` likewise):
 
 ```bash
-scripts/codegen-eest-stateless-check.sh
+scripts/codegen-eest-stateless-check.sh --backend spike --limit 50
 ```
+
+`--all` runs the full 26,104-case corpus and is the merge gate for anything
+that changes emitted bytes. A smoke run reports honestly over its N cases and
+reads exactly like a corpus pass, which is why the scope has to be stated.
 
 Run a focused fixture subset:
 
@@ -701,7 +706,6 @@ Important files:
 - `<case>.result.tsv`: per-case harness status and output hex.
 - `stateless_guest.{s,o,elf}`: guest artifacts for this invocation.
 - `eest-baseline.txt`: run summary for this invocation.
-- `gen-out/eest-baseline.txt`: copy of the latest harness summary.
 
 The summary reports:
 
