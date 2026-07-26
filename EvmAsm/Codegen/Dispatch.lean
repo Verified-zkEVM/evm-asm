@@ -572,7 +572,7 @@ def staticGasCost (op : Nat) : Nat :=
     | 0x45 => OPCODE_GASLIMIT   | 0x46 => OPCODE_CHAINID
     | 0x48 => OPCODE_BASEFEE    | 0x4a => OPCODE_BLOBBASEFEE
     | 0x4b => OPCODE_SLOTNUM
-    | 0x47 => LOW                                        -- SELFBALANCE
+    | 0x47 => FAST_STEP                                  -- SELFBALANCE (environment.py:524)
     | 0x49 => OPCODE_BLOBHASH
     -- stack / memory / flow
     | 0x50 => OPCODE_POP
