@@ -68,7 +68,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
       "x16" "x18" "x19" "x23" hasSalt ++
     updateActiveMemorySizeAsm
       (if hasSalt then "create2_init" else "create_init")
-      "x15" "x16" "x18" "x19" "x23" "x6" true ++
+      "x15" "x16" "x18" "x19" "x23" "x6" true false ++
     -- The dispatcher precharge already includes Amsterdam execution-specs'
     -- CREATE_ACCESS = ACCOUNT_WRITE(8000) + COLD_STORAGE_ACCESS(3000).
     -- Do not debit an additional cold-access delta here; generic_create's
