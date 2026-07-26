@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Proofs.GuestImageEntries
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
+import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs
