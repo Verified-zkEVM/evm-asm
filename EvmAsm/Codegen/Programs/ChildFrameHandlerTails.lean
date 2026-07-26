@@ -966,7 +966,7 @@ def basicPrecompileCallTail
     "  li x16, 160\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm tag 160 12000 519 "bls12_g1_msm_discount_table" ++
+    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 160 12000 519 "bls12_g1_msm_discount_table" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1126,7 +1126,7 @@ def basicPrecompileCallTail
     "  li x16, 288\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm tag 288 22500 524 "bls12_g2_msm_discount_table" ++
+    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 288 22500 524 "bls12_g2_msm_discount_table" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
