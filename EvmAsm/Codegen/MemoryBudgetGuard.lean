@@ -318,4 +318,39 @@ theorem createPerWord_is_two : CODE_INIT_PER_WORD = 2 := by decide
 theorem create2PerWord_is_sum :
     OPCODE_KECCAK256_PER_WORD + CODE_INIT_PER_WORD = 8 := by decide
 
+/-! ## Guard 6 — the five gas tiers behind the static table (GH #10569)
+
+`Dispatch.lean:509-558`'s `staticGasCost` prices all 256 opcode bytes with bare
+literals and **zero** `SpecRef` references, so nothing links the shipped table to
+the spec. Pinning all 256 entries needs a byte→mnemonic mapping that does not
+exist in-tree yet; the **tiers** need no such mapping, because they are named
+symbols already (`SpecRef/Gas.lean`, `GasCosts` namespace).
+
+This is the cheap high-value slice: five theorems cover every range-based entry in
+the table — PUSH0 (`BASE`), PUSH1–32 / DUP / SWAP / DUPN / SWAPN / EXCHANGE and the
+whole comparison-and-bitwise block (`VERY_LOW`), the MUL/DIV/SDIV/MOD/SMOD/
+SIGNEXTEND/CLZ group (`LOW`), ADDMOD/MULMOD (`MID`), and EXP's base (`HIGH`).
+**A fork repricing `VERY_LOW` moves roughly 50 opcodes at once and nothing
+currently catches it.**
+
+When one of these fails, the fix is to update the corresponding literals in
+`staticGasCost` — never to edit the theorem. Note the table's own trailing
+comments already record which tier each opcode belongs to (`-- PUSH0 (BASE)`,
+`-- PUSH1..PUSH32 (VERYLOW)`), so the sites to change are locatable.
+
+Scope: this pins the **tier values**, not that each opcode is assigned the right
+tier. The latter needs the per-opcode comparison #10569 describes and is not
+established here. -/
+
+theorem gasTier_base_is_two : EvmAsm.Stateless.SpecRef.GasCosts.BASE = 2 := by decide
+
+theorem gasTier_veryLow_is_three :
+    EvmAsm.Stateless.SpecRef.GasCosts.VERY_LOW = 3 := by decide
+
+theorem gasTier_low_is_five : EvmAsm.Stateless.SpecRef.GasCosts.LOW = 5 := by decide
+
+theorem gasTier_mid_is_eight : EvmAsm.Stateless.SpecRef.GasCosts.MID = 8 := by decide
+
+theorem gasTier_high_is_ten : EvmAsm.Stateless.SpecRef.GasCosts.HIGH = 10 := by decide
+
 end EvmAsm.Codegen.MemoryBudgetGuard
