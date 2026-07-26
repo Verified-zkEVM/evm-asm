@@ -205,23 +205,26 @@ def ziskBalStorageReadsExecLogPrologue : String :=
   "  sd x0, 64(t0); sd x0, 72(t0); sd x0, 80(t0); sd x0, 88(t0)\n" ++
   "  sd x0, 96(t0); sd x0, 104(t0); sd x0, 112(t0); sd x0, 120(t0)\n" ++
   "  la t0, bsre_addr; li t1, 0xAA; sd t1, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
-  -- AccountChanges: f8 LL  94 <20 zero>  c0(storage_changes)  c2 07 09(storage_reads)  c0 c0 c0
-  -- content: addr(21) + c0(1) + [c2 07 09](3) + c0 c0 c0(3) = 28 -> 0xf8 0x1c.
+  -- AccountChanges: dc  94 <20 zero>  c0(storage_changes)  c2 07 09(storage_reads)  c0 c0 c0
+  -- content: addr(21) + c0(1) + [c2 07 09](3) + c0 c0 c0(3) = 28 -> SHORT form 0xc0+28 = 0xdc,
+  -- total 29. The long form (0xf8 0x1c) is NON-CANONICAL for a 28-byte payload, and
+  -- `rlp_walk_init` rightly rejects it with status 6 (long-list non-minimal, decoded < 56)
+  -- - which is why this probe over-rejected scenario 1 (GH #10642).
   "  la t0, bsre_acct\n" ++
-  "  li t1, 0xf8; sb t1, 0(t0); li t1, 0x1c; sb t1, 1(t0); li t1, 0x94; sb t1, 2(t0)\n" ++
-  "  li t2, 20; addi t3, t0, 3\n" ++
+  "  li t1, 0xdc; sb t1, 0(t0); li t1, 0x94; sb t1, 1(t0)\n" ++
+  "  li t2, 20; addi t3, t0, 2\n" ++
   "1:\n  beqz t2, 2f\n  sb zero, 0(t3); addi t3, t3, 1; addi t2, t2, -1; j 1b\n" ++
   "2:\n" ++
-  "  li t1, 0xc0; sb t1, 23(t0)\n" ++                          -- storage_changes = []
-  "  li t1, 0xc2; sb t1, 24(t0); li t1, 0x07; sb t1, 25(t0); li t1, 0x09; sb t1, 26(t0)\n" ++  -- storage_reads = [7,9]
-  "  li t1, 0xc0; sb t1, 27(t0); sb t1, 28(t0); sb t1, 29(t0)\n" ++   -- balance/nonce/code = []
+  "  li t1, 0xc0; sb t1, 22(t0)\n" ++                          -- storage_changes = []
+  "  li t1, 0xc2; sb t1, 23(t0); li t1, 0x07; sb t1, 24(t0); li t1, 0x09; sb t1, 25(t0)\n" ++  -- storage_reads = [7,9]
+  "  li t1, 0xc0; sb t1, 26(t0); sb t1, 27(t0); sb t1, 28(t0)\n" ++   -- balance/nonce/code = []
   -- stash AccountChanges ptr for the helper.
-  "  la a0, bsre_addr; la a1, bsre_acct; li a2, 30; la a3, bsre_log; li a4, 2; li a5, 128\n" ++
+  "  la a0, bsre_addr; la a1, bsre_acct; li a2, 29; la a3, bsre_log; li a4, 2; li a5, 128\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  sd a0, 0(s0)\n" ++
   -- Scenario 2: storage_reads = [7, 0x0b] (0x0b absent) -> reject.
-  "  la t0, bsre_acct; li t1, 0x0b; sb t1, 26(t0)\n" ++         -- change second read key 0x09 -> 0x0b
-  "  la a0, bsre_addr; la a1, bsre_acct; li a2, 30; la a3, bsre_log; li a4, 2; li a5, 128\n" ++
+  "  la t0, bsre_acct; li t1, 0x0b; sb t1, 25(t0)\n" ++         -- change second read key 0x09 -> 0x0b
+  "  la a0, bsre_addr; la a1, bsre_acct; li a2, 29; la a3, bsre_log; li a4, 2; li a5, 128\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  sd a0, 8(s0)\n" ++
   "  j .Lbsre_done\n" ++
