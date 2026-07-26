@@ -105,6 +105,24 @@
 #                        first-N selection without shuffling. Applied after
 #                        --random when both are given (reverses the shuffle).
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
+#     --guest-elf PATH   run PATH instead of building a guest. This is the ONLY
+#                        supported way to override the guest, and it implies
+#                        --no-build. See "Guest identity" below.
+#
+# Guest identity (GH #10617):
+#   The resolved guest path and its sha256 are echoed at the start of every run
+#   and recorded in $RUN_DIR/run-provenance.tsv, so a result can never be
+#   silently about a different artifact than the one that was chosen.
+#
+#   The former `GUEST_ELF` environment override is REMOVED and setting it is now
+#   a hard error. It read `USER_GUEST_ELF="${GUEST_ELF:-...}"`, where
+#   USER_GUEST_ELF is the script's *internal* name -- so exporting the internal
+#   name was silently ignored and ran the default guest with no error and no
+#   warning. Three consecutive sweeps reported clean passes on an artifact
+#   nobody had chosen, and a 120-row false-reject population was wrongly
+#   declared fixed on that evidence. A misspelled *argument* fails loudly; a
+#   misspelled *variable* is indistinguishable from not setting one. Removing
+#   the mechanism beats promising to remember it.
 #
 # Environment:
 #   EEST_RUN_DIR         explicit conversion/result directory. When unset, each
@@ -118,6 +136,11 @@
 #   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
 set -euo pipefail
 
+# The directory the caller invoked us from, captured BEFORE the cd below so a
+# relative `--guest-elf` path resolves against the caller's cwd rather than
+# silently against the repo root (GH #10617: a path that resolves somewhere
+# unexpected is the same class of bug as an override that is not read at all).
+INVOCATION_CWD="$PWD"
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
@@ -183,7 +206,20 @@ DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || t
 DEFAULT_TAG="${DEFAULT_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
-USER_GUEST_ELF="${GUEST_ELF:-}"
+# GH #10617: the guest override is a FLAG, never an environment variable.  Both
+# the old public name and the old internal name are rejected loudly here rather
+# than honoured or ignored -- an ignored override is the most persuasive wrong
+# answer available, because its output is exactly what a working setup produces.
+for stale_var in GUEST_ELF USER_GUEST_ELF; do
+  if [[ -n "${!stale_var:-}" ]]; then
+    echo "error: the $stale_var environment override was removed (GH #10617)." >&2
+    echo "  use: --guest-elf ${!stale_var}" >&2
+    echo "  (the old variable was silently ignored in one of its two spellings," >&2
+    echo "   which reported clean passes on the default guest; the flag fails loudly.)" >&2
+    exit 1
+  fi
+done
+GUEST_ELF_OVERRIDE=""
 VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
@@ -232,6 +268,11 @@ Options:
                            classify verdict differences as false-accept/reject
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
+  --guest-elf PATH         run PATH instead of building a guest (implies --no-build).
+                           The ONLY supported guest override; the GUEST_ELF
+                           environment variable is removed and is now an error.
+                           The resolved path and its sha256 are echoed and
+                           recorded in the run's run-provenance.tsv.
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 after --filter, sample individual stateless blocks
                            uniformly WITHOUT replacement BEFORE --limit
@@ -282,6 +323,7 @@ while [[ $# -gt 0 ]]; do
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
+    --guest-elf) require_arg "$1" "${2:-}"; GUEST_ELF_OVERRIDE="$2"; shift 2 ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
@@ -350,6 +392,29 @@ case "$BACKEND" in
   ziskemu|spike) ;;
   *) echo "--backend/EEST_BACKEND must be ziskemu or spike (got: $BACKEND)" >&2; exit 1 ;;
 esac
+
+if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
+  # Resolve against the CALLER's cwd and fail if it is not a readable file.  An
+  # override that names a nonexistent path must not fall back to the default
+  # guest -- that fallback is the incident this flag replaces.
+  [[ "$GUEST_ELF_OVERRIDE" == /* ]] || GUEST_ELF_OVERRIDE="$INVOCATION_CWD/$GUEST_ELF_OVERRIDE"
+  if [[ ! -f "$GUEST_ELF_OVERRIDE" ]]; then
+    echo "--guest-elf: not a readable file: $GUEST_ELF_OVERRIDE" >&2
+    exit 1
+  fi
+  GUEST_ELF_OVERRIDE="$(cd "$(dirname "$GUEST_ELF_OVERRIDE")" && pwd)/$(basename "$GUEST_ELF_OVERRIDE")"
+  # An override supplies the artifact, so building one would either overwrite it
+  # or (worse) run a different guest than the one named.
+  if [[ "$NO_BUILD" -eq 0 ]]; then
+    echo "==> --guest-elf implies --no-build (using the supplied artifact, not building one)"
+    NO_BUILD=1
+  fi
+  if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+    echo "--guest-elf cannot be combined with --bsr-witness-cap/--bsr-bal-cap:" >&2
+    echo "  those patch the emitted assembly and relink, which requires a build." >&2
+    exit 1
+  fi
+fi
 
 if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
   echo "--skip must be a nonnegative integer (got: $SKIP)" >&2
@@ -736,13 +801,43 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
   fi
 else
   echo "==> skipping build (--no-build)"
-  GUEST_ELF="${USER_GUEST_ELF:-$REPO_ROOT/gen-out/stateless_guest.elf}"
+  GUEST_ELF="${GUEST_ELF_OVERRIDE:-$REPO_ROOT/gen-out/stateless_guest.elf}"
   if [[ ! -f "$GUEST_ELF" ]]; then
     echo "--no-build requested, but stateless_guest ELF does not exist: $GUEST_ELF" >&2
-    echo "set GUEST_ELF=/path/to/stateless_guest.elf or run without --no-build" >&2
+    echo "pass --guest-elf /path/to/stateless_guest.elf, or run without --no-build" >&2
     exit 1
   fi
 fi
+
+# GH #10617: state the artifact's identity before it is used, and record it in
+# the run dir.  This is the property that makes a result self-describing: no
+# comparison can silently be about a different guest than the one printed here,
+# whatever mechanism supplied it.
+GUEST_ELF_SHA256="$(sha256sum "$GUEST_ELF" | cut -d' ' -f1)"
+if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
+  GUEST_ELF_SOURCE="--guest-elf"
+elif [[ "$NO_BUILD" -eq 1 ]]; then
+  GUEST_ELF_SOURCE="no-build-default"
+else
+  GUEST_ELF_SOURCE="built"
+fi
+echo "==> guest ELF: $GUEST_ELF"
+echo "    sha256:    $GUEST_ELF_SHA256  (source: $GUEST_ELF_SOURCE)"
+GUEST_PROVENANCE="$RUN_DIR/run-provenance.tsv"
+{
+  printf '# schema=run-provenance-v1\n'
+  printf 'field\tvalue\n'
+  printf 'guest_elf\t%s\n' "$GUEST_ELF"
+  printf 'guest_elf_sha256\t%s\n' "$GUEST_ELF_SHA256"
+  printf 'guest_elf_source\t%s\n' "$GUEST_ELF_SOURCE"
+  printf 'guest_elf_bytes\t%s\n' "$(stat -c %s "$GUEST_ELF")"
+  printf 'backend\t%s\n' "$BACKEND"
+  printf 'fixture_tag\t%s\n' "$TAG"
+  printf 'repo_head\t%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+  printf 'repo_dirty\t%s\n' "$([[ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]] && echo 1 || echo 0)"
+  printf 'generated\t%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+} > "$GUEST_PROVENANCE"
+echo "    provenance: $GUEST_PROVENANCE"
 
 
 run_guest_elf() {
@@ -1546,6 +1641,8 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
   echo "  selection:   $selection"
+  echo "  guest elf:   $GUEST_ELF ($GUEST_ELF_SOURCE)"
+  echo "  guest sha256:$GUEST_ELF_SHA256"
   echo "  backend:     $BACKEND"
   if [[ "$BACKEND" == "ziskemu" ]]; then
     echo "  ziskemu:     $ZISKEMU (steps=$STEPS, budget_retry_steps=$BUDGET_RETRY_STEPS, budget_retry_min_gas=$BUDGET_RETRY_MIN_GAS)"

@@ -127,13 +127,38 @@ def read_manifest(run_dir: str) -> dict[str, tuple[str, str, str]]:
     return rows
 
 
-def guest_elf_digest(run_dir: str) -> str | None:
-    """sha256 of the run dir's own `stateless_guest.elf`, or None if absent.
+def provenance_guest_sha(run_dir: str) -> str | None:
+    """`guest_elf_sha256` from the run's run-provenance.tsv, or None.
 
-    Absent when the run used `--no-build` with a `GUEST_ELF` override pointing
-    outside the run dir; in that case self-check 0 cannot run and says so
-    rather than passing silently.
+    Written by codegen-eest-stateless-check.sh for EVERY run (GH #10617),
+    including runs that supplied the guest with `--guest-elf` from outside the
+    run dir.  Reading it is what lets self-check 0 run on an overridden leg
+    instead of being skipped -- and a skipped identity check is exactly how two
+    legs of the same artifact got compared as though they were different.
     """
+    path = os.path.join(run_dir, "run-provenance.tsv")
+    try:
+        with open(path) as handle:
+            for line in handle:
+                if line.startswith("guest_elf_sha256\t"):
+                    return line.rstrip("\n").split("\t", 1)[1].strip() or None
+    except OSError:
+        return None
+    return None
+
+
+def guest_elf_digest(run_dir: str) -> str | None:
+    """sha256 of the run's guest ELF, or None if it cannot be established.
+
+    Prefers the recorded provenance (present for every run, and correct when the
+    guest came from `--guest-elf` outside the run dir), and falls back to
+    hashing the run dir's own `stateless_guest.elf` for runs predating the
+    provenance file.  None only when neither is available; in that case
+    self-check 0 says it did not run rather than passing silently.
+    """
+    recorded = provenance_guest_sha(run_dir)
+    if recorded is not None:
+        return recorded
     path = os.path.join(run_dir, "stateless_guest.elf")
     try:
         with open(path, "rb") as handle:
@@ -242,8 +267,9 @@ def main() -> int:
     base_elf, cand_elf = guest_elf_digest(base_dir), guest_elf_digest(cand_dir)
     if base_elf is None or cand_elf is None:
         missing = [n for n, d in (("base", base_elf), ("candidate", cand_elf)) if d is None]
-        print(f"note: self-check 0 NOT RUN -- no stateless_guest.elf in {', '.join(missing)} "
-              "run dir (GUEST_ELF override?); cannot confirm the two legs are distinct builds")
+        print(f"note: self-check 0 NOT RUN -- no run-provenance.tsv and no stateless_guest.elf "
+              f"in {', '.join(missing)} run dir (a run predating GH #10617?); "
+              "cannot confirm the two legs are distinct builds")
     elif base_elf == cand_elf:
         print(f"!! BOTH LEGS ARE THE SAME BUILD: sha256 {base_elf[:16]}... "
               "-- this comparison is vacuous. Build each leg from a COMMITTED ref "
