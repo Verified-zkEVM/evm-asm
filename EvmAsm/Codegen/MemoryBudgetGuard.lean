@@ -244,6 +244,15 @@ show only unexplained mispricing on one opcode family. Coincidence class, so pin
 
 `copyPerWord_families_agree` is the load-bearing one: when it fails, the fix is to
 **split or parameterise `copyWordGasAsm`**, never to edit this theorem.
+
+**The copy coefficient has TWO emission sites, in different files. Fix both.**
+`copyWordGasAsm` (`Programs/EvmMemoryGas.lean`) serves CALLDATACOPY / CODECOPY /
+EXTCODECOPY / RETURNDATACOPY, and `mcopyDynamicGasAsm`
+(`Programs/EvmMcopyGas.lean`) independently synthesises the same `3*words` for
+MCOPY (`srli w,5` then `slli w,1` then `add`, twice — once per range). Nothing
+links the two, so a reprice needs both edited; `copyPerWord_is_three` below fires
+once and does not say how many call sites implement it. That is why this
+paragraph exists.
 `copyPerWord_is_three` pins the value the emitted `slli`/`add` actually implements,
 so a reprice of *both* families also fails loudly rather than mis-charging. -/
 
