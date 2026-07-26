@@ -226,8 +226,10 @@ Options:
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
-  --random                 shuffle fixtures into a random order before --limit; run
-                           repeatedly to sample different subsets and seek discoveries
+  --random                 shuffle the fixture FILE list BEFORE --limit, so the cap
+                           selects a spread across the corpus rather than its front.
+                           Sampling is at file granularity (~4 blocks/file); run
+                           repeatedly with different seeds to seek discoveries
   --seed N                 integer seed for --random (default: auto-generated and printed)
   --reverse                process the selected fixtures last-to-first (applied after --random)
   --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
@@ -1027,6 +1029,15 @@ verdict_debug_for_case() {
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
+# GH #10596: the SHUFFLE must happen before the cap, so it belongs in the
+# converter. Shuffling here (after conversion) only reordered an already
+# truncated manifest.
+if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+  if [[ -z "$RANDOM_SEED" ]]; then
+    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
+  fi
+  conv_args+=(--random --seed "$RANDOM_SEED")
+fi
 [[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
 [[ "$VERIFY_INPUT_PARITY" -eq 1 ]] && conv_args+=(--verify-input-parity)
 [[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]] && conv_args+=(--verify-execution-spec-input)
@@ -1056,10 +1067,9 @@ for i in "${!manifestLines[@]}"; do
 done
 
 if [[ "$RANDOM_ORDER" -eq 1 ]]; then
-  if [[ -z "$RANDOM_SEED" ]]; then
-    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
-  fi
-  echo "==> random order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
+  # The SELECTION was randomised in the converter above (GH #10596); this
+  # shuffle only randomises the EXECUTION order of what was selected.
+  echo "==> random selection + order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
   mapfile -t manifestLines < <(
     printf '%s\n' "${manifestLines[@]}" | python3 -c "
 import sys, random
