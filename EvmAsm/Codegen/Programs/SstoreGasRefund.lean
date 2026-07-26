@@ -20,27 +20,44 @@ open EvmAsm.Rv64
     a0 = original value ptr (32-byte BE)
     a1 = current value ptr  (32-byte BE)
     a2 = new value ptr      (32-byte BE)
-    a3 = warm flag (1 if already warm, 0 if cold)
+    a3 = warm flag — **now unused**; retained so the caller's argument setup
+         (`Storage.lean`, `seqz a3, x19`) and the probe ABI do not change
     a4 = output ptr
 
     Output:
-      +0  gas cost u64 (regular gas only; the EIP-8037 state-gas charge for a
-          zero-origin creation is accounted by the caller via
-          `evm_state_gas_left`/`evm_state_gas_used`)
+      +0  ALWAYS ZERO — retired, see below. The field is kept so the caller's
+          hardcoded `+8` and `+32` displacements do not move.
       +8  refund delta i64 encoded as two's-complement u64
       +16 changed flag (current != new)
       +24 accessed-after flag (always 1 for a successful SSTORE access)
       +32 zero-restore state-gas credit flag (original == new == 0 with a
           change → the caller applies credit_state_gas_refund(97920))
 
-    Mirrors execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py:
-    cold surcharge, original/current/new gas branch, and refund counter branch.
+    Mirrors the refund-counter branch of
+    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/storage.py.
 
-    Amsterdam dropped the legacy EIP-2200 SET(20000) split: clean-changing
-    charges STORAGE_WRITE = 10000 regardless of the original being zero (the
-    creation charge moved to EIP-8037 state gas), and the restore refund is
-    STORAGE_WRITE = 10000 (the zero-restore case additionally credits state gas,
-    surfaced via the +32 flag). -/
+    ## Why there is no gas output (GH #10574, #10576)
+
+    The spec computes gas and refund in **one** function with **one**
+    accumulator (`storage.py:66-130`): `gas_cost` starts at zero, the access
+    cost is added once cold-or-warm, `STORAGE_WRITE` is added on the
+    first-change condition, and the `refund_counter` updates sit in the same
+    function driven by the same three-way comparison of original/current/new.
+
+    The guest splits that across two routines, and this one used to re-derive
+    the gas cost into a second accumulator **that no caller ever read** —
+    `Storage.lean` reads only `+8` and `+32`. Two independent copies of one spec
+    quantity is the defect; the dead copy had already drifted, over-counting by
+    one `WARM_ACCESS` because it initialised to 100 and then added the full
+    access cost. It was repaired by deletion rather than by correcting the
+    arithmetic, so the two copies cannot diverge again.
+
+    The regular-gas charge for SSTORE lives in `sstoreValueTransitionGasAsm`
+    (`Programs/Storage.lean`), which is the single writer.
+
+    Amsterdam dropped the legacy EIP-2200 SET(20000) split, so the restore
+    refund is `STORAGE_WRITE`; the zero-restore case additionally credits state
+    gas, surfaced via the +32 flag. -/
 
 def sstoreGasRefundOutcomeFunction : String :=
   "sstore_gas_refund_outcome:\n" ++
@@ -81,25 +98,12 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  addi t0, t0, 8\n" ++
   "  j .Lsgr_cmp\n" ++
   ".Lsgr_cmp_done:\n" ++
-  "  li s6, 100                  # gas_cost\n" ++
+  -- No gas accumulator here. The regular-gas charge for SSTORE is
+  -- `sstoreValueTransitionGasAsm` (`Programs/Storage.lean`), which debits
+  -- `568(x20)` directly; this routine computes only the refund delta and the
+  -- zero-restore credit flag, which are the two fields its caller reads. See
+  -- the header note on why the second accumulator was removed.
   "  li s7, 0                    # refund_delta signed\n" ++
-  "  bnez a3, .Lsgr_access_warm\n" ++
-
-  "  li t0, 3000\n" ++
-  "  add s6, s6, t0\n" ++
-  "  j .Lsgr_access_done\n" ++
-
-  ".Lsgr_access_warm:\n" ++
-  "  li t0, 100\n" ++
-  "  add s6, s6, t0\n" ++
-  ".Lsgr_access_done:\n" ++
-  "  beqz s3, .Lsgr_warm_access_cost\n" ++
-  "  bnez s4, .Lsgr_warm_access_cost\n" ++
-  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}                # clean-changing: STORAGE_WRITE\n" ++
-  "  add s6, s6, t0\n" ++        -- (Amsterdam: no SET split; zero-origin creation is EIP-8037 state gas)
-  "  j .Lsgr_refund\n" ++
-  ".Lsgr_warm_access_cost:\n" ++
-  ".Lsgr_refund:\n" ++
   "  li t2, 0                    # zero-restore state-gas credit flag\n" ++
   "  bnez s4, .Lsgr_store\n" ++
   "  bnez s0, .Lsgr_restore_check\n" ++
@@ -118,7 +122,9 @@ def sstoreGasRefundOutcomeFunction : String :=
   "  beqz s0, .Lsgr_store\n" ++
   "  li t2, 1                    # zero restore: caller credits state gas (EIP-8037)\n" ++
   ".Lsgr_store:\n" ++
-  "  sd s6, 0(a4)\n" ++
+  "  sd x0, 0(a4)\n" ++          -- +0 retired: the five-field footprint is kept so
+                                 -- the caller's hardcoded +8 and +32 do not move
+
   "  sd s7, 8(a4)\n" ++
   "  xori t0, s4, 1\n" ++
   "  sd t0, 16(a4)\n" ++
