@@ -526,7 +526,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- pre-execution accessed-set membership.
   "  la a0, dtrc_deleg_target; mv a1, s2\n" ++
   "  jal ra, dtrc_delegate_warm_probe\n" ++
-  "  li t1, 3000; beqz a0, .Ldtrc_prior_access_cold\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS}; beqz a0, .Ldtrc_prior_access_cold\n" ++
   s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   ".Ldtrc_prior_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
@@ -546,7 +546,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- exported by bal_same_block_delegation_code_resolve).
   "  la a0, bsbd_deleg_target; mv a1, s2\n" ++
   "  jal ra, dtrc_delegate_warm_probe\n" ++
-  "  li t1, 3000; beqz a0, .Ldtrc_sb_access_cold\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS}; beqz a0, .Ldtrc_sb_access_cold\n" ++
   s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   ".Ldtrc_sb_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
