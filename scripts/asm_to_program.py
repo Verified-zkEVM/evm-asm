@@ -794,6 +794,31 @@ def _def_span(text, fname):
         consumed += len(ln)+1
     return start, consumed
 
+def _generated_block_span(text, fname, prog):
+    """Span of an ALREADY-GENERATED block for `fname`, or None.
+
+    `_def_span` finds only the `def <fname> : String :=` line, which is correct
+    for the FIRST conversion of a raw-string routine.  On a re-generation --
+    the prescribed workflow when a converted routine's fixture changes -- that
+    span excludes the `_prog`/`_relocs`/theorem/`#guard` declarations the block
+    also emits, so the replacement APPENDS a second copy of each instead of
+    replacing them.  Lean then fails on the duplicate declarations.
+
+    A generated block runs from `def <prog> : Program :=` to the trailing
+    `#guard <prog>.length = N`, with the `def <fname> : String :=` line inside
+    it; require that containment so a hand-written file is never matched.
+    """
+    mp=re.search(r'(?m)^def\s+'+re.escape(prog)+r'\s*:\s*Program\s*:=', text)
+    if not mp: return None
+    mg=None
+    for m in re.finditer(r'(?m)^#guard\s+'+re.escape(prog)+r'\.length\s*=\s*\d+\s*$',
+                         text):
+        if m.start()>mp.start(): mg=m
+    if mg is None: return None
+    mf=re.search(r'(?m)^def\s+'+re.escape(fname)+r'\s*:\s*String\s*:=', text)
+    if not mf or not (mp.start()<mf.start()<mg.start()): return None
+    return mp.start(), mg.end()+1
+
 def rewrite_file(path, funcs):
     """Replace each named Function def in `path` with its generated
     prog+def+theorem+guards block, saving the original asm as a fixture."""
@@ -818,8 +843,8 @@ def rewrite_file(path, funcs):
         open(fixture_path(fn),'w').write(asm if asm.endswith('\n') else asm+'\n')
         prog=lean_camel(entry)+'_prog'
         block=gen_lean(entry, renders, fn, prog, relocs)
-        s,e=_def_span(text, fn)
-        spans.append((s,e,block))
+        span=_generated_block_span(text, fn, prog) or _def_span(text, fn)
+        spans.append((span[0],span[1],block))
     spans.sort(reverse=True)
     new=text
     for s,e,block in spans:

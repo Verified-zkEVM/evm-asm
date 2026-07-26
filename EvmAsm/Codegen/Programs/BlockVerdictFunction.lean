@@ -1282,6 +1282,9 @@ def blockVerdictFunction : String :=
   "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
   "  li a3, 0xa0630000\n" ++
   "  la t0, evm_env; ld a4, 448(t0)\n" ++
+  -- a5 = entry stride: this caller scans the 128-byte exec log (GH #10619). The
+  -- stride travels WITH the base/count so a base can never be re-pointed without it.
+  "  li a5, 128\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after

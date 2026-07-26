@@ -6,7 +6,7 @@ bal_storage_reads_in_exec_log:
   mv s0, a0                    # account addr ptr (addrHash)
   mv s1, a3                    # log base
   mv s2, a4                    # log length
-  mv s6, a1                    # AccountChanges ptr
+  mv s5, a5                    # entry stride in bytes (128 exec log / 64 read container)
   mv a0, a1; mv a1, a2; jal ra, rlp_walk_init
   bnez a2, .Lbsre_reject        # malformed AccountChanges -> conservative
   mv s6, a1                    # AccountChanges end
@@ -42,10 +42,10 @@ bal_storage_reads_in_exec_log:
 .Lbsre_revd:
   mv t2, s2
   beqz t2, .Lbsre_reject        # empty log but a read claimed
-  slli t3, t2, 7; add t3, s1, t3      # past last entry
+  mul t3, t2, s5; add t3, s1, t3      # past last entry
   la t6, bsr_krev
 .Lbsre_scan:
-  addi t3, t3, -128            # entry ptr
+  sub t3, t3, s5               # entry ptr
   ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsre_next
   ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsre_next
   ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsre_next

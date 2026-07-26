@@ -45,6 +45,7 @@ def scanInv (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
@@ -63,6 +64,7 @@ def scanFound (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
@@ -80,6 +82,7 @@ def scanAbsent (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
@@ -101,6 +104,7 @@ private def scanRegs (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
   ((.x29 : Reg) ↦ᵣ v29) **
   ((.x30 : Reg) ↦ᵣ v30) **
   bytesRegion logBase logBytes **
@@ -163,15 +167,23 @@ private theorem scan_cursor_ne_gen (logBase : Word) (S D T : Nat)
   generalize S * T = P at h2 hpos ⊢
   bv_omega
 
-/-- The head `ADDI x28, x28, -128` steps the past-end cursor of entry
-    `count - j` down to the base of entry `count - j - 1`.
+/-- The head `SUB x28, x28, x21` steps the past-end cursor of entry `count - j`
+    down to the base of entry `count - j - 1`, with the stride register `x21`
+    holding the exec log's 128.
 
-    Instantiates `scan_cursor_step_gen` at the exec log's `S = 128, D = 16`. -/
+    Instantiates `scan_cursor_step_gen` at `S = 128, D = 16` and bridges its
+    ADDI-immediate form to the register-subtract the routine now uses. The
+    bridge is a single concrete `decide` (`signExtend12 (-128) = -(128 : Word)`),
+    which is why the generic lemma did NOT need reshaping to a subtract form:
+    the `signExtend12` hypothesis is discharged once per stride either way. -/
 private theorem scan_cursor_step (logBase : Word) (count j : Nat)
     (hj : j < count) (hcnt : 128 * count < 2 ^ 64) :
-    logBase + BitVec.ofNat 64 (128 * (count - j)) + signExtend12 (-128 : BitVec 12)
-      = logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) :=
-  scan_cursor_step_gen logBase 128 16 count j (-128) (by omega) (by decide) hj hcnt
+    logBase + BitVec.ofNat 64 (128 * (count - j)) - (128 : Word)
+      = logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) := by
+  have h := scan_cursor_step_gen logBase 128 16 count j (-128) (by omega)
+    (by decide) hj hcnt
+  rw [show signExtend12 (-128 : BitVec 12) = -(128 : Word) from by decide] at h
+  rw [← h]; bv_omega
 
 /-- While entries remain (`1 ≤ T`), the stepped cursor differs from the log
     base — no wraparound thanks to the log-size bound. -/
@@ -315,6 +327,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
     (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
       ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x31 : Reg) ↦ᵣ krevBase) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hmv
@@ -332,6 +345,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
   have hbneF := cpsBranchWithin_frameR
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
       ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
       ((.x30 : Reg) ↦ᵣ v30) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
@@ -342,6 +356,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion) h →
       scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1) h := by
@@ -359,6 +374,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
           (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F))) : Assertion) h := by
       xperm_hyp hp
@@ -371,6 +387,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
       (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
@@ -382,12 +399,14 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     hbneF
@@ -399,6 +418,7 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
             ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
             ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F)) h := by
         xperm_hyp hq
@@ -443,6 +463,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
     (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
       ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x31 : Reg) ↦ᵣ krevBase) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hmv
@@ -460,6 +481,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
   have hbneF := cpsBranchWithin_frameR
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
       ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
       ((.x30 : Reg) ↦ᵣ v30) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
@@ -477,6 +499,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
     (by pcf; exact hF) hjal
@@ -490,6 +513,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
       (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
@@ -502,6 +526,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
           (((.x30 : Reg) ↦ᵣ v30) **
             (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
               ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+              ((.x21 : Reg) ↦ᵣ (128 : Word)) **
               bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
               bytesRegion krevBase key32 ** F)))) : Assertion) h := by
       xperm_hyp hq
@@ -516,12 +541,14 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     hbneF
@@ -532,6 +559,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
             ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
             ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
+            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F)) h := by
         xperm_hyp hq
@@ -580,7 +608,8 @@ private theorem bsre_stationA_spec {CR : CodeReq}
   have hst := bsre_stationBr_spec (CR := CR) A boff logBase addrPtr
     logBytes addrBytes .x8 t q q v29 v30
     (((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion krevBase key32 ** F)
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hqL hqT himm himm hmem1 hmem2 hmem3
   refine cpsBranchWithin_weaken ?_ ?_ ?_ hst
   · exact fun h hp => by unfold scanRegs at hp; xperm_hyp hp
@@ -622,7 +651,8 @@ private theorem bsre_stationK_spec {CR : CodeReq}
   have hst := bsre_stationBr_spec (CR := CR) A boff logBase krevBase
     logBytes key32 .x31 t qL qT v29 v30
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion addrPtr addrBytes ** F)
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      bytesRegion addrPtr addrBytes ** F)
     (by pcf; exact hF) hqL hqT himmL himmT hmem1 hmem2 hmem3
   refine cpsBranchWithin_weaken ?_ ?_ ?_ hst
   · exact fun h hp => by unfold scanRegs at hp; xperm_hyp hp
@@ -876,6 +906,7 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
           (((.x30 : Reg) ↦ᵣ packBytes ((key32.drop (8 * 3)).take 8)) **
             (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
               ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+              ((.x21 : Reg) ↦ᵣ (128 : Word)) **
               bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
               bytesRegion krevBase key32 ** F)))) : Assertion) h := by
       xperm_hyp hq
@@ -915,6 +946,7 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
         (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F) ** regOwn .x29) ** regOwn .x30)
         (base + 388)
@@ -929,17 +961,18 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
         (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
           ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
           ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x21 : Reg) ↦ᵣ (128 : Word)) **
           bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
           bytesRegion krevBase key32 ** F) ** ((.x30 : Reg) ↦ᵣ v30))
         (fun v29 => ?_))
     · exact fun h hp => by xperm_hyp hp
     -- the head ADDI steps the cursor to entry `count - j - 1`
     have haddi := liftCode (cr' := CR)
-      (addi_spec_gen_same_within .x28
-        (logBase + BitVec.ofNat 64 (128 * (count - j))) (-128 : BitVec 12)
+      (sub_spec_gen_rd_eq_rs1_within .x28 .x21
+        (logBase + BitVec.ofNat 64 (128 * (count - j))) (128 : Word)
         (base + 272) (by decide))
       (CodeReq.ofProg_mem_at base (base + 272) bsreProg 68
-        (.ADDI .x28 .x28 (-128 : BitVec 12))
+        (.SUB .x28 .x28 .x21)
         rfl (by decide +kernel) (by decide +kernel) hbound)
     rw [scan_cursor_step logBase count j (by omega) hcnt,
         show base + 272 + 4 = base + 276 from by bv_omega] at haddi
@@ -989,6 +1022,7 @@ theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
         (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F) ** regOwn .x29) ** regOwn .x30)
         (base + 388)
@@ -1003,16 +1037,17 @@ theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
         (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
           ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
           ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x21 : Reg) ↦ᵣ (128 : Word)) **
           bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
           bytesRegion krevBase key32 ** F) ** ((.x30 : Reg) ↦ᵣ v30))
         (fun v29 => ?_))
     · exact fun h hp => by xperm_hyp hp
     have haddi := liftCode (cr' := CR)
-      (addi_spec_gen_same_within .x28
-        (logBase + BitVec.ofNat 64 (128 * (count - j))) (-128 : BitVec 12)
+      (sub_spec_gen_rd_eq_rs1_within .x28 .x21
+        (logBase + BitVec.ofNat 64 (128 * (count - j))) (128 : Word)
         (base + 272) (by decide))
       (CodeReq.ofProg_mem_at base (base + 272) bsreProg 68
-        (.ADDI .x28 .x28 (-128 : BitVec 12))
+        (.SUB .x28 .x28 .x21)
         rfl (by decide +kernel) (by decide +kernel) hbound)
     rw [scan_cursor_step logBase count j (by omega) hcnt,
         show base + 272 + 4 = base + 276 from by bv_omega] at haddi

@@ -353,8 +353,18 @@ def schemeAAnchors : List GuestRegion :=
     `main` meanwhile, including the BLS MSM discounts). Measured from the relinked
     ELF, not computed — the sum is stated because it *reconciles*, which is the
     check that the merge composed rather than one side silently winning. `.data`
-    and `.bss` are unchanged by this branch's merge resolution. -/
-def textSizeBytes : Nat := 0x061da4
+    and `.bss` are unchanged by this branch's merge resolution.
+
+    Grew by `0x4` — a single instruction — for GH #10619's stride
+    parameterisation of `bal_storage_reads_in_exec_log`: the routine now takes
+    its entry stride in `a5` instead of baking 128 into a `slli`/`addi` pair, so
+    a caller cannot re-point the scan at another log without also supplying that
+    log's entry width. Inside the routine the change is byte-neutral
+    (`slli`→`mul`, `addi`→`sub`, and `mv s5, a5` reusing a dead `mv s6, a1`
+    slot); the 4 bytes are the one `li a5, 128` added at the guest's single call
+    site in `BlockVerdictFunction.lean`. The two probe call sites are in the
+    probe unit and contribute nothing here. -/
+def textSizeBytes : Nat := 0x061da8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
