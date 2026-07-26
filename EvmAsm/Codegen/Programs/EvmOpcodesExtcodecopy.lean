@@ -154,8 +154,6 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .ADDI .x13 .x13 (laLo GuestAddrs.ecc_match_offset (GuestAddrs.extcodecopy_at_header_state_root + 304)),
     .AUIPC .x14 (laHi GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 312)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ecc_match_len (GuestAddrs.extcodecopy_at_header_state_root + 312)),
-    -- GH #10619: a5 = address ptr for the tracked code accessor.  x18 still
-    -- holds it (it was a0 to account_at_address above, with a1 = 20).
     .MV .x15 .x18,
     .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.extcodecopy_at_header_state_root + 324)),
     .BEQ .x10 .x0 (12 : BitVec 13),
