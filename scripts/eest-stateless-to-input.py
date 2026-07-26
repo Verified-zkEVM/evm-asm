@@ -36,6 +36,12 @@ Usage:
 per-block EEST test label contains the given substring.  ``--skip`` drops the
 first N selected stateless blocks after filtering, then ``--limit`` caps the
 number of guest invocations emitted.
+``--random`` (with ``--seed``) makes ``--limit`` a uniform random sample over
+BLOCKS rather than a truncation: every fixture is parsed to enumerate its
+blocks, ``--limit`` identities are drawn without replacement from that full
+list, and only those blocks are converted.  Enumeration is a parse, not a
+conversion, so the conversion budget is unchanged.  Without ``--random``,
+``--limit`` keeps its cheap truncate-first behaviour for smoke runs.
 ``--verify-input-parity`` unpacks each emitted ziskemu input and checks that
 the guest-visible blob is byte-for-byte the fixture's ``statelessInputBytes``.
 ``--verify-execution-spec-input`` additionally decodes that same blob through
@@ -93,7 +99,7 @@ def stateless_input_block_gas_limit(blob: bytes) -> int:
 
 
 def iter_blocks(fixture_path: Path):
-    """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
+    """Yield (label, input_bytes, expected_bytes, gas_limit, test_name, bi) per stateless block."""
     try:
         doc = json.loads(fixture_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
@@ -125,7 +131,35 @@ def iter_blocks(fixture_path: Path):
                 # `run_stateless_guest` returns a failed sentinel for them.
                 gas_limit = 0
             label = sanitize(f"{short}#b{bi}")
-            yield label, ib, ob, gas_limit
+            yield label, ib, ob, gas_limit, test_name, bi
+
+
+def iter_block_ids(fixture_path: Path):
+    """Yield (test_name, block_index, label) for each stateless block.
+
+    Enumeration only: this parses the fixture and reads the two stateless keys
+    for presence, but does NOT hex-decode them or compute the gas limit. That
+    is the whole point -- parsing to enumerate is not converting to SSZ, and
+    the conversion is the expensive half. Keep this in step with
+    ``iter_blocks``: a block is enumerable exactly when that function would
+    yield it, or the sampler will pick identities the converter then skips.
+    """
+    try:
+        doc = json.loads(fixture_path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"  warn: cannot parse {fixture_path}: {exc}", file=sys.stderr)
+        return
+    for test_name, tc in doc.items():
+        blocks = tc.get("blocks") if isinstance(tc, dict) else None
+        if not isinstance(blocks, list):
+            continue
+        short = test_name.split("::")[-1] if "::" in test_name else test_name
+        for bi, blk in enumerate(blocks):
+            if not isinstance(blk, dict):
+                continue
+            if not blk.get("statelessInputBytes") or not blk.get("statelessOutputBytes"):
+                continue  # block opted out of stateless validation
+            yield test_name, bi, sanitize(f"{short}#b{bi}")
 
 
 def load_execution_specs_input_decoder():
@@ -174,9 +208,12 @@ def main() -> int:
     ap.add_argument(
         "--random",
         action="store_true",
-        help="shuffle the fixture FILE list before applying --skip/--limit, so "
-             "the cap selects a spread across the corpus rather than its front "
-             "(GH #10596). Requires --seed.",
+        help="sample --limit BLOCKS uniformly at random from the whole "
+             "enumerated corpus -- block-uniform, not file-uniform. Every "
+             "fixture is parsed to enumerate its blocks, then k identities "
+             "are drawn without replacement and only those are converted. "
+             "Selections are NOT nested across different --limit values. "
+             "Requires --seed. (GH #10596, #10597)",
     )
     ap.add_argument(
         "--seed", type=int, default=None,
@@ -240,14 +277,69 @@ def main() -> int:
     # manifest order tracks fixture family, so the result was a clustered sample
     # presented as a spread one.
     #
-    # The shuffle is over the FILE list, not the block list: blocks are streamed
-    # out of each file by `iter_blocks`, so sampling at block granularity would
-    # mean parsing all ~6.3k fixtures up front, which is most of the conversion
-    # cost the cap exists to avoid. At ~4.1 blocks per file the residual is that
-    # a selected file contributes its handful of blocks together; the
-    # family-level clustering that made the old behaviour misleading is gone.
-    if args.random:
-        random.Random(args.seed).shuffle(json_files)
+    # The sampling unit is the BLOCK, not the fixture file. File-uniform
+    # sampling was the first fix's compromise and it did not hold: 200 rows is
+    # ~53 files of ~3.1k, and failing rows CLUSTER BY FILE because a fixture's
+    # blocks all exercise one scenario, so a file-granular draw can miss a
+    # whole failing family and still report clean. It did exactly that -- a
+    # 200-row draw against a ~3%-failing baseline returned ZERO failing rows,
+    # which is a one-in-three outcome under file sampling and ~3-in-1000 under
+    # block sampling.
+    #
+    # The cost argument that motivated file granularity conflated two things:
+    # PARSING TO ENUMERATE IS NOT CONVERTING TO SSZ. `iter_block_ids` parses
+    # each fixture and lists its blocks without hex-decoding the (large)
+    # stateless payloads, then only the sampled blocks are converted. The
+    # conversion budget is unchanged; the selection is genuinely uniform.
+    selected_ids: set[tuple[str, str, int]] | None = None
+    if args.random and args.limit:
+        corpus: list[tuple[str, str, int]] = []
+        for fp in json_files:
+            relpath = str(fp.relative_to(fixtures_dir))
+            for test_name, bi, label in iter_block_ids(fp):
+                if args.filter and args.filter not in relpath and args.filter not in label:
+                    continue
+                corpus.append((relpath, test_name, bi))
+        if not corpus:
+            print("error: --random enumerated 0 blocks; nothing to sample",
+                  file=sys.stderr)
+            return 1
+        want = min(args.limit, len(corpus))
+        # random.sample is exactly pick-one-then-pick-from-the-rest: k draws
+        # rather than a full 26k-element permutation, same uniform
+        # distribution over k-subsets. SEED SEMANTICS: selections are NOT
+        # nested -- the same seed at --limit 500 is not a superset of the
+        # --limit 200 selection. Nothing here relies on nesting; use a
+        # shuffle-then-slice if you ever need it.
+        picked = random.Random(args.seed).sample(range(len(corpus)), want)
+        selected_ids = {corpus[i] for i in picked}
+
+        # POSITIVE CONTROL ON THE SAMPLER ITSELF, in the script rather than in
+        # prose: the help text already claimed corpus-wide sampling twice and
+        # was wrong both times, so this is asserted rather than documented. A
+        # uniform draw must SPAN the corpus; a selection confined to the front
+        # is the exact defect this replaces.
+        lo, hi = min(picked), max(picked)
+        nfiles = len({c[0] for c in selected_ids})
+        print(f"==> --random: sampled {want} block(s) uniformly from "
+              f"{len(corpus)} across {nfiles} fixture file(s); "
+              f"corpus indices {lo}..{hi}", file=sys.stderr)
+        if want >= 20 and len(corpus) > 4 * want and hi < len(corpus) // 2:
+            print(
+                f"error: sampler self-check FAILED -- {want} blocks drawn from "
+                f"{len(corpus)} but the highest index is {hi}, entirely within "
+                f"the first half of the corpus. Under uniform sampling that is "
+                f"a 2^-{want} event, so the selection is almost certainly not "
+                f"uniform. Refusing to emit a manifest that would be reported "
+                f"as corpus-wide coverage.",
+                file=sys.stderr,
+            )
+            return 1
+    elif args.random:
+        # --random with no --limit selects everything anyway; the flag only
+        # affects WHICH blocks are chosen, and there is nothing to choose.
+        print("==> --random with no --limit: whole corpus selected, "
+              "sampling is a no-op", file=sys.stderr)
 
     selected = 0
     n = 0
@@ -255,8 +347,10 @@ def main() -> int:
     with manifest_path.open("w") as mf:
         for fp in json_files:
             relpath = str(fp.relative_to(fixtures_dir))
-            for label, ib, ob, gas_limit in iter_blocks(fp):
+            for label, ib, ob, gas_limit, test_name, bi in iter_blocks(fp):
                 if args.filter and args.filter not in relpath and args.filter not in label:
+                    continue
+                if selected_ids is not None and (relpath, test_name, bi) not in selected_ids:
                     continue
                 if selected < args.skip:
                     selected += 1
