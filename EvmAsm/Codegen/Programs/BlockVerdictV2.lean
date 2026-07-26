@@ -66,6 +66,7 @@ import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.CodeReadLog
 
 namespace EvmAsm.Codegen
 
@@ -487,6 +488,11 @@ def statelessVerdictV2GuestClosure : String :=
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
   accountReadRecordFunction ++ "\n" ++
+  -- GH #10619: code_reads producer + the TRACKED accessor.  Fires only on a
+  -- pre-state FALLTHROUGH and skips EMPTY_CODE_HASH (state_tracker.py:263-270)
+  -- -- the opposite condition from the account/storage recorders.
+  codeReadRecordFunction ++ "\n" ++
+  codeReadFetchFunction ++ "\n" ++
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
@@ -582,6 +588,7 @@ def statelessVerdictV2GuestData : String :=
   -- resets them per transaction and nothing restores them on rollback,
   -- mirroring restore_tx_state leaving storage_reads alone.
   storageReadLogDataSection ++ "\n" ++
-  accountReadLogDataSection
+  accountReadLogDataSection ++ "\n" ++
+  codeReadLogDataSection
 
 end EvmAsm.Codegen
