@@ -3,6 +3,29 @@
 
   Build-time guard for the memory-budget coincidence (GH #10522, #10535).
 
+  ## Scope: this is the home for constant-relationship invariants generally
+
+  It was created for one such invariant and has since taken on three distinct
+  remits: a guard on #10522's unreachability precondition, a guard on the
+  achievable steps-per-gas constant `k` that the top theorem's fuel is derived
+  from (#10552), and a guard on the clamped fill loop's exit exactness
+  (`clampEnd_alignment_*`). **If you need to pin a relationship between guest
+  constants that nothing else enforces, add it here rather than starting a
+  second file** — and note the new remit in this list, so the next person finds
+  it too.
+
+  The test for whether an assertion belongs here is *coincidence vs
+  construction*: a relationship that holds because several independently
+  editable constants happen to line up is a coincidence and needs a
+  kernel-checked pin; one where the check and the checked value are the same
+  symbol is maintained by construction and a pin would be redundant ceremony.
+  State which of the two you have, and where a bound has both halves, guard
+  only the coincidental half and say why the other needs nothing (see the
+  nested-vs-depth-0 split on `clampEnd_alignment_*`). Pin the quantity that is
+  *used*, not the ones it is computed from — `minRemainingPoolBytes` rather
+  than only `evmMemoryPoolBytes`, `SpecRef.MEMORY_PER_WORD` rather than a
+  local copy.
+
   ## What this file protects
 
   Three constants currently sit in a relationship that makes two latent defects
