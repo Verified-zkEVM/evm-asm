@@ -116,6 +116,12 @@ def eip7702AuthorityAsOfFunction : String :=
   "  li t0, 1; bne a0, t0, .L77as_header; ld a1, 56(sp); ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; li a0, 1; j .L77as_ret\n" ++
   ".L77as_header:\n" ++
   "  li t0, 2; beq a0, t0, .L77as_absent\n" ++
+  -- GH #10619 gate 2: an EXECUTION read of the authority account, which belongs on
+  -- account_at_header_state_root_tracked.  Deliberately still raw for the same
+  -- reason as the sibling site in TxIntrinsicAuthEffects: the EIP-7702 authorization
+  -- region is being changed concurrently by GH #10635.  Held for sequencing, not
+  -- overlooked; while held the account_reads container UNDER-records this account,
+  -- which cannot produce a false accept.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .L77as_found; li t0, 1; beq a0, t0, .L77as_absent; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
   ".L77as_found:\n" ++

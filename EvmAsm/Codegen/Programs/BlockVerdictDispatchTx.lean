@@ -129,7 +129,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 512; bgeu t1, t2, .Lscs_bal_done\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n" ++
   "  bnez a0, .Lscs_bal_done\n" ++                  -- absent/error -> skip (descend default 0)
   "  la t0, callee_balance_count; ld t1, 0(t0); slli t2, t1, 6; la t3, callee_balance_table; add t3, t3, t2\n" ++
   -- addr (canonical BE, csce_addrp) -> entry+0..19, zero-pad +20..31
@@ -907,7 +907,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  li a3, 20; mv a4, s0; mv a5, s1\n" ++       -- addr len + witness state ptr/len
   "  la a6, csce_bal_struct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n" ++
   "  bnez a0, .Ldtrc_selfbal_base_zero\n" ++       -- lookup miss/error -> start from zero
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code

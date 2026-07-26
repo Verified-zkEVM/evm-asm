@@ -489,6 +489,14 @@ def statelessVerdictV2GuestClosure : String :=
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
   accountReadRecordFunction ++ "\n" ++
+  -- GH #10619 gate 2: the TRACKED account accessor over the raw
+  -- account_at_header_state_root, mirroring the spec's get_account/pre_state
+  -- pair.  Execution call sites route here; the 7 block_verdict/BAL-verification
+  -- sites and the 1 guest-only site keep the raw entry, so the
+  -- execution-vs-verification boundary is in the call graph rather than in a
+  -- classification table (four instruments mis-counted that table -- see the
+  -- docstring).
+  accountAtHeaderStateRootTrackedFunction ++ "\n" ++
   -- GH #10619: code_reads producer + the TRACKED accessor.  Fires only on a
   -- pre-state FALLTHROUGH and skips EMPTY_CODE_HASH (state_tracker.py:263-270)
   -- -- the opposite condition from the account/storage recorders.

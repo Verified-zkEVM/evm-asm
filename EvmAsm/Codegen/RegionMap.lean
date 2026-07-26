@@ -340,8 +340,15 @@ def schemeAAnchors : List GuestRegion :=
     plus a `beq`→`bgeu` swap in each of the two sparse handlers, and in NEITHER
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
-    keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x061c58
+    keccak guard above: `0x61160 + 0x60`. Grew by `0x54` to `0x61cac` for GH
+    #10619's tracked account accessor
+    (`account_at_header_state_root_tracked`, `AccountReadLog.lean`): 21
+    instructions — an 8-slot save/restore of `ra` and `a0`-`a6` around one
+    `account_read_record` call, then a tail `j` to the raw entry. The 11 execution
+    call sites that were retargeted onto it contribute **zero** bytes: a retarget
+    only lengthens a `jal`'s symbol *name*, not the instruction. `.data` and
+    `.bss` are unchanged, which is the check that the wrapper added no data. -/
+def textSizeBytes : Nat := 0x061cac
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

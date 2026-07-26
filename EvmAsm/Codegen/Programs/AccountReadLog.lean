@@ -127,6 +127,63 @@ def accountReadRecordFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `account_at_header_state_root_tracked` — the guest's tracked `get_account`
+
+    ### Two entries over one implementation, because the spec has two accessors
+
+    The spec distinguishes the **tracked accessor** `get_account(tx_state, address)`
+    (`state_tracker.py:132-160`), which records at `:139`, from the **raw store**
+    `pre_state.get_account`, which does not. The guest already had the raw store —
+    `account_at_header_state_root` — so this adds the tracked entry rather than a
+    flag or a per-caller obligation. Identical shape to `code_read_fetch` over
+    `witness_codes_lookup_by_hash` (`CodeReadLog.lean`).
+
+    ### Why not a flag, and why not hook the raw store
+
+    Hooking the raw store would cover all callers with one edit and would record the
+    **verification** reads too — `block_verdict` reaches it six times, and
+    `bal_code_preimages_valid` once. Those are the guest checking a BAL against
+    witnessed state, not execution touching an account, and recording them is the
+    over-record that would make the BAL comparison monotone-but-wrong (a false
+    ACCEPT, not a false reject). Same objection at 8 of the 21 sites.
+
+    A classification table listing which callers are execution was the alternative,
+    and it is the one that failed: four separate instruments mis-counted this exact
+    set in one session (a single-call-form grep, a lowercase-only label pattern, a
+    hand table that lost three rows, and source-level counting that missed
+    `callDescendFallThrough`'s four instantiations). A table is a promise maintained
+    by whoever last ran the search; the call graph is not. So the routing lives at
+    the call site.
+
+    Calling convention: **identical** to the raw entry, so a retarget is a one-token
+    edit at each site.
+      a0 = header_rlp ptr, a1 = header_rlp_len, a2 = 20-byte BE address ptr,
+      a3 = address byte length, a4 = witness section ptr, a5 = section_len,
+      a6 = 104-byte output struct ptr; a0 (output) forwarded unchanged (0=found,
+      1=absent, 2..4=parse failures).
+
+    Records **unconditionally and before** the lookup, because `:139` is the first
+    statement of `get_account` and runs before `account_writes` is consulted — so an
+    absent account (`a0=1`, authenticated absence) is still a read, exactly as the
+    spec records one. This is the opposite discipline from `code_read_fetch`, which
+    records only on a pre-state fallthrough; the difference is deliberate and is why
+    these are separate routines rather than one parameterised by kind.
+
+    All 13 execution call sites pass `a2` as a 20-byte big-endian address and `a3`
+    as 20, checked individually, so `mv a0, a2` needs no per-site adaptation. -/
+def accountAtHeaderStateRootTrackedFunction : String :=
+  "account_at_header_state_root_tracked:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
+  "  sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); sd a6, 56(sp)\n" ++
+  "  mv a0, a2\n" ++                                          -- 20-byte BE address ptr
+  "  jal ra, account_read_record\n" ++
+  "  ld ra, 0(sp); ld a0, 8(sp); ld a1, 16(sp); ld a2, 24(sp)\n" ++
+  "  ld a3, 32(sp); ld a4, 40(sp); ld a5, 48(sp); ld a6, 56(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  -- tail-call the RAW store, unmodified, with the original arguments
+  "  j account_at_header_state_root\n"
+
 /-- Cursor + overflow flag for the `account_reads` container. Block-lifetime:
     never reset per transaction, never restored on rollback. -/
 def accountReadLogDataSection : String :=

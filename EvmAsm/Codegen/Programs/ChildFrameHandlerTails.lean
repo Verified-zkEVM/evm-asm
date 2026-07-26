@@ -179,7 +179,7 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     -- Caller nonce: header value, overlaid by an earlier same-tx effect.
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_caller_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
-    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  jal ra, account_at_header_state_root_tracked; mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_caller_nonce; la t0, nse_acct; sd zero, 0(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_caller_nonce:\n" ++
@@ -191,7 +191,7 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     -- Callee credit: use its header state (or zero) plus any earlier same-tx credit.
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20); ld a1, 584(x20); la a2, nse_callee_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
-    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  jal ra, account_at_header_state_root_tracked; mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_callee_pre; la t0, nse_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_callee_pre:\n" ++
