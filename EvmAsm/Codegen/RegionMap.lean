@@ -314,7 +314,7 @@ def schemeAAnchors : List GuestRegion :=
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
     keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x61440
+def textSizeBytes : Nat := 0x61414
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
