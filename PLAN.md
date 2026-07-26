@@ -188,6 +188,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
+  GH #10540): kernel-checked (`decide`, classical-3) assertions that the
+  MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding
+  the depth-0 dense arena costs ≈3.4e7 and the nested pool floor ≈6.4e7 against
+  a 1.68e7 cap. Turns a coincidence between three independently-editable
+  constants (`rootRuntimeMemoryArenaLimitBytes`, `evmMemoryPoolBytes`,
+  `SpecRef.TX_MAX_GAS_LIMIT`) into a build failure. Includes non-vacuity pins
+  (91_917 words affordable, 91_918 not) so the guards constrain a real
+  configuration. **Ordering constraint**: if it ever fails, the sparse path goes
+  live, #10522's write becomes reachable, and the global 4096-entry sparse cap
+  becomes a reachable FR — see #10535.
+- **A/B comparator with self-checks** (`scripts/eest-ab-compare.py`, GH #10546):
+  compares two `codegen-eest-stateless-check` run dirs and **refuses to report a
+  verdict** unless three assertions hold — both sides scored every manifest row
+  (no short denominator), the join is sound (keyed on `sha256` of each case's
+  input bytes, with within-group output consistency asserted since the key is
+  many-to-one), and coverage is total. Enumerates in-process, so no `ARG_MAX`
+  exposure. Exists because all three failure modes were hit in practice and each
+  fails in the direction that *looks like a pass*.
 - **Separation-logic state-assertion vocabulary** (layout-faithful Assertions
   over the guest's structured arenas, each with a proven faithfulness tie;
   all headline lemmas fenced as `Progress.lean` witnesses):
@@ -480,6 +499,19 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `InitCodeCostSAsm.lean` verifies `init_code_cost` byte-identically with a
   writable dword post (`a0 = 0`, output `= gasPerWord * ((len + 31) >> 5)`
   under exact RV64 wrapping semantics).
+  **SCOPE (GH #10524): these five dynamic-gas leaves are reachable ONLY from
+  `zisk_*` probe `BuildUnit`s — the opcode dispatcher does not call them.** It
+  uses six separate inline asm helpers in `Programs/EvmMemoryGas.lean` /
+  `EvmMcopyGas.lean` (`updateActiveMemorySizeAsm`, `copyWordGasAsm`,
+  `keccakWordGasAsm`, `logDynamicGasAsm`, `expDynamicGasAsm`,
+  `mcopyDynamicGasAsm`) which compute *different* functions — base costs folded
+  differently, and wrap/`mulhu` guards present on one side only. So these
+  triples do not currently constrain the emitted guest's gas arithmetic, and the
+  `_byte_tie` pins guard each leaf against its own `Program`, not against the
+  dispatcher. Both live gas defects found in this area were in the inline
+  versions with no counterpart in the proven leaf (#10521 keccak `ceil32` wrap,
+  fixed; #10523 MCOPY missing `mulhu`). Do not cite these leaves as coverage for
+  opcode gas metering.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
