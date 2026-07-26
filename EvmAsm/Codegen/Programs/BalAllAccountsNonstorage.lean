@@ -122,14 +122,14 @@ def balAllAccountsNonstorageConsistentFunction : String :=
   ".Lc3ns_bshi:\n" ++
   "  mv a3, a4; j .Lc3ns_bs                   # hi = mid\n" ++
   ".Lc3ns_found:\n" ++
-  "  mv a0, s7; mv a1, s8; mv a2, t5\n" ++
+  "  mv s6, t5; mv a0, s7; mv a1, s8; mv a2, s6\n" ++
   "  jal ra, bal_account_nonstorage_consistent   # .2: 0 consistent / 1 / 2 -> reject if != 0\n" ++
   "  bnez a0, .Lc3ns_fail\n" ++
   -- The effect format mirrors execution-specs' independently-emitted fields.
   -- If a component is absent from the execution record, a BAL declaration for
   -- that component has no producer and must reject rather than being silently
   -- accepted by the legacy triple comparator.
-  "  lbu t0, 20(t5); li t1, " ++ toString nonstorageEffectHasBalance ++ "; and t1, t0, t1; bnez t1, .Lc3ns_mask_nonce; mv a0, s7; mv a1, s8; la a2, c2nsc_finals; jal ra, bal_account_nonstorage_finals; bnez a0, .Lc3ns_fail; ld t1, 0(a2); bnez t1, .Lc3ns_fail\n" ++
+  "  lbu t0, 20(s6); li t1, " ++ toString nonstorageEffectHasBalance ++ "; and t1, t0, t1; bnez t1, .Lc3ns_mask_nonce; mv a0, s7; mv a1, s8; la a2, c2nsc_finals; jal ra, bal_account_nonstorage_finals; bnez a0, .Lc3ns_fail; ld t1, 0(a2); bnez t1, .Lc3ns_fail\n" ++
   ".Lc3ns_mask_nonce:\n" ++
   "  li t1, " ++ toString nonstorageEffectHasNonce ++ "; and t1, t0, t1; bnez t1, .Lc3ns_next; mv a0, s7; mv a1, s8; la a2, c2nsc_finals; jal ra, bal_account_nonstorage_finals; bnez a0, .Lc3ns_fail; ld t1, 40(a2); bnez t1, .Lc3ns_fail\n" ++
   "  j .Lc3ns_next\n" ++
