@@ -46,11 +46,37 @@ Three ways an A/B number silently becomes meaningless, all hit in practice:
    expected output.)  Coverage is then asserted separately: every candidate case
    must have a base counterpart.
 
+4. THE TWO LEGS ARE THE SAME BUILD.  `git checkout` CARRIES uncommitted changes
+   across branches rather than refusing, so building the "base" leg after
+   switching branches can silently pick up the candidate edit that was never
+   committed.  Both legs then come from one source and the sweep reports a
+   flawless zero.  Measured in practice: a 16-instruction deletion produced two
+   byte-identical ELFs.  Asserted below (self-check 0) by hashing each run dir's
+   own `stateless_guest.elf`.
+
+   This one is the worst of the four, because ZERO DIFF IS THE PREDICTED RESULT
+   for most refactors — the harness bug is indistinguishable from the hypothesis
+   by looking at the output, so it cannot be caught downstream.
+
+   RULE: build BOTH legs from COMMITTED refs, with a clean tree verified
+   between them, per leg rather than once.
+
 A denominator can be destroyed by a lossy join, not only by a truncated
 enumeration.  So before trusting any cross-run comparison, establish that the
 join is SOUND — either injective, or many-to-one with the property that makes
 collapsing harmless asserted rather than assumed.  This script does that
 mechanically, so it does not depend on whoever runs it remembering to.
+
+RELATED, and NOT mechanised here because it happens before a run dir exists:
+COMPARING EMITTED ELFs DIRECTLY.  The linker embeds the object filename, so
+emitting to `-o base` and `-o cand` makes the two ELFs differ at the `base.o`
+vs `cand.o` string even when the change is byte-neutral — a false defect.
+Re-emitting under a third name to "control" for it reproduces the fault and
+looks like nondeterministic emission.  Emit BOTH legs under the SAME output
+name, then copy them apart.  An output path is an input to the linker.
+General form of all of the above: A COMPARISON IS ONLY AS CLEAN AS THE THINGS
+IT HOLDS EQUAL, and when layers disagree — `.s` and `.o` identical but `.elf`
+differing — suspect the layer that differs from the others, not the change.
 
 Exit status: 0 if every self-check passed AND no new false accepts appeared;
 1 otherwise.  A failed self-check NEVER reports a verdict.
@@ -99,6 +125,21 @@ def read_manifest(run_dir: str) -> dict[str, tuple[str, str, str]]:
             if len(cols) >= 7:
                 rows[cols[0]] = (cols[1], cols[2], cols[6])
     return rows
+
+
+def guest_elf_digest(run_dir: str) -> str | None:
+    """sha256 of the run dir's own `stateless_guest.elf`, or None if absent.
+
+    Absent when the run used `--no-build` with a `GUEST_ELF` override pointing
+    outside the run dir; in that case self-check 0 cannot run and says so
+    rather than passing silently.
+    """
+    path = os.path.join(run_dir, "stateless_guest.elf")
+    try:
+        with open(path, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return None
 
 
 def succ(hexstr: str) -> str | None:
@@ -190,6 +231,26 @@ def main() -> int:
     print(f"candidate {cand_dir}: {len(cand_res)} scored / {len(cand_man)} manifest rows")
 
     ok = True
+
+    # Self-check 0: the two legs must be DIFFERENT artifacts.  Comparing a
+    # build to itself yields a flawless zero delta that means nothing, and the
+    # ways it happens are silent: `git checkout` carries uncommitted changes
+    # across branches, so building "base" after switching branches can pick up
+    # the candidate edit that was never committed.  Zero diff is also the
+    # PREDICTED result for many refactors, so the bug is indistinguishable from
+    # the hypothesis by looking at the output -- it has to be caught here.
+    base_elf, cand_elf = guest_elf_digest(base_dir), guest_elf_digest(cand_dir)
+    if base_elf is None or cand_elf is None:
+        missing = [n for n, d in (("base", base_elf), ("candidate", cand_elf)) if d is None]
+        print(f"note: self-check 0 NOT RUN -- no stateless_guest.elf in {', '.join(missing)} "
+              "run dir (GUEST_ELF override?); cannot confirm the two legs are distinct builds")
+    elif base_elf == cand_elf:
+        print(f"!! BOTH LEGS ARE THE SAME BUILD: sha256 {base_elf[:16]}... "
+              "-- this comparison is vacuous. Build each leg from a COMMITTED ref "
+              "with a clean tree verified between them.")
+        ok = False
+    else:
+        print(f"guest ELF: base {base_elf[:16]}... != candidate {cand_elf[:16]}... (distinct builds)")
 
     # Self-check 2: denominators.  A candidate may be a deliberate --limit
     # sample; a BASE that did not score every row cannot anchor a delta.
