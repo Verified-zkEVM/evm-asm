@@ -81,34 +81,20 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  la x6, ecc_old_active; sd x5, 0(x6)
 " ++
-    "  addi sp, sp, -8
-" ++
-    "  sd x5, 0(sp)
-" ++
     copyWordGasAsm "extcodecopy" "x15" "x16" "x17" "x18" ++
+    -- GH #10550: `updateActiveMemorySizeAsm` with chargeGas=true already
+    -- fresh-zeroes exactly [x13+old, x13+rounded) with `sd`, and it stores
+    -- `rounded` into activeMemorySize only AFTER that loop -- so the interval a
+    -- second pass would cover is the same interval by construction, not by
+    -- coincidence.  The byte-wise re-zero that used to sit here was therefore
+    -- pure over-work: 4 instructions per byte against 0.5, ~89% of
+    -- EXTCODECOPY's zeroing steps, for no behavioural difference.
+    --
+    -- The `ecc_old_active` stash above is NOT part of that redundancy and must
+    -- stay: it is read at the same-block-code tail-zero below, which clamps its
+    -- start up to the pre-expansion msize.  Only the stack copy of the old
+    -- msize went with the loop, because nothing else consumed it.
     updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true false ++
-    "  ld x5, 0(sp)
-" ++
-    "  addi sp, sp, 8
-" ++
-    "  ld x6, " ++ toString activeMemorySizeOff ++ "(x20)
-" ++
-    "  add x7, x13, x5
-" ++
-    "  add x8, x13, x6
-" ++
-    ".Lrt_ecc_zero_new_mem:
-" ++
-    "  bgeu x7, x8, .Lrt_ecc_zero_new_done
-" ++
-    "  sb zero, 0(x7)
-" ++
-    "  addi x7, x7, 1
-" ++
-    "  j .Lrt_ecc_zero_new_mem
-" ++
-    ".Lrt_ecc_zero_new_done:
-" ++
     "  add x19, x13, x14
 " ++       -- output ptr = evm_memory + memory_start
     "  la t1, ecc_address_scratch
