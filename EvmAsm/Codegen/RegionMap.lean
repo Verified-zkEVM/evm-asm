@@ -171,7 +171,22 @@ def schemeAAnchors : List GuestRegion :=
     { name := "ecrecover_scratch",      base := 0xa1b80000, size := 0x10000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout ECRECOVER_SCRATCH; 64 KiB slab" },
     { name := "sha256_scratch",         base := 0xa1b90000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" } ]
+      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" },
+    -- GH #10619: the spec's THREE read sets, each with the BLOCK-long lifetime
+    -- `restore_tx_state` gives them by restoring only the write structures
+    -- (state_tracker.py:809-826; the TransactionState docstring at :90-93 calls
+    -- them "shared references that survive rollback").  Separate regions rather
+    -- than one merged set because the spec has three and looking-the-same is the
+    -- point; separate from `state_tracker_area` because rollback truncates that
+    -- one and must not reach these.
+    { name := "storage_reads_area",     base := 0xa1ba0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_READS_AREA; 1 MiB = 16384x64 (addrHash++slotKey), "
+        ++ "matching the write log's 16384 rows so reads cannot overflow first" },
+    { name := "account_reads_area",     base := 0xa1ca0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_READS_AREA; 512 KiB = 16384x32 (addrHash)" },
+    { name := "code_reads_area",        base := 0xa1d20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout CODE_READS_AREA; 512 KiB = 8192x64 (addrHash++codeHash); "
+        ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -509,7 +524,11 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.EVM_MEMORY_AREA).toNat,
         (EvmAsm.Stateless.KECCAK_SCRATCH).toNat,
         (EvmAsm.Stateless.ECRECOVER_SCRATCH).toNat,
-        (EvmAsm.Stateless.SHA256_SCRATCH).toNat ] := by decide
+        (EvmAsm.Stateless.SHA256_SCRATCH).toNat,
+        -- GH #10619: the spec's three read sets (state_tracker.py:67-77, :96-104).
+        (EvmAsm.Stateless.STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.CODE_READS_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -726,6 +745,7 @@ def stableGuestBases : List (String × Nat) :=
     (".sszscratch",       sszScratchRegion.base) ]
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
-theorem stableGuestBases_length : stableGuestBases.length = 20 := by decide
+-- 20 -> 23: the three read-container anchors added for GH #10619.
+theorem stableGuestBases_length : stableGuestBases.length = 23 := by decide
 
 end EvmAsm.Codegen.RegionMap

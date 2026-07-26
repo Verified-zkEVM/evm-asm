@@ -59,6 +59,12 @@ STABLE_BASES = {
     "keccak_scratch":         0xa1b70000,
     "ecrecover_scratch":      0xa1b80000,
     "sha256_scratch":         0xa1b90000,
+    # GH #10619: the spec's three read sets, block-lifetime, untouched by
+    # rollback (state_tracker.py:67-77 / :96-104; restore_tx_state :809-826
+    # restores only the write structures).
+    "storage_reads_area":     0xa1ba0000,
+    "account_reads_area":     0xa1ca0000,
+    "code_reads_area":        0xa1d20000,
 }
 
 
