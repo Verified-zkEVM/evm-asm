@@ -2861,6 +2861,17 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x8, x8, x7\n" ++
   "  sd x8, 0(x11)\n" ++
   ".runtime_tx_create_state_done:\n" ++
+  -- The callable `prepare_only` entry is used only by the block verdict's
+  -- status-2 recipient path.  It must stop after the authorization/state
+  -- prefix has completed but before `prepare_dispatch` reads recipient code.
+  -- `runtime_tx_prepare_prefix_status` is deliberately tri-state: 0 is
+  -- unset, 1 means the prefix was entered (and an OOG may have exited it),
+  -- and 2 means the prefix completed.  The caller treats 2 as an unresolved
+  -- witness failure; only 1 may retain the ExceptionalHalt settlement.
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
+  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  ".runtime_tx_prepare_prefix_continue:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
@@ -2887,16 +2898,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
-  -- C1/9skho: transaction-aware callers may defer EIP-7702 target-code
-  -- materialization until this top-frame warm/cold charge has succeeded.
-  -- The stateless block verdict can also stop here after successful preparation
-  -- and resume the body after it has authenticated the recipient code.  This
-  -- mirrors Amsterdam's `process_message`: set_delegation + prepare_dispatch
-  -- finish before the frame body starts.  A preparation OOG takes
-  -- `.exit_outofgas` above and never reaches this branch.
-  "  la x5, runtime_tx_prepare_only; ld x28, 0(x5); beqz x28, .runtime_tx_prepare_only_done\n" ++
-  "  sd x0, 0(x5); j runtime_dispatcher_prepare_only_return\n" ++
-  ".runtime_tx_prepare_only_done:\n" ++
   "  la x5, runtime_tx_post_top_frame_fn\n" ++
   "  ld x28, 0(x5)\n" ++
   "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
@@ -3091,6 +3092,9 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   -- authenticated code pointer to `runtime_dispatcher_resume`, which enters
   -- below that seam and therefore cannot replay EIP-7702 authorization writes.
   "runtime_dispatcher_prepare_only:\n" ++
+  -- Mark entered before setup.  A prefix OOG takes the ordinary exceptional
+  -- exit and leaves this at 1; only the explicit prefix-return writes 2.
+  "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
   "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
   "  j runtime_dispatcher_call\n" ++
   "runtime_dispatcher_resume:\n" ++
@@ -3579,6 +3583,8 @@ def emitRuntimeDispatcherDataSectionCore
   -- after the auth/preparation gas boundary succeeds; `resume_code_ptr` is
   -- written by the block verdict after it has authenticated recipient code.
   "runtime_tx_prepare_only:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_prepare_prefix_status:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_resume_code_ptr:\n" ++
   "  .zero 8\n" ++

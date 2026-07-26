@@ -91,18 +91,27 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
+  -- An unresolved recipient must not be staged as STOP.  Run only the shared
+  -- authorization prefix: an OOG there is the spec's pre-dispatch failed-tx
+  -- settlement; a completed prefix has reached the point where
+  -- prepare_dispatch must read recipient code, so the missing witness is a
+  -- terminal verifier failure before any body executes.
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); beqz t1, .Lbv_mtx_eoa_dispatch_full\n" ++
+  "  jal ra, runtime_dispatcher_prepare_only; j .Lbv_mtx_eoa_dispatch_done\n" ++
+  ".Lbv_mtx_eoa_dispatch_full:\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
+  ".Lbv_mtx_eoa_dispatch_done:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  -- A status-2 recipient lookup reaches this STOP route only to run the
-  -- shared EIP-7702 preparation gas boundary.  If that boundary succeeded,
-  -- execution-specs would next resolve recipient code and the missing witness
-  -- remains a hard error.  If it did not succeed, the spec returns from the
-  -- auth-phase ExceptionalHalt before prepare_dispatch, so retain this exact
-  -- failed-tx settlement without a code lookup.
+  -- A status-2 recipient lookup reaches this route only to run the shared
+  -- EIP-7702 prefix.  The tri-state status is not inferred from a zero-valued
+  -- gas cell: 1 means the entered prefix OOGed, while 2 means it completed and
+  -- must now reject for its missing recipient witness.  0 is unreachable here
+  -- and fails closed, so an unwritten diagnostic cannot authorize settlement.
   "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); beqz t1, .Lbv_mtx_eoa_deferred_lookup_done\n" ++
-  "  la t0, runtime_tx_auth_phase_applied; ld t1, 0(t0); bnez t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; ld t1, 0(t0); li t2, 2; beq t1, t2, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  "  li t2, 1; bne t1, t2, .Lbv_mtx_recipient_unresolvable_fail\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_eoa_deferred_lookup_done:\n" ++
   -- EIP-7708 top-level value-transfer log. STOP has no recipient logs, so

@@ -178,6 +178,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- EOA/non-runtime route otherwise inherits a previous transaction's
   -- successful preparation and incorrectly retains staged authorization gas.
   "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
