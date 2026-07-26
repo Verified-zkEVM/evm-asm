@@ -131,6 +131,41 @@ the guards are constraining a real, non-degenerate configuration. -/
 
 theorem minRemainingPoolBytes_pos : 0 < minRemainingPoolBytes := by decide
 
+/-! ## Guard 3 — 8-alignment of the clamped fill end (GH #10522)
+
+`updateActiveMemorySizeAsm`'s clamped fresh-zero loop (`clampToArena = true`)
+stores with `sd` and steps the pointer by 8, exiting on `bgeu ptr, end`. That
+exit is **exact only if the clamped end is 8-aligned**: a misaligned end lets the
+pointer step OVER it, so the loop exits having written the 8 bytes at the
+previous position — overshooting by up to 7 bytes past the bound the clamp exists
+to enforce, i.e. reintroducing a smaller form of the defect it fixes.
+
+Two paths, and only one of them needs a guard:
+
+* **nested** — the clamped end reduces algebraically to `evm_memory_pool_end`
+  (`x13 + (pool_end - x13)`), so its alignment is the assembler's `.balign 8`
+  rather than arithmetic. Nothing to pin beyond the size below.
+* **depth 0** — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
+  both terms 8-aligned. `x13` is the `.balign 32` `evm_memory` label; the limit is
+  a constant, so it is pinned here.
+
+`evmMemoryPoolBytes` is pinned too: `pool_end`'s alignment follows from an
+8-aligned base *and* an 8-aligned size, so a size change could break the nested
+path even though the base is assembler-aligned. -/
+
+theorem clampEnd_alignment_root : rootRuntimeMemoryArenaLimitBytes % 8 = 0 := by
+  decide
+
+theorem clampEnd_alignment_pool : evmMemoryPoolBytes % 8 = 0 := by
+  decide
+
+/-- The nested path's clamped end is `pool_end`, whose offset from the pool base
+    is the whole pool; both the 32-byte-multiple MSIZE accumulation and the pool
+    size must keep it 8-aligned. Stated over the derived floor for the same
+    reason `minRemainingPoolBytes` is. -/
+theorem clampEnd_alignment_minRemaining : minRemainingPoolBytes % 8 = 0 := by
+  decide
+
 /-- A frame can afford ≈ 2.805 MiB (91_917 words), so the guards are not holding
     because memory is unaffordable in general — only past the dense bounds. -/
 theorem affordable_memory_is_substantial :
