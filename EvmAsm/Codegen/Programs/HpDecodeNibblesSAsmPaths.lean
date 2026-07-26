@@ -117,131 +117,6 @@ private theorem pathA_spec (base src dst cnt isl : Word)
     xperm_hyp hq
 
 
-/-- Path B: `len ≠ 0`, invalid flag nibble (`hi ≥ 4`) — reject before the
-    is-leaf store. -/
-private theorem pathB_spec (base src dst cnt isl : Word)
-    (srcBytes bufOrig : List (BitVec 8))
-    (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word)
-    (s8 s9 s18 s19 s20 : Word)
-    (hlen : 0 < srcBytes.length)
-    (hhi : 4 ≤ (srcBytes.getD 0 0).toNat / 16)
-    (hsalign : src.toNat % 8 = 0) (hsover : src.toNat + srcBytes.length < 2 ^ 64)
-    (hsvalid : ∀ j, j < srcBytes.length →
-      isValidByteAccess (src + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin 12 (bAt base 0) (bAt base 38) (hdnCr base)
-      (hdnFoot src dst cnt isl srcBytes src s8 (BitVec.ofNat 64 srcBytes.length)
-        s9 dst s18 cnt s19 isl s20 v5 v6 v7 v28 v29 v30 v31 bufOrig oldCnt oldIsl)
-      (hdnFoot src dst cnt isl srcBytes (1 : Word) src
-        (BitVec.ofNat 64 srcBytes.length) (BitVec.ofNat 64 srcBytes.length)
-        dst dst cnt cnt isl isl
-        ((srcBytes.getD 0 0).zeroExtend 64)
-        (BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat / 16))
-        (BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat % 16))
-        (4 : Word) v29 v30 v31 bufOrig oldCnt oldIsl) := by
-  have hlen64 : srcBytes.length < 2 ^ 64 := by omega
-  have h0 := seg0_spec base src (BitVec.ofNat 64 srcBytes.length) dst cnt isl
-    s8 s9 s18 s19 s20
-  have h1 := br1_ntaken base (BitVec.ofNat 64 srcBytes.length)
-    (by
-      intro heq
-      have h2 := congrArg BitVec.toNat heq
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlen64] at h2
-      rw [show (0 : Word).toNat = 0 from rfl] at h2
-      omega)
-  have h2 := seg1_spec base src srcBytes v5 v6 v7 v28 hlen hsalign hsover
-    (hsvalid 0 hlen)
-  have h3 := br2_taken base (srcBytes.getD 0 0) hhi
-  have h4 := fail38_spec base src
-  -- Chain with full-footprint framing.
-  have pcF : ∀ (P : Assertion), P.pcFree → P.pcFree := fun _ h => h
-  have F0 := cpsTripleWithin_frameR
-    ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** (Reg.x0 ↦ᵣ (0 : Word)) ** bytesRegion src srcBytes
-      ** bytesRegion dst bufOrig ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h0
-  have F1 := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ src) ** (.x8 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
-      ** (.x14 ↦ᵣ isl) ** (.x20 ↦ᵣ isl)
-      ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** bytesRegion src srcBytes ** bytesRegion dst bufOrig
-      ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h1
-  have F2 := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x9 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
-      ** (.x14 ↦ᵣ isl) ** (.x20 ↦ᵣ isl)
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** (Reg.x0 ↦ᵣ (0 : Word))
-      ** bytesRegion dst bufOrig ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h2
-  have F3 := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ src) ** (.x8 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x9 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
-      ** (.x14 ↦ᵣ isl) ** (.x20 ↦ᵣ isl)
-      ** (.x5 ↦ᵣ ((srcBytes.getD 0 0).zeroExtend 64))
-      ** (.x7 ↦ᵣ BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat % 16))
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** (Reg.x0 ↦ᵣ (0 : Word))
-      ** bytesRegion src srcBytes ** bytesRegion dst bufOrig
-      ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h3
-  have F4 := cpsTripleWithin_frameR
-    ((.x8 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x9 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
-      ** (.x14 ↦ᵣ isl) ** (.x20 ↦ᵣ isl)
-      ** (.x5 ↦ᵣ ((srcBytes.getD 0 0).zeroExtend 64))
-      ** (.x6 ↦ᵣ BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat / 16))
-      ** (.x7 ↦ᵣ BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat % 16))
-      ** (.x28 ↦ᵣ (4 : Word))
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** (Reg.x0 ↦ᵣ (0 : Word))
-      ** bytesRegion src srcBytes ** bytesRegion dst bufOrig
-      ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h4
-  clear pcF
-  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) F0 F1
-  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s1 F2
-  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s2 F3
-  have s4 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s3 F4
-  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_)
-    (cpsTripleWithin_mono_nSteps (by omega) s4)
-  · unfold hdnFoot at hp
-    xperm_hyp hp
-  · unfold hdnFoot
-    xperm_hyp hq
-
-
 /-- Shared prefix of paths C/D/E: body 0–14 (`len ≠ 0`, valid flag, is-leaf
     flag stored, `x6` reduced to the parity bit). -/
 private theorem prefix2_spec (base src dst cnt isl : Word)
@@ -277,8 +152,7 @@ private theorem prefix2_spec (base src dst cnt isl : Word)
       omega)
   have h2 := seg1_spec base src srcBytes v5 v6 v7 v28 hlen hsalign hsover
     (hsvalid 0 hlen)
-  have h3 := br2_ntaken base (srcBytes.getD 0 0) hhi
-  have h4 := seg2_spec base isl oldIsl (srcBytes.getD 0 0) (4 : Word)
+  have h3 := seg2_spec base isl oldIsl (srcBytes.getD 0 0) v28
   have F0 := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)
       ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
@@ -322,23 +196,6 @@ private theorem prefix2_spec (base src dst cnt isl : Word)
     ((.x10 ↦ᵣ src) ** (.x8 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
       ** (.x9 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
       ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
-      ** (.x14 ↦ᵣ isl) ** (.x20 ↦ᵣ isl)
-      ** (.x5 ↦ᵣ ((srcBytes.getD 0 0).zeroExtend 64))
-      ** (.x7 ↦ᵣ BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat % 16))
-      ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)
-      ** (Reg.x0 ↦ᵣ (0 : Word))
-      ** bytesRegion src srcBytes ** bytesRegion dst bufOrig
-      ** (cnt ↦ₘ oldCnt) ** (isl ↦ₘ oldIsl))
-    (by
-      repeat' first
-        | exact pcFree_regIs
-        | exact pcFree_memIs
-        | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h3
-  have F4 := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ src) ** (.x8 ↦ᵣ src) ** (.x11 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x9 ↦ᵣ BitVec.ofNat 64 srcBytes.length)
-      ** (.x12 ↦ᵣ dst) ** (.x18 ↦ᵣ dst) ** (.x13 ↦ᵣ cnt) ** (.x19 ↦ᵣ cnt)
       ** (.x14 ↦ᵣ isl)
       ** (.x5 ↦ᵣ ((srcBytes.getD 0 0).zeroExtend 64))
       ** (.x7 ↦ᵣ BitVec.ofNat 64 ((srcBytes.getD 0 0).toNat % 16))
@@ -351,13 +208,12 @@ private theorem prefix2_spec (base src dst cnt isl : Word)
         | exact pcFree_regIs
         | exact pcFree_memIs
         | exact bytesRegion_pcFree _ _
-        | apply pcFree_sepConj) h4
+        | apply pcFree_sepConj) h3
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) F0 F1
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s1 F2
   have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s2 F3
-  have s4 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) s3 F4
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_)
-    (cpsTripleWithin_mono_nSteps (by omega) s4)
+    (cpsTripleWithin_mono_nSteps (by omega) s3)
   · unfold hdnFoot at hp
     xperm_hyp hp
   · unfold hdnFoot
@@ -774,18 +630,6 @@ private theorem hdnRes_len0 (bs : List (BitVec 8)) (h : bs.length = 0) :
     hdnRes bs = none := by
   rw [List.length_eq_zero_iff.mp h]
   rfl
-
-private theorem hdnRes_none_hi4 (bs : List (BitVec 8)) (hlen : 0 < bs.length)
-    (h : 4 ≤ (bs.getD 0 0).toNat / 16) : hdnRes bs = none := by
-  match bs, hlen with
-  | b0 :: rest, _ =>
-    have hd : ((b0 :: rest : List (BitVec 8)).getD 0 0) = b0 := rfl
-    rw [hd] at h
-    obtain ⟨k, hk⟩ : ∃ k, b0.toNat / 16 = k + 4 := ⟨b0.toNat / 16 - 4, by omega⟩
-    show EvmAsm.Evm64.hpDecode (b0 :: rest) = none
-    simp only [EvmAsm.Evm64.hpDecode]
-    rw [hk]
-    rfl
 
 private theorem hdnRes_some_odd (bs : List (BitVec 8)) (hlen : 0 < bs.length)
     (hhi : (bs.getD 0 0).toNat / 16 < 4)
