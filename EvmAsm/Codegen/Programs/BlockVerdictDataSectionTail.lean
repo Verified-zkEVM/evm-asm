@@ -311,6 +311,13 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- Nonzero only while the shared scalar direct-precompile kernel is
   -- publishing an MTx result into the indexed arena.
   "bv_mtx_precompile_lane:\n  .zero 8\n" ++
+  -- A code-hash lookup that returned status 2 is provisionally routed through
+  -- the EOA setup solely to establish whether the transaction reaches the
+  -- EIP-7702 preparation boundary.  If preparation OOGs, execution-specs
+  -- never reads the recipient code and the provisional route is the exact
+  -- failed-transaction settlement; if preparation succeeds, the runtime
+  -- rejects at the original status-2 boundary.  Reset for every MTx item.
+  "bv_mtx_recipient_lookup_deferred:\n  .zero 8\n" ++
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++

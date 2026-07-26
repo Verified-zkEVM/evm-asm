@@ -95,6 +95,16 @@ def blockVerdictMtxEoaSettlement : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- A status-2 recipient lookup reaches this STOP route only to run the
+  -- shared EIP-7702 preparation gas boundary.  If that boundary succeeded,
+  -- execution-specs would next resolve recipient code and the missing witness
+  -- remains a hard error.  If it did not succeed, the spec returns from the
+  -- auth-phase ExceptionalHalt before prepare_dispatch, so retain this exact
+  -- failed-tx settlement without a code lookup.
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); beqz t1, .Lbv_mtx_eoa_deferred_lookup_done\n" ++
+  "  la t0, runtime_tx_auth_phase_applied; ld t1, 0(t0); bnez t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_eoa_deferred_lookup_done:\n" ++
   -- EIP-7708 top-level value-transfer log. STOP has no recipient logs, so
   -- emitting after dispatch preserves the spec log order for EOA recipients.
   "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++

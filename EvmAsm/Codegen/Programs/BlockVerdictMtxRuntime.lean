@@ -32,6 +32,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- tx shape / EOA recipient / dispatch miss bails to the conservative path
   -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
+  -- tx_count==1 (and the degenerate 0-tx block) fall through to the existing
+  -- single-tx path BYTE-IDENTICALLY. For 2..16 transactions, only when the block
+  -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
+  -- by more than one tx_index) AND every recipient is a self-contained contract,
+  -- dispatch each tx against the block-PRE state to measure its runtime gas,
+  -- populate the strided runtime-result arrays, and set bvgr_runtime_count=tx_count
+  -- so block_verdict_gas_result_arena_prepare + the EIP-7778/8037 block-gas gate
+  -- run. Independence makes per-tx pre-state dispatch exact; the per-tx refund is
+  -- read from evm_refund_acc (the dispatcher's EIP-3529 SSTORE refund accumulator,
+  -- reset per dispatch) so the receipt-gas increment (receipt_inc) is exact; the
+  -- EIP-7778 block-gas gate stays refund-independent (block_inc). Any non-independence / unsupported
+  -- tx shape / EOA recipient / dispatch miss bails to the conservative path
+  -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
+  -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
   "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
@@ -164,6 +178,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- EOA/non-runtime route otherwise inherits a previous transaction's
   -- successful preparation and incorrectly retains staged authorization gas.
   "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
@@ -293,15 +308,19 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
-  -- pre-state root. The recipient is ACCESSED (the tx sends to it), so a complete stateless
-  -- witness MUST carry it -> code 2 means the witness genuinely lacks a node on its path
-  -- (verified: the multi_transaction_gas_accounting GAS_USED_OVERFLOW witness omits tx1's
-  -- recipient node, 22 vs the valid variant's 24 nodes). An unverifiable accessed account =>
-  -- the block cannot be statelessly validated as valid => REJECT (not conservative-accept,
-  -- which was the false-accept). A valid block's witness always resolves the recipient
-  -- (code 0), so this never false-rejects. Codes 3/4 (decode/header) stay conservative.
-  "  li t1, 2; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  -- A status-2 code lookup normally means that an accessed recipient is
+  -- missing from the pre-state witness and remains a hard failure.  EIP-7702
+  -- is the one temporal exception: `process_message` runs set_delegation
+  -- before prepare_dispatch's unconditional extCodeOf(recipient).  When the
+  -- auth phase OOGs, the spec restores its preparation snapshot and returns
+  -- without ever consulting recipient code.  Route only this unresolved case
+  -- through the EOA setup as a provisional prep runner; MtxEoa admits it only
+  -- if runtime_tx_auth_phase_applied remains zero.  A prep-successful route
+  -- returns to the same status-2 failure, so status 2 is never treated as
+  -- empty code.  Codes 3/4 retain the conservative bailout.
+  "  li t1, 2; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_eoa\n" ++
+  ".Lbv_mtx_recipient_lookup_resolved:\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
