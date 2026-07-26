@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -288,7 +289,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  ld x13, 24(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  ld t0, 568(x20)\n" ++
-    "  li t1, 100\n" ++
+    s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
     "  bltu t0, t1, .exit_outofgas\n" ++
     "  sub t0, t0, t1\n" ++
     "  sd t0, 568(x20)\n" ++

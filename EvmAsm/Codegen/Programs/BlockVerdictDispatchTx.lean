@@ -22,6 +22,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -526,7 +527,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a0, dtrc_deleg_target; mv a1, s2\n" ++
   "  jal ra, dtrc_delegate_warm_probe\n" ++
   "  li t1, 3000; beqz a0, .Ldtrc_prior_access_cold\n" ++
-  "  li t1, 100\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   ".Ldtrc_prior_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   -- Amsterdam prepare_dispatch charges this delegated access before reading
@@ -546,7 +547,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la a0, bsbd_deleg_target; mv a1, s2\n" ++
   "  jal ra, dtrc_delegate_warm_probe\n" ++
   "  li t1, 3000; beqz a0, .Ldtrc_sb_access_cold\n" ++
-  "  li t1, 100\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   ".Ldtrc_sb_access_cold:\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; ld t2, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld t1, 0(t0); la t2, dtrc_hdr_ptr; sd t1, 0(t2)\n" ++
