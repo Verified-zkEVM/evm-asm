@@ -16,12 +16,26 @@
   up-counting nibble loop (`bgeu i, len` top guard — `upLoop_spec`).
 
   The genuine post is stated against `hdnRes`, the guest-exact decode
-  mirror, which (post bead evm-asm-3umhl) IS the spec-side
-  `EvmAsm.Evm64.hpDecode` (`MptAssertions.lean`): the guest is lenient on
-  the even-path padding nibble exactly like execution-specs
-  `compact_to_nibbles` (amsterdam/incremental_mpt.py:878-889), so
-  `hdnRes_eq_hpDecode` is a total definitional agreement and
-  `hdnRes_hpEncode` the round-trip on every hex-prefix encoding.
+  mirror, which (post bead evm-asm-3umhl) IS `EvmAsm.Evm64.hpDecode`
+  (`MptAssertions.lean`), so `hdnRes_eq_hpDecode` is a total definitional
+  agreement and `hdnRes_hpEncode` the round-trip on every hex-prefix
+  encoding.
+
+  ## What that agreement is NOT (GH #10528)
+
+  `hpDecode` is a **guest mirror**, not the SpecRef port. The proved chain
+  is `guest -> hdnRes -> hpDecode`; the further link
+  `hpDecode -> SpecRef.compact_to_nibbles` is **not stated anywhere, and
+  would be false if it were**. `hpDecode` rejects a head nibble `>= 4`
+  (`MptAssertions.lean:155`), while `compact_to_nibbles`
+  (`SpecRef/IncrementalMpt.lean:76-86`, mirroring
+  `amsterdam/incremental_mpt.py:878-889`) masks bits 2-3 away and accepts.
+  So the guest is STRICTER than the spec here -- a false-reject shape, not
+  a soundness gap -- and the divergence is pinned in by
+  `#guard hdnRes [0x4a] = none` below.
+
+  What `evm-asm-3umhl` relaxed was the EVEN-PATH PADDING NIBBLE, a
+  different divergence; the head-nibble one it did not touch.
 -/
 
 import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
@@ -113,8 +127,12 @@ theorem hdnProg_eq :
 def hdnRes (bs : List (BitVec 8)) : Option (Bool × List (BitVec 8)) :=
   EvmAsm.Evm64.hpDecode bs
 
-/-- **Total agreement** with the spec-side `hpDecode`
-    (`MptAssertions.lean`) — definitional after `evm-asm-3umhl`. -/
+/-- **Total agreement with `hpDecode`** (`MptAssertions.lean`) —
+    definitional after `evm-asm-3umhl`.
+
+    `hpDecode` is the GUEST MIRROR, not the SpecRef port: this says nothing
+    about `SpecRef.compact_to_nibbles`, which accepts head nibbles the guest
+    rejects. See the module docstring and GH #10528. -/
 theorem hdnRes_eq_hpDecode (bs : List (BitVec 8)) :
     hdnRes bs = EvmAsm.Evm64.hpDecode bs := rfl
 
