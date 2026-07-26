@@ -265,7 +265,7 @@ def eip7702AuthStatePrepareFunction : String :=
   -- non-storage comparator as an extra effect and regress the existing
   -- single-tx surface.  Keep the execution-time AccountState write on the
   -- MTx lane, where the next transaction reads the committed prior-tx state.
-  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next; la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record; j .L77prep_next\n" ++
   -- `set_delegation` increments the recovered authority once per valid
   -- authorization entry, even when the same authority appears repeatedly.
   -- B1 tracks only transaction senders, so replay that increment only when
