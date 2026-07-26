@@ -179,7 +179,7 @@ def hdnIsLeafW (bs : List (BitVec 8)) : Word :=
     `len = 0` and `hi ≥ 4` rejects, so it executes iff the head byte
     exists and has a valid flag. -/
 def hdnIslWritten (bs : List (BitVec 8)) : Bool :=
-  !bs.isEmpty && decide ((hdnB0 bs).toNat / 16 < 4)
+  !bs.isEmpty
 
 /-- The decoded nibble list (empty on failure). -/
 def hdnNibs (bs : List (BitVec 8)) : List (BitVec 8) :=

@@ -55,7 +55,7 @@ private theorem pathA_spec (base src dst cnt isl : Word)
     (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word)
     (s8 s9 s18 s19 s20 : Word)
     (hlen0 : srcBytes.length = 0) :
-    cpsTripleWithin 7 (bAt base 0) (bAt base 38) (hdnCr base)
+    cpsTripleWithin 7 (bAt base 0) (bAt base 36) (hdnCr base)
       (hdnFoot src dst cnt isl srcBytes src s8 (BitVec.ofNat 64 srcBytes.length)
         s9 dst s18 cnt s19 isl s20 v5 v6 v7 v28 v29 v30 v31 bufOrig oldCnt oldIsl)
       (hdnFoot src dst cnt isl srcBytes (1 : Word) src
@@ -124,11 +124,10 @@ private theorem prefix2_spec (base src dst cnt isl : Word)
     (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word)
     (s8 s9 s18 s19 s20 : Word)
     (hlen : 0 < srcBytes.length)
-    (hhi : (srcBytes.getD 0 0).toNat / 16 < 4)
     (hsalign : src.toNat % 8 = 0) (hsover : src.toNat + srcBytes.length < 2 ^ 64)
     (hsvalid : ∀ j, j < srcBytes.length →
       isValidByteAccess (src + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin 15 (bAt base 0) (bAt base 15) (hdnCr base)
+    cpsTripleWithin 13 (bAt base 0) (bAt base 13) (hdnCr base)
       (hdnFoot src dst cnt isl srcBytes src s8 (BitVec.ofNat 64 srcBytes.length)
         s9 dst s18 cnt s19 isl s20 v5 v6 v7 v28 v29 v30 v31 bufOrig oldCnt oldIsl)
       (hdnFoot src dst cnt isl srcBytes src src
@@ -268,7 +267,6 @@ private theorem pathE_spec (base src dst cnt isl : Word)
     (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word)
     (s8 s9 s18 s19 s20 : Word)
     (hlen : 0 < srcBytes.length)
-    (hhi : (srcBytes.getD 0 0).toNat / 16 < 4)
     (heven : (srcBytes.getD 0 0).toNat / 16 % 2 = 0)
     (hsalign : src.toNat % 8 = 0) (hsover : src.toNat + srcBytes.length < 2 ^ 64)
     (hsvalid : ∀ j, j < srcBytes.length →
@@ -277,8 +275,8 @@ private theorem pathE_spec (base src dst cnt isl : Word)
     (hdalign : dst.toNat % 8 = 0) (hdover : dst.toNat + bufOrig.length < 2 ^ 64)
     (hdvalid : ∀ j, j < bufOrig.length →
       isValidByteAccess (dst + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin (15 + 4 + ((srcBytes.length - 1) * 11 + 1) + 3 + 5)
-      (bAt base 0) (bAt base 38) (hdnCr base)
+    cpsTripleWithin (13 + 4 + ((srcBytes.length - 1) * 11 + 1) + 3 + 5)
+      (bAt base 0) (bAt base 36) (hdnCr base)
       (hdnFoot src dst cnt isl srcBytes src s8 (BitVec.ofNat 64 srcBytes.length)
         s9 dst s18 cnt s19 isl s20 v5 v6 v7 v28 v29 v30 v31 bufOrig oldCnt oldIsl)
       (hdnFoot src dst cnt isl srcBytes (0 : Word) src
@@ -301,7 +299,7 @@ private theorem pathE_spec (base src dst cnt isl : Word)
   have hc0 : hdnC0 srcBytes = 0 := hdnC0_even srcBytes heven
   have hpre := prefix2_spec base src dst cnt isl srcBytes bufOrig
     v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl s8 s9 s18 s19 s20
-    hlen hhi hsalign hsover hsvalid
+    hlen hsalign hsover hsvalid
   have h5 := br3_taken base (srcBytes.getD 0 0) heven
   have h7 := seg4even_spec base dst v30 v31
   have h8 := seg5_spec base ((srcBytes.getD 0 0).zeroExtend 64)
@@ -438,7 +436,6 @@ private theorem pathD_spec (base src dst cnt isl : Word)
     (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word)
     (s8 s9 s18 s19 s20 : Word)
     (hlen : 0 < srcBytes.length)
-    (hhi : (srcBytes.getD 0 0).toNat / 16 < 4)
     (hodd : (srcBytes.getD 0 0).toNat / 16 % 2 = 1)
     (hsalign : src.toNat % 8 = 0) (hsover : src.toNat + srcBytes.length < 2 ^ 64)
     (hsvalid : ∀ j, j < srcBytes.length →
@@ -449,7 +446,7 @@ private theorem pathD_spec (base src dst cnt isl : Word)
     (hdvalid : ∀ j, j < bufOrig.length →
       isValidByteAccess (dst + BitVec.ofNat 64 j) = true) :
     cpsTripleWithin (15 + 6 + ((srcBytes.length - 1) * 11 + 1) + 3 + 5)
-      (bAt base 0) (bAt base 38) (hdnCr base)
+      (bAt base 0) (bAt base 36) (hdnCr base)
       (hdnFoot src dst cnt isl srcBytes src s8 (BitVec.ofNat 64 srcBytes.length)
         s9 dst s18 cnt s19 isl s20 v5 v6 v7 v28 v29 v30 v31 bufOrig oldCnt oldIsl)
       (hdnFoot src dst cnt isl srcBytes (0 : Word) src
@@ -472,7 +469,7 @@ private theorem pathD_spec (base src dst cnt isl : Word)
   have hc1 : hdnC0 srcBytes = 1 := hdnC0_odd srcBytes hodd
   have hpre := prefix2_spec base src dst cnt isl srcBytes bufOrig
     v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl s8 s9 s18 s19 s20
-    hlen hhi hsalign hsover hsvalid
+    hlen hsalign hsover hsvalid
   have h5 := br3_ntaken base (srcBytes.getD 0 0) (by omega)
   have h6 := seg3odd_spec base dst (srcBytes.getD 0 0) bufOrig v30 v31
     hbuf0 hdalign hdover (hdvalid 0 hbuf0)
@@ -632,36 +629,34 @@ private theorem hdnRes_len0 (bs : List (BitVec 8)) (h : bs.length = 0) :
   rfl
 
 private theorem hdnRes_some_odd (bs : List (BitVec 8)) (hlen : 0 < bs.length)
-    (hhi : (bs.getD 0 0).toNat / 16 < 4)
     (hodd : (bs.getD 0 0).toNat / 16 % 2 = 1) :
-    hdnRes bs = some (decide (2 ≤ (bs.getD 0 0).toNat / 16),
+    hdnRes bs = some (decide (2 ≤ (bs.getD 0 0).toNat / 16 % 4),
       lowNibble (bs.getD 0 0)
         :: EvmAsm.Evm64.hpUnpackPairs (bs.drop 1)) := by
   match bs, hlen with
   | b0 :: rest, _ =>
     have hd : ((b0 :: rest : List (BitVec 8)).getD 0 0) = b0 := rfl
-    rw [hd] at hhi hodd ⊢
+    rw [hd] at hodd ⊢
     show EvmAsm.Evm64.hpDecode (b0 :: rest) = _
     rw [lowNibble_eq,
       show (b0 :: rest : List (BitVec 8)).drop 1 = rest from rfl]
-    rcases (by omega : b0.toNat / 16 = 1 ∨ b0.toNat / 16 = 3) with h1 | h3
+    rcases (by omega : b0.toNat / 16 % 4 = 1 ∨ b0.toNat / 16 % 4 = 3) with h1 | h3
     · rw [EvmAsm.Evm64.hpDecode_cons_div1 b0 rest h1, h1]
       rfl
     · rw [EvmAsm.Evm64.hpDecode_cons_div3 b0 rest h3, h3]
       rfl
 
 private theorem hdnRes_some_even (bs : List (BitVec 8)) (hlen : 0 < bs.length)
-    (hhi : (bs.getD 0 0).toNat / 16 < 4)
     (heven : (bs.getD 0 0).toNat / 16 % 2 = 0) :
-    hdnRes bs = some (decide (2 ≤ (bs.getD 0 0).toNat / 16),
+    hdnRes bs = some (decide (2 ≤ (bs.getD 0 0).toNat / 16 % 4),
       EvmAsm.Evm64.hpUnpackPairs (bs.drop 1)) := by
   match bs, hlen with
   | b0 :: rest, _ =>
     have hd : ((b0 :: rest : List (BitVec 8)).getD 0 0) = b0 := rfl
-    rw [hd] at hhi heven ⊢
+    rw [hd] at heven ⊢
     show EvmAsm.Evm64.hpDecode (b0 :: rest) = _
     rw [show (b0 :: rest : List (BitVec 8)).drop 1 = rest from rfl]
-    rcases (by omega : b0.toNat / 16 = 0 ∨ b0.toNat / 16 = 2) with h0 | h2
+    rcases (by omega : b0.toNat / 16 % 4 = 0 ∨ b0.toNat / 16 % 4 = 2) with h0 | h2
     · rw [EvmAsm.Evm64.hpDecode_cons_div0 b0 rest h0, h0]
       rfl
     · rw [EvmAsm.Evm64.hpDecode_cons_div2 b0 rest h2, h2]
@@ -803,7 +798,7 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
             (hdnVals' vals src (BitVec.ofNat 64 srcBytes.length) dst cnt isl)
         ** frameSlotsSaved hdnFrame sp0new vals
         ** hdnCallerPost src dst cnt isl srcBytes bufOrig oldCnt oldIsl) := by
-  show cpsTripleWithin (30 + 11 * srcBytes.length) (bAt base 0) (bAt base 38)
+  show cpsTripleWithin (30 + 11 * srcBytes.length) (bAt base 0) (bAt base 36)
     (hdnCr base) _ _
   -- The five-way classification.
   by_cases hlen0 : srcBytes.length = 0
@@ -847,10 +842,9 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
         frameSlotsSaved_nil, sepConj_emp_right', hdnVals'] at hq2 ⊢
       xperm_hyp hq2
   · have hlen : 0 < srcBytes.length := by omega
-    rcases Nat.lt_or_ge ((srcBytes.getD 0 0).toNat / 16) 4 with hhi | hhi
     · by_cases hpar : (srcBytes.getD 0 0).toNat / 16 % 2 = 1
       · -- Path D: odd success.
-        have hsome := hdnRes_some_odd srcBytes hlen hhi hpar
+        have hsome := hdnRes_some_odd srcBytes hlen hpar
         have hnibs : hdnNibs srcBytes
             = hdnInitNibs srcBytes
               ++ EvmAsm.Evm64.hpUnpackPairs (srcBytes.drop 1) := by
@@ -878,9 +872,7 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
             · rfl
           unfold hdnIslFinal hdnIslWritten
           rw [hemp]
-          simp only [Bool.not_false, Bool.true_and]
-          rw [if_pos (show decide ((hdnB0 srcBytes).toNat / 16 < 4) = true from
-            decide_eq_true hhi)]
+          simp only [Bool.not_false, if_true]
           rfl
         have hbuf0 : 0 < bufOrig.length := by
           have := hdnC0_odd srcBytes hpar
@@ -888,7 +880,7 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
         have hpath := pathD_spec base src dst cnt isl srcBytes bufOrig
           v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl
           (vals .x8) (vals .x9) (vals .x18) (vals .x19) (vals .x20)
-          hlen hhi hpar hsalign hsover hsvalid hbuf hbuf0 hdalign hdover hdvalid
+          hlen hpar hsalign hsover hsvalid hbuf hbuf0 hdalign hdover hdvalid
         have hframed := cpsTripleWithin_frameR
           ((.x2 ↦ᵣ sp0new) ** (((.x1 : Reg) ↦ᵣ vals .x1)
             ** frameSlotsSaved hdnFrame sp0new vals))
@@ -914,7 +906,7 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
       · -- Path E: even success (the padding nibble is IGNORED — lenient,
         -- bead evm-asm-3umhl).
         have heven : (srcBytes.getD 0 0).toNat / 16 % 2 = 0 := by omega
-        have hsome := hdnRes_some_even srcBytes hlen hhi heven
+        have hsome := hdnRes_some_even srcBytes hlen heven
         have hnibs : hdnNibs srcBytes
             = hdnInitNibs srcBytes
               ++ EvmAsm.Evm64.hpUnpackPairs (srcBytes.drop 1) := by
@@ -942,14 +934,12 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
             · rfl
           unfold hdnIslFinal hdnIslWritten
           rw [hemp]
-          simp only [Bool.not_false, Bool.true_and]
-          rw [if_pos (show decide ((hdnB0 srcBytes).toNat / 16 < 4) = true from
-            decide_eq_true hhi)]
+          simp only [Bool.not_false, if_true]
           rfl
         have hpath := pathE_spec base src dst cnt isl srcBytes bufOrig
           v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl
           (vals .x8) (vals .x9) (vals .x18) (vals .x19) (vals .x20)
-          hlen hhi heven hsalign hsover hsvalid hbuf hdalign hdover hdvalid
+          hlen heven hsalign hsover hsvalid hbuf hdalign hdover hdvalid
         have hframed := cpsTripleWithin_frameR
           ((.x2 ↦ᵣ sp0new) ** (((.x1 : Reg) ↦ᵣ vals .x1)
             ** frameSlotsSaved hdnFrame sp0new vals))
@@ -972,56 +962,6 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
           simp only [hdnFrame, regsAt_cons, regsAt_nil, frameSlotsSaved_cons,
             frameSlotsSaved_nil, sepConj_emp_right', hdnVals'] at hq2 ⊢
           xperm_hyp hq2
-    · -- Path B: invalid flag nibble.
-      have hnone := hdnRes_none_hi4 srcBytes hlen hhi
-      have hst : hdnStatusW srcBytes = 1 := by
-        unfold hdnStatusW
-        rw [hnone]
-        rfl
-      have hbe : hdnBufFinal srcBytes bufOrig = bufOrig := by
-        unfold hdnBufFinal hdnNibs
-        rw [hnone]
-        rfl
-      have hce : hdnCntFinal srcBytes oldCnt = oldCnt := by
-        unfold hdnCntFinal
-        rw [hnone]
-        rfl
-      have hie : hdnIslFinal srcBytes oldIsl = oldIsl := by
-        have hemp : srcBytes.isEmpty = false := by
-          cases srcBytes
-          · simp at hlen
-          · rfl
-        unfold hdnIslFinal hdnIslWritten
-        rw [hemp]
-        simp only [Bool.not_false, Bool.true_and]
-        rw [if_neg (show ¬ decide ((hdnB0 srcBytes).toNat / 16 < 4) = true from by
-          intro hdec
-          have h4 := of_decide_eq_true hdec
-          unfold hdnB0 at h4
-          omega)]
-      have hpath := pathB_spec base src dst cnt isl srcBytes bufOrig
-        v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl
-        (vals .x8) (vals .x9) (vals .x18) (vals .x19) (vals .x20)
-        hlen hhi hsalign hsover hsvalid
-      have hframed := cpsTripleWithin_frameR
-        ((.x2 ↦ᵣ sp0new) ** (((.x1 : Reg) ↦ᵣ vals .x1)
-          ** frameSlotsSaved hdnFrame sp0new vals))
-        (pcFree_frame_bundle sp0new vals) hpath
-      refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_)
-        (cpsTripleWithin_mono_nSteps (by omega) hframed)
-      · unfold hdnCallerPre at hp
-        simp only [hdnFrame, regsAt_cons, regsAt_nil, frameSlotsSaved_cons,
-          frameSlotsSaved_nil, sepConj_emp_right'] at hp ⊢
-        unfold hdnFoot
-        xperm_hyp hp
-      · have hq2 := sepConj_mono_left
-          (hdnFoot_to_callerPost src dst cnt isl srcBytes bufOrig oldCnt oldIsl
-            (1 : Word) _ _ _ _ _ _ _ bufOrig oldCnt oldIsl
-            hst hbe hce hie) h hq
-        unfold hdnCallerPost at hq2 ⊢
-        simp only [hdnFrame, regsAt_cons, regsAt_nil, frameSlotsSaved_cons,
-          frameSlotsSaved_nil, sepConj_emp_right', hdnVals'] at hq2 ⊢
-        xperm_hyp hq2
 
 
 /-! ## The whole-routine contract -/
