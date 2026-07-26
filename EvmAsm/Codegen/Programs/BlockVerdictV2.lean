@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Codegen.Programs.StorageReadLog
 
 namespace EvmAsm.Codegen
 
@@ -477,6 +478,10 @@ def statelessVerdictV2GuestClosure : String :=
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
+  -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
+  -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
+  -- handler preBody so the verified evm_sload body stays byte-identical.
+  storageReadRecordFunction ++ "\n" ++
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
@@ -567,6 +572,10 @@ def statelessVerdictV2GuestClosure : String :=
 
 /-- Data section for the embedded verdict closure. -/
 def statelessVerdictV2GuestData : String :=
-  ziskStatelessVerdictV2DataSection
+  ziskStatelessVerdictV2DataSection ++ "\n" ++
+  -- GH #10619: storage_reads cursor + overflow flag.  Block-lifetime: nothing
+  -- resets them per transaction and nothing restores them on rollback,
+  -- mirroring restore_tx_state leaving storage_reads alone.
+  storageReadLogDataSection
 
 end EvmAsm.Codegen

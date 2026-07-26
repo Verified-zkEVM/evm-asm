@@ -215,6 +215,21 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x54]
     , preBody :=
         stackUnderflowGuardAsm 1 ++ "\n" ++
+        -- GH #10619: record the storage READ into the block-lifetime read
+        -- container.  The spec records a read on both paths -- get_storage for
+        -- SLOAD, and get_storage_original/get_storage for SSTORE -- and
+        -- storage_reads survives rollback (state_tracker.py:90-93, :809-826),
+        -- so this must NOT be conditional on the frame committing.
+        -- EIP-7928's "a slot both read and written appears only in the
+        -- changes list" is discharged where the spec discharges it: the BAL
+        -- builder's dedup against storage_changes, not by suppressing this.
+        "  addi sp, sp, -24\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  jal ra, storage_read_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
+        "  addi sp, sp, 24\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SLOAD's 100 warm floor, so the helper only charges the
         -- 2900 cold delta on first touch. Preserve handler return address
@@ -265,6 +280,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 568(x20)\n" ++
         "  li x15, 2201\n" ++
         "  bltu x14, x15, .exit_outofgas\n" ++
+        -- Placed AFTER the stipend guard on purpose: storage.py runs
+        -- `check_gas(evm, CALL_STIPEND + 1)` BEFORE `get_storage_original`, so an
+        -- SSTORE that fails it records NO read in the spec.  Recording first
+        -- would invent a read the spec never makes.
+        -- GH #10619: record the storage READ into the block-lifetime read
+        -- container.  The spec records a read on both paths -- get_storage for
+        -- SLOAD, and get_storage_original/get_storage for SSTORE -- and
+        -- storage_reads survives rollback (state_tracker.py:90-93, :809-826),
+        -- so this must NOT be conditional on the frame committing.
+        -- EIP-7928's "a slot both read and written appears only in the
+        -- changes list" is discharged where the spec discharges it: the BAL
+        -- builder's dedup against storage_changes, not by suppressing this.
+        "  addi sp, sp, -24\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  jal ra, storage_read_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
+        "  addi sp, sp, 24\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SSTORE's 100 warm floor, so this helper only charges
         -- the 2900 cold delta on first key touch. Run before the scan /

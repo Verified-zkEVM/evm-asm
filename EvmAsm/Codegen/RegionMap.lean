@@ -144,7 +144,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. Aspirational —
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1da0000` (the upper three are
+    the GH #10619 read containers). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
     internally consistent, but they are NOT part of `guestRegionMap`. -/
 def schemeAAnchors : List GuestRegion :=
@@ -329,7 +330,7 @@ def schemeAAnchors : List GuestRegion :=
     of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
     `clampToArena = false` and stay byte-identical. Composes additively with the
     keccak guard above: `0x61160 + 0x60`. -/
-def textSizeBytes : Nat := 0x61510
+def textSizeBytes : Nat := 0x6167c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -356,7 +357,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b2557c0
+def bssSizeBytes : Nat := 0x1b2557e0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
