@@ -145,10 +145,13 @@ def eip7702AuthorityAsOfFunction : String :=
 
     a0/a1: inner RLP transaction bytes; a2: sender address; a3: tx type;
     a4: mode (0 = compute this tx's gas, 1 = success-boundary publish only).
-    The compute mode writes the runtime auth gas/count cells; publish mode
-    writes only AccountState after the transaction has succeeded.  Bad
-    individual authorizations are ignored, matching `validate_authorization`.
-    Malformed outer RLP returns one so the caller fails closed. -/
+    COMPENSATION (two-pass guest versus one-pass spec): compute mode writes the
+    runtime auth gas/count cells and publish mode writes only AccountState after
+    the transaction has succeeded.  The split is deliberately documented here
+    because the shared transaction overlay is the upstream repair that will
+    remove this boundary.  Bad individual authorizations are ignored, matching
+    `validate_authorization`.  Malformed outer RLP returns one so the caller
+    fails closed. -/
 def eip7702AuthStatePrepareFunction : String :=
   "eip7702_auth_state_prepare:\n" ++
   "  addi sp, sp, -176; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
@@ -192,10 +195,18 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_recover:\n" ++
   "  mv a0, s8; mv a1, s9; la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address; bnez a0, .L77prep_next\n" ++
   "  la a0, b1an_authority; jal ra, eip7702_authority_asof; sd a0, 104(sp); sd a1, 112(sp); sd a2, 120(sp); li t0, 2; bgeu a0, t0, .L77prep_next\n" ++
-  -- `process_transaction` increments the sender nonce before processing its
-  -- authorization list.  For a self-sponsored authorization, therefore,
-  -- validate against the AccountState-as-of nonce plus that transaction's
-  -- sender increment; other authorities use their as-of nonce unchanged.
+  -- COMPENSATION (two-pass guest versus one-pass spec): `process_transaction`
+  -- increments the sender nonce before processing its authorization list.  For
+  -- a self-sponsored authorization, therefore, validate against the
+  -- AccountState-as-of nonce plus that transaction's sender increment; other
+  -- authorities use their as-of nonce unchanged.  The retained pre-plus-one
+  -- effect below intentionally under-reports the sender authority's BAL post
+  -- nonce by one (the spec applies both increments).  This is currently
+  -- unobserved because sender accounts are skip-listed by the all-account
+  -- nonstorage comparator; a comparator that includes them, or a unified
+  -- transaction overlay, would expose it.  The structural repair belongs with
+  -- the two-pass AccountState/data-overlay convergence, not in this local
+  -- arithmetic compensation.
   "  la t0, b1an_signed_nonce; ld t0, 0(t0); ld t1, 112(sp); la t2, b1an_authority; li t3, 0\n" ++
   ".L77prep_sender_nonce_cmp:\n" ++
   "  li t4, 20; beq t3, t4, .L77prep_sender_nonce_inc; add t4, t2, t3; lbu t5, 0(t4); add t4, s2, t3; lbu t6, 0(t4); bne t5, t6, .L77prep_sender_nonce_ready; addi t3, t3, 1; j .L77prep_sender_nonce_cmp\n" ++
@@ -203,9 +214,12 @@ def eip7702AuthStatePrepareFunction : String :=
   "  addi t1, t1, 1\n" ++
   ".L77prep_sender_nonce_ready:\n" ++
   "  bne t0, t1, .L77prep_next\n" ++
-  -- `teer_success_table` is now a transaction-local first-write set only:
-  -- AccountState owns all cross-transaction state, while this bounded table
-  -- implements the spec's one ACCOUNT_WRITE charge per authority per tx.
+  -- COMPENSATION (two-pass guest versus one-pass spec): `teer_success_table`
+  -- is a transaction-local first-write set only.  AccountState owns all
+  -- cross-transaction state, while this bounded table implements the spec's
+  -- one ACCOUNT_WRITE charge per authority per tx.  It is not a durable nonce
+  -- overlay; the missing shared transaction overlay is the upstream fix that
+  -- will make this compensation dead code.
   "  li t0, 1; sd t0, 128(sp); sd zero, 168(sp); la t0, teer_success_count; ld t1, 0(t0); li t2, 0\n" ++
   ".L77prep_seen_loop:\n" ++
   "  bgeu t2, t1, .L77prep_seen_append; slli t3, t2, 5; la t4, teer_success_table; add t4, t4, t3; li t5, 0\n" ++
