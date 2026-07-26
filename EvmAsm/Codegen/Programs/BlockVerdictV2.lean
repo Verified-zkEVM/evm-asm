@@ -64,6 +64,10 @@ import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Codegen.Programs.StorageReadLog
+import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.ReadSetsPromote
 
 namespace EvmAsm.Codegen
 
@@ -111,6 +115,28 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- The base V2 verdict closure already emits address_from_pubkey and the
     -- EIP-7702 authorization-recovery helpers for tx-state-gas accounting.
     -- Re-emitting them in this debug-only helper block duplicates symbols.
+    -- GH #10619: this debug unit mirrors the guest's handlers and helpers, so every
+    -- routine the read containers hook is present here too -- h_SLOAD/h_SSTORE,
+    -- account_state_commit_pending, code_at_header_state_root, seed_callee_storage,
+    -- dispatch_tx_runtime_code, block_verdict_withdrawal_nonstorage_effects. It
+    -- therefore needs the recorders, both tracked accessors and the promotion
+    -- boundary, or it fails to LINK with undefined references to
+    -- storage_read_record, code_read_fetch, read_sets_incorporate_tx and
+    -- account_at_header_state_root_tracked.
+    --
+    -- `lake build` stays GREEN while this is missing: the fault is in emitted asm
+    -- for a build unit that only the EEST harness links, so neither the build nor
+    -- the byte-tie sees it. It surfaced as a link error buried inside an A/B leg.
+    -- Same class as the earlier code_reads constant (a6c31440a) -- an emit is only
+    -- verified once the `.elf` EXISTS, and this unit has its own `.elf`.
+    storageReadRecordFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
+    accountAtHeaderStateRootTrackedFunction ++ "\n" ++
+    codeReadRecordFunction ++ "\n" ++
+    codeReadFetchFunction ++ "\n" ++
+    readSetsMergeOneFunction ++ "\n" ++
+    readSetsIncorporateTxFunction ++ "\n" ++
+    readSetsDiscardTxFunction ++ "\n" ++
     -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
     balAddrToExecLogKeyFunction ++ "\n" ++
     seedCalleeStorageFunction ++ "\n" ++
@@ -186,6 +212,14 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     ".Lstateless_verdict_v2_debug_after_runtime_dispatcher:\n"
   dataAsm     :=
     ziskStatelessVerdictV2DataSection ++ "\n" ++
+    -- GH #10619: cursors/overflow flags for the recorders mirrored into this unit
+    -- above. `ziskStatelessVerdictV2DataSection` carries only the shared verdict
+    -- labels; the read-log cursors live in `statelessVerdictV2GuestData`, which
+    -- this unit does not use -- so they must be repeated here, not inherited.
+    storageReadLogDataSection ++ "\n" ++
+    accountReadLogDataSection ++ "\n" ++
+    codeReadLogDataSection ++ "\n" ++
+    readSetsBlockDataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
     -- Data labels for the request-derivation/predeploy-storage helpers above.
     -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
@@ -477,6 +511,34 @@ def statelessVerdictV2GuestClosure : String :=
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
   balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
+  -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
+  -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
+  -- handler preBody so the verified evm_sload body stays byte-identical.
+  storageReadRecordFunction ++ "\n" ++
+  -- GH #10619: producer for the account_reads CONTAINER.  Fires
+  -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
+  -- account_writes) -- unlike the code-read producer.
+  accountReadRecordFunction ++ "\n" ++
+  -- GH #10619 gate 2: the TRACKED account accessor over the raw
+  -- account_at_header_state_root, mirroring the spec's get_account/pre_state
+  -- pair.  Execution call sites route here; the 7 block_verdict/BAL-verification
+  -- sites and the 1 guest-only site keep the raw entry, so the
+  -- execution-vs-verification boundary is in the call graph rather than in a
+  -- classification table (four instruments mis-counted that table -- see the
+  -- docstring).
+  accountAtHeaderStateRootTrackedFunction ++ "\n" ++
+  -- GH #10619: code_reads producer + the TRACKED accessor.  Fires only on a
+  -- pre-state FALLTHROUGH and skips EMPTY_CODE_HASH (state_tracker.py:263-270)
+  -- -- the opposite condition from the account/storage recorders.
+  codeReadRecordFunction ++ "\n" ++
+  codeReadFetchFunction ++ "\n" ++
+  -- GH #10619 gate 3: the PROMOTION BOUNDARY.  Recorders write the tx level;
+  -- these merge it up and clear it, mirroring incorporate_tx_into_block
+  -- (state_tracker.py:832, merge :858-861, clear :879-881).  discard_tx is what
+  -- makes fork.py:745-752's never-promoted throwaway state expressible.
+  readSetsMergeOneFunction ++ "\n" ++
+  readSetsIncorporateTxFunction ++ "\n" ++
+  readSetsDiscardTxFunction ++ "\n" ++
   balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
   balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
@@ -567,6 +629,13 @@ def statelessVerdictV2GuestClosure : String :=
 
 /-- Data section for the embedded verdict closure. -/
 def statelessVerdictV2GuestData : String :=
-  ziskStatelessVerdictV2DataSection
+  ziskStatelessVerdictV2DataSection ++ "\n" ++
+  -- GH #10619: storage_reads cursor + overflow flag.  Block-lifetime: nothing
+  -- resets them per transaction and nothing restores them on rollback,
+  -- mirroring restore_tx_state leaving storage_reads alone.
+  storageReadLogDataSection ++ "\n" ++
+  accountReadLogDataSection ++ "\n" ++
+  codeReadLogDataSection ++ "\n" ++
+  readSetsBlockDataSection
 
 end EvmAsm.Codegen

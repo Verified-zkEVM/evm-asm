@@ -100,7 +100,7 @@ def createFrameDescendFunction : String :=
   -- executing with a guessed zero balance.
   "  addi sp, sp, -48\n  sd ra, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd a5, 32(sp)\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, create_address_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, create_prebalance_acct\n" ++
-  "  jal ra, account_at_header_state_root\n  mv t6, a0\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n  mv t6, a0\n" ++
   "  ld ra, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld a5, 32(sp); addi sp, sp, 48\n" ++
   "  beqz t6, .Lcfd_create_pre_found\n  li t0, 1; beq t6, t0, .Lcfd_create_pre_absent\n" ++
   "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_create_pre_finish\n" ++

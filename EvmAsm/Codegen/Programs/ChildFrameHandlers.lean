@@ -442,7 +442,7 @@ def callDescendFallThrough
       -- a wrong-low nonce can only false-REJECT, never false-accept).
       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
       "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_caller_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
-      "  jal ra, account_at_header_state_root\n" ++
+      "  jal ra, account_at_header_state_root_tracked\n" ++
       "  mv t0, a0\n" ++                                    -- status
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
@@ -501,7 +501,7 @@ def callDescendFallThrough
     -- pre fields: account_at_header_state_root(callee) -> nse_acct (nonce, balance)
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, nse_callee_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
-    "  jal ra, account_at_header_state_root\n" ++
+    "  jal ra, account_at_header_state_root_tracked\n" ++
     "  mv t0, a0\n" ++                                  -- status (capture before restoring x10=a0)
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t0, .Lcd_nse_header_found_" ++ tag ++ "\n" ++

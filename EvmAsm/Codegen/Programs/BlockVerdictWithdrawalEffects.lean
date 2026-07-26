@@ -31,7 +31,7 @@ block_verdict_withdrawal_nonstorage_effects:
 .Lbv_wdne_prestate:
   la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bv_wdne_addr; li a3, 20
   la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, bv_wdne_acct
-  jal ra, account_at_header_state_root
+  jal ra, account_at_header_state_root_tracked
   beqz a0, .Lbv_wdne_have_base
   li t0, 1; bne a0, t0, .Lbv_wdne_fail
   la t0, bv_wdne_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)
