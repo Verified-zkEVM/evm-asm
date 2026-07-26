@@ -74,6 +74,25 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "\nbaap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
   "\n  .zero " ++ toString (frameArrayBytes - 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) - (bsrMaxBalItems * baapStorageDescBytes) - 2 * (bsrMaxBalItems * bsrPathBytes)) ++
   "\ncall_frame_arena_end:\n" ++ "\n" ++
+  -- LAYOUT INVARIANT — `rb_running_block_bloom` is IMMEDIATELY adjacent to
+  -- `evm_memory_pool_end`, with ZERO bytes of slack. The `.balign 8` below is a
+  -- no-op here: `evm_memory_pool` is itself 8-aligned and `evmMemoryPoolBytes`
+  -- is a multiple of 8, so the bloom starts at exactly `evm_memory_pool_end`.
+  -- Verified in the linked image (`gen-out/stateless_guest.elf`): both symbols
+  -- resolve to 0xbbb19b60.
+  --
+  -- CONSEQUENCE, and it is a soundness one: ANY overshoot in ANY loop that
+  -- fills or zeroes the pool corrupts VERDICT STATE, not padding. The running
+  -- block bloom feeds the receipt root, so an off-by-a-few-bytes write here is
+  -- an accept/reject flip rather than a memory-safety curiosity. This is why
+  -- the clamped fill loop's `bgeu` exit must be EXACT — see the alignment
+  -- precondition on `clampToArena` in `Programs/EvmMemoryGas.lean` and the
+  -- `clampEnd_alignment_*` pins in `Codegen/MemoryBudgetGuard.lean`.
+  --
+  -- DO NOT insert padding here to create slack. Padding would hide this
+  -- constraint rather than state it, and would silently absorb exactly the
+  -- off-by-N bugs that should fail loudly. The adjacency is a property of the
+  -- image that constrains every future pool-touching change; keep it stated.
   ".balign 8\n" ++
   "evm_memory_pool:\n  .zero " ++ toString evmMemoryPoolBytes ++ "\n" ++
   "evm_memory_pool_end:\n" ++
