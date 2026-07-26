@@ -37,6 +37,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -71,7 +72,7 @@ def sstoreRegularGasFunction : String :=
   "  beqz s3, .Lsrg_warm\n" ++                      -- original != current -> warm-access branch
   "  bnez a0, .Lsrg_warm\n" ++                      -- current == new (no change) -> warm-access branch
 
-  "  li t1, 10000; add t0, t0, t1\n" ++             -- STORAGE_WRITE
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}; add t0, t0, t1\n" ++
 
   "  j .Lsrg_done\n" ++
   ".Lsrg_warm:\n" ++
