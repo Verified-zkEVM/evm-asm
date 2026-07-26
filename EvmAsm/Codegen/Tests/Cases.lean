@@ -707,6 +707,23 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "36" }
+  , -- PERMANENT CONTROL for the `ceil32` wraparound in `keccakWordGasAsm`
+    -- (issue #10521). `size = 2^64-1` has all high limbs zero and does not wrap
+    -- `offset + size`, so `keccakRangeGuardAsm` admits it; without the `bltu`
+    -- guard `size + 31` wraps to 30, `srli` yields 0 words, the memory
+    -- expansion also rounds to 0, and the handler hands the unclamped size to
+    -- `zkvm_keccak256`, whose byte tail then walks ~456 MB off the end of RAM
+    -- (~3.6e9 steps) for the 30-gas static base alone. execution-specs charges
+    -- `6 * (ceil32(size) // 32)` = `6 * 2^59` on unbounded `Uint`
+    -- (`amsterdam/vm/instructions/keccak.py:46-48`), i.e. an OOG. So the
+    -- expected outcome is halt kind 6 in constant steps. This case FAILS on the
+    -- pre-fix guest (the runaway loop exhausts the emulator step budget) and is
+    -- the step-bound regression control — do not delete it.
+    { name             := "keccak256_ceil32_wrap_oog"
+      bytecode         := "0x67, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x60, 0x00, 0x20, 0x00"
+      expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
+      expectedHaltKind := "0600000000000000"
+      gasLimit         := "36" }
     -- ## M26 LOG opcodes (LOG0-LOG4) — bounded event capture.
     -- LOGn pops (2+n) 256-bit words, advances PC, and appends a
     -- 256-byte descriptor to the dispatcher's receipt-event buffer.

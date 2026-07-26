@@ -305,8 +305,11 @@ def schemeAAnchors : List GuestRegion :=
     (`fix/nested-create-nonce-seed`), which preserves the live nonce for
     nested CREATE executed from initcode. Grew to `0x5e63c` for the
     same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
-    (`fix/extcodehash-selfdestruct-empty`). -/
-def textSizeBytes : Nat := 0x61158
+    (`fix/extcodehash-selfdestruct-empty`). Grew by `8` to `0x61160` for the
+    KECCAK256 `ceil32` wraparound guard in `keccakWordGasAsm`
+    (`fix/keccak-word-gas-wrap-guard`): one added `bltu` (4 B) plus 4 B of
+    realignment. -/
+def textSizeBytes : Nat := 0x61160
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
