@@ -374,8 +374,15 @@ def schemeAAnchors : List GuestRegion :=
     `storage_reads` container, so the rows no longer have to survive. First
     net REMOVAL of emitted bytes on this branch, and the shrink is the
     measurement that the collapse actually went away rather than becoming a
-    no-op. -/
-def textSizeBytes : Nat := 0x061f6c
+    no-op.
+
+    Shrank by `0x40` -- 16 instructions -- to `0x61e0c` for GH #10654: the SECOND
+    instance of the tx-abort net-zero loop, on the deposit-exception path in
+    `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
+    depth-zero abort cleanup, and it did -- identical shape, identical retired
+    justification, identical `0x40` saving as #10641's. That PR fixed the clause
+    it was pointed at; enumerating the pattern found the other one. -/
+def textSizeBytes : Nat := 0x061e0c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -402,7 +409,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b255860
+def bssSizeBytes : Nat := 0x1b255820
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

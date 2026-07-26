@@ -463,7 +463,7 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   -- so reproduce that post-deposit exception before the common settlement
   -- trailer.  This mirrors the depth-zero abort cleanup in block_verdict:
   -- execution effects/logs are rolled back to the pre-dispatch snapshots while
-  -- the access rows remain and are net-zeroed for the read checks.
+  -- the access rows are TRUNCATED to the pre-dispatch snapshot (GH #10654).
   ".Lbvcr_deposit_exception:\n" ++
   "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0); sd zero, 480(t0)\n" ++
   "  la t0, evm_log_data_used; sd zero, 0(t0); la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
@@ -472,13 +472,21 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_storage_count; ld t0, 0(t0); la t1, evm_env; ld t1, 448(t1); li t2, 0xa0630000\n" ++
-  ".Lbvcr_deposit_exception_storage_revert:\n" ++
-  "  bgeu t0, t1, .Lbvcr_deposit_exception_settle\n" ++
-  "  slli t3, t0, 7; add t3, t2, t3\n" ++
-  "  ld t4, 64(t3); sd t4, 96(t3); ld t4, 72(t3); sd t4, 104(t3)\n" ++
-  "  ld t4, 80(t3); sd t4, 112(t3); ld t4, 88(t3); sd t4, 120(t3)\n" ++
-  "  addi t0, t0, 1; j .Lbvcr_deposit_exception_storage_revert\n" ++
+  -- GH #10654: TRUNCATE the aborted deposit's storage exec-log rows, completing the
+  -- net-zero deletion #10641 made on the depth-zero abort path this mirrors.
+  --
+  -- The loop that stood here set `current := original` per row and KEPT the rows, for
+  -- two reasons. The rows were net-zeroed so the change comparators see no change for a
+  -- touched-but-aborted account -- STILL LIVE, and why this is a truncation rather than
+  -- a bare deletion. And they were kept rather than truncated so the slots stayed
+  -- "accessed" for the recipient `storage_reads` check -- DEAD as of #10641, which
+  -- re-pointed `bal_storage_reads_in_exec_log` at the `storage_reads` container that
+  -- rollback does not touch.
+  --
+  -- Truncation discharges the surviving reason more directly (no rows, no changes) and
+  -- mirrors `restore_tx_state` (state_tracker.py:809-826), which restores only the WRITE
+  -- structures and leaves the read sets alone.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbvcr_deposit_exception_settle:\n" ++
   "  li t0, 0xa0010000; li t1, 6; sd t1, 32(t0)\n" ++
   ".Lbvcr_deposit_done:\n" ++
