@@ -1280,11 +1280,19 @@ def blockVerdictFunction : String :=
   "  li t0, 2; beq a0, t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la a0, evm_env\n" ++
   "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
-  "  li a3, 0xa0630000\n" ++
-  "  la t0, evm_env; ld a4, 448(t0)\n" ++
-  -- a5 = entry stride: this caller scans the 128-byte exec log (GH #10619). The
-  -- stride travels WITH the base/count so a base can never be re-pointed without it.
-  "  li a5, 128\n" ++
+  -- GH #10619: this compare now reads the block-level `storage_reads` CONTAINER
+  -- (`STORAGE_READS_AREA` = 0xa1ba0000, `storage_reads_count`, 64-byte
+  -- `addrHash ++ slotKey` entries) rather than the 128-byte exec log. The
+  -- container mirrors the spec's `BlockState.storage_reads` set, which rollback
+  -- does not touch, so a read taken inside a frame that later reverted is still
+  -- present — which is the divergence #10619 exists to remove. The container is
+  -- exactly the exec log's key prefix, and this comparator never reads past
+  -- offset 56, so the comparison itself is unchanged; only the population is.
+  -- a5 = entry stride, travelling WITH the base/count so a base cannot be
+  -- re-pointed without it.
+  "  li a3, 0xa1ba0000\n" ++
+  "  la t0, storage_reads_count; ld a4, 0(t0)\n" ++
+  "  li a5, 64\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after
