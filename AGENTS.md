@@ -57,6 +57,40 @@ callee-first order, against the separation-logic state-assertion vocabulary.
 - `lake build` (library `EvmAsm`, sources under `EvmAsm/`); heartbeat/recursion
   limits are configured globally in `lakefile.toml` — never per-file.
 
+### Artifact-cache mode (`LAKE_ARTIFACT_CACHE=true`)
+
+Many checkouts run with the lake artifact cache enabled (`LAKE_ARTIFACT_CACHE`,
+`LAKE_CACHE_DIR`). Two consequences are easy to misdiagnose, because in both the
+symptom names something other than the cause.
+
+**1. Never `chmod` `.lake/build`.** Cache-materialized build outputs are
+**hardlinks into the cache**, mode `444`. So `chmod -R u+w .lake/build` does not
+just fail to stick — the build-tree entry and the cache entry are *the same
+inode*, so it makes shared cached artifacts writable and lets a later build
+overwrite an inode other checkouts are linked to. If a build output gives
+permission-denied, do one of:
+
+- **delete the specific offending file** — it is regenerable, and deleting it
+  breaks the hardlink so lake writes a fresh private copy;
+- run that one invocation with `LAKE_ARTIFACT_CACHE=false`;
+- `cp --remove-destination` if you need a writable copy of an existing artifact.
+
+Never `chmod`, and never delete `.lake` wholesale.
+
+**2. Tools built on `lake env lean` do not work in cache mode.** In this mode
+lake satisfies a build from the cache *without materializing oleans* into
+`.lake/build/lib/lean`, and `lake env printenv LEAN_PATH` contains **no** cache
+paths — so `lake env lean` cannot resolve a cache-satisfied module. It fails with
+`object file '….olean' … does not exist`, which reads as a **corrupt build**
+rather than a mode incompatibility; the instinctive response (delete `.lake` and
+rebuild) costs an hour and lands in the identical state. Affects
+`check-axioms.sh`, `port-check.sh`, and `check-opcode-tables.sh` (issue #10537).
+
+If a gate cannot run in your checkout, **say so plainly and explain why** — do
+not list it among the gates you ran. CI runs these in a non-cache environment, so
+the gate is still exercised before merge; a gate claimed but not run is worse
+than one openly skipped.
+
 ## Project Structure
 
 ```
