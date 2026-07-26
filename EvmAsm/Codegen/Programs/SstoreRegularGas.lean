@@ -65,7 +65,7 @@ def sstoreRegularGasFunction : String :=
   "  li t0, 3000\n" ++                              -- COLD_STORAGE_ACCESS
   "  j .Lsrg_cold_done\n" ++
   ".Lsrg_warm_access:\n" ++
-  "  li t0, 100\n" ++                               -- WARM_ACCESS
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++                     -- WARM_ACCESS
 
   ".Lsrg_cold_done:\n" ++
   -- clean-changing = original_eq_current && !current_eq_new
