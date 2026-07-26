@@ -142,12 +142,29 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     `clampToArena` has NO default: every call site must state its claim, so a
     future caller cannot inherit the wrong one silently.
 
-    * `clampToArena = false` asserts **the caller has already proved
-      `rounded ≤ frame limit`** (via `memConstOffsetOogGuardAsm`,
-      `memDynamicArenaOogGuardAsm`, or its own arena bail). The fresh-zero loop
-      then runs to exactly `x13 + rounded`, and its `beq` equality exit is safe
-      because both endpoints are 32-byte multiples and `current < rounded`, so
-      the pointer lands exactly on the end.
+    * `clampToArena = false` asserts that `rounded ≤ frame limit` holds, on
+      **either** of two warrants — and which one applies differs by call site:
+
+      (a) **The caller bounds it.** Verified for `memConstOffsetOogGuardAsm`
+          (MSTORE8), `memDynamicArenaOogGuardAsm` (the COPY family),
+          `returnRevertMemoryGasAsm`, and `callMemoryExpansionGasAsm` (both
+          windows) — each calls `memoryArenaLimitAsm` and bails past the bound.
+      (b) **The range cannot exceed the dense bound within the per-tx REGULAR
+          gas cap.** Exceeding it costs ≈3.4e7 at depth 0 and ≈6.4e7 nested,
+          against a 1.68e7 cap — see the affordability analysis in GH #10535,
+          now kernel-enforced by `Codegen/MemoryBudgetGuard.lean` (#10540).
+
+      Sites relying on **(b), not (a)**: `h_KECCAK256` (`keccakRangeGuardAsm`
+      deliberately omits an arena bound — GH #10521), LOG0..LOG4
+      (`logDynamicGasAsm`), and the CREATE initcode range
+      (`ChildFrameCreateTail`). If `MemoryBudgetGuard` ever fails, those three
+      are the call sites that stop being safe, and they must gain a caller-side
+      bound — or `clampToArena = true` — before any arena resize.
+
+      Either warrant gives the same property, and the fresh-zero loop then runs
+      to exactly `x13 + rounded`, so its `beq` equality exit is safe: both
+      endpoints are 32-byte multiples and `current < rounded`, so the pointer
+      lands exactly on the end.
     * `clampToArena = true` is for callers that deliberately allow
       `rounded > frame limit` — today only `updateActiveMemorySizeConstSparseAsm`
       (MLOAD/MSTORE), whose beyond-dense bytes are served by the sparse word
@@ -160,6 +177,21 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
 
     The clamp and the `beq`→`bgeu` swap are therefore a single change, not two:
     the equality exit is unsafe exactly when the end can be clamped downward.
+
+    **ALIGNMENT PRECONDITION (`clampToArena = true`): the frame limit must be
+    8-aligned.** The fill loop stores with `sd` and steps the pointer by 8, so
+    the `bgeu` exit is *exact* only if the clamped end is a multiple of 8. A
+    misaligned end would let the pointer step OVER it, exiting after writing the
+    8 bytes at the previous position — overshooting by up to 7 bytes past the
+    very bound the clamp exists to enforce, i.e. a smaller version of the bug
+    being fixed. It holds on both paths today, for different reasons:
+    * nested — the clamped end reduces algebraically to the `evm_memory_pool_end`
+      LABEL (`x13 + (pool_end - x13)`), so its alignment is the assembler's
+      (`.balign 8`, and `evmMemoryPoolBytes` is 8-aligned). Construction, not
+      arithmetic.
+    * depth 0 — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
+      BOTH constants 8-aligned. That half is arithmetic, so it is pinned by
+      `Codegen/MemoryBudgetGuard.lean`'s `clampEnd_alignment_*` guards.
 
     Gas and MSIZE semantics are deliberately UNCHANGED by the clamp — the charge
     stays the full spec `extend_memory.cost` and `env+488` still records the full
