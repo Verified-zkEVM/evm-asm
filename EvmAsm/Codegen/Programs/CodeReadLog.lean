@@ -158,6 +158,16 @@ def codeReadFetchFunction : String :=
   "  bne t2, t3, .Lcrf_record\n" ++
   "  addi t1, t1, 1; j .Lcrf_empty_cmp\n" ++
   ".Lcrf_record:\n" ++
+  -- state_tracker.py:265-268: a hit in code_writes returns WITHOUT recording.
+  -- exec_code_effect_log is the guest's code-write overlay; a hit there means
+  -- this code was produced in-block, so it is not a pre-state fetch.
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
+  "  mv a2, a5\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  mv t1, a0\n" ++
+  "  ld a5, 48(sp)\n" ++
+  "  ld a2, 24(sp)\n" ++
+  "  bnez t1, .Lcrf_skip\n" ++
   "  mv a0, a5\n" ++                                          -- address ptr
   "  mv a1, a2\n" ++                                          -- code-hash ptr
   "  jal ra, code_read_record\n" ++
