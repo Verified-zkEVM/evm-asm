@@ -575,7 +575,35 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- increment log_length
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)\n" ++
-        ".Lsstore_append_done:\n"
+        ".Lsstore_append_done:\n" ++
+        -- r59nm S2b: record the storage WRITE into the tx-level storage_writes
+        -- map, mirroring `set_storage` (state_tracker.py:489):
+        -- `tx_state.storage_writes[address][key] = value`.
+        --
+        -- Placed HERE, not in the read recorder's slot at the top of preBody,
+        -- because a write is conditional where a read is not: the spec calls
+        -- set_storage after the gas checks, and every failing path above
+        -- (the stipend guard, the 2929 charge, the 16384-row capacity guard)
+        -- leaves via `.exit_outofgas` without reaching this label.
+        --
+        -- Both the append and the value-unchanged skip converge here, and the
+        -- recorder is called on BOTH.  That is spec-faithful rather than
+        -- sloppy: `set_storage` assigns unconditionally, and an upsert of the
+        -- same value is idempotent, so mirroring the exec log's
+        -- append-skipping optimisation here would be the reconstruction.
+        --
+        -- x12 still points at the pre-pop stack (the verified body's
+        -- `ADDI x12, x12, 64` has not run), so key = x12[0..32] and the new
+        -- value = x12[32..64].  a2 IS x12, so x12 is saved and restored around
+        -- the call.  The verified body is untouched.
+        "  addi sp, sp, -32\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp); sd x12, 24(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  addi a2, x12, 32\n" ++
+        "  jal ra, storage_write_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
+        "  addi sp, sp, 32\n"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail    := .advanceAndRet 1 }
   , -- M24 real TLOAD. Scan transient log from end; copy matching

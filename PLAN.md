@@ -234,6 +234,29 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   bytes of cursors and overflow flags. `MemoryBudgetGuard` does **not** cover these
   regions — it is a gas-affordability guard, not a footprint guard (open follow-up).
 
+- **EIP-7928 write map** (bead `evm-asm-r59nm`, slices S1–S2 open as PRs): the
+  write-side counterpart of the read containers above — `BlockState.storage_writes`
+  (`state_tracker.py:74`) and `TransactionState.storage_writes` (`:101`), both
+  `Dict[Address, Dict[Bytes32, U256]]`. Producers `storage_write_record` (mirrors
+  `set_storage`, `:489`) and `write_sets_incorporate_tx` (mirrors
+  `incorporate_tx_into_block`, `:832`), both **upsert** rather than append.
+  **One map, not one per source** — measured: the spec has no system-specific write
+  container, and `process_unchecked_system_transaction` (`fork.py:782`), regular
+  transactions and withdrawals incorporate at `:858` / `:1204` / `:1226`
+  respectively into the same pair. The guest's `bv_system_storage_log` /
+  `bv_user_storage_log` split therefore mirrors nothing. Unifying the container does
+  **not** unify the timing.
+  `write_sets_restore_tx` is **deferred, not omitted**: because the container is an
+  upsert map, a saved entry count is not a valid snapshot — a frame overwriting a
+  pre-snapshot key cannot be undone by truncation, which is sound only for
+  append-only structures. Its representation is an open forcing-constraint decision
+  (see #10619).
+  Status: the containers are linked but **not consulted** — both public entry points
+  have zero callers in the emitted guest, so no verdict can move yet. Wiring the
+  forward and reverse comparators over, and retiring the truncation at
+  `BlockVerdictMtxRuntime:399`, are later slices. This bead is the forced-order
+  prerequisite for #10651 (compute the state root from operations, not from the BAL).
+
 - **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
   GH #10540): kernel-checked (`decide`, classical-3) assertions that the
   MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding

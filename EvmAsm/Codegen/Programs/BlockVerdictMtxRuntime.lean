@@ -432,7 +432,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- iff the dispatcher reached the post-preparation coverage point.  A
   -- preparation OOG never reaches that point and therefore drops pending auth.
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_auth_phase_applied; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
-  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); j .Lbv_mtx_code_commit_done\n" ++
+  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
+  -- r59nm S2b: this path SKIPS account_state_commit_pending, and with it the
+  -- write_sets_incorporate_tx that would have merged-and-cleared the tx-level
+  -- storage_writes map.  Drop that map explicitly, mirroring the spec's fresh
+  -- TransactionState per transaction (fork.py:1043) -- otherwise this failed
+  -- transaction's writes are still resident when the next one starts and get
+  -- promoted by ITS incorporate.  The READS of this transaction are deliberately
+  -- kept: same event, opposite treatment, which is why there are two containers.
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  jal ra, write_sets_discard_tx\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   -- `account_state_commit_pending` uses a1/a2 for durable-map operations.

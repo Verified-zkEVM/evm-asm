@@ -198,7 +198,21 @@ def schemeAAnchors : List GuestRegion :=
     { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
     { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" } ]
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" },
+    -- r59nm S2: the WRITE side of the same two levels.  BlockState.storage_writes
+    -- (state_tracker.py:74) and TransactionState.storage_writes (:101).  ONE map per
+    -- level, not one per source: the spec has no system-specific write container --
+    -- process_unchecked_system_transaction (fork.py:782) builds an ordinary
+    -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
+    -- at :1226.  These replace bv_system_storage_log and bv_user_storage_log, whose
+    -- two-arena split mirrors nothing.
+    { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x200000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_AREA; 2 MiB = 16384x128 "
+        ++ "(addrHash++slotKey++value, 96 B used of the shared bvStorageLogRowBytes stride); "
+        ++ "block level, filled only by write_sets_incorporate_tx" },
+    { name := "tx_storage_writes_area", base := 0xa21a0000, size := 0x200000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; per-tx storage_writes, "
+        ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -382,7 +396,7 @@ def schemeAAnchors : List GuestRegion :=
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x061f2c
+def textSizeBytes : Nat := 0x0622fc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -409,7 +423,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b255860
+def bssSizeBytes : Nat := 0x1b255880
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -584,7 +598,11 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.CODE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
-        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat,
+        -- r59nm S2: the write side of the same two levels
+        -- (state_tracker.py:74 block, :101 transaction).
+        (EvmAsm.Stateless.STORAGE_WRITES_AREA).toNat,
+        (EvmAsm.Stateless.TX_STORAGE_WRITES_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -803,6 +821,8 @@ def stableGuestBases : List (String × Nat) :=
 
 -- 20 -> 23: the three read-container anchors added for GH #10619.
 -- 23 -> 26: the three per-transaction read containers (GH #10619 gate 3).
-theorem stableGuestBases_length : stableGuestBases.length = 26 := by decide
+-- 26 -> 28: the two storage_writes levels (r59nm S2) -- BlockState.storage_writes
+--           (state_tracker.py:74) and TransactionState.storage_writes (:101).
+theorem stableGuestBases_length : stableGuestBases.length = 28 := by decide
 
 end EvmAsm.Codegen.RegionMap

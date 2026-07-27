@@ -100,6 +100,8 @@
   | `TX_STORAGE_READS_AREA`      | `0xa1da0000`     | 1 MiB       |
   | `TX_ACCOUNT_READS_AREA`      | `0xa1ea0000`     | 512 KiB     |
   | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
+  | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
+  | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -273,6 +275,44 @@ def TX_STORAGE_READS_AREA   : Word := 0xa1da0000
 def TX_ACCOUNT_READS_AREA   : Word := 0xa1ea0000
 /-- Per-transaction `code_reads`. -/
 def TX_CODE_READS_AREA      : Word := 0xa1f20000
+
+/-! ### `storage_writes` — the WRITE side of the same two levels (GH #10619, r59nm S2)
+
+    The spec keeps writes in `Dict[Address, Dict[Bytes32, U256]]` on **both**
+    levels — `BlockState.storage_writes` (`state_tracker.py:74`) and
+    `TransactionState.storage_writes` (`:101`) — alongside the read sets above.
+    `set_storage` (`:489`) targets the transaction level;
+    `incorporate_tx_into_block` (`:832`) merges upward and clears, exactly as for
+    the reads; `restore_tx_state` (`:809-826`) restores the write structures and
+    **only** those, which is the whole two-lifetime discipline.
+
+    **One map, not one per source.** There is no system-specific write container
+    in the spec: `process_unchecked_system_transaction` (`fork.py:782`) builds an
+    ordinary `TransactionState(parent=block_env.state)` and incorporates at
+    `:858`, regular transactions incorporate at `:1204`, and withdrawals at
+    `:1226` — three sources, one container. The guest's split into
+    `bv_system_storage_log` and `bv_user_storage_log` therefore mirrors nothing,
+    and these two areas replace both as a single keyed map fed by all three
+    paths. The *timing* of the feeds still differs (system writes at block
+    boundaries, user writes inside transactions); unifying the container must not
+    unify the timing.
+
+    Entry layout — the spec's nested key collapsed to one flat key pair, since
+    RISC-V has no dynamic allocation and therefore no nested dict:
+
+        +0  addrHash (32 B)   the outer `Address` key
+        +32 slotKey  (32 B)   the inner `Bytes32` key
+        +64 value    (32 B)   the `U256`
+
+    96 B used of a 128 B stride (`bvStorageLogRowBytes`), shared with the exec
+    logs so that retiring them is a same-stride migration rather than a
+    re-layout. 16384 entries = 2 MiB each, matching the read arenas' capacity so
+    a write container cannot overflow before its read counterpart does. -/
+
+/-- Block-level `storage_writes` — filled only by `write_sets_incorporate_tx`. -/
+def STORAGE_WRITES_AREA     : Word := 0xa1fa0000
+/-- Per-transaction `storage_writes` — the target of `storage_write_record`. -/
+def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
