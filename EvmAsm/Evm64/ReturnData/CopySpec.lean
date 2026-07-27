@@ -53,6 +53,58 @@ private theorem rdc_shed2 (F : Assertion) (v17 v18 : Word) :
   apply sepConj_mono (regIs_implies_regOwn _)
   exact regIs_implies_regOwn _
 
+/-- Pointer setup between the bounds guards and the copy loop (`base → base+20`):
+    pops the three stack operands, falls through the size-zero skip (`size ≠ 0`),
+    and materializes the running source pointer `frame+16+start` and destination
+    pointer `memBase+destOffset`. -/
+theorem evm_returndatacopy_setup_spec_within
+    (base sp memBase frameAddr destOffV startV sizeV x18Old : Word)
+    (h_size_ne : sizeV ≠ (0 : Word)) :
+    cpsTripleWithin 5 base (base + 20)
+      (evm_returndatacopy_setup_code base)
+      (((.x12 : Reg) ↦ᵣ sp) ** ((.x13 : Reg) ↦ᵣ memBase) **
+       ((.x14 : Reg) ↦ᵣ destOffV) ** ((.x15 : Reg) ↦ᵣ startV) **
+       ((.x16 : Reg) ↦ᵣ sizeV) ** ((.x17 : Reg) ↦ᵣ frameAddr) **
+       ((.x18 : Reg) ↦ᵣ x18Old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x12 : Reg) ↦ᵣ (sp + 96)) ** ((.x13 : Reg) ↦ᵣ memBase) **
+       ((.x14 : Reg) ↦ᵣ destOffV) ** ((.x15 : Reg) ↦ᵣ startV) **
+       ((.x16 : Reg) ↦ᵣ sizeV) ** ((.x17 : Reg) ↦ᵣ (frameAddr + 16 + startV)) **
+       ((.x18 : Reg) ↦ᵣ (memBase + destOffV)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) := by
+  -- [0] ADDI x12 x12 96 : pop the three operands.
+  have h0 := addi_spec_gen_same_within .x12 sp (BitVec.ofNat 12 96) base (by decide)
+  rw [show signExtend12 (BitVec.ofNat 12 96) = (96 : Word) from by decide] at h0
+  -- [1] BEQ x16 x0 40 : size ≠ 0, so the size-zero skip is not taken.
+  have h1raw := beq_spec_gen_within .x16 .x0 (BitVec.ofNat 13 40) sizeV (0 : Word) (base + 4)
+  rw [show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at h1raw
+  have h1 := cpsBranchWithin_ntakenStripPure2 h1raw
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact h_size_ne ((sepConj_pure_right _).mp hQ).2)
+  -- [2] ADDI x17 x17 16 : x17 = frame + 16.
+  have h2 := addi_spec_gen_same_within .x17 frameAddr (BitVec.ofNat 12 16) (base + 8) (by decide)
+  rw [show signExtend12 (BitVec.ofNat 12 16) = (16 : Word) from by decide] at h2
+  -- [3] ADD x17 x17 x15 : x17 = frame + 16 + start.
+  have h3 := add_spec_gen_rd_eq_rs1_within .x17 .x15 (frameAddr + 16) startV
+    (base + 12) (by decide)
+  -- [4] ADD x18 x13 x14 : x18 = memBase + destOffset.
+  have h4 := add_spec_gen_within .x18 .x13 .x14 memBase destOffV x18Old
+    (base + 16) (by decide)
+  unfold evm_returndatacopy_setup_code evm_returndatacopy_setup
+  change cpsTripleWithin 5 base (base + 20)
+    (CodeReq.ofProg base
+      [.ADDI .x12 .x12 (BitVec.ofNat 12 96),
+       .BEQ .x16 .x0 (BitVec.ofNat 13 40),
+       .ADDI .x17 .x17 (BitVec.ofNat 12 16),
+       .ADD .x17 .x17 .x15,
+       .ADD .x18 .x13 .x14])
+    _ _
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_singleton]
+  rw [show (base + 4 : Word) + 4 = base + 8 by bv_omega]
+  rw [show (base + 8 : Word) + 4 = base + 12 by bv_omega]
+  rw [show (base + 12 : Word) + 4 = base + 16 by bv_omega]
+  runBlock h0 h1 h2 h3 h4
+
 /-- **RETURNDATACOPY copy core `.proven` witness.** Copies the `size` in-bounds
     return-data bytes `stagedBytes[srcOff ..< srcOff+size]` from the frame source
     region into the EVM-memory window `[destOffset, destOffset+size)`.
