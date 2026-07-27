@@ -200,6 +200,20 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0xa3000000 0xa3005370 :=
     satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
+  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  `0x1b2678c0` is that
+  -- constant spelled as a literal (once, here) and `0xbf2678c0` is `0xa4000000`
+  -- plus it (TWICE -- here and in `t7'` below).  A `.bss` size change is
+  -- routine -- any new data object moves it -- and the four-step layout regen
+  -- (`gen-symbol-addresses.py --build`) does NOT touch this file, so the repin is
+  -- manual.
+  --
+  -- What makes it worth a comment: the failure does not look like layout drift.
+  -- `check-region-map.sh` reports drift and names the constant, but it never runs,
+  -- because `lake exe codegen` fails first with a bare `Type mismatch` on the
+  -- `satWithin_ramRegion` application below -- no mention of `.bss`, no mention of
+  -- a size.  This cost two debugging detours in one session before the pattern was
+  -- recognised; if you are staring at a type mismatch here after adding a data
+  -- object, this is why.
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
       0xa4000000 0xbf2678c0 :=
     satWithin_ramRegion 0xa4000000 0x1b2678c0 (by omega) (by omega)
