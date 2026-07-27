@@ -19,16 +19,18 @@
     Need PC/`nextPC`/`misa` agreement and jump-target alignment (per-instruction
     lemmas in `BranchProofs`/`ALUProofs`).
   * **Memory (11)** — `LOAD`/`STORE`. Need `BareModeInv` plus access-local
-    PMA/MMIO/alignment facts — and, for loads only, byte-presence witnesses
-    (per-instruction capstones in `VmemReduction.lean` / `VmemReductionLoads.lean` /
-    `VmemReductionStores.lean`).
+    PMA/MMIO/alignment facts — and, for loads only, a `BytesPresent` fact over the
+    access window (per-instruction capstones in `VmemReduction.lean` /
+    `VmemReductionLoads.lean` / `VmemReductionStores.lean`).
 
   The full theorem `step_execute_sail_sim` (bottom of this file) already folds
   **all 49** in: the strengthened invariant exists — it is `StateRelPC`
   (registers + memory + committed PC) — and the per-instruction facts are
-  packaged as `instrSideCond`. What remains is discharging its hypotheses from
-  a run-level invariant rather than per access/step: the load byte-presence
-  witnesses (#10529) and the fetch-side `nextPC = pc + 4` default (#10530).
+  packaged as `instrSideCond`. Loads no longer carry one hypothesis per accessed
+  byte: `instrSideCond` states a single `BytesPresent` predicate, dischargeable
+  from a whole-window `MemPresent` invariant (#10529, `VmemPresent.lean`). What
+  remains is the fetch-side `nextPC = pc + 4` default, which nothing re-establishes
+  after `tick_pc`, so single steps still do not compose into a run (#10530).
 
   See `docs/agents/sail-phase4-bootstrap.md` for the precondition map.
 -/
@@ -41,6 +43,7 @@ import EvmAsm.Rv64.SailEquiv.ShiftProofs
 import EvmAsm.Rv64.SailEquiv.MExtProofs
 import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
 import EvmAsm.Rv64.SailEquiv.VmemReductionStores
+import EvmAsm.Rv64.SailEquiv.VmemPresent
 import EvmAsm.Rv64.Execution
 
 open Out.Functions
@@ -81,7 +84,10 @@ namespace SailEquiv
     Register-only instructions need no extra facts. Control-flow instructions need
     the PC/CSR/alignment facts already exposed by their per-instruction lemmas.
     Memory instructions need the bare-mode platform bundle plus the access-local
-    PMA/MMIO/alignment facts, and loads additionally need byte-presence witnesses. -/
+    PMA/MMIO/alignment facts, and loads additionally need a `BytesPresent` fact for the
+    accessed window (SAIL `readByte` errors on an absent key).  That presence fact is
+    derivable from a range-level `MemPresent lo hi` invariant via
+    `MemPresent.bytesPresent`, so callers no longer supply per-byte witnesses. -/
 def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
   match i with
   | .AUIPC .. => True
@@ -101,8 +107,7 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
         PlatformFrame sSail s_mid) ∧
       ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0
   | .LD _ rs1 offset =>
-      ∃ (bm : BareModeInv sSail) (region : PMA_Region)
-        (b0 b1 b2 b3 b4 b5 b6 b7 : BitVec 8),
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
         is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
         matching_pma_region bm.regions
           (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = some region ∧
@@ -114,16 +119,9 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
           = .ok false sSail ∧
         (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 8) sSail
           = .ok false sSail ∧
-        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+2) = some b2 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+3) = some b3 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+4) = some b4 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+5) = some b5 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+6) = some b6 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+7) = some b7
+        BytesPresent sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat 8
   | .LW _ rs1 offset | .LWU _ rs1 offset =>
-      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 b1 b2 b3 : BitVec 8),
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
         is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = true ∧
         matching_pma_region bm.regions
           (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4 = some region ∧
@@ -135,12 +133,9 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
           = .ok false sSail ∧
         (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 4) sSail
           = .ok false sSail ∧
-        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+2) = some b2 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+3) = some b3
+        BytesPresent sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat 4
   | .LH _ rs1 offset | .LHU _ rs1 offset =>
-      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 b1 : BitVec 8),
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
         is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = true ∧
         matching_pma_region bm.regions
           (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2 = some region ∧
@@ -152,10 +147,9 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
           = .ok false sSail ∧
         (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 2) sSail
           = .ok false sSail ∧
-        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0 ∧
-        sSail.mem.get? ((sRv.getReg rs1 + signExtend12 offset).toNat+1) = some b1
+        BytesPresent sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat 2
   | .LB _ rs1 offset | .LBU _ rs1 offset =>
-      ∃ (bm : BareModeInv sSail) (region : PMA_Region) (b0 : BitVec 8),
+      ∃ (bm : BareModeInv sSail) (region : PMA_Region),
         is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = true ∧
         matching_pma_region bm.regions
           (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1 = some region ∧
@@ -167,7 +161,7 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
           = .ok false sSail ∧
         (within_htif_readable (physaddr.Physaddr (sRv.getReg rs1 + signExtend12 offset)) 1) sSail
           = .ok false sSail ∧
-        sSail.mem.get? (sRv.getReg rs1 + signExtend12 offset).toNat = some b0
+        BytesPresent sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat 1
   | .SD rs1 _ offset =>
       ∃ (bm : BareModeInv sSail) (region : PMA_Region),
         is_aligned_vaddr (virtaddr.Virtaddr (sRv.getReg rs1 + signExtend12 offset)) 8 = true ∧
@@ -452,11 +446,10 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, b1, b2, b3, b4, b5, b6, b7, h_valign, h_match, h_read,
-          h_palign, hclint, hsig, hhtif, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7⟩
-      exact Exists.elim (ld_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 b1 b2 b3 b4 b5 b6 b7 h_valign h_match h_read h_palign hclint hsig hhtif
-          hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7) (fun sSail' hpair => by
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      exact Exists.elim (ld_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel
+          bm region h_valign h_match h_read h_palign hclint hsig hhtif hpres)
+        (fun sSail' hpair => by
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC])
@@ -465,11 +458,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, b1, b2, b3, h_valign, h_match, h_read, h_palign, hclint,
-          hsig, hhtif, hm0, hm1, hm2, hm3⟩
-      cases lw_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
-          hm0 hm1 hm2 hm3 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lw_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
@@ -479,11 +470,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, b1, b2, b3, h_valign, h_match, h_read, h_palign, hclint,
-          hsig, hhtif, hm0, hm1, hm2, hm3⟩
-      cases lwu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
-          hm0 hm1 hm2 hm3 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lwu_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
@@ -493,10 +482,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, b1, h_valign, h_match, h_read, h_palign, hclint, hsig,
-          hhtif, hm0, hm1⟩
-      cases lh_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lh_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
@@ -506,10 +494,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, b1, h_valign, h_match, h_read, h_palign, hclint, hsig,
-          hhtif, hm0, hm1⟩
-      cases lhu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lhu_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
@@ -519,9 +506,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hm0⟩
-      cases lb_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lb_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]
@@ -531,9 +518,9 @@ theorem step_execute_sail_sim
       subst h
       simp only [execute]
       rcases hside with
-        ⟨bm, region, b0, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hm0⟩
-      cases lbu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
-          b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
+        ⟨bm, region, h_valign, h_match, h_read, h_palign, hclint, hsig, hhtif, hpres⟩
+      cases lbu_sail_equiv_of_present sRv sSail rd rs1 offset hrelpc.toStateRel bm region
+          h_valign h_match h_read h_palign hclint hsig hhtif hpres with
       | intro sSail' hpair =>
           refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
           rw [hpair.right.right.left, h_nextpc]

@@ -1185,6 +1185,23 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     `platformFrame_withMem` + `isSome_insert_mono` pair in
     `VmemReductionStores.lean`. This unblocks the #10529 byte-presence invariant
     and the #10530 run-level invariant.
+  - **Load byte-presence layer (DONE — #10529).** The seven load equivalences each
+    took one `hm_k : sSail.mem.get? (a+k) = some b_k` hypothesis per accessed byte
+    (8 for `LD`, 4 for `LW`/`LWU`, 2 for `LH`/`LHU`, 1 for `LB`/`LBU`) that nothing
+    in the codebase derived — `StateRel.mem_agree` is a `reconstructDword` equation
+    over total `getD` lookups and says nothing about key *presence*, which is what
+    Sail's `readByte` needs (it throws `.OutOfMemoryRange` on a missing key). New
+    file `SailEquiv/VmemPresent.lean` closes the gap: `BytesPresent.elim1/2/4/8`
+    turn a per-access presence fact into its byte witnesses, and the seven
+    `{ld,lw,lwu,lh,lhu,lb,lbu}_sail_equiv_of_present` wrappers restate each load
+    lemma with the byte binders + `hm_k`s replaced by a single
+    `BytesPresent sSail.mem addr w` argument (conclusions unchanged, `PlatformFrame`
+    conjunct included). `memPresent_of_store` (= `MemPresent.of_frame` at a store's
+    exported frame) carries a range invariant across a store. `instrSideCond`'s four
+    load arms in `StepSim.lean` now carry one `BytesPresent` conjunct instead of the
+    byte existentials, so `step_execute_sail_sim` no longer demands per-byte facts;
+    callers discharge presence once from a range-level `MemPresent lo hi` via
+    `MemPresent.bytesPresent`. Feeds the #10530 run-level invariant.
   - **Run-level simulation (DONE — #10530).** The step capstones composed one
     instruction at a time but not into a *run*: their output was the input
     invariant minus `h_nextpc` (after `tick_pc` the Sail `nextPC` still holds the

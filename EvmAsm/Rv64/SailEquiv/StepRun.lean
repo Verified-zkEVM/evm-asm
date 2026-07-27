@@ -145,25 +145,9 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       exact hv.2
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ := hinv.access_ok hlo hhi ha1 ha2 halign bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    obtain ⟨b1, hb1⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 1)
-      (by omega) (by omega)
-    obtain ⟨b2, hb2⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 2)
-      (by omega) (by omega)
-    obtain ⟨b3, hb3⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 3)
-      (by omega) (by omega)
-    obtain ⟨b4, hb4⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 4)
-      (by omega) (by omega)
-    obtain ⟨b5, hb5⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 5)
-      (by omega) (by omega)
-    obtain ⟨b6, hb6⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 6)
-      (by omega) (by omega)
-    obtain ⟨b7, hb7⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 7)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0, b1, b2, b3, b4, b5, b6, b7,
+    exact ⟨bm, sailInitMainMemoryRegion,
       hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
-      hb0, hb1, hb2, hb3, hb4, hb5, hb6, hb7⟩
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LW rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
@@ -175,16 +159,9 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       exact hv.2
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ := hinv.access_ok hlo hhi ha1 ha2 halign bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    obtain ⟨b1, hb1⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 1)
-      (by omega) (by omega)
-    obtain ⟨b2, hb2⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 2)
-      (by omega) (by omega)
-    obtain ⟨b3, hb3⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 3)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0, b1, b2, b3,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0, hb1, hb2, hb3⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LWU rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
@@ -196,16 +173,9 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       exact hv.2
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ := hinv.access_ok hlo hhi ha1 ha2 halign bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    obtain ⟨b1, hb1⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 1)
-      (by omega) (by omega)
-    obtain ⟨b2, hb2⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 2)
-      (by omega) (by omega)
-    obtain ⟨b3, hb3⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 3)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0, b1, b2, b3,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0, hb1, hb2, hb3⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LH rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
@@ -217,12 +187,9 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       exact hv.2
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ := hinv.access_ok hlo hhi ha1 ha2 halign bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    obtain ⟨b1, hb1⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 1)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0, b1,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0, hb1⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LHU rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
@@ -234,32 +201,27 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       exact hv.2
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ := hinv.access_ok hlo hhi ha1 ha2 halign bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    obtain ⟨b1, hb1⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat + 1)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0, b1,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0, hb1⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LB rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ :=
       hinv.access_ok hlo hhi ha1 ha2 (Nat.mod_one _) bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case LBU rd rs1 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
     obtain ⟨bm, hreg, -⟩ := hinv.bare
     obtain ⟨hva, hm, hpa, hcl, hsg, -, hht⟩ :=
       hinv.access_ok hlo hhi ha1 ha2 (Nat.mod_one _) bm hreg
-    obtain ⟨b0, hb0⟩ := hinv.byte_present (a := (sRv.getReg rs1 + signExtend12 offset).toNat)
-      (by omega) (by omega)
-    exact ⟨bm, sailInitMainMemoryRegion, b0,
-      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht, hb0⟩
+    exact ⟨bm, sailInitMainMemoryRegion,
+      hva, hm, sailInitMainMemoryRegion_readable, hpa, hcl, hsg, hht,
+      hinv.mem_present.bytesPresent ha1 ha2⟩
   case SD rs1 rs2 offset =>
     simp only [stepSideCond, hfetch] at hside
     obtain ⟨ha1, ha2⟩ := hside
