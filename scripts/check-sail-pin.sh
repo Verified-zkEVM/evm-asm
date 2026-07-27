@@ -70,12 +70,53 @@ fi
 # The recipe below is pinned verbatim by PROVENANCE.toml ("check-sail-pin.sh (P6)
 # must use this exact invocation"). Three things are load-bearing and must not be
 # "tidied": CWD is the vendor dir so paths render as './…'; LC_ALL=C makes the sort
-# locale-stable; './.lake/*' is excluded so build artifacts do not perturb the hash.
+# locale-stable; './.lake/*' is excluded so build artifacts do not perturb the hash
+# (a gate that fires on a clean checkout after a build is a gate that gets disabled).
+#
+# SCOPE: `.lean` only, matching the pinned recipe. The other tracked files in the
+# vendor dir are deliberately out: `lakefile.toml` and `lean-toolchain` are
+# hand-owned (the regen does not emit them), and `.gitignore`/`LICENSE` are inert.
+# The one trust-relevant item among them — the lean-sail runtime rev that
+# `lakefile.toml` git-pins — is covered separately by check_lean_sail_rev below,
+# since the model `import Sail.Sail`s it and a silent bump would change the
+# runtime under every theorem.
+#
+# `-print0 | sort -z | xargs -0` hardens against whitespace in filenames. Verified
+# to produce a byte-identical digest to the pinned recipe. NOTE on ARG_MAX: if
+# xargs splits into several invocations the digest is unchanged, because GNU-format
+# output is one line per file and order is preserved across the splits — so the
+# concatenation the outer hash sees is the same.
 compute_model_hash() {
   # shellcheck disable=SC2086
   ( cd "$VENDOR_DIR" && \
-    find . -name '*.lean' -not -path './.lake/*' | LC_ALL=C sort | xargs $SHA_BIN | $SHA_BIN ) \
+    find . -name '*.lean' -not -path './.lake/*' -print0 | LC_ALL=C sort -z \
+      | xargs -0 $SHA_BIN | $SHA_BIN ) \
     | awk '{print $1}'
+}
+
+# The vendored model imports the EXTERNAL lean-sail runtime, whose rev is git-pinned
+# by the vendor lakefile — a file outside model_sha256's `.lean` scope. PROVENANCE
+# records the intended rev; assert the two still agree so the runtime cannot be
+# bumped without the provenance record moving with it.
+check_lean_sail_rev() {
+  local lakefile="$VENDOR_DIR/lakefile.toml"
+  [[ -f "$lakefile" ]] || return 0
+  local in_lakefile in_provenance
+  in_lakefile="$(grep -m1 -E '^[[:space:]]*rev[[:space:]]*=' "$lakefile" \
+    | sed -E 's/.*=[[:space:]]*"([0-9a-f]{40})".*/\1/')"
+  in_provenance="$(grep -m1 -E '^[[:space:]]*lean_sail_rev[[:space:]]*=[[:space:]]*"[0-9a-f]{40}"' "$PROVENANCE" \
+    | sed -E 's/.*"([0-9a-f]{40})".*/\1/')"
+  if [[ -n "$in_lakefile" && -n "$in_provenance" && "$in_lakefile" != "$in_provenance" ]]; then
+    cat >&2 <<EOF
+check-sail-pin: FAIL — vendored lean-sail runtime rev does not match its pin.
+  lakefile   ($lakefile): $in_lakefile
+  provenance (lean_sail_rev):                          $in_provenance
+The extracted model imports this runtime, so bumping it changes the semantics
+underneath every SailEquiv theorem. Update PROVENANCE.toml in the same commit.
+EOF
+    return 1
+  fi
+  return 0
 }
 
 compute_config_hash() {
@@ -135,6 +176,8 @@ EOF
   fail=1
 fi
 
+check_lean_sail_rev || fail=1
+
 if (( fail )); then exit 1; fi
 
-echo "check-sail-pin: OK — vendored model and config match sail-import/PROVENANCE.toml."
+echo "check-sail-pin: OK — vendored model, config and lean-sail rev match sail-import/PROVENANCE.toml."
