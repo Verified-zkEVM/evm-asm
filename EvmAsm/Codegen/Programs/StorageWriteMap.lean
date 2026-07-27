@@ -35,9 +35,11 @@
   The spec's nested dict collapses to one flat key pair, because RISC-V has no
   dynamic allocation and therefore no inner dict to allocate per address:
 
-      +0  addrHash (32 B)   the outer `Address` key
+      +0  rowAddress (32 B) the outer `Address` key
       +32 slotKey  (32 B)   the inner `Bytes32` key
       +64 value    (32 B)   the `U256`
+
+  Formerly known as `addrHash`: `rowAddress` holds `env.ADDRESS`, not a hash.
 
   96 B used of a 128 B stride (`bvStorageLogRowBytes`), shared with the exec logs
   so that retiring them in S6 is a same-stride migration rather than a re-layout.
@@ -105,7 +107,7 @@ def storageWritesCapacity : Nat := 16384
     `tx_state.storage_writes[address][key] = value`.
 
     Calling convention:
-      a0 = addrHash ptr (32 B) — the outer `Address` key, keyed exactly as
+      a0 = rowAddress ptr (32 B) — the outer `Address` key, keyed exactly as
            `storage_read_record` keys its reads, so the same slot in two
            contracts is two entries
       a1 = slotKey ptr  (32 B) — the inner `Bytes32` key
@@ -136,7 +138,7 @@ def storageWriteRecordFunction : String :=
   ".Lswr_scan:\n" ++
   "  bgeu t4, t1, .Lswr_append\n" ++
   "  slli t5, t4, 7; add t5, t3, t5\n" ++                        -- t5 = &entry[i]
-  -- addrHash compare (32 B); any mismatch -> next entry
+  -- rowAddress compare (32 B); any mismatch -> next entry
   "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lswr_next\n" ++
@@ -217,7 +219,7 @@ def writeSetsIncorporateTxFunction : String :=
   ".Lwsi_loop:\n" ++
   "  bgeu s3, s1, .Lwsi_clear\n" ++
   "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &tx_entry[i]
-  -- upsert this (addrHash, slotKey, value) into the block level
+  -- upsert this (rowAddress, slotKey, value) into the block level
   "  mv a0, s4; addi a1, s4, 32; addi a2, s4, 64\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  addi s3, s3, 1; j .Lwsi_loop\n" ++
@@ -240,7 +242,7 @@ def writeSetsIncorporateTxFunction : String :=
     reads as one loop over one operation. Same upsert discipline as
     `storage_write_record`, targeting `STORAGE_WRITES_AREA`.
 
-      a0 = addrHash ptr (32 B), a1 = slotKey ptr (32 B), a2 = value ptr (32 B) -/
+      a0 = rowAddress ptr (32 B), a1 = slotKey ptr (32 B), a2 = value ptr (32 B). -/
 def storageWritesBlockUpsertFunction : String :=
   "storage_writes_block_upsert:\n" ++
   "  addi sp, sp, -64\n" ++
