@@ -288,12 +288,15 @@ def registry : List OpcodeEntry := [
        ++ "two invalid exits are companion witnesses "
        ++ "(guard_{wrap,len}_invalid_stack). Same scope as CALLDATACOPY's "
        ++ "registered witness: interleaved gas/OOG/MSIZE glue is framed out per "
-       ++ "DRIFT. RESIDUAL: the handler's high-limb operand check (ld/or/or/bnez "
-       ++ "on limbs 1-3 of the source offset) lives in that framed-out region, so "
-       ++ "the witness ASSUMES its postcondition via h_destOff/h_srcOff/h_sizeV "
-       ++ "(operand.getLimbN 0 = ofNat n) — i.e. proven for low-limb operands, NOT "
-       ++ "for the >=2^64 offset/size inputs the handler reverts on. Satisfiable, "
-       ++ "so a coverage precondition rather than a vacuous guard; see DRIFT."),
+       ++ "DRIFT. RESIDUAL: the image also excises the handler's two high-limb "
+       ++ "operand guards — memDynamicU256RangeOogGuardAsm (high-limb size, and "
+       ++ "high-limb destOffset when size≠0, to .exit_outofgas) and the "
+       ++ "ld/or/or/bnez on dataOffset limbs 1-3 (to .exit_invalid) — so the "
+       ++ "triple describes only the path where those fall through. The "
+       ++ "h_destOff/h_srcOff/h_sizeV hypotheses are low-limb NAMING bridges and "
+       ++ "constrain no high limb. Each excised guard matches a real "
+       ++ "execution-specs outcome (incl. the size=0 memory-expansion exception), "
+       ++ "so this costs coverage but hides no divergence; see DRIFT."),
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)

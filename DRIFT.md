@@ -96,23 +96,36 @@ KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SSTORE, LOG0..4, CREA
   machine-checked for `h_ADD` only (`scripts/check_guarded_handler_bytes.py`);
   for `CALLDATALOAD` the `la` targets are proven relative to reconstruction
   hypotheses, with the byte-tie deferred.
-- **`RETURNDATACOPY` assumes the framed-out high-limb operand guard.** The
-  `.proven` witness `evm_returndatacopy_body_stack_spec_within` covers the body
-  (`base → base+80`: bounds guards, operand pop / pointer setup, copy loop) but
-  frames out the surrounding dynamic-gas / OOG / MSIZE region — and the emitted
-  handler performs its high-limb operand check (`ld`/`or`/`or`/`bnez` on limbs
-  1–3 of the source offset, reverting when any is nonzero) *inside* that
-  framed-out region. The witness therefore **assumes that guard's
-  postcondition** as three named hypotheses — `h_destOff`, `h_srcOff`,
-  `h_sizeV` — pinning each stack operand to its low limb
-  (`operand.getLimbN 0 = BitVec.ofNat 64 n`). So a `RETURNDATACOPY: proven` row
-  means *proven for low-limb operands*: it does **not** cover the ≥ 2^64 offset/size
-  inputs the handler reverts on. The hypotheses are satisfiable (low-limb-only
-  operands are the ordinary case), so this is a coverage precondition rather
-  than a vacuous guard. Closing it means modeling those six instructions in the
-  guard image (9 → 15 instructions, shifting every guard branch offset), or
-  proving the framed-out region. CALLDATACOPY carries the same class of residual
-  — its source-offset normalization block is likewise `preBody` glue.
+- **`RETURNDATACOPY`'s image omits the framed-out high-limb operand guards.**
+  The `.proven` witness `evm_returndatacopy_body_stack_spec_within` covers the
+  body (`base → base+80`: bounds guards, operand pop / pointer setup, copy loop),
+  but the emitted handler additionally runs, *between* the operand loads and the
+  frame materialization, two blocks the modeled image excises along with the
+  dynamic-gas / MSIZE glue: (i) `memDynamicU256RangeOogGuardAsm`, which sends a
+  high-limb `size` — and, when `size ≠ 0`, a high-limb `destOffset` — to
+  `.exit_outofgas`; and (ii) an `ld`/`or`/`or`/`bnez` check sending a high-limb
+  *source offset* (`dataOffset` limbs 1–3) to `.exit_invalid`. The triple is a
+  statement about that excised image, so it describes only the path on which
+  those guards fall through; on operands with nonzero high limbs the emitted
+  handler exits before this body's postcondition is reached. Note the three
+  bridging hypotheses `h_destOff`/`h_srcOff`/`h_sizeV`
+  (`operand.getLimbN 0 = BitVec.ofNat 64 n`) are **naming** bridges from the
+  stack limbs to the `Nat` offsets — they place no constraint on the high limbs
+  and are not where this residual lives. Closing it means modeling those blocks
+  in the guard image (shifting every guard branch offset) or proving the
+  framed-out region. CALLDATACOPY carries the same class of residual — its
+  source-offset normalization block is likewise `preBody` glue.
+
+  *Spec cross-check (Amsterdam `vm/instructions/environment.py`, `vm/gas.py`):*
+  each excised guard matches a real spec outcome, so excising them costs
+  coverage but hides no divergence. High-limb `size` ⇒ astronomical
+  `copy_gas_cost`/memory expansion ⇒ `OutOfGasError`. High-limb source offset ⇒
+  `Uint(start) + Uint(size) > ulen(return_data)` ⇒ `OutOfBoundsRead`, which holds
+  even at `size = 0`. High-limb `destOffset` ⇒ quadratic memory expansion ⇒
+  `OutOfGasError` — *except* at `size = 0`, where
+  `calculate_gas_extend_memory` `continue`s and charges nothing, so the spec
+  accepts it; the guest matches that exception exactly, because its `destOffset`
+  high-limb check sits behind `beqz <size>, .Lmemu256_…_done`.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
