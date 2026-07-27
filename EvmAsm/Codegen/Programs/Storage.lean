@@ -631,6 +631,39 @@ def storageHandlers : List OpcodeHandlerSpec :=
         --
         -- Control, same fixtures, same base: a6 = 0 gives ran=2 full-match=2;
         -- mv a6, x18 gives errored=2 ran=0.
+        --
+        -- ## THIS ZERO IS NOT A BASELINE, AND A FILTER MUST NOT TRUST IT
+        --
+        -- It is safe only because nothing reads the captured field. The moment a
+        -- net-zero filter consumes it, IT IS WRONG IN THE FALSE-ACCEPT DIRECTION:
+        --
+        --   On a VALUE-UNCHANGED REWRITE the true baseline EQUALS the value being
+        --   written, so the spec emits nothing (`block_access_lists.py:667-676`
+        --   requires `pre_value != post_value`). With a baseline of zero and a
+        --   nonzero post value, the filter concludes "changed" and EMITS A BAL ENTRY
+        --   THE SPEC OMITS. The list stays well-formed, the entry count is wrong,
+        --   and the hash is simply wrong — nothing faults and nothing complains.
+        --
+        -- The value-unchanged case is reachable at this call site: `:522`
+        -- (`j .Lsstore_append_done`) jumps past the exec-log append while still
+        -- reaching this call, so a rewrite of the same value arrives here.
+        --
+        -- So baseline acquisition belongs WITH the filter, not before it. Four
+        -- attempts failed by trying to obtain the value without a consumer to
+        -- constrain the choice: a carried register (`x18`) faulted, a dedicated
+        -- global needed the same unreconstructable control flow to prove
+        -- non-reentrancy, a recompute turned out to be half a lookup
+        -- (`bv_mtx_committed_chunked_latest_value` answers only on a match, with the
+        -- prestate-header fallback separate), and reading the exec-log row failed
+        -- because the exec-log append and this write-map append are DIFFERENT events.
+        --
+        -- What survives, for whoever writes the filter: `x18` IS valid and holds the
+        -- resolved original at `:517-521`, where the comparison reads it to decide the
+        -- jump — upstream of everything that defeated the four attempts. And the two
+        -- paths have a natural answer each: on the append path the exec-log row
+        -- carries it; on the skip path the baseline IS the value being written, by
+        -- definition of value-unchanged. Handled separately, neither branch needs a
+        -- carried pointer or a control-flow argument.
         "  li a6, 0\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
