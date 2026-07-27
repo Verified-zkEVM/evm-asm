@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# codegen-zisk-bal-serializer-measure-probe.sh -- EXECUTE the BAL measure pass (#10680).
+#
+# Every other check on `bal_serializer_measure_*` is a `#guard` over the emitted string.
+# Those pin structure, not behaviour. GH #10754 is the general form of the problem: the
+# BAL self-tests have zero callers, and `check-build-units-link.sh` asserts that units
+# LINK, so a linkage gate stands where a behaviour gate is assumed.
+#
+# This script is a behaviour gate. It builds `zisk_bal_serializer_measure`, runs it, and
+# compares seven measured lengths against values hand-derived from the RLP rules.
+#
+# The measure pass cannot be reached from any fixture -- `bal_serializer_measure_account`
+# has zero callers -- so a synthetic probe is the only way to execute it at all.
+#
+# Both discriminating claims were controlled by reintroducing the real defect:
+#   * pre-fix widener (u64 LSB at field byte 31): 7/7 assertions fire, case 1 reads 38,
+#     i.e. exactly 6 + 32, the predicted over-measurement
+#   * `slot_seen_before` removed: ONLY case 2 fires, and it reads exactly 18
+#
+# Usage: scripts/codegen-zisk-bal-serializer-measure-probe.sh
+# Exit:  0 all seven match; 1 any mismatch, with the differing rows printed.
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+SPIKE_RUN="${SPIKE_RUN:-$REPO_ROOT/scripts/spike/spike_run}"
+OUT_DIR="${OUT_DIR:-gen-out/bal-measure-probe}"
+mkdir -p "$OUT_DIR"
+
+# No emulator means no result, so this fails. There is deliberately no graceful-skip
+# path: a gate that exits 0 when it could not run reads exactly like a passing gate, and
+# that is the defect this script exists to stop repeating. A person runs this, so a
+# person sees the failure and knows their toolchain is missing.
+if [[ ! -x "$SPIKE_RUN" ]]; then
+  echo "==> FAIL: no emulator at $SPIKE_RUN (set SPIKE_RUN to override)" >&2
+  exit 1
+fi
+
+echo "==> lake build codegen"
+lake build codegen
+
+echo "==> emit zisk_bal_serializer_measure"
+lake exe codegen --program zisk_bal_serializer_measure --halt linux93 \
+  -o "$OUT_DIR/bsmp"
+
+# A missing ELF must not read as a pass: the comparison below would see a short file and
+# we would rather fail loudly here than compare against nothing.
+if [[ ! -f "$OUT_DIR/bsmp.elf" ]]; then
+  echo "==> FAIL: codegen produced no ELF" >&2
+  exit 1
+fi
+
+: > "$OUT_DIR/empty.input"
+echo "==> run under spike"
+"$SPIKE_RUN" "$OUT_DIR/bsmp.elf" "$OUT_DIR/empty.input" "$OUT_DIR/bsmp.output" \
+  > "$OUT_DIR/bsmp.emu.log" 2>&1 || true
+
+python3 - "$OUT_DIR/bsmp.output" <<'PY'
+import struct, sys
+path = sys.argv[1]
+try:
+    data = open(path, 'rb').read()
+except FileNotFoundError:
+    print(f"==> FAIL: no probe output at {path}"); sys.exit(1)
+
+# (label, byte offset, expected, what a wrong answer means)
+CASES = [
+    ("case 1  one change",              0,  6,  "baseline nesting: three header levels"),
+    ("case 2  same slot twice",         8,  9,  "18 means the first-occurrence dedup is gone"),
+    ("case 3  two distinct slots",     16, 12,  "6 means the slot walk stops early"),
+    ("case 4  other address present",  24,  6,  "12 means the address filter is gone"),
+    ("case 5  two-byte value",         32,  8,  "6 means multi-byte scalars measure as one byte"),
+    ("measure_slot payload",           40,  5,  "the SlotChanges payload the emit pass reads"),
+    ("measure_slot inner payload",     48,  3,  "the changes-list payload the emit pass reads"),
+]
+
+if len(data) < 56:
+    print(f"==> FAIL: probe output is {len(data)} bytes, need at least 56"); sys.exit(1)
+
+bad = 0
+for label, off, exp, meaning in CASES:
+    got = struct.unpack_from('<Q', data, off)[0]
+    if got == exp:
+        print(f"  ok    {label:<28} = {got}")
+    else:
+        bad += 1
+        print(f"  FAIL  {label:<28} expected {exp}, got {got}   ({meaning})")
+
+print()
+if bad:
+    print(f"==> FAIL: {bad}/{len(CASES)} measured lengths disagree with the RLP derivation")
+    sys.exit(1)
+print(f"==> PASS: {len(CASES)}/{len(CASES)} measured lengths match the RLP derivation")
+PY

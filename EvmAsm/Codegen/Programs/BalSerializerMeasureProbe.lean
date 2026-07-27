@@ -1,0 +1,156 @@
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BalRlpEncode
+
+/-!
+# `zisk_bal_serializer_measure` -- the first EXECUTING test of the measure pass
+
+Every other check on `bal_serializer_measure_*` is a `#guard` over the emitted string.
+Those pin structure, not behaviour: a routine can be defined, fully guarded, emitted into
+the guest, and still compute the wrong number. The widener bug (`bal_serializer_u64_to_field`
+writing the scalar field in the opposite byte order to every consumer, so
+`block_access_index = 1` measured as 33 bytes instead of 1) is exactly what that gap
+produces, and it was found by reading, not by a test.
+
+The measure pass cannot be reached from any fixture -- `bal_serializer_measure_account`
+has zero callers -- so a synthetic probe is the only way to execute it at all.
+
+Each case populates `bal_builder_storage_changes` directly, calls
+`bal_serializer_measure_storage`, and stores the result to the output area. The expected
+values are hand-derived from the yellow paper's RLP rules, and the script compares the
+output bytes.
+
+## The cases, and what each one can catch
+
+Row layout is 96 bytes: `address[20]` BE at +0, `block_access_index` u64 at +24,
+`slot[32]` LE at +32, `new_value[32]` LE at +64.
+
+| # | rows | expected | what a wrong answer means |
+|---|---|---|---|
+| 1 | one change, bai=1, slot=1, value=5 | 6 | the baseline nesting: 3 header levels |
+| 2 | two changes to the SAME slot | 9 | 18 means the first-occurrence dedup is gone |
+| 3 | two changes to DIFFERENT slots | 12 | 6 means the slot walk stops early |
+| 4 | second row belongs to another address | 6 | 12 means the address filter is gone |
+| 5 | one change, value = 0x0100 | 8 | 6 means multi-byte scalars measure as one byte |
+
+Case 1 derivation, which the rest follow: `scalar(1)` and `scalar(5)` are one byte each,
+so the `StorageChange` payload is 2 and its header is 1, giving 3. One change makes the
+changes-list payload 3, header 1, giving 4. `scalar(slot=1)` is 1, so the `SlotChanges`
+payload is 5, its header 1, and the field payload is 6.
+
+Case 2 is the load-bearing one: with `bai` 1 and 2 the two changes are distinct rows on
+one slot, so the slot must be measured ONCE with both changes inside it. Measuring it
+twice gives 18 -- the exact failure the `slot_seen_before` guard claims to prevent and
+has never demonstrated.
+
+Case 5 discriminates the widener/scalar byte order that the string guards cannot: with
+the pre-fix widener this case and case 1 both came back 32 bytes too large.
+-/
+
+namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-- Zero a 96-byte row at `t0`, then set address byte 0, bai, slot byte 0, value byte 0. -/
+private def probeRow (idx : Nat) (addrByte bai slotByte valByte : Nat) : String :=
+  let off := idx * 96
+  "  la t0, bal_builder_storage_changes; addi t0, t0, " ++ toString off ++ "\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  li t1, " ++ toString addrByte ++ "; sb t1, 0(t0)\n" ++
+  "  li t1, " ++ toString bai ++ "; sd t1, 24(t0)\n" ++
+  "  li t1, " ++ toString slotByte ++ "; sb t1, 32(t0)\n" ++
+  "  li t1, " ++ toString valByte ++ "; sb t1, 64(t0)\n"
+
+/-- Set the row count and run `measure_storage` for address A, storing to `off(s0)`. -/
+private def probeRun (count : Nat) (off : Nat) : String :=
+  "  la t0, bal_builder_storage_change_count; li t1, " ++ toString count ++ "; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_storage\n" ++
+  "  sd a0, " ++ toString off ++ "(s0)\n"
+
+def ziskBalSerializerMeasurePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- Address A = 0xAA followed by 19 zero bytes; B differs in byte 0 only.
+  "  la t0, bsmp_addr_a\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0)\n" ++
+  -- Case 1: one change, bai=1, slot=1, value=5 -> 6
+  probeRow 0 0xAA 1 1 5 ++
+  probeRun 1 0 ++
+  -- Case 1b: measure_slot's two payloads for the same input -> 5 and 3
+  "  la a0, bsmp_addr_a; la a1, bal_builder_storage_changes\n" ++
+  "  jal ra, bal_serializer_measure_slot\n" ++
+  "  sd a0, 40(s0); sd a1, 48(s0)\n" ++
+  -- Case 2: two changes to the SAME slot (bai 1 and 2) -> 9, not 18
+  probeRow 0 0xAA 1 1 5 ++
+  probeRow 1 0xAA 2 1 6 ++
+  probeRun 2 8 ++
+  -- Case 3: two DIFFERENT slots -> 12
+  probeRow 0 0xAA 1 1 5 ++
+  probeRow 1 0xAA 1 2 5 ++
+  probeRun 2 16 ++
+  -- Case 4: the second row belongs to address B -> 6
+  probeRow 0 0xAA 1 1 5 ++
+  probeRow 1 0xBB 1 2 5 ++
+  probeRun 2 24 ++
+  -- Case 5: a two-byte value, 0x0100 (LE: byte 0 = 0x00, byte 1 = 0x01) -> 8
+  probeRow 0 0xAA 1 1 0 ++
+  "  la t0, bal_builder_storage_changes; li t1, 1; sb t1, 65(t0)\n" ++
+  probeRun 1 32 ++
+  "  j .Lbsmp_done\n" ++
+  balSerializerAddrMatchesBeFunction ++
+  balSerializerSlotEqFunction ++
+  balSerializerSlotSeenBeforeFunction ++
+  balSerializerU64ToFieldFunction ++
+  balSerializerMeasureSlotFunction ++
+  balSerializerMeasureStorageFunction ++
+  balRlpScalarLenFunction ++
+  balRlpScalarRlpLenFunction ++
+  balRlpListHeaderLenFunction ++
+  ".Lbsmp_done:"
+
+/-- Only the four data symbols the measure path touches. The real arena is megabytes;
+    five rows is all these cases need, and a short arena also means a walk that runs off
+    the end faults instead of reading plausible zeros. -/
+def ziskBalSerializerMeasureDataSection : String :=
+  ".section .data\n" ++
+  ".balign 8\n" ++
+  "bsmp_addr_a:\n  .zero 32\n" ++
+  "bal_builder_storage_change_count:\n  .zero 8\n" ++
+  "bal_serializer_len_table:\n  .zero 48\n" ++
+  "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_builder_storage_changes:\n  .zero 480\n"
+
+def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := ziskBalSerializerMeasurePrologue
+  dataAsm     := ziskBalSerializerMeasureDataSection
+}
+
+/-! ## Guards
+
+The probe is only worth anything if the discriminating cases are really present. -/
+
+-- Five `measure_storage` runs plus the one `measure_slot` run.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "jal ra, bal_serializer_measure_storage").length == 6
+-- THREE, not two: the probe splices `measure_storage`'s body in, and that body calls
+-- `measure_slot` itself. Asserting 2 here fails, and the tempting "fix" is to drop the
+-- guard rather than notice the shared callee is exactly the property being relied on.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "jal ra, bal_serializer_measure_slot").length == 3
+
+-- Case 2 must use TWO DISTINCT `block_access_index` values on ONE slot. With equal
+-- indices the upsert semantics make them one change and the case stops discriminating
+-- the dedup, which is the single thing it exists to catch.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 2
+
+-- Case 5 must set a SECOND value byte. Without it the case duplicates case 1 and the
+-- multi-byte scalar path goes untested.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "sb t1, 65(t0)").length == 2
+
+-- Address B must actually differ from A, or case 4 tests nothing.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 2
+
+end EvmAsm.Codegen
