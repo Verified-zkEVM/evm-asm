@@ -19,16 +19,18 @@
     Need PC/`nextPC`/`misa` agreement and jump-target alignment (per-instruction
     lemmas in `BranchProofs`/`ALUProofs`).
   * **Memory (11)** — `LOAD`/`STORE`. Need `BareModeInv` plus access-local
-    PMA/MMIO/alignment facts — and, for loads only, byte-presence witnesses
-    (per-instruction capstones in `VmemReduction.lean` / `VmemReductionLoads.lean` /
-    `VmemReductionStores.lean`).
+    PMA/MMIO/alignment facts — and, for loads only, a `BytesPresent` fact over the
+    access window (per-instruction capstones in `VmemReduction.lean` /
+    `VmemReductionLoads.lean` / `VmemReductionStores.lean`).
 
   The full theorem `step_execute_sail_sim` (bottom of this file) already folds
   **all 49** in: the strengthened invariant exists — it is `StateRelPC`
   (registers + memory + committed PC) — and the per-instruction facts are
-  packaged as `instrSideCond`. What remains is discharging its hypotheses from
-  a run-level invariant rather than per access/step: the load byte-presence
-  witnesses (#10529) and the fetch-side `nextPC = pc + 4` default (#10530).
+  packaged as `instrSideCond`. Loads no longer carry one hypothesis per accessed
+  byte: `instrSideCond` states a single `BytesPresent` predicate, dischargeable
+  from a whole-window `MemPresent` invariant (#10529, `VmemPresent.lean`). What
+  remains is the fetch-side `nextPC = pc + 4` default, which nothing re-establishes
+  after `tick_pc`, so single steps still do not compose into a run (#10530).
 
   See `docs/agents/sail-phase4-bootstrap.md` for the precondition map.
 -/
