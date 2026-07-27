@@ -318,11 +318,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
-  -- bmvmx.5.5.6.3: scratch for the exact multi-tx nonce check. The
-  -- running per-sender counts now live in bv_b1_sender_table after the
-  -- pre-loop indexed sender aggregation.
-
-  "bv_mtx_nonce_pre:\n  .zero 8\n" ++
   -- Cross-transaction `BlockState.storage_writes` map. Each row retains its real
   -- `(addrHash, slotKey)` identity and duplicate writes update in place. The
   -- computed gas-bound capacity has its own NOBITS section: the .bss frame/SSZ
@@ -502,16 +497,17 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
   -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
-  -- bv_b1_sender_table is sized to bvMtxSenderCountEntries distinct senders, which
-  -- follows the full 200M tx-count target. Each row is a 32-byte padded address
-  -- plus u64 total tx count, filled by b1_sender_count_table.
+  -- bv_b1_sender_table is sized to bvMtxSenderCountEntries distinct senders,
+  -- which follows the full 200M tx-count target. Each row is a 32-byte padded
+  -- address plus an unused count word; the table is now an address enumerator
+  -- only, while AccountState owns the live sender nonce.
   ".balign 8\n" ++
   b1SenderCountTableScratchDataSection ++
   ".balign 8\n" ++
   "bv_b1_sender_count:\n  .zero 8\n" ++
   "bv_b1_sender_table:\n  .zero " ++ toString bvMtxSenderCountTableBytes ++ "\n" ++
-  -- Exact EIP-7702 B1 simulation retains only fixed-size RLP/recovery scratch;
-  -- the table row's count word remains the accumulated block-global nonce delta.
+  -- Exact EIP-7702 parsing retains only fixed-size RLP/recovery scratch;
+  -- sender and authority nonce state lives in AccountState.
   "b1an_auth_off:\n  .zero 8\n" ++
   "b1an_auth_len:\n  .zero 8\n" ++
   "b1an_target_off:\n  .zero 8\n" ++
@@ -524,7 +520,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "b1an_signed_nonce:\n  .zero 8\n" ++
   "b1an_authority:\n  .zero 32\n" ++
   "b1an_recover_scratch:\n  .zero 96\n" ++
-  "bv_b1_count:\n  .zero 8\n" ++
   "bv_b1_expected:\n  .zero 8\n" ++
   "bv_b1_acct_ptr:\n  .zero 8\n" ++
   "bv_b1_acct_len:\n  .zero 8\n" ++

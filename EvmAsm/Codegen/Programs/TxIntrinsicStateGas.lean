@@ -111,11 +111,12 @@ def balAccountNonceBeforeIndexFunction : String :=
             a1 = current nonce, a2 = is-delegated. -/
 def eip7702AuthorityAsOfFunction : String :=
   "eip7702_authority_asof:\n" ++
-  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0\n" ++
+  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0; li s2, 0\n" ++
   "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_state_auth_current\n" ++
-  "  li t0, 1; bne a0, t0, .L77as_header; ld a1, 56(sp); ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; li a0, 1; j .L77as_ret\n" ++
+  "  li t0, 1; bne a0, t0, .L77as_normal_nonce; ld a1, 56(sp); ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; li a0, 1; j .L77as_ret\n" ++
+  ".L77as_normal_nonce:\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent\n" ++
   -- GH #10619 gate 2: an EXECUTION read of the authority account, which belongs on
   -- account_at_header_state_root_tracked.  Deliberately still raw for the same
   -- reason as the sibling site in TxIntrinsicAuthEffects: the EIP-7702 authorization
@@ -125,7 +126,8 @@ def eip7702AuthorityAsOfFunction : String :=
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .L77as_found; li t0, 1; beq a0, t0, .L77as_absent; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
   ".L77as_found:\n" ++
-  "  la t0, teer_pre_acct; ld a1, 0(t0)\n" ++
+  "  bnez s2, .L77as_nonce_ready; la t0, teer_pre_acct; ld a1, 0(t0)\n" ++
+  ".L77as_nonce_ready:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  beqz a0, .L77as_code; li t0, 1; beq a0, t0, .L77as_live_empty; li t0, 5; beq a0, t0, .L77as_live_empty; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
   ".L77as_code:\n" ++
@@ -200,24 +202,11 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_recover:\n" ++
   "  mv a0, s8; mv a1, s9; la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address; bnez a0, .L77prep_next\n" ++
   "  la a0, b1an_authority; jal ra, eip7702_authority_asof; sd a0, 104(sp); sd a1, 112(sp); sd a2, 120(sp); li t0, 2; bgeu a0, t0, .L77prep_next\n" ++
-  -- COMPENSATION (two-pass guest versus one-pass spec): `process_transaction`
-  -- increments the sender nonce before processing its authorization list.  For
-  -- a self-sponsored authorization, therefore, validate against the
-  -- AccountState-as-of nonce plus that transaction's sender increment; other
-  -- authorities use their as-of nonce unchanged.  The retained pre-plus-one
-  -- effect below intentionally under-reports the sender authority's BAL post
-  -- nonce by one (the spec applies both increments).  This is currently
-  -- unobserved because sender accounts are skip-listed by the all-account
-  -- nonstorage comparator; a comparator that includes them, or a unified
-  -- transaction overlay, would expose it.  The structural repair belongs with
-  -- the two-pass AccountState/data-overlay convergence, not in this local
-  -- arithmetic compensation.
-  "  la t0, b1an_signed_nonce; ld t0, 0(t0); ld t1, 112(sp); la t2, b1an_authority; li t3, 0\n" ++
-  ".L77prep_sender_nonce_cmp:\n" ++
-  "  li t4, 20; beq t3, t4, .L77prep_sender_nonce_inc; add t4, t2, t3; lbu t5, 0(t4); add t4, s2, t3; lbu t6, 0(t4); bne t5, t6, .L77prep_sender_nonce_ready; addi t3, t3, 1; j .L77prep_sender_nonce_cmp\n" ++
-  ".L77prep_sender_nonce_inc:\n" ++
-  "  addi t1, t1, 1\n" ++
-  ".L77prep_sender_nonce_ready:\n" ++
+  -- The MTx runtime has already published the sender's inclusion-time nonce
+  -- to durable AccountState.  A self-sponsored authority therefore reads the
+  -- same current transaction state as every other authority; no B1-derived
+  -- `+1` compensation is needed here.
+  "  la t0, b1an_signed_nonce; ld t0, 0(t0); ld t1, 112(sp)\n" ++
   "  bne t0, t1, .L77prep_next\n" ++
   -- COMPENSATION (two-pass guest versus one-pass spec): `teer_success_table`
   -- is a transaction-local first-write set only.  AccountState owns all
@@ -266,12 +255,6 @@ def eip7702AuthStatePrepareFunction : String :=
   -- single-tx surface.  Keep the execution-time AccountState write on the
   -- MTx lane, where the next transaction reads the committed prior-tx state.
   "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record; j .L77prep_next\n" ++
-  -- `set_delegation` increments the recovered authority once per valid
-  -- authorization entry, even when the same authority appears repeatedly.
-  -- B1 tracks only transaction senders, so replay that increment only when
-  -- this valid authority has a sender-table row.  AccountState pending is
-  -- committed or discarded by the caller's ordinary transaction outcome gate.
-  "  la a0, bv_b1_sender_table; la t0, bv_b1_sender_count; ld a1, 0(t0); la a2, b1an_authority; jal ra, b1_sender_table_find; bnez a0, .L77prep_next; ld t0, 32(a1); addi t0, t0, 1; sd t0, 32(a1)\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++

@@ -1,20 +1,31 @@
 /-
   EvmAsm.Rv64.SailEquiv.VmemReduction
 
-  Building blocks for discharging the `h_exec` hypothesis carried by the `MemProofs`
-  `*_sail_equiv` lemmas — i.e. for proving the SAIL `execute_LOAD`/`execute_STORE`
-  bare-mode `vmem_read`/`vmem_write` reduction the original lemmas defer.
+  Full bare-mode reduction of the SAIL `execute_LOAD` doubleword path, ending in the
+  unconditional Tier-A capstone `ld_sail_equiv` (bottom of this file): given
+  `StateRel`, a `BareModeInv`, and per-access facts (alignment, a readable PMA
+  region, MMIO disjointness, byte-presence witnesses), the SAIL load retires with
+  `RETIRE_SUCCESS` into a state `StateRel`-related to the toy model's `LD`. The
+  vacuous `h_exec` hypothesis the original deferred lemma carried is gone.
 
-  This file currently establishes **lemma #1**: the leaf data-correctness bridge tying
-  the SAIL physical read (`readBytes`, which appends bytes little-endian) to the
-  abstraction relation's `reconstructDword`. With all `width` bytes present in `mem`,
-  `readBytes 8 a` succeeds and yields exactly `reconstructDword sSail.mem a` — so the
-  value a doubleword `LOAD` writes back is provably the toy model's `getMem` value.
+  Contents, bottom-up:
 
-  Remaining building blocks (for the full discharge, see
-  `docs/agents/sail-memory-discharge-bootstrap.md`): the `pmpCheck` 16-entry loop, the
-  `untilFuelM` single-iteration reduction, `translateAddr` bare-mode, and `pmaCheck`
-  region membership — each consuming part of the bare-mode precondition bundle.
+  * the `sail_step` simp set + `sail_reduce` tactic — the Sail monad-transformer
+    plumbing every bare-mode reduction has to unfold;
+  * the leaf data-correctness bridge: the little-endian `readBytes` append equals
+    the abstraction relation's `reconstructDword` (`append8_eq_or_shifts`,
+    `readBytes8_eq_reconstruct`);
+  * the bare-mode leaves: `translateAddr_bare`, the `pmpCheck` PMP-scan collapse
+    (`forIn'_noop*`, `pmpCheck_machine_off`), `pmaCheck_load_ok` region membership,
+    and the `untilFuelM` single-iteration (fuel-1) loop reduction (`untilFuelM_one`);
+  * the physical read chain (`mem_read_load_bare`, `checked_mem_read_load`, …),
+    the `vmem_read` loop reductions (`vmem_read_addr_load_bare`,
+    `vmem_read_load_bare`), and `ld_sail_equiv` on top.
+
+  Sub-doubleword loads reuse this chain via `VmemReductionN.lean` /
+  `VmemReductionLoads.lean`; stores mirror it in `VmemWriteReduction.lean` /
+  `VmemReductionStores.lean`. The byte-presence hypotheses are supplied per
+  access; deriving them from a run-level invariant is tracked as #10529.
 -/
 
 import EvmAsm.Rv64.SailEquiv.MemProofs
@@ -677,6 +688,37 @@ structure BareModeInv (s : SailState) where
     pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF
   h_reg : s.regs.get? Register.pma_regions = some regions
 
+/-- **Transport a bare-mode invariant along a platform frame.** Every hypothesis
+    field of `BareModeInv` is a read of a platform register that `PlatformFrame`
+    pins, so the whole bundle moves to the post-state with its five data fields
+    (`mst`, `msec`, `cfgs`, `pmpaddrs`, `regions`) unchanged.  This is how a
+    downstream client re-establishes bare mode after an instruction step. -/
+def BareModeInv.transport {s s' : SailState} (bm : BareModeInv s) (fr : PlatformFrame s s') :
+    BareModeInv s' where
+  mst := bm.mst
+  msec := bm.msec
+  cfgs := bm.cfgs
+  pmpaddrs := bm.pmpaddrs
+  regions := bm.regions
+  h_priv := fr.priv_eq.trans bm.h_priv
+  h_mst := fr.mstatus_eq.trans bm.h_mst
+  h_mprv := bm.h_mprv
+  h_sec := fr.mseccfg_eq.trans bm.h_sec
+  h_pmm := bm.h_pmm
+  h_cfg := fr.pmpcfg_eq.trans bm.h_cfg
+  h_pmpaddr := fr.pmpaddr_eq.trans bm.h_pmpaddr
+  h_off := bm.h_off
+  h_reg := fr.pma_eq.trans bm.h_reg
+
+/-- Transporting a bare-mode invariant keeps the PMA region table, so region-match
+    side conditions stated against `bm.regions` survive verbatim. -/
+@[simp] theorem BareModeInv.transport_regions {s s' : SailState} (bm : BareModeInv s)
+    (fr : PlatformFrame s s') : (bm.transport fr).regions = bm.regions := rfl
+
+/-- Transporting a bare-mode invariant keeps the `mseccfg` value. -/
+@[simp] theorem BareModeInv.transport_msec {s s' : SailState} (bm : BareModeInv s)
+    (fr : PlatformFrame s s') : (bm.transport fr).msec = bm.msec := rfl
+
 /-- **`vmem_read` for a bare-mode aligned doubleword load.** The effective-address pipeline
     (`ext_data_get_addr` reads `rs`; `transform_effective_address` is the bare-mode identity)
     yields `rsval + offset`, then `vmem_read_addr` reads the doubleword. Returns
@@ -750,7 +792,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -765,7 +808,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     exact Int.ofNat_inj.mp h
   have hdata := hrel.mem_agree (sRv.getReg rs1 + signExtend12 offset) halign8
   refine ⟨sailStateWithReg sSail rd
-      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat), ?_, ?_, ?_⟩
+      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat),
+      ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_LOAD
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
@@ -785,5 +829,6 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
         using hrel.mem_agree a ha
   · simp
+  · exact platformFrame_sailStateWithReg _ _ _
 
 end EvmAsm.Rv64.SailEquiv

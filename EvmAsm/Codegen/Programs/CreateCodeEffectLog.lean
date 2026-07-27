@@ -108,7 +108,7 @@ def accountStateCreatedCapacity : Nat := 8192
       +72  code pointer (u64)
       +80  code length (u64)
       +88  flags (occupied, exists, code-present, created-this-tx, delete-pending,
-                  code-resolved)
+                  code-resolved, auth-nonce)
       +96  reserved (32 bytes; retained so future state fields do not change stride)
 
     A pending table deliberately appends complete snapshots rather than updating
@@ -215,13 +215,11 @@ def accountStateCommitPendingFunction : String :=
   -- from successful transaction finalization.
   "  jal ra, account_state_promote_delete_reads\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
-  -- r59nm S2b: the STORAGE half of the write merge, promoted here for the same
-  -- reason and in the spec's own order -- incorporate_tx_into_block merges the
-  -- reads (:858-861) and the writes in one call, and this function is the
-  -- guest's incorporate_tx_into_block.  Merges tx-level storage_writes up and
-  -- CLEARS the tx level (:879-881); without the clear, transaction 2
-  -- re-promotes transaction 1's writes.
-  "  jal ra, write_sets_incorporate_tx\n" ++
+  -- r59nm: the STORAGE half of the merge is NOT here.  This function is called
+  -- on a commit predicate that also fires for a FAILED body when the
+  -- post-preparation coverage point was reached, which is correct for
+  -- AccountState and wrong for storage_writes.  The storage decision is made on
+  -- tx status alone in BlockVerdictMtxRuntime.  Reads stay here.
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
   "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
@@ -297,7 +295,15 @@ def accountStateRecordNonstorageFunction : String :=
   -- snapshots deliberately leave it clear: they must not turn an unknown
   -- account balance/nonce into an authoritative zero before the companion
   -- non-storage effect is published.
-  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); sd s2, 64(t0); ld t1, 88(t0); ori t1, t1, 35; sd t1, 88(t0)\n" ++
+  -- A later non-storage producer may change only balance (notably the
+  -- sender-is-coinbase fee credit).  Preserve an already-authoritative nonce
+  -- when that producer's nonce is unchanged, but seed the producer's nonce
+  -- when this is the first authoritative snapshot for the address.
+  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
+  ".Lasrn_write_nonce:\n" ++
+  "  sd s2, 64(t0)\n" ++
+  ".Lasrn_nonce_unchanged:\n" ++
+  "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lasrn_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); ld a4, 40(sp); addi sp, sp, 64; ret"
@@ -365,6 +371,36 @@ def accountStateRecordAuthFunction : String :=
   ".Lasra_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 56; ret"
 
+/-! ## account_state_publish_sender_inclusion
+
+    Publish the transaction sender's post-increment nonce to the durable block
+    overlay.  Unlike authorization effects, this survives both an exceptional
+    top-level body and authorization-preparation OOG, matching
+    `process_transaction`'s `increment_nonce` before `prepare_message` in
+    execution-specs.  The sender balance is deliberately not snapshotted here:
+    its later value, refund, and coinbase-credit transitions require a complete
+    balance-specific state model.
+
+    a0 = canonical sender address, a1 = post-increment nonce. -/
+def accountStatePublishSenderInclusionFunction : String :=
+  "account_state_publish_sender_inclusion:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Laspsn_clone\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Laspsn_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Laspsn_addr; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Laspsn_zero\n" ++
+  ".Laspsn_clone:\n" ++
+  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
+  ".Laspsn_addr:\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Laspsn_addr_loop:\n" ++
+  "  li t2, 20; beq t1, t2, .Laspsn_fields; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Laspsn_addr_loop\n" ++
+  ".Laspsn_fields:\n" ++
+  "  sd s1, 64(t0); ld t1, 88(t0); ori t1, t1, 67; sd t1, 88(t0)\n" ++
+  "  la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; beqz a0, .Laspsn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Laspsn_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 40; ret"
+
 def accountStateAuthCurrentFunction : String :=
   "account_state_auth_current:\n" ++
   -- GH #10619 (review gate 2): a third EXECUTION account read, missed by the
@@ -424,9 +460,9 @@ def accountStateLatestNonceFunction : String :=
   "  jal ra, account_read_record\n" ++
   "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Lasln_hit\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 96; bnez t0, .Lasln_hit\n" ++
   ".Lasln_durable:\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 32; beqz t0, .Lasln_miss\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 96; beqz t0, .Lasln_miss\n" ++
   ".Lasln_hit:\n" ++
   "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasln_ret\n" ++
   ".Lasln_miss:\n" ++
