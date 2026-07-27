@@ -2529,7 +2529,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- set only after the common intrinsic, auth-state, and top-frame regular
   -- pre-dispatch charges have all passed their gas-coverage checks below.
   -- A pre-dispatch ExceptionalHalt leaves it zero; a later body REVERT keeps it.
-  "  la x28, runtime_tx_auth_phase_applied; sd x0, 0(x28)\n" ++
+  "  la x28, runtime_tx_post_preparation_reached; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_count; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_next_epoch; li x29, 1; sd x29, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_epoch_by_depth; sd x0, 0(x28)\n" ++
@@ -2986,7 +2986,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- All preparation charges, including a deferred delegated-code access, have
   -- now passed.  Only this point commits the auth phase; callback OOG above is
   -- still a preparation ExceptionalHalt and must roll its auths back.
-  "  la x11, runtime_tx_auth_phase_applied; li x9, 1; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -3644,7 +3644,9 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_top_frame_regular_gas:\n" ++
   "  .zero 8\n" ++
-  "runtime_tx_auth_phase_applied:\n" ++
+  -- Formerly known as `runtime_tx_auth_phase_applied`: this marker records
+  -- reaching the post-preparation coverage point, not auth application.
+  "runtime_tx_post_preparation_reached:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_post_top_frame_fn:\n" ++
   "  .zero 8\n" ++

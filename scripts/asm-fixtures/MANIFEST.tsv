@@ -46,6 +46,7 @@ bgvU64leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 bhrRevLeBeFunction	EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean
 blake2fLdLe64Function	EvmAsm/Codegen/Programs/Blake2f.lean
 blake2fStLe64Function	EvmAsm/Codegen/Programs/Blake2f.lean
+blockAccessListHashCoreFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
 blockAccessListHashFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
 blockHashFromHeaderFunction	EvmAsm/Codegen/Programs/Header.lean
 blockLogsBloomFromReceiptsListFunction	EvmAsm/Codegen/Programs/BloomBlock.lean
