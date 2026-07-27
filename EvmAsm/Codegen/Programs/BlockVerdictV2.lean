@@ -69,6 +69,7 @@ import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.KeccakIncremental
+import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
@@ -154,6 +155,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Resumable keccak entry points (general infrastructure, first consumer #10680).
     -- The one-shot routines are untouched; these use a caller-supplied context.
     keccakIncrementalFunctions ++ "\n" ++
+    -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
+    balRlpEncodeFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -568,6 +571,8 @@ def statelessVerdictV2GuestClosure : String :=
     -- Resumable keccak entry points (general infrastructure, first consumer #10680).
     -- The one-shot routines are untouched; these use a caller-supplied context.
     keccakIncrementalFunctions ++ "\n" ++
+    -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
+    balRlpEncodeFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
