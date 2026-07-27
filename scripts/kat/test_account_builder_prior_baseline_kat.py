@@ -27,7 +27,14 @@ Reproduce from the execution-specs submodule:
 
 import pytest
 
-from execution_testing import Alloc, Block, BlockchainTestFiller, Op, Transaction
+from execution_testing import (
+    Alloc,
+    AuthorizationTuple,
+    Block,
+    BlockchainTestFiller,
+    Op,
+    Transaction,
+)
 
 
 pytestmark = pytest.mark.valid_from("Amsterdam")
@@ -55,6 +62,54 @@ def test_prior_block_touched_equal_balance(
                 txs=[
                     Transaction(sender=alice, to=funder, value=100),
                     Transaction(nonce=1, sender=alice, to=target, value=50),
+                ]
+            )
+        ],
+        post={},
+    )
+
+
+def test_prior_block_touched_equal_delegation_code(
+    pre: Alloc, blockchain_test: BlockchainTestFiller
+) -> None:
+    """Preserve the same-delegation code discriminator for #10741.
+
+    Both authorizations are valid: authority nonce 0 is consumed by tx1 and
+    nonce 1 by tx2.  Both install the same delegation designator.  Thus the
+    code field is written in tx2 yet equals its post-tx1 running baseline, so
+    the canonical BAL has one code change (BAI 1) rather than a spurious BAI 2
+    entry.  The authority nonce is intentionally changed in both txs; nonce
+    has no touched-equal discriminator because Amsterdam only increments it.
+    """
+    authority = pre.fund_eoa()
+    relayer = pre.fund_eoa()
+    recipient = pre.fund_eoa(amount=0)
+    delegate = pre.deploy_contract(code=Op.STOP)
+
+    blockchain_test(
+        pre=pre,
+        blocks=[
+            Block(
+                txs=[
+                    Transaction(
+                        sender=relayer,
+                        to=recipient,
+                        authorization_list=[
+                            AuthorizationTuple(
+                                address=delegate, nonce=0, signer=authority
+                            )
+                        ],
+                    ),
+                    Transaction(
+                        nonce=1,
+                        sender=relayer,
+                        to=recipient,
+                        authorization_list=[
+                            AuthorizationTuple(
+                                address=delegate, nonce=1, signer=authority
+                            )
+                        ],
+                    ),
                 ]
             )
         ],
