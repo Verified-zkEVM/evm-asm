@@ -622,7 +622,16 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- (or zeros when x18 is 0); where the append is skipped as a value-unchanged
         -- rewrite, x18 already points at the found row's +64. Either way x18 is a
         -- valid pointer to this slot's transaction-start value.
-        "  mv a6, x18\n" ++
+        -- a6 = 0 -- the documented placeholder, RESTORED after `mv a6, x18` was
+        -- measured to fault the guest. x18 is NOT a valid pointer here: the fixtures
+        -- take a load access fault (mcause=0x5) at mtval=0xd8 inside
+        -- storage_write_record, i.e. a6 = 216 -- neither a pointer nor the zero the
+        -- ABI defines. The source-level liveness argument (saved :469, restored :510,
+        -- read-only :517-550) was WRONG on at least one reachable path.
+        --
+        -- Control, same fixtures, same base: a6 = 0 gives ran=2 full-match=2;
+        -- mv a6, x18 gives errored=2 ran=0.
+        "  li a6, 0\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
