@@ -282,6 +282,10 @@ def registry : List OpcodeEntry := [
        ++ "removed from the guest in #10160); setup pops the operands, takes the "
        ++ "size≠0 skip and builds the pointers; the byte-identical bottom-tested "
        ++ "`do..while` loop copies stagedBytes[start..start+size) into EVM memory "
+       ++ "(NO size≥1 gate: the size=0 path is proven too — guards fall through, "
+       ++ "operands pop, the beqz skip is taken to the exit and the postcondition "
+       ++ "degenerates to unchanged memory — so this is .proven, not .conditional, "
+       ++ "matching CALLDATACOPY whose top-tested loop exits at zero size) "
        ++ "[destOff,destOff+size) via the Mcopy forward-loop content model, with "
        ++ "the source region anchored at the aligned frame+16 base and the read "
        ++ "offset carried in the pointer register (decoupled from destOff). The "
@@ -589,6 +593,8 @@ private noncomputable abbrev _returndatacopy_copy_core_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatacopy_stack_spec_within
 private noncomputable abbrev _returndatacopy_setup_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_spec_within
+private noncomputable abbrev _returndatacopy_setup_zero_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_zero_spec_within
 private noncomputable abbrev _returndatacopy_guard_success_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_success_stack_spec_within
 private noncomputable abbrev _returndatacopy_guard_wrap_witness :=
