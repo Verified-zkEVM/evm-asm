@@ -377,6 +377,7 @@ def statelessVerdictV2GuestClosure : String :=
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
   bahU32leFunction ++ "\n" ++
+  blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
@@ -479,7 +480,7 @@ def statelessVerdictV2GuestClosure : String :=
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
-  blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+  blockVerdictCreationRuntimeFunction ++ "\n" ++
   -- .6.4.3.2 contract-recipient dispatch: state/code lookups + BAL storage-key
   -- enumeration + self-containment gate + variable pack-bytecode staging. The
   -- shared callees (account_at_address, header_extract_state_root,

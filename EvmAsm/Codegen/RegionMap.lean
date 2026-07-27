@@ -219,27 +219,7 @@ def schemeAAnchors : List GuestRegion :=
     -- handler's own 16384-row cap, so it needs no overflow path.
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x100000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 1 MiB = 16384x64 "
-        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" },
-    -- GH #10695 nonstorage half: ONE container pair covers balance, nonce AND code,
-    -- because the spec keeps one non-storage write dict per level
-    -- (account_writes: Dict[Address, Optional[Account]], state_tracker.py:70 block,
-    -- :97 transaction) and update_builder_from_tx derives all three BAL fields from
-    -- a single loop over it (block_access_lists.py:637-664).  Three containers would
-    -- mirror the issue's wording rather than the spec's structure.
-    { name := "account_writes_area",    base := 0xa24a0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2 MiB = 16384x128 "
-        ++ "(address++balance++nonce++present++codeHash, 112 B used of a 128 B stride); "
-        ++ "block level, filled only by account_writes_incorporate_tx" },
-    { name := "tx_account_writes_area", base := 0xa26a0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; per-tx account_writes, "
-        ++ "target of account_write_record (mirrors set_account, state_tracker.py:486)" },
-    -- Same rationale as the storage undo journal: take_snapshot copies the dict
-    -- (state_tracker.py:795), which is unaffordable at capacity x call depth, so the
-    -- bounded equivalent is a reverse-replayed journal.
-    { name := "account_writes_undo_area", base := 0xa28a0000, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
-        ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
-        ++ "reverse-replayed by account_writes_restore_frame" } ]
+        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -422,10 +402,8 @@ def schemeAAnchors : List GuestRegion :=
     `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
-    it was pointed at; enumerating the pattern found the other one. Grew by
-    `0x5a8` to `0x63424` for the account-write fieldwise overlay, rollback
-    wiring, and persistent BAL-builder append primitives. -/
-def textSizeBytes : Nat := 0x063424
+    it was pointed at; enumerating the pattern found the other one. -/
+def textSizeBytes : Nat := 0x063434
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -451,11 +429,7 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
-    state table (address, nonce delta, and header-delegated bit). The
-    account-write rollback checkpoint plus persistent BAL builder reserve
-    `0x6f3d90`, while the preceding bounded-arena tightening reclaimed
-    `0x1e02d0`, so measured net growth is `0x513ac0`: `0x1b2578c0` to
-    `0x1b76b380`. This leaves `0x214c80` before `.sszscratch`. -/
+    state table (address, nonce delta, and header-delegated bit). -/
 def bssSizeBytes : Nat := 0x1b76b380
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
@@ -636,13 +610,7 @@ theorem schemeA_matches_layout :
         -- :101 transaction) plus S5a's undo journal.
         (EvmAsm.Stateless.STORAGE_WRITES_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat,
-        -- #10695: the nonstorage write side of the same two levels
-        -- (account_writes, state_tracker.py:70 block, :97 transaction) plus its
-        -- undo journal.
-        (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -865,6 +833,6 @@ def stableGuestBases : List (String × Nat) :=
 --            Lost in a merge resolution of #10679 and restored here; the
 --            constants and the guest's use of the addresses were never removed,
 --            so three in-use regions had no disjointness or fit proof.
-theorem stableGuestBases_length : stableGuestBases.length = 32 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 29 := by decide
 
 end EvmAsm.Codegen.RegionMap

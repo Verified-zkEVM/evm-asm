@@ -111,7 +111,7 @@ def blockVerdictCreateCollisionBranch : String :=
   "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Lbv_creation_access_done:\n" ++
-  "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++
+  "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n"
 
 
