@@ -327,6 +327,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
   bahU32leFunction ++ "\n" ++
+  blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++

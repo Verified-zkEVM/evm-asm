@@ -251,6 +251,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_list_encoded_size, rlpListEncodedSize_prog),
   (GuestAddrs.block_rlp_rebuilt_size, blockRlpRebuiltSize_prog),
   (GuestAddrs.bah_u32le, bahU32le_prog),
+  (GuestAddrs.block_access_list_hash_core, blockAccessListHashCore_prog),
   (GuestAddrs.block_access_list_hash, blockAccessListHash_prog),
   (GuestAddrs.block_hash_from_header, blockHashFromHeader_prog),
   (GuestAddrs.step2_verdict, step2Verdict_prog),
@@ -528,6 +529,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 363
+#guard guestImageEntries.length = 364
 
 end EvmAsm.Codegen
