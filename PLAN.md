@@ -1159,6 +1159,32 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     analysis + fix options in `docs/sail-init-scoping-defect.md`. Fix =
     re-scope/full-model regen (maintainer decision pending). No existing lemma
     is affected — all take `BareModeInv` as a hypothesis.
+  - **Platform frame export (DONE — WP-0, prep for #10529 / #10530).** Every
+    consolidated theorem hid its Sail post-state behind `∃ sSail'` and exposed
+    only `StateRel` + a `nextPC` fact, so no downstream client could re-establish
+    platform facts at the post-state. `StateRel.lean` now defines the shared
+    substrate: `MemPresent lo hi mem` (range byte-presence), `BytesPresent mem a w`
+    (per-access byte-presence), and `structure PlatformFrame s s'` — the 9 facts an
+    instruction step preserves (`cur_privilege`, `mstatus`, `mseccfg`, `pmpcfg_n`,
+    `pmpaddr_n`, `pma_regions`, `misa`, `htif_tohost_base`, plus memory
+    monotonicity `mem_mono`). Helpers: `PlatformFrame.refl/.trans`,
+    `platformFrame_sailStateWithReg` (32-arm case split; `x0` is the identity),
+    `platformFrame_insert_PC/_nextPC/_mem`, `MemPresent.insert`,
+    `MemPresent.bytesPresent`, `MemPresent.of_frame`; plus
+    `BareModeInv.transport` (+ `@[simp] transport_regions`/`transport_msec`) in
+    `VmemReduction.lean`, which moves the whole bare-mode bundle across a frame
+    with its 5 data fields unchanged. All 51 per-instruction `*_sail_equiv`
+    lemmas (ALU 14 / Imm 8 / Shift 3 / MExt 7 / Branch 8 / `ld` 1 / loads 6 /
+    stores 4) now export `∧ PlatformFrame sSail sSail'` as the final conclusion
+    conjunct; `step_execute_sail_sim{_uncond,_of_uncond}` and the 8
+    `*_step_sail_equiv` capstones thread it too (the capstones compose the
+    execute-side frame with the `tick_pc` `PC`-commit frame via `.trans`). The
+    only hypothesis change is JALR's `h_elp` bundle, which gains
+    `PlatformFrame sSail s_mid` (the frame across `update_elp_state` is otherwise
+    unrecoverable) — nothing was weakened. Store-side frames use the local
+    `platformFrame_withMem` + `isSome_insert_mono` pair in
+    `VmemReductionStores.lean`. This unblocks the #10529 byte-presence invariant
+    and the #10530 run-level invariant.
   - **Remaining (next up).** A uniform `step_sail_equiv` dispatching via
     `InstrMap.lean` over a decoded instruction — compose the 49 per-class
     `*_sail_equiv` results via `step_of_execute` (`StepProofs.lean`), covering

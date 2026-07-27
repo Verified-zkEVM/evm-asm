@@ -31,7 +31,9 @@ namespace EvmAsm.Rv64.SailEquiv
     memory (`StateRel`) and whose `nextPC` is the post Rv64 `pc`, then running
     `m >>= tick_pc` commits that `nextPC` into `PC`, landing in a state that is
     `StateRelPC`-related to `sRv'` (registers, memory, and the committed PC all
-    agree). -/
+    agree).  The `PC` commit is itself a platform-frame-preserving step, so the
+    frame across `tick_pc` is exported too and composes with the `execute`-side
+    frame at the capstones. -/
 theorem step_of_execute {α : Type} {sRv' : MachineState} {sSail sSail' : SailState}
     {m : SailM α} {a : α}
     (h_exec : runSail m sSail = some (a, sSail'))
@@ -39,12 +41,14 @@ theorem step_of_execute {α : Type} {sRv' : MachineState} {sSail sSail' : SailSt
     (h_nextpc : sSail'.regs.get? Register.nextPC = some sRv'.pc) :
     ∃ sSail'',
       runSail (m >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC sRv' sSail'' := by
+      StateRelPC sRv' sSail'' ∧
+      PlatformFrame sSail' sSail'' := by
   have h1 : runSail (m >>= fun _ => tick_pc ()) sSail
       = some ((), { sSail' with regs := sSail'.regs.insert Register.PC sRv'.pc }) := by
     rw [runSail_bind, h_exec]; exact runSail_tick_pc h_nextpc
   exact ⟨_, h1, { toStateRel := stateRel_PC_insert h_rel _,
-                  pc_agree := by simp [Std.ExtDHashMap.get?_insert_self] }⟩
+                  pc_agree := by simp [Std.ExtDHashMap.get?_insert_self] },
+          platformFrame_insert_PC _ _⟩
 
 -- ============================================================================
 -- Conditional-branch step capstones (execute_BTYPE ; tick_pc)
@@ -59,10 +63,12 @@ theorem beq_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BEQ
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     beq_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem bne_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrelpc : StateRelPC sRv sSail)
@@ -73,10 +79,12 @@ theorem bne_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BNE
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     bne_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem blt_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrelpc : StateRelPC sRv sSail)
@@ -87,10 +95,12 @@ theorem blt_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLT
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     blt_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem bge_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrelpc : StateRelPC sRv sSail)
@@ -101,10 +111,12 @@ theorem bge_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGE
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     bge_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem bltu_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrelpc : StateRelPC sRv sSail)
@@ -115,10 +127,12 @@ theorem bltu_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLTU
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     bltu_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem bgeu_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (hrelpc : StateRelPC sRv sSail)
@@ -129,10 +143,12 @@ theorem bgeu_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGEU
         >>= fun _ => tick_pc ()) sSail = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     bgeu_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rs1 rs2 offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 -- ============================================================================
 -- Unconditional-jump step capstones (execute_JAL/JALR ; tick_pc)
@@ -147,10 +163,12 @@ theorem jal_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     ∃ sSail'',
       runSail (execute_JAL offset (regToRegidx rd) >>= fun _ => tick_pc ()) sSail
         = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.JAL rd offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.JAL rd offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     jal_sail_equiv sRv sSail hrelpc.toStateRel hrelpc.pc_agree h_nextpc h_misa rd offset h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 theorem jalr_step_sail_equiv (sRv : MachineState) (sSail : SailState)
     (rd rs1 : Reg) (offset : BitVec 12)
@@ -158,14 +176,17 @@ theorem jalr_step_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel sRv s_mid ∧
       s_mid.regs.get? Register.PC = some sRv.pc ∧
       s_mid.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
-      (∃ v, s_mid.regs.get? Register.misa = some v))
+      (∃ v, s_mid.regs.get? Register.misa = some v) ∧
+      PlatformFrame sSail s_mid)
     (h_align : ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0) :
     ∃ sSail'',
       runSail (execute_JALR offset (regToRegidx rs1) (regToRegidx rd) >>= fun _ => tick_pc ()) sSail
         = some ((), sSail'') ∧
-      StateRelPC (execInstrBr sRv (.JALR rd rs1 offset)) sSail'' := by
-  obtain ⟨sSail', h_exec, h_rel, h_np⟩ :=
+      StateRelPC (execInstrBr sRv (.JALR rd rs1 offset)) sSail'' ∧
+      PlatformFrame sSail sSail'' := by
+  obtain ⟨sSail', h_exec, h_rel, h_np, h_fr⟩ :=
     jalr_sail_equiv sRv sSail rd rs1 offset h_elp h_align
-  exact step_of_execute h_exec h_rel h_np
+  obtain ⟨sSail'', h_step, h_relpc, h_fr2⟩ := step_of_execute h_exec h_rel h_np
+  exact ⟨sSail'', h_step, h_relpc, h_fr.trans h_fr2⟩
 
 end EvmAsm.Rv64.SailEquiv

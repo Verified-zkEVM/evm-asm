@@ -94,7 +94,8 @@ def instrSideCond (i : Instr) (sRv : MachineState) (sSail : SailState) : Prop :=
         StateRel sRv s_mid ∧
         s_mid.regs.get? Register.PC = some sRv.pc ∧
         s_mid.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
-        (∃ v, s_mid.regs.get? Register.misa = some v)) ∧
+        (∃ v, s_mid.regs.get? Register.misa = some v) ∧
+        PlatformFrame sSail s_mid) ∧
       ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0
   | .LD _ rs1 offset =>
       ∃ (bm : BareModeInv sSail) (region : PMA_Region)
@@ -251,7 +252,8 @@ theorem step_execute_sail_sim_uncond
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv i) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) := by
+      sSail'.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
+      PlatformFrame sSail sSail' := by
   cases i with
   | ADD _ _ _    => sim_step add_sail_equiv
   | SUB _ _ _    => sim_step sub_sail_equiv
@@ -319,12 +321,14 @@ theorem step_execute_sail_sim_of_uncond
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv i) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc ∧
+      PlatformFrame sSail sSail' := by
   exact Exists.elim (step_execute_sail_sim_uncond sRv sSail hrel h_nextpc i si h huncond) (by
     intro sSail' hpair
     have h_pc : (execInstrBr sRv i).pc = sRv.pc + 4 := by
       cases i <;> simp [Instr.simulableUncond, execInstrBr, MachineState.setPC] at huncond ⊢
-    exact ⟨sSail', hpair.left, hpair.right.left, by simpa [h_pc] using hpair.right.right⟩)
+    exact ⟨sSail', hpair.left, hpair.right.left, by simpa [h_pc] using hpair.right.right.left,
+      hpair.right.right.right⟩)
 
 /-- **Consolidated `execute` simulation theorem.**
 
@@ -344,7 +348,8 @@ theorem step_execute_sail_sim
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv i) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv i).pc ∧
+      PlatformFrame sSail sSail' := by
   cases i with
   | ADD _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
   | SUB _ _ _    => exact step_execute_sail_sim_of_uncond sRv sSail hrelpc.toStateRel h_nextpc _ _ h (by simp [Instr.simulableUncond])
@@ -382,8 +387,8 @@ theorem step_execute_sail_sim
       exact Exists.elim
         (auipc_sail_equiv sRv sSail hrelpc.toStateRel h_nextpc hrelpc.pc_agree rd imm) (by
         intro sSail' hpair
-        refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-        simpa [execInstrBr, MachineState.setPC] using hpair.right.right)
+        refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+        simpa [execInstrBr, MachineState.setPC] using hpair.right.right.left)
   | BEQ rs1 rs2 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
       subst h
@@ -449,8 +454,8 @@ theorem step_execute_sail_sim
       exact Exists.elim (ld_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
           b0 b1 b2 b3 b4 b5 b6 b7 h_valign h_match h_read h_palign hclint hsig hhtif
           hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7) (fun sSail' hpair => by
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC])
   | LW rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -463,8 +468,8 @@ theorem step_execute_sail_sim
           b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
           hm0 hm1 hm2 hm3 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | LWU rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -477,8 +482,8 @@ theorem step_execute_sail_sim
           b0 b1 b2 b3 h_valign h_match h_read h_palign hclint hsig hhtif
           hm0 hm1 hm2 hm3 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | LH rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -490,8 +495,8 @@ theorem step_execute_sail_sim
       cases lh_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
           b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | LHU rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -503,8 +508,8 @@ theorem step_execute_sail_sim
       cases lhu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
           b0 b1 h_valign h_match h_read h_palign hclint hsig hhtif hm0 hm1 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | LB rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -515,8 +520,8 @@ theorem step_execute_sail_sim
       cases lb_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
           b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | LBU rd rs1 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -527,8 +532,8 @@ theorem step_execute_sail_sim
       cases lbu_sail_equiv sRv sSail rd rs1 offset hrelpc.toStateRel bm region
           b0 h_valign h_match h_read h_palign hclint hsig hhtif hm0 with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | SD rs1 rs2 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -538,8 +543,8 @@ theorem step_execute_sail_sim
       cases sd_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
           h_valign h_match h_write h_palign hclint hsig hhtif with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | SW rs1 rs2 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -549,8 +554,8 @@ theorem step_execute_sail_sim
       cases sw_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
           h_valign h_match h_write h_palign hclint hsig hhtif with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | SH rs1 rs2 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -560,8 +565,8 @@ theorem step_execute_sail_sim
       cases sh_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
           h_valign h_match h_write h_palign hclint hsig hhtif with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | SB rs1 rs2 offset =>
       simp only [toSailInstr?, Option.some.injEq] at h
@@ -571,8 +576,8 @@ theorem step_execute_sail_sim
       cases sb_sail_equiv sRv sSail rs1 rs2 offset hrelpc.toStateRel bm region
           h_valign h_match h_write h_palign hclint hsig hhtif with
       | intro sSail' hpair =>
-          refine ⟨sSail', hpair.left, hpair.right.left, ?_⟩
-          rw [hpair.right.right, h_nextpc]
+          refine ⟨sSail', hpair.left, hpair.right.left, ?_, hpair.right.right.right⟩
+          rw [hpair.right.right.left, h_nextpc]
           simp [execInstrBr, MachineState.setPC]
   | MV _ _ =>
       exact absurd hsim (by simp only [Instr.simulable]; decide)
