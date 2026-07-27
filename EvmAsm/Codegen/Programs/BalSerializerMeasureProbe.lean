@@ -2,6 +2,8 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 import EvmAsm.Codegen.Programs.BalRlpEncode
+import EvmAsm.Codegen.Programs.KeccakIncremental
+import EvmAsm.Codegen.Programs.HashBridge
 
 /-!
 # `zisk_bal_serializer_measure` -- the first EXECUTING test of the measure pass
@@ -100,6 +102,18 @@ def ziskBalSerializerMeasurePrologue : String :=
   probeRow 0 0xAA 1 1 0 ++
   "  la t0, bal_builder_storage_changes; li t1, 1; sb t1, 65(t0)\n" ++
   probeRun 1 32 ++
+  -- Case 6: EMIT case 1's storage_changes and publish the DIGEST. This is the
+  -- acceptance criterion in miniature -- hash the bytes and compare the hash -- rather
+  -- than another length. Expected RLP, derived by hand: SlotChanges payload 5 -> 0xc5,
+  -- scalar(slot=1) -> 0x01, changes list payload 3 -> 0xc3, StorageChange payload 2 ->
+  -- 0xc2, scalar(bai=1) -> 0x01, scalar(value=5) -> 0x05, i.e. `c5 01 c3 c2 01 05`.
+  -- The runner checks its keccak-256 against an independent pure-python reference.
+  probeRow 0 0xAA 1 1 5 ++
+  "  la t0, bal_builder_storage_change_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
+  "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
+  "  jal ra, bal_serializer_emit_storage\n" ++
+  "  la a0, bsmp_ctx; addi a1, s0, 64; jal ra, keccak_final\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -110,6 +124,11 @@ def ziskBalSerializerMeasurePrologue : String :=
   balRlpScalarLenFunction ++
   balRlpScalarRlpLenFunction ++
   balRlpListHeaderLenFunction ++
+  balRlpEmitScalarFunction ++
+  balRlpEmitListHeaderFunction ++
+  balSerializerEmitStorageFunction ++
+  keccakIncrementalFunctions ++
+  zkvmKeccak256Function ++ "\n" ++
   ".Lbsmp_done:"
 
 /-- Only the four data symbols the measure path touches. The real arena is megabytes;
@@ -122,7 +141,12 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bal_builder_storage_change_count:\n  .zero 8\n" ++
   "bal_serializer_len_table:\n  .zero 48\n" ++
   "bal_serializer_u64_field:\n  .zero 32\n" ++
-  "bal_builder_storage_changes:\n  .zero 480\n"
+  "bal_builder_storage_changes:\n  .zero 480\n" ++
+  ".balign 8\n" ++
+  "bsmp_ctx:\n  .zero 512\n" ++
+  "bsmp_scratch:\n  .zero 256\n" ++
+  "zk3_state:\n  .zero 200\n" ++
+  keccakIncrementalDataSection
 
 def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
   body        := NOP
@@ -136,10 +160,12 @@ The probe is only worth anything if the discriminating cases are really present.
 
 -- Five `measure_storage` runs plus the one `measure_slot` run.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "jal ra, bal_serializer_measure_storage").length == 6
--- THREE, not two: the probe splices `measure_storage`'s body in, and that body calls
--- `measure_slot` itself. Asserting 2 here fails, and the tempting "fix" is to drop the
--- guard rather than notice the shared callee is exactly the property being relied on.
-#guard (ziskBalSerializerMeasurePrologue.splitOn "jal ra, bal_serializer_measure_slot").length == 3
+-- Keyed on the probe's OWN call site, not on a bare mnemonic. The prologue splices in
+-- `measure_storage` and `emit_storage`, which both call `measure_slot` themselves, so a
+-- bare count is a function of who else got spliced -- it drifts every time the closure
+-- changes and says nothing about whether the probe still measures a slot.
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_addr_a; la a1, bal_builder_storage_changes\n  jal ra, bal_serializer_measure_slot\n").length == 2
 
 -- Case 2 must use TWO DISTINCT `block_access_index` values on ONE slot. With equal
 -- indices the upsert semantics make them one change and the case stops discriminating
@@ -152,5 +178,12 @@ The probe is only worth anything if the discriminating cases are really present.
 
 -- Address B must actually differ from A, or case 4 tests nothing.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 2
+
+-- Case 6 must actually EMIT and finalise, or the digest slot holds whatever keccak_init
+-- left and a wrong digest reads as a wrong constant rather than as a missing call.
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n  jal ra, bal_serializer_emit_storage\n").length == 2
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_ctx; addi a1, s0, 64; jal ra, keccak_final\n").length == 2
 
 end EvmAsm.Codegen
