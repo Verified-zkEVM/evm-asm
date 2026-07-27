@@ -43,6 +43,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -850,6 +851,9 @@ def createRecordCodeEffectFunction : String :=
   -- A successful later CREATE at the same address is the latest transaction
   -- state and cancels an earlier same-transaction EIP-6780 delete request.
   "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
+  -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
+  -- Balance remains absent here: value flow owns its own nonstorage record.
+  "  mv a0, s0; li a1, 0; li a2, 1; mv a3, s1; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   ".Lcrce_overflow:\n" ++

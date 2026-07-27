@@ -493,6 +493,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_tx_effect_snap_code_next:\n  .zero 8\n" ++
   "bv_tx_effect_snap_code_overflow:\n  .zero 8\n" ++
   "bv_tx_effect_snap_storage_count:\n  .zero 8\n" ++   -- bbow4.2: storage exec-log count (evm_env+448) snapshot for tx-error truncation
+  "bv_tx_effect_snap_account_writes_undo:\n  .zero 8\n" ++ -- account-write undo cursor at the same pre-body boundary
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
