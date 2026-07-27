@@ -250,7 +250,9 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
   dataAsm     := ziskStageCreationRuntimePayloadDataSection
 }
 
-/-! ## block_verdict_single_tx_creation_runtime
+/-! ## block_verdict_creation_runtime
+
+    Formerly known as `block_verdict_single_tx_creation_runtime`.
 
     Narrow integration helper for top-level creation receipts. It supports
     exactly the staging shape above, runs the staged initcode through the
@@ -266,7 +268,7 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
     Returns:
       a0 = 0 when runtime windows were filled; nonzero staging status otherwise.
 
-    ⚠️ **The `single_tx` in this name is misleading — the MULTI-tx path calls it too.**
+    The former `single_tx` name was misleading — the MULTI-tx path calls it too.
     There are eight call sites (GH #10663):
 
     | site | |
@@ -288,8 +290,8 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
     into `BlockVerdictCreateCollision:23`, which is also why the single-tx check region at
     `:1122` is never entered for them. One diversion explains both non-arrivals.
 -/
-def blockVerdictSingleTxCreationRuntimeFunction : String :=
-  "block_verdict_single_tx_creation_runtime:\n" ++
+def blockVerdictCreationRuntimeFunction : String :=
+  "block_verdict_creation_runtime:\n" ++
   "  addi sp, sp, -40\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++

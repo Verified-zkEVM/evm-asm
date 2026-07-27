@@ -410,7 +410,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
-  blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+  blockVerdictCreationRuntimeFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++

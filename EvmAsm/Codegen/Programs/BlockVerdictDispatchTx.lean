@@ -421,7 +421,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   -- This is `prepare_dispatch`'s delegated-address charge.  The callback is
   -- invoked after the initial accessed-address seeds and before the dispatcher
-  -- commits `runtime_tx_auth_phase_applied`; an OOG therefore remains a
+  -- commits `runtime_tx_post_preparation_reached`; an OOG therefore remains a
   -- preparation failure and rolls back set_delegation exactly as the spec does.
   delegationAccessChargeAsm "dtrc_deleg_target" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
