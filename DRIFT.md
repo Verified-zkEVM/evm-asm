@@ -116,16 +116,20 @@ KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SSTORE, LOG0..4, CREA
   framed-out region. CALLDATACOPY carries the same class of residual — its
   source-offset normalization block is likewise `preBody` glue.
 
-  *Spec cross-check (Amsterdam `vm/instructions/environment.py`, `vm/gas.py`):*
-  each excised guard matches a real spec outcome, so excising them costs
-  coverage but hides no divergence. High-limb `size` ⇒ astronomical
-  `copy_gas_cost`/memory expansion ⇒ `OutOfGasError`. High-limb source offset ⇒
-  `Uint(start) + Uint(size) > ulen(return_data)` ⇒ `OutOfBoundsRead`, which holds
-  even at `size = 0`. High-limb `destOffset` ⇒ quadratic memory expansion ⇒
-  `OutOfGasError` — *except* at `size = 0`, where
-  `calculate_gas_extend_memory` `continue`s and charges nothing, so the spec
-  accepts it; the guest matches that exception exactly, because its `destOffset`
-  high-limb check sits behind `beqz <size>, .Lmemu256_…_done`.
+  *Why each excised guard is safe to excise — three different arguments, none of
+  them in the proof.* Read this before treating a `RETURNDATACOPY: proven` row as
+  covering wide operands; the justifications do not share a shape:
+
+  | assumed by | justified by | holds at `size = 0`? | reasoning lives in |
+  |---|---|---|---|
+  | high-limb `size` | **gas** — `copy_gas_cost` and memory expansion both explode ⇒ `OutOfGasError` | yes | `EvmMemoryGas.lean` `memDynamicU256RangeOogGuardAsm` docstring |
+  | high-limb `destOffset` | **gas, but conditional on `size ≠ 0`** — quadratic expansion ⇒ `OutOfGasError`; at `size = 0` `calculate_gas_extend_memory` `continue`s and charges nothing, so the spec *accepts* it | **no — spec accepts** | same docstring; the guard's `beqz <size>` ordering mirrors `gas.py`'s `if size == 0: continue` |
+  | high-limb source offset (`dataOffset`) | **not gas** — the spec's explicit `Uint(start) + Uint(size) > ulen(return_data)` ⇒ `OutOfBoundsRead` | yes — rejecting is *required*, not over-strict | the `h_RETURNDATACOPY` comment in `Codegen/Programs/NoopReturnData.lean` |
+
+  So each excised guard matches a real execution-specs outcome (Amsterdam
+  `vm/instructions/environment.py`, `vm/gas.py`): excising them costs coverage
+  but hides no divergence, and in particular the guest does **not** over-reject
+  the `size = 0` / high-limb-`destOffset` case the spec accepts.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a

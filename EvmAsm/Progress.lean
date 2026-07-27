@@ -295,8 +295,13 @@ def registry : List OpcodeEntry := [
        ++ "triple describes only the path where those fall through. The "
        ++ "h_destOff/h_srcOff/h_sizeV hypotheses are low-limb NAMING bridges and "
        ++ "constrain no high limb. Each excised guard matches a real "
-       ++ "execution-specs outcome (incl. the size=0 memory-expansion exception), "
-       ++ "so this costs coverage but hides no divergence; see DRIFT."),
+       ++ "execution-specs outcome, but by three DIFFERENT arguments: high-limb "
+       ++ "size by gas; high-limb destOffset by gas only when size≠0 (at size=0 "
+       ++ "the spec charges nothing and ACCEPTS it — the guest matches via the "
+       ++ "guard's beqz ordering); high-limb dataOffset NOT by gas but by the "
+       ++ "spec's explicit start+size>len(return_data) OutOfBoundsRead, which "
+       ++ "fires at size=0 too. Costs coverage, hides no divergence; see DRIFT "
+       ++ "for the per-hypothesis table and where each argument lives."),
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
