@@ -62,7 +62,7 @@ def runtimeDispatcherGasCaptureProbeUnit : BuildUnit :=
 
     Probe for the top-level creation runtime-window integration. It runs the
     supported one-byte STOP initcode shape through
-    `block_verdict_single_tx_creation_runtime`, then verifies the verdict-facing
+    `block_verdict_creation_runtime`, then verifies the verdict-facing
     windows are populated. It then resets `bvgr_runtime_count` and calls the same
     helper with unsupported non-STOP initcode to pin the conservative
     `runtime_count=0` behavior.
@@ -115,7 +115,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  li t1, 30000000; sd t1, 412(t2)\n" ++
     "  li t1, 7; sd t1, 440(t2)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  li s0, 0xa0010000\n" ++
     "  sd a0, 0(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 8(s0)\n" ++
@@ -135,38 +135,38 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_bad_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  sd a0, 88(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 96(s0)\n" ++
     -- Bad context status must stay conservative.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; li t1, 9; sd t1, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  sd a0, 104(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 112(s0)\n" ++
     -- Non-creation contexts must not be executed as constructors.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); sd zero, 48(t0); la t1, crw_stop_initcode; sd t1, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  sd a0, 120(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 128(s0)\n" ++
     -- Missing initcode pointer and too-large initcode stay unsupported shape.
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); sd zero, 56(t0); li t1, 1; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  sd a0, 136(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 144(s0)\n" ++
     "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
     "  la t0, crw_ctx; sd zero, 0(t0); li t1, 1; sd t1, 48(t0); la t1, crw_long_initcode; sd t1, 56(t0); li t1, 2; sd t1, 64(t0)\n" ++
     "  la a0, crw_ctx; la a1, crw_exec\n" ++
-    "  jal ra, block_verdict_single_tx_creation_runtime\n" ++
+    "  jal ra, block_verdict_creation_runtime\n" ++
     "  sd a0, 152(s0)\n" ++
     "  la t0, bvgr_runtime_count; ld t1, 0(t0); sd t1, 160(s0)\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
-    blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+    blockVerdictCreationRuntimeFunction ++ "\n" ++
     stageCreationRuntimePayloadFunction ++ "\n" ++
     blockLogWindowSnapshotFunction ++ "\n" ++
     dispatcherCaptureExecStateGasFunction ++ "\n" ++
