@@ -200,7 +200,7 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0xa3000000 0xa3005370 :=
     satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
-  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  `0x1b77b480` is that
+  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  `0x1b77b540` is that
   -- constant spelled as a literal (once, here) and `0xbf77b480` is `0xa4000000`
   -- plus it (TWICE -- here and in `t7'` below).  A `.bss` size change is
   -- routine -- any new data object moves it -- and the four-step layout regen
@@ -216,7 +216,7 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- object, this is why.
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
       0xa4000000 0xbf77b480 :=
-    satWithin_ramRegion 0xa4000000 0x1b77b480 (by omega) (by omega)
+    satWithin_ramRegion 0xa4000000 0x1b77b540 (by omega) (by omega)
       (by omega) (by omega)
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
       0xa3005370 0xbf77b480 :=

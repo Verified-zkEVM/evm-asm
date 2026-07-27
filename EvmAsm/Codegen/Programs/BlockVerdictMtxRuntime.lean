@@ -621,6 +621,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  -- `update_builder_from_tx` precedes `incorporate_tx_into_block` in the spec:
+  -- the tx account-map reader must see the block-cumulative *pre-tx* baseline
+  -- before incorporation overwrites it and clears the tx map.  The helper reads
+  -- `current_block_access_index` (bv_mtx_i + 1), not the unwritten builder-local
+  -- BAI cell.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
   "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
