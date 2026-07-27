@@ -245,6 +245,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
     balCanonicalSortDataSection ++ "\n" ++
+    keccakIncrementalDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
     codeReadLogDataSection ++ "\n" ++
     readSetsBlockDataSection ++ "\n" ++
@@ -692,6 +693,7 @@ def statelessVerdictV2GuestData : String :=
   storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
     balCanonicalSortDataSection ++ "\n" ++
+    keccakIncrementalDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection

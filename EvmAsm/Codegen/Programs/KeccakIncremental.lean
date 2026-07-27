@@ -81,6 +81,11 @@ def keccakCtxBytes : Nat := keccakStateBytes + 8
 /-- Offset of the rate-block fill counter within the context. -/
 def keccakCtxFillOff : Nat := keccakStateBytes
 
+def keccakSelftestLengths : List Nat := [0, 1, 134, 135, 136, 137, 271, 272, 273]
+/-- Non-rate-aligned prefix sizes; `0` means a single chunk. -/
+def keccakSelftestPrefixes : List Nat := [0, 1, 67, 135]
+
+
 /-! ## `keccak_init`
 
     a0 = ctx pointer (`keccakCtxBytes` bytes, 8-byte aligned).
@@ -157,59 +162,132 @@ def keccakFinalFunction : String :=
   "  ld t0, 24(a0); sd t0, 24(t2)\n" ++
   "  ret\n"
 
-/-! ## `keccak_incremental_selftest`
+/-- The matrix tables live in `.bss` and are FILLED AT RUNTIME by the self-test.
 
-    The correctness criterion, as a routine rather than as prose: hash the SAME
-    bytes with the one-shot and with init/absorb/final, and compare the digests.
+    They were briefly `.data` with `.dword` initialisers, which grew `.data` by 104
+    bytes and broke address-pinned `decide` proofs in `Bn254FieldMulModSAsm` and
+    `Bn254FieldMulModPSAsmStage` — those carry concrete guest-linked `laHi`/`laLo`
+    immediates for `.data` symbols, so shifting `.data` invalidates them. `.text`
+    and `.bss` growth does not have that effect, which is why the three earlier
+    PRs in this stack regenerated cleanly and this one did not.
 
-    a0 = byte pointer, a1 = length, returns a0 = 0 if the two digests agree,
-    1 if they differ. a2 = scratch (>= 64 bytes for the two digests, 8-aligned),
-    a3 = keccak context (>= `keccakCtxBytes`, 8-aligned) -- both caller-supplied,
-    so the self-test allocates nothing either.
+    Zero-initialised storage plus runtime fill avoids the whole class. -/
+def keccakIncrementalDataSection : String :=
+  "kcs_lengths:\n  .zero " ++ toString (keccakSelftestLengths.length * 8) ++ "\n" ++
+  "kcs_prefixes:\n  .zero " ++ toString (keccakSelftestPrefixes.length * 8) ++ "\n"
 
-    The incremental side deliberately splits the input into THREE UNEVEN CHUNKS
-    (len/3 each, remainder in the last), because the interesting failure is the
-    permutation that fires mid-absorb when a rate block completes. A single-chunk
-    split, or chunks that happen to align to 136, would exercise the same path as
-    the one-shot and agree vacuously -- so the caller should pass a length over
-    136 for the comparison to mean anything, and over 272 to cross two boundaries.
+/-- Fill the matrix tables. Emitted into the self-test prologue rather than kept as
+    initialised data, for the `.data`-shift reason above. -/
+def keccakSelftestFillAsm : String :=
+  "  la t0, kcs_lengths\n" ++
+  String.join (keccakSelftestLengths.zipIdx.map (fun (n, i) =>
+    s!"  li t1, {n}; sd t1, {i * 8}(t0)\n")) ++
+  "  la t0, kcs_prefixes\n" ++
+  String.join (keccakSelftestPrefixes.zipIdx.map (fun (n, i) =>
+    s!"  li t1, {n}; sd t1, {i * 8}(t0)\n"))
+
+/-! ## `keccak_incremental_selftest` -- the CONTRACT, as an executable matrix
+
+    General-purpose code gets called by people who were not present when it was
+    written and who will not re-derive its boundary behaviour. So the cases this
+    establishes are written down here, and checked by a routine, rather than left
+    to a reader to assume.
+
+    ## Why a matrix and not one comparison
+
+    A single absorb over the whole buffer takes the same path as the one-shot and
+    agrees VACUOUSLY -- it exercises no boundary at all. The failures worth catching
+    live at two independent axes:
+
+    * **total length mod the 136-byte rate** -- the padding branch differs when the
+      final block is empty (`0`), nearly full (`134`, `135`) or exactly full;
+    * **where the caller splits** -- a chunk boundary that does not coincide with a
+      rate boundary forces the partial-block carry in the context, which is the one
+      piece of state the one-shot keeps in a register and discards.
+
+    This session supplies the motivating evidence for the first axis: a hand-rolled
+    keccak used earlier was validated on the empty string, `abc` and `testing`, all
+    single-block, and was still wrong at `len mod 136 == 135` -- the case where the
+    `0x01` pad lands on the last byte and collides with the `0x80`. Three passing
+    vectors said nothing about it.
+
+    ## What the matrix covers
+
+    Lengths (9): `0, 1, 134, 135, 136, 137, 271, 272, 273`, giving
+    `len mod 136 ∈ {0, 1, 134, 135}` and both sides of one and two rate boundaries.
+
+    Split shapes (4) per length: a single chunk, then a prefix of `1`, `67` and
+    `135` bytes with the remainder as a second chunk, each clamped to the length.
+    None of `1`, `67`, `135` is a multiple of `136`, so the first chunk is never
+    rate-aligned and the carry path is always exercised.
+
+    36 comparisons in total. `len == 0` is included deliberately: absorbing nothing
+    then finalising must equal the one-shot of an empty buffer, which is the case a
+    caller most easily reaches by accident.
+
+    ## ABI
+
+      a0 = source bytes (must be readable for at least 273 bytes)
+      a1 = scratch, >= 64 bytes, 8-aligned (two digests)
+      a2 = keccak context, >= `keccakCtxBytes`, 8-aligned
+      a0 (out) = 0 if every case agrees, else `1 + lengthIndex*4 + shapeIndex`
+
+    A nonzero return LOCALISES the first disagreement rather than reporting a
+    boolean, because "incremental keccak is wrong somewhere" is not actionable.
 
     This is congruence against already-trusted code, not a fresh correctness
-    argument: the claim is that two computations of the same function agree. No
-    assumption about collisions is involved, because nothing is inferred FROM the
-    digests matching -- they are two outputs of the same intended function, and a
+    argument: nothing is inferred FROM digests matching, so no collision assumption
+    is involved. Two computations of one intended function are compared, and a
     mismatch localises a defect in the new code. -/
 def keccakIncrementalSelftestFunction : String :=
   "  .globl keccak_incremental_selftest\n" ++
   "keccak_incremental_selftest:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++      -- ptr, len, scratch, ctx
-  -- One-shot digest into scratch+0.
-  "  mv a0, s0; mv a1, s1; mv a2, s2\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  -- Incremental digest into scratch+32, in three uneven chunks.
-  "  mv a0, s3; jal ra, keccak_init\n" ++
-  "  li t0, 3; divu s4, s1, t0\n" ++                       -- s4 = len/3
-  "  mv a0, s3; mv a1, s0; mv a2, s4; jal ra, keccak_absorb\n" ++
-  "  add t0, s0, s4\n" ++
-  "  mv a0, s3; mv a1, t0; mv a2, s4; jal ra, keccak_absorb\n" ++
-  "  slli t0, s4, 1; add t1, s0, t0\n" ++                  -- tail pointer
-  "  slli t0, s4, 1; sub t2, s1, t0\n" ++                  -- tail length = len - 2*(len/3)
-  "  mv a0, s3; mv a1, t1; mv a2, t2; jal ra, keccak_absorb\n" ++
-  "  mv a0, s3; addi a1, s2, 32; jal ra, keccak_final\n" ++
-  -- Compare the two 32-byte digests.
-  "  li t3, 4\n" ++
-  "  mv t4, s2; addi t5, s2, 32\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++          -- src, scratch, ctx
+  keccakSelftestFillAsm ++
+  "  li s3, 0\n" ++                                 -- s3 = length index
+  ".Lkcs_len_loop:\n" ++
+  s!"  li t0, {keccakSelftestLengths.length}; bgeu s3, t0, .Lkcs_pass\n" ++
+  "  la t0, kcs_lengths; slli t1, s3, 3; add t0, t0, t1; ld s4, 0(t0)\n" ++   -- s4 = len
+  -- Oracle: the one-shot over the same bytes, digest into scratch+0.
+  "  mv a0, s0; mv a1, s4; mv a2, s1; jal ra, zkvm_keccak256\n" ++
+  "  li s5, 0\n" ++                                 -- s5 = shape index
+  ".Lkcs_shape_loop:\n" ++
+  s!"  li t0, {keccakSelftestPrefixes.length}; bgeu s5, t0, .Lkcs_len_next\n" ++
+  "  la t0, kcs_prefixes; slli t1, s5, 3; add t0, t0, t1; ld s6, 0(t0)\n" ++  -- s6 = prefix
+  -- Clamp the prefix to the length; prefix 0 means one chunk of the whole length.
+  "  bgeu s4, s6, .Lkcs_prefix_ok\n  mv s6, s4\n" ++
+  ".Lkcs_prefix_ok:\n" ++
+  "  mv a0, s2; jal ra, keccak_init\n" ++
+  "  beqz s6, .Lkcs_single\n" ++
+  -- Two chunks: [0, prefix) then [prefix, len).
+  "  mv a0, s2; mv a1, s0; mv a2, s6; jal ra, keccak_absorb\n" ++
+  "  add s7, s0, s6; sub s8, s4, s6\n" ++
+  "  mv a0, s2; mv a1, s7; mv a2, s8; jal ra, keccak_absorb\n" ++
+  "  j .Lkcs_finish\n" ++
+  ".Lkcs_single:\n" ++
+  "  mv a0, s2; mv a1, s0; mv a2, s4; jal ra, keccak_absorb\n" ++
+  ".Lkcs_finish:\n" ++
+  "  mv a0, s2; addi a1, s1, 32; jal ra, keccak_final\n" ++
+  -- Compare the two digests.
+  "  li t3, 4; mv t4, s1; addi t5, s1, 32\n" ++
   ".Lkcs_cmp:\n" ++
   "  ld t0, 0(t4); ld t1, 0(t5); bne t0, t1, .Lkcs_differ\n" ++
   "  addi t4, t4, 8; addi t5, t5, 8; addi t3, t3, -1; bnez t3, .Lkcs_cmp\n" ++
-  "  li a0, 0; j .Lkcs_ret\n" ++
+  "  addi s5, s5, 1; j .Lkcs_shape_loop\n" ++
+  ".Lkcs_len_next:\n" ++
+  "  addi s3, s3, 1; j .Lkcs_len_loop\n" ++
   ".Lkcs_differ:\n" ++
-  "  li a0, 1\n" ++
+  -- Localise: 1 + lengthIndex*4 + shapeIndex.
+  "  slli t0, s3, 2; add t0, t0, s5; addi a0, t0, 1; j .Lkcs_ret\n" ++
+  ".Lkcs_pass:\n" ++
+  "  li a0, 0\n" ++
   ".Lkcs_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret\n"
 
 /-- All three entry points, in emission order. -/
@@ -240,11 +318,60 @@ def keccakIncrementalFunctions : String :=
 #guard (keccakIncrementalFunctions.splitOn "keccak_final:").length == 2
 #guard (keccakIncrementalFunctions.splitOn "keccak_incremental_selftest:").length == 2
 
--- The self-test must split into THREE absorb calls. One call would exercise the
--- same path as the one-shot and agree vacuously.
-#guard (keccakIncrementalSelftestFunction.splitOn "jal ra, keccak_absorb").length == 4
--- ...and it must actually call the one-shot as the oracle.
+-- CONTRACT GUARDS on the matrix. These pin the cases the self-test claims to
+-- cover, so a later edit cannot quietly shrink the matrix while the routine still
+-- returns 0 -- which would look exactly like passing.
+--
+-- Axis 1, length mod the rate. 135 is the case that broke a hand-rolled keccak
+-- earlier in this session: the 0x01 pad lands on the last byte and collides with
+-- the 0x80. Three single-block vectors had passed.
+#guard 135 ∈ keccakSelftestLengths
+#guard 134 ∈ keccakSelftestLengths
+#guard 136 ∈ keccakSelftestLengths
+#guard 0 ∈ keccakSelftestLengths
+#guard 1 ∈ keccakSelftestLengths
+-- Both sides of TWO rate boundaries, so a carry that survives one block but not
+-- two cannot hide.
+#guard 272 ∈ keccakSelftestLengths
+#guard 273 ∈ keccakSelftestLengths
+-- The residues actually reached.
+#guard (keccakSelftestLengths.map (· % keccakRateBytes)).eraseDups.length == 4
+
+-- Axis 2, split points. NONE of the nonzero prefixes may be rate-aligned, or the
+-- first chunk would end on a block boundary and the partial-block carry -- the one
+-- piece of state the one-shot does not keep -- would never be exercised.
+#guard keccakSelftestPrefixes.all (fun p => p == 0 || p % keccakRateBytes != 0)
+-- A single-chunk shape must be present (index 0) AND must not be the only one: it
+-- takes the one-shot's own path and agrees vacuously.
+#guard keccakSelftestPrefixes.head? == some 0
+#guard keccakSelftestPrefixes.length >= 3
+
+-- The oracle must be the existing one-shot, not a second incremental computation.
 #guard (keccakIncrementalSelftestFunction.splitOn "jal ra, zkvm_keccak256").length == 2
+-- Both the two-chunk and single-chunk paths must absorb.
+#guard (keccakIncrementalSelftestFunction.splitOn "jal ra, keccak_absorb").length == 4
+-- The failure return must LOCALISE rather than be a boolean.
+#guard (keccakIncrementalSelftestFunction.splitOn "slli t0, s3, 2").length == 2
+
+-- The emitted tables must be present and must have one .dword per list entry.
+-- NOT matched by value: `.dword 135` occurs in BOTH tables (135 is a length AND a
+-- prefix), so a value guard on it counts two hits and fails against correct code --
+-- the same substring collision that bit the account_writes data-section guard. The
+-- values are already pinned above against the Lean lists, which is the right place.
+#guard (keccakIncrementalDataSection.splitOn "kcs_lengths:").length == 2
+#guard (keccakIncrementalDataSection.splitOn "kcs_prefixes:").length == 2
+-- The section switch MUST be balanced. Dropping the restore would move every
+-- later symbol from .bss into .data, which does not fail to assemble -- it just
+-- makes zero-initialised arenas occupy image bytes.
+-- The tables must be ZERO-INITIALISED (.bss), not .dword literals: initialised
+-- data grows `.data` and shifts address-pinned proofs in unrelated modules.
+#guard (keccakIncrementalDataSection.splitOn ".dword").length == 1
+#guard (keccakIncrementalDataSection.splitOn ".zero").length == 3
+-- ...so the fill must store every entry, or a table row silently stays 0 and the
+-- matrix tests length 0 several times instead of the case it claims.
+#guard (keccakSelftestFillAsm.splitOn "sd t1,").length
+         == keccakSelftestLengths.length + keccakSelftestPrefixes.length + 1
+
 
 -- `init` must clear 26 dwords: 25 state + the fill counter. Clearing 25 would
 -- leave a stale fill offset, so a reused context would resume mid-block and
