@@ -70,6 +70,9 @@ import EvmAsm.Rv64.SailEquiv.VmemConstruction
 import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs
 import EvmAsm.Rv64.SailEquiv.StepProofs
+-- RunInv/StepRun: fetch-side `nextPC` default + run-level simulation invariant.
+import EvmAsm.Rv64.SailEquiv.RunInv
+import EvmAsm.Rv64.SailEquiv.StepRun
 import EvmAsm.Rv64.SailEquiv.MemReduce
 import EvmAsm.Rv64.SailEquiv.MemMonad
 -- SAsm: structured-assembly DSL (docs/sasm-design.md).

@@ -274,4 +274,128 @@ structure StateRelPC (sRv : MachineState) (sSail : SailState) : Prop extends
   /-- The committed program counter agrees. -/
   pc_agree : sSail.regs.get? Register.PC = some sRv.pc
 
+-- ============================================================================
+-- Byte-presence predicates
+-- ============================================================================
+
+/-- **Byte-presence over a half-open address range.** Every byte address `a` with
+    `lo ≤ a < hi` has an entry in the SAIL byte memory `mem`.  This is the shape
+    of the run-level memory invariant: SAIL loads fail (`.error`) on absent bytes,
+    so establishing this over the guest's mapped region is what lets a load lemma
+    supply its `hm0 … hm7` byte hypotheses. -/
+def MemPresent (lo hi : Nat) (mem : Std.ExtHashMap Nat (BitVec 8)) : Prop :=
+  ∀ a : Nat, lo ≤ a → a < hi → (mem.get? a).isSome
+
+/-- **Byte-presence for a single `w`-wide access at `a`.** The `w` bytes
+    `a, a+1, …, a+w-1` all have entries in `mem`.  This is the per-access form
+    consumed by the `vmem_read`/`vmem_write` reduction lemmas. -/
+def BytesPresent (mem : Std.ExtHashMap Nat (BitVec 8)) (a w : Nat) : Prop :=
+  ∀ k : Nat, k < w → (mem.get? (a + k)).isSome
+
+/-- A range-level presence fact specialises to an access-level one whenever the
+    access `[a, a+w)` sits inside the range `[lo, hi)`. -/
+theorem MemPresent.bytesPresent {lo hi a w : Nat} {mem : Std.ExtHashMap Nat (BitVec 8)}
+    (h : MemPresent lo hi mem) (hlo : lo ≤ a) (hhi : a + w ≤ hi) : BytesPresent mem a w :=
+  fun k hk => h (a + k) (by omega) (by omega)
+
+/-- Byte-presence is monotone under insertion: adding a byte never removes one. -/
+theorem MemPresent.insert {lo hi : Nat} {mem : Std.ExtHashMap Nat (BitVec 8)}
+    (h : MemPresent lo hi mem) (k : Nat) (v : BitVec 8) :
+    MemPresent lo hi (mem.insert k v) := by
+  intro a hlo hhi
+  by_cases hk : k = a
+  · subst hk; simp
+  · simpa [Std.ExtHashMap.getElem?_insert, hk] using h a hlo hhi
+
+-- ============================================================================
+-- Platform frame: what a user-mode instruction step leaves untouched
+-- ============================================================================
+
+/-- **Platform frame between two SAIL states.** Records that `s'` agrees with `s`
+    on every platform-configuration register that the address-translation /
+    access-check pipeline consults (privilege, `mstatus`, `mseccfg`, the PMP
+    config and address arrays, the PMA region table, `misa`, and the HTIF base),
+    and that the byte memory only ever *grew*.
+
+    This is the piece that per-instruction equivalence lemmas must **export**:
+    their post-state lives behind an `∃ sSail'`, so without an explicit frame
+    conjunct no downstream client can re-establish `BareModeInv` or `MemPresent`
+    at the post-state.  With it, both transport mechanically. -/
+structure PlatformFrame (s s' : SailState) : Prop where
+  /-- Current privilege level is unchanged. -/
+  priv_eq    : s'.regs.get? Register.cur_privilege = s.regs.get? Register.cur_privilege
+  /-- `mstatus` (hence `MPRV`) is unchanged. -/
+  mstatus_eq : s'.regs.get? Register.mstatus       = s.regs.get? Register.mstatus
+  /-- `mseccfg` (hence the pointer-masking mode `PMM`) is unchanged. -/
+  mseccfg_eq : s'.regs.get? Register.mseccfg       = s.regs.get? Register.mseccfg
+  /-- The PMP configuration array is unchanged. -/
+  pmpcfg_eq  : s'.regs.get? Register.pmpcfg_n      = s.regs.get? Register.pmpcfg_n
+  /-- The PMP address array is unchanged. -/
+  pmpaddr_eq : s'.regs.get? Register.pmpaddr_n     = s.regs.get? Register.pmpaddr_n
+  /-- The PMA region table is unchanged. -/
+  pma_eq     : s'.regs.get? Register.pma_regions   = s.regs.get? Register.pma_regions
+  /-- `misa` (the ISA-extension mask) is unchanged. -/
+  misa_eq    : s'.regs.get? Register.misa          = s.regs.get? Register.misa
+  /-- The HTIF `tohost` base address is unchanged. -/
+  htif_eq    : s'.regs.get? Register.htif_tohost_base = s.regs.get? Register.htif_tohost_base
+  /-- Byte memory only grows: any address present before is still present after. -/
+  mem_mono   : ∀ n : Nat, (s.mem.get? n).isSome → (s'.mem.get? n).isSome
+
+/-- The platform frame is reflexive. -/
+theorem PlatformFrame.refl (s : SailState) : PlatformFrame s s :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ h => h⟩
+
+/-- The platform frame is transitive, so multi-step frames compose. -/
+theorem PlatformFrame.trans {s₁ s₂ s₃ : SailState}
+    (h₁ : PlatformFrame s₁ s₂) (h₂ : PlatformFrame s₂ s₃) : PlatformFrame s₁ s₃ :=
+  ⟨h₂.priv_eq.trans h₁.priv_eq,
+   h₂.mstatus_eq.trans h₁.mstatus_eq,
+   h₂.mseccfg_eq.trans h₁.mseccfg_eq,
+   h₂.pmpcfg_eq.trans h₁.pmpcfg_eq,
+   h₂.pmpaddr_eq.trans h₁.pmpaddr_eq,
+   h₂.pma_eq.trans h₁.pma_eq,
+   h₂.misa_eq.trans h₁.misa_eq,
+   h₂.htif_eq.trans h₁.htif_eq,
+   fun n hn => h₂.mem_mono n (h₁.mem_mono n hn)⟩
+
+/-- Writing an integer register preserves the platform frame: every `xN` key is
+    distinct from every platform register, and `x0` writes are the identity. -/
+theorem platformFrame_sailStateWithReg (s : SailState) (rd : Reg) (v : BitVec 64) :
+    PlatformFrame s (sailStateWithReg s rd v) := by
+  constructor <;>
+    (first
+      | (intro n hn; cases rd <;> simpa [sailStateWithReg] using hn)
+      | (cases rd <;> simp [sailStateWithReg, Std.ExtDHashMap.get?_insert]))
+
+/-- Committing `PC` preserves the platform frame. -/
+theorem platformFrame_insert_PC (s : SailState) (v : BitVec 64) :
+    PlatformFrame s { s with regs := s.regs.insert Register.PC v } := by
+  constructor <;>
+    (first
+      | (intro n hn; simpa using hn)
+      | simp [Std.ExtDHashMap.get?_insert])
+
+/-- Writing `nextPC` preserves the platform frame. -/
+theorem platformFrame_insert_nextPC (s : SailState) (v : BitVec 64) :
+    PlatformFrame s { s with regs := s.regs.insert Register.nextPC v } := by
+  constructor <;>
+    (first
+      | (intro n hn; simpa using hn)
+      | simp [Std.ExtDHashMap.get?_insert])
+
+/-- Writing a memory byte preserves the platform frame: no register moves, and
+    memory only grows. -/
+theorem platformFrame_insert_mem (s : SailState) (k : Nat) (v : BitVec 8) :
+    PlatformFrame s { s with mem := s.mem.insert k v } := by
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩
+  intro n hn
+  by_cases hk : k = n
+  · subst hk; simp
+  · simpa [Std.ExtHashMap.getElem?_insert, hk] using hn
+
+/-- Range byte-presence transports along a platform frame (memory only grows). -/
+theorem MemPresent.of_frame {lo hi : Nat} {s s' : SailState}
+    (fr : PlatformFrame s s') (h : MemPresent lo hi s.mem) : MemPresent lo hi s'.mem :=
+  fun a hlo hhi => fr.mem_mono a (h a hlo hhi)
+
 end EvmAsm.Rv64.SailEquiv

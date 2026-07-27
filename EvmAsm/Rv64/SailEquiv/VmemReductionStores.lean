@@ -32,6 +32,28 @@ open PreSail
 namespace EvmAsm.Rv64.SailEquiv
 
 -- ============================================================================
+-- Platform frame for the store post-states
+-- ============================================================================
+
+/-- Byte presence is monotone under a single insert.  Used to walk a store's
+    literal insert chain when discharging the exported `PlatformFrame`. -/
+theorem isSome_insert_mono {mem : Std.ExtHashMap Nat (BitVec 8)} (k : Nat) (v : BitVec 8)
+    (n : Nat) (h : (mem.get? n).isSome) : ((mem.insert k v).get? n).isSome := by
+  by_cases hk : k = n
+  · subst hk; simp
+  · simpa [Std.ExtHashMap.getElem?_insert, hk] using h
+
+/-- **Memory-only platform frame.** A state that differs only in its byte memory
+    leaves every platform register fixed, so the frame reduces to memory
+    monotonicity.  This is the store-side counterpart of
+    `platformFrame_sailStateWithReg`; the four store lemmas below discharge
+    `hmono` by walking their insert chain with `isSome_insert_mono`. -/
+theorem platformFrame_withMem (s : SailState) (m : Std.ExtHashMap Nat (BitVec 8))
+    (hmono : ∀ n : Nat, (s.mem.get? n).isSome → (m.get? n).isSome) :
+    PlatformFrame s { s with mem := m } :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hmono⟩
+
+-- ============================================================================
 -- getD over the write chain (per width)
 -- ============================================================================
 
@@ -154,7 +176,8 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 8) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SD rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs1 : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -182,7 +205,7 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvw := vmem_write_store_N 8 (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1)
     sSail sSail' v bm h_rs1 (by simpa using hvwa)
   have halign8 : addr.toNat % 8 = 0 := is_aligned_vaddr_toNat addr 8 h_valign
-  refine ⟨sSail', ?_, ?_, ?_⟩
+  refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_STORE
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
@@ -221,6 +244,12 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
         rw [hrw, ← hrel.mem_agree a' ha']
         exact reconstructDword_writeChain8_disjoint sSail.mem addr.toNat a'.toNat v hdis
   · simp [hs'_def]
+  · -- exported platform frame: only memory moved, and it only grew
+    rw [hs'_def]
+    refine platformFrame_withMem sSail _ ?_
+    intro n hn
+    iterate 8 apply isSome_insert_mono
+    exact hn
 
 -- ============================================================================
 -- Width-4 chain (SW): getD, read-modify-write bridge, disjointness
@@ -338,7 +367,8 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 4) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SW rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs1 : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -368,7 +398,7 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
     alignToDword_offset_eq addr 4 (Or.inr (Or.inr rfl)) halign4
   have hposlt : byteOffset addr / 4 < 2 := by
     have := byteOffset_lt_8 (addr := addr); omega
-  refine ⟨sSail', ?_, ?_, ?_⟩
+  refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_STORE
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
@@ -415,6 +445,12 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
         rw [hrw, ← hrel.mem_agree a' ha']
         exact reconstructDword_writeChain4_disjoint sSail.mem addr.toNat a'.toNat v hdis
   · simp [hs'_def]
+  · -- exported platform frame: only memory moved, and it only grew
+    rw [hs'_def]
+    refine platformFrame_withMem sSail _ ?_
+    intro n hn
+    iterate 4 apply isSome_insert_mono
+    exact hn
 
 -- ============================================================================
 -- Width-2 chain (SH)
@@ -584,7 +620,8 @@ theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 2) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SH rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs1 : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -612,7 +649,7 @@ theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
     alignToDword_offset_eq addr 2 (Or.inr (Or.inl rfl)) halign2
   have hposlt : byteOffset addr / 2 < 4 := by
     have := byteOffset_lt_8 (addr := addr); omega
-  refine ⟨sSail', ?_, ?_, ?_⟩
+  refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · unfold execute_STORE
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (sRv.getReg rs2, sSail) from by
@@ -654,6 +691,12 @@ theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
         rw [hrw, ← hrel.mem_agree a' ha']
         exact reconstructDword_writeChain2_disjoint sSail.mem addr.toNat a'.toNat v hdis
   · simp [hs'_def]
+  · -- exported platform frame: only memory moved, and it only grew
+    rw [hs'_def]
+    refine platformFrame_withMem sSail _ ?_
+    intro n hn
+    iterate 2 apply isSome_insert_mono
+    exact hn
 
 /-- **`sb_sail_equiv` discharged — unconditional byte-store equivalence.** The byte
     position inside the containing dword is `byteOffset addr` directly (no rounding). -/
@@ -678,7 +721,8 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_STORE offset (regToRegidx rs2) (regToRegidx rs1) 1) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.SB rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs1 : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -702,7 +746,7 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hdecomp : (alignToDword addr).toNat + byteOffset addr * 1 = addr.toNat := by
     have := alignToDword_add_byteOffset_toNat addr; omega
   have hposlt : byteOffset addr < 8 := byteOffset_lt_8
-  refine ⟨sSail', ?_, ?_, ?_⟩
+  refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · unfold execute_STORE
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (sRv.getReg rs2, sSail) from by
@@ -744,5 +788,11 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
         rw [hrw, ← hrel.mem_agree a' ha']
         exact reconstructDword_writeChain1_disjoint sSail.mem addr.toNat a'.toNat v hdis
   · simp [hs'_def]
+  · -- exported platform frame: only memory moved, and it only grew
+    rw [hs'_def]
+    refine platformFrame_withMem sSail _ ?_
+    intro n hn
+    apply isSome_insert_mono
+    exact hn
 
 end EvmAsm.Rv64.SailEquiv

@@ -12,13 +12,23 @@
   PC agreement (`h_pc`), `nextPC = pc + 4` at entry (`h_nextpc`), a populated
   `misa` (`h_misa`), and 4-alignment of the target (`h_align`). Before commit
   2cea90371 the relation ignored PC/nextPC entirely and these proofs were
-  vacuous on control flow; that caveat no longer applies.
+  vacuous on control flow; that caveat no longer applies — **except for JALR,
+  see below**.
 
   JAL/JALR additionally write the link register (rd := pc + 4). JALR first
   runs `update_elp_state` (Zicfilp forward-CFI landing-pad bookkeeping),
   which touches CSR state outside `StateRel` — that is why `jalr_sail_equiv`
   carries a bundled `h_elp` hypothesis: a witness mid-state in which
   `update_elp_state` has succeeded and the entry facts still hold.
+
+  **`jalr_sail_equiv` is currently vacuous (#10688).** The extracted
+  `currentlyEnabled` has no `Ext_Zicsr` arm and errors on that query; the
+  `Ext_Zicfilp` gate reaches it first, so `update_elp_state` faults in *every*
+  state. The `h_elp` premise above is therefore unsatisfiable and no caller can
+  discharge it — `update_elp_state_error` in `RunInv.lean` is the kernel-checked
+  proof. The theorem is correctly proved but establishes nothing about JALR
+  until the vendored model is regenerated with that arm. The other seven
+  theorems in this file are unaffected.
 
   Committing the target into SAIL's `PC` (via `tick_pc`) is `StepProofs.lean`'s
   job; this file stays at the `execute_*` boundary, where only `nextPC` is
@@ -91,7 +101,8 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BEQ) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BEQ rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BEQ rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BEQ rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
@@ -101,12 +112,14 @@ theorem beq_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -120,7 +133,8 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BNE) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BNE rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BNE rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BNE rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure]
@@ -130,12 +144,14 @@ theorem bne_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -149,7 +165,8 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLT) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BLT rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BLT rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BLT rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, slt_equiv]
@@ -159,12 +176,14 @@ theorem blt_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -178,7 +197,8 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGE) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BGE rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BGE rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BGE rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
@@ -188,7 +208,8 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [h, Bool.not_true]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, show ¬¬BitVec.slt _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, MachineState.setPC, h_nextpc,
       show ¬¬BitVec.slt (sRv.getReg rs1) (sRv.getReg rs2) from fun h' => absurd h h']
   · -- slt = false, so !slt = true → taken
@@ -198,7 +219,8 @@ theorem bge_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -212,7 +234,8 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BLTU) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BLTU rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BLTU rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BLTU rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure, ult_equiv]
@@ -222,12 +245,14 @@ theorem bltu_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
   · simp only [h]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, h, MachineState.setPC, h_nextpc]
 
 theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
@@ -241,7 +266,8 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_BTYPE offset (regToRegidx rs2) (regToRegidx rs1) bop.BGEU) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.BGEU rs1 rs2 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BGEU rs1 rs2 offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.BGEU rs1 rs2 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_BTYPE
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
@@ -251,7 +277,8 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
     simp only [h, Bool.not_true]
     refine ⟨_, rfl,
       ⟨fun r => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_⟩
+       fun a ha => by simp [execInstrBr, show ¬¬BitVec.ult _ _ from fun h' => absurd h h']; exact hrel.mem_agree a ha⟩, ?_,
+      PlatformFrame.refl _⟩
     simp [execInstrBr, MachineState.setPC, h_nextpc,
       show ¬¬BitVec.ult (sRv.getReg rs1) (sRv.getReg rs2) from fun h' => absurd h h']
   · -- ult = false, so !ult = true → taken
@@ -261,7 +288,8 @@ theorem bgeu_sail_equiv (sRv : MachineState) (sSail : SailState)
     rw [runSail_jump_to misa_val h_align h_misa]
     refine ⟨_, rfl, stateRel_nextPC
       ⟨fun r => by simp [execInstrBr, h]; exact hrel.reg_agree r,
-       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_⟩
+       fun a ha => by simp [execInstrBr, h]; exact hrel.mem_agree a ha⟩ _, ?_,
+      platformFrame_insert_nextPC _ _⟩
     simp [execInstrBr, h, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
 
 -- ============================================================================
@@ -283,7 +311,8 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_JAL offset (regToRegidx rd)) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.JAL rd offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.JAL rd offset)).pc := by
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.JAL rd offset)).pc ∧
+      PlatformFrame sSail sSail' := by
   obtain ⟨misa_val, h_misa⟩ := h_misa
   unfold execute_JAL
   simp only [runSail_bind,
@@ -293,7 +322,7 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
   rw [runSail_jump_to misa_val h_align h_misa]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
   simp only [runSail_wX_bits_of_reg]
-  refine ⟨_, rfl, ⟨?_, ?_⟩, ?_⟩
+  refine ⟨_, rfl, ⟨?_, ?_⟩, ?_, ?_⟩
   · intro r
     simpa [execInstrBr, MachineState.setPC]
       using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) rd _ r
@@ -301,6 +330,7 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
       using hrel.mem_agree a ha
   · simp [execInstrBr, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
+  · exact (platformFrame_insert_nextPC _ _).trans (platformFrame_sailStateWithReg _ _ _)
 
 private theorem sign_extend_12_eq (imm : BitVec 12) :
     sign_extend (m := 64) imm = signExtend12 imm := by
@@ -325,14 +355,16 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
       StateRel sRv s_mid ∧
       s_mid.regs.get? Register.PC = some sRv.pc ∧
       s_mid.regs.get? Register.nextPC = some (sRv.pc + 4) ∧
-      (∃ v, s_mid.regs.get? Register.misa = some v))
+      (∃ v, s_mid.regs.get? Register.misa = some v) ∧
+      PlatformFrame sSail s_mid)
     (h_align : ((sRv.getReg rs1 + signExtend12 offset) &&& ~~~1#64) &&& 3 = 0) :
     ∃ sSail',
       runSail (execute_JALR offset (regToRegidx rs1) (regToRegidx rd)) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.JALR rd rs1 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.JALR rd rs1 offset)).pc := by
-  obtain ⟨s_mid, h_elp_ok, hrel_mid, h_pc_mid, h_nextpc_mid, h_misa_mid⟩ := h_elp
+      sSail'.regs.get? Register.nextPC = some (execInstrBr sRv (.JALR rd rs1 offset)).pc ∧
+      PlatformFrame sSail sSail' := by
+  obtain ⟨s_mid, h_elp_ok, hrel_mid, h_pc_mid, h_nextpc_mid, h_misa_mid, h_frame_mid⟩ := h_elp
   obtain ⟨misa_val, h_misa_mid⟩ := h_misa_mid
   unfold execute_JALR
   rw [runSail_ok_bind _ sSail s_mid _ h_elp_ok]
@@ -346,7 +378,7 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   rw [runSail_jump_to misa_val h_align h_misa_mid]
   simp only [RETIRE_SUCCESS, runSail_bind, runSail_pure]
   simp only [runSail_wX_bits_of_reg]
-  refine ⟨_, rfl, ⟨?_, ?_⟩, ?_⟩
+  refine ⟨_, rfl, ⟨?_, ?_⟩, ?_, ?_⟩
   · intro r
     simpa [execInstrBr, MachineState.setPC]
       using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) rd _ r
@@ -354,5 +386,7 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
       using hrel_mid.mem_agree a ha
   · simp [execInstrBr, MachineState.setPC, Std.ExtDHashMap.get?_insert_self]
+  · exact h_frame_mid.trans
+      ((platformFrame_insert_nextPC _ _).trans (platformFrame_sailStateWithReg _ _ _))
 
 end EvmAsm.Rv64.SailEquiv
