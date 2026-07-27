@@ -85,6 +85,9 @@ def blockAccessListBuilderDataSection : String :=
   ".balign 8\n" ++
   "bal_builder_current_bai:\n  .zero 8\n" ++
   "bal_builder_account_count:\n  .zero 8\n" ++
+  "besc_addr_be:\n  .zero 32\n" ++
+  "besc_slot_be:\n  .zero 32\n" ++
+  "besc_base_le:\n  .zero 32\n" ++
   "bal_builder_storage_change_count:\n  .zero 8\n" ++
   "bal_builder_balance_count:\n  .zero 8\n" ++
   "bal_builder_nonce_count:\n  .zero 8\n" ++
@@ -299,9 +302,160 @@ def balBuilderAppendCodeFunction : String :=
   ".Lbabcod_ret:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 48; ret\n"
 
+/-! ## `bal_emit_storage_changes`
+
+    Emits this transaction's storage CHANGES into the builder, applying the spec's
+    net-zero exclusion (`block_access_lists.py:667-676`).
+
+    ## Where the baseline comes from — no capture and no carry
+
+    The spec compares each write against
+    `_get_pre_tx_storage(block_state.storage_writes, pre_state, ...)`: the block
+    container if the slot is present, else pre-state. Both halves are readable AT THE
+    MOMENT OF USE:
+
+    * **Container hit** — the block-level scan already distinguishes found from
+      not-found, so the discriminator comes from the scan and nothing needs storing.
+      This must run BEFORE the tx→block merge, which is why it is called from the top
+      of `write_sets_incorporate_tx`: the spec does the same, and says so
+      (`state_tracker.py`: "Update BAL builder before merging writes into block
+      state").
+    * **Container miss** — `slot_at_header_state_root` against the PARENT header.
+
+    The four arguments that read needs come from **globals `block_verdict` already
+    publishes** at its own top, before this runs:
+
+    | global | source | meaning |
+    |---|---|---|
+    | `sv_pre_rlp_ptr` | `params+8` | PARENT header rlp ptr |
+    | `sv_pre_rlp_len` | `params+16` | PARENT header rlp len |
+    | `bv_witness_state_ptr` | `params+80` | witness section ptr |
+    | `bv_witness_state_len` | `params+88` | witness section len |
+
+    That is the property that makes this design immune to what defeated four earlier
+    attempts at the same value: nothing is carried, nothing's validity depends on which
+    path arrived, and the reads are identical on every path by construction.
+
+    **`sv_pre_rlp_*`, never `sv_this_rlp`** — the latter is this block's POST-state
+    header and would silently return a post-state baseline.
+
+    State and storage are passed as ONE section twice, matching the working SSTORE-side
+    caller: this guest has a single witness section, not separate state and storage.
+
+    ## ABSENT IS NOT ZERO
+
+    A container miss does NOT mean the baseline is zero. `_get_pre_tx_storage` falls
+    back to pre-state, which can be nonzero, and its "Returns `0` if not set" is about
+    PRE-STATE being unset rather than about the container. Treating a miss as zero
+    emits a spurious entry for every first-write-in-block to a nonzero slot — a
+    well-formed BAL with the wrong entry count and therefore the wrong hash.
+
+    ## Encodings
+
+    Tx rows hold EVM stack words (little-endian limbs); `slot_at_header_state_root`
+    wants a 20-byte BE address and a 32-byte BE slot, and the builder row wants BE20 +
+    BE32 to match `balSortBuilderStorageSegments`. So the address and slot are reversed
+    into scratch before either call — the same conversion the SSTORE path already does
+    for its own lookup (`.Lsstore_prestate_addr_rev` / `.Lsstore_prestate_key_rev`).
+    The VALUE needs no conversion: container, tx row and builder row all hold LE limbs,
+    and the RLP scalar encoder consumes that form.
+
+    a0 = block_access_index for this transaction.
+
+    INERT: nothing calls this yet. -/
+def balEmitStorageChangesFunction : String :=
+  "bal_emit_storage_changes:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  sd s7, 64(sp); sd s8, 72(sp); sd a0, 80(sp)\n" ++          -- 80(sp) = BAI
+  "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx row count
+  "  li s2, 0xa21a0000\n" ++                                    -- s2 = tx rows
+  "  li s3, 0\n" ++                                             -- s3 = i
+  ".Lbesc_loop:\n" ++
+  "  bgeu s3, s1, .Lbesc_done\n" ++
+  "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &txrow[i]
+  -- ---- baseline: scan the BLOCK container for (addr, slot) ----
+  "  la t0, storage_writes_count; ld t1, 0(t0)\n" ++
+  "  li t3, 0xa1fa0000; li t4, 0\n" ++
+  "  li s5, 0\n" ++                                             -- s5 = &baseline or 0
+  ".Lbesc_scan:\n" ++
+  "  bgeu t4, t1, .Lbesc_miss\n" ++
+  "  slli t2, t4, 7; add t5, t3, t2\n" ++
+  "  ld t2, 0(t5);  ld t6, 0(s4);  bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 8(t5);  ld t6, 8(s4);  bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 16(t5); ld t6, 16(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 24(t5); ld t6, 24(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 32(t5); ld t6, 32(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 40(t5); ld t6, 40(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 48(t5); ld t6, 48(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  ld t2, 56(t5); ld t6, 56(s4); bne t2, t6, .Lbesc_next\n" ++
+  "  addi s5, t5, 64; j .Lbesc_have\n" ++                        -- HIT: container value
+  ".Lbesc_next:\n" ++
+  "  addi t4, t4, 1; j .Lbesc_scan\n" ++
+  ".Lbesc_miss:\n" ++
+  -- Reverse address (20 B) and slot (32 B) into scratch for the BE-keyed reader.
+  "  la t0, besc_addr_be; li t1, 20; addi t2, s4, 19\n" ++
+  ".Lbesc_arev:\n" ++
+  "  beqz t1, .Lbesc_arev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_arev\n" ++
+  ".Lbesc_arev_done:\n" ++
+  "  la t0, besc_slot_be; li t1, 32; addi t2, s4, 63\n" ++
+  ".Lbesc_srev:\n" ++
+  "  beqz t1, .Lbesc_srev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_srev\n" ++
+  ".Lbesc_srev_done:\n" ++
+  -- ABSENT IS NOT ZERO: read pre-state via the PARENT header, from the globals
+  -- block_verdict publishes. sv_pre_rlp_*, never sv_this_rlp (post-state).
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
+  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, besc_addr_be; la a3, besc_slot_be\n" ++
+  "  la t0, bv_witness_state_ptr; ld a4, 0(t0); ld a6, 0(t0)\n" ++
+  "  la t0, bv_witness_state_len; ld a5, 0(t0); ld a7, 0(t0)\n" ++
+  "  jal ra, slot_at_header_state_root\n" ++
+  "  bnez a0, .Lbesc_zero_base\n" ++                             -- no proof => treat as 0
+  -- sahsr_u256 is canonical BE; reverse to LE limbs so it compares against the row.
+  "  la t0, besc_base_le; li t1, 32; la t2, sahsr_u256; addi t2, t2, 31\n" ++
+  ".Lbesc_brev:\n" ++
+  "  beqz t1, .Lbesc_brev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_brev\n" ++
+  ".Lbesc_brev_done:\n" ++
+  "  la s5, besc_base_le; j .Lbesc_have\n" ++
+  ".Lbesc_zero_base:\n" ++
+  "  la t0, besc_base_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la s5, besc_base_le\n" ++
+  ".Lbesc_have:\n" ++
+  -- ---- net-zero exclusion: emit only when baseline != post ----
+  "  addi s6, s4, 64\n" ++                                       -- s6 = &post
+  "  ld t2, 0(s5);  ld t6, 0(s6);  bne t2, t6, .Lbesc_emit\n" ++
+  "  ld t2, 8(s5);  ld t6, 8(s6);  bne t2, t6, .Lbesc_emit\n" ++
+  "  ld t2, 16(s5); ld t6, 16(s6); bne t2, t6, .Lbesc_emit\n" ++
+  "  ld t2, 24(s5); ld t6, 24(s6); bne t2, t6, .Lbesc_emit\n" ++
+  "  j .Lbesc_advance\n" ++                                      -- net-zero: emit nothing
+  ".Lbesc_emit:\n" ++
+  -- The builder row wants BE20 address and BE32 slot, matching
+  -- balSortBuilderStorageSegments. Reverse again on this path -- the miss path may not
+  -- have run.
+  "  la t0, besc_addr_be; li t1, 20; addi t2, s4, 19\n" ++
+  ".Lbesc_arev2:\n" ++
+  "  beqz t1, .Lbesc_arev2_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_arev2\n" ++
+  ".Lbesc_arev2_done:\n" ++
+  "  la t0, besc_slot_be; li t1, 32; addi t2, s4, 63\n" ++
+  ".Lbesc_srev2:\n" ++
+  "  beqz t1, .Lbesc_srev2_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_srev2\n" ++
+  ".Lbesc_srev2_done:\n" ++
+  "  la a0, besc_addr_be; ld a1, 80(sp); la a2, besc_slot_be; addi a3, s4, 64\n" ++
+  "  jal ra, bal_builder_record_storage_change\n" ++
+  ".Lbesc_advance:\n" ++
+  "  addi s3, s3, 1; j .Lbesc_loop\n" ++
+  ".Lbesc_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
+  balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
@@ -340,6 +494,36 @@ def blockAccessListBuilderFunctions : String :=
 -- "80-byte builder stream" while the constant and the layout said 96, so a walk sized
 -- from the prose would read every row after the first at the wrong offset.
 #guard balBuilderStorageChangeRowBytes = 96
+
+/-! ## Guards for the storage-change emission -/
+
+-- THE PARENT HEADER, NEVER THIS BLOCK'S. sv_this_rlp is the POST-state header; using
+-- it would silently return a post-state baseline, and it is the obvious wrong choice
+-- because it is the header available as a global under a shorter name.
+#guard (balEmitStorageChangesFunction.splitOn "sv_pre_rlp_ptr").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "sv_pre_rlp_len").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "sv_this_rlp").length == 1
+
+-- ABSENT IS NOT ZERO: a container miss must reach the pre-state read, not fall through
+-- to a zero baseline. Dropping this call turns every first-write-in-block to a nonzero
+-- slot into a spurious BAL entry -- well-formed, wrong count, wrong hash, no fault.
+#guard (balEmitStorageChangesFunction.splitOn "jal ra, slot_at_header_state_root").length == 2
+
+-- Both keys must be reversed to big-endian before either call: tx rows hold LE stack
+-- words, the reader wants BE, and the builder row wants BE to match
+-- balSortBuilderStorageSegments. Passing a row field straight through names a
+-- DIFFERENT slot -- a well-formed 32-byte wrong answer.
+#guard (balEmitStorageChangesFunction.splitOn "besc_addr_be").length == 5
+#guard (balEmitStorageChangesFunction.splitOn "besc_slot_be").length == 5
+
+-- The net-zero exclusion must compare all four limbs and skip on equality. Comparing
+-- fewer would emit entries the spec omits whenever the differing limb is unchecked.
+#guard (balEmitStorageChangesFunction.splitOn "bne t2, t6, .Lbesc_emit").length == 5
+#guard (balEmitStorageChangesFunction.splitOn "j .Lbesc_advance").length == 2
+
+-- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
+-- write.
+#guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
 
 #guard balBuilderAccountBytes = 1538460
 #guard balBuilderStorageChangeBytes = 1476864
