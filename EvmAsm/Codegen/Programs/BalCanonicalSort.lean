@@ -150,10 +150,20 @@ def balCanonicalDigitAsm : String :=
   "  li a6, 0\n" ++
   ".Lbalsort_dig_seg:\n" ++
   "  slli a7, a6, 4; srl t5, s10, a7; andi t5, t5, 255\n" ++      -- t5 = seg offset
-  "  addi a7, a7, 8; srl t3, s10, a7; andi t3, t3, 255\n" ++      -- t3 = seg width
+  -- MASK THE ENDIANNESS BIT OUT OF THE WIDTH BEFORE USING IT. Comparing or
+  -- subtracting the raw byte makes a BE segment look 128 bytes wider than it is --
+  -- a 20-byte BE address reads as 0x94 = 148 -- so the walk never leaves segment 0
+  -- and the whole key collapses onto that one segment's bytes read forward. That
+  -- produced a well-formed wrong order: sets differing in the FIRST segment still
+  -- sorted correctly, so single-segment evidence passed while the index segment was
+  -- keyed on its low byte.
+  "  addi a7, a7, 8; srl t3, s10, a7; andi t3, t3, 0x7f\n" ++     -- t3 = seg width
   "  bltu t2, t3, .Lbalsort_dig_in\n" ++
   "  sub t2, t2, t3; addi a6, a6, 1; j .Lbalsort_dig_seg\n" ++
   ".Lbalsort_dig_in:\n" ++
+  -- t3 is already the masked width; recover the FLAG from the descriptor rather than
+  -- from t3, which no longer carries it.
+  "  slli a7, a6, 4; addi a7, a7, 8; srl a7, s10, a7; andi a7, a7, 0x80\n" ++
   -- Two storage conventions coexist, so the reversal is PER SEGMENT rather than
   -- global. Bit 7 of the width byte means "already big-endian, index directly":
   --   LE segment (flag clear): canonical BE byte b is byte k + w - 1 - b.
@@ -162,7 +172,6 @@ def balCanonicalDigitAsm : String :=
   -- canonical BE20 address already, so reversing every segment would order the
   -- builder's rows by a byte-reversed address -- sorted, permutation-preserving and
   -- wrong, with no local symptom.
-  "  andi a7, t3, 0x80; andi t3, t3, 0x7f\n" ++
   "  bnez a7, .Lbalsort_dig_be\n" ++
   "  add t5, t5, t3; addi t5, t5, -1; sub t5, t5, t2\n" ++
   "  j .Lbalsort_dig_have\n" ++
@@ -327,78 +336,6 @@ def balSortAccountWritesFunction : String :=
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n"
 
-/-! ## `bal_canonical_sort_selftest`
-
-    Sorts four synthetic rows whose expected order is derived INDEPENDENTLY of the
-    guest's digit logic, and checks the result.
-
-    Why an independent expectation matters here: the obvious check — walk the sorted
-    rows and confirm each key is <= the next — would use the SAME digit extraction
-    the sort uses. If that extraction is wrong, both agree and the check passes
-    vacuously on a limb-swapped order. So the expected permutation is computed from
-    the canonical rule alone and hardcoded.
-
-    The rows differ only in field byte 19, which is the address's canonical BE MOST
-    SIGNIFICANT byte (the address occupies the low 20 bytes of an LE word). Values
-    0x30, 0x10, 0x40, 0x20 in rows 0..3, so canonical ascending order is rows
-    1, 3, 0, 2. Each row carries its 1-based tag at offset 64, so the tag sequence
-    after sorting must read 2, 4, 1, 3.
-
-    A byte-index sort would order by field[0] instead — all zero here — and leave the
-    rows untouched, giving 1, 2, 3, 4. That is exactly the failure this catches.
-
-    a0 = a scratch arena of at least 4 * 128 bytes, 8-aligned.
-    a0 (out) = 0 on the expected order, else 1. -/
-def balCanonicalSortSelftestFunction : String :=
-  "  .globl bal_canonical_sort_selftest\n" ++
-  "bal_canonical_sort_selftest:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  -- Zero four 128-byte rows.
-  "  mv t0, s0; li t1, 64\n" ++
-  ".Lbalsort_st_zero:\n" ++
-  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lbalsort_st_zero\n" ++
-  -- field[19] = the discriminating byte; offset 64 = the tag.
-  "  li t1, 0x30; sb t1, 19(s0);   li t1, 1; sb t1, 64(s0)\n" ++
-  "  addi t0, s0, 128\n" ++
-  "  li t1, 0x10; sb t1, 19(t0);   li t1, 2; sb t1, 64(t0)\n" ++
-  "  addi t0, s0, 256\n" ++
-  "  li t1, 0x40; sb t1, 19(t0);   li t1, 3; sb t1, 64(t0)\n" ++
-  "  addi t0, s0, 384\n" ++
-  "  li t1, 0x20; sb t1, 19(t0);   li t1, 4; sb t1, 64(t0)\n" ++
-  -- Sort with the ACCOUNT layout: one 20-byte address segment at offset 0.
-  "  mv a0, s0; li a1, 4; li a2, 128; li a3, 0x1400; li a4, 1\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  bnez a0, .Lbalsort_st_fail\n" ++
-  -- Expected tag sequence 2, 4, 1, 3.
-  "  lbu t1, 64(s0);   li t2, 2; bne t1, t2, .Lbalsort_st_fail\n" ++
-  "  addi t0, s0, 128; lbu t1, 64(t0); li t2, 4; bne t1, t2, .Lbalsort_st_fail\n" ++
-  "  addi t0, s0, 256; lbu t1, 64(t0); li t2, 1; bne t1, t2, .Lbalsort_st_fail\n" ++
-  "  addi t0, s0, 384; lbu t1, 64(t0); li t2, 3; bne t1, t2, .Lbalsort_st_fail\n" ++
-  "  li a0, 0; j .Lbalsort_st_ret\n" ++
-  ".Lbalsort_st_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbalsort_st_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n"
-
-/-- The explicit range stack. Sized by the argued bound, not by a guess: at most
-    `bsrMptRadixFanout` ranges are pushed per depth, over `balSortMaxDepth`
-    depths. Overrun returns status 3 rather than writing past the end. -/
-def balCanonicalSortDataSection : String :=
-  "bal_sort_ranges:\n  .zero " ++
-    toString (balSortRangeStackCapacity * balSortRangeFrameBytes) ++ "\n"
-
-/-- All routines, in emission order. `bal_sort_*` call `bal_canonical_sort`, so
-    they must be emitted together. -/
-def balCanonicalSortFunctions : String :=
-  balCanonicalSortFunction ++
-  balSortStorageWritesFunction ++
-  balSortAccountWritesFunction ++
-  balCanonicalSortSelftestFunction
-
 /-! ## The builder's key descriptors, pinned as constants
 
     Confirmed with the agent building the builder arenas, and recorded here rather
@@ -423,6 +360,151 @@ def balCanonicalSortFunctions : String :=
     a byte-reversed address: total, permutation-preserving, and not canonical. -/
 def balSortBuilderStorageSegments : Nat := 0x0818a0209400
 def balSortBuilderEventSegments : Nat := 0x08189400
+
+/-! ## `bal_canonical_sort_selftest`
+
+    Three row sets, each checked against an expected permutation derived
+    INDEPENDENTLY of the guest's digit logic.
+
+    ## Why the expectation must be independent
+
+    The obvious check — walk the sorted rows and confirm each key is `<=` the next —
+    reuses the SAME digit extraction the sort uses. If that extraction is wrong, both
+    agree and the check passes vacuously on exactly the order the sort exists to
+    prevent. So each expected permutation is computed from the canonical rule alone
+    and hardcoded, and each row set is built so a wrong direction leaves the rows
+    untouched rather than merely differently ordered.
+
+    ## Why THREE sets rather than one
+
+    Direction is a PER-SEGMENT property, so single-segment evidence does not
+    establish it. With only set A, swapping the direction bits of segments 1 and 2 in
+    the packing would leave every row agreeing on both fields and the test would
+    pass — a per-segment feature with one segment's worth of proof.
+
+    | set | rows differ only in | exercises | expected tags |
+    |---|---|---|---|
+    | A | the address's canonical MSB | segment 0 direction | 2,4,1,3 |
+    | B | the slot's canonical MSB | segment 1 direction (BE) | 2,4,1,3 |
+    | C | `block_access_index` | segment 2 direction (LE) | 1,3,4,2 |
+
+    Set C earns its place independently of endianness: it is the property the BAL
+    actually depends on — same account, same slot, events emerging in transaction
+    order. Sets B and C use DISTINCT expected sequences on purpose, so a sub-test
+    that accidentally checked the wrong arena could not pass by coincidence.
+
+    Sets B and C use the real builder storage descriptor, so the test exercises the
+    descriptor that ships rather than a synthetic one.
+
+    a0 = scratch arena, at least `4 * 96` bytes for the widest set, 8-aligned.
+    a0 (out) = 0 all sets pass, else 1, 2 or 3 naming the first failing set — a
+    localising code rather than a boolean, because "the sort is wrong somewhere" is
+    not actionable. -/
+def balCanonicalSortSelftestFunction : String :=
+  "  .globl bal_canonical_sort_selftest\n" ++
+  "bal_canonical_sort_selftest:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++
+  -- ---------- set A: address direction, account descriptor, stride 128 ----------
+  "  mv t0, s0; li t1, 64\n" ++
+  ".Lbalsort_stA_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lbalsort_stA_zero\n" ++
+  -- The account arena holds a canonical BE20 address, so its MOST significant byte
+  -- is byte 0. A reversed read would key on byte 19 -- zero in every row -- and
+  -- leave the rows untouched, which the tag check detects.
+  "  li t1, 0x30; sb t1, 0(s0);    li t1, 1; sb t1, 64(s0)\n" ++
+  "  addi t0, s0, 128\n" ++
+  "  li t1, 0x10; sb t1, 0(t0);    li t1, 2; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 256\n" ++
+  "  li t1, 0x40; sb t1, 0(t0);    li t1, 3; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 384\n" ++
+  "  li t1, 0x20; sb t1, 0(t0);    li t1, 4; sb t1, 64(t0)\n" ++
+  "  mv a0, s0; li a1, 4; li a2, 128; li a3, 0x9400; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  li s2, 1; bnez a0, .Lbalsort_st_fail\n" ++
+  "  li a1, 128; li a2, 64\n" ++
+  "  li t3, 2; li t4, 4; li t5, 1; li t6, 3\n" ++
+  "  jal ra, .Lbalsort_st_tags\n" ++
+  "  bnez a0, .Lbalsort_st_fail\n" ++
+  -- ---------- set B: slot direction, builder storage descriptor, stride 96 -------
+  "  mv t0, s0; li t1, 48\n" ++
+  ".Lbalsort_stB_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lbalsort_stB_zero\n" ++
+  -- Every row shares one address (byte 0 = 0x11) and a zero index, so ONLY the
+  -- slot's canonical MSB at offset 32 can order them. Tag at 64, outside the key.
+  "  li t1, 0x11; sb t1, 0(s0);   li t1, 0x30; sb t1, 32(s0);  li t1, 1; sb t1, 64(s0)\n" ++
+  "  addi t0, s0, 96\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x10; sb t1, 32(t0);  li t1, 2; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 192\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x40; sb t1, 32(t0);  li t1, 3; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 288\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x20; sb t1, 32(t0);  li t1, 4; sb t1, 64(t0)\n" ++
+  s!"  mv a0, s0; li a1, 4; li a2, 96; li a3, {balSortBuilderStorageSegments}; li a4, 3\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  li s2, 2; bnez a0, .Lbalsort_st_fail\n" ++
+  "  li a1, 96; li a2, 64\n" ++
+  "  li t3, 2; li t4, 4; li t5, 1; li t6, 3\n" ++
+  "  jal ra, .Lbalsort_st_tags\n" ++
+  "  bnez a0, .Lbalsort_st_fail\n" ++
+  -- ---------- set C: index direction AND transaction order, stride 96 -----------
+  "  mv t0, s0; li t1, 48\n" ++
+  ".Lbalsort_stC_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lbalsort_stC_zero\n" ++
+  -- Same address AND same slot in every row, so ONLY block_access_index at offset 24
+  -- can order them. This is the property the BAL depends on: same account, same
+  -- slot, events in transaction order. The index is a native LE u64, written with
+  -- `sd`, so a forward read would key on its LOW byte and mis-order these.
+  "  li t1, 0x11; sb t1, 0(s0);   li t1, 0x22; sb t1, 32(s0)\n" ++
+  "  li t1, 0x0104; sd t1, 24(s0);     li t1, 1; sb t1, 64(s0)\n" ++
+  "  addi t0, s0, 96\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x22; sb t1, 32(t0)\n" ++
+  "  li t1, 0x0402; sd t1, 24(t0);     li t1, 2; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 192\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x22; sb t1, 32(t0)\n" ++
+  "  li t1, 0x0203; sd t1, 24(t0);     li t1, 3; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 288\n" ++
+  "  li t1, 0x11; sb t1, 0(t0);   li t1, 0x22; sb t1, 32(t0)\n" ++
+  "  li t1, 0x0301; sd t1, 24(t0);     li t1, 4; sb t1, 64(t0)\n" ++
+  s!"  mv a0, s0; li a1, 4; li a2, 96; li a3, {balSortBuilderStorageSegments}; li a4, 3\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  li s2, 3; bnez a0, .Lbalsort_st_fail\n" ++
+  "  li a1, 96; li a2, 64\n" ++
+  "  li t3, 1; li t4, 3; li t5, 4; li t6, 2\n" ++       -- distinct from A and B
+  "  jal ra, .Lbalsort_st_tags\n" ++
+  "  bnez a0, .Lbalsort_st_fail\n" ++
+  "  li a0, 0; j .Lbalsort_st_ret\n" ++
+  ".Lbalsort_st_fail:\n" ++
+  "  mv a0, s2\n" ++
+  ".Lbalsort_st_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n" ++
+  -- Tag checker: s0 = arena, a1 = stride, a2 = tag offset, t3..t6 = expected tags.
+  -- Returns a0 = 0 on a match. Local so the three sets cannot drift apart.
+  ".Lbalsort_st_tags:\n" ++
+  "  add t0, s0, a2; lbu t1, 0(t0); bne t1, t3, .Lbalsort_st_tags_no\n" ++
+  "  add t0, s0, a1; add t0, t0, a2; lbu t1, 0(t0); bne t1, t4, .Lbalsort_st_tags_no\n" ++
+  "  slli t2, a1, 1; add t0, s0, t2; add t0, t0, a2; lbu t1, 0(t0); bne t1, t5, .Lbalsort_st_tags_no\n" ++
+  "  slli t2, a1, 1; add t2, t2, a1; add t0, s0, t2; add t0, t0, a2; lbu t1, 0(t0); bne t1, t6, .Lbalsort_st_tags_no\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lbalsort_st_tags_no:\n" ++
+  "  li a0, 1; ret\n"
+
+/-- The explicit range stack. Sized by the argued bound, not by a guess: at most
+    `bsrMptRadixFanout` ranges are pushed per depth, over `balSortMaxDepth`
+    depths. Overrun returns status 3 rather than writing past the end. -/
+def balCanonicalSortDataSection : String :=
+  "bal_sort_ranges:\n  .zero " ++
+    toString (balSortRangeStackCapacity * balSortRangeFrameBytes) ++ "\n"
+
+/-- All routines, in emission order. `bal_sort_*` call `bal_canonical_sort`, so
+    they must be emitted together. -/
+def balCanonicalSortFunctions : String :=
+  balCanonicalSortFunction ++
+  balSortStorageWritesFunction ++
+  balSortAccountWritesFunction ++
+  balCanonicalSortSelftestFunction
 
 /-! ## Anti-drift guards on the emitted text
 
@@ -451,10 +533,31 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 #guard (balCanonicalSortFunctions.splitOn "bal_sort_storage_writes:").length == 2
 #guard (balCanonicalSortFunctions.splitOn "bal_sort_account_writes:").length == 2
 #guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort_selftest:").length == 2
--- The self-test's expectation must be the INDEPENDENT one (tags 2,4,1,3), not the
--- identity 1,2,3,4 that a byte-index sort would leave behind.
-#guard (balCanonicalSortSelftestFunction.splitOn "li t2, 2; bne").length == 2
-#guard (balCanonicalSortSelftestFunction.splitOn "li t2, 4; bne").length == 2
+-- THREE row sets, not one: direction is a per-segment property, so single-segment
+-- evidence does not establish it. With only set A, swapping the direction bits of
+-- segments 1 and 2 would leave every row agreeing on both fields and the test would
+-- pass. Each set must therefore be present and must sort a DIFFERENT segment.
+#guard (balCanonicalSortSelftestFunction.splitOn "jal ra, bal_canonical_sort\n").length == 4
+#guard (balCanonicalSortSelftestFunction.splitOn ".Lbalsort_stA_zero:").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn ".Lbalsort_stB_zero:").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn ".Lbalsort_stC_zero:").length == 2
+
+-- Expectations must be the INDEPENDENT permutations, never the identity 1,2,3,4 that
+-- a wrong-direction sort leaves behind. Sets A and B expect 2,4,1,3; set C expects
+-- 3,2,4,1 -- DISTINCT on purpose, so a sub-test that checked the wrong arena could
+-- not pass by coincidence.
+#guard (balCanonicalSortSelftestFunction.splitOn "li t3, 2; li t4, 4; li t5, 1; li t6, 3").length == 3
+#guard (balCanonicalSortSelftestFunction.splitOn "li t3, 1; li t4, 3; li t5, 4; li t6, 2").length == 2
+
+-- Set A drives the ACCOUNT descriptor and sets B and C the BUILDER STORAGE one, so
+-- the test exercises descriptors that ship rather than synthetic ones.
+#guard (balCanonicalSortSelftestFunction.splitOn "li a3, 0x9400; li a4, 1").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn "li a4, 3").length == 3
+
+-- The failure code must LOCALISE which set failed rather than being a boolean.
+#guard (balCanonicalSortSelftestFunction.splitOn "li s2, 1;").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn "li s2, 2;").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn "li s2, 3;").length == 2
 
 -- No silent bail: every failure path must set a DISTINCT nonzero status. If these
 -- collapse to one code a caller cannot tell misuse from capacity exhaustion.
@@ -474,7 +577,13 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 #guard (balCanonicalDigitAsm.splitOn ".Lbalsort_dig_be:").length == 2
 -- The width mask must strip the endianness bit in BOTH the digit path and the
 -- key-width sum; masking one and not the other makes every BE segment 128 bytes wide.
-#guard (balCanonicalDigitAsm.splitOn "andi t3, t3, 0x7f").length == 2
+-- The width MUST be masked before the walk compares or subtracts it. Leaving the
+-- endianness bit in makes a BE segment read 128 bytes too wide, so the walk never
+-- leaves segment 0 and the whole key collapses onto it -- which is a well-formed
+-- wrong order that single-segment test data cannot detect.
+#guard (balCanonicalDigitAsm.splitOn "srl t3, s10, a7; andi t3, t3, 0x7f").length == 2
+-- ...and the flag must then be recovered from the DESCRIPTOR, not from t3.
+#guard (balCanonicalDigitAsm.splitOn "srl a7, s10, a7; andi a7, a7, 0x80").length == 2
 #guard (balCanonicalSortFunction.splitOn "andi t0, t0, 0x7f").length == 2
 -- The segment walk must SUBTRACT each width as it steps past a segment, or every
 -- byte index would be read against the first segment.
