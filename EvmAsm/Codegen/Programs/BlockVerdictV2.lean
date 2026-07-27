@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
+import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 
 namespace EvmAsm.Codegen
 
@@ -157,6 +158,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     keccakIncrementalFunctions ++ "\n" ++
     -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
     balRlpEncodeFunctions ++ "\n" ++
+    blockAccessListBuilderFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -574,6 +576,7 @@ def statelessVerdictV2GuestClosure : String :=
     keccakIncrementalFunctions ++ "\n" ++
     -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
     balRlpEncodeFunctions ++ "\n" ++
+    blockAccessListBuilderFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
@@ -697,9 +700,9 @@ def statelessVerdictV2GuestData : String :=
   -- pair is block-lifetime; the tx pair is cleared by write_sets_incorporate_tx,
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
-    accountWriteMapDataSection ++ "\n" ++
-    balCanonicalSortDataSection ++ "\n" ++
-    keccakIncrementalDataSection ++ "\n" ++
+  accountWriteMapDataSection ++ "\n" ++
+  balCanonicalSortDataSection ++ "\n" ++
+  keccakIncrementalDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection

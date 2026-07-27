@@ -21,6 +21,20 @@
   The all-accounts wrapper passes `a2 = record+32` to `bal_account_code_consistent`
   (whose record is exactly the +32.. tail: has_code_change / code_len / code bytes).
 
+  ## Retention boundary
+
+  This physical arena currently combines two logically distinct things: the
+  append-only CODE-effect *rows* and the copied deployed-code *bytes* at
+  `record+48`.  The rows are legacy comparison evidence and are slated for
+  retirement after the BlockAccessListBuilder takes over.  The bytes are not a
+  log: `AccountState` and same-block code lookup retain pointers into them, and
+  the BAL's `CodeChange.new_code` must copy those bytes unchanged.  Therefore a
+  future retirement must first move the byte heap into its own retained code
+  store, or preserve it verbatim; deleting/reusing this arena with live
+  AccountState/BAL pointers is invalid.  This module deliberately does not
+  perform that layout split, because the current variable-stride cursor and all
+  CodeState readers use the packed record base.
+
   The CREATE-tail deposit call site (`create_record_code_effect(create_address_be,
   create_child_code, create_child_code_len)`) + EIP-3541 / MAX_CODE_SIZE / nonce
   updates land in step .8b-2; this slice is the log + helpers + a known-answer probe.
@@ -47,11 +61,15 @@ open EvmAsm.Rv64
     1.0 MiB absolute ceiling); the EIP-7907 large-code extra gas only lowers
     this, and the empty-CREATE / EIP-7702 delegation marker paths (48-byte
     records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
-    cap therefore reserves 1.5 MiB (≈50% margin over the 1.0 MiB ceiling).
+    cap therefore reserves the exact 1.0 MiB ceiling.  For nonempty code,
+    `round8(48 + code_len) ≤ code_len + 55` while the CREATE base charge makes
+    every additional record reduce the available code-byte budget by 160 bytes;
+    empty CREATE/delegation records are bounded more tightly by their fixed
+    per-event gas.  Thus neither form can reach the one-mebibyte reservation.
 
     On overflow the producer sets `exec_code_effect_overflow`; block_verdict
     consumes that flag as a rejection. -/
-def execCodeEffectLogCap : Nat := 1572864
+def execCodeEffectLogCap : Nat := 1048576
 
 /-! ## Bounded execution CodeState
 
@@ -89,14 +107,14 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
     truth.  Pending entries form a per-transaction journal; durable entries
     retain the latest successful block state.  Both are fixed arenas.
 
-    40,960 entries is a gas-derived bound.  The lowest-cost operation that
+    38,460 entries is the gas-derived bound.  The lowest-cost operation that
     changes two accounts is a value transfer; the existing 200M-gas bound is
     38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
     cost, keeping its two-account writes below this cap.  Pending is reset at
     every transaction boundary, while durable stores one latest entry per
     address for the block. -/
 def accountStateEntryBytes : Nat := 128
-def accountStateEntryCapacity : Nat := 40960
+def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
 def accountStateCreatedCapacity : Nat := 8192
 
