@@ -288,8 +288,12 @@ def registry : List OpcodeEntry := [
        ++ "two invalid exits are companion witnesses "
        ++ "(guard_{wrap,len}_invalid_stack). Same scope as CALLDATACOPY's "
        ++ "registered witness: interleaved gas/OOG/MSIZE glue is framed out per "
-       ++ "DRIFT, and the operand high-limb checks the handler does inside that "
-       ++ "glue region appear as low-limb hypotheses."),
+       ++ "DRIFT. RESIDUAL: the handler's high-limb operand check (ld/or/or/bnez "
+       ++ "on limbs 1-3 of the source offset) lives in that framed-out region, so "
+       ++ "the witness ASSUMES its postcondition via h_destOff/h_srcOff/h_sizeV "
+       ++ "(operand.getLimbN 0 = ofNat n) — i.e. proven for low-limb operands, NOT "
+       ++ "for the >=2^64 offset/size inputs the handler reverts on. Satisfiable, "
+       ++ "so a coverage precondition rather than a vacuous guard; see DRIFT."),
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
