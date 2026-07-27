@@ -326,12 +326,40 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxPrecompileSettlement ++
   blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
-  -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
-  -- 0 for system, i+1 for the i-th user tx; fork.py:1030) so the SSTORE handler tags every
-  -- exec-log entry it appends during this dispatch with the right per-tx index. Without this
-  -- the loop leaves current_block_access_index at its single-tx default 1, and the per-tx
-  -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
-  -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
+  -- #10695 INVARIANT: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
+  -- TRANSACTION'S block_access_index (i+1; EIP-7928: 0 for system, i+1 for the i-th user tx,
+  -- fork.py:1030) INTO `current_block_access_index`.  Exactly four stores satisfy it: the one
+  -- below, the EOA-recipient path (.Lbv_mtx_recipient_lookup_resolved), the creation path
+  -- (.Lbv_mtx_creation_access_done), and the single-tx lane (.Lbv_stx_checks_done).
+  --
+  -- This comment is the whole gate, deliberately.  An emitted-asm path enumeration would need a
+  -- codegen artifact at check time for an invariant unlikely to regress once fixed, and what
+  -- failed here was never a missing check -- it was a comment that said the opposite of what the
+  -- code did, so a reader who came to ask whether attribution was handled found prose saying yes.
+  --
+  -- THIS PATH IS THE ONE THAT DID NOT STAMP IT.  The four recipient-code-hash `bne`s above jump
+  -- straight to this label, PAST the EOA-recipient store, so a contract recipient -- the only tx
+  -- class that can execute SSTORE at all -- reached `dispatch_tx_runtime_code` with the index
+  -- still holding its static default 1, or whatever the last EOA/creation tx left behind.  The
+  -- SSTORE handler stamps `exec_log_txindex[row]` from it (.Lsstore_append_entry), so those rows
+  -- carried a value the transaction never wrote.  Measured: 398/400 rows disagreeing with i+1.
+  --
+  -- And the comment that used to sit here asserted the stamp WAS on this path, quoting the same
+  -- EIP-7928 rule, while the next emitted line stamped `dtrc_use_pre_header`, an unrelated flag.
+  --
+  -- The same old comment also called the consumers "still-unwired".  They are not:
+  -- `exec_log_txindex` is the a4 base of `bal_all_accounts_tuple_sequences_consistent_skip_list`
+  -- at both the mtx and single-tx call sites, and a nonzero return from either rejects the block.
+  -- Nothing objects today only because that comparator's per-change loop iterates zero times
+  -- (#10681) -- i.e. IT CANNOT BE MADE NON-VACUOUS UNTIL THIS STAMP EXISTS, because the first
+  -- thing a working comparator does is read a transaction index no contract tx ever wrote.
+  --
+  -- Demonstrated end to end on the EEST case `bal_cross_tx_storage_write[tx2_reverts_to_zero]`,
+  -- two transactions to the same contract (`0x600035600055`), whose declared BAL carries
+  -- blockAccessIndex 1 and 2 for the written slot.  Probing the max/min index the SSTORE handler
+  -- actually stamps, over two appends: WITHOUT this store min=max=1 (both transactions tagged 1);
+  -- WITH it min=1 max=2, matching the fixture's declared indices.  Verdict-neutral on that case.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
