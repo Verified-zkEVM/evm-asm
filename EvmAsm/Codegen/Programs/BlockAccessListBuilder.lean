@@ -46,9 +46,23 @@ def balBuilderNonceRowBytes : Nat := 40
 /-- `{address[20], pad[4], u64 BAI, code-effect reference/meta[32]}`. -/
 def balBuilderCodeRowBytes : Nat := 64
 
-/-- Separate resource bounds.  They are intentionally not added as if one
-    block could maximize every list simultaneously; the joint gas argument is
-    documented at the producer/serializer boundary. -/
+/-- Separate resource bounds. They are intentionally not added as if one block
+    could maximize every list simultaneously. The joint 200M-gas enumeration
+    behind the persistent 7,281,964-byte reservation is:
+
+    * blob-sidecar / transaction-sidecar work, the densest currently reachable
+      route, at about 0.0190 emitted bytes per gas (about 3.80MB);
+    * storage and ordinary balance/nonce/code producer routes, each below that
+      density once their intrinsic or state-gas charges are included; and
+    * EIP-6780 SELFDESTRUCT deletion: Amsterdam only deletes an originator in
+      `tx_state.created_accounts`, so it is same-transaction-created and pays
+      CREATE state gas plus the 5000 SELFDESTRUCT base (about 0.0037 B/gas even
+      under its three-component 136-byte expansion). Its pre-state is absent,
+      so the boundary comparison normally emits no deletion-only component.
+
+The enumeration reflects the Amsterdam spec areas read to date and must be
+revisited when a new producer route is understood. The reservation is therefore
+a joint upper bound with material slack, not a sum of independent maxima. -/
 def balBuilderAccountCapacity : Nat := 76923
 def balBuilderStorageChangeCapacity : Nat := 15384
 def balBuilderBalanceCapacity : Nat := 50000
@@ -132,9 +146,11 @@ def balBuilderEnsureAccountFunction : String :=
 /-! ## Non-storage append primitives
 
 These mirror `add_balance_change`, `add_nonce_change`, and `add_code_change`.
-Their caller supplies one final post-state for a `(canonical address, BAI)`;
-that transaction-boundary discipline is what gives the spec's same-BAI
-replacement semantics without recording intermediate execution snapshots.
+They are consumed by one transaction-boundary walk of `tx_account_writes`,
+whose upsert key is the account address.  That map, rather than an informal
+caller convention, supplies exactly one final post-state per address at the
+fixed transaction BAI; the walk must occur before
+`account_writes_incorporate_tx` clears the transaction map.
 
 All three first intern the address for the builder's account/touched set, then
 copy that same BE20 key into the event row for the canonical sorter.  A full

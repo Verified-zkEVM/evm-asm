@@ -422,8 +422,10 @@ def schemeAAnchors : List GuestRegion :=
     `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
-    it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x062e54
+    it was pointed at; enumerating the pattern found the other one. Grew by
+    `0x5a8` to `0x63424` for the account-write fieldwise overlay, rollback
+    wiring, and persistent BAL-builder append primitives. -/
+def textSizeBytes : Nat := 0x063424
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -449,8 +451,12 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
-    state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b2578c0
+    state table (address, nonce delta, and header-delegated bit). The
+    account-write rollback checkpoint plus persistent BAL builder reserve
+    `0x6f3d90`, while the preceding bounded-arena tightening reclaimed
+    `0x1e02d0`, so measured net growth is `0x513ac0`: `0x1b2578c0` to
+    `0x1b76b380`. This leaves `0x214c80` before `.sszscratch`. -/
+def bssSizeBytes : Nat := 0x1b76b380
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

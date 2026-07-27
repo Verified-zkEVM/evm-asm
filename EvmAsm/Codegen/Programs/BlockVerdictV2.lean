@@ -678,7 +678,7 @@ def statelessVerdictV2GuestData : String :=
   -- pair is block-lifetime; the tx pair is cleared by write_sets_incorporate_tx,
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
-    accountWriteMapDataSection ++ "\n" ++
+  accountWriteMapDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection

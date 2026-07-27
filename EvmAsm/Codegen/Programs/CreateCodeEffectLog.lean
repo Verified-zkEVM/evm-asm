@@ -21,6 +21,20 @@
   The all-accounts wrapper passes `a2 = record+32` to `bal_account_code_consistent`
   (whose record is exactly the +32.. tail: has_code_change / code_len / code bytes).
 
+  ## Retention boundary
+
+  This physical arena currently combines two logically distinct things: the
+  append-only CODE-effect *rows* and the copied deployed-code *bytes* at
+  `record+48`.  The rows are legacy comparison evidence and are slated for
+  retirement after the BlockAccessListBuilder takes over.  The bytes are not a
+  log: `AccountState` and same-block code lookup retain pointers into them, and
+  the BAL's `CodeChange.new_code` must copy those bytes unchanged.  Therefore a
+  future retirement must first move the byte heap into its own retained code
+  store, or preserve it verbatim; deleting/reusing this arena with live
+  AccountState/BAL pointers is invalid.  This module deliberately does not
+  perform that layout split, because the current variable-stride cursor and all
+  CodeState readers use the packed record base.
+
   The CREATE-tail deposit call site (`create_record_code_effect(create_address_be,
   create_child_code, create_child_code_len)`) + EIP-3541 / MAX_CODE_SIZE / nonce
   updates land in step .8b-2; this slice is the log + helpers + a known-answer probe.
