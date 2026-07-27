@@ -15,7 +15,9 @@ import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 
 namespace EvmAsm.Codegen
 
-/-- Gated multi-transaction runtime-gas loop fragment, ending before `.Lbv_singletx`. -/
+/-- Gated multi-transaction runtime-gas loop fragment.  On `bv_tx_count == 0` it
+    branches straight to `.Lbv_recipient_nc_done`; the former `.Lbv_singletx`
+    hop was removed as a duplicate test of the same condition. -/
 def blockVerdictMtxRuntimeLoop : String :=
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
   -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
@@ -35,7 +37,28 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- path, while every non-empty block enters MTx.  The now-unrouted legacy
   -- count==1 implementation is deleted separately after this baseline is
   -- measured independently.
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_singletx\n" ++
+  -- r59nm cleanup: retargeted from `.Lbv_singletx`, which re-tested this same
+  -- unchanged `bv_tx_count` and so always fell through to here.  The label and
+  -- its duplicate test are gone; this is the one-hop form of the path that was
+  -- always taken.
+  --
+  -- Three facts that outlive the removed entry, recorded because they are not
+  -- recoverable from what remains:
+  --  * `i3djw_skip_list` is still BUILT (BlockVerdictFunction, the recipient +
+  --    six modeled-system addresses) and never CONSULTED -- the list the live
+  --    path passes is `bv_mtx_skip_list`, at the `BlockVerdictMtxTail` call to
+  --    `bal_all_accounts_storage_consistent_skip_list`.  Measured: the
+  --    single-tx all-accounts call site is reached on 0 of 60 EIP-7928
+  --    fixtures, the MtxTail one on 56 of 60.
+  --  * the single-tx region's INTERIOR is NOT dead: the MTX precompile lane
+  --    jumps into it at `.Lbv_tx_gas_precharge_pc0_prefix` and from there
+  --    reaches the whole precompile recipient family (ecrecover .. ecpairing).
+  --    A forward closure from that entry reaches 141 of the 179 interior
+  --    labels, so the extent must not be deleted as a block.
+  --  * the 38 labels that closure does NOT reach are the recipient-exactness
+  --    check and the skip-list construction.  Their removal is deferred to
+  --    GH #10680, which retires the matching apparatus they belong to.
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
