@@ -6,17 +6,20 @@ Branch: `perf/guest-layout-param-prototype`. Measured against `origin/main`
 
 ## Population check (coord's numbers, re-verified on `origin/main`)
 
-| Pattern | Count |
-|---|---|
-| `jalOff GuestAddrs` | 161 |
-| `laHi GuestAddrs` | 141 |
-| BOTH | 118 |
+| Pattern | Count (this session) | Coord quoted |
+|---|---|---|
+| `jalOff GuestAddrs` | **161** | 162 |
+| `laHi GuestAddrs` | 141 | 141 |
+| BOTH | 118 | 118 |
+
+Query used here: `git grep -l 'jalOff GuestAddrs' origin/main -- 'EvmAsm/Codegen/'`.
+Off-by-one on jalOff vs coord’s 162 — second independent count; not investigated
+further (one file likely matched a different pattern or ref). BOTH=118 agrees.
 
 Most GuestAddrs importers are **mixed** (difference + absolute). A
 reference-form split would not decouple modules; parameterisation is the
 right lever. Prototype module: `BloomAddValue.lean` (mixed, outside BAL /
 do-not-touch).
-
 ## Prototype shape
 
 - `EvmAsm/Codegen/GuestLayout.lean` — hand-written structure (3 fields used
@@ -104,6 +107,51 @@ closed `zero` value at 500 fields also hit compiler IR
 Recommend for full rollout: structure-of-structures grouped like RegionMap
 (or `Symbol → Nat` over a small inductive). Prototype 3-field path is fine
 and already proves the invalidation win.
+
+### Nested field-access cost at the consumer (the rollout-pay question)
+
+Question: does Nested3089 elaboration recur per importer, or is it paid once
+in the layout module?
+
+Method: type-only `NestedLayoutType3089` (31 groups × ≤100 fields, **no**
+zero instance) built once; BloomAddValue-shaped consumer uses
+`L.g0.f0` / `L.g0.f1` / `L.g0.f2` in the same `laHi`/`laLo`/`jalOff` sites
+(no concrete mega-zero — emission stays a function of `L`). Control: identical
+consumer on a 3-field flat layout. Force-rebuild consumer ×5 with type olean warm
+(`lean` direct, `LEAN_PATH` includes `bench/guest_layout`).
+
+| Module | Force-rebuild wall (×5) |
+|---|---|
+| NestedLayoutType3089 (type only, cold) | **~4.95 s** once |
+| Consumer + Nested3089 access (type warm) | **0.29–0.34 s** |
+| Consumer + flat-3 access | **0.28–0.29 s** |
+
+**Access is free within noise.** The nested type cost is paid once in the layout
+module; importers do not re-pay Nested3089 elaboration for field projection.
+Rollout arithmetic: one ~5 s type module vs 141 modules no longer rebuilding on
+address-table regen — straightforwardly worth it. Grouping may still follow
+RegionMap for human navigation; it is **not** required to keep per-importer
+structures small for elab cost.
+
+## `LAYOUT_PROGS` allowlist end state
+
+`scripts/guest_image_coverage.py` maps layout-parameterised `_prog` names to
+`… guestLayout` applications. **Fail-closed:** omit a converted name → type
+error at the image table, not a silent wrong row.
+
+**End state:** once every linked `_prog` is parameterised, the allowlist is
+deleted and the generator applies `guestLayout` (or the nested instance)
+**unconditionally**. The allowlist is a transitional artifact only; it must not
+outlive the migration.
+
+## Rollout intent (for coord)
+
+This PR is the **reference implementation + measurement**, not a half-migration
+to leave stranded. Follow-on (same lane if assigned): land nested `GuestLayout`
+type module; convert Programs in batches; delete `LAYOUT_PROGS` when the last
+row flips; keep `GuestLayoutInstance` as the sole `GuestAddrs` consumer for
+converted programs. One-module dual-convention on main is acceptable only while
+that follow-on is owned — otherwise park the branch as docs-only evidence.
 
 ## Decision for #10753
 
