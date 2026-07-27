@@ -100,6 +100,12 @@ def frameReturnFunction : String :=
   "  la t0, evm_call_depth; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t0, storage_writes_undo_checkpoint; add t0, t0, t1; ld a0, 0(t0)\n" ++
   "  jal ra, write_sets_restore_frame\n" ++
+  -- The account-writes mirror is transaction state too: replay its undo journal
+  -- on REVERT so a reverted child cannot contribute a balance, nonce, or code
+  -- change to the transaction-level BAL source.
+  "  la t0, evm_call_depth; ld t1, 0(t0); slli t1, t1, 3\n" ++
+  "  la t0, account_writes_undo_checkpoint; add t0, t0, t1; ld a0, 0(t0)\n" ++
+  "  jal ra, account_writes_restore_frame\n" ++
   -- On child error, execution-specs `refill_frame_state_gas` returns the
   -- child state-gas allocation in LIFO order: the portion that spilled into
   -- `gas_left` is credited back to the child frame gas first, and only the

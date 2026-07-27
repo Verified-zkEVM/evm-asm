@@ -23,6 +23,8 @@ import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
+import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 
 namespace EvmAsm.Codegen
 
@@ -950,6 +952,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_tmp3:\n  .zero 512\n" ++
   "baap_storage_value_cursor:\n  .zero 8\n" ++
   "baap_walk_val:\n  .zero 128\n" ++
-  ziskStatelessVerdictV2DataSectionTail
+  ziskStatelessVerdictV2DataSectionTail ++ "\n" ++
+  accountWriteMapBssSection ++ "\n" ++
+  -- Persistent execution-derived BAL builder.  It is deliberately last: this
+  -- allocation must not move established data labels, and it remains live from
+  -- transaction execution through the later serializer/hash pass.
+  blockAccessListBuilderDataSection
 
 end EvmAsm.Codegen
