@@ -138,6 +138,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     storageWritesBlockUpsertFunction ++ "\n" ++
     writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
+    storageWritesUndoPushFunction ++ "\n" ++
+    writeSetsRestoreFrameFunction ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -533,6 +535,8 @@ def statelessVerdictV2GuestClosure : String :=
   storageWritesBlockUpsertFunction ++ "\n" ++
   writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
+    storageWritesUndoPushFunction ++ "\n" ++
+    writeSetsRestoreFrameFunction ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.

@@ -524,6 +524,11 @@ def callFrameDescendFunction : String :=
   -- roll back only mutations made inside the child (its seed/nested CREATEs).
   "  la t1, create_nonce_undo_count; ld t0, 0(t1)\n" ++
   "  la t1, create_nonce_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  -- r59nm S5a: the storage write-map undo journal takes its mark the same way
+  -- and for the same reason -- a child REVERT must roll back only the writes
+  -- made inside the child, leaving the parent's earlier writes standing.
+  "  la t1, storage_writes_undo_count; ld t0, 0(t1)\n" ++
+  "  la t1, storage_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
