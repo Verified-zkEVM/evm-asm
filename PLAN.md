@@ -4476,6 +4476,26 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     `bal_storage_covers_exec_log` / `bal_storage_reads_in_exec_log` over the append-per-write
     storage exec-log, wrapped all-accounts by `bal_all_accounts_storage_consistent` (callee key
     via `bal_addr_to_exec_log_key`, recipient checked in `block_verdict`).
+    - ⚠️ **Known false-reject, diagnosed not fixed (GH #10614, 2026-07-27)**: two
+      `create_oog_from_eoa_refunds` cases reject with `bv_fail=37`. Chain, each link measured:
+      a top-level creation's initcode makes a **zero-value CALL** to a *pre-existing* contract
+      that `SSTORE`s a net change; the outer CREATE OOGs and the spec rolls back, but the
+      exec-log row is already **committed**, so the reverse arm demands a BAL `storage_change`
+      the builder never emits. `bal_storage_covers_exec_log`'s *"Legacy evidence-based fallback
+      for failed CREATE/CREATE2 initcode"* would give the **spec-correct** answer — forcing it
+      turns `succ 22/24` into **full match 24/24** — but it is declined because no
+      nonstorage-effect record exists for a zero-value callee (`ChildFrameHandlers`:
+      `beqz t3, … -- value == 0: no debit`, a *correct* guard: such records are balance/nonce
+      effects and feed `bal_all_accounts_nonstorage_consistent`).
+      **Not a comparator or frame-discipline bug**: `frame_return` merges cursors only on
+      success and `MtxTail:243` passes the committed cursor. **Fix shape is "snapshot earlier"**
+      — `MtxRuntime:519` snapshots *after* the initcode has already appended. **Blocked on a
+      semantics decision** (should creation rollback be separate from the tx-status mechanism
+      it is fused to at `:531`?), with a measured constraint: two sibling cases *depend* on the
+      current snapshot position and broke when it was disturbed.
+      The fixture family supplies its own control — `sstore_callcode` / `sstore_delegatecall`
+      run the callee's code in the **caller's** storage context, so they write the *created*
+      account, which **does** get a record, and the demotion works for them.
   - **Non-storage** (balance/nonce/code, `i3djw`): per-account `bal_account_nonstorage_finals`
     → `bal_account_nonstorage_consistent` (balance+nonce forward+reverse) +
     `bal_account_code_consistent` (deployed-code bytes); wrapped all-accounts forward
@@ -4489,6 +4509,15 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     `exec_log_slot_tuples` (exec side: group-by-txindex, last-write-per-tx, net-zero filtered) +
     `slot_tuple_sequences_match`, composed per-account (`account_tuple_sequences_consistent`)
     and all-accounts (`bal_all_accounts_tuple_sequences_consistent`).
+  - ⚠️ **Those probes are almost all ungated (GH #10642, measured 2026-07-27)**: of **778**
+    `scripts/codegen-*-check.sh`, exactly **1** is reachable from CI (`check-build-parallel.sh`
+    → `codegen-stateless-link-check.sh`); 727 are referenced by nothing at all, and 35 more
+    only via one glob aggregator (`codegen-zisk-mpt-bounded-full-check.sh`) that is itself
+    ungated. An ungated check is indistinguishable from a passing one — the #10642 probe was
+    red for months and surfaced only when run by hand. Cost of a "which are red?" sweep is a
+    **lower bound per category**: ≥703 invoke ziskemu (serial-only), 73 delegate to the shared
+    EEST runner (spike-capable, the cheap tranche); text-based categorisation understates it
+    because wrappers and aggregators delegate.
   - Each ships a ziskemu probe cross-checked against `execution-specs` amsterdam
     `block_access_lists.py` / `fork.py`. **Wiring** of the non-storage/code/tuple checks into
     `block_verdict` lands as execution emits the per-account effect records + the per-tx
