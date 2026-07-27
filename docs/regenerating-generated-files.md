@@ -73,8 +73,11 @@ guest change, a regen step above was missed or RegionMap's sizes are stale.
 
 ## Notes
 
-- **Do not use `scripts/regen-cycle.sh`** — it is broken (hardcoded dead scratch path + an
-  uncommitted helper). Use the commands above.
+- **`scripts/regen-cycle.sh` was removed** (#10746). It hardcoded a dead scratch path and
+  invoked an uncommitted helper (`remap_sasm.py`, which exists in no tree) — and with a
+  missing scratch directory its clean-test `[ ! -s "$S/failpass.txt" ]` was satisfied by the
+  *absence* of the file it had failed to write, so it printed `REGEN_CLEAN pass=1` and exited
+  0 regardless of actual drift. Use the commands above.
 - Step 2 (`GuestAddrs.lean`) is the file that churns on essentially every layout change: the
   per-function `_prog` defs reference its constants by name (`AsmReloc.{laHi,laLo,jalOff}`), so a
   size change only requires regenerating the TSV + `GuestAddrs.lean`, never the hundreds of
