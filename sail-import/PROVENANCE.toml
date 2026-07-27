@@ -2,9 +2,13 @@
 #
 # SKELETON (staged 2026-06-24, pre-P1). The `[current]` block records what the
 # project consumes TODAY (the dhsorens fork, unscoped full RV64D). The `[target]`
-# block is the foundation P1/P2 will establish (pinned, scoped, vendored). The
-# pin gate `scripts/check-sail-pin.sh` (added in P2) will assert that the
-# resolved dependency matches whichever block is authoritative.
+# block is the foundation P1/P2 will establish (pinned, scoped, vendored).
+#
+# The pin gate `scripts/check-sail-pin.sh` NOW EXISTS and runs in CI
+# (.github/workflows/build.yml, source-checks). It recomputes `model_sha256` and
+# `config_sha256` by the recipe pinned below and fails on any drift, so a
+# hand-edit under `vendor/sail-riscv-zkvm-lean/` no longer passes silently.
+# Re-pin after a deliberate regen with `scripts/check-sail-pin.sh --write`.
 #
 # See docs/sail-zkvm-implementation-plan.md (P2.3) and docs/sail-zkvm-model-review.md §6.
 

@@ -327,6 +327,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   rlpListEncodedSizeFunction ++ "\n" ++
   blockRlpRebuiltSizeFunction ++ "\n" ++
   bahU32leFunction ++ "\n" ++
+  blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   executionRequestsHashFunction ++ "\n" ++
@@ -410,7 +411,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
-  blockVerdictSingleTxCreationRuntimeFunction ++ "\n" ++
+  blockVerdictCreationRuntimeFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
   txExtractGasPricingFunction ++ "\n" ++
   u256MinFunction ++ "\n" ++
