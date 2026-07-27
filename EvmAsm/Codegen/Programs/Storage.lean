@@ -601,6 +601,70 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x12, 32\n" ++
+        -- a6 = pre-tx baseline ptr, which is exactly what x18 already is: the
+        -- handler maintains it as `&found.original` (:382, `x14 + 64`) or 0 meaning
+        -- original == current == 0 (:465) -- the SAME pointer-or-zero convention
+        -- `storage_write_record` documents for a6, so no conversion is needed.
+        --
+        -- WHY x18 AND NOT `sstore_prestate_pair`: that buffer is MULTIPLEXED -- it
+        -- holds (address, key) for the committed-log lookup at :411-415 and only
+        -- afterwards (original, current). On the ZERO path nothing overwrites +0, so
+        -- it still holds the REVERSED 20-BYTE ADDRESS: byte-plausible, 32 bytes wide,
+        -- and an address rather than a value.
+        --
+        -- WHY x18 IS LIVE HERE, verified rather than assumed: it is clobbered at :496
+        -- as a scratch for `evm_state_gas_spilled` inside the zero-restore credit
+        -- path, but the refund block saved it at :469 and RESTORES it at :510, and
+        -- nothing between :510 and here writes it -- :517-550 only read it.
+        --
+        -- And it is uniform across every path that reaches this point. Where the
+        -- append runs, :543-551 copies the original from x18 into the new row's +64
+        -- (or zeros when x18 is 0); where the append is skipped as a value-unchanged
+        -- rewrite, x18 already points at the found row's +64. Either way x18 is a
+        -- valid pointer to this slot's transaction-start value.
+        -- a6 = 0 -- the documented placeholder, RESTORED after `mv a6, x18` was
+        -- measured to fault the guest. x18 is NOT a valid pointer here: the fixtures
+        -- take a load access fault (mcause=0x5) at mtval=0xd8 inside
+        -- storage_write_record, i.e. a6 = 216 -- neither a pointer nor the zero the
+        -- ABI defines. The source-level liveness argument (saved :469, restored :510,
+        -- read-only :517-550) was WRONG on at least one reachable path.
+        --
+        -- Control, same fixtures, same base: a6 = 0 gives ran=2 full-match=2;
+        -- mv a6, x18 gives errored=2 ran=0.
+        --
+        -- ## THIS ZERO IS NOT A BASELINE, AND A FILTER MUST NOT TRUST IT
+        --
+        -- It is safe only because nothing reads the captured field. The moment a
+        -- net-zero filter consumes it, IT IS WRONG IN THE FALSE-ACCEPT DIRECTION:
+        --
+        --   On a VALUE-UNCHANGED REWRITE the true baseline EQUALS the value being
+        --   written, so the spec emits nothing (`block_access_lists.py:667-676`
+        --   requires `pre_value != post_value`). With a baseline of zero and a
+        --   nonzero post value, the filter concludes "changed" and EMITS A BAL ENTRY
+        --   THE SPEC OMITS. The list stays well-formed, the entry count is wrong,
+        --   and the hash is simply wrong — nothing faults and nothing complains.
+        --
+        -- The value-unchanged case is reachable at this call site: `:522`
+        -- (`j .Lsstore_append_done`) jumps past the exec-log append while still
+        -- reaching this call, so a rewrite of the same value arrives here.
+        --
+        -- So baseline acquisition belongs WITH the filter, not before it. Four
+        -- attempts failed by trying to obtain the value without a consumer to
+        -- constrain the choice: a carried register (`x18`) faulted, a dedicated
+        -- global needed the same unreconstructable control flow to prove
+        -- non-reentrancy, a recompute turned out to be half a lookup
+        -- (`bv_mtx_committed_chunked_latest_value` answers only on a match, with the
+        -- prestate-header fallback separate), and reading the exec-log row failed
+        -- because the exec-log append and this write-map append are DIFFERENT events.
+        --
+        -- What survives, for whoever writes the filter: `x18` IS valid and holds the
+        -- resolved original at `:517-521`, where the comparison reads it to decide the
+        -- jump — upstream of everything that defeated the four attempts. And the two
+        -- paths have a natural answer each: on the append path the exec-log row
+        -- carries it; on the skip path the baseline IS the value being written, by
+        -- definition of value-unchanged. Handled separately, neither branch needs a
+        -- carried pointer or a control-flow argument.
+        "  li a6, 0\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
