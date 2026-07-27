@@ -73,13 +73,12 @@
   execution facts but does not yet emit BAL rows.
 
   Known coverage boundary (evm-asm-tdbn0; GH #10717): this initial producer
-  wiring covers the execution nonstorage/code effects and the post-body
-  coinbase fee. It does not yet feed the sender nonce, which is published
-  directly through `account_state_publish_sender_inclusion`, nor the sender
+  wiring covers the execution nonstorage/code effects, the inclusion-time
+  sender nonce, and the post-body coinbase fee. It does not yet feed the sender
   gas debit, which is checked by the separate B2.3 running-balance path. The
   container is therefore FED but still UNREAD: it misses the majority of real
-  BAL account entries, and a builder reader must not consume it until those
-  producer paths are represented too.
+  BAL account entries, and a builder reader must not consume it until that
+  balance transition is represented too.
 
   ## The `present` field
 

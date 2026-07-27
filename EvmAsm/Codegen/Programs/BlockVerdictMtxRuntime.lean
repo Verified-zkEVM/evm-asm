@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -287,10 +288,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
   "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
   -- `process_transaction` increments the sender nonce before preparation.
-  -- Publish only that monotone execution fact.  Balance has later value,
-  -- refund, and coinbase-credit writes, so it needs its own complete state
-  -- transition rather than an inclusion-time snapshot here.
+  -- Publish that monotone execution fact both to the durable execution overlay
+  -- and to the transaction-local BAL map. This is deliberately before the
+  -- body rollback checkpoint: a failed body keeps the transaction nonce, while
+  -- the checkpoint removes later body writes. Balance has later value, refund,
+  -- and coinbase-credit writes, so it needs its own complete state transition
+  -- rather than an inclusion-time snapshot here.
   "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasNonce ++ "; jal ra, account_write_record\n" ++
   -- Sole EIP-7702 state/gas writer: run after the inclusion snapshot, before
   -- recipient routing.  The old B1 replay is a frozen reference only.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
