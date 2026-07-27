@@ -246,46 +246,51 @@ def balRlpEncodeSelftestFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++          -- scratch, ctx, field work area
-  "  li s3, 0\n" ++                                 -- s3 = predicted total length
+  "  li s3, 0\n" ++                                 -- s3 = current case index
   "  mv a0, s1; jal ra, keccak_init\n" ++
   -- Scalars. Each is written into the work area as four LE limbs, low limb first,
   -- exactly as the guest's containers hold a U256.
-  String.join ([ (["0", "0", "0", "0"], "0")
-               , (["1", "0", "0", "0"], "1")
-               , (["127", "0", "0", "0"], "127")
-               , (["128", "0", "0", "0"], "128")
-               , (["256", "0", "0", "0"], "256")
-               , (["-1", "-1", "-1", "-1"], "2^256-1")
-               , (["1", "0", "0", "0x0100000000000000"], "0x01..01")
-               ].map (fun (limbs, _) =>
+  String.join ([ (["0", "0", "0", "0"], 1)
+               , (["1", "0", "0", "0"], 1)
+               , (["127", "0", "0", "0"], 1)
+               , (["128", "0", "0", "0"], 2)
+               , (["256", "0", "0", "0"], 3)
+               , (["-1", "-1", "-1", "-1"], 33)
+               , (["1", "0", "0", "0x0100000000000000"], 33)
+               ].zipIdx.map (fun ((limbs, expect), i) =>
       balStoreField "s2" limbs ++
       "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_scalar\n" ++
-      "  mv a0, s2; jal ra, bal_rlp_scalar_rlp_len; add s3, s3, a0\n")) ++
+      "  mv a0, s2; jal ra, bal_rlp_scalar_rlp_len\n" ++
+      s!"  li s3, {i}; li t0, {expect}; bne a0, t0, .Lbrst_len_differ\n")) ++
   -- Addresses: low 20 bytes of the LE word.
   balStoreField "s2" ["1", "0", "0", "0"] ++
   "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_address\n" ++
-  "  addi s3, s3, 21\n" ++
+  "  li s3, 7; li a0, 21; li t0, 21; bne a0, t0, .Lbrst_len_differ\n" ++
   balStoreField "s2" ["-1", "-1", "0xffffffff", "0"] ++
   "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_address\n" ++
-  "  addi s3, s3, 21\n" ++
+  "  li s3, 8; li a0, 21; li t0, 21; bne a0, t0, .Lbrst_len_differ\n" ++
   -- List headers, short and long form.
-  String.join (["0", "1", "55", "56", "300", "70000"].map (fun n =>
+  String.join ([(0, 1), (1, 1), (55, 1), (56, 2), (300, 3), (70000, 4)].zipIdx.map
+      (fun ((n, expect), i) =>
       s!"  mv a0, s1; li a1, {n}; mv a2, s0; jal ra, bal_rlp_emit_list_header\n" ++
-      s!"  li a0, {n}; jal ra, bal_rlp_list_header_len; add s3, s3, a0\n")) ++
+      s!"  li a0, {n}; jal ra, bal_rlp_list_header_len\n" ++
+      s!"  li s3, {9 + i}; li t0, {expect}; bne a0, t0, .Lbrst_len_differ\n")) ++
   -- Finalise and compare against the reference digest.
   "  mv a0, s1; addi a1, s0, 32; jal ra, keccak_final\n" ++
   String.join (balRlpSelftestDigest.zipIdx.map (fun (d, i) =>
     s!"  li t0, {d}; ld t1, {32 + i * 8}(s0); bne t0, t1, .Lbrst_differ\n")) ++
-  -- The measure helpers must agree with the emitters BYTE FOR BYTE. The digest above
-  -- already establishes that the emitters produced exactly the reference blob, whose
-  -- length is 128, so the predicted total must be 128 too. If the two paths ever
-  -- disagree, the measure pass reserves a different count than emit writes and every
-  -- later header in the stream is wrong -- distinct code 2 so that is not mistaken
-  -- for an encoding mismatch.
-  "  li t0, 128; bne s3, t0, .Lbrst_len_differ\n" ++
+  -- Each measure result was asserted AGAINST ITS OWN EXPECTED LENGTH above, not
+  -- accumulated into a total. A total cannot distinguish correct lengths from
+  -- OFFSETTING ERRORS: one case over by a byte and another under by a byte sums to
+  -- the same 128 and passes. This vector spans the 0x81 prefix, two-byte payloads,
+  -- the 55/56 boundary and one, two and three length bytes, so a short-form
+  -- off-by-one compensated by a long-form off-by-one is exactly the available shape.
+  -- Per-case assertion removes that path rather than making it unlikely.
   "  li a0, 0; j .Lbrst_ret\n" ++
   ".Lbrst_len_differ:\n" ++
-  "  li a0, 2; j .Lbrst_ret\n" ++
+  -- 100 + case index: localises WHICH length disagreed, and stays distinguishable
+  -- from the digest mismatch code 1.
+  "  addi a0, s3, 100; j .Lbrst_ret\n" ++
   ".Lbrst_differ:\n" ++
   "  li a0, 1\n" ++
   ".Lbrst_ret:\n" ++
@@ -391,9 +396,18 @@ def balRlpEncodeFunctions : String :=
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_list_header:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_rlp_len:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_list_header_len:").length == 2
--- The measure/emit agreement check must be present and must use a DISTINCT code.
-#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 128; bne s3, t0").length == 2
-#guard (balRlpEncodeSelftestFunction.splitOn "li a0, 2; j .Lbrst_ret").length == 2
+-- The agreement check must be PER CASE, not an aggregate. A total cannot distinguish
+-- correct lengths from offsetting errors -- one case over and another under sums to
+-- the same value and passes -- and this vector spans the short-form/long-form
+-- boundary where exactly that compensation is available.
+--
+-- Fifteen cases, so fifteen comparisons: 7 scalars, 2 addresses, 6 list headers.
+#guard (balRlpEncodeSelftestFunction.splitOn "bne a0, t0, .Lbrst_len_differ").length == 16
+-- No aggregate may remain, or a later edit could quietly go back to summing.
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 128; bne s3, t0").length == 1
+-- The failure must LOCALISE which case disagreed, and stay distinguishable from the
+-- digest mismatch code 1.
+#guard (balRlpEncodeSelftestFunction.splitOn "addi a0, s3, 100").length == 2
 
 -- Zero must encode as the EMPTY string 0x80, never as 0x00. The guest's own
 -- decoder rejects non-empty content starting with a zero byte, so 0x00 would emit
