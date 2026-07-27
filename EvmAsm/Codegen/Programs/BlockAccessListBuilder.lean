@@ -914,17 +914,27 @@ def balSerializerSlotSeenBeforeFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48; ret\n"
 
+/-- Widen a u64 (`a1`) into the 32-byte scalar field at `a0`.
+
+    The field is LITTLE-ENDIAN limbs -- byte 0 is the LEAST significant -- because that
+    is what every consumer in `BalRlpEncode.lean` reads:
+    `bal_rlp_scalar_len` scans DOWNWARD from byte 31 for the most significant byte, and
+    `bal_rlp_emit_scalar` emits field byte `len-1-i` at BE output index `i`.
+
+    This routine previously wrote the u64 the other way round -- LSB at byte 31 -- under
+    a comment that called that "big-endian". `bal_rlp_scalar_len`'s docstring calls byte
+    31 "the canonical BE most-significant byte". Both said BE and meant opposite layouts,
+    so the two agreed in prose and disagreed in bytes. The cost was not subtle: for
+    `block_access_index = 1` the field got `0x01` at byte 31, `bal_rlp_scalar_len`
+    reported 32 significant bytes, and `bal_rlp_scalar_rlp_len` returned 33 instead of 1
+    -- every storage change over-measured by 32 bytes, and the emit pass would have
+    absorbed a 32-byte string where the spec has a single `0x01`.
+
+    RV64 is little-endian, so one `sd` of the u64 at offset 0 IS the LE field. -/
 def balSerializerU64ToFieldFunction : String :=
   "bal_serializer_u64_to_field:\n" ++
   "  sd zero, 0(a0); sd zero, 8(a0); sd zero, 16(a0); sd zero, 24(a0)\n" ++
-  -- big-endian into the LAST 8 bytes: byte 31 is the least significant.
-  "  li t0, 8; li t1, 0\n" ++
-  ".Lbsuf_b:\n" ++
-  "  beq t1, t0, .Lbsuf_done\n" ++
-  "  slli t2, t1, 3; srl t3, a1, t2; andi t3, t3, 255\n" ++
-  "  li t4, 31; sub t4, t4, t1; add t4, a0, t4; sb t3, 0(t4)\n" ++
-  "  addi t1, t1, 1; j .Lbsuf_b\n" ++
-  ".Lbsuf_done:\n" ++
+  "  sd a1, 0(a0)\n" ++
   "  ret\n"
 
 def balSerializerAddrMatchesBeFunction : String :=
@@ -1263,6 +1273,14 @@ def blockAccessListBuilderFunctions : String :=
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_slot_written:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_slot_seen_before:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_u64_to_field:").length == 2
+
+-- LITTLE-ENDIAN, matching `bal_rlp_scalar_len` / `bal_rlp_emit_scalar`, which read byte 0
+-- as least significant. The reversing loop this replaced put the LSB at byte 31 and made
+-- `block_access_index = 1` measure as 33 bytes instead of 1. Pin the single store, and
+-- forbid the reversal returning: an index expression of the form `31 - i` is the shape of
+-- the bug, and it reads as deliberate BE conversion rather than as a defect.
+#guard (balSerializerU64ToFieldFunction.splitOn "  sd a1, 0(a0)\n").length == 2
+#guard (balSerializerU64ToFieldFunction.splitOn "li t4, 31; sub t4, t4, t1").length == 1
 -- The widener's DESTINATION must be reserved. A routine referencing a missing data symbol
 -- builds fine in Lean and fails only at LINK, with a message naming the symbol rather than
 -- the routine -- so the reservation is guarded next to the routine that needs it.
