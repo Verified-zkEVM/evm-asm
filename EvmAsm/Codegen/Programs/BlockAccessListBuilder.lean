@@ -688,10 +688,67 @@ def balSerializerFilterReadsFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret\n"
 
+/-! ## `bal_serializer_measure_reads`
+
+    Measure one account's `storage_reads` field into the length table's `+16` slot.
+
+    The field is `Tuple[U256, ...]` — a flat list of slot keys — so its payload is the
+    sum of each surviving key's encoded scalar length, and nothing nested.
+
+    ## It measures the FILTERED list, not the raw read set
+
+    Runs after `bal_serializer_filter_reads` and reads
+    `bal_serializer_read_scratch` / `_count`. Measuring the raw set instead would
+    produce a header sized for slots the emit pass will not write — the two would
+    disagree by exactly the excluded slots, and the buffer would be well-formed with a
+    long header.
+
+    ## The entry is a PAYLOAD length
+
+    Per the table's convention: the bytes INSIDE the list, excluding its own header.
+    `rlp_encode_list_prefix` and `bal_rlp_emit_list_header` both consume exactly this,
+    so the entry is handed over unmodified. A caller needing the ENCODED size adds
+    `bal_rlp_list_header_len` of this value.
+
+    ## Why the scalar measurer and not a throwaway emit here
+
+    `bal_rlp_scalar_rlp_len` and `bal_rlp_emit_scalar` are a matched pair over the same
+    input shape — a pointer to a 32-byte field — and the pair is already checked
+    per-case by the RLP self-test's fifteen assertions. So for this shape the single
+    implementation property already holds without a throwaway context.
+
+    The throwaway route (`bal_rlp_measure_into_throwaway`) is for shapes whose measurer
+    would otherwise be a SECOND implementation — the code byte string, where the only
+    measurers available are in the other layer.
+
+    a0 = (unused; the filtered list is in scratch)
+    a0 (out) = the payload length, also stored at `bal_serializer_len_table + 16`
+
+    DELIBERATELY INERT PENDING ITS CALLER. -/
+def balSerializerMeasureReadsFunction : String :=
+  "bal_serializer_measure_reads:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  la t0, bal_serializer_read_scratch_count; ld s1, 0(t0)\n" ++   -- s1 = surviving count
+  "  li s0, 0\n" ++                                                 -- s0 = payload accum
+  "  li s2, 0\n" ++                                                 -- s2 = index
+  ".Lbsmr_loop:\n" ++
+  "  bgeu s2, s1, .Lbsmr_done\n" ++
+  "  li t0, 32; mul t1, s2, t0; la t2, bal_serializer_read_scratch; add a0, t2, t1\n" ++
+  "  jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  add s0, s0, a0\n" ++
+  "  addi s2, s2, 1; j .Lbsmr_loop\n" ++
+  ".Lbsmr_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s0, 16(t0)\n" ++
+  "  mv a0, s0\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerSlotWrittenFunction ++
   balSerializerFilterReadsFunction ++
+  balSerializerMeasureReadsFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -763,6 +820,17 @@ def blockAccessListBuilderFunctions : String :=
 -- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
 -- write.
 #guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
+
+-- It must measure the FILTERED list, not the raw read set: measuring the raw set sizes
+-- the header for slots emit will not write, and the buffer is well-formed with a long
+-- header.
+#guard (balSerializerMeasureReadsFunction.splitOn "bal_serializer_read_scratch_count").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "storage_reads_count").length == 1
+-- The entry goes in the +16 slot, per the table's pinned layout. A wrong slot is
+-- silent: emit reads a plausible number written for another field.
+#guard (balSerializerMeasureReadsFunction.splitOn "sd s0, 16(t0)").length == 2
+-- Same-layer pair: the scalar measurer whose emitter counterpart is bal_rlp_emit_scalar.
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 2
 
 /-! ## Guards for the serializer's scratch -/
 
