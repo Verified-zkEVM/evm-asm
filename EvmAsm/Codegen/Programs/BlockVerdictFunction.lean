@@ -351,6 +351,9 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # unresolved code hash with calldata: conservative skip\n" ++
   ".Lbv_cd_eoa_confirmed:\n" ++
   "  la t2, bv_simple_transfer_tx        # confirmed empty-code recipient\n" ++
+  -- The direct single-tx lane ran the auth writer in
+  -- block_verdict_tx_state_gas_inline_prepare; do not invoke a second writer
+  -- here.  MTx uses the post-reservoir callback in the common dispatcher.
   blockVerdictSimpleTransferPrecompileGasAsm ++
   blockVerdictSimpleTransferPublishAsm ++
   ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
@@ -598,14 +601,14 @@ def blockVerdictFunction : String :=
   "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
-  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  "  la t1, runtime_tx_auth_state_refund; ld t1, 0(t1); add t1, t1, t0; la t2, evm_state_gas_used; sd t1, 0(t2)\n" ++
   -- `topLevelValueRecipientStateGasAsm` is a callable composition and may
   -- clobber a1/a3. `simple_transfer_intrinsic_gas` has already published the
   -- intrinsic regular and net intrinsic state components in these cells; reload
   -- them to form the same combined pre-refund charge that execution-specs uses
   -- for `tx.gas - gas_left - state_gas_left`.
   "  la t1, runtime_tx_intrinsic_regular; ld t4, 0(t1)\n" ++
-  "  la t1, bvgr_tx_state_gas; ld t3, 0(t1)\n" ++
+  "  la t1, bvgr_tx_state_gas; ld t3, 0(t1); la t1, runtime_tx_auth_state_refund; ld t1, 0(t1); add t3, t3, t1\n" ++
   "  la t1, bv_simple_transfer_tx; ld t5, 40(t1); add t6, t4, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
@@ -842,6 +845,7 @@ def blockVerdictFunction : String :=
   -- storage comparators see no change for a touched-but-aborted account (EIP-7928 records the
   -- access in the BAL but the write is rolled back) while the rows stay for the reads check.
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_stx_sender_addr; sd t1, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
