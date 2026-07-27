@@ -1176,7 +1176,13 @@ def blockVerdictFunction : String :=
   ".Lbv_eoa_body_effect_reconcile:\n" ++
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
-  "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
+  -- A zero-transaction block has a valid empty public-key section.  There is
+  -- therefore no sender to skip-list: deriving one from public_keys_ptr + 1
+  -- would ask `address_from_pubkey` to hash a nonexistent 64-byte SEC1 tail.
+  -- Leave the zero-initialized entry unused and retain the block-level
+  -- withdrawal/system reconciliation below.
+  "  la t4, bv_tx_count; ld t4, 0(t4); beqz t4, .Lbv_i3sk1d\n" ++
+  "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n.Lbv_i3sk1d:\n" ++
   -- coc3g.BAL: seed skip entry 2 = the block coinbase from the ALWAYS-AVAILABLE exec payload
   -- (bv_exec_p+32 = fee_recipient), NOT bmvmx_coinbase_addr. The latter is populated only when
   -- the bmvmx single-tx preamble runs, which BAILS (.Lbmvmx_done) for non-legacy txs (type
