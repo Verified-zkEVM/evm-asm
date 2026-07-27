@@ -66,6 +66,10 @@ import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.BalCanonicalSort
+import EvmAsm.Codegen.Programs.KeccakIncremental
+import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
@@ -140,6 +144,19 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     writeSetsDiscardTxFunction ++ "\n" ++
     storageWritesUndoPushFunction ++ "\n" ++
     writeSetsRestoreFrameFunction ++ "\n" ++
+    -- GH #10695 nonstorage half: the account_writes MAP, one container pair for
+    -- balance+nonce+code (the spec keeps one non-storage write dict per level).
+    -- Mirrored here for the same reason as the storage set: this unit has its own
+    -- `.elf`, so an omission surfaces only as a link error inside an A/B leg.
+    accountWriteMapFunctions ++ "\n" ++
+    -- GH #10680: canonical ordering for both write containers. Inert -- nothing
+    -- consumes the ordering yet -- but emitted so the assembler and linker see it.
+    balCanonicalSortFunctions ++ "\n" ++
+    -- Resumable keccak entry points (general infrastructure, first consumer #10680).
+    -- The one-shot routines are untouched; these use a caller-supplied context.
+    keccakIncrementalFunctions ++ "\n" ++
+    -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
+    balRlpEncodeFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -229,6 +246,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     storageReadLogDataSection ++ "\n" ++
     -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
     storageWriteMapDataSection ++ "\n" ++
+    accountWriteMapDataSection ++ "\n" ++
+    balCanonicalSortDataSection ++ "\n" ++
+    keccakIncrementalDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
     codeReadLogDataSection ++ "\n" ++
     readSetsBlockDataSection ++ "\n" ++
@@ -538,6 +558,22 @@ def statelessVerdictV2GuestClosure : String :=
     writeSetsDiscardTxFunction ++ "\n" ++
     storageWritesUndoPushFunction ++ "\n" ++
     writeSetsRestoreFrameFunction ++ "\n" ++
+  -- GH #10695 nonstorage half: producer and promotion boundary for the
+  -- account_writes MAP -- ONE container pair covering balance, nonce AND code,
+  -- because the spec keeps one non-storage write dict per level and
+  -- update_builder_from_tx derives all three BAL fields from a single loop over it
+  -- (block_access_lists.py:637-664).  Not yet consulted and nothing calls these:
+  -- emitted so the assembler and linker see them, since an unreferenced routine is
+  -- unverified code.  The change-emission slice adds the callers.
+  accountWriteMapFunctions ++ "\n" ++
+    -- GH #10680: canonical ordering for both write containers. Inert -- nothing
+    -- consumes the ordering yet -- but emitted so the assembler and linker see it.
+    balCanonicalSortFunctions ++ "\n" ++
+    -- Resumable keccak entry points (general infrastructure, first consumer #10680).
+    -- The one-shot routines are untouched; these use a caller-supplied context.
+    keccakIncrementalFunctions ++ "\n" ++
+    -- GH #10680 RLP field encoders. Inert -- nothing walks the containers yet.
+    balRlpEncodeFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
@@ -661,6 +697,9 @@ def statelessVerdictV2GuestData : String :=
   -- pair is block-lifetime; the tx pair is cleared by write_sets_incorporate_tx,
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
+    accountWriteMapDataSection ++ "\n" ++
+    balCanonicalSortDataSection ++ "\n" ++
+    keccakIncrementalDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection
