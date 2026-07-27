@@ -571,8 +571,6 @@ private noncomputable abbrev _returndatacopy_guard_wrap_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_wrap_invalid_stack_spec_within
 private noncomputable abbrev _returndatacopy_guard_len_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_len_invalid_stack_spec_within
-private noncomputable abbrev _returndatacopy_guard_cap_witness :=
-  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_cap_invalid_stack_spec_within
 private noncomputable abbrev _tload_witness :=
   @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
 private noncomputable abbrev _sload_witness :=
