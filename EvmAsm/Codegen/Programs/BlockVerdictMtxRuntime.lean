@@ -334,6 +334,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- adding the store changes what a live rejecting consumer sees, so it is gated behind a
   -- paired sweep (#10695), not folded into a comment repair.
   --
+  -- THE INVARIANT, stated here because this is where it was violated and because a comment is
+  -- the right place for it: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
+  -- TRANSACTION'S block_access_index INTO `current_block_access_index`.  Not mechanised: what
+  -- failed was not a missing check but a comment that said the opposite of what the code did,
+  -- and an emitted-asm path enumeration would cost a codegen artifact at check time for an
+  -- invariant unlikely to regress once fixed.
+  --
   -- What the emitted guest actually does.  `current_block_access_index` has exactly TWO store
   -- sites program-wide: the EOA-recipient path (.Lbv_mtx_recipient_lookup_resolved) and the
   -- creation path (.Lbv_mtx_creation_access_done).  The four recipient-code-hash `bne`s above
@@ -349,8 +356,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Nothing objects today only because that comparator's per-change loop iterates zero times
   -- (#10681) -- i.e. IT CANNOT BE MADE NON-VACUOUS UNTIL THIS STAMP EXISTS, because the first
   -- thing a working comparator does is read a transaction index no contract tx ever wrote.
-  -- scripts/check-block-access-index-stamped.sh asserts the invariant and currently FAILS here
-  -- by design; it is wired into CI together with the fix, not before it.
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
