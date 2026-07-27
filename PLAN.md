@@ -1202,6 +1202,45 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     byte existentials, so `step_execute_sail_sim` no longer demands per-byte facts;
     callers discharge presence once from a range-level `MemPresent lo hi` via
     `MemPresent.bytesPresent`. Feeds the #10530 run-level invariant.
+  - **Run-level simulation (DONE — #10530).** The step capstones composed one
+    instruction at a time but not into a *run*: their output was the input
+    invariant minus `h_nextpc` (after `tick_pc` the Sail `nextPC` still holds the
+    branch target, because the `nextPC := PC + 4` default is a **fetch**-side
+    effect that was not modelled). Two new files close this.
+    `RunInv.lean` defines `RunInv lo hi sRv sSail` = `StateRelPC` + `misa`
+    readability + a `BareModeInv` with the initializer PMA table + HTIF off +
+    `MemPresent lo hi` — deliberately carrying **no** `nextPC` fact, so it *is*
+    step-stable (`RunInv.insert_nextPC`, `RunInv.reestablish` along a
+    `PlatformFrame`). It also proves the side-condition ingredients:
+    `is_aligned_{v,p}addr_of_toNat_mod`, `within_{clint,sig}_ram`,
+    `within_htif_{writable,readable}_none`, `range_subset_toNat` +
+    `matching_pma_region_mainMemory` (the symbolic-address generalisation of
+    `sailRamWitness_matching_pma`), `RunInv.access_ok` (all access-local facts
+    for one in-window access), and `stepSideCond lo hi s` (the toy-side
+    obligations `step` does not itself guarantee: jump-target alignment and
+    `lo ≤ addr ∧ addr + w ≤ hi` — the end bound is carried explicitly because
+    `isValid*Access` only checks the start address, GH #10560).
+    `StepRun.lean` defines `sailStep si` (fetch-side `nextPC := PC + 4`, then
+    `execute`, then `tick_pc`), proves `instrSideCond_of_runInv` (the run
+    invariant discharges every per-instruction Sail obligation) and
+    `sailStep_run_sim` — **no `h_nextpc` hypothesis anywhere** — then iterates it
+    with `sailStepN`/`sailStepN_run_sim` over `Execution.stepN`.
+    Two documented scopes: (i) `Instr.runSimulable` = `simulable` minus `JALR`,
+    and (ii) memory is confined to a window inside the RAM zone
+    `[0xa0000000, 0xc0000000)`. (ii) is forced: the toy legacy MEM zone
+    `[0x20, 0x78000000]` is not inside any PMA region of `sailInitPmaRegions`
+    (main memory is `[0x80000000, 0x100000000)`). (i) is a **vendored-model
+    defect**, recorded as the kernel-checked `update_elp_state_error`: the
+    extracted `currentlyEnabled` has no `Ext_Zicsr` arm, so it falls through to
+    the generated `assert false; throw` catch-all; `Ext_Zicfilp` queries
+    `Ext_Zicsr` first, `execute_JALR` starts with `update_elp_state`, hence the
+    Sail side faults in *every* state and `instrSideCond (.JALR ..)` is
+    unsatisfiable. Same root cause family as the `sail_model_init` scoping defect
+    above (`docs/sail-init-scoping-defect.md`); both need a model regen.
+    The vendored fetch (`run_hart_active`) is deliberately **not** reduced: it
+    reads instruction bytes from Sail `mem` via `translateAddr`, whereas the toy
+    `MachineState.code` is a separate unrelated field — that decode tie is
+    roadmap item P7.
   - **Remaining (next up).** A uniform `step_sail_equiv` dispatching via
     `InstrMap.lean` over a decoded instruction — compose the 49 per-class
     `*_sail_equiv` results via `step_of_execute` (`StepProofs.lean`), covering
