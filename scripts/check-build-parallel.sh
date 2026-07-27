@@ -24,6 +24,11 @@ codegen_checks() {
   # guest handlers can reference an undefined symbol with every gate green.
   scripts/check-build-units-link.sh
   scripts/check-region-map.sh
+  # check-region-map compares the DECLARED map against the ELF, so a region that
+  # is not declared is not checked. Three in-use anchors were dropped from
+  # RegionMap by a merge resolution with every gate green; this asserts the
+  # missing invariant (declared anchor => has a region entry). Pure grep, instant.
+  scripts/check-memorylayout-region-coverage.sh
   scripts/check-guarded-handler-bytes.sh
 }
 
