@@ -1,0 +1,457 @@
+/-
+  EvmAsm.Codegen.Programs.AccountWriteMap
+
+  The guest's `account_writes` map — the NONSTORAGE half of GH #10695.
+
+  ## Why one container and not three
+
+  #10695 was scoped as "balance, nonce and code lack per-transaction
+  attribution", which reads as three gaps and invites three containers. The
+  spec's own structure says otherwise. Both levels keep exactly one
+  non-storage write container:
+
+      BlockState.account_writes       : Dict[Address, Optional[Account]]   (state_tracker.py:70)
+      TransactionState.account_writes : Dict[Address, Optional[Account]]   (state_tracker.py:97)
+
+  and an `Account` carries nonce, balance and code together, so
+  `update_builder_from_tx` derives **all three** BAL fields from a single loop
+  over that one dict (`block_access_lists.py:637-664`):
+
+      for address, post_account in tx_state.account_writes.items():
+          pre_account = _get_pre_tx_account(block_state.account_writes, pre_state, address)
+          if pre_balance   != post_balance:   add_balance_change(builder, address, idx, post_balance)
+          if pre_nonce     != post_nonce:     add_nonce_change(builder, address, idx, U64(post_nonce))
+          if pre_code_hash != post_code_hash: add_code_change(builder, address, idx, post_code)
+
+  So this module is ONE arena pair plus an undo journal, mirroring
+  `StorageWriteMap`'s shape (r59nm S2/S5a) rather than tripling it.
+
+  ## Why the container shape is the attribution mechanism
+
+  Note what supplies the transaction identity in the spec: `idx =
+  builder.block_access_index`, read **once per call**, and
+  `update_builder_from_tx` is called **once per transaction**, *before* the
+  transaction's writes are merged into the block (`state_tracker.py:855-856`,
+  and the docstring says "Must be called before the transaction's writes are
+  merged"). There is no index field on any record. The transaction is the
+  container, so a change cannot exist unattributed.
+
+  That is the difference between a property and a discipline, and #10697 is the
+  evidence: the guest's storage side *did* carry a per-row index field, and it
+  was stamped from a global that one dispatch path never wrote, so every
+  contract transaction's rows were tagged with an index no transaction had
+  written. A field is maintained by hand at every append site and forgettable at
+  the next one. A container cannot be forgotten.
+
+  ## What this slice does and does not do
+
+  DOES: the two levels, the keyed upsert, the tx→block merge with the
+  load-bearing clear, discard on transaction failure, and frame rollback via a
+  reverse-replayed undo journal.
+
+  DOES NOT: emit BAL changes. The emission needs the spec's *pre-tx* baseline —
+  `_get_pre_tx_account` reads the BLOCK-cumulative value and falls back to
+  `pre_state`, NOT the pre-block value — and it needs the three-way field
+  comparison whose inequality test is what makes net-zero filtering automatic.
+  That is the next slice, and it is deliberately separate: this one is inert and
+  cannot move a verdict, so it is reviewable on structure alone.
+
+  ## The `present` field
+
+  The spec's value type is `Optional[Account]`, and `None` — the account does
+  not exist — is a *distinct* state from an account whose balance, nonce and
+  code hash all happen to be zero. So `present` is a field, not an
+  all-zero-record sentinel. This is the same reasoning as `wasAbsent` on the
+  storage side, where zero is a legitimate stored value; both are cases where a
+  sentinel would silently invent a state the spec does not have.
+-/
+
+import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.StorageWriteMap
+import EvmAsm.Stateless.MemoryLayout
+
+namespace EvmAsm.Codegen
+
+/-- Entries per level. Matches `storageWritesCapacity` and the read arenas'
+    16384, so no write container overflows before its read counterpart. -/
+def accountWritesCapacity : Nat := 16384
+
+/-! ## `account_write_record`
+
+    Mirrors `set_account` (`state_tracker.py:486`):
+    `tx_state.account_writes[address] = account`.
+
+    Calling convention:
+      a0 = address ptr  (32 B, 20 significant) — the `Address` key
+      a1 = balance ptr  (32 B) — `Account.balance`
+      a2 = nonce        (u64, BY VALUE) — `Account.nonce`
+      a3 = codeHash ptr (32 B) — `Account.code_hash`
+      a4 = present      (1 = an `Account`, 0 = the spec's `None`)
+      ra = return
+      no result register.
+
+    Targets the TRANSACTION level, which is where the spec's assignment points.
+    The block level is filled only by `account_writes_incorporate_tx`.
+
+    Clobbers nothing the caller can see: `t0`-`t6`, `ra` and the argument
+    registers it forwards are saved and restored, so this is safe to call from a
+    handler `preBody` holding live dispatcher state in caller-saved registers —
+    the same contract `storage_write_record` relies on to leave verified
+    Programs untouched. -/
+def accountWriteRecordFunction : String :=
+  "account_write_record:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  -- Not a leaf: it journals before mutating, so ra is saved. a5/a6 are saved
+  -- because the undo helper takes its args there and a caller may hold them.
+  "  sd ra, 56(sp); sd a5, 64(sp); sd a6, 72(sp); sd a2, 80(sp); sd a4, 88(sp)\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0)\n" ++           -- t1 = count
+  "  li t3, 0xa26a0000\n" ++                                      -- t3 = TX_ACCOUNT_WRITES_AREA
+  "  li t4, 0\n" ++                                               -- t4 = i
+  ".Lawr_scan:\n" ++
+  "  bgeu t4, t1, .Lawr_append\n" ++
+  "  slli t5, t4, 7; add t5, t3, t5\n" ++                         -- t5 = &entry[i]
+  -- address compare (32 B); any mismatch -> next entry
+  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lawr_next\n" ++
+  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lawr_next\n" ++
+  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lawr_next\n" ++
+  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lawr_next\n" ++
+  -- Key hit. Journal the SUPERSEDED record before overwriting it:
+  -- undo{entryIndex = t4, wasAbsent = 0, prev* = entry's current fields}.
+  "  mv a5, t4; li a6, 0\n" ++
+  "  jal ra, account_writes_undo_push\n" ++
+  "  j .Lawr_store\n" ++                                          -- then overwrite in place
+  ".Lawr_next:\n" ++
+  "  addi t4, t4, 1; j .Lawr_scan\n" ++
+  ".Lawr_append:\n" ++
+  "  li t2, " ++ toString accountWritesCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lawr_overflow\n" ++
+  -- Journal the APPEND before making it: undo{entryIndex = t1, wasAbsent = 1}.
+  -- wasAbsent is a field rather than a zero sentinel because an all-zero record
+  -- is a legitimate value here (`present = 0` is the spec's `None`), so
+  -- restoring an appended key by zeroing it would leave a deleted-account entry
+  -- where the spec has no key at all.
+  "  mv a5, t1; li a6, 1\n" ++
+  "  jal ra, account_writes_undo_push\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0)\n" ++           -- reload: helper may have run
+  "  li t3, 0xa26a0000\n" ++
+  "  slli t5, t1, 7; add t5, t3, t5\n" ++                         -- t5 = &entry[count]
+  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
+  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
+  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
+  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lawr_store:\n" ++
+  -- Fields written on BOTH the hit and the append path.
+  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
+  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
+  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
+  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
+  "  ld t2, 80(sp); sd t2, 64(t5)\n" ++                           -- nonce (by value)
+  "  ld t2, 88(sp); sd t2, 72(t5)\n" ++                           -- present
+  "  ld t2, 0(a3);  sd t2, 80(t5)\n" ++
+  "  ld t2, 8(a3);  sd t2, 88(t5)\n" ++
+  "  ld t2, 16(a3); sd t2, 96(t5)\n" ++
+  "  ld t2, 24(a3); sd t2, 104(t5)\n" ++
+  "  j .Lawr_done\n" ++
+  ".Lawr_overflow:\n" ++
+  "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lawr_done:\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  ld ra, 56(sp); ld a5, 64(sp); ld a6, 72(sp); ld a2, 80(sp); ld a4, 88(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret\n"
+
+/-! ## `account_writes_block_upsert`
+
+    Upsert one record into the BLOCK level. Called only by
+    `account_writes_incorporate_tx`; the block level has no other writer,
+    mirroring the spec where `block.account_writes[address] = account` appears
+    only inside `incorporate_tx_into_block` (`state_tracker.py:864-865`).
+
+    An upsert rather than an append, because the block level is a map too: an
+    account written in two transactions holds the later record, not two entries.
+
+    a0 = &tx_entry (a full 128 B record to copy in). No result register;
+    overflow sets `account_writes_overflow`. -/
+def accountWritesBlockUpsertFunction : String :=
+  "account_writes_block_upsert:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0)\n" ++
+  "  li t3, 0xa24a0000\n" ++                                      -- ACCOUNT_WRITES_AREA
+  "  li t4, 0\n" ++
+  ".Lawb_scan:\n" ++
+  "  bgeu t4, t1, .Lawb_append\n" ++
+  "  slli t5, t4, 7; add t5, t3, t5\n" ++
+  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lawb_next\n" ++
+  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lawb_next\n" ++
+  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lawb_next\n" ++
+  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lawb_next\n" ++
+  "  j .Lawb_store\n" ++
+  ".Lawb_next:\n" ++
+  "  addi t4, t4, 1; j .Lawb_scan\n" ++
+  ".Lawb_append:\n" ++
+  "  li t2, " ++ toString accountWritesCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lawb_overflow\n" ++
+  "  slli t5, t1, 7; add t5, t3, t5\n" ++
+  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
+  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
+  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
+  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lawb_store:\n" ++
+  -- balance, nonce, present, codeHash — the non-key half of the record
+  "  ld t2, 32(a0);  sd t2, 32(t5)\n" ++
+  "  ld t2, 40(a0);  sd t2, 40(t5)\n" ++
+  "  ld t2, 48(a0);  sd t2, 48(t5)\n" ++
+  "  ld t2, 56(a0);  sd t2, 56(t5)\n" ++
+  "  ld t2, 64(a0);  sd t2, 64(t5)\n" ++
+  "  ld t2, 72(a0);  sd t2, 72(t5)\n" ++
+  "  ld t2, 80(a0);  sd t2, 80(t5)\n" ++
+  "  ld t2, 88(a0);  sd t2, 88(t5)\n" ++
+  "  ld t2, 96(a0);  sd t2, 96(t5)\n" ++
+  "  ld t2, 104(a0); sd t2, 104(t5)\n" ++
+  "  j .Lawb_done\n" ++
+  ".Lawb_overflow:\n" ++
+  "  la t0, account_writes_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lawb_done:\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
+/-! ## `account_writes_incorporate_tx`
+
+    Mirrors the account half of `incorporate_tx_into_block`: merge the
+    transaction level into the block level (`state_tracker.py:864-865`), then
+    **CLEAR** the transaction level (`:874`).
+
+    The clear is load-bearing. A merge without a clear double-counts across
+    transactions, so transaction 2 would re-promote transaction 1's writes. A
+    single-transaction smoke test cannot observe this — there is no second
+    transaction to double-count into — which is why the storage-side equivalent
+    shipped with a defect that only a multi-tx fixture caught. Verified on a
+    multi-tx fixture, not inferred.
+
+    Ordering note for the NEXT slice: the spec calls `update_builder_from_tx`
+    **before** this merge, because the BAL comparison baseline is the block's
+    *pre-merge* cumulative value. Emitting changes after the merge would compare
+    a value against itself and record nothing. The emission therefore has to be
+    inserted ahead of the merge loop, not appended to it.
+
+    No arguments; no result register. -/
+def accountWritesIncorporateTxFunction : String :=
+  "account_writes_incorporate_tx:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la s0, tx_account_writes_count; ld s1, 0(s0)\n" ++            -- s1 = tx count
+  "  li s2, 0xa26a0000\n" ++                                       -- s2 = tx area
+  "  li s3, 0\n" ++                                                -- s3 = i
+  ".Lawi_loop:\n" ++
+  "  bgeu s3, s1, .Lawi_clear\n" ++
+  "  slli a0, s3, 7; add a0, s2, a0\n" ++
+  "  jal ra, account_writes_block_upsert\n" ++
+  "  addi s3, s3, 1; j .Lawi_loop\n" ++
+  ".Lawi_clear:\n" ++
+  -- state_tracker.py:874 `tx_state.account_writes.clear()`. The undo journal is
+  -- reset with it: its entries index the tx-level map, so they are meaningless
+  -- once that map is empty, and a stale mark would unwind the NEXT transaction's
+  -- writes against the previous one's indices.
+  "  la s0, tx_account_writes_count; sd zero, 0(s0)\n" ++
+  "  la s0, tx_account_writes_overflow; sd zero, 0(s0)\n" ++
+  "  la s0, account_writes_undo_count; sd zero, 0(s0)\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
+/-! ## `account_writes_discard_tx`
+
+    A transaction that fails contributes nothing to the block. The spec reaches
+    this by never calling `incorporate_tx_into_block`, so the transaction dict is
+    simply abandoned — but the guest's arena is reused across transactions, so
+    abandoning means explicitly clearing, or the next transaction inherits the
+    failed one's writes and `incorporate` promotes them.
+
+    That is not hypothetical: it is the storage-side defect from this same family
+    (#10693), where a failed transaction's writes reached the block level because
+    the promotion was gated on a coverage flag rather than on transaction status.
+
+    No arguments; no result register. -/
+def accountWritesDiscardTxFunction : String :=
+  "account_writes_discard_tx:\n" ++
+  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  "  la t0, tx_account_writes_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, account_writes_undo_count; sd zero, 0(t0)\n" ++
+  "  ret\n"
+
+/-! ## `account_writes_undo_push`
+
+    Append one undo entry describing a write about to happen to the tx-level map.
+
+    a5 = entryIndex, a6 = wasAbsent (1 on append, 0 on overwrite).
+    On an overwrite the superseded fields are read from the entry itself, so the
+    caller does not have to stage them. No result register; no overflow path —
+    the journal inherits the exec log's already-enforced 16384-row cap. -/
+def accountWritesUndoPushFunction : String :=
+  "account_writes_undo_push:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp)\n" ++
+  "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
+  "  li t2, 0xa28a0000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
+  "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
+  "  sd a5, 0(t3)\n" ++                                            -- entryIndex
+  "  sd a6, 8(t3)\n" ++                                            -- wasAbsent
+  "  bnez a6, .Lawu_appended\n" ++
+  -- Overwrite: copy the entry's CURRENT fields in as the previous ones.
+  "  li t2, 0xa26a0000; slli t4, a5, 7; add t4, t2, t4\n" ++       -- t4 = &tx_entry[idx]
+  "  ld t2, 64(t4);  sd t2, 16(t3)\n" ++                           -- prevNonce
+  "  ld t2, 72(t4);  sd t2, 24(t3)\n" ++                           -- prevPresent
+  "  ld t2, 32(t4);  sd t2, 32(t3)\n" ++
+  "  ld t2, 40(t4);  sd t2, 40(t3)\n" ++
+  "  ld t2, 48(t4);  sd t2, 48(t3)\n" ++
+  "  ld t2, 56(t4);  sd t2, 56(t3)\n" ++
+  "  ld t2, 80(t4);  sd t2, 64(t3)\n" ++
+  "  ld t2, 88(t4);  sd t2, 72(t3)\n" ++
+  "  ld t2, 96(t4);  sd t2, 80(t3)\n" ++
+  "  ld t2, 104(t4); sd t2, 88(t3)\n" ++
+  ".Lawu_appended:\n" ++
+  "  addi t1, t1, 1; la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
+/-! ## `account_writes_restore_frame`
+
+    Reverse-replay the undo journal down to a mark, mirroring
+    `restore_tx_state` (`state_tracker.py:809-826`) rebinding the snapshot copy.
+
+    a0 = mark (the `account_writes_undo_count` captured on frame entry).
+
+    Reverse order is required, not merely tidy: two writes to the same key leave
+    two entries, and replaying forwards would restore the older value last.
+    Appended keys are unwound by truncating the map, which is sound because
+    nesting is LIFO — a child's appends sit above the parent's mark. A successful
+    child's entries are RETAINED so a later parent revert still undoes them,
+    matching `frame_return`'s merge-on-success cursor discipline. -/
+def accountWritesRestoreFrameFunction : String :=
+  "account_writes_restore_frame:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp)\n" ++
+  "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
+  ".Lawf_loop:\n" ++
+  "  bgeu a0, t1, .Lawf_done\n" ++                                 -- count <= mark: nothing left
+  "  addi t1, t1, -1\n" ++                                         -- pop the newest
+  "  li t2, 0xa28a0000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
+  "  ld t4, 0(t3)\n" ++                                            -- entryIndex
+  "  ld t5, 8(t3)\n" ++                                            -- wasAbsent
+  "  beqz t5, .Lawf_overwrite\n" ++
+  -- Appended: drop it by truncating the map to this index.
+  "  la t2, tx_account_writes_count; sd t4, 0(t2)\n" ++
+  "  j .Lawf_loop\n" ++
+  ".Lawf_overwrite:\n" ++
+  "  li t2, 0xa26a0000; slli t5, t4, 7; add t5, t2, t5\n" ++       -- t5 = &tx_entry[idx]
+  "  ld t2, 16(t3); sd t2, 64(t5)\n" ++                            -- prevNonce
+  "  ld t2, 24(t3); sd t2, 72(t5)\n" ++                            -- prevPresent
+  "  ld t2, 32(t3); sd t2, 32(t5)\n" ++
+  "  ld t2, 40(t3); sd t2, 40(t5)\n" ++
+  "  ld t2, 48(t3); sd t2, 48(t5)\n" ++
+  "  ld t2, 56(t3); sd t2, 56(t5)\n" ++
+  "  ld t2, 64(t3); sd t2, 80(t5)\n" ++
+  "  ld t2, 72(t3); sd t2, 88(t5)\n" ++
+  "  ld t2, 80(t3); sd t2, 96(t5)\n" ++
+  "  ld t2, 88(t3); sd t2, 104(t5)\n" ++
+  "  j .Lawf_loop\n" ++
+  ".Lawf_done:\n" ++
+  "  la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
+/-- Data symbols for the two `account_writes` levels and the undo journal.
+    The arenas themselves are NOBITS regions declared in `MemoryLayout`; only
+    the counters and flags live in `.data`. -/
+def accountWriteMapDataSection : String :=
+  "account_writes_count:\n  .zero 8\n" ++
+  "account_writes_overflow:\n  .zero 8\n" ++
+  "tx_account_writes_count:\n  .zero 8\n" ++
+  "tx_account_writes_overflow:\n  .zero 8\n" ++
+  "account_writes_undo_count:\n  .zero 8\n"
+
+/-- Every routine in this module, in emission order. `account_write_record`
+    calls `account_writes_undo_push`, and `account_writes_incorporate_tx` calls
+    `account_writes_block_upsert`, so all five must be emitted together. -/
+def accountWriteMapFunctions : String :=
+  accountWriteRecordFunction ++
+  accountWritesBlockUpsertFunction ++
+  accountWritesIncorporateTxFunction ++
+  accountWritesDiscardTxFunction ++
+  accountWritesUndoPushFunction ++
+  accountWritesRestoreFrameFunction
+
+/-! ## Structural guards
+
+    `#guard`s in `EvmAsm.Codegen`, the namespace the definitions above live in --
+    NOT the file path. A guard opened on the wrong namespace has its identifiers
+    auto-bound as implicits and passes while checking nothing, so the layout
+    constants are written FULLY QUALIFIED here rather than via `open ... in`.
+
+    Each guard is a SINGLE LINE. A `#guard` whose expression wraps onto a second
+    line parses the continuation as a new command, and the guard silently covers
+    only the first line -- which is the same vacuous-pass failure one level down. -/
+
+-- The three arenas are laid end to end, 2 MiB each, and must not overlap.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + 0x200000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
+-- ...and all three fit below `.data` at 0xa3000000.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x200000 <= 0xa3000000
+-- The block-level arena starts where the storage-write undo journal ends
+-- (0xa23a0000 + 1 MiB), so the new regions are contiguous with the existing ones
+-- rather than leaving an unaccounted hole in working RAM.
+#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat + 0x100000 == EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+
+-- Capacity x stride must equal the reserved 2 MiB EXACTLY: an arena larger than
+-- its reservation would run into the next region with nothing objecting.
+#guard accountWritesCapacity * 128 == 0x200000
+-- Capacity parity with the storage map, so neither write container overflows
+-- before the other or before the read arenas.
+#guard accountWritesCapacity == storageWritesCapacity
+
+-- Every routine must actually be emitted. This slice is inert, so nothing calls
+-- them yet and a missing one would NOT be a link error -- these guards are the
+-- only thing that would catch it.
+#guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
+
+-- The clear in `incorporate` must reset the undo journal too: its entries index
+-- the tx-level map, so a retained mark would unwind the NEXT transaction's writes
+-- against the previous one's indices.
+#guard (accountWritesIncorporateTxFunction.splitOn "account_writes_undo_count").length == 2
+
+-- `discard` must clear exactly what `incorporate` clears. A discard that forgets a
+-- counter leaves a failed transaction's writes visible to the next one, which is
+-- the storage-side defect in #10693.
+#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_count").length == 2
+#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_overflow").length == 2
+#guard (accountWritesDiscardTxFunction.splitOn "account_writes_undo_count").length == 2
+
+-- The data section must declare every counter the routines name. Matched as EXACT
+-- LINES, not substrings: `account_writes_count:` is a substring of
+-- `tx_account_writes_count:`, so a splitOn guard on it counts two hits and fails
+-- against correct code. The collision produced a clean, wrong answer rather than
+-- an error -- the same shape as every narrow discriminator in this codebase.
+#guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_count:" == 1
+#guard (accountWriteMapDataSection.splitOn "\n").count "tx_account_writes_count:" == 1
+#guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_overflow:" == 1
+#guard (accountWriteMapDataSection.splitOn "\n").count "tx_account_writes_overflow:" == 1
+#guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_undo_count:" == 1
+
+end EvmAsm.Codegen
