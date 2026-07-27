@@ -289,7 +289,7 @@ stateless_guest	tx_gas_sender_bal_lookup	0x800222e0	.text	LINK_DEPENDENT
 stateless_guest	simple_transfer_tx_context	0x800225c0	.text	LINK_DEPENDENT
 stateless_guest	stage_runtime_payload	0x80022860	.text	LINK_DEPENDENT
 stateless_guest	stage_creation_runtime_payload	0x800229d4	.text	LINK_DEPENDENT
-stateless_guest	block_verdict_single_tx_creation_runtime	0x80022b74	.text	LINK_DEPENDENT
+stateless_guest	block_verdict_creation_runtime	0x80022b74	.text	LINK_DEPENDENT
 stateless_guest	slot_decode_u256	0x80023538	.text	LINK_DEPENDENT
 stateless_guest	slot_at_index	0x800235b8	.text	LINK_DEPENDENT
 stateless_guest	slot_at_header_state_root	0x80023650	.text	LINK_DEPENDENT
@@ -2656,7 +2656,7 @@ stateless_guest	stal_slot_le	0xbcc5a5b8	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_calldata_floor	0xbcc5a5d8	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_intrinsic_regular	0xbcc5a5e0	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_top_frame_regular_gas	0xbcc5a5e8	.bss	LINK_DEPENDENT
-stateless_guest	runtime_tx_auth_phase_applied	0xbcc5a5f0	.bss	LINK_DEPENDENT
+stateless_guest	runtime_tx_post_preparation_reached	0xbcc5a5f0	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_post_top_frame_fn	0xbcc5a5f8	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_prepare_only	0xbcc5a600	.bss	LINK_DEPENDENT
 stateless_guest	runtime_tx_prepare_prefix_status	0xbcc5a608	.bss	LINK_DEPENDENT
