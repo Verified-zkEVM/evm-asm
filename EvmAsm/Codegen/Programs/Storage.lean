@@ -601,20 +601,28 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x12, 32\n" ++
-        -- a6 = pre-tx baseline ptr. DELIBERATELY ZERO for now, which the callee reads
-        -- as "the baseline is zero" -- `_get_pre_tx_storage` documents that as the
-        -- answer for an unset slot, so the field is well-defined rather than garbage.
+        -- a6 = pre-tx baseline ptr, which is exactly what x18 already is: the
+        -- handler maintains it as `&found.original` (:382, `x14 + 64`) or 0 meaning
+        -- original == current == 0 (:465) -- the SAME pointer-or-zero convention
+        -- `storage_write_record` documents for a6, so no conversion is needed.
         --
-        -- It is not yet the REAL baseline, and the reason is worth recording. The
-        -- resolved transaction-start value lives in `sstore_prestate_pair`, but that
-        -- buffer is MULTIPLEXED: it holds (address, key) for the committed-log lookup
-        -- above, and only afterwards (original, current) -- and which of the three
-        -- resolution paths ran determines what is in it here. Passing it without
-        -- establishing that would make the captured baseline path-dependent, which is
-        -- exactly the failure the capture exists to prevent.
+        -- WHY x18 AND NOT `sstore_prestate_pair`: that buffer is MULTIPLEXED -- it
+        -- holds (address, key) for the committed-log lookup at :411-415 and only
+        -- afterwards (original, current). On the ZERO path nothing overwrites +0, so
+        -- it still holds the REVERSED 20-BYTE ADDRESS: byte-plausible, 32 bytes wide,
+        -- and an address rather than a value.
         --
-        -- Nothing reads the captured field yet, so zero is inert rather than wrong.
-        "  li a6, 0\n" ++
+        -- WHY x18 IS LIVE HERE, verified rather than assumed: it is clobbered at :496
+        -- as a scratch for `evm_state_gas_spilled` inside the zero-restore credit
+        -- path, but the refund block saved it at :469 and RESTORES it at :510, and
+        -- nothing between :510 and here writes it -- :517-550 only read it.
+        --
+        -- And it is uniform across every path that reaches this point. Where the
+        -- append runs, :543-551 copies the original from x18 into the new row's +64
+        -- (or zeros when x18 is 0); where the append is skipped as a value-unchanged
+        -- rewrite, x18 already points at the found row's +64. Either way x18 is a
+        -- valid pointer to this slot's transaction-start value.
+        "  mv a6, x18\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
