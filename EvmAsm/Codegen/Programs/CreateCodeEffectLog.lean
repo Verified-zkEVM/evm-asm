@@ -210,6 +210,10 @@ def accountStateCommitPendingFunction : String :=
   -- matching the spec: update_builder_from_tx and the read merges run before
   -- account_writes/storage_writes are folded into the block.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  -- GH #10645: SELFDESTRUCT storage rows are execution reads too.  Promote
+  -- them while the tx-level read set is still live; this helper is reached only
+  -- from successful transaction finalization.
+  "  jal ra, account_state_promote_delete_reads\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
