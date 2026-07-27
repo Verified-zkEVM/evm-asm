@@ -129,8 +129,68 @@ def balBuilderEnsureAccountFunction : String :=
   ".Lbabe_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
 
+/-! ## Non-storage append primitives
+
+These mirror `add_balance_change`, `add_nonce_change`, and `add_code_change`.
+Their caller supplies one final post-state for a `(canonical address, BAI)`;
+that transaction-boundary discipline is what gives the spec's same-BAI
+replacement semantics without recording intermediate execution snapshots.
+
+All three first intern the address for the builder's account/touched set, then
+copy that same BE20 key into the event row for the canonical sorter.  A full
+arena latches both its component bit and `bal_builder_overflow`; the common
+verdict gate will reject rather than truncate an event stream.
+-/
+def balBuilderAppendBalanceFunction : String :=
+  "bal_builder_append_balance:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
+  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabb_overflow\n" ++
+  "  la t0, bal_builder_balance_count; ld t1, 0(t0); li t2, " ++ toString balBuilderBalanceCapacity ++ "; bgeu t1, t2, .Lbabb_overflow\n" ++
+  "  slli t2, t1, 6; la t3, bal_builder_balance_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
+  ".Lbabb_addr:\n" ++
+  "  beqz t5, .Lbabb_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabb_addr\n" ++
+  ".Lbabb_bai:\n" ++
+  "  la t3, bal_builder_balance_changes; slli t2, t1, 6; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); ld t5, 0(t4); sd t5, 32(t3); ld t5, 8(t4); sd t5, 40(t3); ld t5, 16(t4); sd t5, 48(t3); ld t5, 24(t4); sd t5, 56(t3); addi t1, t1, 1; la t0, bal_builder_balance_count; sd t1, 0(t0); li a0, 0; j .Lbabb_ret\n" ++
+  ".Lbabb_overflow:\n" ++
+  "  la t0, bal_builder_balance_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lbabb_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 40; ret\n"
+
+def balBuilderAppendNonceFunction : String :=
+  "bal_builder_append_nonce:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
+  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabc_overflow\n" ++
+  "  la t0, bal_builder_nonce_count; ld t1, 0(t0); li t2, " ++ toString balBuilderNonceCapacity ++ "; bgeu t1, t2, .Lbabc_overflow\n" ++
+  "  slli t2, t1, 2; add t2, t2, t1; slli t2, t2, 3; la t3, bal_builder_nonce_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
+  ".Lbabc_addr:\n" ++
+  "  beqz t5, .Lbabc_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabc_addr\n" ++
+  ".Lbabc_bai:\n" ++
+  "  la t3, bal_builder_nonce_changes; slli t2, t1, 2; add t2, t2, t1; slli t2, t2, 3; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); sd t4, 32(t3); addi t1, t1, 1; la t0, bal_builder_nonce_count; sd t1, 0(t0); li a0, 0; j .Lbabc_ret\n" ++
+  ".Lbabc_overflow:\n" ++
+  "  la t0, bal_builder_nonce_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lbabc_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 40; ret\n"
+
+def balBuilderAppendCodeFunction : String :=
+  "bal_builder_append_code:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
+  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabcod_overflow\n" ++
+  "  la t0, bal_builder_code_count; ld t1, 0(t0); li t2, " ++ toString balBuilderCodeCapacity ++ "; bgeu t1, t2, .Lbabcod_overflow\n" ++
+  "  slli t2, t1, 6; la t3, bal_builder_code_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
+  ".Lbabcod_addr:\n" ++
+  "  beqz t5, .Lbabcod_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabcod_addr\n" ++
+  ".Lbabcod_bai:\n" ++
+  "  la t3, bal_builder_code_changes; slli t2, t1, 6; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); sd t4, 32(t3); ld t4, 32(sp); sd t4, 40(t3); addi t1, t1, 1; la t0, bal_builder_code_count; sd t1, 0(t0); li a0, 0; j .Lbabcod_ret\n" ++
+  ".Lbabcod_overflow:\n" ++
+  "  la t0, bal_builder_code_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lbabcod_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 48; ret\n"
+
 def blockAccessListBuilderFunctions : String :=
-  balBuilderEnsureAccountFunction
+  balBuilderEnsureAccountFunction ++
+  balBuilderAppendBalanceFunction ++
+  balBuilderAppendNonceFunction ++
+  balBuilderAppendCodeFunction
 
 #guard balBuilderAccountBytes = 1538460
 #guard balBuilderStorageChangeBytes = 1476864
@@ -139,5 +199,8 @@ def blockAccessListBuilderFunctions : String :=
 #guard balBuilderCodeBytes = 400000
 #guard balBuilderPersistentBytes = 7281964
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_ensure_account:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_balance:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_nonce:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_code:").length == 2
 
 end EvmAsm.Codegen
