@@ -59,66 +59,48 @@ theorem bahU32leFunction_eq_prog :
 
 #guard bahU32leFunction.startsWith "bah_u32le:\n"
 #guard bahU32le_prog.length = 12
+/-! ## block_access_list_hash_core
+
+    ABI: `a0 = bytes ptr`, `a1 = byte length`, `a2 = 32-byte output ptr`.
+
+    This is the sole implementation of the hash operation: both the existing
+    SSZ-derived wrapper and the reconstructed-BAL path enter this same core.
+    Keeping one call site is essential: equality of two separately implemented
+    Keccak computations would not establish equality of their inputs.  The core
+    owns a frame because it must preserve its caller's return address across the
+    non-tail call to `zkvm_keccak256`; tail-calling Keccak here would return to
+    the core's `ret`, not to the wrapper's original caller. -/
+def blockAccessListHashCoreFunction : String :=
+  "block_access_list_hash_core:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  ret\n"
+
 /-! ## block_access_list_hash
-    a0 = SSZ_BASE ptr   a1 = 32-byte out hash ptr.   a0 (output) = 0. -/
-def blockAccessListHash_prog : Program :=
-  [ .ADDI .x2 .x2 (-32 : BitVec 12),
-    .SD .x2 .x1 (0 : BitVec 12),
-    .SD .x2 .x8 (8 : BitVec 12),
-    .SD .x2 .x9 (16 : BitVec 12),
-    .SD .x2 .x18 (24 : BitVec 12),
-    .MV .x8 .x10,
-    .MV .x9 .x11,
-    .ADDI .x18 .x8 (16 : BitVec 12),
-    .ADDI .x28 .x18 (44 : BitVec 12),
-    .ADDI .x10 .x28 (528 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bah_u32le (GuestAddrs.block_access_list_hash + 40)),
-    .ADDI .x28 .x18 (44 : BitVec 12),
-    .ADD .x29 .x28 .x10,
-    .AUIPC .x5 (laHi GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 52)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 52)),
-    .SD .x5 .x29 (0 : BitVec 12),
-    .ADDI .x10 .x18 (4 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bah_u32le (GuestAddrs.block_access_list_hash + 68)),
-    .ADD .x30 .x18 .x10,
-    .AUIPC .x5 (laHi GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 76)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 76)),
-    .LD .x29 .x5 (0 : BitVec 12),
-    .SUB .x11 .x30 .x29,
-    .MV .x10 .x29,
-    .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.block_access_list_hash + 100)),
-    .LI .x10 (0 : Word),
-    .LD .x1 .x2 (0 : BitVec 12),
-    .LD .x8 .x2 (8 : BitVec 12),
-    .LD .x9 .x2 (16 : BitVec 12),
-    .LD .x18 .x2 (24 : BitVec 12),
-    .ADDI .x2 .x2 (32 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
 
-/-- Reloc side-table for `blockAccessListHash_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def blockAccessListHash_relocs : RelocTable :=
-  [ (10, .jal .x1 "bah_u32le"),
-    (13, .la .x5 "bah_bal_start"),
-    (17, .jal .x1 "bah_u32le"),
-    (19, .la .x5 "bah_bal_start"),
-    (25, .jal .x1 "zkvm_keccak256") ]
-
+    Wrapper ABI: `a0 = SSZ_BASE`, `a1 = 32-byte output ptr`.
+    It retains the legacy SSZ navigation, then tail-calls the common core with
+    the derived `(bal_start, bal_end - bal_start, out)` triple. -/
 def blockAccessListHashFunction : String :=
-  "block_access_list_hash:\n" ++ emitProgramR blockAccessListHash_prog blockAccessListHash_relocs
+  "block_access_list_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  addi s2, s0, 16\n" ++
+  "  addi t3, s2, 44; addi a0, t3, 528; jal ra, bah_u32le\n" ++
+  "  addi t3, s2, 44; add t4, t3, a0\n" ++
+  "  la t0, bah_bal_start; sd t4, 0(t0)\n" ++
+  "  addi a0, s2, 4; jal ra, bah_u32le; add t5, s2, a0\n" ++
+  "  la t0, bah_bal_start; ld t4, 0(t0)\n" ++
+  -- `s1` still parks the wrapper's out pointer while `a0`/`a1` are repurposed.
+  -- Copy it to `a2` before restoring `s1`, then tail-enter the three-argument core.
+  "  sub a1, t5, t4; mv a0, t4; mv a2, s1\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 32\n" ++
+  "  j block_access_list_hash_core\n"
 
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `blockAccessListHash_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem blockAccessListHashFunction_eq_prog :
-    blockAccessListHashFunction = "block_access_list_hash:\n" ++ emitProgramR blockAccessListHash_prog blockAccessListHash_relocs := rfl
-
+#guard blockAccessListHashCoreFunction.startsWith "block_access_list_hash_core:\n"
 #guard blockAccessListHashFunction.startsWith "block_access_list_hash:\n"
-#guard blockAccessListHash_prog.length = 33
 /-- `zisk_block_access_list_hash`: probe. Fed the SAME `-i` input as the guest
     (SSZ_BASE = 0x40000012). Output: OUTPUT+0 = block_access_list_hash (32 B). -/
 def ziskBlockAccessListHashPrologue : String :=
@@ -129,6 +111,7 @@ def ziskBlockAccessListHashPrologue : String :=
   "  j .Lbah_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   bahU32leFunction ++ "\n" ++
+  blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   ".Lbah_pdone:"
 
