@@ -62,10 +62,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_deposit_capture_mark:\n" ++
   "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
   ".Lbv_mtx_independence_ok:\n" ++
-  -- Build the sorted sender index once from public keys. The exact per-tx nonce
-  -- check below binary-searches this table and mutates the count field as the
-  -- running block-global nonce delta (transactions plus valid EIP-7702
-  -- authorizations); the B1 final-nonce tail consumes that same table.
+  -- Build the sorted distinct-sender index once from public keys.  B1 retains
+  -- this address enumeration for its final BAL coverage check, but AccountState
+  -- is the sole live nonce state: no execution path reads or mutates the row's
+  -- count word.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_sender_seed_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_seed_done\n" ++
@@ -187,19 +187,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, tx_effective_gas_pricing\n" ++
   "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
   "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
-  -- bmvmx.5 (multi-tx nonce lower-bound, path-independent like the fee check above): the
-  -- single-tx @1082 nonce check (tx.nonce == sender_pre_nonce) does NOT cover the mtx loop, so a
-  -- multi-tx block carrying a tx whose nonce is BELOW the sender's pre-state nonce is currently
-  -- accepted (the spec rejects it, NonceMismatchError). SOUND-PARTIAL check: reject if
-  -- tx.nonce < sender_pre_nonce. Valid txs always have nonce >= the account's block-start nonce
-  -- (==pre for the sender's first tx, >pre for a sequenced later tx), so this NEVER false-rejects;
-  -- it catches the below-pre adversarial case; the running-count check below also rejects nonce reuse and too-high nonces.
+  -- Exact sequential sender nonce check.  The first transaction falls back to
+  -- the authenticated header account; later transactions read the durable
+  -- sender snapshot published at their predecessors' inclusion boundary.
   -- sttc_nonce holds THIS tx's nonce (multi_tx_nth_context wrote it via tx_extract_nonce_and_gas).
   -- sender = address_from_pubkey(public_keys[i]+1): public_keys[i] = bv_public_keys_ptr + i*65
   -- (65-byte SEC1 0x04||x||y, verified bound to tx[i]'s signer by verify_public_keys_match_senders).
   -- i*65 = (i<<6)+i. account_at_header_state_root(pre-state) -> sender acct, nonce@0. s0+8/16/80/88
-  -- are the same lookup args the legacy sender lookup uses (@128). Lookup fail/absent -> skip
-  -- (conservative; an absent sender has pre_nonce 0 and tx.nonce>=0, so the check is a no-op anyway).
+  -- are the same lookup args the legacy sender lookup uses (@128). Lookup
+  -- fail/absent remains conservative, as before.
   "  la t0, bv_mtx_i; ld t1, 0(t0)\n" ++
   "  slli t2, t1, 6; add t1, t2, t1\n" ++                       -- t1 = i*65
   "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t1; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
@@ -209,41 +205,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- authenticated public_keys[i]+1 pointer before the nonce helper clobbers a0.
   "  la t0, bv_mtx_ctx; sd a0, 24(t0)\n" ++
   "  la a1, bv_mtx_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_mtx_sender_acct; jal ra, account_state_latest_nonce\n" ++
+  "  bnez a0, .Lbv_mtx_sender_nonce_current\n" ++
+  ".Lbv_mtx_sender_header:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
-  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++              -- t0 = sender block-start (pre-state) nonce
-  -- EXACT multi-tx nonce: tx.nonce must == pre_nonce + the running count already seen for
-  -- this sender address in the current block. The pre-loop sender index is sorted, so each
-  -- tx does a bounded binary lookup and increments that sender's running count in place.
-  -- Sound: valid blocks sequence each sender's txs as pre,pre+1,...
-  "  la t1, bv_mtx_nonce_pre; sd t0, 0(t1)\n" ++                -- stash pre_nonce across table lookup
-  "  la a0, bv_b1_sender_table; la t2, bv_b1_sender_count; ld a1, 0(t2); la a2, bv_mtx_sender_addr\n" ++
-  "  jal ra, b1_sender_table_find\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  mv t6, a1; ld t5, 32(t6)\n" ++
-  "  la t0, bv_mtx_nonce_pre; ld t0, 0(t0)\n" ++
-  "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0); j .Lbv_mtx_sender_nonce_have\n" ++
+  ".Lbv_mtx_sender_nonce_current:\n" ++
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++
+  ".Lbv_mtx_sender_nonce_have:\n" ++
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
-  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
-  -- Commit this transaction's sender increment only after its nonce matched,
-  -- then apply every valid authorization from the already-classified type-4
-  -- payload.  This is the execution-specs order: process_transaction first,
-  -- process_authorization_list second.
-  "  addi t5, t5, 1; sd t5, 32(t6)\n" ++
-  -- Sole EIP-7702 state/gas writer: run at the common per-transaction
-  -- boundary, before recipient routing.  The old B1 replay is a frozen
-  -- reference only; executing it here would be a second writer and can bail
-  -- a later transaction before it observes AccountState's prior commit.
-  -- Authorization recovery is part of the preparation phase itself.  The EOA
-  -- shortcut installs this backend later, so the common boundary must stage it
-  -- first or valid authorizations are silently skipped before their charges.
-  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
-  -- One live intrinsic/auth accounting boundary.  It uses AccountState as of
-  -- this transaction and writes the ordinary intrinsic-state settlement cell
-  -- directly; no block-final BAL replay or auth overlay follows later.
-  "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
@@ -265,6 +238,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a2, bv_upfront_cost\n" ++
   "  jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_sender_upfront_fail\n" ++                    -- upfront + value >= 2^256 -> reject
+  "  la t0, bv_upfront_blob_cost; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  la t0, bv_mtx_ctx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_mtx_upfront_blob_done\n" ++
   "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
   "  jal ra, tx_eip4844_decode\n" ++
@@ -289,6 +263,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, u256_lt_be\n" ++
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
   "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
+  -- `process_transaction` increments the sender nonce before preparation.
+  -- Publish only that monotone execution fact.  Balance has later value,
+  -- refund, and coinbase-credit writes, so it needs its own complete state
+  -- transition rather than an inclusion-time snapshot here.
+  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  -- Sole EIP-7702 state/gas writer: run after the inclusion snapshot, before
+  -- recipient routing.  The old B1 replay is a frozen reference only.
+  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   ".Lbv_mtx_nonce_done:\n" ++
   -- Creation needs the same sender/public-key and nonce setup as every other
   -- multi-tx item before its runtime adapter can derive CREATE(sender, nonce).
