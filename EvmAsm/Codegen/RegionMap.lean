@@ -219,19 +219,7 @@ def schemeAAnchors : List GuestRegion :=
     -- handler's own 16384-row cap, so it needs no overflow path.
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x100000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 1 MiB = 16384x64 "
-        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" },
-    -- GH #10695 nonstorage counterpart to the two-level storage-write map.
-    -- The block capacity is the 19047-account bound rounded to 20480 rows;
-    -- transaction capacity remains 16384 because one transaction has one sender.
-    { name := "account_writes_area", base := (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat, size := 0x280000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2.5 MiB = 20480x128 block-level "
-        ++ "account_writes, filled only by account_writes_incorporate_tx" },
-    { name := "tx_account_writes_area", base := (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128 per-transaction "
-        ++ "account_writes, target of account_write_record" },
-    { name := "account_writes_undo_area", base := (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
-        ++ "reverse-replayed account-write snapshot journal" } ]
+        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -622,11 +610,7 @@ theorem schemeA_matches_layout :
         -- :101 transaction) plus S5a's undo journal.
         (EvmAsm.Stateless.STORAGE_WRITES_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat,
-        -- GH #10695: nonstorage account-write map and its rollback journal.
-        (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -849,8 +833,6 @@ def stableGuestBases : List (String × Nat) :=
 --            Lost in a merge resolution of #10679 and restored here; the
 --            constants and the guest's use of the addresses were never removed,
 --            so three in-use regions had no disjointness or fit proof.
--- 29 -> 32: the analogous account_writes block/transaction/undo structures
---            from GH #10695.
-theorem stableGuestBases_length : stableGuestBases.length = 32 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 29 := by decide
 
 end EvmAsm.Codegen.RegionMap
