@@ -273,6 +273,91 @@ def accountWritesBlockUpsertFunction : String :=
     inserted ahead of the merge loop, not appended to it.
 
     No arguments; no result register. -/
+
+/-! ## `account_writes_emit_builder_tx`
+
+    The guest's transaction-boundary realization of
+    `update_builder_from_tx`.  It reads the transaction map *before* its
+    incorporation into the block map, because the block map is the spec's
+    pre-transaction baseline.  A block-map miss (or a hit whose fieldwise
+    overlay lacks the requested component) falls back to the authenticated
+    parent-state account; absence expands to `(balance, nonce, code_hash) =
+    (0, 0, EMPTY_CODE_HASH)`, not an all-zero code hash.
+
+    The map has one final row per address by its keyed upsert, so this loop
+    inherits one builder decision per `(address, block_access_index)` without
+    a second search/dedup stage.  The valid mask means only "producer touched
+    this component"; equality against the baseline, not the mask, decides
+    whether the builder receives an event.
+
+    No arguments.  BAI comes from `current_block_access_index`, maintained as
+    `bv_mtx_i + 1` by the multi-tx loop. -/
+def accountWritesEmitBuilderTxFunction : String :=
+  "account_writes_emit_builder_tx:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xa2720000; li s3, 0\n" ++
+  ".Laweb_loop:\n" ++
+  "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
+  -- Find this address in the block-cumulative map.  A hit may still lack an
+  -- individual field, in which case that component keeps the pre-state base.
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa24a0000; li t3, 0; li s5, 0\n" ++
+  ".Laweb_scan:\n" ++
+  "  bgeu t3, t1, .Laweb_header; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s4\n" ++
+  ".Laweb_cmp:\n" ++
+  "  beqz t6, .Laweb_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Laweb_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Laweb_cmp\n" ++
+  ".Laweb_next:\n" ++
+  "  addi t3, t3, 1; j .Laweb_scan\n" ++
+  ".Laweb_hit:\n" ++
+  "  mv s5, t5; j .Laweb_header\n" ++
+  -- Always materialise the parent-state account.  It is the fallback for a
+  -- whole-map miss and for individual components not carried by a fieldwise
+  -- block-map overlay.
+  ".Laweb_header:\n" ++
+  "  bnez s5, .Laweb_parent\n" ++
+  ".Laweb_parent:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s4; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_builder_pre_account; jal ra, account_at_header_state_root; sd a0, 80(sp)\n" ++
+  "  ld s8, 112(s4)\n" ++
+  -- Balance: baseline is block balance on a valid hit, otherwise header+8.
+  "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
+  ".Laweb_balance_have:\n" ++
+  "  beqz s5, .Laweb_balance_header; ld t0, 112(s5); andi t0, t0, 1; beqz t0, .Laweb_balance_header; addi s6, s5, 32; j .Laweb_balance_cmp\n" ++
+  ".Laweb_balance_header:\n" ++
+  "  la s6, account_builder_pre_account; addi s6, s6, 8\n" ++
+  ".Laweb_balance_cmp:\n" ++
+  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
+  ".Laweb_balance_emit:\n" ++
+  "  mv a0, s4; mv a1, s7; addi a2, s4, 32; jal ra, bal_builder_append_balance\n" ++
+  -- Nonce: baseline is block nonce on a valid hit, otherwise header+0.
+  ".Laweb_nonce:\n" ++
+  "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
+  ".Laweb_nonce_have:\n" ++
+  "  beqz s5, .Laweb_nonce_header; ld t0, 112(s5); andi t0, t0, 2; beqz t0, .Laweb_nonce_header; ld t0, 64(s5); j .Laweb_nonce_cmp\n" ++
+  ".Laweb_nonce_header:\n" ++
+  "  la t0, account_builder_pre_account; ld t0, 0(t0)\n" ++
+  ".Laweb_nonce_cmp:\n" ++
+  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  -- Code compares hashes, never code pointer/length identity.  The header
+  -- reader zeroes its output on authenticated absence, so select the canonical
+  -- EMPTY_CODE_HASH in that one case.
+  ".Laweb_code:\n" ++
+  "  andi t0, s8, 4; bnez t0, .Laweb_code_have; j .Laweb_advance\n" ++
+  ".Laweb_code_have:\n" ++
+  "  ld a0, 80(s4); ld a1, 88(s4); la a2, account_builder_post_code_hash; jal ra, zkvm_keccak256\n" ++
+  "  beqz s5, .Laweb_code_header; ld t0, 112(s5); andi t0, t0, 4; beqz t0, .Laweb_code_header; ld a0, 80(s5); ld a1, 88(s5); la a2, account_builder_block_code_hash; jal ra, zkvm_keccak256; la s6, account_builder_block_code_hash; j .Laweb_code_cmp\n" ++
+  ".Laweb_code_header:\n" ++
+  "  ld t0, 80(sp); li t1, 1; beq t0, t1, .Laweb_code_absent; la s6, account_builder_pre_account; addi s6, s6, 72; j .Laweb_code_cmp\n" ++
+  ".Laweb_code_absent:\n" ++
+  "  la s6, chahsr_empty_code_hash\n" ++
+  ".Laweb_code_cmp:\n" ++
+  "  la t0, account_builder_post_code_hash; ld t1, 0(t0); ld t2, 0(s6); bne t1, t2, .Laweb_code_emit; ld t1, 8(t0); ld t2, 8(s6); bne t1, t2, .Laweb_code_emit; ld t1, 16(t0); ld t2, 16(s6); bne t1, t2, .Laweb_code_emit; ld t1, 24(t0); ld t2, 24(s6); beq t1, t2, .Laweb_advance\n" ++
+  ".Laweb_code_emit:\n" ++
+  "  mv a0, s4; mv a1, s7; ld a2, 80(s4); ld a3, 88(s4); jal ra, bal_builder_append_code\n" ++
+  ".Laweb_advance:\n" ++
+  "  addi s3, s3, 1; j .Laweb_loop\n" ++
+  ".Laweb_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 112; ret\n"
+
 def accountWritesIncorporateTxFunction : String :=
   "account_writes_incorporate_tx:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -409,7 +494,15 @@ def accountWriteMapBssSection : String :=
   -- writes, unlike storage reads: reverted balance, nonce, and code mutations
   -- are not BAL events at all.  Kept alongside the storage-write checkpoint
   -- rather than in the packed frame ABI.
-  "account_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
+  "account_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  -- Transaction-boundary builder-walk scratch.  This stays in BSS: it is
+  -- runtime-only comparison state, and a data-section addition would shift the
+  -- pinned descriptor area for no semantic benefit.
+  ".balign 32\n" ++
+  "account_builder_pre_account:\n  .zero 104\n" ++
+  "account_builder_post_code_hash:\n  .zero 32\n" ++
+  "account_builder_block_code_hash:\n  .zero 32\n" ++
+  ".balign 8\n"
 
 /-- Every routine in this module, in emission order. `account_write_record`
     calls `account_writes_undo_push`, and `account_writes_incorporate_tx` calls
@@ -417,6 +510,7 @@ def accountWriteMapBssSection : String :=
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesBlockUpsertFunction ++
+  accountWritesEmitBuilderTxFunction ++
   accountWritesIncorporateTxFunction ++
   accountWritesDiscardTxFunction ++
   accountWritesUndoPushFunction ++
@@ -459,6 +553,7 @@ def accountWriteMapFunctions : String :=
 -- only thing that would catch it.
 #guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
