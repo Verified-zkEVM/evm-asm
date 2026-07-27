@@ -158,6 +158,116 @@ def balRlpEmitAddressFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret\n"
 
+/-! ## `bal_rlp_measure_into_throwaway`
+
+    Measure any absorbing emitter by running it against a context that is DISCARDED.
+
+    In a streaming design the usual measure-by-emitting-and-counting trick does not
+    work: absorbing mutates the sponge and **cannot be undone**, so a measure pass that
+    emitted into the live context would corrupt the digest. Handing the emitter a
+    throwaway context preserves the property that matters — the emitter is the single
+    implementation of the encoding rule, so measure and emit cannot disagree — while
+    leaving the real sponge untouched.
+
+    The name says `throwaway` because the failure mode of passing the live context is
+    silent: the digest simply comes out wrong, with every field absorbed twice.
+
+    a0 = throwaway ctx (its contents are meaningless afterwards)
+    a1 = emitter address     a2, a3, a4 = the emitter's own a1, a2, a3
+    a0 (out) = byte count the emitter reported
+
+    The caller must reset the throwaway context before reuse, or its fill offset
+    carries over and a later measurement absorbs at the wrong rate position — which
+    changes nothing about the COUNT, but leaves a trap for anyone who later reads the
+    throwaway context expecting a digest. -/
+def balRlpMeasureIntoThrowawayFunction : String :=
+  "bal_rlp_measure_into_throwaway:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  mv s0, a1\n" ++                                    -- s0 = emitter address
+  "  mv a1, a2; mv a2, a3; mv a3, a4\n" ++              -- shift the emitter's args down
+  "  jalr ra, 0(s0)\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
+  "  ret\n"
+
+/-! ## `bal_rlp_emit_bytes`
+
+    The RLP **byte-string** shape, absorbed into a keccak context. The one shape this
+    layer lacked, and the reason a fully-streaming walk was not previously possible:
+    `CodeChange.new_code` is a variable-length blob up to the EIP-170 limit, which
+    `bal_rlp_emit_scalar` cannot express — a scalar is at most 32 bytes and takes no
+    long-form branch.
+
+    Yellow paper §B, string rule, all three cases:
+
+        len == 1 AND byte < 0x80   → the byte alone, no prefix
+        len < 56                   → 0x80 + len, then the bytes
+        else                       → 0xb7 + bc, then a bc-byte BE length,
+                                     then the bytes  (bc = 1..8, no leading zeros)
+
+    **The single-byte case is not an optimisation and must not be skipped**: emitting
+    `0x81 0x05` where the rule says `0x05` is a different byte string, and the digest
+    diverges silently.
+
+    Calling convention:
+      a0 = keccak ctx
+      a1 = data ptr
+      a2 = data byte length
+      a3 = scratch (>= 9 bytes, for the header)
+      ra = return
+      a0 (out) = TOTAL BYTES ABSORBED — header plus payload.
+
+    **The return value is what makes measuring possible without a second
+    implementation.** Hand this routine a throwaway context and the count it returns is
+    the encoded length, computed by the emitter itself. See
+    `bal_rlp_measure_into_throwaway`. -/
+def balRlpEmitBytesFunction : String :=
+  "bal_rlp_emit_bytes:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++       -- ctx, data, len, scratch
+  -- CASE 1: exactly one byte, below 0x80 -- the byte is its own encoding.
+  "  li t0, 1; bne s2, t0, .Lbreb_short\n" ++
+  "  lbu t1, 0(s1); li t2, 0x80; bgeu t1, t2, .Lbreb_short\n" ++
+  "  mv a0, s0; mv a1, s1; li a2, 1; jal ra, keccak_absorb\n" ++
+  "  li a0, 1; j .Lbreb_ret\n" ++
+  ".Lbreb_short:\n" ++
+  -- CASE 2: fewer than 56 bytes -- 0x80 + len, then the payload.
+  "  li t0, 56; bgeu s2, t0, .Lbreb_long\n" ++
+  "  li t1, 0x80; add t1, t1, s2; sb t1, 0(s3)\n" ++
+  "  mv a0, s0; mv a1, s3; li a2, 1; jal ra, keccak_absorb\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, keccak_absorb\n" ++
+  "  addi a0, s2, 1; j .Lbreb_ret\n" ++
+  ".Lbreb_long:\n" ++
+  -- CASE 3: 0xb7 + bc, a bc-byte BE length, then the payload. bc is the significant
+  -- byte count of the length with NO leading zeros, which is what makes the encoding
+  -- canonical -- a bc that included a leading zero would still parse and would hash
+  -- differently.
+  "  li t0, 0; mv t1, s2\n" ++                                -- t0 = bc, t1 = len
+  ".Lbreb_bc:\n" ++
+  "  beqz t1, .Lbreb_bc_done; addi t0, t0, 1; srli t1, t1, 8; j .Lbreb_bc\n" ++
+  ".Lbreb_bc_done:\n" ++
+  "  li t2, 0xb7; add t2, t2, t0; sb t2, 0(s3)\n" ++          -- scratch[0] = 0xb7+bc
+  -- write the length big-endian into scratch[1 .. 1+bc)
+  "  mv t3, t0\n" ++
+  ".Lbreb_len:\n" ++
+  "  beqz t3, .Lbreb_len_done\n" ++
+  "  addi t4, t3, -1; slli t4, t4, 3; srl t5, s2, t4; andi t5, t5, 255\n" ++
+  "  sub t6, t0, t3; addi t6, t6, 1; add t6, s3, t6; sb t5, 0(t6)\n" ++
+  "  addi t3, t3, -1; j .Lbreb_len\n" ++
+  ".Lbreb_len_done:\n" ++
+  "  addi a2, t0, 1\n" ++                                     -- header length = 1 + bc
+  "  mv a0, s0; mv a1, s3; jal ra, keccak_absorb\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, keccak_absorb\n" ++
+  "  li t0, 0; mv t1, s2\n" ++
+  ".Lbreb_bc2:\n" ++
+  "  beqz t1, .Lbreb_bc2_done; addi t0, t0, 1; srli t1, t1, 8; j .Lbreb_bc2\n" ++
+  ".Lbreb_bc2_done:\n" ++
+  "  add a0, s2, t0; addi a0, a0, 1\n" ++                     -- len + bc + 1
+  ".Lbreb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
 /-! ## `bal_rlp_emit_list_header`
 
     Absorb an RLP list header for a payload of `a1` bytes.
@@ -373,6 +483,8 @@ def balRlpEncodeFunctions : String :=
   balRlpScalarLenFunction ++
   balRlpEmitScalarFunction ++
   balRlpEmitAddressFunction ++
+  balRlpMeasureIntoThrowawayFunction ++
+  balRlpEmitBytesFunction ++
   balRlpEmitListHeaderFunction ++
   balRlpScalarRlpLenFunction ++
   balRlpListHeaderLenFunction ++
@@ -396,6 +508,20 @@ def balRlpEncodeFunctions : String :=
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_list_header:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_rlp_len:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_list_header_len:").length == 2
+-- The byte-string emitter's three yellow-paper cases must all be present. The
+-- single-byte-no-prefix case is the one most easily "optimised" away, and emitting
+-- 0x81 0x05 where the rule says 0x05 is a different string with a different digest.
+#guard (balRlpEmitBytesFunction.splitOn ".Lbreb_short:").length == 2
+#guard (balRlpEmitBytesFunction.splitOn ".Lbreb_long:").length == 2
+#guard (balRlpEmitBytesFunction.splitOn "li t2, 0x80; bgeu t1, t2, .Lbreb_short").length == 2
+-- 0x80 + len for the short form, 0xb7 + bc for the long form.
+#guard (balRlpEmitBytesFunction.splitOn "li t1, 0x80; add t1, t1, s2").length == 2
+#guard (balRlpEmitBytesFunction.splitOn "li t2, 0xb7; add t2, t2, t0").length == 2
+-- The 56-byte boundary decides short versus long and must be an unsigned compare.
+#guard (balRlpEmitBytesFunction.splitOn "li t0, 56; bgeu s2, t0, .Lbreb_long").length == 2
+-- It must return a byte count, since that is what makes throwaway measuring work.
+#guard (balRlpEmitBytesFunction.splitOn "add a0, s2, t0; addi a0, a0, 1").length == 2
+
 -- The agreement check must be PER CASE, not an aggregate. A total cannot distinguish
 -- correct lengths from offsetting errors -- one case over and another under sums to
 -- the same value and passes -- and this vector spans the short-form/long-form

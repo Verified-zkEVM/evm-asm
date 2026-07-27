@@ -193,6 +193,8 @@ def blockAccessListBuilderDataSection : String :=
   -- The widener's destination. 32 bytes, 8-aligned, reused per scalar -- it holds one
   -- widened u64 at a time and is consumed immediately by the scalar measurer.
   "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_serializer_hdr_scratch:\n  .zero 16\n" ++
+  "bal_serializer_throwaway_ctx:\n  .zero 208\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -1010,6 +1012,95 @@ def balSerializerMeasureNonceFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `bal_serializer_measure_code`
+
+    `CodeChange` is `[block_access_index, new_code]` where `new_code` is a variable-length
+    byte string. `bal_rlp` has no byte-string MEASURER — only `bal_rlp_emit_bytes` — and the
+    measurers for that shape live in the generic layer, so using one would make measure and
+    emit two different implementations of the string rule.
+
+    So the length comes from running the emitter itself against a discarded context, via
+    `bal_rlp_measure_into_throwaway`. The emitter is then the single implementation and
+    disagreement is unrepresentable rather than merely untested.
+
+    **`+32` is the code POINTER and `+40` the LENGTH**, from the live caller at
+    `AccountWriteMap.lean:355` (`ld a2, 80(s4); ld a3, 88(s4)`) — not a hash, despite the row
+    docstring's "reference/meta". The remaining 16 bytes of the 32 are spare.
+
+      a0 = address ptr (20 B BE)
+      a0 (out) = payload length, stored at `bal_serializer_len_table + 40` -/
+def balSerializerMeasureCodeFunction : String :=
+  "bal_serializer_measure_code:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  la t0, bal_builder_code_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0; li s3, 0\n" ++
+  ".Lbsmc_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmc_done\n" ++
+  "  slli t1, s3, 6; la t2, bal_builder_code_changes; add s4, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmc_next\n" ++
+  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  la a0, bal_serializer_throwaway_ctx\n" ++
+  "  la a1, bal_rlp_emit_bytes\n" ++
+  "  ld a2, 32(s4); ld a3, 40(s4); la a4, bal_serializer_hdr_scratch\n" ++
+  "  jal ra, bal_rlp_measure_into_throwaway\n" ++
+  "  add t5, t5, a0\n" ++
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s2, s2, t5\n" ++
+  ".Lbsmc_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmc_loop\n" ++
+  ".Lbsmc_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 40(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
+/-! ## `bal_serializer_measure_account`
+
+    Fill all six entries of the length table for one account, then compute the account's own
+    payload from them.
+
+    **The account payload is the sum of each field's ENCODED size** — every field is a list,
+    so each contributes its own header plus its payload — **plus the encoded address**. The
+    table holds PAYLOADS, so each entry is converted by adding
+    `bal_rlp_list_header_len` of itself. Summing the entries directly would leave the account
+    header short by five field headers, silently.
+
+    This is the one place all six conversions happen, so it is the one place that error can
+    be made, which is why the six `header_len` calls are guarded by count.
+
+      a0 = address ptr (20 B BE)
+      a0 (out) = the account's PAYLOAD length, stored at `bal_serializer_len_table + 0` -/
+def balSerializerMeasureAccountFunction : String :=
+  "bal_serializer_measure_account:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; li s1, 0\n" ++
+  -- the address is a 21-byte RLP string: 0x94 then 20 bytes, so its encoded size is fixed
+  "  addi s1, s1, 21\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_storage\n" ++
+  "  mv a0, a0; jal ra, bal_rlp_list_header_len\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 8(t0); add s1, s1, t1; add s1, s1, a0\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_reads\n" ++
+  "  jal ra, bal_rlp_list_header_len\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 16(t0); add s1, s1, t1; add s1, s1, a0\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_balance\n" ++
+  "  jal ra, bal_rlp_list_header_len\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 24(t0); add s1, s1, t1; add s1, s1, a0\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_nonce\n" ++
+  "  jal ra, bal_rlp_list_header_len\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 32(t0); add s1, s1, t1; add s1, s1, a0\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_code\n" ++
+  "  jal ra, bal_rlp_list_header_len\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 40(t0); add s1, s1, t1; add s1, s1, a0\n" ++
+  "  la t0, bal_serializer_len_table; sd s1, 0(t0)\n" ++
+  "  mv a0, s1\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 48\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerAddrMatchesBeFunction ++
@@ -1022,6 +1113,8 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerMeasureStorageFunction ++
   balSerializerMeasureBalanceFunction ++
   balSerializerMeasureNonceFunction ++
+  balSerializerMeasureCodeFunction ++
+  balSerializerMeasureAccountFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -1134,6 +1227,21 @@ def blockAccessListBuilderFunctions : String :=
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_storage:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_balance:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_nonce:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_code:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_account:").length == 2
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_throwaway_ctx:").length == 2
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_hdr_scratch:").length == 2
+
+-- SIX header_len conversions, one per field: the table holds PAYLOADS and the account
+-- payload needs each field's ENCODED size. Summing entries directly leaves the account
+-- header short by five field headers -- silently, since every list stays well-formed.
+#guard (balSerializerMeasureAccountFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 6
+-- All five field measurers must be called, or a field contributes zero and its table entry
+-- is whatever the previous account left there.
+#guard (balSerializerMeasureAccountFunction.splitOn "jal ra, bal_serializer_measure_").length == 6
+-- The code measurer must use the throwaway route, never a generic measurer.
+#guard (balSerializerMeasureCodeFunction.splitOn "jal ra, bal_rlp_measure_into_throwaway").length == 2
+#guard (balSerializerMeasureCodeFunction.splitOn "rlp_bytes_encoded_size").length == 1
 
 /-! ## Guards for the storage_changes measurer -/
 
