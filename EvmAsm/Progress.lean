@@ -95,6 +95,7 @@ import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Storage.LoadSpec
 import EvmAsm.Evm64.Mcopy.Spec
+import EvmAsm.Evm64.ReturnData.CopySpec
 
 namespace EvmAsm.Progress
 
@@ -269,7 +270,42 @@ def registry : List OpcodeEntry := [
   entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
   entry "RETURNDATASIZE" .proven
       (some "ReturnData.evm_returndatasize_stack_spec_within"),
-  entry "RETURNDATACOPY" .execSpec none "ReturnData/CopyExec + CopyMemory",
+  entry "RETURNDATACOPY" .proven
+      (some "ReturnData.evm_returndatacopy_body_stack_spec_within")
+      ("whole-body stack triple over guards ++ setup ++ copy loop "
+       ++ "(ReturnData/{RevertProgram,RevertSpec,CopyProgram,CopyLoopSpec,"
+       ++ "CopySpec}.lean), base→base+80, composed with "
+       ++ "cpsTripleWithin_seq_perm_same_cr: the guard prefix loads the three low "
+       ++ "stack limbs, materializes `evm_precompile_frame`, loads the return-data "
+       ++ "length and falls through the two execution-specs bounds checks "
+       ++ "(start+size wrap, start+size>retlen — the old 256-byte frame cap was "
+       ++ "removed from the guest in #10160); setup pops the operands, takes the "
+       ++ "size≠0 skip and builds the pointers; the byte-identical bottom-tested "
+       ++ "`do..while` loop copies stagedBytes[start..start+size) into EVM memory "
+       ++ "(NO size≥1 gate: the size=0 path is proven too — guards fall through, "
+       ++ "operands pop, the beqz skip is taken to the exit and the postcondition "
+       ++ "degenerates to unchanged memory — so this is .proven, not .conditional, "
+       ++ "matching CALLDATACOPY whose top-tested loop exits at zero size) "
+       ++ "[destOff,destOff+size) via the Mcopy forward-loop content model, with "
+       ++ "the source region anchored at the aligned frame+16 base and the read "
+       ++ "offset carried in the pointer register (decoupled from destOff). The "
+       ++ "two invalid exits are companion witnesses "
+       ++ "(guard_{wrap,len}_invalid_stack). Same scope as CALLDATACOPY's "
+       ++ "registered witness: interleaved gas/OOG/MSIZE glue is framed out per "
+       ++ "DRIFT. RESIDUAL: the image also excises the handler's two high-limb "
+       ++ "operand guards — memDynamicU256RangeOogGuardAsm (high-limb size, and "
+       ++ "high-limb destOffset when size≠0, to .exit_outofgas) and the "
+       ++ "ld/or/or/bnez on dataOffset limbs 1-3 (to .exit_invalid) — so the "
+       ++ "triple describes only the path where those fall through. The "
+       ++ "h_destOff/h_srcOff/h_sizeV hypotheses are low-limb NAMING bridges and "
+       ++ "constrain no high limb. Each excised guard matches a real "
+       ++ "execution-specs outcome, but by three DIFFERENT arguments: high-limb "
+       ++ "size by gas; high-limb destOffset by gas only when size≠0 (at size=0 "
+       ++ "the spec charges nothing and ACCEPTS it — the guest matches via the "
+       ++ "guard's beqz ordering); high-limb dataOffset NOT by gas but by the "
+       ++ "spec's explicit start+size>len(return_data) OutOfBoundsRead, which "
+       ++ "fires at size=0 too. Costs coverage, hides no divergence; see DRIFT "
+       ++ "for the per-hypothesis table and where each argument lives."),
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
@@ -431,10 +467,10 @@ def execSpecCount    : Nat := countTier .execSpec
 def notStartedCount  : Nat := countTier .notStarted
 def totalEntries     : Nat := registry.length
 
-theorem provenCount_eq      : provenCount      = 67 := by decide
+theorem provenCount_eq      : provenCount      = 68 := by decide
 theorem partialCount_eq     : partialCount     = 0  := by decide
 theorem conditionalCount_eq : conditionalCount = 4  := by decide
-theorem execSpecCount_eq    : execSpecCount    = 14 := by decide
+theorem execSpecCount_eq    : execSpecCount    = 13 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 0  := by decide
 theorem totalEntries_eq     : totalEntries     = 85 := by decide
 
@@ -465,10 +501,10 @@ def notStartedBytes  : Nat := byteCountTier .notStarted
 def totalBytes       : Nat :=
   provenBytes + partialBytes + conditionalBytes + execSpecBytes + notStartedBytes
 
-theorem provenBytes_eq      : provenBytes      = 127 := by decide
+theorem provenBytes_eq      : provenBytes      = 128 := by decide
 theorem partialBytes_eq     : partialBytes     = 0   := by decide
 theorem conditionalBytes_eq : conditionalBytes = 4   := by decide
-theorem execSpecBytes_eq    : execSpecBytes    = 18  := by decide
+theorem execSpecBytes_eq    : execSpecBytes    = 17  := by decide
 theorem notStartedBytes_eq  : notStartedBytes  = 0   := by decide
 theorem totalBytes_eq       : totalBytes       = 149 := by decide
 
@@ -551,6 +587,20 @@ private noncomputable abbrev _codecopy_witness :=
   @EvmAsm.Evm64.Code.evm_codecopy_stack_spec_within
 private noncomputable abbrev _returndatasize_witness :=
   @EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
+private noncomputable abbrev _returndatacopy_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_body_stack_spec_within
+private noncomputable abbrev _returndatacopy_copy_core_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_stack_spec_within
+private noncomputable abbrev _returndatacopy_setup_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_spec_within
+private noncomputable abbrev _returndatacopy_setup_zero_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_setup_zero_spec_within
+private noncomputable abbrev _returndatacopy_guard_success_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_success_stack_spec_within
+private noncomputable abbrev _returndatacopy_guard_wrap_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_wrap_invalid_stack_spec_within
+private noncomputable abbrev _returndatacopy_guard_len_witness :=
+  @EvmAsm.Evm64.ReturnData.evm_returndatacopy_guard_len_invalid_stack_spec_within
 private noncomputable abbrev _tload_witness :=
   @EvmAsm.Evm64.Transient.evm_tload_stack_spec_within
 private noncomputable abbrev _sload_witness :=
