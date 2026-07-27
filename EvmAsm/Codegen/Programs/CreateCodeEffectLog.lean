@@ -211,6 +211,13 @@ def accountStateCommitPendingFunction : String :=
   -- account_writes/storage_writes are folded into the block.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
+  -- r59nm S2b: the STORAGE half of the write merge, promoted here for the same
+  -- reason and in the spec's own order -- incorporate_tx_into_block merges the
+  -- reads (:858-861) and the writes in one call, and this function is the
+  -- guest's incorporate_tx_into_block.  Merges tx-level storage_writes up and
+  -- CLEARS the tx level (:879-881); without the clear, transaction 2
+  -- re-promotes transaction 1's writes.
+  "  jal ra, write_sets_incorporate_tx\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
   "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
