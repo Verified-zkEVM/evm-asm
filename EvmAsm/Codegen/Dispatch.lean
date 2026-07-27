@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
 import EvmAsm.Codegen.Programs.CreateFrameDescend
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
+import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -2005,6 +2006,7 @@ def emitDispatcherEpilogueCore
     accountStateUpsertDurableFunction ++ "\n" ++
     codeStateFinalBalanceNonzeroFunction ++ "\n" ++
     accountStateCommitPendingFunction ++ "\n" ++
+    accountStatePromoteDeleteReadsFunction ++ "\n" ++
     accountStateRecordNonstorageFunction ++ "\n" ++
     accountStateRecordCodeFunction ++ "\n" ++
     accountStateRecordAuthFunction ++ "\n" ++
@@ -3218,6 +3220,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   accountStateUpsertDurableFunction ++ "\n" ++
   codeStateFinalBalanceNonzeroFunction ++ "\n" ++
   accountStateCommitPendingFunction ++ "\n" ++
+  accountStatePromoteDeleteReadsFunction ++ "\n" ++
   accountStateRecordNonstorageFunction ++ "\n" ++
   accountStateRecordCodeFunction ++ "\n" ++
   accountStateRecordAuthFunction ++ "\n" ++
