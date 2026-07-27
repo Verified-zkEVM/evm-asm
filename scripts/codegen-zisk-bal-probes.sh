@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# codegen-zisk-bal-serializer-measure-probe.sh -- EXECUTE the BAL measure pass (#10680).
+# codegen-zisk-bal-probes.sh -- EXECUTE the BAL measure pass and the two self-tests (#10680).
 #
 # Every other check on `bal_serializer_measure_*` is a `#guard` over the emitted string.
 # Those pin structure, not behaviour. GH #10754 is the general form of the problem: the
@@ -19,7 +19,7 @@ set -euo pipefail
 #     i.e. exactly 6 + 32, the predicted over-measurement
 #   * `slot_seen_before` removed: ONLY case 2 fires, and it reads exactly 18
 #
-# Usage: scripts/codegen-zisk-bal-serializer-measure-probe.sh
+# Usage: scripts/codegen-zisk-bal-probes.sh
 # Exit:  0 all seven match; 1 any mismatch, with the differing rows printed.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -93,4 +93,57 @@ if bad:
     print(f"==> FAIL: {bad}/{len(CASES)} measured lengths disagree with the RLP derivation")
     sys.exit(1)
 print(f"==> PASS: {len(CASES)}/{len(CASES)} measured lengths match the RLP derivation")
+PY
+
+# ---------------------------------------------------------------------------
+# The two self-tests that had never executed: bal_rlp_encode_selftest (15 cases)
+# and bal_canonical_sort_selftest (3 row sets).
+# ---------------------------------------------------------------------------
+
+echo
+echo "==> emit zisk_bal_selftests"
+lake exe codegen --program zisk_bal_selftests --halt linux93 -o "$OUT_DIR/bslf"
+
+if [[ ! -f "$OUT_DIR/bslf.elf" ]]; then
+  echo "==> FAIL: codegen produced no ELF for zisk_bal_selftests" >&2
+  exit 1
+fi
+
+echo "==> run under spike"
+"$SPIKE_RUN" "$OUT_DIR/bslf.elf" "$OUT_DIR/empty.input" "$OUT_DIR/bslf.output" \
+  > "$OUT_DIR/bslf.emu.log" 2>&1 || true
+
+python3 - "$OUT_DIR/bslf.output" <<'PY'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+if len(data) < 16:
+    print(f"==> FAIL: selftest output is {len(data)} bytes, need 16"); sys.exit(1)
+
+rlp  = struct.unpack_from('<Q', data, 0)[0]
+sort = struct.unpack_from('<Q', data, 8)[0]
+
+# 0xdead is seeded into both slots before the calls. A guest fault before the stores
+# leaves the sentinel, which must NOT read as the clean 0 that means "passed" -- the
+# first version of this probe faulted inside the sort self-test and reported two zeros.
+SENTINEL = 0xdead
+bad = 0
+if rlp == SENTINEL:
+    print("  FAIL  bal_rlp_encode_selftest      NEVER RAN (sentinel intact -- guest faulted)"); bad += 1
+elif rlp == 0:
+    print("  ok    bal_rlp_encode_selftest      PASS (15 cases)")
+else:
+    where = f"case {rlp - 100}" if rlp >= 100 else f"code {rlp}"
+    print(f"  FAIL  bal_rlp_encode_selftest      failed at {where}"); bad += 1
+
+if sort == SENTINEL:
+    print("  FAIL  bal_canonical_sort_selftest  NEVER RAN (sentinel intact -- guest faulted)"); bad += 1
+elif sort == 0:
+    print("  ok    bal_canonical_sort_selftest  PASS (3 row sets)")
+else:
+    print(f"  FAIL  bal_canonical_sort_selftest  failed at row set {sort}"); bad += 1
+
+print()
+if bad:
+    print(f"==> FAIL: {bad}/2 self-tests did not pass"); sys.exit(1)
+print("==> PASS: 2/2 self-tests pass")
 PY
