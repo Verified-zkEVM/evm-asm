@@ -190,6 +190,9 @@ def blockAccessListBuilderDataSection : String :=
   "bal_serializer_len_table:\n  .zero " ++ toString balBuilderLenTableEntryBytes ++ "\n" ++
   "bal_serializer_outer_payload:\n  .zero 8\n" ++
   "bal_serializer_surviving_read_count:\n  .zero 8\n" ++
+  -- The widener's destination. 32 bytes, 8-aligned, reused per scalar -- it holds one
+  -- widened u64 at a time and is consumed immediately by the scalar measurer.
+  "bal_serializer_u64_field:\n  .zero 32\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -756,11 +759,269 @@ def balSerializerMeasureReadsFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n"
 
+/-! ## `bal_serializer_measure_storage`
+
+    The deepest field. `storage_changes` is `Tuple[SlotChanges, ...]`, `SlotChanges` is
+    `[slot, changes]`, `changes` is `Tuple[StorageChange, ...]`, and `StorageChange` is
+    `[block_access_index, new_value]` — so there are **three header levels below the field
+    list**, against one for balance and nonce and none for reads:
+
+        encoded(SlotChanges) = hdr(p2) + p2
+        p2                   = scalar(slot) + hdr(p3) + p3
+        p3                   = Σ over changes of ( hdr(p4) + p4 )
+        p4                   = scalar(bai) + scalar(new_value)
+
+    Getting a level wrong here is the nesting error the table's convention exists to
+    prevent, and it is silent: every intermediate is still a well-formed RLP list, just
+    the wrong length.
+
+    ## The rows are flat, so grouping is this routine's job
+
+    The builder stream is `{address[20], pad[4], BAI[8], slot[32], value[32]}` per row with
+    no grouping. `_build_from_builder` (`:537-542`) groups by slot and sorts each slot's
+    changes by `block_access_index`, so the walk over a flat stream must do the same: for
+    each DISTINCT slot belonging to this account, sum that slot's changes.
+
+    Distinctness is found by scanning backwards — a row is the FIRST occurrence of its slot
+    if no earlier row for this account carries the same slot. That is O(n²) in the account's
+    change count, which is bounded by the arena and paid once per account in a measure pass
+    that is already O(n) per field. Sorting the stream first would be faster and would need
+    somewhere to put the sorted copy, which the `.bss` budget does not have.
+
+      a0 = address ptr (20 B BE)
+      a0 (out) = payload length, stored at `bal_serializer_len_table + 8`
+
+    DELIBERATELY INERT PENDING ITS CALLER. -/
+def balSerializerMeasureStorageFunction : String :=
+  "bal_serializer_measure_storage:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0\n" ++                                              -- s0 = address ptr
+  "  la t0, bal_builder_storage_change_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0\n" ++                                              -- s2 = field payload
+  "  li s3, 0\n" ++                                              -- s3 = outer row index
+  ".Lbsms_slot:\n" ++
+  "  bgeu s3, s1, .Lbsms_done\n" ++
+  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add s4, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsms_slot_next\n" ++
+  -- FIRST-OCCURRENCE test: skip this row if an earlier row of this account has the same
+  -- slot, so each distinct slot is measured exactly once.
+  "  mv a0, s0; mv a1, s4; mv a2, s3; jal ra, bal_serializer_slot_seen_before\n" ++
+  "  bnez a0, .Lbsms_slot_next\n" ++
+  -- p3 = sum over THIS slot's changes of encoded(StorageChange)
+  "  li s5, 0\n" ++                                              -- s5 = p3
+  "  li s6, 0\n" ++                                              -- s6 = inner index
+  ".Lbsms_chg:\n" ++
+  "  bgeu s6, s1, .Lbsms_chg_done\n" ++
+  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add s7, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s7; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsms_chg_next\n" ++
+  "  addi a0, s4, 32; addi a1, s7, 32; jal ra, bal_serializer_slot_eq\n" ++
+  "  beqz a0, .Lbsms_chg_next\n" ++
+  -- p4 = scalar(bai) + scalar(new_value)
+  "  ld a1, 24(s7); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  addi a0, s7, 64; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  -- LEVEL 4 header: StorageChange is itself a list
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s5, s5, t5\n" ++
+  ".Lbsms_chg_next:\n" ++
+  "  addi s6, s6, 1; j .Lbsms_chg\n" ++
+  ".Lbsms_chg_done:\n" ++
+  -- LEVEL 3 header: the changes list
+  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
+  -- p2 = scalar(slot) + encoded(changes list)
+  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
+  -- LEVEL 2 header: SlotChanges is a list
+  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
+  "  add s2, s2, s5\n" ++
+  ".Lbsms_slot_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsms_slot\n" ++
+  ".Lbsms_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 8(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret\n"
+
+/-- 32-byte slot-key equality. a0, a1 = slot ptrs. a0 (out) = 1 if equal. -/
+def balSerializerSlotEqFunction : String :=
+  "bal_serializer_slot_eq:\n" ++
+  "  ld t0, 0(a0);  ld t1, 0(a1);  bne t0, t1, .Lbsse_no\n" ++
+  "  ld t0, 8(a0);  ld t1, 8(a1);  bne t0, t1, .Lbsse_no\n" ++
+  "  ld t0, 16(a0); ld t1, 16(a1); bne t0, t1, .Lbsse_no\n" ++
+  "  ld t0, 24(a0); ld t1, 24(a1); bne t0, t1, .Lbsse_no\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbsse_no:\n" ++
+  "  li a0, 0; ret\n"
+
+/-- Has an EARLIER row of this account already carried this slot? a0 = address ptr,
+    a1 = this row, a2 = this row's index. a0 (out) = 1 if seen before, so the caller
+    measures each distinct slot exactly once. -/
+def balSerializerSlotSeenBeforeFunction : String :=
+  "bal_serializer_slot_seen_before:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li s3, 0\n" ++
+  ".Lbssb_loop:\n" ++
+  "  bgeu s3, s2, .Lbssb_no\n" ++
+  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
+  "  mv a0, s0; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbssb_next\n" ++
+  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
+  "  addi a0, s1, 32; addi a1, t3, 32; jal ra, bal_serializer_slot_eq\n" ++
+  "  bnez a0, .Lbssb_yes\n" ++
+  ".Lbssb_next:\n" ++
+  "  addi s3, s3, 1; j .Lbssb_loop\n" ++
+  ".Lbssb_yes:\n" ++
+  "  li a0, 1; j .Lbssb_ret\n" ++
+  ".Lbssb_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbssb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48; ret\n"
+
+def balSerializerU64ToFieldFunction : String :=
+  "bal_serializer_u64_to_field:\n" ++
+  "  sd zero, 0(a0); sd zero, 8(a0); sd zero, 16(a0); sd zero, 24(a0)\n" ++
+  -- big-endian into the LAST 8 bytes: byte 31 is the least significant.
+  "  li t0, 8; li t1, 0\n" ++
+  ".Lbsuf_b:\n" ++
+  "  beq t1, t0, .Lbsuf_done\n" ++
+  "  slli t2, t1, 3; srl t3, a1, t2; andi t3, t3, 255\n" ++
+  "  li t4, 31; sub t4, t4, t1; add t4, a0, t4; sb t3, 0(t4)\n" ++
+  "  addi t1, t1, 1; j .Lbsuf_b\n" ++
+  ".Lbsuf_done:\n" ++
+  "  ret\n"
+
+def balSerializerAddrMatchesBeFunction : String :=
+  "bal_serializer_addr_matches_be:\n" ++
+  "  li t0, 20; li t1, 0\n" ++
+  ".Lbsab_cmp:\n" ++
+  "  beq t1, t0, .Lbsab_yes\n" ++
+  "  add t2, a0, t1; add t3, a1, t1\n" ++
+  "  lbu t4, 0(t2); lbu t5, 0(t3); bne t4, t5, .Lbsab_no\n" ++
+  "  addi t1, t1, 1; j .Lbsab_cmp\n" ++
+  ".Lbsab_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbsab_no:\n" ++
+  "  li a0, 0; ret\n"
+
+/-! ## `bal_serializer_measure_nonce`
+
+    The last flat field measurer that needs nothing new. `storage_changes` is doubly
+    nested and lands separately, and `code_changes` lands with #10739 because it needs
+    `bal_rlp_emit_bytes` and `bal_rlp_measure_into_throwaway` — the byte-string shape has
+    no measurer in this layer, so its length must come from running the emitter against a
+    discarded sponge.
+
+    ## Nonce: identical in shape to balance
+
+    `NonceChange` is `[block_access_index, new_nonce]` with a **u64** payload, so both
+    scalars go through `bal_serializer_u64_to_field` first. The widener is used twice per
+    row rather than once, which is the only difference from the balance measurer.
+
+    ## Code: the one field that needs the throwaway context
+
+    `CodeChange` is `[block_access_index, new_code]` where `new_code` is a
+    variable-length byte string. `bal_rlp` has no byte-string MEASURER — only
+    `bal_rlp_emit_bytes` — and the measurers that do exist for that shape live in the
+    generic layer, so using one would make measure and emit two different
+    implementations of the string rule.
+
+    So the length comes from running the emitter itself against a discarded context:
+    `bal_rlp_measure_into_throwaway`. The emitter is then the single implementation, and
+    measure/emit disagreement is not merely untested but unrepresentable.
+
+    **The row's `+32` and `+40` are the code POINTER and LENGTH**, confirmed from the live
+    caller at `AccountWriteMap.lean:355` — `ld a2, 80(s4); ld a3, 88(s4)` — not a hash and
+    not opaque meta, despite the row docstring's "reference/meta". The remaining 16 bytes
+    of the 32 are spare.
+
+      a0 = address ptr (20 B BE)
+      a0 (out) = payload length, stored at `+32` (nonce) or `+40` (code)
+
+    DELIBERATELY INERT PENDING THEIR CALLER. -/
+
+def balSerializerMeasureBalanceFunction : String :=
+  "bal_serializer_measure_balance:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++                                              -- s0 = address ptr
+  "  la t0, bal_builder_balance_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0\n" ++                                              -- s2 = payload accum
+  "  li s3, 0\n" ++                                              -- s3 = row index
+  ".Lbsmb_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmb_done\n" ++
+  "  li t0, 64; mul t1, s3, t0; la t2, bal_builder_balance_changes; add s4, t2, t1\n" ++
+  -- per account: skip rows belonging to another address
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmb_next\n" ++
+  -- inner payload = scalar(bai) + scalar(post_balance)
+  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  -- the row's ENCODED size adds the inner list's own header
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s2, s2, t5\n" ++
+  ".Lbsmb_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmb_loop\n" ++
+  ".Lbsmb_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 24(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
+/-- Builder rows hold a canonical BE20 address at +0, so this compares directly rather
+    than reversing a stack word the way `bal_serializer_addr_matches` must for read
+    rows. Two routines because the two row families store the address differently — the
+    encoding split the sort descriptors already record. -/
+
+def balSerializerMeasureNonceFunction : String :=
+  "bal_serializer_measure_nonce:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  la t0, bal_builder_nonce_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0; li s3, 0\n" ++
+  ".Lbsmn_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmn_done\n" ++
+  -- nonce rows are 40 bytes: index*40 = index*32 + index*8
+  "  slli t1, s3, 5; slli t2, s3, 3; add t1, t1, t2\n" ++
+  "  la t2, bal_builder_nonce_changes; add s4, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmn_next\n" ++
+  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  ld a1, 32(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s2, s2, t5\n" ++
+  ".Lbsmn_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmn_loop\n" ++
+  ".Lbsmn_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 32(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
+  balSerializerAddrMatchesBeFunction ++
+  balSerializerSlotEqFunction ++
   balSerializerSlotWrittenFunction ++
+  balSerializerSlotSeenBeforeFunction ++
+  balSerializerU64ToFieldFunction ++
   balSerializerFilterReadsFunction ++
   balSerializerMeasureReadsFunction ++
+  balSerializerMeasureStorageFunction ++
+  balSerializerMeasureBalanceFunction ++
+  balSerializerMeasureNonceFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -847,6 +1108,52 @@ def blockAccessListBuilderFunctions : String :=
 #guard (balSerializerMeasureReadsFunction.splitOn "sd s1, 16(t0)").length == 2
 -- Same-layer pair: the scalar measurer whose emitter counterpart is bal_rlp_emit_scalar.
 #guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 2
+
+/-! ## Emission guards
+
+    Every guard above examines a routine's own STRING. **A routine that is defined and never
+    concatenated into `blockAccessListBuilderFunctions` passes all of them and does not exist
+    in the guest.** Seven routines were in exactly that state — the two measurers reported as
+    landed among them — because each was added to the definition list by an edit whose
+    concatenation half silently did not apply.
+
+    So the emission is guarded separately, by name, against the string that is actually
+    emitted. -/
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_addr_matches:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_addr_matches_be:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_slot_eq:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_slot_written:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_slot_seen_before:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_u64_to_field:").length == 2
+-- The widener's DESTINATION must be reserved. A routine referencing a missing data symbol
+-- builds fine in Lean and fails only at LINK, with a message naming the symbol rather than
+-- the routine -- so the reservation is guarded next to the routine that needs it.
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_u64_field:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_filter_reads:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_reads:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_storage:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_balance:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_nonce:").length == 2
+
+/-! ## Guards for the storage_changes measurer -/
+
+-- THREE HEADER LEVELS below the field list, against one for balance and none for reads:
+-- StorageChange, the changes list, and SlotChanges. Dropping any one leaves every
+-- intermediate a well-formed RLP list of the wrong length -- the silent nesting error.
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 4
+-- Two scalars per change (BAI, new_value) plus one per slot.
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 4
+-- Each distinct slot measured EXACTLY ONCE, or a slot with three changes contributes its
+-- SlotChanges three times.
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
+-- Per account at BOTH loop levels: without the inner check, another account's change to
+-- the same slot is folded into this account's list.
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
+-- The +8 slot, per the pinned table layout.
+#guard (balSerializerMeasureStorageFunction.splitOn "sd s2, 8(t0)").length == 2
+-- The seen-before scan must look only at EARLIER rows, or every row reports itself seen
+-- and the field measures as empty.
+#guard (balSerializerSlotSeenBeforeFunction.splitOn "bgeu s3, s2, .Lbssb_no").length == 2
 
 /-! ## Guards for the serializer's scratch -/
 
