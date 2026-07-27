@@ -145,7 +145,8 @@ Change to:
   setup — update to the new offsets (`0x8200`/`0x18400`/`0x19000`).
 
 ### Step 10 — regen + gates
-`scripts/regen-cycle.sh`; then bump `RegionMap.textSizeBytes` and
+Follow `docs/regenerating-generated-files.md` (the four regen commands, then
+repeat until the sizes stop moving); then bump `RegionMap.textSizeBytes` and
 `dataSizeBytes` to the reported ELF sizes (check-region-map prints the drift);
 run `check-region-map`, `check-asm-to-program`, `check-drift`,
 `check-forbidden-tactics`, `check-axioms` (classical-3). Byte-tie any
