@@ -185,6 +185,8 @@ def blockAccessListBuilderDataSection : String :=
   "bal_serializer_read_scratch:\n  .zero " ++ toString balSerializerReadScratchBytes ++ "\n" ++
   "bal_serializer_read_scratch_count:\n  .zero 8\n" ++
   "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_serializer_hdr_scratch:\n  .zero 16\n" ++
+  "bal_serializer_throwaway_ctx:\n  .zero 208\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -842,6 +844,70 @@ def balSerializerAddrMatchesBeFunction : String :=
   ".Lbsab_no:\n" ++
   "  li a0, 0; ret\n"
 
+/-! ## `bal_serializer_measure_nonce`
+
+    The last flat field measurer that needs nothing new. `storage_changes` is doubly
+    nested and lands separately, and `code_changes` lands with #10739 because it needs
+    `bal_rlp_emit_bytes` and `bal_rlp_measure_into_throwaway` — the byte-string shape has
+    no measurer in this layer, so its length must come from running the emitter against a
+    discarded sponge.
+
+    ## Nonce: identical in shape to balance
+
+    `NonceChange` is `[block_access_index, new_nonce]` with a **u64** payload, so both
+    scalars go through `bal_serializer_u64_to_field` first. The widener is used twice per
+    row rather than once, which is the only difference from the balance measurer.
+
+    ## Code: the one field that needs the throwaway context
+
+    `CodeChange` is `[block_access_index, new_code]` where `new_code` is a
+    variable-length byte string. `bal_rlp` has no byte-string MEASURER — only
+    `bal_rlp_emit_bytes` — and the measurers that do exist for that shape live in the
+    generic layer, so using one would make measure and emit two different
+    implementations of the string rule.
+
+    So the length comes from running the emitter itself against a discarded context:
+    `bal_rlp_measure_into_throwaway`. The emitter is then the single implementation, and
+    measure/emit disagreement is not merely untested but unrepresentable.
+
+    **The row's `+32` and `+40` are the code POINTER and LENGTH**, confirmed from the live
+    caller at `AccountWriteMap.lean:355` — `ld a2, 80(s4); ld a3, 88(s4)` — not a hash and
+    not opaque meta, despite the row docstring's "reference/meta". The remaining 16 bytes
+    of the 32 are spare.
+
+      a0 = address ptr (20 B BE)
+      a0 (out) = payload length, stored at `+32` (nonce) or `+40` (code)
+
+    DELIBERATELY INERT PENDING THEIR CALLER. -/
+def balSerializerMeasureNonceFunction : String :=
+  "bal_serializer_measure_nonce:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  la t0, bal_builder_nonce_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0; li s3, 0\n" ++
+  ".Lbsmn_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmn_done\n" ++
+  -- nonce rows are 40 bytes: index*40 = index*32 + index*8
+  "  slli t1, s3, 5; slli t2, s3, 3; add t1, t1, t2\n" ++
+  "  la t2, bal_builder_nonce_changes; add s4, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmn_next\n" ++
+  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  ld a1, 32(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s2, s2, t5\n" ++
+  ".Lbsmn_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmn_loop\n" ++
+  ".Lbsmn_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 32(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerSlotWrittenFunction ++
@@ -850,6 +916,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerU64ToFieldFunction ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerMeasureBalanceFunction ++
+  balSerializerMeasureNonceFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -921,6 +988,11 @@ def blockAccessListBuilderFunctions : String :=
 -- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
 -- write.
 #guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
+
+-- NONCE: both scalars are u64, so the widener runs TWICE per row. Widening only the BAI
+-- and handing the raw nonce pointer to a 32-byte measurer reads 24 bytes past it.
+#guard (balSerializerMeasureNonceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 3
+#guard (balSerializerMeasureNonceFunction.splitOn "sd s2, 32(t0)").length == 2
 
 -- THE NESTING DISTINCTION. Each row's contribution is its ENCODED size -- the inner
 -- list's own header plus its payload -- while the table entry is this FIELD's payload,
