@@ -83,28 +83,33 @@
 
   ## Key layout parameterisation
 
-  One routine serves both containers. The key is a run of 32-byte fields, each
-  stored low-limb-first, of which the first contributes `firstSig` significant
-  bytes and any later field contributes 32:
+  One routine serves every container. The key is up to THREE SEGMENTS, each a
+  `(byte offset, width)` pair packed one byte each into a register, with **bit 7 of
+  the width byte meaning "already big-endian"**:
 
-  | container | stride | fields | firstSig | canonical key |
-  |---|---|---|---|---|
-  | `storage_writes` | 128 | 2 | 20 | address (20 B) ++ slot (32 B) |
-  | `account_writes` | 128 | 1 | 20 | address, 20 B |
+  | consumer | stride | key segments (most to least significant) |
+  |---|---|---|
+  | `account_writes` | 128 | address `(0,20)` LE |
+  | `storage_writes` | 128 | address `(0,20)` LE, slot `(32,32)` LE |
+  | builder lists | per codex | address `(0,20)` BE, [slot], `block_access_index` LE |
 
-  Both take `firstSig = 20` for the address, which is what makes the two orderings
-  **agree on account order by construction** rather than by coincidence — the
-  serializer walks accounts once and must find each account's slots where it
-  expects them. It also skips 24 wasted depths, and it does not sort on the stack
-  word's upper 12 bytes, which are padding that happens to be zero rather than key
-  material.
+  The per-segment endianness is load-bearing rather than a convenience. The write
+  containers hold addresses as LE limbs, so those segments are reversed; the
+  builder's rows carry a canonical BE20 address already, so reversing it would order
+  them by a byte-reversed address. Both orders are total, both are permutations of
+  the input, and only one is canonical — so nothing structural distinguishes them.
 
-  For canonical byte index `b`, the row offset is `(firstSig - 1) - b` while
-  `b < firstSig`, and `32·f + (31 - w)` beyond it, where `f = 1 + (b - firstSig)/32`
-  and `w = (b - firstSig) % 32`. The account key excludes the field's top 12 bytes
-  because a 20-byte address in a low-limb-first 256-bit word leaves them zero —
-  constant, so they cannot affect the order, and including them would only cost
-  12 wasted depths.
+  For canonical byte index `b` inside a segment of width `w` at offset `k`:
+
+      LE segment (flag clear)  ->  row offset = k + w - 1 - b
+      BE segment (flag set)    ->  row offset = k + b
+
+  The two write-container entry points both declare a 20-byte address segment at
+  offset 0, which is what makes them **agree on account order by construction**
+  rather than by coincidence — the serializer walks accounts once and must find each
+  account's slots under the same account. Both also skip the stack word's upper 12
+  bytes, which are padding that happens to be zero rather than key material.
+
 -/
 
 import EvmAsm.Rv64.Program
@@ -129,31 +134,44 @@ def balSortRangeFrameBytes : Nat := 32
 
 /-- Canonical nibble extraction, inlined into the scan loop.
 
-    In:  t0 = row pointer, s6 = nibble depth, s10 = firstSig.
-    Out: t3 = the nibble (0..15).  Clobbers t2, t5, a6, a7.
+    In:  t0 = row pointer, s6 = nibble depth, s10 = packed segments.
+    Out: t3 = the nibble (0..15).  Clobbers t2, t3, t5, a6, a7.
 
-    The canonical big-endian byte at index `b` of a 32-byte low-limb-first field
-    is field byte `31 - b`, so:
-
-        b < firstSig   ->  offset = (firstSig - 1) - b
-        otherwise      ->  b' = b - firstSig,  offset = 32 + (31 - b')
-
-    with the second case reached only when the caller declared two fields (the
-    depth guard `s6 < 2 * keyBytes` already bounds `b < keyBytes`). Even depths
-    take the byte's HIGH nibble, odd depths the low one, so the more significant
-    nibble is compared first. -/
+    Walks the segment list subtracting each width until the canonical byte index
+    falls inside a segment, then indexes that segment forward or backward according
+    to its endianness bit. Even depths take the byte's HIGH nibble and odd depths the
+    low one, so the more significant nibble is compared first. -/
 def balCanonicalDigitAsm : String :=
-  "  srli t2, s6, 1\n" ++                       -- t2 = canonical byte index b
-  "  bgeu t2, s10, .Lbalsort_dig_tail\n" ++
-  "  addi t5, s10, -1; sub t5, t5, t2\n" ++     -- offset = (firstSig-1) - b
+  -- b = canonical byte index within the whole key.
+  "  srli t2, s6, 1\n" ++
+  -- Walk the segment list, subtracting each width, until b falls inside one.
+  -- s10 = packed segments (per segment: offset in bits 8i, width in bits 8i+8),
+  -- s9 = total key bytes, s11 = total nibble depth. a6 = segment cursor.
+  "  li a6, 0\n" ++
+  ".Lbalsort_dig_seg:\n" ++
+  "  slli a7, a6, 4; srl t5, s10, a7; andi t5, t5, 255\n" ++      -- t5 = seg offset
+  "  addi a7, a7, 8; srl t3, s10, a7; andi t3, t3, 255\n" ++      -- t3 = seg width
+  "  bltu t2, t3, .Lbalsort_dig_in\n" ++
+  "  sub t2, t2, t3; addi a6, a6, 1; j .Lbalsort_dig_seg\n" ++
+  ".Lbalsort_dig_in:\n" ++
+  -- Two storage conventions coexist, so the reversal is PER SEGMENT rather than
+  -- global. Bit 7 of the width byte means "already big-endian, index directly":
+  --   LE segment (flag clear): canonical BE byte b is byte k + w - 1 - b.
+  --   BE segment (flag set):   canonical BE byte b is byte k + b.
+  -- The write containers hold addresses as LE limbs, but the builder's rows carry a
+  -- canonical BE20 address already, so reversing every segment would order the
+  -- builder's rows by a byte-reversed address -- sorted, permutation-preserving and
+  -- wrong, with no local symptom.
+  "  andi a7, t3, 0x80; andi t3, t3, 0x7f\n" ++
+  "  bnez a7, .Lbalsort_dig_be\n" ++
+  "  add t5, t5, t3; addi t5, t5, -1; sub t5, t5, t2\n" ++
   "  j .Lbalsort_dig_have\n" ++
-  ".Lbalsort_dig_tail:\n" ++
-  "  sub t5, t2, s10\n" ++                      -- b' = b - firstSig
-  "  li a6, 63; sub t5, a6, t5\n" ++            -- offset = 32 + 31 - b' = 63 - b'
+  ".Lbalsort_dig_be:\n" ++
+  "  add t5, t5, t2\n" ++
   ".Lbalsort_dig_have:\n" ++
   "  add t5, t0, t5; lbu t3, 0(t5)\n" ++
   "  andi a7, s6, 1; bnez a7, .Lbalsort_dig_low\n" ++
-  "  srli t3, t3, 4\n" ++                       -- even depth: high nibble
+  "  srli t3, t3, 4\n" ++
   ".Lbalsort_dig_low:\n" ++
   "  andi t3, t3, 15\n"
 
@@ -165,8 +183,9 @@ def balCanonicalDigitAsm : String :=
       a0 = base of the row array
       a1 = row count
       a2 = row stride in bytes
-      a3 = number of 32-byte key fields (1 or 2)
-      a4 = significant bytes in the FIRST field (20 or 32)
+      a3 = packed segment descriptor: for segment i, byte 2i is its offset and
+           byte 2i+1 its width, little-endian within the register (up to 3 segments)
+      a4 = segment count (1..3)
     returns
       a0 = 0 success
          = 1 count exceeds capacity
@@ -185,21 +204,26 @@ def balCanonicalSortFunction : String :=
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
   -- Argument validation FIRST, so a misuse cannot be mistaken for a capacity hit.
-  "  li t0, 1; beq a3, t0, .Lbalsort_fields_ok\n" ++
-  "  li t0, 2; beq a3, t0, .Lbalsort_fields_ok\n" ++
+  "  li t0, 1; bltu a4, t0, .Lbalsort_bad_segs\n" ++
+  "  li t0, 3; bgtu a4, t0, .Lbalsort_bad_segs\n" ++
+  "  j .Lbalsort_segs_ok\n" ++
+  ".Lbalsort_bad_segs:\n" ++
   "  li a0, 2; j .Lbalsort_ret\n" ++
-  ".Lbalsort_fields_ok:\n" ++
-  "  li t0, 20; beq a4, t0, .Lbalsort_sig_ok\n" ++
-  "  li t0, 32; beq a4, t0, .Lbalsort_sig_ok\n" ++
-  "  li a0, 4; j .Lbalsort_ret\n" ++
-  ".Lbalsort_sig_ok:\n" ++
+  ".Lbalsort_segs_ok:\n" ++
   "  li t0, " ++ toString accountWritesCapacity ++ "; bgtu a1, t0, .Lbalsort_over_capacity\n" ++
   "  mv s0, a0\n" ++                       -- s0 = base
   "  mv s1, a1\n" ++                       -- s1 = count
   "  mv s8, a2\n" ++                       -- s8 = stride
-  "  mv s10, a4\n" ++                      -- s10 = firstSig
-  -- s9 = total canonical key bytes = firstSig + (fields - 1) * 32
-  "  addi t0, a3, -1; slli t0, t0, 5; add s9, a4, t0\n" ++
+  "  mv s10, a3\n" ++                      -- s10 = packed segment descriptor
+  -- s9 = total canonical key bytes = sum of the segment widths. Computed rather
+  -- than passed, so a caller cannot describe a key wider than it declared.
+  "  li s9, 0; li t1, 0\n" ++
+  ".Lbalsort_keysum:\n" ++
+  "  bgeu t1, a4, .Lbalsort_keysummed\n" ++
+  "  slli t2, t1, 4; addi t2, t2, 8; srl t0, s10, t2; andi t0, t0, 0x7f\n" ++
+  "  add s9, s9, t0; addi t1, t1, 1; j .Lbalsort_keysum\n" ++
+  ".Lbalsort_keysummed:\n" ++
+  "  beqz s9, .Lbalsort_bad_segs\n" ++
   "  slli s11, s9, 1\n" ++                 -- s11 = total nibble depth = 2 * keyBytes
   "  la s2, bal_sort_ranges; li s3, 0\n" ++
   "  li t0, 2; bltu s1, t0, .Lbalsort_ok\n" ++ -- 0 or 1 rows are already sorted
@@ -270,8 +294,9 @@ def balSortStorageWritesFunction : String :=
   "  li a0, 0xa1fa0000\n" ++                    -- STORAGE_WRITES_AREA
   "  la t0, storage_writes_count; ld a1, 0(t0)\n" ++
   "  li a2, 128\n" ++                           -- stride
-  "  li a3, 2\n" ++                             -- address field ++ slot field
-  "  li a4, 20\n" ++                            -- 20 significant address bytes (see below)
+  -- segments [(off 0, w 20), (off 32, w 32)] = address ++ slot, packed one byte each
+  "  li a3, 0x20201400\n" ++
+  "  li a4, 2\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n"
@@ -285,10 +310,68 @@ def balSortAccountWritesFunction : String :=
   "  li a0, 0xa24a0000\n" ++                    -- ACCOUNT_WRITES_AREA
   "  la t0, account_writes_count; ld a1, 0(t0)\n" ++
   "  li a2, 128\n" ++                           -- stride
-  "  li a3, 1\n" ++                             -- one key field
-  "  li a4, 20\n" ++                            -- 20 significant address bytes
+  -- segments [(off 0, w 20)] = address only
+  "  li a3, 0x1400\n" ++
+  "  li a4, 1\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  ret\n"
+
+/-! ## `bal_canonical_sort_selftest`
+
+    Sorts four synthetic rows whose expected order is derived INDEPENDENTLY of the
+    guest's digit logic, and checks the result.
+
+    Why an independent expectation matters here: the obvious check — walk the sorted
+    rows and confirm each key is <= the next — would use the SAME digit extraction
+    the sort uses. If that extraction is wrong, both agree and the check passes
+    vacuously on a limb-swapped order. So the expected permutation is computed from
+    the canonical rule alone and hardcoded.
+
+    The rows differ only in field byte 19, which is the address's canonical BE MOST
+    SIGNIFICANT byte (the address occupies the low 20 bytes of an LE word). Values
+    0x30, 0x10, 0x40, 0x20 in rows 0..3, so canonical ascending order is rows
+    1, 3, 0, 2. Each row carries its 1-based tag at offset 64, so the tag sequence
+    after sorting must read 2, 4, 1, 3.
+
+    A byte-index sort would order by field[0] instead — all zero here — and leave the
+    rows untouched, giving 1, 2, 3, 4. That is exactly the failure this catches.
+
+    a0 = a scratch arena of at least 4 * 128 bytes, 8-aligned.
+    a0 (out) = 0 on the expected order, else 1. -/
+def balCanonicalSortSelftestFunction : String :=
+  "  .globl bal_canonical_sort_selftest\n" ++
+  "bal_canonical_sort_selftest:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0\n" ++
+  -- Zero four 128-byte rows.
+  "  mv t0, s0; li t1, 64\n" ++
+  ".Lbalsort_st_zero:\n" ++
+  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; bnez t1, .Lbalsort_st_zero\n" ++
+  -- field[19] = the discriminating byte; offset 64 = the tag.
+  "  li t1, 0x30; sb t1, 19(s0);   li t1, 1; sb t1, 64(s0)\n" ++
+  "  addi t0, s0, 128\n" ++
+  "  li t1, 0x10; sb t1, 19(t0);   li t1, 2; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 256\n" ++
+  "  li t1, 0x40; sb t1, 19(t0);   li t1, 3; sb t1, 64(t0)\n" ++
+  "  addi t0, s0, 384\n" ++
+  "  li t1, 0x20; sb t1, 19(t0);   li t1, 4; sb t1, 64(t0)\n" ++
+  -- Sort with the ACCOUNT layout: one 20-byte address segment at offset 0.
+  "  mv a0, s0; li a1, 4; li a2, 128; li a3, 0x1400; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  bnez a0, .Lbalsort_st_fail\n" ++
+  -- Expected tag sequence 2, 4, 1, 3.
+  "  lbu t1, 64(s0);   li t2, 2; bne t1, t2, .Lbalsort_st_fail\n" ++
+  "  addi t0, s0, 128; lbu t1, 64(t0); li t2, 4; bne t1, t2, .Lbalsort_st_fail\n" ++
+  "  addi t0, s0, 256; lbu t1, 64(t0); li t2, 1; bne t1, t2, .Lbalsort_st_fail\n" ++
+  "  addi t0, s0, 384; lbu t1, 64(t0); li t2, 3; bne t1, t2, .Lbalsort_st_fail\n" ++
+  "  li a0, 0; j .Lbalsort_st_ret\n" ++
+  ".Lbalsort_st_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbalsort_st_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
   "  ret\n"
 
 /-- The explicit range stack. Sized by the argued bound, not by a guess: at most
@@ -303,7 +386,33 @@ def balCanonicalSortDataSection : String :=
 def balCanonicalSortFunctions : String :=
   balCanonicalSortFunction ++
   balSortStorageWritesFunction ++
-  balSortAccountWritesFunction
+  balSortAccountWritesFunction ++
+  balCanonicalSortSelftestFunction
+
+/-! ## The builder's key descriptors, pinned as constants
+
+    Confirmed with the agent building the builder arenas, and recorded here rather
+    than left in a message so the two sides can be checked against each other. The
+    entry points are NOT added yet: the arenas do not exist, so referencing them
+    would not link, and inventing an offset would guarantee a silent mismatch.
+
+    Row shapes, keys listed most to least significant:
+
+    | list | stride | segments |
+    |---|---|---|
+    | storage change | 96 | address `(0,20)` BE, slot `(32,32)` BE, index `(24,8)` LE |
+    | balance change | 64 | address `(0,20)` BE, index `(24,8)` LE |
+    | nonce change | 40 | address `(0,20)` BE, index `(24,8)` LE |
+    | code change | 64 | address `(0,20)` BE, index `(24,8)` LE |
+
+    The endianness split is the part worth pinning. The builder canonicalises BOTH
+    the address and the slot on append — the source `addrHash` and `slotKey` are EVM
+    stack words, four LE u64 limbs, and the append reverses them — so those segments
+    are indexed FORWARD. The `block_access_index` is a native LE cell and is the only
+    segment the sorter reverses. Reversing an already-BE segment would order rows by
+    a byte-reversed address: total, permutation-preserving, and not canonical. -/
+def balSortBuilderStorageSegments : Nat := 0x0818a0209400
+def balSortBuilderEventSegments : Nat := 0x08189400
 
 /-! ## Anti-drift guards on the emitted text
 
@@ -331,36 +440,67 @@ def balCanonicalSortFunctions : String :=
 #guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort:").length == 2
 #guard (balCanonicalSortFunctions.splitOn "bal_sort_storage_writes:").length == 2
 #guard (balCanonicalSortFunctions.splitOn "bal_sort_account_writes:").length == 2
+#guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort_selftest:").length == 2
+-- The self-test's expectation must be the INDEPENDENT one (tags 2,4,1,3), not the
+-- identity 1,2,3,4 that a byte-index sort would leave behind.
+#guard (balCanonicalSortSelftestFunction.splitOn "li t2, 2; bne").length == 2
+#guard (balCanonicalSortSelftestFunction.splitOn "li t2, 4; bne").length == 2
 
 -- No silent bail: every failure path must set a DISTINCT nonzero status. If these
 -- collapse to one code a caller cannot tell misuse from capacity exhaustion.
 #guard (balCanonicalSortFunction.splitOn "li a0, 1;").length == 2
 #guard (balCanonicalSortFunction.splitOn "li a0, 2;").length == 2
 #guard (balCanonicalSortFunction.splitOn "li a0, 3;").length == 2
-#guard (balCanonicalSortFunction.splitOn "li a0, 4;").length == 2
 
 -- The digit extraction must be present in the scan loop. Without it the sort would
 -- still run, still terminate, and still produce a sorted permutation -- on the
 -- wrong key, and no structural property of the ORDER could tell the difference.
--- This guard is why that edit cannot happen silently; it does not make the
--- ordering correct.
-#guard (balCanonicalSortFunction.splitOn ".Lbalsort_dig_have:").length == 2
--- ...and it must read a REVERSED offset. A raw `add t5, t0, t2` (offset = b) would
--- be the limb-swapped sort; the canonical form subtracts.
-#guard (balCanonicalDigitAsm.splitOn "sub t5, t5, t2").length == 2
-#guard (balCanonicalDigitAsm.splitOn "sub t5, a6, t5").length == 2
+#guard (balCanonicalSortFunction.splitOn ".Lbalsort_dig_in:").length == 2
+-- ...and it must read a REVERSED offset within the segment. The canonical BE byte b
+-- of an LE segment of width w at offset k is byte k+w-1-b; emitting `k+b` instead is
+-- the limb-swapped sort, which is sorted and permutation-preserving and wrong.
+#guard (balCanonicalDigitAsm.splitOn "add t5, t5, t3; addi t5, t5, -1; sub t5, t5, t2").length == 2
+-- ...and the BE branch must index FORWARD, or a BE-stored segment would be reversed.
+#guard (balCanonicalDigitAsm.splitOn ".Lbalsort_dig_be:").length == 2
+-- The width mask must strip the endianness bit in BOTH the digit path and the
+-- key-width sum; masking one and not the other makes every BE segment 128 bytes wide.
+#guard (balCanonicalDigitAsm.splitOn "andi t3, t3, 0x7f").length == 2
+#guard (balCanonicalSortFunction.splitOn "andi t0, t0, 0x7f").length == 2
+-- The segment walk must SUBTRACT each width as it steps past a segment, or every
+-- byte index would be read against the first segment.
+#guard (balCanonicalDigitAsm.splitOn "sub t2, t2, t3").length == 2
 
--- Each entry point must name its own key layout, so status 2 and 4 are
--- unreachable from them.
-#guard (balSortStorageWritesFunction.splitOn "li a3, 2").length == 2
-#guard (balSortStorageWritesFunction.splitOn "li a4, 20").length == 2
--- Both entry points must declare the SAME address width, or the two containers
--- would order accounts differently and the serializer's single walk would look for
--- an account's slots under a different account.
-#guard (balSortStorageWritesFunction.splitOn "li a4, 20").length
-         == (balSortAccountWritesFunction.splitOn "li a4, 20").length
-#guard (balSortAccountWritesFunction.splitOn "li a3, 1").length == 2
-#guard (balSortAccountWritesFunction.splitOn "li a4, 20").length == 2
+-- Entry-point key layouts, packed one byte per field: for segment i, byte 2i is the
+-- offset and byte 2i+1 the width.
+--   storage: [(0,20),(32,32)] = 0x20201400
+--   account: [(0,20)]         = 0x1400
+-- Both start with a 20-byte address segment at offset 0, which is what makes the two
+-- containers agree on account order BY CONSTRUCTION -- the serializer walks accounts
+-- once and must find each account's slots under the same account.
+#guard (balSortStorageWritesFunction.splitOn "li a3, 0x20201400").length == 2
+#guard (balSortStorageWritesFunction.splitOn "li a4, 2").length == 2
+#guard (balSortAccountWritesFunction.splitOn "li a3, 0x1400").length == 2
+#guard (balSortAccountWritesFunction.splitOn "li a4, 1").length == 2
+-- The shared low half is the address segment: (offset 0, width 20) = 0x1400.
+#guard 0x20201400 % 0x10000 == 0x1400
+
+-- The builder descriptors must decode to exactly the agreed segments. Written as a
+-- decode rather than a repeated literal so a typo in the packing cannot agree with
+-- itself -- the failure being pinned here is a wrong offset or a wrong endianness
+-- bit, both of which produce a well-formed wrong order with no local symptom.
+#guard (balSortBuilderStorageSegments >>> 0) % 256 == 0        -- address offset
+#guard (balSortBuilderStorageSegments >>> 8) % 256 == 20 + 128 -- address width, BE
+#guard (balSortBuilderStorageSegments >>> 16) % 256 == 32      -- slot offset
+#guard (balSortBuilderStorageSegments >>> 24) % 256 == 32 + 128 -- slot width, BE
+#guard (balSortBuilderStorageSegments >>> 32) % 256 == 24      -- index offset
+#guard (balSortBuilderStorageSegments >>> 40) % 256 == 8       -- index width, LE
+#guard (balSortBuilderEventSegments >>> 0) % 256 == 0
+#guard (balSortBuilderEventSegments >>> 8) % 256 == 20 + 128
+#guard (balSortBuilderEventSegments >>> 16) % 256 == 24
+#guard (balSortBuilderEventSegments >>> 24) % 256 == 8
+-- The index segment must be the ONLY reversed one in both descriptors.
+#guard (balSortBuilderStorageSegments >>> 40) % 256 < 128
+#guard (balSortBuilderEventSegments >>> 24) % 256 < 128
 
 -- The strides must match the two containers' actual record strides.
 #guard (balSortStorageWritesFunction.splitOn "li a2, 128").length == 2
