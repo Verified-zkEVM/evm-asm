@@ -2,9 +2,13 @@
   Concrete construction glue for the bare-mode Sail memory reductions.
 
   The memory reduction theorems are intentionally stated against a `BareModeInv`
-  plus access-local PMA/MMIO facts.  This file starts discharging those facts for
-  the concrete platform shape installed by `sail_model_init`: the main-memory PMA
-  region covers ordinary zkVM RAM addresses.
+  plus access-local PMA/MMIO facts.  This file discharges those facts for the
+  concrete platform shape installed by `sail_model_init`: the initializer's three
+  PMA regions are reproduced verbatim (`sailInitPmaRegions`), a representative
+  main-memory address (`sailRamWitnessAddr`) is proved aligned, PMA-matched to
+  the main-memory region, readable, and writable; zeroed PMP configs decode to
+  `OFF` (`zeroPmpcfgs_off`); and `bareModeWitnessState_inv` exhibits a concrete
+  Sail state satisfying `BareModeInv`.
 -/
 
 import EvmAsm.Rv64.SailEquiv.VmemReductionStores

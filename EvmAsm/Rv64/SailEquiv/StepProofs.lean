@@ -17,6 +17,14 @@
   `StateRelPC`-related post state.  The branch/jump capstones below instantiate
   it, so BEQ/BNE/BLT/BGE/BLTU/BGEU/JAL/JALR now have their **target PC** verified
   against the SAIL golden model — previously the branch proofs were vacuous on PC.
+
+  `step_of_execute` is instruction-generic, not branch-specific: composed with
+  the consolidated `StepSim.step_execute_sail_sim` (whose postcondition is
+  exactly the `StateRel` + `nextPC = (execInstrBr sRv i).pc` shape it consumes),
+  it covers all 49 mapped `Instr` constructors, not just the 8 branch capstones
+  below.  Chaining these `execute ; tick_pc` steps into a run-level simulation
+  still needs the fetch-side `nextPC = pc + 4` default re-established at each
+  fetch boundary — tracked as #10530.
 -/
 
 import EvmAsm.Rv64.SailEquiv.BranchProofs

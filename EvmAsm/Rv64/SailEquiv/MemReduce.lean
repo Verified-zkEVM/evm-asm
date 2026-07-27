@@ -3,13 +3,14 @@
 
   Bare-mode memory reduction for the Sail golden-model equivalence (Phase 2).
 
-  Develops the lemmas to discharge the `MemProofs.lean` load/store stubs in the
-  **forward** (evm-asm ⇒ Sail) direction, under bare translation mode (Machine
-  privilege, `satp = 0`) and an aligned access — the regime evm-asm always
-  operates in (`stepResult s ≠ .trap .misalignedAccess`).
-
-  Built bottom-up. This file currently provides the pure little-endian reassembly
-  identity connecting Sail's byte memory to the dword view of `StateRel.mem_agree`.
+  Pure little-endian reassembly identities connecting Sail's byte memory to the
+  dword view of `StateRel.mem_agree`: `byte_ext`, `packDword_extractByte`,
+  `reconstructDword_eq_packDword`, `reconstructDword_of_bytes`, and
+  `reconstructDword_congr`. These feed the load capstones (`VmemReduction.lean` /
+  `VmemReductionLoads.lean`) and the store-side `mem_agree` rebuild bridges
+  (`VmemReductionStores.lean`) — the lemmas that discharged the load/store stubs
+  `MemProofs.lean` used to carry (that file is now a historical anchor; no stubs
+  remain).
 -/
 
 import EvmAsm.Rv64.SailEquiv.StateRel
