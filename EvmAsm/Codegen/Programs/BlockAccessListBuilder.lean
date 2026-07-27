@@ -184,6 +184,7 @@ def blockAccessListBuilderDataSection : String :=
   "bal_serializer_outer_payload:\n  .zero 8\n" ++
   "bal_serializer_read_scratch:\n  .zero " ++ toString balSerializerReadScratchBytes ++ "\n" ++
   "bal_serializer_read_scratch_count:\n  .zero 8\n" ++
+  "bal_serializer_u64_field:\n  .zero 32\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -744,11 +745,111 @@ def balSerializerMeasureReadsFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret\n"
 
+/-! ## `bal_serializer_u64_to_field` and `bal_serializer_measure_balance`
+
+    ## The widener, and why it is not a second encoder
+
+    `bal_rlp_scalar_rlp_len` and `bal_rlp_emit_scalar` are a matched pair over ONE input
+    shape: a pointer to a 32-byte field. But `block_access_index` and `NonceChange`'s
+    nonce are **u64**, so they must be widened before either call.
+
+    A u64 variant of the scalar pair would be a SECOND implementation of the canonical
+    scalar rule — the leading-zero stripping and the single-byte-no-prefix case — and the
+    two could disagree. `bal_serializer_u64_to_field` instead zeroes 32 bytes and writes
+    the value big-endian into the last 8, which is **pure data movement with no encoding
+    logic in it**, so it cannot diverge from anything. One scalar pair still serves every
+    scalar in the walk.
+
+    The measurer and the emitter must be handed the SAME widened buffer, or the shape
+    mismatch reappears one level down.
+
+      a0 = destination (32 B, 8-aligned)   a1 = the u64
+      no result register.
+
+    ## `bal_serializer_measure_balance`
+
+    `AccountChanges.balance_changes` is `Tuple[BalanceChange, ...]`, and each
+    `BalanceChange` is a two-element list `[block_access_index, post_balance]`. So the
+    field's payload is the sum over rows of each row's ENCODED size — the inner list's
+    header plus its own payload — while the table entry itself is this field's PAYLOAD,
+    excluding the field list's header.
+
+    Those two words differ by exactly one header at each level, which is the nesting
+    error the table's convention exists to prevent. Stated explicitly here because this
+    is the first measurer with a nested list inside it: `storage_reads` was flat.
+
+      a0 = address ptr (20 B BE) — rows are matched per account
+      a0 (out) = the payload length, also stored at `bal_serializer_len_table + 24`
+
+    DELIBERATELY INERT PENDING ITS CALLER. -/
+def balSerializerU64ToFieldFunction : String :=
+  "bal_serializer_u64_to_field:\n" ++
+  "  sd zero, 0(a0); sd zero, 8(a0); sd zero, 16(a0); sd zero, 24(a0)\n" ++
+  -- big-endian into the LAST 8 bytes: byte 31 is the least significant.
+  "  li t0, 8; li t1, 0\n" ++
+  ".Lbsuf_b:\n" ++
+  "  beq t1, t0, .Lbsuf_done\n" ++
+  "  slli t2, t1, 3; srl t3, a1, t2; andi t3, t3, 255\n" ++
+  "  li t4, 31; sub t4, t4, t1; add t4, a0, t4; sb t3, 0(t4)\n" ++
+  "  addi t1, t1, 1; j .Lbsuf_b\n" ++
+  ".Lbsuf_done:\n" ++
+  "  ret\n"
+
+def balSerializerMeasureBalanceFunction : String :=
+  "bal_serializer_measure_balance:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0\n" ++                                              -- s0 = address ptr
+  "  la t0, bal_builder_balance_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0\n" ++                                              -- s2 = payload accum
+  "  li s3, 0\n" ++                                              -- s3 = row index
+  ".Lbsmb_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmb_done\n" ++
+  "  li t0, 64; mul t1, s3, t0; la t2, bal_builder_balance_changes; add s4, t2, t1\n" ++
+  -- per account: skip rows belonging to another address
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmb_next\n" ++
+  -- inner payload = scalar(bai) + scalar(post_balance)
+  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  -- the row's ENCODED size adds the inner list's own header
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s2, s2, t5\n" ++
+  ".Lbsmb_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmb_loop\n" ++
+  ".Lbsmb_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s2, 24(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
+/-- Builder rows hold a canonical BE20 address at +0, so this compares directly rather
+    than reversing a stack word the way `bal_serializer_addr_matches` must for read
+    rows. Two routines because the two row families store the address differently — the
+    encoding split the sort descriptors already record. -/
+def balSerializerAddrMatchesBeFunction : String :=
+  "bal_serializer_addr_matches_be:\n" ++
+  "  li t0, 20; li t1, 0\n" ++
+  ".Lbsab_cmp:\n" ++
+  "  beq t1, t0, .Lbsab_yes\n" ++
+  "  add t2, a0, t1; add t3, a1, t1\n" ++
+  "  lbu t4, 0(t2); lbu t5, 0(t3); bne t4, t5, .Lbsab_no\n" ++
+  "  addi t1, t1, 1; j .Lbsab_cmp\n" ++
+  ".Lbsab_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbsab_no:\n" ++
+  "  li a0, 0; ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerSlotWrittenFunction ++
   balSerializerFilterReadsFunction ++
   balSerializerMeasureReadsFunction ++
+  balSerializerU64ToFieldFunction ++
+  balSerializerAddrMatchesBeFunction ++
+  balSerializerMeasureBalanceFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -820,6 +921,25 @@ def blockAccessListBuilderFunctions : String :=
 -- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
 -- write.
 #guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
+
+-- THE NESTING DISTINCTION. Each row's contribution is its ENCODED size -- the inner
+-- list's own header plus its payload -- while the table entry is this FIELD's payload,
+-- excluding the field list's header. Dropping the inner header_len call leaves the field
+-- payload short by one header per row, and the buffer is still well-formed.
+#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 2
+-- Two scalars per row: the BAI and the post balance.
+#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 3
+-- The BAI is a u64 and the scalar pair takes a 32-byte field, so it MUST be widened. A
+-- raw 8-byte pointer handed to a 32-byte measurer reads 24 bytes of neighbouring row.
+#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 2
+-- Per account, not global.
+#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
+-- The +24 slot, per the pinned table layout.
+#guard (balSerializerMeasureBalanceFunction.splitOn "sd s2, 24(t0)").length == 2
+-- The widener must contain NO encoding logic -- it is pure data movement, which is what
+-- makes it safe to have alongside a single scalar pair rather than being a second encoder.
+#guard (balSerializerU64ToFieldFunction.splitOn "0x80").length == 1
+#guard (balSerializerU64ToFieldFunction.splitOn "56").length == 1
 
 -- It must measure the FILTERED list, not the raw read set: measuring the raw set sizes
 -- the header for slots emit will not write, and the buffer is well-formed with a long
