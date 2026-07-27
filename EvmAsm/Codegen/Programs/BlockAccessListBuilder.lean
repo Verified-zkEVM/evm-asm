@@ -37,6 +37,10 @@ namespace EvmAsm.Codegen
 
 /-- Canonical account-table entry: exactly the 20-byte big-endian `Address`. -/
 def balBuilderAccountRowBytes : Nat := 20
+/-- `{address[20], pad[4], slot[32]}`. NO block_access_index: `storage_reads` is a SET
+    in the spec (`AccountData.storage_reads : Set[U256]`), not a list of indexed
+    changes, so the BAI stamping the four change rows carry has nothing to record here. -/
+def balBuilderStorageReadRowBytes : Nat := 56
 /-- `{address[20], pad[4], u64 BAI, slot[32], post value[32]}`. -/
 def balBuilderStorageChangeRowBytes : Nat := 96
 /-- `{address[20], pad[4], u64 BAI, post balance[32]}`. -/
@@ -64,12 +68,18 @@ The enumeration reflects the Amsterdam spec areas read to date and must be
 revisited when a new producer route is understood. The reservation is therefore
 a joint upper bound with material slack, not a sum of independent maxima. -/
 def balBuilderAccountCapacity : Nat := 76923
+/-- Mirrors `STORAGE_READS_AREA`'s 16384 so the builder is never the tighter bound:
+    the upstream arena already caps and dedups, and a narrower cap here would reject
+    blocks the recorder accepted. -/
+def balBuilderStorageReadCapacity : Nat := 16384
 def balBuilderStorageChangeCapacity : Nat := 15384
 def balBuilderBalanceCapacity : Nat := 50000
 def balBuilderNonceCapacity : Nat := 16666
 def balBuilderCodeCapacity : Nat := 6250
 
 def balBuilderAccountBytes : Nat := balBuilderAccountCapacity * balBuilderAccountRowBytes
+def balBuilderStorageReadBytes : Nat :=
+  balBuilderStorageReadCapacity * balBuilderStorageReadRowBytes
 def balBuilderStorageChangeBytes : Nat := balBuilderStorageChangeCapacity * balBuilderStorageChangeRowBytes
 def balBuilderBalanceBytes : Nat := balBuilderBalanceCapacity * balBuilderBalanceRowBytes
 def balBuilderNonceBytes : Nat := balBuilderNonceCapacity * balBuilderNonceRowBytes
@@ -88,6 +98,8 @@ def blockAccessListBuilderDataSection : String :=
   "besc_addr_be:\n  .zero 32\n" ++
   "besc_slot_be:\n  .zero 32\n" ++
   "besc_base_le:\n  .zero 32\n" ++
+  "bal_builder_storage_read_count:\n  .zero 8\n" ++
+  "bal_builder_storage_read_overflow:\n  .zero 8\n" ++
   "bal_builder_storage_change_count:\n  .zero 8\n" ++
   "bal_builder_balance_count:\n  .zero 8\n" ++
   "bal_builder_nonce_count:\n  .zero 8\n" ++
@@ -100,6 +112,7 @@ def blockAccessListBuilderDataSection : String :=
   ".balign 32\n" ++
   "bal_builder_accounts:\n  .zero " ++ toString balBuilderAccountBytes ++ "\n" ++
   ".balign 8\n" ++
+  "bal_builder_storage_reads:\n  .zero " ++ toString balBuilderStorageReadBytes ++ "\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -207,6 +220,100 @@ def balBuilderAppendBalanceFunction : String :=
     offset 0 width 20 big-endian, segment 1 at offset 32 width 32 big-endian,
     segment 2 at offset 24 width 8 little-endian — so the sorter consumes the spec's
     ordering key in-row with no remap. -/
+/-! ## `bal_builder_record_storage_read`
+
+    Mirrors `add_storage_read` (`block_access_lists.py:371-382`).
+
+    **A SET INSERT, not an append.** The spec's field is
+    `AccountData.storage_reads : Set[U256]`, and `add_storage_read` is
+    `ensure_account` followed by `.add(slot)` — so a repeated read of the same slot
+    contributes one element. This scans for `(address, slot)` and returns without
+    appending on a hit, which is what a set insert is at this layout.
+
+    ## It does NOT filter reads that are also written, and that is correct
+
+    `add_storage_read`'s own docstring states the EIP-7928 rule — "Storage slots that
+    are both read and written will only appear in the storage changes list, not in the
+    storage reads list" — but **the implementation adds unconditionally**. The exclusion
+    is applied later, in `_build_from_builder` (`:549-552`):
+
+        storage_reads = []
+        for slot in changes.storage_reads:
+            if slot not in changes.storage_changes:
+                storage_reads.append(slot)
+
+    So the container holds every read and the serializer drops the written ones. Doing
+    it here instead would be wrong as well as premature: a slot can be read in one
+    transaction and written in a later one, and an insertion-time filter cannot see a
+    write that has not happened yet.
+
+    That equivalence holds only while nothing reads this container between insertion
+    and serialization. Nothing does — see the inertness note below.
+
+    Calling convention:
+      a0 = address ptr (20 B big-endian)
+      a1 = slot ptr    (32 B, canonical big-endian BAL key)
+      ra = return
+      no result register; overflow is reported via the builder's flags.
+
+    Row layout, 56 B (`balBuilderStorageReadRowBytes`):
+
+        +0  address (20 B, 4 B pad to +24)
+        +24 slot    (32 B)
+
+    No `block_access_index` field, unlike the four change rows.
+
+    DELIBERATELY INERT PENDING ITS CALLER: nothing calls this. The producer side is
+    ready — `storage_read_record` fills `STORAGE_READS_AREA`, `read_sets_incorporate_tx`
+    promotes it per transaction, and it is deduped and capacity-bounded — so the
+    wiring is a separate change that will carry the behavioural evidence. This is a
+    planned stage, not an unfed mechanism. -/
+def balBuilderRecordStorageReadFunction : String :=
+  "bal_builder_record_storage_read:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp)\n" ++
+  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbbsr_overflow\n" ++
+  -- SET INSERT: scan for an existing (address, slot) and return on a hit.
+  "  la t0, bal_builder_storage_read_count; ld t1, 0(t0)\n" ++
+  "  li t4, 0\n" ++
+  ".Lbbsr_scan:\n" ++
+  "  bgeu t4, t1, .Lbbsr_append\n" ++
+  "  li t2, 56; mul t2, t4, t2; la t3, bal_builder_storage_reads; add t5, t3, t2\n" ++
+  -- slot first (4 dwords at +24): it discriminates faster than a 20-byte address
+  "  ld a4, 16(sp)\n" ++
+  "  ld t2, 24(t5); ld t6, 0(a4);  bne t2, t6, .Lbbsr_next\n" ++
+  "  ld t2, 32(t5); ld t6, 8(a4);  bne t2, t6, .Lbbsr_next\n" ++
+  "  ld t2, 40(t5); ld t6, 16(a4); bne t2, t6, .Lbbsr_next\n" ++
+  "  ld t2, 48(t5); ld t6, 24(a4); bne t2, t6, .Lbbsr_next\n" ++
+  -- address, byte-wise over 20 bytes so the 4 pad bytes cannot participate
+  "  ld a4, 8(sp); li t2, 20; mv t6, t5\n" ++
+  ".Lbbsr_acmp:\n" ++
+  "  beqz t2, .Lbbsr_ret\n" ++                                  -- HIT: already in the set
+  "  lbu a5, 0(a4); lbu a6, 0(t6); bne a5, a6, .Lbbsr_next\n" ++
+  "  addi a4, a4, 1; addi t6, t6, 1; addi t2, t2, -1; j .Lbbsr_acmp\n" ++
+  ".Lbbsr_next:\n" ++
+  "  addi t4, t4, 1; j .Lbbsr_scan\n" ++
+  ".Lbbsr_append:\n" ++
+  "  li t2, " ++ toString balBuilderStorageReadCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lbbsr_overflow\n" ++
+  "  li t2, 56; mul t2, t1, t2; la t3, bal_builder_storage_reads; add t5, t3, t2\n" ++
+  "  ld a4, 8(sp); li t2, 20; mv t6, t5\n" ++
+  ".Lbbsr_wa:\n" ++
+  "  beqz t2, .Lbbsr_wpad; lbu a5, 0(a4); sb a5, 0(t6); addi a4, a4, 1; addi t6, t6, 1; addi t2, t2, -1; j .Lbbsr_wa\n" ++
+  ".Lbbsr_wpad:\n" ++
+  "  sb zero, 20(t5); sb zero, 21(t5); sb zero, 22(t5); sb zero, 23(t5)\n" ++
+  "  ld a4, 16(sp)\n" ++
+  "  ld t2, 0(a4);  sd t2, 24(t5)\n" ++
+  "  ld t2, 8(a4);  sd t2, 32(t5)\n" ++
+  "  ld t2, 16(a4); sd t2, 40(t5)\n" ++
+  "  ld t2, 24(a4); sd t2, 48(t5)\n" ++
+  "  addi t1, t1, 1; la t0, bal_builder_storage_read_count; sd t1, 0(t0)\n" ++
+  "  j .Lbbsr_ret\n" ++
+  ".Lbbsr_overflow:\n" ++
+  "  la t0, bal_builder_storage_read_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bal_builder_overflow; sd t1, 0(t0)\n" ++
+  ".Lbbsr_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 32; ret\n"
+
 def balBuilderRecordStorageChangeFunction : String :=
   "bal_builder_record_storage_change:\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
@@ -454,6 +561,7 @@ def balEmitStorageChangesFunction : String :=
 
 def blockAccessListBuilderFunctions : String :=
   balBuilderEnsureAccountFunction ++
+  balBuilderRecordStorageReadFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
@@ -526,6 +634,37 @@ def blockAccessListBuilderFunctions : String :=
 #guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
 
 #guard balBuilderAccountBytes = 1538460
+/-! ## Guards for the storage_reads container -/
+
+-- Emitted at all.
+#guard (blockAccessListBuilderFunctions.splitOn "bal_builder_record_storage_read:").length == 2
+
+-- IT IS A SET INSERT. `add_storage_read` is `ensure_account` + `.add(slot)`, so a
+-- repeated read of one slot must contribute one element. Without the scan this becomes
+-- an append and a hot read loop inflates storage_reads, changing the BAL's hash.
+#guard (balBuilderRecordStorageReadFunction.splitOn ".Lbbsr_scan:").length == 2
+
+-- NO block_access_index. storage_reads is a Set[U256] in the spec, not a list of
+-- indexed changes, so a BAI field here would be a field the spec does not have. The
+-- four change appends stamp one; this must not.
+#guard (balBuilderRecordStorageReadFunction.splitOn "bal_builder_current_bai").length == 1
+#guard balBuilderStorageReadRowBytes = 56
+
+-- Row offsets: address@0 (20 B + 4 pad), slot@24. The slot store must be at +24, NOT
+-- at +32 where the change row puts it -- a copy-paste from the sibling lands there and
+-- would key the sorter on padding.
+#guard (balBuilderRecordStorageReadFunction.splitOn "sd t2, 24(t5)").length == 2
+#guard (balBuilderRecordStorageReadFunction.splitOn "sd t2, 48(t5)").length == 2
+
+-- The hit path must NOT bump the count -- that is what makes it a set.
+#guard (balBuilderRecordStorageReadFunction.splitOn
+          "la t0, bal_builder_storage_read_count; sd t1, 0(t0)").length == 2
+
+-- Capacity must not be tighter than the upstream arena, or the builder rejects blocks
+-- the recorder accepted.
+#guard balBuilderStorageReadCapacity = 16384
+
+#guard balBuilderStorageReadBytes = 917504
 #guard balBuilderStorageChangeBytes = 1476864
 #guard balBuilderBalanceBytes = 3200000
 #guard balBuilderNonceBytes = 666640
