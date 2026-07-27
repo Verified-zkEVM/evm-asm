@@ -1,20 +1,31 @@
 /-
   EvmAsm.Rv64.SailEquiv.VmemReduction
 
-  Building blocks for discharging the `h_exec` hypothesis carried by the `MemProofs`
-  `*_sail_equiv` lemmas — i.e. for proving the SAIL `execute_LOAD`/`execute_STORE`
-  bare-mode `vmem_read`/`vmem_write` reduction the original lemmas defer.
+  Full bare-mode reduction of the SAIL `execute_LOAD` doubleword path, ending in the
+  unconditional Tier-A capstone `ld_sail_equiv` (bottom of this file): given
+  `StateRel`, a `BareModeInv`, and per-access facts (alignment, a readable PMA
+  region, MMIO disjointness, byte-presence witnesses), the SAIL load retires with
+  `RETIRE_SUCCESS` into a state `StateRel`-related to the toy model's `LD`. The
+  vacuous `h_exec` hypothesis the original deferred lemma carried is gone.
 
-  This file currently establishes **lemma #1**: the leaf data-correctness bridge tying
-  the SAIL physical read (`readBytes`, which appends bytes little-endian) to the
-  abstraction relation's `reconstructDword`. With all `width` bytes present in `mem`,
-  `readBytes 8 a` succeeds and yields exactly `reconstructDword sSail.mem a` — so the
-  value a doubleword `LOAD` writes back is provably the toy model's `getMem` value.
+  Contents, bottom-up:
 
-  Remaining building blocks (for the full discharge, see
-  `docs/agents/sail-memory-discharge-bootstrap.md`): the `pmpCheck` 16-entry loop, the
-  `untilFuelM` single-iteration reduction, `translateAddr` bare-mode, and `pmaCheck`
-  region membership — each consuming part of the bare-mode precondition bundle.
+  * the `sail_step` simp set + `sail_reduce` tactic — the Sail monad-transformer
+    plumbing every bare-mode reduction has to unfold;
+  * the leaf data-correctness bridge: the little-endian `readBytes` append equals
+    the abstraction relation's `reconstructDword` (`append8_eq_or_shifts`,
+    `readBytes8_eq_reconstruct`);
+  * the bare-mode leaves: `translateAddr_bare`, the `pmpCheck` PMP-scan collapse
+    (`forIn'_noop*`, `pmpCheck_machine_off`), `pmaCheck_load_ok` region membership,
+    and the `untilFuelM` single-iteration (fuel-1) loop reduction (`untilFuelM_one`);
+  * the physical read chain (`mem_read_load_bare`, `checked_mem_read_load`, …),
+    the `vmem_read` loop reductions (`vmem_read_addr_load_bare`,
+    `vmem_read_load_bare`), and `ld_sail_equiv` on top.
+
+  Sub-doubleword loads reuse this chain via `VmemReductionN.lean` /
+  `VmemReductionLoads.lean`; stores mirror it in `VmemWriteReduction.lean` /
+  `VmemReductionStores.lean`. The byte-presence hypotheses are supplied per
+  access; deriving them from a run-level invariant is tracked as #10529.
 -/
 
 import EvmAsm.Rv64.SailEquiv.MemProofs

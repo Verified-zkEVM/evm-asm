@@ -1,8 +1,9 @@
 /-
   EvmAsm.Rv64.SailEquiv.VmemReductionStores
 
-  Unconditional per-instruction equivalence for the four stores `SD / SW / SH / SB`,
-  discharging the `h_exec` stubs the `MemProofs` lemmas carried.  Built on the store-side
+  Unconditional per-instruction equivalence for the four stores `SD / SW / SH / SB`.
+  (Historically these discharged the vacuous `h_exec` stubs the deferred `MemProofs`
+  lemmas carried; no stubs remain anywhere.)  Built on the store-side
   write chain in `VmemWriteReduction.lean` (`writeBytes → … → vmem_write`), plus the
   `StateRel.mem_agree` rebuild bridges below — the genuinely new semantic content of the
   store tier:

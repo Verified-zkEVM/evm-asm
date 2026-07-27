@@ -4,11 +4,25 @@
   Per-instruction equivalence theorems for branch and jump instructions:
   BEQ, BNE, BLT, BGE, BLTU, BGEU, JAL, JALR.
 
-  Branches don't write general registers — they only update nextPC. Since
-  StateRel doesn't track PC or nextPC, branches trivially preserve StateRel
-  for registers and memory.
+  Each theorem proves, on BOTH the taken and not-taken paths, that the SAIL
+  execution retires successfully into a state that (a) agrees with the toy
+  model's `execInstrBr` post-state on registers and memory (`StateRel`), and
+  (b) has `Register.nextPC = some (execInstrBr sRv i).pc` — the branch/jump
+  **target** is verified against the golden model. The hypotheses are real:
+  PC agreement (`h_pc`), `nextPC = pc + 4` at entry (`h_nextpc`), a populated
+  `misa` (`h_misa`), and 4-alignment of the target (`h_align`). Before commit
+  2cea90371 the relation ignored PC/nextPC entirely and these proofs were
+  vacuous on control flow; that caveat no longer applies.
 
-  JAL/JALR additionally write a link register (rd := next_pc).
+  JAL/JALR additionally write the link register (rd := pc + 4). JALR first
+  runs `update_elp_state` (Zicfilp forward-CFI landing-pad bookkeeping),
+  which touches CSR state outside `StateRel` — that is why `jalr_sail_equiv`
+  carries a bundled `h_elp` hypothesis: a witness mid-state in which
+  `update_elp_state` has succeeded and the entry facts still hold.
+
+  Committing the target into SAIL's `PC` (via `tick_pc`) is `StepProofs.lean`'s
+  job; this file stays at the `execute_*` boundary, where only `nextPC` is
+  written.
 -/
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
@@ -27,7 +41,9 @@ private theorem sign_extend_13_eq (imm : BitVec 13) :
     sign_extend (m := 64) imm = signExtend13 imm := by
   unfold sign_extend signExtend13 Sail.BitVec.signExtend; rfl
 
-/-- Writing Register.nextPC preserves StateRel (nextPC is not in the tracked register set). -/
+/-- Writing Register.nextPC preserves StateRel (nextPC is not in the tracked register
+    set). Twin of `stateRel_PC_insert` (StateRel.lean), which does the same for the
+    committed `PC` and is what `StepProofs.step_of_execute` uses after `tick_pc`. -/
 theorem stateRel_nextPC {sRv : MachineState} {sSail : SailState}
     (hrel : StateRel sRv sSail) (v : BitVec 64) :
     StateRel sRv { sSail with regs := sSail.regs.insert Register.nextPC v } :=

@@ -9,25 +9,28 @@
 
   The 49 `Instr` constructors that `toSailInstr?` maps (everything except the pseudo
   `MV`/`LI`/`NOP` and the ZisK accelerator call `CSRS`, which map to `none`) split by
-  the preconditions their equivalence
-  needs — a consequence of `StateRel` tracking only the 32 integer registers and
-  memory (NOT the PC or any CSR):
+  the preconditions their equivalence needs:
 
   * **Unconditional (29)** — ALU (`ADD … SLTU`, `LUI`, `ADDIW`, `MUL`), immediate
     (`ADDI … SLTIU`), shift-immediate (`SLLI`/`SRLI`/`SRAI`), and M-extension
-    (`MULH … REMU`). These follow from `StateRel` alone. **This file proves these.**
-  * **Control-flow (9)** — `AUIPC` (needs PC agreement), the six conditional branches
-    and `JAL`/`JALR` (PC/`nextPC`/`misa` agreement + jump-target alignment). Covered
-    by the per-instruction lemmas in `BranchProofs`/`ALUProofs` under their explicit
-    hypotheses; folding them in needs a strengthened invariant (PC + CSR agreement).
-  * **Memory (11)** — `LOAD`/`STORE`. All eleven are unconditional per-instruction
-    theorems under `StateRel` + `BareModeInv` + per-access facts (loads in
-    `VmemReduction.lean` / `VmemReductionLoads.lean`, stores in
-    `VmemReductionStores.lean`); folding them in needs the strengthened invariant
-    plus the per-access side conditions.
+    (`MULH … REMU`). These follow from `StateRel` alone;
+    `step_execute_sail_sim_uncond` covers exactly this tier.
+  * **Control-flow (9)** — `AUIPC`, the six conditional branches, `JAL`, `JALR`.
+    Need PC/`nextPC`/`misa` agreement and jump-target alignment (per-instruction
+    lemmas in `BranchProofs`/`ALUProofs`).
+  * **Memory (11)** — `LOAD`/`STORE`. Need `BareModeInv` plus access-local
+    PMA/MMIO/alignment facts — and, for loads only, byte-presence witnesses
+    (per-instruction capstones in `VmemReduction.lean` / `VmemReductionLoads.lean` /
+    `VmemReductionStores.lean`).
 
-  See `docs/agents/sail-phase4-bootstrap.md` and the adversarial review for the
-  precondition map and the planned strengthened-invariant design for the other tiers.
+  The full theorem `step_execute_sail_sim` (bottom of this file) already folds
+  **all 49** in: the strengthened invariant exists — it is `StateRelPC`
+  (registers + memory + committed PC) — and the per-instruction facts are
+  packaged as `instrSideCond`. What remains is discharging its hypotheses from
+  a run-level invariant rather than per access/step: the load byte-presence
+  witnesses (#10529) and the fetch-side `nextPC = pc + 4` default (#10530).
+
+  See `docs/agents/sail-phase4-bootstrap.md` for the precondition map.
 -/
 
 import EvmAsm.Rv64.SailEquiv.InstrMap
