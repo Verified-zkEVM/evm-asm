@@ -26,12 +26,16 @@ use the host layout from `scripts/stateless-gen-input.py` and
 `scripts/eest-stateless-to-input.py`:
 
 ```text
-u64_le payload_len || schema_prefixed_stateless_input || zero padding to 8 bytes
+u64_le payload_len || schema_prefixed_stateless_input || zero padding to 8 bytes || zero guard dword
 ```
 
-The leading `u64_le payload_len` and trailing alignment padding are ziskemu host
-transport, not execution-specs input content. The guest-visible stateless
-payload starts at the bytes counted by that length.
+The leading `u64_le payload_len`, trailing alignment padding, and one full
+zero guard dword are ziskemu host transport, not execution-specs input content.
+The guest-visible stateless payload starts at the bytes counted by that length,
+which remains exactly `statelessInputBytes`; the guard is not included in the
+declared payload length. The guard makes a read defined, not correct: it gives
+an accidentally dword-granular read immediately beyond the logical payload
+deterministic mapped zero bytes, but does not make that read semantically valid.
 
 ## EEST Fixture Conversion
 

@@ -19,6 +19,8 @@ import struct
 from pathlib import Path
 from typing import Iterable
 
+from stateless_input_transport import unpack_stateless_input
+
 
 DEBUG_LABELS = (
     "verdict",
@@ -40,17 +42,10 @@ DEBUG_LABELS = (
 
 
 def unpack_ziskemu_input(path: Path) -> bytes:
-    packed = path.read_bytes()
-    if len(packed) < 8:
-        raise ValueError(f"{path} is too short for ziskemu input")
-    n = struct.unpack("<Q", packed[:8])[0]
-    end = 8 + n
-    if len(packed) < end:
-        raise ValueError(f"{path} is truncated: wants {n} bytes, has {len(packed) - 8}")
-    pad = packed[end:]
-    if any(pad):
-        raise ValueError(f"{path} has non-zero ziskemu input padding")
-    return packed[8:end]
+    try:
+        return unpack_stateless_input(path.read_bytes())
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from exc
 
 
 def succ_byte(hex_string: str) -> str:

@@ -27,6 +27,8 @@ import struct
 import sys
 from pathlib import Path
 
+from stateless_input_transport import pack_stateless_input, transport_padding_length
+
 
 def _rlp_encoded_test_header() -> bytes:
     """Construct + RLP-encode an amsterdam Block Header with fixed
@@ -215,24 +217,19 @@ def main() -> int:
         args.with_one_real_header,
     )
 
-    # ziskemu reads the input file in u64 chunks and rejects sizes that
-    # aren't a multiple of 8 ("EmuContext::new() input size must be a
-    # multiple of 8"). Pad with zeros after the SSZ blob. The length
-    # prefix still names the true blob size, so the guest reads the
-    # correct number of SSZ bytes; padding sits past the SSZ tail.
-    total = 8 + len(blob)
-    pad = (-total) % 8
+    # The prefix continues to name exactly the SSZ blob.  Shared transport
+    # framing adds ordinary dword alignment plus one mapped zero guard dword.
+    # The guard makes a read defined, not correct.
+    pad = transport_padding_length(len(blob))
+    packed = pack_stateless_input(blob)
 
     args.out_file.parent.mkdir(parents=True, exist_ok=True)
     with args.out_file.open("wb") as fh:
-        fh.write(struct.pack("<Q", len(blob)))
-        fh.write(blob)
-        if pad:
-            fh.write(b"\x00" * pad)
+        fh.write(packed)
 
     print(
         f"wrote {args.out_file}: 8 B length prefix + {len(blob)} B SSZ blob "
-        f"+ {pad} B pad = {total + pad} B total",
+        f"+ {pad} B transport padding/guard = {len(packed)} B total",
         file=sys.stderr,
     )
 

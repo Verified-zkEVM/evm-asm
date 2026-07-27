@@ -13,11 +13,12 @@ carry two extra hex fields:
 This tool walks a directory of such fixtures and, for every block that
 has ``statelessInputBytes``, writes a ziskemu ``-i`` input file in the
 exact layout ``scripts/stateless-gen-input.py`` uses
-(``<u64 LE length><blob><zero pad to 8>``), and emits a TSV manifest
+(``<u64 LE length><blob><zero pad to 8><zero guard dword>``), and emits a TSV manifest
 that the harness (``codegen-eest-stateless-check.sh``) iterates.
 
 The ``blob`` is intentionally the fixture's ``statelessInputBytes``
-byte-for-byte.  The length prefix and zero padding are ziskemu host transport;
+byte-for-byte.  The length prefix, alignment padding, and guard dword are
+ziskemu host transport;
 they are not part of execution-specs ``run_stateless_guest`` input content.
 Manifest fields derived below are for launch/reporting only and must not become
 a second authoritative guest input schema.
@@ -55,33 +56,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import struct
 import random
 import sys
 from pathlib import Path
 
+from stateless_input_transport import pack_stateless_input, unpack_stateless_input
+
 
 def pack_ziskemu_input(blob: bytes) -> bytes:
-    """Mirror scripts/stateless-gen-input.py: 8-byte LE length, blob, pad to 8."""
-    total = 8 + len(blob)
-    pad = (-total) % 8
-    return struct.pack("<Q", len(blob)) + blob + (b"\x00" * pad)
+    """Frame ``statelessInputBytes`` with the shared transport guard."""
+    return pack_stateless_input(blob)
 
 
 def unpack_ziskemu_input(packed: bytes) -> bytes:
-    """Inverse of pack_ziskemu_input, validating length and zero padding."""
-    if len(packed) < 8:
-        raise ValueError(f"packed input too short: {len(packed)}")
-    n = struct.unpack("<Q", packed[:8])[0]
-    end = 8 + n
-    if len(packed) < end:
-        raise ValueError(f"packed input truncated: length={n}, bytes={len(packed)}")
-    pad = packed[end:]
-    if any(pad):
-        raise ValueError("packed input has non-zero padding")
-    if len(pad) != (-end) % 8:
-        raise ValueError(f"packed input has wrong padding length: {len(pad)}")
-    return packed[8:end]
+    """Inverse of :func:`pack_ziskemu_input` with canonical framing checks."""
+    return unpack_stateless_input(packed)
 
 
 def sanitize(s: str) -> str:
