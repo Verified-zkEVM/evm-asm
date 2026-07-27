@@ -1489,6 +1489,11 @@ def blockVerdictFunction : String :=
   -- turns a truncated non-storage execution log into an accepted block, so the
   -- common terminal gate consumes it exactly like the other fixed arenas.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- The execution-derived BAL builder is append-only for the duration of a
+  -- block.  Its component appenders return normally to preserve runtime call
+  -- frames, so the common terminal gate consumes their shared latch rather
+  -- than serializing a truncated access list.
+  "  la t0, bal_builder_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
   blockVerdictReceiptsTail
 
 end EvmAsm.Codegen
