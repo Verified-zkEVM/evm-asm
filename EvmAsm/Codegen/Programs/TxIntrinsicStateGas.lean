@@ -307,14 +307,14 @@ def blockVerdictTxStateGasInlineFinalizeFunction : String :=
   "block_verdict_tx_state_gas_inline_finalize:\n" ++
   "  slli t0, a0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
   -- The depth-zero preparation snapshot is rolled back on ExceptionalHalt.
-  -- `runtime_tx_auth_phase_applied` is the same gas-coverage-derived control
+  -- `runtime_tx_post_preparation_reached` is the same gas-coverage-derived control
   -- fact used by the AccountState commit path: a failed transaction before
   -- that point restores the *entire* pre-preparation state-gas cell.  The
   -- dispatcher may already have consumed the live auth-refund scratch while
   -- attempting its gas spill, so subtracting that scratch here is neither
   -- stable nor the snapshot semantics.
   "  bnez a1, .Lbvtgif_exec\n" ++
-  "  la t3, runtime_tx_auth_phase_applied; ld t3, 0(t3); bnez t3, .Lbvtgif_store; sd zero, 0(t1); li t2, 0\n" ++
+  "  la t3, runtime_tx_post_preparation_reached; ld t3, 0(t3); bnez t3, .Lbvtgif_store; sd zero, 0(t1); li t2, 0\n" ++
   -- The same pre-dispatch snapshot owns the staged ACCOUNT_WRITE regular gas.
   -- A phase-zero exceptional halt restores it together with NEW_ACCOUNT and
   -- AUTH_BASE; a body revert (phase one) retains all preparation charges.
