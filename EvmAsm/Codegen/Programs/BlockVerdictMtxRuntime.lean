@@ -188,7 +188,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- iteration must begin phase-zero as well: a pre-dispatch rejection or an
   -- EOA/non-runtime route otherwise inherits a previous transaction's
   -- successful preparation and incorrectly retains staged authorization gas.
-  "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_preparation_reached; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
@@ -440,7 +440,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- preparation OOG never reaches that point and therefore drops pending auth.
   -- r59nm: the storage_writes map commits on TX STATUS ALONE, decided here and
   -- NOT inside account_state_commit_pending.  The AccountState gate below also
-  -- commits when `runtime_tx_auth_phase_applied` is set, and that flag does NOT
+  -- commits when `runtime_tx_post_preparation_reached` is set, and that flag does NOT
   -- mean an authorization was applied -- it marks the dispatcher reaching the
   -- POST-PREPARATION COVERAGE POINT, which nearly every transaction whose body
   -- fails after preparation reaches.  Merging storage on that disjunct promoted
@@ -459,7 +459,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, write_sets_discard_tx\n" ++
   ".Lbv_mtx_storage_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
-  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_auth_phase_applied; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_post_preparation_reached; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
@@ -546,7 +546,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0); la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0); la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_creation_output_mode; li t1, 1; sd t1, 0(t0); la t0, bv_mtx_i; ld t1, 0(t0); la t0, bv_creation_output_index; sd t1, 0(t0)\n" ++
-  "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_single_tx_creation_runtime\n" ++
+  "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  la t0, bv_creation_output_mode; sd zero, 0(t0); la t0, dtrc_use_pre_header; sd zero, 0(t0)\n" ++
   "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
   -- Re-key the shared mtx postlude to the created account.  The context is
