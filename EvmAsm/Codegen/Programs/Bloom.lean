@@ -28,6 +28,7 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BloomAddValue
+import EvmAsm.Codegen.Programs.BloomAddValueProbe
 import EvmAsm.Codegen.Programs.CallFrameReturn
 
 namespace EvmAsm.Codegen

@@ -15,7 +15,9 @@
   Consumer: `guestImageCodeReq` (EvmAsm/Codegen/Proofs/GuestImage.lean).
 -/
 import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.GuestLayoutInstance
 import EvmAsm.Codegen.Dispatch
+
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.AccountBalance
@@ -291,7 +293,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bsr_beacon_change, bsrBeaconChange_prog),
   (GuestAddrs.bsr_apply_modeled_system_post_fields, bsrApplyModeledSystemPostFields_prog),
   (GuestAddrs.codes_blockhash_required_headers, codesBlockhashRequiredHeaders_prog),
-  (GuestAddrs.bloom_add_value, bloomAddValue_prog),
+  (GuestAddrs.bloom_add_value, bloomAddValue_prog guestLayout),
   (GuestAddrs.log_bloom_add, logBloomAdd_prog),
   (GuestAddrs.logs_list_bloom_add, logsListBloomAdd_prog),
   (GuestAddrs.header_extract_receipts_root, headerExtractReceiptsRoot_prog),

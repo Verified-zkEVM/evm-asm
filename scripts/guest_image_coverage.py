@@ -99,10 +99,19 @@ def read_function_bindings(files):
 ENTRIES_LEAN = "EvmAsm/Codegen/Proofs/GuestImageEntries.lean"
 
 
+# `_prog` defs parameterised on `GuestLayout` (GH #10753). The image table
+# still pins concrete addresses via GuestAddrs for the entry Nat, but the
+# Program value is applied to the top-level `guestLayout` instance.
+LAYOUT_PROGS = {
+    "bloomAddValue_prog": "bloomAddValue_prog guestLayout",
+}
+
+
 def emit_entries_lean(linked, files):
     """Write the GENERATED (address-by-name, Program) entries module.
     `linked`: [(entry_symbol, prog_name, addr)] sorted by addr."""
     mods = sorted({p[:-len(".lean")].replace("/", ".") for p in files})
+    needs_layout = any(p in LAYOUT_PROGS for _, p, _ in linked)
     L = ["/-", "  EvmAsm.Codegen.Proofs.GuestImageEntries", "",
          "  GENERATED — do not edit by hand.",
          "  `python3 scripts/guest_image_coverage.py --emit-lean` regenerates",
@@ -117,13 +126,18 @@ def emit_entries_lean(linked, files):
          "  `CodeReq` must reflect the emitted ELF, nothing more.",
          "  Consumer: `guestImageCodeReq` (EvmAsm/Codegen/Proofs/GuestImage.lean).",
          "-/", "import EvmAsm.Codegen.GuestAddrs"]
+    if needs_layout:
+        L.append("import EvmAsm.Codegen.GuestLayoutInstance")
     L += [f"import {m}" for m in mods]
     L += ["", "namespace EvmAsm.Codegen", "",
           "open EvmAsm.Rv64 in",
           "/-- The linked converted functions of the guest image, ascending by",
           "    entry address: `(GuestAddrs.<entry>, <entry>_prog)`. -/",
           "def guestImageEntries : List (Nat × Program) := ["]
-    rows = [f"  (GuestAddrs.{e}, {p})" for e, p, _ in linked]
+    rows = [
+        f"  (GuestAddrs.{e}, {LAYOUT_PROGS.get(p, p)})"
+        for e, p, _ in linked
+    ]
     L.append(",\n".join(rows) + " ]")
     L += ["", f"#guard guestImageEntries.length = {len(linked)}", "",
           "end EvmAsm.Codegen", ""]

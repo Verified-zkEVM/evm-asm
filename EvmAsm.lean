@@ -9,6 +9,8 @@ import EvmAsm.Codegen.CallFrameWindows
 import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.GuestLayoutInstance
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.FileSizeGuard

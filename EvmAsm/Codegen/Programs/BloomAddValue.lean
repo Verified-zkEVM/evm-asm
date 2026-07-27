@@ -10,11 +10,9 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.GuestLayout
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.HashBridge
 
 namespace EvmAsm.Codegen
 
@@ -57,8 +55,11 @@ open EvmAsm.Rv64
 
     Bloom is mutated in place; the caller owns the buffer and
     is responsible for zero-initialising it before the first
-    `bloom_add_value` call of a logs sequence. -/
-def bloomAddValue_prog : Program :=
+    `bloom_add_value` call of a logs sequence.
+
+    Layout is a parameter (GH #10753): this module imports only the
+    stable `GuestLayout` type, not the generated `GuestAddrs` instance. -/
+def bloomAddValue_prog (L : GuestLayout) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
@@ -69,11 +70,11 @@ def bloomAddValue_prog : Program :=
     .MV .x18 .x12,
     .MV .x10 .x9,
     .MV .x11 .x18,
-    .AUIPC .x12 (laHi GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 40)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 40)),
-    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bloom_add_value + 48)),
-    .AUIPC .x5 (laHi GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 52)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bav_hash (GuestAddrs.bloom_add_value + 52)),
+    .AUIPC .x12 (laHi L.bav_hash (L.bloom_add_value + 40)),
+    .ADDI .x12 .x12 (laLo L.bav_hash (L.bloom_add_value + 40)),
+    .JAL .x1 (jalOff L.zkvm_keccak256 (L.bloom_add_value + 48)),
+    .AUIPC .x5 (laHi L.bav_hash (L.bloom_add_value + 52)),
+    .ADDI .x5 .x5 (laLo L.bav_hash (L.bloom_add_value + 52)),
     .LI .x6 (0 : Word),
     .LI .x7 (6 : Word),
     .BGE .x6 .x7 (84 : BitVec 13),
@@ -113,50 +114,23 @@ def bloomAddValue_relocs : RelocTable :=
     (12, .jal .x1 "zkvm_keccak256"),
     (13, .la .x5 "bav_hash") ]
 
+/-- Emission uses `GuestLayout.zero`: `emitProgramR` keeps `la`/`jal` symbolic
+    via `bloomAddValue_relocs`, so concrete immediates do not appear in the string. -/
 def bloomAddValueFunction : String :=
-  "bloom_add_value:\n" ++ emitProgramR bloomAddValue_prog bloomAddValue_relocs
+  "bloom_add_value:\n" ++ emitProgramR (bloomAddValue_prog .zero) bloomAddValue_relocs
 
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `bloomAddValue_prog` rendered under its label with the `la`/`jal`
     relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
     `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+    consistency of the concrete Program verified offline by assemble/link+cmp.
+    Guard is keyed on the emitted string, not on a routine identifier. -/
 theorem bloomAddValueFunction_eq_prog :
-    bloomAddValueFunction = "bloom_add_value:\n" ++ emitProgramR bloomAddValue_prog bloomAddValue_relocs := rfl
+    bloomAddValueFunction =
+      "bloom_add_value:\n" ++ emitProgramR (bloomAddValue_prog .zero) bloomAddValue_relocs := rfl
 
 #guard bloomAddValueFunction.startsWith "bloom_add_value:\n"
-#guard bloomAddValue_prog.length = 45
-/-- `zisk_bloom_add_value`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : value_len
-      bytes  8..   : value bytes
-    Output layout:
-      bytes  0..256 : zero-initialised bloom, then bloom_add_value
-                      run once on the supplied value. -/
-def ziskBloomAddValuePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a2, 8(a3)                # value_len\n" ++
-  "  addi a1, a3, 16             # value ptr\n" ++
-  "  li a0, 0xa0010000           # output bloom ptr\n" ++
-  "  jal ra, bloom_add_value\n" ++
-  "  j .Lbav_pdone\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  bloomAddValueFunction ++ "\n" ++
-  ".Lbav_pdone:"
-
-def ziskBloomAddValueDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "bav_hash:\n" ++
-  "  .zero 32"
-
-def ziskBloomAddValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBloomAddValuePrologue
-  dataAsm     := ziskBloomAddValueDataSection
-}
+#guard (bloomAddValue_prog .zero).length = 45
 
 end EvmAsm.Codegen
+
