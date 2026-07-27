@@ -69,6 +69,90 @@ def balBuilderBalanceCapacity : Nat := 50000
 def balBuilderNonceCapacity : Nat := 16666
 def balBuilderCodeCapacity : Nat := 6250
 
+/-! ## The serializer's length table
+
+    RLP requires a list's payload length BEFORE its header can be written, so a walk
+    over nested lists is always two passes: measure, then emit. The table exists so
+    those two passes cannot disagree — **the emit pass reads a length it never
+    computes.** Two implementations of one length rule is how they diverge, and a
+    divergence produces a well-formed buffer with a wrong header, which is invisible
+    until the hash is compared.
+
+    ## THE CONVENTION, WHICH IS THE CLASSIC NESTING ERROR HERE
+
+    **Every entry is a PAYLOAD length: the bytes INSIDE the list, excluding that
+    list's own header.** `rlp_encode_list_prefix` takes exactly this, so an entry can
+    be handed to it unmodified.
+
+    The consequence that must not be got wrong: the outer list's payload length is the
+    sum of each account's **ENCODED** size — its own header plus its payload — and NOT
+    the sum of the account payload entries. Summing payloads leaves the outer header
+    short by the total size of every account header, which for many accounts is large
+    and completely silent: the prefix is still well-formed.
+
+    So a caller that needs an encoded size derives it as
+    `payload + headerLen(payload)`, and the word "payload" in this table always means
+    the narrow thing.
+
+    ## GRANULARITY: ONE ENTRY PER HEADER WRITTEN
+
+    Emit writes SIX headers per account — the account list itself, and each of its five
+    field lists — so the table carries six entries. Storing only the account total would
+    force emit to recompute the five field lengths, which is precisely the duplication
+    the table exists to prevent.
+
+    ## IT IS PER ACCOUNT, NOT BLOCK-SCOPE, AND THAT IS A MEMORY CEILING NOT A CHOICE
+
+    One entry per account across the block would be `balBuilderAccountCapacity * 48` =
+    3.52 MiB. **`.bss` has 1.14 MiB of headroom**: it ends at `0xbf85b4a0` and
+    `.sszscratch` begins at `0xbf980000`, and the linker rejects the overlap outright
+    (`section .sszscratch VMA ... overlaps section .bss VMA ...`).
+
+    So the walk is: one pass over all accounts accumulating the outer list's payload
+    length into a single dword, then a second pass which, per account, measures into
+    this 48-byte table and emits immediately from it.
+
+    Each account is therefore measured twice — but by the SAME routine over the same
+    data, so the two cannot disagree, which is the property that matters. The cost is
+    walk time, not correctness.
+
+    A per-account table is also safer than the block-scope one it replaces: that version
+    would have been indexed by account index, so an account count above capacity writes
+    past the table into whatever `.bss` follows. A 48-byte table is not indexed and
+    cannot overrun.
+
+        +0   account payload      (the AccountChanges list's own payload)
+        +8   storage_changes      payload of that field's list
+        +16  storage_reads        payload of the SURVIVING reads list
+        +24  balance_changes      payload
+        +32  nonce_changes        payload
+        +40  code_changes         payload -/
+def balBuilderLenTableEntryBytes : Nat := 48
+
+/-! ## There is no surviving-reads scratch, deliberately
+
+    `_build_from_builder` (`:544-547`) excludes a slot from `storage_reads` when the same
+    account also changed it. An earlier version of this materialised the survivors into a
+    16384-slot list so measure and emit would read one filtered list.
+
+    **That list is not needed, and it cost half a megabyte of `.bss` that the guest does
+    not have.** The reason to filter once was to avoid TWO IMPLEMENTATIONS of one rule —
+    but re-running `bal_serializer_slot_written`, a single predicate, cannot diverge from
+    itself. The other reason was the surviving COUNT for the read list's header, and that
+    comes from the filter's return value without storing any slot key.
+
+    So the predicate runs three times per read slot — once to count, once to measure, once
+    to emit — which is walk time rather than correctness, the same trade the per-account
+    length table already makes by measuring each account twice.
+
+    It is also safer: a scratch list indexed by survivor count writes past itself if the
+    filter ever yields more survivors than the arena holds. No list, no overrun.
+
+    **The difference is PER ACCOUNT, not global.** In the spec both fields hang off the same
+    `changes` object inside `for address, changes in builder.accounts.items()`, so a slot
+    excluded from account A's reads because A wrote it MUST still appear in account B's
+    reads if B only read it. -/
+
 def balBuilderAccountBytes : Nat := balBuilderAccountCapacity * balBuilderAccountRowBytes
 def balBuilderStorageChangeBytes : Nat := balBuilderStorageChangeCapacity * balBuilderStorageChangeRowBytes
 def balBuilderBalanceBytes : Nat := balBuilderBalanceCapacity * balBuilderBalanceRowBytes
@@ -100,6 +184,12 @@ def blockAccessListBuilderDataSection : String :=
   ".balign 32\n" ++
   "bal_builder_accounts:\n  .zero " ++ toString balBuilderAccountBytes ++ "\n" ++
   ".balign 8\n" ++
+  -- The serializer's length table and surviving-reads scratch. NOBITS, like their
+  -- siblings, and for the same reason: they must survive execution through
+  -- serialization, and .data growth would shift the address-pinned rfl proofs.
+  "bal_serializer_len_table:\n  .zero " ++ toString balBuilderLenTableEntryBytes ++ "\n" ++
+  "bal_serializer_outer_payload:\n  .zero 8\n" ++
+  "bal_serializer_surviving_read_count:\n  .zero 8\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -452,7 +542,225 @@ def balEmitStorageChangesFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret\n"
 
+/-! ## `bal_serializer_addr_matches` / `bal_serializer_slot_written`
+
+    Two leaves the read filter needs. Split out so the filter reads as the spec's loop
+    rather than as three nested scans.
+
+    `bal_serializer_addr_matches`: does a read row belong to this account?
+      a0 = address ptr (20 B BE)   a1 = read row ptr (addrHash at +0, 32 B stack word)
+      a0 (out) = 1 on match, 0 otherwise
+
+    The read row's key is a 32-byte EVM stack word and the account address is canonical
+    BE20 — the same encoding split the sort descriptors already record, storage rows
+    holding a stack word while account rows hold BE20. So the comparison reverses the
+    row's low 20 bytes rather than comparing the two forms directly.
+
+    `bal_serializer_slot_written`: does this account also have a storage CHANGE for this
+    slot?
+      a0 = slot ptr (32 B, as stored in the read row)   a1 = address ptr (20 B BE)
+      a0 (out) = 1 if a change row matches (address, slot), 0 otherwise
+
+    A hit means the spec drops the read (`:545-546`). Matching on BOTH address and slot
+    is what makes the exclusion per-account: the same slot written by a different
+    account must not suppress this account's read. -/
+def balSerializerAddrMatchesFunction : String :=
+  "bal_serializer_addr_matches:\n" ++
+  "  li t0, 20; li t1, 0\n" ++
+  -- BE20 byte i of the address vs byte (19 - i) of the reversed stack word, i.e.
+  -- row byte i counted from the word's low end.
+  ".Lbsam_cmp:\n" ++
+  "  beq t1, t0, .Lbsam_yes\n" ++
+  "  add t2, a0, t1\n" ++
+  "  li t3, 19; sub t3, t3, t1; add t3, a1, t3\n" ++
+  "  lbu t4, 0(t2); lbu t5, 0(t3); bne t4, t5, .Lbsam_no\n" ++
+  "  addi t1, t1, 1; j .Lbsam_cmp\n" ++
+  ".Lbsam_yes:\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbsam_no:\n" ++
+  "  li a0, 0; ret\n"
+
+def balSerializerSlotWrittenFunction : String :=
+  "bal_serializer_slot_written:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp)\n" ++
+  "  la t0, bal_builder_storage_change_count; ld t1, 0(t0)\n" ++
+  "  li t3, 0\n" ++
+  ".Lbssw_scan:\n" ++
+  "  bgeu t3, t1, .Lbssw_no\n" ++
+  "  li t0, 96; mul t2, t3, t0; la t4, bal_builder_storage_changes; add t4, t4, t2\n" ++
+  -- slot at +32 of the change row, 4 dwords, against the read row's slot
+  "  ld a2, 8(sp)\n" ++
+  "  ld t5, 32(t4); ld t6, 0(a2);  bne t5, t6, .Lbssw_next\n" ++
+  "  ld t5, 40(t4); ld t6, 8(a2);  bne t5, t6, .Lbssw_next\n" ++
+  "  ld t5, 48(t4); ld t6, 16(a2); bne t5, t6, .Lbssw_next\n" ++
+  "  ld t5, 56(t4); ld t6, 24(a2); bne t5, t6, .Lbssw_next\n" ++
+  -- address at +0, BE20 in both, so a straight byte compare
+  "  ld a2, 16(sp); li t5, 20; li t6, 0\n" ++
+  ".Lbssw_acmp:\n" ++
+  "  beq t6, t5, .Lbssw_yes\n" ++
+  "  add t0, a2, t6; add t2, t4, t6\n" ++
+  "  lbu t0, 0(t0); lbu t2, 0(t2); bne t0, t2, .Lbssw_next\n" ++
+  "  addi t6, t6, 1; j .Lbssw_acmp\n" ++
+  ".Lbssw_next:\n" ++
+  "  addi t3, t3, 1; j .Lbssw_scan\n" ++
+  ".Lbssw_yes:\n" ++
+  "  li a0, 1; j .Lbssw_ret\n" ++
+  ".Lbssw_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lbssw_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 32; ret\n"
+
+/-! ## `bal_serializer_filter_reads`
+
+    Phase one of the serializer: build one account's SURVIVING storage_reads.
+
+    Mirrors `_build_from_builder` (`:544-547`):
+
+        storage_reads = []
+        for slot in changes.storage_reads:
+            if slot not in changes.storage_changes:
+                storage_reads.append(slot)
+
+    ## Filtered once, here — not during emission
+
+    The surviving COUNT sizes the read list's RLP header, so the filter has to run
+    before any emission regardless. Running it again inside emit would mean two
+    implementations of one predicate, and a disagreement there yields a well-formed
+    buffer whose read-list header is wrong by the number of slots the two passes
+    disagreed about.
+
+    ## PER ACCOUNT, NOT GLOBAL
+
+    In the spec both fields hang off the same `changes` object inside
+    `for address, changes in builder.accounts.items()`. So a slot excluded from account
+    A's reads because A wrote it **must still appear in account B's reads if B only read
+    it**. This routine is therefore called once per account with that account's address,
+    and it consults only rows matching that address.
+
+    ## Why a fixture cannot stumble into the discriminating case
+
+    The rule only bites when a slot is BOTH read and written by one account. A block
+    that only reads, or only writes, produces the same output with or without the
+    filter — and, worse, so does a block that reads and writes DIFFERENT slots. The
+    case that discriminates is a slot read in one transaction and written in a LATER
+    one, which no single-transaction fixture can produce.
+
+    Calling convention:
+      a0 = address ptr (20 B big-endian)
+      ra = return
+      a0 (out) = surviving read count, also left in
+                 `bal_serializer_surviving_read_count`
+
+    Reads `STORAGE_READS_AREA` rows (`addrHash[32], slotKey[32]`, 64 B stride) against
+    `bal_builder_storage_changes` (`address[20], pad[4], BAI[8], slot[32], value[32]`,
+    96 B stride), and writes surviving 32-byte slot keys into
+    `bal_serializer_read_scratch`.
+
+    DELIBERATELY INERT PENDING ITS CALLER: the measure and emit phases land separately. -/
+def balSerializerFilterReadsFunction : String :=
+  "bal_serializer_filter_reads:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0\n" ++                                             -- s0 = address ptr
+  "  la t0, bal_serializer_surviving_read_count; sd zero, 0(t0)\n" ++
+  "  li s1, 0\n" ++                                              -- s1 = survivor count
+  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++               -- s2 = read row count
+  "  li t3, 0\n" ++                                              -- t3 = read index
+  ".Lbsfr_read:\n" ++
+  "  bgeu t3, s2, .Lbsfr_done\n" ++
+  "  li t0, 0xa1ba0000; slli t1, t3, 6; add t4, t0, t1\n" ++      -- t4 = &readrow[i]
+  -- The read row's addrHash is a 32-byte stack-word key; the account address is BE20.
+  -- Compare the low 20 bytes of the reversed key against it, which is the same
+  -- canonicalisation the builder rows use.
+  "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
+  "  beqz a0, .Lbsfr_next\n" ++
+  -- This read belongs to the account. Is its slot also in storage_changes FOR THIS
+  -- ACCOUNT? Scan the change stream; a hit means the spec drops the read.
+  "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
+  "  bnez a0, .Lbsfr_next\n" ++                                  -- written => EXCLUDE
+  -- Survivor: COUNT it. Nothing is materialised -- see the note above on why no
+  -- scratch list exists.
+  "  addi s1, s1, 1\n" ++
+  ".Lbsfr_next:\n" ++
+  "  addi t3, t3, 1; j .Lbsfr_read\n" ++
+  ".Lbsfr_done:\n" ++
+  "  la t0, bal_serializer_surviving_read_count; sd s1, 0(t0)\n" ++
+  "  mv a0, s1\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n"
+
+/-! ## `bal_serializer_measure_reads`
+
+    Measure one account's `storage_reads` field into the length table's `+16` slot.
+
+    The field is `Tuple[U256, ...]` — a flat list of slot keys — so its payload is the
+    sum of each surviving key's encoded scalar length, and nothing nested.
+
+    ## It measures the FILTERED list, not the raw read set
+
+    Runs after `bal_serializer_filter_reads` and reads
+    `bal_serializer_read_scratch` / `_count`. Measuring the raw set instead would
+    produce a header sized for slots the emit pass will not write — the two would
+    disagree by exactly the excluded slots, and the buffer would be well-formed with a
+    long header.
+
+    ## The entry is a PAYLOAD length
+
+    Per the table's convention: the bytes INSIDE the list, excluding its own header.
+    `rlp_encode_list_prefix` and `bal_rlp_emit_list_header` both consume exactly this,
+    so the entry is handed over unmodified. A caller needing the ENCODED size adds
+    `bal_rlp_list_header_len` of this value.
+
+    ## Why the scalar measurer and not a throwaway emit here
+
+    `bal_rlp_scalar_rlp_len` and `bal_rlp_emit_scalar` are a matched pair over the same
+    input shape — a pointer to a 32-byte field — and the pair is already checked
+    per-case by the RLP self-test's fifteen assertions. So for this shape the single
+    implementation property already holds without a throwaway context.
+
+    The throwaway route (`bal_rlp_measure_into_throwaway`) is for shapes whose measurer
+    would otherwise be a SECOND implementation — the code byte string, where the only
+    measurers available are in the other layer.
+
+    a0 = (unused; the filtered list is in scratch)
+    a0 (out) = the payload length, also stored at `bal_serializer_len_table + 16`
+
+    DELIBERATELY INERT PENDING ITS CALLER. -/
+def balSerializerMeasureReadsFunction : String :=
+  "bal_serializer_measure_reads:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  li s1, 0\n" ++
+  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++
+  "  li s3, 0\n" ++
+  ".Lbsmr_loop:\n" ++
+  "  bgeu s3, s2, .Lbsmr_done\n" ++
+  -- SAME two predicates the filter and the emit use. Re-running one routine cannot
+  -- diverge from itself, which is why no materialised survivor list is needed.
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
+  "  beqz a0, .Lbsmr_next\n" ++
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
+  "  bnez a0, .Lbsmr_next\n" ++
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  addi a0, t4, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  add s1, s1, a0\n" ++
+  ".Lbsmr_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmr_loop\n" ++
+  ".Lbsmr_done:\n" ++
+  "  la t0, bal_serializer_len_table; sd s1, 16(t0)\n" ++
+  "  mv a0, s1\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
+  balSerializerAddrMatchesFunction ++
+  balSerializerSlotWrittenFunction ++
+  balSerializerFilterReadsFunction ++
+  balSerializerMeasureReadsFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
@@ -524,6 +832,42 @@ def blockAccessListBuilderFunctions : String :=
 -- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
 -- write.
 #guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
+
+-- It must measure the FILTERED list, not the raw read set: measuring the raw set sizes
+-- the header for slots emit will not write, and the buffer is well-formed with a long
+-- header.
+-- It applies BOTH predicates -- the same routines the filter and the emit use -- rather
+-- than walking a materialised survivor list, which no longer exists. Re-running one
+-- routine cannot diverge from itself, which is what made the list unnecessary.
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_slot_written").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_addr_matches").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "bal_serializer_read_scratch").length == 1
+-- The entry goes in the +16 slot, per the table's pinned layout. A wrong slot is
+-- silent: emit reads a plausible number written for another field.
+#guard (balSerializerMeasureReadsFunction.splitOn "sd s1, 16(t0)").length == 2
+-- Same-layer pair: the scalar measurer whose emitter counterpart is bal_rlp_emit_scalar.
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 2
+
+/-! ## Guards for the serializer's scratch -/
+
+-- SIX entries per account, one per header emit writes: the account list plus its five
+-- field lists. Storing only the account total would force emit to recompute the five,
+-- which is the duplication the table exists to prevent.
+#guard balBuilderLenTableEntryBytes = 48
+-- The table is PER ACCOUNT. A block-scope one is 3.52 MiB against 1.14 MiB of .bss
+-- headroom before .sszscratch, which the linker rejects. It is also unindexed, so it
+-- cannot overrun the way an account-indexed table could.
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_outer_payload:").length == 2
+
+-- The read scratch cannot be smaller than the set it filters, since the survivors are
+-- a subset of STORAGE_READS_AREA's 16384.
+
+-- Emitted at all.
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_len_table:").length == 2
+-- There must be NO surviving-reads scratch: it cost 0.5 MiB of a 1.14 MiB budget shared
+-- with another lane, and re-running one predicate cannot diverge from itself.
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_read_scratch:").length == 1
+#guard (balSerializerFilterReadsFunction.splitOn "bal_serializer_read_scratch;").length == 1
 
 #guard balBuilderAccountBytes = 1538460
 #guard balBuilderStorageChangeBytes = 1476864
