@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
+import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
@@ -130,6 +131,12 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Same class as the earlier code_reads constant (a6c31440a) -- an emit is only
     -- verified once the `.elf` EXISTS, and this unit has its own `.elf`.
     storageReadRecordFunction ++ "\n" ++
+    -- r59nm S2: the WRITE-side counterpart.  Mirrored into this unit for the same
+    -- reason as the read recorders above -- this unit has its own `.elf`, so an
+    -- omission here surfaces only as a link error inside an A/B leg.
+    storageWriteRecordFunction ++ "\n" ++
+    storageWritesBlockUpsertFunction ++ "\n" ++
+    writeSetsIncorporateTxFunction ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -217,6 +224,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- labels; the read-log cursors live in `statelessVerdictV2GuestData`, which
     -- this unit does not use -- so they must be repeated here, not inherited.
     storageReadLogDataSection ++ "\n" ++
+    -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
+    storageWriteMapDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
     codeReadLogDataSection ++ "\n" ++
     readSetsBlockDataSection ++ "\n" ++
@@ -515,6 +524,13 @@ def statelessVerdictV2GuestClosure : String :=
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
   -- handler preBody so the verified evm_sload body stays byte-identical.
   storageReadRecordFunction ++ "\n" ++
+  -- r59nm S2: producer and promotion boundary for the storage_writes MAP (spec
+  -- dict semantics, two levels, upsert rather than append).  Not yet consulted --
+  -- every comparator still reads the exec-log arenas, so this cannot move a
+  -- verdict.  S3/S4 wire the comparators over.
+  storageWriteRecordFunction ++ "\n" ++
+  storageWritesBlockUpsertFunction ++ "\n" ++
+  writeSetsIncorporateTxFunction ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
@@ -634,6 +650,10 @@ def statelessVerdictV2GuestData : String :=
   -- resets them per transaction and nothing restores them on rollback,
   -- mirroring restore_tx_state leaving storage_reads alone.
   storageReadLogDataSection ++ "\n" ++
+  -- r59nm S2: storage_writes cursors + overflow flags, both levels.  The block
+  -- pair is block-lifetime; the tx pair is cleared by write_sets_incorporate_tx,
+  -- mirroring state_tracker.py:879-881.
+  storageWriteMapDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection
