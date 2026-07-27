@@ -70,6 +70,7 @@ import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
+import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 
 namespace EvmAsm.Codegen
 
@@ -146,6 +147,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Mirrored here for the same reason as the storage set: this unit has its own
     -- `.elf`, so an omission surfaces only as a link error inside an A/B leg.
     accountWriteMapFunctions ++ "\n" ++
+    blockAccessListBuilderFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -552,6 +554,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- emitted so the assembler and linker see them, since an unreferenced routine is
   -- unverified code.  The change-emission slice adds the callers.
   accountWriteMapFunctions ++ "\n" ++
+  blockAccessListBuilderFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
