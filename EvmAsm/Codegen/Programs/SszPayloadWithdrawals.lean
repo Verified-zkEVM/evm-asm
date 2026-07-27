@@ -14,13 +14,19 @@
     wd_off       = u32 @ exec_payload+508           (withdrawals offset)
     bal_off      = u32 @ exec_payload+528           (block_access_list offset =
                                                      end of the withdrawals data)
+    vh_off       = u32 @ NPR+4                      (versioned_hashes offset =
+                                                     end of the ExecutionPayload)
     withdrawals_ptr = exec_payload + wd_off
     withdrawals_len = bal_off - wd_off              (requires bal_off >= wd_off)
     count           = withdrawals_len / 44          (requires no remainder; Withdrawal is fixed 44 B,
                                                      so the list has no inner
                                                      offset table)
   All u32 offsets are read byte-wise (LBU+shift) for the no-misaligned
-  invariant (the SSZ blob base is unaligned in the real guest input).
+  invariant (the SSZ blob base is unaligned in the real guest input). Since
+  `bal_off` is relative to `exec_payload = NPR+44` while `vh_off` is relative
+  to NPR, reject unless `vh_off >= 44 + bal_off`. This is exactly
+  `bal_end >= bal_start`, so the derived BAL length is a real in-payload range
+  rather than a wrapping unsigned subtraction.
 -/
 
 import EvmAsm.Rv64.Program
@@ -84,7 +90,7 @@ def extractPayloadAndWithdrawals_prog : Program :=
     .MV .x10 .x7,
     .JAL .x1 (jalOff GuestAddrs.spw_u32le (GuestAddrs.extract_payload_and_withdrawals + 60)),
     .LI .x5 (44 : Word),
-    .BNE .x10 .x5 (96 : BitVec 13),
+    .BNE .x10 .x5 (120 : BitVec 13),
     .ADD .x20 .x7 .x10,
     .SD .x9 .x20 (0 : BitVec 12),
     .ADDI .x10 .x20 (508 : BitVec 12),
@@ -92,6 +98,12 @@ def extractPayloadAndWithdrawals_prog : Program :=
     .MV .x29 .x10,
     .ADDI .x10 .x20 (528 : BitVec 12),
     .JAL .x1 (jalOff GuestAddrs.spw_u32le (GuestAddrs.extract_payload_and_withdrawals + 96)),
+    .MV .x31 .x10,
+    .ADDI .x10 .x7 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.spw_u32le (GuestAddrs.extract_payload_and_withdrawals + 108)),
+    .ADDI .x5 .x31 (44 : BitVec 12),
+    .BLTU .x10 .x5 (72 : BitVec 13),
+    .MV .x10 .x31,
     .LI .x5 (540 : Word),
     .BLTU .x29 .x5 (60 : BitVec 13),
     .BLTU .x10 .x29 (56 : BitVec 13),
@@ -128,7 +140,8 @@ def extractPayloadAndWithdrawals_relocs : RelocTable :=
   [ (12, .jal .x1 "spw_u32le"),
     (15, .jal .x1 "spw_u32le"),
     (21, .jal .x1 "spw_u32le"),
-    (24, .jal .x1 "spw_u32le") ]
+    (24, .jal .x1 "spw_u32le"),
+    (27, .jal .x1 "spw_u32le") ]
 
 def extractPayloadAndWithdrawalsFunction : String :=
   "extract_payload_and_withdrawals:\n" ++ emitProgramR extractPayloadAndWithdrawals_prog extractPayloadAndWithdrawals_relocs
@@ -142,7 +155,7 @@ theorem extractPayloadAndWithdrawalsFunction_eq_prog :
     extractPayloadAndWithdrawalsFunction = "extract_payload_and_withdrawals:\n" ++ emitProgramR extractPayloadAndWithdrawals_prog extractPayloadAndWithdrawals_relocs := rfl
 
 #guard extractPayloadAndWithdrawalsFunction.startsWith "extract_payload_and_withdrawals:\n"
-#guard extractPayloadAndWithdrawals_prog.length = 53
+#guard extractPayloadAndWithdrawals_prog.length = 59
 /-- `zisk_extract_payload_and_withdrawals`: probe. Input file (-> INPUT+8) is
     the SszStatelessInput SSZ blob (SSZ_BASE = INPUT+8 for the probe).
     Output: OUTPUT+0 = payload offset from SSZ_BASE, OUTPUT+8 = withdrawals

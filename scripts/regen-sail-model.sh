@@ -31,13 +31,24 @@ MODE="${1:---plan}"
 # --- Pins (mirror sail-import/PROVENANCE.toml [target]) ------------------------
 SAIL_RISCV_TAG="2026-06-22-b5a2182"   # latest sail-riscv RELEASE tag (requires Sail >=0.20.1); validated on main @ e123b61 (~equiv)
 SAIL_SWITCH="${SAIL_SWITCH:-sail5}"   # opam switch with sail 0.20.2 built on OCaml >= 5.2 (NOT the 4.14.2 default!)
-SAIL_REQUIRED_VER="0.20.1"
+# Mirrors PROVENANCE.toml's `sail_compiler_version` pin, NOT the tag's ">= 0.20.1"
+# floor. Reproducibility is the point of this script: a regen on a different
+# compiler silently mixes a backend-version delta into whatever change you meant
+# to make, which is precisely the confound a scope-widening diff must not carry.
+SAIL_REQUIRED_VER="0.20.2"
 LEAN_SAIL_REV="v4"                    # external runtime the model requires (= 79b4d08); builds on v4.30.0-rc1
 
-# z3 (4.15.3) is required by Sail's typechecker and is NOT on PATH by default.
-# NOTE: this nix-store path is machine-specific — parameterize (env/discovery)
-# before any CI regen gate. Override via Z3_BIN_DIR.
-Z3_BIN_DIR="${Z3_BIN_DIR:-/nix/store/x6z3sjmccszacl1xvdlpi7bd4ps7mhci-z3-4.15.3/bin}"
+# z3 is required by Sail's typechecker and is often not on PATH. Discover it
+# instead of hardcoding: the previous default was a machine-specific nix-store
+# path that no longer exists anywhere, so the script could not run unaided.
+# Override with Z3_BIN_DIR when you need a specific build.
+if [[ -z "${Z3_BIN_DIR:-}" ]]; then
+  if _z3="$(command -v z3 2>/dev/null)"; then
+    Z3_BIN_DIR="$(dirname "$_z3")"
+  else
+    Z3_BIN_DIR="/nonexistent-z3-set-Z3_BIN_DIR"
+  fi
+fi
 SAIL_BIN_DIR="${SAIL_BIN_DIR:-$HOME/.opam/${SAIL_SWITCH}/bin}"
 
 # --- The scoped RV64IM module selection (POSITIONAL) ---------------------------
@@ -46,7 +57,17 @@ SAIL_BIN_DIR="${SAIL_BIN_DIR:-$HOME/.opam/${SAIL_SWITCH}/bin}"
 # V/FD register *state* (~163 ctors, not minimal). Whether to scope at all (vs
 # full-model + a coverage gate) is an open P2 question — scoping did NOT reduce
 # generation memory.
-SAIL_MODULES=(main I_insts M_insts)
+# Overridable so a scope experiment does not require editing this file between
+# runs — the disciplined way to widen scope is to regen once at the CURRENT scope
+# as a reproduction control, then again widened, and diff the two. A diff taken
+# only against the vendored tree cannot distinguish "the scope change did this"
+# from "this regen does not reproduce the vendored model at all".
+#   SAIL_MODULES_ENV="main I_insts M_insts Zicsr_insts" scripts/regen-sail-model.sh --run out/
+if [[ -n "${SAIL_MODULES_ENV:-}" ]]; then
+  read -r -a SAIL_MODULES <<< "${SAIL_MODULES_ENV}"
+else
+  SAIL_MODULES=(main I_insts M_insts)
+fi
 
 CONFIG_FILE="sail-import/riscv64im_zicclsm.json"   # NOTE: produced vs old 1760ee2 schema; P2 must REGENERATE/REVALIDATE against the tag's schema
 
@@ -118,7 +139,10 @@ do_run() {
   command -v sail >/dev/null || { echo "ERROR: sail not on PATH (expected in ${SAIL_BIN_DIR}; build on OCaml>=5.2)" >&2; exit 2; }
   command -v z3   >/dev/null || { echo "ERROR: z3 not on PATH (expected in ${Z3_BIN_DIR})" >&2; exit 2; }
 
-  local work; work="$(mktemp -d)"; local zcache="${work}/z3cache"; mkdir -p "$zcache"
+  # `--memo-z3-path` names the cache FILE, not a directory. The previous
+  # `mkdir -p` made it a directory, so sail 0.20.2 died with
+  # `Sys_error(".../z3cache: Is a directory")` before emitting anything.
+  local work; work="$(mktemp -d)"; local zcache="${work}/z3cache.memo"
   echo ">> cloning sail-riscv @ ${SAIL_RISCV_TAG} into ${work}" >&2
   git clone --quiet https://github.com/riscv/sail-riscv.git "${work}/sail-riscv"
   git -C "${work}/sail-riscv" checkout --quiet "${SAIL_RISCV_TAG}"
