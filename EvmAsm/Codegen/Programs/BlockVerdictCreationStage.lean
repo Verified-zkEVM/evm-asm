@@ -265,6 +265,28 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
 
     Returns:
       a0 = 0 when runtime windows were filled; nonzero staging status otherwise.
+
+    ⚠️ **The `single_tx` in this name is misleading — the MULTI-tx path calls it too.**
+    There are eight call sites (GH #10663):
+
+    | site | |
+    |---|---|
+    | `BlockVerdictCreateCollision.lean:114`  | single-tx creation dispatch |
+    | `BlockVerdictMtxRuntime.lean:521`       | **multi-tx mirror** (`:507` carries the parallel
+                                                `.Lbv_mtx_creation_access_field` structure) |
+    | `EvmDispatchUnits.lean:118,138,145,152,159,165` | six |
+
+    So **"this routine ran" is NOT evidence that the single-tx path ran.** Measured for
+    `create_oog_from_eoa_refunds`: dispatch comes from `MtxRuntime:521` (24/24), never from
+    `CreateCollision:114` (0/24). During GH #10614 this name made a false premise plausible
+    enough to file as an issue (#10662, since closed), and then made two *true* results —
+    "these blocks are on the multi-tx path" and "the creation runtime is entered" — look
+    mutually contradictory. Hours went into reconciling a conflict only the name created.
+
+    Sibling trap: `dispatch_tx_runtime_code` (`BlockVerdictFunction:847`) is a **different**
+    routine, and creation transactions never reach it — they divert at `BlockVerdictFunction:299`
+    into `BlockVerdictCreateCollision:23`, which is also why the single-tx check region at
+    `:1122` is never entered for them. One diversion explains both non-arrivals.
 -/
 def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "block_verdict_single_tx_creation_runtime:\n" ++
