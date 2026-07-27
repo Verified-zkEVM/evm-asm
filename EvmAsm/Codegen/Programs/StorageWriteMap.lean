@@ -112,8 +112,46 @@ def storageWritesCapacity : Nat := 16384
            contracts is two entries
       a1 = slotKey ptr  (32 B) — the inner `Bytes32` key
       a2 = value ptr    (32 B) — the `U256` to store
+      a6 = pre-tx baseline ptr (32 B), or 0 — the slot's value at the START of
+           this transaction, captured into the row's spare bytes on APPEND only.
+           A null pointer means "the baseline is zero", which is not a sentinel
+           abuse: `_get_pre_tx_storage` documents "Returns `0` if not set", so
+           zero IS the spec's answer for a slot with no prior value.
       ra = return
       no result register.
+
+    ## The captured baseline, and why it is captured here
+
+    `block_access_lists.py:667-676` excludes net-zero writes from the BAL by
+    comparing each write against `_get_pre_tx_storage(block_state.storage_writes,
+    pre_state, ...)` — the value at the start of this transaction. That comparison
+    happens at the incorporate boundary, by which point the value is gone.
+
+    Rather than re-derive it there (a per-slot witness read at a boundary that does
+    no per-slot work today), it is captured at write time into the row's spare 32
+    bytes at +96, because the EVM ALREADY HAS IT: `original_value` under EIP-2200
+    and EIP-3529 is the transaction-start value, and the SSTORE path resolves it via
+    `bv_mtx_committed_chunked_latest_value` against the committed log with a
+    prestate-header fallback — which is `_get_pre_tx_storage` by another name. The
+    committed log is snapshotted only at the per-transaction commit boundary, never
+    inside a transaction, so the value is transaction-scoped rather than
+    frame-scoped: a slot written in a reverted inner frame and again at top level
+    sees the same baseline both times.
+
+    **Captured on APPEND ONLY, never on the hit path.** A second write to the same
+    slot within one transaction must not move the baseline; if it did, every net-zero
+    test would compare a value against what the previous write left, and the filter
+    would still run, still produce a well-formed BAL, and produce the wrong entry
+    count. The append path is already where the undo journal makes the same
+    insert-versus-update distinction, so the capture sits where that distinction is
+    already load-bearing rather than introducing a second one.
+
+    Note the block-level `storage_writes_block_upsert` has an identical field-copy
+    shape and deliberately does NOT capture: it merges an already-filtered
+    transaction result, so a baseline there would describe the wrong interval.
+
+    INERT: nothing reads +96 yet. The consumer is the storage-change emission at the
+    incorporate boundary, which lands separately.
 
     Targets the TRANSACTION level, which is where the spec's assignment points.
     The block level is filled only by `write_sets_incorporate_tx`.
@@ -132,6 +170,9 @@ def storageWriteRecordFunction : String :=
   -- handler across this call, so they are saved too and the
   -- clobbers-nothing-visible contract in the docstring still holds.
   "  sd ra, 56(sp); sd a3, 64(sp); sd a4, 72(sp); sd a5, 80(sp)\n" ++
+  -- a6 (the baseline ptr) must survive storage_writes_undo_push; slot 88 of the
+  -- existing 96-byte frame was already spare, so no frame growth.
+  "  sd a6, 88(sp)\n" ++
   "  la t0, tx_storage_writes_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t3, 0xa21a0000\n" ++                                     -- t3 = TX_STORAGE_WRITES_AREA
   "  li t4, 0\n" ++                                              -- t4 = i
@@ -173,6 +214,17 @@ def storageWriteRecordFunction : String :=
   "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
   "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
   "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
+  -- Capture the transaction-start baseline at +96. APPEND PATH ONLY.
+  "  beqz a6, .Lswr_base_zero\n" ++
+  "  ld t2, 0(a6);  sd t2, 96(t5)\n" ++
+  "  ld t2, 8(a6);  sd t2, 104(t5)\n" ++
+  "  ld t2, 16(a6); sd t2, 112(t5)\n" ++
+  "  ld t2, 24(a6); sd t2, 120(t5)\n" ++
+  "  j .Lswr_base_done\n" ++
+  ".Lswr_base_zero:\n" ++
+  -- a6 = 0 means the baseline IS zero, per _get_pre_tx_storage's documented default.
+  "  sd zero, 96(t5); sd zero, 104(t5); sd zero, 112(t5); sd zero, 120(t5)\n" ++
+  ".Lswr_base_done:\n" ++
   "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lswr_store:\n" ++
   -- value (32 B) at +64, written on both the hit and the append path
@@ -187,6 +239,7 @@ def storageWriteRecordFunction : String :=
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
   "  ld ra, 56(sp); ld a3, 64(sp); ld a4, 72(sp); ld a5, 80(sp)\n" ++
+  "  ld a6, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret\n"
 
@@ -235,6 +288,25 @@ def writeSetsIncorporateTxFunction : String :=
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret\n"
+
+/-! ## Anti-drift guards for the captured baseline -/
+
+-- The baseline is captured on the APPEND path and NOWHERE ELSE. If it ever moves to
+-- the hit path, a slot written twice in one transaction loses its baseline and every
+-- net-zero test compares a value against what the previous write left -- the filter
+-- still runs, still produces a well-formed BAL, and produces the wrong entry count.
+-- So: exactly one capture block, and it must sit before `.Lswr_store` (the shared
+-- tail) rather than inside it.
+#guard (storageWriteRecordFunction.splitOn "sd t2, 96(t5)").length == 2
+#guard (storageWriteRecordFunction.splitOn ".Lswr_base_zero").length == 3
+#guard (storageWriteRecordFunction.splitOn "beqz a6, .Lswr_base_zero").length == 2
+#guard
+  (storageWriteRecordFunction.splitOn ".Lswr_base_done:").head!.length
+    < (storageWriteRecordFunction.splitOn ".Lswr_store:").head!.length
+
+-- a6 must be saved AND restored, since it has to survive storage_writes_undo_push.
+#guard (storageWriteRecordFunction.splitOn "sd a6, 88(sp)").length == 2
+#guard (storageWriteRecordFunction.splitOn "ld a6, 88(sp)").length == 2
 
 /-! ## `storage_writes_block_upsert`
 
@@ -291,6 +363,13 @@ def storageWritesBlockUpsertFunction : String :=
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret\n"
+
+-- THE BLOCK-LEVEL UPSERT MUST NOT CAPTURE. It has an identical field-copy shape, so
+-- a copy-paste or a careless global edit lands there just as easily -- but it merges
+-- an already-filtered transaction result, so a baseline there would describe the
+-- wrong interval entirely.
+#guard (storageWritesBlockUpsertFunction.splitOn "96(t5)").length == 1
+#guard (storageWritesBlockUpsertFunction.splitOn "a6").length == 1
 
 /-! ## `storage_writes_undo_push`
 
