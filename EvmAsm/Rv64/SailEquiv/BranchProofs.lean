@@ -12,13 +12,23 @@
   PC agreement (`h_pc`), `nextPC = pc + 4` at entry (`h_nextpc`), a populated
   `misa` (`h_misa`), and 4-alignment of the target (`h_align`). Before commit
   2cea90371 the relation ignored PC/nextPC entirely and these proofs were
-  vacuous on control flow; that caveat no longer applies.
+  vacuous on control flow; that caveat no longer applies — **except for JALR,
+  see below**.
 
   JAL/JALR additionally write the link register (rd := pc + 4). JALR first
   runs `update_elp_state` (Zicfilp forward-CFI landing-pad bookkeeping),
   which touches CSR state outside `StateRel` — that is why `jalr_sail_equiv`
   carries a bundled `h_elp` hypothesis: a witness mid-state in which
   `update_elp_state` has succeeded and the entry facts still hold.
+
+  **`jalr_sail_equiv` is currently vacuous (#10688).** The extracted
+  `currentlyEnabled` has no `Ext_Zicsr` arm and errors on that query; the
+  `Ext_Zicfilp` gate reaches it first, so `update_elp_state` faults in *every*
+  state. The `h_elp` premise above is therefore unsatisfiable and no caller can
+  discharge it — `update_elp_state_error` in `RunInv.lean` is the kernel-checked
+  proof. The theorem is correctly proved but establishes nothing about JALR
+  until the vendored model is regenerated with that arm. The other seven
+  theorems in this file are unaffected.
 
   Committing the target into SAIL's `PC` (via `tick_pc`) is `StepProofs.lean`'s
   job; this file stays at the `execute_*` boundary, where only `nextPC` is
