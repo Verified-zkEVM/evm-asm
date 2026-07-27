@@ -688,6 +688,37 @@ structure BareModeInv (s : SailState) where
     pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF
   h_reg : s.regs.get? Register.pma_regions = some regions
 
+/-- **Transport a bare-mode invariant along a platform frame.** Every hypothesis
+    field of `BareModeInv` is a read of a platform register that `PlatformFrame`
+    pins, so the whole bundle moves to the post-state with its five data fields
+    (`mst`, `msec`, `cfgs`, `pmpaddrs`, `regions`) unchanged.  This is how a
+    downstream client re-establishes bare mode after an instruction step. -/
+def BareModeInv.transport {s s' : SailState} (bm : BareModeInv s) (fr : PlatformFrame s s') :
+    BareModeInv s' where
+  mst := bm.mst
+  msec := bm.msec
+  cfgs := bm.cfgs
+  pmpaddrs := bm.pmpaddrs
+  regions := bm.regions
+  h_priv := fr.priv_eq.trans bm.h_priv
+  h_mst := fr.mstatus_eq.trans bm.h_mst
+  h_mprv := bm.h_mprv
+  h_sec := fr.mseccfg_eq.trans bm.h_sec
+  h_pmm := bm.h_pmm
+  h_cfg := fr.pmpcfg_eq.trans bm.h_cfg
+  h_pmpaddr := fr.pmpaddr_eq.trans bm.h_pmpaddr
+  h_off := bm.h_off
+  h_reg := fr.pma_eq.trans bm.h_reg
+
+/-- Transporting a bare-mode invariant keeps the PMA region table, so region-match
+    side conditions stated against `bm.regions` survive verbatim. -/
+@[simp] theorem BareModeInv.transport_regions {s s' : SailState} (bm : BareModeInv s)
+    (fr : PlatformFrame s s') : (bm.transport fr).regions = bm.regions := rfl
+
+/-- Transporting a bare-mode invariant keeps the `mseccfg` value. -/
+@[simp] theorem BareModeInv.transport_msec {s s' : SailState} (bm : BareModeInv s)
+    (fr : PlatformFrame s s') : (bm.transport fr).msec = bm.msec := rfl
+
 /-- **`vmem_read` for a bare-mode aligned doubleword load.** The effective-address pipeline
     (`ext_data_get_addr` reads `rs`; `transform_effective_address` is the bare-mode identity)
     yields `rsval + offset`, then `vmem_read_addr` reads the doubleword. Returns
@@ -761,7 +792,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
       runSail (execute_LOAD offset (regToRegidx rs1) (regToRegidx rd) false 8) sSail
         = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv (.LD rd rs1 offset)) sSail' ∧
-      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC := by
+      sSail'.regs.get? Register.nextPC = sSail.regs.get? Register.nextPC ∧
+      PlatformFrame sSail sSail' := by
   have soff : sign_extend (m := 64) offset = signExtend12 offset := by
     unfold sign_extend signExtend12 Sail.BitVec.signExtend; rfl
   have h_rs : (rX_bits (regToRegidx rs1)) sSail = .ok (sRv.getReg rs1) sSail :=
@@ -776,7 +808,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     exact Int.ofNat_inj.mp h
   have hdata := hrel.mem_agree (sRv.getReg rs1 + signExtend12 offset) halign8
   refine ⟨sailStateWithReg sSail rd
-      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat), ?_, ?_, ?_⟩
+      (reconstructDword sSail.mem (sRv.getReg rs1 + signExtend12 offset).toNat),
+      ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_LOAD
     simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
@@ -796,5 +829,6 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
         using hrel.mem_agree a ha
   · simp
+  · exact platformFrame_sailStateWithReg _ _ _
 
 end EvmAsm.Rv64.SailEquiv
