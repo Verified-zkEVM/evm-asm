@@ -487,6 +487,19 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- reason to silently skip the storage comparison.
   "  la t0, tx_storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, tx_account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10731: the READ-side latches, which were set and never examined. Same
+  -- reasoning as the write-side pair above -- a full read map is an incomplete
+  -- execution record -- and the same failure label, so this completes the existing
+  -- list rather than introducing a reject path.
+  --
+  -- ONE ASYMMETRY WORTH KNOWING: unlike the write-side latches, these have NO clear
+  -- site (`read_sets_discard_tx` clears the counts, not the flags), so a set flag is
+  -- STICKY for the rest of the block rather than per-transaction. Since the outcome is
+  -- a reject either way, stickiness can only be more conservative — but it is a real
+  -- difference from the lines above and not an oversight in this change.
+  "  la t0, tx_storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, tx_account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, tx_code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
@@ -576,6 +589,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- latched failure at the transaction boundary rather than serializing a
   -- truncated block map later.
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10731: the block-lifetime READ latches, set by read_sets_merge_one through the
+  -- a7 pointer read_sets_incorporate_tx hands it, and examined nowhere until now. Same
+  -- position and label as the write-side line above: consume a latched truncation at
+  -- the transaction boundary rather than serializing a short read set later.
+  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   -- The debit was materialized before execution; apply the spec's later
   -- sender `create_ether` refund before AccountState commits this transaction.
   blockVerdictMtxRecordSenderRefund ++
@@ -601,6 +621,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  -- `update_builder_from_tx` precedes `incorporate_tx_into_block` in the spec:
+  -- the tx account-map reader must see the block-cumulative *pre-tx* baseline
+  -- before incorporation overwrites it and clears the tx map.  The helper reads
+  -- `current_block_access_index` (bv_mtx_i + 1), not the unwritten builder-local
+  -- BAI cell.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
   "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
