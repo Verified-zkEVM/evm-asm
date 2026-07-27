@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.BalCanonicalSort
+import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
@@ -150,6 +151,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
+    -- Resumable keccak entry points (general infrastructure, first consumer #10680).
+    -- The one-shot routines are untouched; these use a caller-supplied context.
+    keccakIncrementalFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -560,6 +564,9 @@ def statelessVerdictV2GuestClosure : String :=
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
+    -- Resumable keccak entry points (general infrastructure, first consumer #10680).
+    -- The one-shot routines are untouched; these use a caller-supplied context.
+    keccakIncrementalFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
