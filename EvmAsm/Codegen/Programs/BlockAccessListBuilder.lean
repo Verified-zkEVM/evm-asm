@@ -129,22 +129,29 @@ def balBuilderCodeCapacity : Nat := 6250
         +40  code_changes         payload -/
 def balBuilderLenTableEntryBytes : Nat := 48
 
-/-! ## The surviving-reads scratch list
+/-! ## There is no surviving-reads scratch, deliberately
 
-    `_build_from_builder` (`:544-547`) excludes a slot from `storage_reads` when the
-    same account also has `storage_changes` for it. Filtered ONCE into this list, then
-    measured and emitted from it — never re-filtered during emission, because the two
-    passes would then apply the predicate twice and could disagree, and because the
-    surviving COUNT is itself needed to size the list's header.
+    `_build_from_builder` (`:544-547`) excludes a slot from `storage_reads` when the same
+    account also changed it. An earlier version of this materialised the survivors into a
+    16384-slot list so measure and emit would read one filtered list.
 
-    **The difference is PER ACCOUNT, not global.** In the spec both fields hang off the
-    same `changes` object inside `for address, changes in builder.accounts.items()`, so
-    a slot excluded from account A's reads because A wrote it MUST still appear in
-    account B's reads if B only read it.
+    **That list is not needed, and it cost half a megabyte of `.bss` that the guest does
+    not have.** The reason to filter once was to avoid TWO IMPLEMENTATIONS of one rule —
+    but re-running `bal_serializer_slot_written`, a single predicate, cannot diverge from
+    itself. The other reason was the surviving COUNT for the read list's header, and that
+    comes from the filter's return value without storing any slot key.
 
-    Sized to `STORAGE_READS_AREA`'s 16384, since the survivors are a subset of it. -/
-def balSerializerReadScratchCapacity : Nat := 16384
-def balSerializerReadScratchBytes : Nat := balSerializerReadScratchCapacity * 32
+    So the predicate runs three times per read slot — once to count, once to measure, once
+    to emit — which is walk time rather than correctness, the same trade the per-account
+    length table already makes by measuring each account twice.
+
+    It is also safer: a scratch list indexed by survivor count writes past itself if the
+    filter ever yields more survivors than the arena holds. No list, no overrun.
+
+    **The difference is PER ACCOUNT, not global.** In the spec both fields hang off the same
+    `changes` object inside `for address, changes in builder.accounts.items()`, so a slot
+    excluded from account A's reads because A wrote it MUST still appear in account B's
+    reads if B only read it. -/
 
 def balBuilderAccountBytes : Nat := balBuilderAccountCapacity * balBuilderAccountRowBytes
 def balBuilderStorageChangeBytes : Nat := balBuilderStorageChangeCapacity * balBuilderStorageChangeRowBytes
@@ -182,8 +189,7 @@ def blockAccessListBuilderDataSection : String :=
   -- serialization, and .data growth would shift the address-pinned rfl proofs.
   "bal_serializer_len_table:\n  .zero " ++ toString balBuilderLenTableEntryBytes ++ "\n" ++
   "bal_serializer_outer_payload:\n  .zero 8\n" ++
-  "bal_serializer_read_scratch:\n  .zero " ++ toString balSerializerReadScratchBytes ++ "\n" ++
-  "bal_serializer_read_scratch_count:\n  .zero 8\n" ++
+  "bal_serializer_surviving_read_count:\n  .zero 8\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -643,7 +649,7 @@ def balSerializerSlotWrittenFunction : String :=
       a0 = address ptr (20 B big-endian)
       ra = return
       a0 (out) = surviving read count, also left in
-                 `bal_serializer_read_scratch_count`
+                 `bal_serializer_surviving_read_count`
 
     Reads `STORAGE_READS_AREA` rows (`addrHash[32], slotKey[32]`, 64 B stride) against
     `bal_builder_storage_changes` (`address[20], pad[4], BAI[8], slot[32], value[32]`,
@@ -655,7 +661,7 @@ def balSerializerFilterReadsFunction : String :=
   "bal_serializer_filter_reads:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0\n" ++                                             -- s0 = address ptr
-  "  la t0, bal_serializer_read_scratch_count; sd zero, 0(t0)\n" ++
+  "  la t0, bal_serializer_surviving_read_count; sd zero, 0(t0)\n" ++
   "  li s1, 0\n" ++                                              -- s1 = survivor count
   "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++               -- s2 = read row count
   "  li t3, 0\n" ++                                              -- t3 = read index
@@ -671,18 +677,13 @@ def balSerializerFilterReadsFunction : String :=
   -- ACCOUNT? Scan the change stream; a hit means the spec drops the read.
   "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
   "  bnez a0, .Lbsfr_next\n" ++                                  -- written => EXCLUDE
-  -- Survivor: copy the 32-byte slot key into the scratch list.
-  "  li t0, 32; mul t1, s1, t0; la t2, bal_serializer_read_scratch; add t5, t2, t1\n" ++
-  "  addi t6, t4, 32\n" ++
-  "  ld t0, 0(t6);  sd t0, 0(t5)\n" ++
-  "  ld t0, 8(t6);  sd t0, 8(t5)\n" ++
-  "  ld t0, 16(t6); sd t0, 16(t5)\n" ++
-  "  ld t0, 24(t6); sd t0, 24(t5)\n" ++
+  -- Survivor: COUNT it. Nothing is materialised -- see the note above on why no
+  -- scratch list exists.
   "  addi s1, s1, 1\n" ++
   ".Lbsfr_next:\n" ++
   "  addi t3, t3, 1; j .Lbsfr_read\n" ++
   ".Lbsfr_done:\n" ++
-  "  la t0, bal_serializer_read_scratch_count; sd s1, 0(t0)\n" ++
+  "  la t0, bal_serializer_surviving_read_count; sd s1, 0(t0)\n" ++
   "  mv a0, s1\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -727,21 +728,32 @@ def balSerializerFilterReadsFunction : String :=
     DELIBERATELY INERT PENDING ITS CALLER. -/
 def balSerializerMeasureReadsFunction : String :=
   "bal_serializer_measure_reads:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  la t0, bal_serializer_read_scratch_count; ld s1, 0(t0)\n" ++   -- s1 = surviving count
-  "  li s0, 0\n" ++                                                 -- s0 = payload accum
-  "  li s2, 0\n" ++                                                 -- s2 = index
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  li s1, 0\n" ++
+  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++
+  "  li s3, 0\n" ++
   ".Lbsmr_loop:\n" ++
-  "  bgeu s2, s1, .Lbsmr_done\n" ++
-  "  li t0, 32; mul t1, s2, t0; la t2, bal_serializer_read_scratch; add a0, t2, t1\n" ++
-  "  jal ra, bal_rlp_scalar_rlp_len\n" ++
-  "  add s0, s0, a0\n" ++
-  "  addi s2, s2, 1; j .Lbsmr_loop\n" ++
+  "  bgeu s3, s2, .Lbsmr_done\n" ++
+  -- SAME two predicates the filter and the emit use. Re-running one routine cannot
+  -- diverge from itself, which is why no materialised survivor list is needed.
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
+  "  beqz a0, .Lbsmr_next\n" ++
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
+  "  bnez a0, .Lbsmr_next\n" ++
+  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  addi a0, t4, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  add s1, s1, a0\n" ++
+  ".Lbsmr_next:\n" ++
+  "  addi s3, s3, 1; j .Lbsmr_loop\n" ++
   ".Lbsmr_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s0, 16(t0)\n" ++
-  "  mv a0, s0\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
+  "  la t0, bal_serializer_len_table; sd s1, 16(t0)\n" ++
+  "  mv a0, s1\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
   "  ret\n"
 
 def blockAccessListBuilderFunctions : String :=
@@ -824,11 +836,15 @@ def blockAccessListBuilderFunctions : String :=
 -- It must measure the FILTERED list, not the raw read set: measuring the raw set sizes
 -- the header for slots emit will not write, and the buffer is well-formed with a long
 -- header.
-#guard (balSerializerMeasureReadsFunction.splitOn "bal_serializer_read_scratch_count").length == 2
-#guard (balSerializerMeasureReadsFunction.splitOn "storage_reads_count").length == 1
+-- It applies BOTH predicates -- the same routines the filter and the emit use -- rather
+-- than walking a materialised survivor list, which no longer exists. Re-running one
+-- routine cannot diverge from itself, which is what made the list unnecessary.
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_slot_written").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_addr_matches").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "bal_serializer_read_scratch").length == 1
 -- The entry goes in the +16 slot, per the table's pinned layout. A wrong slot is
 -- silent: emit reads a plausible number written for another field.
-#guard (balSerializerMeasureReadsFunction.splitOn "sd s0, 16(t0)").length == 2
+#guard (balSerializerMeasureReadsFunction.splitOn "sd s1, 16(t0)").length == 2
 -- Same-layer pair: the scalar measurer whose emitter counterpart is bal_rlp_emit_scalar.
 #guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 2
 
@@ -845,12 +861,13 @@ def blockAccessListBuilderFunctions : String :=
 
 -- The read scratch cannot be smaller than the set it filters, since the survivors are
 -- a subset of STORAGE_READS_AREA's 16384.
-#guard balSerializerReadScratchCapacity = 16384
-#guard balSerializerReadScratchBytes = 16384 * 32
 
 -- Emitted at all.
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_len_table:").length == 2
-#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_read_scratch:").length == 2
+-- There must be NO surviving-reads scratch: it cost 0.5 MiB of a 1.14 MiB budget shared
+-- with another lane, and re-running one predicate cannot diverge from itself.
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_read_scratch:").length == 1
+#guard (balSerializerFilterReadsFunction.splitOn "bal_serializer_read_scratch;").length == 1
 
 #guard balBuilderAccountBytes = 1538460
 #guard balBuilderStorageChangeBytes = 1476864
