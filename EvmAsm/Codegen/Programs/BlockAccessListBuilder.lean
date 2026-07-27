@@ -5,13 +5,13 @@
   `BlockAccessListBuilder.accounts : Dict[Address, AccountData]`.
 
   The guest cannot use a host dictionary, so this module keeps one canonical
-  20-byte big-endian account table and four homogeneous event streams whose
-  rows refer to that table by a u32 index.  Immediately before serialization,
-  the table is canonical-sorted, its entries receive monotonically increasing
-  u32 ranks, and a linear pass rewrites every event index to its rank.  The
-  resulting in-row rank is therefore an exact sortable proxy for address, with
-  no per-row address duplication and no quadratic account-by-event scan.  The
-  five logical `AccountData`
+  20-byte big-endian account table and four homogeneous event streams.  The
+  table deduplicates/touches accounts; every event also carries its canonical
+  BE20 address as its first field.  This deliberate duplication lets the
+  three-segment sorter consume exactly the spec's ordering key in-row
+  (`address`, then `slot` where relevant, then `block_access_index`), rather
+  than sorting an insertion index and relying on a remap argument.  The five
+  logical `AccountData`
   fields are represented as follows:
 
   * `storage_changes` -- the dedicated 80-byte builder stream;
@@ -37,16 +37,14 @@ namespace EvmAsm.Codegen
 
 /-- Canonical account-table entry: exactly the 20-byte big-endian `Address`. -/
 def balBuilderAccountRowBytes : Nat := 20
-/-- `{u32 account index, u32 pad, u64 BAI, slot[32], post value[32]}`. -/
-def balBuilderStorageChangeRowBytes : Nat := 80
-/-- `{u32 account index, u32 pad, u64 BAI, post balance[32]}`. -/
-def balBuilderBalanceRowBytes : Nat := 48
-/-- `{u32 account index, u32 pad, u64 BAI, post nonce}`. -/
-def balBuilderNonceRowBytes : Nat := 24
-/-- `{u32 account index, u32 pad, u64 BAI, code-effect reference/meta[32]}`. -/
-def balBuilderCodeRowBytes : Nat := 48
-/-- One canonical-sort rank per account-table entry. -/
-def balBuilderAccountRankBytes : Nat := 4
+/-- `{address[20], pad[4], u64 BAI, slot[32], post value[32]}`. -/
+def balBuilderStorageChangeRowBytes : Nat := 96
+/-- `{address[20], pad[4], u64 BAI, post balance[32]}`. -/
+def balBuilderBalanceRowBytes : Nat := 64
+/-- `{address[20], pad[4], u64 BAI, post nonce}`. -/
+def balBuilderNonceRowBytes : Nat := 40
+/-- `{address[20], pad[4], u64 BAI, code-effect reference/meta[32]}`. -/
+def balBuilderCodeRowBytes : Nat := 64
 
 /-- Separate resource bounds.  They are intentionally not added as if one
     block could maximize every list simultaneously; the joint gas argument is
@@ -58,14 +56,13 @@ def balBuilderNonceCapacity : Nat := 16666
 def balBuilderCodeCapacity : Nat := 6250
 
 def balBuilderAccountBytes : Nat := balBuilderAccountCapacity * balBuilderAccountRowBytes
-def balBuilderAccountRankTableBytes : Nat := balBuilderAccountCapacity * balBuilderAccountRankBytes
 def balBuilderStorageChangeBytes : Nat := balBuilderStorageChangeCapacity * balBuilderStorageChangeRowBytes
 def balBuilderBalanceBytes : Nat := balBuilderBalanceCapacity * balBuilderBalanceRowBytes
 def balBuilderNonceBytes : Nat := balBuilderNonceCapacity * balBuilderNonceRowBytes
 def balBuilderCodeBytes : Nat := balBuilderCodeCapacity * balBuilderCodeRowBytes
 def balBuilderPersistentBytes : Nat :=
-  balBuilderAccountBytes + balBuilderAccountRankTableBytes + balBuilderStorageChangeBytes +
-    balBuilderBalanceBytes + balBuilderNonceBytes + balBuilderCodeBytes
+  balBuilderAccountBytes + balBuilderStorageChangeBytes + balBuilderBalanceBytes +
+    balBuilderNonceBytes + balBuilderCodeBytes
 
 /-- BSS labels for the persistent builder.  Every producer has its own count
     and latches the shared overflow bit; later append routines will additionally
@@ -86,8 +83,6 @@ def blockAccessListBuilderDataSection : String :=
   ".balign 32\n" ++
   "bal_builder_accounts:\n  .zero " ++ toString balBuilderAccountBytes ++ "\n" ++
   ".balign 8\n" ++
-  "bal_builder_account_ranks:\n  .zero " ++ toString balBuilderAccountRankTableBytes ++ "\n" ++
-  ".balign 8\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
   "bal_builder_balance_changes:\n  .zero " ++ toString balBuilderBalanceBytes ++ "\n" ++
   "bal_builder_nonce_changes:\n  .zero " ++ toString balBuilderNonceBytes ++ "\n" ++
@@ -98,8 +93,8 @@ def blockAccessListBuilderDataSection : String :=
 `ensure_account` is the only builder writer allowed to create an account-table
 entry.  It performs a bytewise comparison over the canonical BE20 key and
 appends only on a miss, so every address has exactly one stable table index
-during execution.  The later rank-remap pass may overwrite event indices, but
-never changes this table's uniqueness invariant.
+during execution.  Event rows duplicate the same address for sorting; the
+table remains the single source for existence and touched-account dedup.
 
 Calling convention:
 
@@ -138,12 +133,11 @@ def blockAccessListBuilderFunctions : String :=
   balBuilderEnsureAccountFunction
 
 #guard balBuilderAccountBytes = 1538460
-#guard balBuilderAccountRankTableBytes = 307692
-#guard balBuilderStorageChangeBytes = 1230720
-#guard balBuilderBalanceBytes = 2400000
-#guard balBuilderNonceBytes = 399984
-#guard balBuilderCodeBytes = 300000
-#guard balBuilderPersistentBytes = 6176856
+#guard balBuilderStorageChangeBytes = 1476864
+#guard balBuilderBalanceBytes = 3200000
+#guard balBuilderNonceBytes = 666640
+#guard balBuilderCodeBytes = 400000
+#guard balBuilderPersistentBytes = 7281964
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_ensure_account:").length == 2
 
 end EvmAsm.Codegen
