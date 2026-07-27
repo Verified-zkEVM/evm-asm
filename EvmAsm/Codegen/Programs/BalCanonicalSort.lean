@@ -310,8 +310,18 @@ def balSortAccountWritesFunction : String :=
   "  li a0, 0xa24a0000\n" ++                    -- ACCOUNT_WRITES_AREA
   "  la t0, account_writes_count; ld a1, 0(t0)\n" ++
   "  li a2, 128\n" ++                           -- stride
-  -- segments [(off 0, w 20)] = address only
-  "  li a3, 0x1400\n" ++
+  -- segments [(off 0, w 20)] = address, BIG-ENDIAN (bit 7 of the width byte).
+  -- Verified at the producer rather than taken from the container's own docstring:
+  -- `record_nonstorage_effect`'s ABI is "a0 = 20-byte big-endian address ptr", and
+  -- `create_record_code_effect` matches, so the rows hold canonical BE20 -- NOT the
+  -- LE stack word the record helper's parameter list suggests.
+  --
+  -- Note this makes the two write containers DISAGREE on stored encoding while still
+  -- agreeing on canonical ORDER: storage rows hold an LE stack word and are reversed,
+  -- account rows hold BE20 and are read forward, and both therefore yield ascending
+  -- canonical big-endian address order. The agreement is in the ORDER, which is what
+  -- the serializer's single walk needs, not in the bytes.
+  "  li a3, 0x9400\n" ++
   "  li a4, 1\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
@@ -479,10 +489,14 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- once and must find each account's slots under the same account.
 #guard (balSortStorageWritesFunction.splitOn "li a3, 0x20201400").length == 2
 #guard (balSortStorageWritesFunction.splitOn "li a4, 2").length == 2
-#guard (balSortAccountWritesFunction.splitOn "li a3, 0x1400").length == 2
+#guard (balSortAccountWritesFunction.splitOn "li a3, 0x9400").length == 2
 #guard (balSortAccountWritesFunction.splitOn "li a4, 1").length == 2
--- The shared low half is the address segment: (offset 0, width 20) = 0x1400.
-#guard 0x20201400 % 0x10000 == 0x1400
+-- Both address segments must be (offset 0, width 20); only the endianness BIT may
+-- differ, because the two containers store the address differently while both must
+-- yield the same canonical ORDER. Comparing the whole descriptors would now fail by
+-- design, so the invariant is offset-and-width equality with the flag masked out.
+#guard 0x20201400 % 0x100 == 0x9400 % 0x100                      -- same offset
+#guard (0x20201400 / 0x100) % 0x80 == (0x9400 / 0x100) % 0x80    -- same width
 
 -- The builder descriptors must decode to exactly the agreed segments. Written as a
 -- decode rather than a repeated literal so a typo in the packing cannot agree with
