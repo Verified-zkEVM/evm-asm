@@ -12,6 +12,10 @@
 # Any divergence means a hand-edit or an emitInstr/py_emit split drifted the
 # emitted guest text away from the byte-identity-checked form.
 #
+# Refactor-inertness recipe: when comparing two complete guest ELFs, give both
+# emits the same output basename.  The ELF records that basename, so distinct
+# names can make otherwise byte-identical assembly and objects appear to differ.
+#
 # Requires riscv64-unknown-elf-as / -objcopy on PATH AND a built project
 # (`lake build`), since the authoritative check runs the Lean elaborator.
 set -euo pipefail
