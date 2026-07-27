@@ -246,6 +246,7 @@ def balRlpEncodeSelftestFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++          -- scratch, ctx, field work area
+  "  li s3, 0\n" ++                                 -- s3 = predicted total length
   "  mv a0, s1; jal ra, keccak_init\n" ++
   -- Scalars. Each is written into the work area as four LE limbs, low limb first,
   -- exactly as the guest's containers hold a U256.
@@ -258,20 +259,33 @@ def balRlpEncodeSelftestFunction : String :=
                , (["1", "0", "0", "0x0100000000000000"], "0x01..01")
                ].map (fun (limbs, _) =>
       balStoreField "s2" limbs ++
-      "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_scalar\n")) ++
+      "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_scalar\n" ++
+      "  mv a0, s2; jal ra, bal_rlp_scalar_rlp_len; add s3, s3, a0\n")) ++
   -- Addresses: low 20 bytes of the LE word.
   balStoreField "s2" ["1", "0", "0", "0"] ++
   "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_address\n" ++
+  "  addi s3, s3, 21\n" ++
   balStoreField "s2" ["-1", "-1", "0xffffffff", "0"] ++
   "  mv a0, s1; mv a1, s2; mv a2, s0; jal ra, bal_rlp_emit_address\n" ++
+  "  addi s3, s3, 21\n" ++
   -- List headers, short and long form.
   String.join (["0", "1", "55", "56", "300", "70000"].map (fun n =>
-      s!"  mv a0, s1; li a1, {n}; mv a2, s0; jal ra, bal_rlp_emit_list_header\n")) ++
+      s!"  mv a0, s1; li a1, {n}; mv a2, s0; jal ra, bal_rlp_emit_list_header\n" ++
+      s!"  li a0, {n}; jal ra, bal_rlp_list_header_len; add s3, s3, a0\n")) ++
   -- Finalise and compare against the reference digest.
   "  mv a0, s1; addi a1, s0, 32; jal ra, keccak_final\n" ++
   String.join (balRlpSelftestDigest.zipIdx.map (fun (d, i) =>
     s!"  li t0, {d}; ld t1, {32 + i * 8}(s0); bne t0, t1, .Lbrst_differ\n")) ++
+  -- The measure helpers must agree with the emitters BYTE FOR BYTE. The digest above
+  -- already establishes that the emitters produced exactly the reference blob, whose
+  -- length is 128, so the predicted total must be 128 too. If the two paths ever
+  -- disagree, the measure pass reserves a different count than emit writes and every
+  -- later header in the stream is wrong -- distinct code 2 so that is not mistaken
+  -- for an encoding mismatch.
+  "  li t0, 128; bne s3, t0, .Lbrst_len_differ\n" ++
   "  li a0, 0; j .Lbrst_ret\n" ++
+  ".Lbrst_len_differ:\n" ++
+  "  li a0, 2; j .Lbrst_ret\n" ++
   ".Lbrst_differ:\n" ++
   "  li a0, 1\n" ++
   ".Lbrst_ret:\n" ++
@@ -279,12 +293,84 @@ def balRlpEncodeSelftestFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## Length helpers for the two-pass walk
+
+    RLP puts a list's header BEFORE its payload, and the header's own size depends
+    on the payload length. A serializer that streams into a hash — rather than
+    building the bytes in a buffer it can back-fill — therefore has to know every
+    payload length before it emits anything. So the walk is two passes: measure,
+    then emit.
+
+    These two helpers are the part of that arithmetic which does NOT depend on any
+    row layout, so they are correct regardless of how the builder's rows are
+    finally shaped. Everything shape-dependent belongs in the walk itself.
+
+    Both are pure functions of their inputs with no memory writes, so they can be
+    called in the measure pass without disturbing the sponge. -/
+
+/-! ### `bal_rlp_scalar_rlp_len`
+
+    Total encoded length of a U256 held as LE limbs, header included.
+
+    a0 = pointer to the 32-byte field.  a0 (out) = encoded byte count.
+
+    Mirrors `bal_rlp_emit_scalar`'s three cases exactly, and that mirroring is the
+    hazard: if the two ever disagree, the measure pass reserves a different number of
+    bytes than the emit pass writes, and every subsequent header in the stream is
+    wrong. The cases are `0` -> 1 byte (`0x80`), a single byte below `0x80` -> 1 byte,
+    otherwise `1 + len`. Leaf; clobbers t0. -/
+def balRlpScalarRlpLenFunction : String :=
+  "  .globl bal_rlp_scalar_rlp_len\n" ++
+  "bal_rlp_scalar_rlp_len:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  jal ra, bal_rlp_scalar_len\n" ++
+  -- a0 = significant byte count; 0 means the value is zero -> the single 0x80.
+  "  beqz a0, .Lbrsr_one\n" ++
+  "  li t0, 1; bne a0, t0, .Lbrsr_string\n" ++
+  -- One significant byte: self-encoding only when it is below 0x80.
+  "  lbu t0, 0(s0); li a0, 1\n" ++
+  "  li t1, 0x80; bltu t0, t1, .Lbrsr_ret\n" ++
+  "  li a0, 2; j .Lbrsr_ret\n" ++         -- 0x81 plus the byte
+  ".Lbrsr_string:\n" ++
+  "  addi a0, a0, 1; j .Lbrsr_ret\n" ++   -- 0x80+len header plus len bytes
+  ".Lbrsr_one:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbrsr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
+  "  ret\n"
+
+/-! ### `bal_rlp_list_header_len`
+
+    Size of the RLP list header for a payload of `a0` bytes.
+
+    a0 (out) = 1 for a payload of 55 or fewer bytes, else 1 plus the number of
+    minimal big-endian bytes needed for the length.
+
+    Mirrors `bal_rlp_emit_list_header`. Pure arithmetic; no memory access at all, so
+    it is safe to call anywhere in the measure pass. Leaf; clobbers t0-t2. -/
+def balRlpListHeaderLenFunction : String :=
+  "  .globl bal_rlp_list_header_len\n" ++
+  "bal_rlp_list_header_len:\n" ++
+  "  li t0, 55; bgtu a0, t0, .Lbrlhl_long\n" ++
+  "  li a0, 1; ret\n" ++
+  ".Lbrlhl_long:\n" ++
+  "  li t1, 0; mv t2, a0\n" ++
+  ".Lbrlhl_count:\n" ++
+  "  beqz t2, .Lbrlhl_counted\n" ++
+  "  addi t1, t1, 1; srli t2, t2, 8; j .Lbrlhl_count\n" ++
+  ".Lbrlhl_counted:\n" ++
+  "  addi a0, t1, 1; ret\n"
+
 /-- All encoders, in emission order. -/
 def balRlpEncodeFunctions : String :=
   balRlpScalarLenFunction ++
   balRlpEmitScalarFunction ++
   balRlpEmitAddressFunction ++
   balRlpEmitListHeaderFunction ++
+  balRlpScalarRlpLenFunction ++
+  balRlpListHeaderLenFunction ++
   balRlpEncodeSelftestFunction
 
 /-! ## Anti-drift guards on the emitted text
@@ -303,6 +389,11 @@ def balRlpEncodeFunctions : String :=
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_scalar:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_address:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_list_header:").length == 2
+#guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_rlp_len:").length == 2
+#guard (balRlpEncodeFunctions.splitOn "bal_rlp_list_header_len:").length == 2
+-- The measure/emit agreement check must be present and must use a DISTINCT code.
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 128; bne s3, t0").length == 2
+#guard (balRlpEncodeSelftestFunction.splitOn "li a0, 2; j .Lbrst_ret").length == 2
 
 -- Zero must encode as the EMPTY string 0x80, never as 0x00. The guest's own
 -- decoder rejects non-empty content starting with a zero byte, so 0x00 would emit
