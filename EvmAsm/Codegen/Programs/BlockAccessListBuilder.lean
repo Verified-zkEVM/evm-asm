@@ -794,6 +794,55 @@ def balSerializerMeasureReadsFunction : String :=
       a0 (out) = payload length, stored at `bal_serializer_len_table + 8`
 
     DELIBERATELY INERT PENDING ITS CALLER. -/
+/-- One slot's `SlotChanges` measurement, shared by the measure pass and the emit pass.
+
+`a0` = address ptr, `a1` = a representative builder row for this slot (its slot key is
+read at `+32`).  Returns `a0` = the `SlotChanges` PAYLOAD length and `a1` = the inner
+changes-list PAYLOAD length.
+
+Both numbers are returned, and it is a payload rather than an encoded size, because the
+emit pass needs exactly these two to write the two nested list headers, and it cannot
+recover either from the length table: the table has one entry for the whole
+`storage_changes` field, while the per-slot count is unbounded.  Factoring this out is
+what makes the two passes agree by construction -- a separate emit-side computation of
+the same quantity is free to drift, and the only symptom would be a wrong digest with
+every intermediate check passing. -/
+def balSerializerMeasureSlotFunction : String :=
+  "bal_serializer_measure_slot:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s4, 24(sp)\n" ++
+  "  sd s5, 32(sp); sd s6, 40(sp); sd s7, 48(sp)\n" ++
+  "  mv s0, a0; mv s4, a1\n" ++
+  "  la t0, bal_builder_storage_change_count; ld s1, 0(t0)\n" ++
+  "  li s5, 0\n" ++                                              -- s5 = inner changes payload
+  "  li s6, 0\n" ++                                              -- s6 = inner index
+  ".Lbsmsl_chg:\n" ++
+  "  bgeu s6, s1, .Lbsmsl_chg_done\n" ++
+  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add s7, t2, t1\n" ++
+  "  mv a0, s0; mv a1, s7; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsmsl_chg_next\n" ++
+  "  addi a0, s4, 32; addi a1, s7, 32; jal ra, bal_serializer_slot_eq\n" ++
+  "  beqz a0, .Lbsmsl_chg_next\n" ++
+  -- p4 = scalar(bai) + scalar(new_value)
+  "  ld a1, 24(s7); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  "  addi a0, s7, 64; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  -- LEVEL 4 header: StorageChange is itself a list
+  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
+  "  add s5, s5, t5\n" ++
+  ".Lbsmsl_chg_next:\n" ++
+  "  addi s6, s6, 1; j .Lbsmsl_chg\n" ++
+  ".Lbsmsl_chg_done:\n" ++
+  -- SlotChanges payload = scalar(slot) + encoded(changes list)
+  "  mv s7, s5\n" ++                                             -- s7 = inner payload, preserved
+  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
+  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
+  "  mv a0, s5; mv a1, s7\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s4, 24(sp)\n" ++
+  "  ld s5, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
 def balSerializerMeasureStorageFunction : String :=
   "bal_serializer_measure_storage:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -812,30 +861,9 @@ def balSerializerMeasureStorageFunction : String :=
   -- slot, so each distinct slot is measured exactly once.
   "  mv a0, s0; mv a1, s4; mv a2, s3; jal ra, bal_serializer_slot_seen_before\n" ++
   "  bnez a0, .Lbsms_slot_next\n" ++
-  -- p3 = sum over THIS slot's changes of encoded(StorageChange)
-  "  li s5, 0\n" ++                                              -- s5 = p3
-  "  li s6, 0\n" ++                                              -- s6 = inner index
-  ".Lbsms_chg:\n" ++
-  "  bgeu s6, s1, .Lbsms_chg_done\n" ++
-  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add s7, t2, t1\n" ++
-  "  mv a0, s0; mv a1, s7; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsms_chg_next\n" ++
-  "  addi a0, s4, 32; addi a1, s7, 32; jal ra, bal_serializer_slot_eq\n" ++
-  "  beqz a0, .Lbsms_chg_next\n" ++
-  -- p4 = scalar(bai) + scalar(new_value)
-  "  ld a1, 24(s7); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  "  addi a0, s7, 64; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
-  -- LEVEL 4 header: StorageChange is itself a list
-  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
-  "  add s5, s5, t5\n" ++
-  ".Lbsms_chg_next:\n" ++
-  "  addi s6, s6, 1; j .Lbsms_chg\n" ++
-  ".Lbsms_chg_done:\n" ++
-  -- LEVEL 3 header: the changes list
-  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
-  -- p2 = scalar(slot) + encoded(changes list)
-  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
+  -- This slot's SlotChanges payload, from the routine the emit pass also calls.
+  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_measure_slot\n" ++
+  "  mv s5, a0\n" ++
   -- LEVEL 2 header: SlotChanges is a list
   "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
   "  add s2, s2, s5\n" ++
@@ -1110,6 +1138,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerU64ToFieldFunction ++
   balSerializerFilterReadsFunction ++
   balSerializerMeasureReadsFunction ++
+  balSerializerMeasureSlotFunction ++
   balSerializerMeasureStorageFunction ++
   balSerializerMeasureBalanceFunction ++
   balSerializerMeasureNonceFunction ++
@@ -1121,6 +1150,22 @@ def blockAccessListBuilderFunctions : String :=
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
+
+/-! ## Guards for the shared slot measurement -/
+
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_slot:").length == 2
+
+-- The whole point of the factoring is that BOTH passes call it. `measure_storage` must
+-- not carry its own copy of the inner walk: two copies of this arithmetic drift, and a
+-- drifted emit-side copy shows up only as a wrong digest, with the length table, the
+-- per-field measurements and every structural check still agreeing.
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_measure_slot").length == 2
+#guard (balSerializerMeasureStorageFunction.splitOn ".Lbsms_chg:").length == 1
+
+-- It returns two payloads, not one encoded size. `a1` is the inner changes-list payload,
+-- which the emit pass cannot get anywhere else -- the length table holds one entry for
+-- the whole field, and the per-slot change count is unbounded.
+#guard (balSerializerMeasureSlotFunction.splitOn "  mv a0, s5; mv a1, s7\n").length == 2
 
 /-! ## Guards for the storage-change upsert -/
 
@@ -1245,18 +1290,30 @@ def blockAccessListBuilderFunctions : String :=
 
 /-! ## Guards for the storage_changes measurer -/
 
+-- These four are pinned on the PAIR of functions, because the slot-level arithmetic now
+-- lives in `measure_slot` while the field-level walk stays in `measure_storage`. Keying
+-- them to one function would let the refactor that moved the content also silence the
+-- guard -- the same self-deleting failure as a dropped routine taking its guard with it.
+private def balStorageMeasurePair : String :=
+  balSerializerMeasureSlotFunction ++ balSerializerMeasureStorageFunction
+
 -- THREE HEADER LEVELS below the field list, against one for balance and none for reads:
 -- StorageChange, the changes list, and SlotChanges. Dropping any one leaves every
 -- intermediate a well-formed RLP list of the wrong length -- the silent nesting error.
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 4
+#guard (balStorageMeasurePair.splitOn "jal ra, bal_rlp_list_header_len").length == 4
+-- ... and the split across the two must stay 2 (StorageChange, changes list) + 1
+-- (SlotChanges), since the emit pass reads the inner two from `measure_slot`'s two
+-- return values and writes the outer one itself.
+#guard (balSerializerMeasureSlotFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 3
+#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 2
 -- Two scalars per change (BAI, new_value) plus one per slot.
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 4
+#guard (balStorageMeasurePair.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 4
 -- Each distinct slot measured EXACTLY ONCE, or a slot with three changes contributes its
 -- SlotChanges three times.
 #guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
 -- Per account at BOTH loop levels: without the inner check, another account's change to
 -- the same slot is folded into this account's list.
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
+#guard (balStorageMeasurePair.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
 -- The +8 slot, per the pinned table layout.
 #guard (balSerializerMeasureStorageFunction.splitOn "sd s2, 8(t0)").length == 2
 -- The seen-before scan must look only at EARLIER rows, or every row reports itself seen
