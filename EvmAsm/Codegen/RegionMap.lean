@@ -429,7 +429,7 @@ def schemeAAnchors : List GuestRegion :=
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x064afc
+def textSizeBytes : Nat := 0x064b74
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
