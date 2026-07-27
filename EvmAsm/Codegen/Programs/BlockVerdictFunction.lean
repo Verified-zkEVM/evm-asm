@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPrecompileGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
 import EvmAsm.Codegen.Programs.BlockVerdictWithdrawalEffects
+import EvmAsm.Codegen.Programs.BlockVerdictEoaBodyEffectReconcile
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -1173,16 +1174,7 @@ def blockVerdictFunction : String :=
   -- coinbase} are gas/value-coupled (pinned on the gas path); set unconditionally above
   -- (bv_simple_transfer_tx+72, bmvmx_sender_addr, bmvmx_coinbase_addr). 32-byte-strided,
   -- address in the first 20 bytes.
-  ".Lbv_eoa_body_effect_reconcile:\n" ++
-  "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
-  ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
-  -- A zero-transaction block has a valid empty public-key section.  There is
-  -- therefore no sender to skip-list: deriving one from public_keys_ptr + 1
-  -- would ask `address_from_pubkey` to hash a nonexistent 64-byte SEC1 tail.
-  -- Leave the zero-initialized entry unused and retain the block-level
-  -- withdrawal/system reconciliation below.
-  "  la t4, bv_tx_count; ld t4, 0(t4); beqz t4, .Lbv_i3sk1d\n" ++
-  "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n.Lbv_i3sk1d:\n" ++
+  blockVerdictEoaBodyEffectReconcile ++
   -- coc3g.BAL: seed skip entry 2 = the block coinbase from the ALWAYS-AVAILABLE exec payload
   -- (bv_exec_p+32 = fee_recipient), NOT bmvmx_coinbase_addr. The latter is populated only when
   -- the bmvmx single-tx preamble runs, which BAILS (.Lbmvmx_done) for non-legacy txs (type
@@ -1192,29 +1184,18 @@ def blockVerdictFunction : String :=
   -- non-storage effect). The coinbase's post-balance is independently pinned by the state-root
   -- recompute (which APPLIES the BAL deltas and checks the header root; BlockVerdictStateRoot:268),
   -- so skip-listing it here is sound (same as sender/recipient — gas/value/fee-coupled).
-  "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32\n  li t2, 20\n" ++
-  ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
   -- coc3g.6.5: entries 3..8 = the 5 genesis system/predeploy contracts plus SYSTEM_ADDRESS (EIP-2935 history,
   -- EIP-4788 beacon-roots, EIP-7002 withdrawal-req, EIP-7251 consolidation-req, EIP-6110 deposit).
   -- Their code/balance/nonce changes come from the block-level system-call replay / genesis setup
   -- (validated by the verdict's explicit system replay + the state-root recompute), NOT the per-tx
   -- exec log, so the exec-vs-BAL non-storage check must skip them. bbcv_sys_2935 starts 5 contiguous
   -- 20-byte BE address constants. Mirrors bal_all_accounts_storage_consistent's modeled-system skip.
-  "  la t0, i3djw_skip_list; addi t0, t0, 96\n  la t1, bbcv_sys_2935\n  li t4, 6\n" ++
-  ".Lbv_i3sksys_o:\n  li t2, 20\n" ++
-  ".Lbv_i3sksys_i:\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lbv_i3sksys_i\n" ++
-  "  addi t0, t0, 12\n  addi t4, t4, -1\n  bnez t4, .Lbv_i3sksys_o\n" ++
   -- bbow4.2.5.7: EIP-7702 authorization nonce bumps are consensus state changes
   -- made by set_delegation before runtime execution, not CALL/CREATE effects. Append
   -- them to the non-storage effect log before aggregating it for BAL reconciliation.
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
-  "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
-  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   -- 7rbp3: EIP-4895 body credits are authenticated non-storage effects too.
   -- Materialize them before aggregation so the existing 44/45 comparators check
   -- both BAL->effect consistency and effect->BAL coverage.
-  "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   -- Run the all-account comparison even when replay produced no transaction arena:
   -- the reverse arm must reject a BAL balance credit with no corresponding body
   -- withdrawal (or execution) effect. The modeled-system accounts remain skipped.
