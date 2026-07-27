@@ -103,9 +103,9 @@
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
   | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 1 MiB       |
-  | `ACCOUNT_WRITES_AREA`        | `0xa24a0000`     | 2 MiB       |
-  | `TX_ACCOUNT_WRITES_AREA`     | `0xa26a0000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa28a0000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_AREA`        | `0xa24a0000`     | 2.5 MiB     |
+  | `TX_ACCOUNT_WRITES_AREA`     | `0xa2720000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2920000`     | 2 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -385,10 +385,11 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
     `Optional[Account]`, and `None` (the account does not exist) is a *distinct*
     state from an account whose balance, nonce and code hash are all zero. -/
 
-/-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`. -/
+/-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
+    20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound. -/
 def ACCOUNT_WRITES_AREA      : Word := 0xa24a0000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
-def TX_ACCOUNT_WRITES_AREA   : Word := 0xa26a0000
+def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2720000
 /-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB.
 
     Same rationale as `STORAGE_WRITES_UNDO_AREA`: the spec rolls a frame back by
@@ -402,7 +403,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xa26a0000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa28a0000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2920000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
