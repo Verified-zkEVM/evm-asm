@@ -273,12 +273,13 @@ def ziskBalStorageMatchesExecLogDataSection : String :=
    ".balign 8\n" ++
    "bv_system_storage_log_count:\n  .zero 8\n" ++
    ".balign 32\n" ++
-   "bv_system_storage_log:\n  .zero 128\n" ++
+   "bv_system_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n" ++
    -- bmvmx.5.5.10 PR-2: same inert stub for the per-tx user-write side arena scan.
+   -- One row, sized from `bvStorageLogRowBytes` so the stub tracks the stride.
    ".balign 8\n" ++
    "bv_user_storage_log_count:\n  .zero 8\n" ++
    ".balign 32\n" ++
-   "bv_user_storage_log:\n  .zero 128\n"
+   "bv_user_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n"
 
 def ziskBalStorageMatchesExecLogProbeUnit : BuildUnit := {
   body        := NOP

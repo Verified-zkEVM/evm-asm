@@ -176,14 +176,17 @@ def accountTupleSequencesConsistentEmptySystemData : String :=
   -- but the symbol must resolve at link time.
   "bv_system_storage_txindex:\n  .zero 16\n" ++
   ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n" ++
+  "bv_system_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n" ++
   -- bmvmx.5.5.10 PR-2: link stubs so the per-account fn's user-arena preference
-  -- resolves; count 0 keeps the probe on the legacy live-log path.
+  -- resolves; count 0 keeps the probe on the legacy live-log path.  Sized from
+  -- `bvStorageLogRowBytes` (one row) so a stride change cannot leave this probe
+  -- reserving less than one row while the scan still strides by 128.
   ".balign 8\n" ++
   "bv_user_storage_log_count:\n  .zero 8\n" ++
-  "bv_user_storage_txindex:\n  .zero 16\n" ++
+  "bv_user_storage_txindex:\n  .zero " ++
+    toString (2 * bvStorageLogTxindexEntryBytes) ++ "\n" ++
   ".balign 32\n" ++
-  "bv_user_storage_log:\n  .zero 128\n"
+  "bv_user_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):

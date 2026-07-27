@@ -307,8 +307,21 @@ def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
 def bvMtxCommittedFullKeyCap : Nat := 600000
 def bvMtxCommittedFullBytes : Nat :=
   bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
-def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
-def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
+/-- Byte stride of one storage exec-log row, shared by the system arena
+    (`bv_system_storage_log`) and the per-tx user arena (`bv_user_storage_log`).
+    Layout: `addrHash@0`, `slotKey@32`, `original@64`, `current@96`. Every scan
+    over either arena addresses it as `slli rd, rs, 7`, so this constant and that
+    shift amount must move together. Routines that reserve a one-row standalone
+    stub for their own link should size it from here rather than restating 128. -/
+def bvStorageLogRowBytes : Nat := 128
+
+/-- Byte width of one `txindex` stamp, parallel to `bvStorageLogRowBytes`: the
+    txindex arenas hold one 8-byte `block_access_index` per log row. -/
+def bvStorageLogTxindexEntryBytes : Nat := 8
+
+def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRowBytes
+def bvSystemStorageTxindexBytes : Nat :=
+  bvSystemStorageLogCapacity * bvStorageLogTxindexEntryBytes
 
 /-- bmvmx.5.5.10 PR-2: per-tx USER-write side arena capacity. The live exec log
     only holds the LAST dispatch's rows (each dispatch resets persistentLogLength),
@@ -316,8 +329,9 @@ def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
     128-byte row layout + txindex stamps) for the forward BAL comparator. Sized at
     half the system arena; overflow bails fail-closed (`.Lbv_mtx_bail`). -/
 def bvUserStorageLogCapacity : Nat := bvPersistentStorageLogCapacity
-def bvUserStorageLogBytes : Nat := bvUserStorageLogCapacity * 128
-def bvUserStorageTxindexBytes : Nat := bvUserStorageLogCapacity * 8
+def bvUserStorageLogBytes : Nat := bvUserStorageLogCapacity * bvStorageLogRowBytes
+def bvUserStorageTxindexBytes : Nat :=
+  bvUserStorageLogCapacity * bvStorageLogTxindexEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam
