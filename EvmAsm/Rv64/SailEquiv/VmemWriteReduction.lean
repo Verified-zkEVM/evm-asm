@@ -2,8 +2,10 @@
   EvmAsm.Rv64.SailEquiv.VmemWriteReduction
 
   Store-side (Tier B) mirror of the bare-mode load reduction chain in
-  `VmemReduction.lean` / `VmemReductionN.lean`: the building blocks for discharging the
-  four `MemProofs` store stubs (`SD / SW / SH / SB`, `execute_STORE` widths 8/4/2/1).
+  `VmemReduction.lean` / `VmemReductionN.lean`: the building blocks behind the four
+  unconditional store capstones (`SD / SW / SH / SB`, `execute_STORE` widths 8/4/2/1)
+  in `VmemReductionStores.lean`.  (These originally discharged the deferred
+  `MemProofs` store stubs; no stubs remain.)
 
   Three ingredient groups:
 
