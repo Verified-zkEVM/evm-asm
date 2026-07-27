@@ -198,7 +198,28 @@ def schemeAAnchors : List GuestRegion :=
     { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
     { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" } ]
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" },
+    -- r59nm S2: the WRITE side of the same two levels.  BlockState.storage_writes
+    -- (state_tracker.py:74) and TransactionState.storage_writes (:101).  ONE map per
+    -- level, not one per source: the spec has no system-specific write container --
+    -- process_unchecked_system_transaction (fork.py:782) builds an ordinary
+    -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
+    -- at :1226.  These replace bv_system_storage_log and bv_user_storage_log, whose
+    -- two-arena split mirrors nothing.
+    { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x200000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_AREA; 2 MiB = 16384x128 "
+        ++ "(addrHash++slotKey++value, 96 B used of the shared bvStorageLogRowBytes stride); "
+        ++ "block level, filled only by write_sets_incorporate_tx" },
+    { name := "tx_storage_writes_area", base := 0xa21a0000, size := 0x200000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; per-tx storage_writes, "
+        ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
+    -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
+    -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
+    -- a per-frame copy would cost capacity x call depth.  Bounded by the SSTORE
+    -- handler's own 16384-row cap, so it needs no overflow path.
+    { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x100000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 1 MiB = 16384x64 "
+        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -584,7 +605,12 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.CODE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
-        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat,
+        -- r59nm: the write side of the same two levels (state_tracker.py:74 block,
+        -- :101 transaction) plus S5a's undo journal.
+        (EvmAsm.Stateless.STORAGE_WRITES_AREA).toNat,
+        (EvmAsm.Stateless.TX_STORAGE_WRITES_AREA).toNat,
+        (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -803,6 +829,10 @@ def stableGuestBases : List (String × Nat) :=
 
 -- 20 -> 23: the three read-container anchors added for GH #10619.
 -- 23 -> 26: the three per-transaction read containers (GH #10619 gate 3).
-theorem stableGuestBases_length : stableGuestBases.length = 26 := by decide
+-- 26 -> 29: the two storage_writes levels and S5a's undo journal (r59nm).
+--            Lost in a merge resolution of #10679 and restored here; the
+--            constants and the guest's use of the addresses were never removed,
+--            so three in-use regions had no disjointness or fit proof.
+theorem stableGuestBases_length : stableGuestBases.length = 29 := by decide
 
 end EvmAsm.Codegen.RegionMap
