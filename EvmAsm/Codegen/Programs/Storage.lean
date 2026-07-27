@@ -601,6 +601,20 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x12, 32\n" ++
+        -- a6 = pre-tx baseline ptr. DELIBERATELY ZERO for now, which the callee reads
+        -- as "the baseline is zero" -- `_get_pre_tx_storage` documents that as the
+        -- answer for an unset slot, so the field is well-defined rather than garbage.
+        --
+        -- It is not yet the REAL baseline, and the reason is worth recording. The
+        -- resolved transaction-start value lives in `sstore_prestate_pair`, but that
+        -- buffer is MULTIPLEXED: it holds (address, key) for the committed-log lookup
+        -- above, and only afterwards (original, current) -- and which of the three
+        -- resolution paths ran determines what is in it here. Passing it without
+        -- establishing that would make the captured baseline path-dependent, which is
+        -- exactly the failure the capture exists to prevent.
+        --
+        -- Nothing reads the captured field yet, so zero is inert rather than wrong.
+        "  li a6, 0\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
