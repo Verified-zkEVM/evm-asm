@@ -409,6 +409,50 @@ def balRlpEncodeFunctions : String :=
 -- digest mismatch code 1.
 #guard (balRlpEncodeSelftestFunction.splitOn "addi a0, s3, 100").length == 2
 
+-- COVERAGE TRIPWIRE. The per-case vector covers the fifteen cases in it; the
+-- divergence risk this file carries is borne by routines added LATER, whose measure
+-- and emit paths would be mirrored but untested. There is no way to assert "every
+-- future routine has a case", so this asserts the ROUTINE COUNT instead: adding a
+-- seventh `.globl bal_rlp_*` breaks the build and forces the author to look at the
+-- self-test rather than discover the gap when a header comes out a byte short.
+--
+-- If you are here because you added a routine: add its case to
+-- `bal_rlp_encode_selftest` and its expected length to the per-case assertions, THEN
+-- bump this. Bumping it alone restores the build and removes the only thing that
+-- would have told you.
+#guard (balRlpEncodeFunctions.splitOn "  .globl bal_rlp_").length == 8
+
+-- THE INVARIANT THAT HAS NO ESCAPE HATCH. The count above can be silenced by bumping
+-- a number, which makes it a tripwire rather than a check. This one cannot: EVERY
+-- measure call must have a per-case assertion, and every assertion must correspond to
+-- a measure call or to one of the two fixed-width address cases. Add a measure call
+-- without an assertion and it fails; add an assertion without a measure call and it
+-- fails. `splitOn` lengths are occurrences + 1, hence the -2.
+#guard (balRlpEncodeSelftestFunction.splitOn "bne a0, t0, .Lbrst_len_differ").length
+         == (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length
+          + (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_list_header_len").length
+          + (balRlpEncodeSelftestFunction.splitOn "li t0, 21; bne").length - 2
+
+-- The vector must keep spanning every distinct length class the encoders can produce:
+-- 1 (empty/self-encoding and the short header), 2, 3 and 4 (one, two and three header
+-- length bytes), 21 (fixed address) and 33 (full-width U256). Pinning the classes stops
+-- a future edit from deleting the only case that exercises one.
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 1; bne").length >= 2
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 2; bne").length >= 2
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 3; bne").length >= 2
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 4; bne").length >= 2
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 21; bne").length == 3
+#guard (balRlpEncodeSelftestFunction.splitOn "li t0, 33; bne").length == 3
+
+-- Every routine currently defined IS exercised by the self-test. Checked by name so
+-- the tripwire above cannot be satisfied by a routine that exists but is never run.
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_scalar_len").length >= 1
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_emit_scalar").length == 8
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_emit_address").length == 3
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_emit_list_header").length == 7
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 8
+#guard (balRlpEncodeSelftestFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 7
+
 -- Zero must encode as the EMPTY string 0x80, never as 0x00. The guest's own
 -- decoder rejects non-empty content starting with a zero byte, so 0x00 would emit
 -- bytes the guest itself refuses to parse.
