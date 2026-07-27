@@ -60,6 +60,9 @@ import EvmAsm.Rv64.SailEquiv.VmemReduction
 import EvmAsm.Rv64.SailEquiv.VmemReductionN
 -- VmemReductionLoads: unconditional LW/LWU/LH/LHU/LB/LBU equivalence lemmas.
 import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
+-- VmemPresent: byte-presence layer — load equivalences from a `MemPresent` invariant
+-- instead of per-byte `get? = some` hypotheses.
+import EvmAsm.Rv64.SailEquiv.VmemPresent
 -- VmemWriteReduction: the store-side bare-mode write chain (writeBytes → vmem_write).
 import EvmAsm.Rv64.SailEquiv.VmemWriteReduction
 -- VmemReductionStores: unconditional SD/SW/SH/SB equivalence lemmas (Tier B).
