@@ -192,6 +192,40 @@ semantics only; **no RV64 subroutine is proven to produce the EVM result**:
   machine-checked for `h_ADD` only (`scripts/check_guarded_handler_bytes.py`);
   for `CALLDATALOAD` the `la` targets are proven relative to reconstruction
   hypotheses, with the byte-tie deferred.
+- **`RETURNDATACOPY`'s image omits the framed-out high-limb operand guards.**
+  The `.proven` witness `evm_returndatacopy_body_stack_spec_within` covers the
+  body (`base → base+80`: bounds guards, operand pop / pointer setup, copy loop),
+  but the emitted handler additionally runs, *between* the operand loads and the
+  frame materialization, two blocks the modeled image excises along with the
+  dynamic-gas / MSIZE glue: (i) `memDynamicU256RangeOogGuardAsm`, which sends a
+  high-limb `size` — and, when `size ≠ 0`, a high-limb `destOffset` — to
+  `.exit_outofgas`; and (ii) an `ld`/`or`/`or`/`bnez` check sending a high-limb
+  *source offset* (`dataOffset` limbs 1–3) to `.exit_invalid`. The triple is a
+  statement about that excised image, so it describes only the path on which
+  those guards fall through; on operands with nonzero high limbs the emitted
+  handler exits before this body's postcondition is reached. Note the three
+  bridging hypotheses `h_destOff`/`h_srcOff`/`h_sizeV`
+  (`operand.getLimbN 0 = BitVec.ofNat 64 n`) are **naming** bridges from the
+  stack limbs to the `Nat` offsets — they place no constraint on the high limbs
+  and are not where this residual lives. Closing it means modeling those blocks
+  in the guard image (shifting every guard branch offset) or proving the
+  framed-out region. CALLDATACOPY carries the same class of residual — its
+  source-offset normalization block is likewise `preBody` glue.
+
+  *Why each excised guard is safe to excise — three different arguments, none of
+  them in the proof.* Read this before treating a `RETURNDATACOPY: proven` row as
+  covering wide operands; the justifications do not share a shape:
+
+  | assumed by | justified by | holds at `size = 0`? | reasoning lives in |
+  |---|---|---|---|
+  | high-limb `size` | **gas** — `copy_gas_cost` and memory expansion both explode ⇒ `OutOfGasError` | yes | `EvmMemoryGas.lean` `memDynamicU256RangeOogGuardAsm` docstring |
+  | high-limb `destOffset` | **gas, but conditional on `size ≠ 0`** — quadratic expansion ⇒ `OutOfGasError`; at `size = 0` `calculate_gas_extend_memory` `continue`s and charges nothing, so the spec *accepts* it | **no — spec accepts** | same docstring; the guard's `beqz <size>` ordering mirrors `gas.py`'s `if size == 0: continue` |
+  | high-limb source offset (`dataOffset`) | **not gas** — the spec's explicit `Uint(start) + Uint(size) > ulen(return_data)` ⇒ `OutOfBoundsRead` | yes — rejecting is *required*, not over-strict | the `h_RETURNDATACOPY` comment in `Codegen/Programs/NoopReturnData.lean` |
+
+  So each excised guard matches a real execution-specs outcome (Amsterdam
+  `vm/instructions/environment.py`, `vm/gas.py`): excising them costs coverage
+  but hides no divergence, and in particular the guest does **not** over-reject
+  the `size = 0` / high-limb-`destOffset` case the spec accepts.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
   official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
   fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
