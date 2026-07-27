@@ -213,6 +213,16 @@ def writeSetsIncorporateTxFunction : String :=
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  -- #10680: emit this tx's storage CHANGES into the BAL builder BEFORE the merge
+  -- below overwrites the block container, which is the tx-start baseline the
+  -- net-zero filter reads. The spec orders it the same way and says so:
+  -- "Update BAL builder before merging writes into block state".
+  --
+  -- BAI from `current_block_access_index`, which block_verdict maintains as
+  -- `bv_mtx_i + 1` (and 1 for the first case) -- NOT `bal_builder_current_bai`,
+  -- which is defined with zero writers.
+  "  la t0, current_block_access_index; ld a0, 0(t0)\n" ++
+  "  jal ra, bal_emit_storage_changes\n" ++
   "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx count
   "  li s2, 0xa21a0000\n" ++                                     -- s2 = tx area
   "  li s3, 0\n" ++                                              -- s3 = i
