@@ -8,8 +8,19 @@
   a SEPARATE region (the return-data frame) from the destination (EVM memory),
   and a bottom test (`BNE cnt x0`) instead of a top guard.
 
+  **Decoupled source indexing.**  `bytesRegion` is anchored at the *aligned*
+  staging base `srcBase` (the frame's `+16` data window) holding the FULL staged
+  return data `srcAll`, and the read offset `srcOff` (the EVM `start` operand) is
+  carried separately in the source pointer register — it is deliberately NOT
+  folded into the region base, which would demand `(frame+16+start) % 8 = 0` and
+  is false for arbitrary `start`.  The copied slice is therefore
+  `(srcAll.drop srcOff).take size`, and the source offset is independent of the
+  destination offset.  This mirrors CALLDATACOPY's loop spec
+  (`Calldata/CopyLoopSpec.lean`), which indexes its source the same way.
+
   Reuses the `Mcopy` destination content model (`mcopyFwdContent`, same shape as
-  CALLDATACOPY's `copyDestContent`) and the `cc_*` counter/byte helpers.
+  CALLDATACOPY's `copyDestContent`), `sourceSlice_getElem`, and the `cc_*`
+  counter/byte helpers.
 
   `rdc_body_spec_within` is one straight-line iteration (`base+0 → base+20`);
   `evm_returndatacopy_loop_spec_within` closes the `do..while` by induction on the
@@ -26,8 +37,8 @@ namespace ReturnData
 
 open EvmAsm.Rv64
 open EvmAsm.Evm64.Mcopy (mcopyFwdContent mcopyFwdContent_length mcopyFwdContent_set
-  mcopyFwdContent_zero mcopyFwdContent_full cc_word_succ_dec cc_word_succ_ne_zero
-  cc_trunc_zeroExtend)
+  mcopyFwdContent_zero mcopyFwdContent_full sourceSlice_getElem cc_word_succ_dec
+  cc_word_succ_ne_zero cc_trunc_zeroExtend)
 
 /-- `pcFree` extended to close `bytesRegion _.pcFree` leaves. -/
 local macro "pcFreeR" : tactic =>
@@ -36,18 +47,25 @@ local macro "pcFreeR" : tactic =>
     | apply pcFree_sepConj
     | pcFree)
 
+/-- The copied slice has length `size` once it fits inside the staged bytes. -/
+theorem rdc_slice_length (srcAll : List (BitVec 8)) (srcOff size : Nat)
+    (h_fits : srcOff + size ≤ srcAll.length) :
+    ((srcAll.drop srcOff).take size).length = size := by
+  rw [List.length_take, List.length_drop]; omega
+
 /-- One straight-line iteration of the RETURNDATACOPY loop (`base+0 → base+20`,
-    indices [0..4]): read `srcBytes[i]` from the frame region, store it at
+    indices [0..4]): read `srcAll[srcOff+i]` from the frame region, store it at
     destination index `i` in EVM memory, advance both pointers and the counter. -/
 theorem rdc_body_spec_within
-    (base memBase srcBase : Word) (destOff i : Nat)
-    (srcBytes memBytes : List (BitVec 8)) (cntV scratchOld : Word)
-    (h_i : i < srcBytes.length)
+    (base memBase srcBase : Word) (destOff srcOff size i : Nat)
+    (srcAll memBytes : List (BitVec 8)) (cntV scratchOld : Word)
+    (h_i : i < size)
+    (h_fits : srcOff + size ≤ srcAll.length)
     (h_src_align : srcBase.toNat % 8 = 0)
     (h_mem_align : memBase.toNat % 8 = 0)
-    (h_win : destOff + srcBytes.length ≤ memBytes.length)
-    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
-    (h_src_valid : ∀ k, k < srcBytes.length →
+    (h_win : destOff + size ≤ memBytes.length)
+    (h_src_over : srcBase.toNat + srcAll.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcAll.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (h_mem_over : memBase.toNat + memBytes.length < 2 ^ 64)
     (h_mem_valid : ∀ k, k < memBytes.length →
@@ -55,40 +73,54 @@ theorem rdc_body_spec_within
     cpsTripleWithin 5 (base + 0) (base + 20)
       (evm_returndatacopy_loop_code .x18 .x17 .x16 .x19 base)
       (((.x19 : Reg) ↦ᵣ scratchOld) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 i)) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
        ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + i))) **
        ((.x16 : Reg) ↦ᵣ cntV) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff i) **
-       bytesRegion srcBase srcBytes)
-      (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'h_i).zeroExtend 64)) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (i + 1))) **
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i) **
+       bytesRegion srcBase srcAll)
+      (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
        ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + (i + 1)))) **
        ((.x16 : Reg) ↦ᵣ (cntV + signExtend12 (-1 : BitVec 12))) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-       bytesRegion srcBase srcBytes) := by
-  have hlen : (mcopyFwdContent memBytes srcBytes destOff i).length = memBytes.length :=
-    mcopyFwdContent_length memBytes srcBytes destOff i (by omega) (by omega)
-  have hset : (mcopyFwdContent memBytes srcBytes destOff i).set (destOff + i)
-        (((srcBytes[i]'h_i).zeroExtend 64).truncate 8)
-      = mcopyFwdContent memBytes srcBytes destOff (i + 1) := by
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+       bytesRegion srcBase srcAll) := by
+  have hclen : ((srcAll.drop srcOff).take size).length = size :=
+    rdc_slice_length srcAll srcOff size h_fits
+  have hcget : ((srcAll.drop srcOff).take size)[i]'(by omega)
+      = srcAll[srcOff + i]'(by omega) :=
+    sourceSlice_getElem srcAll srcOff size i h_i h_fits
+  have hlen : (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i).length
+      = memBytes.length :=
+    mcopyFwdContent_length memBytes ((srcAll.drop srcOff).take size) destOff i
+      (by omega) (by omega)
+  have hset : (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i).set
+        (destOff + i) (((srcAll[srcOff + i]'(by omega)).zeroExtend 64).truncate 8)
+      = mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1) := by
     rw [cc_trunc_zeroExtend]
-    exact mcopyFwdContent_set memBytes srcBytes destOff i (srcBytes[i]'h_i) (by omega)
-      (by omega) rfl
-  set srcP := srcBase + BitVec.ofNat 64 i with hsrcP
+    exact mcopyFwdContent_set memBytes ((srcAll.drop srcOff).take size) destOff i
+      (srcAll[srcOff + i]'(by omega)) (by omega) (by omega) hcget.symm
+  set srcP := srcBase + BitVec.ofNat 64 (srcOff + i) with hsrcP
   set destP := memBase + BitVec.ofNat 64 (destOff + i) with hdestP
-  -- [0] LBU x19 x17 0 : x19 := srcBytes[i].zeroExtend 64.
+  -- [0] LBU x19 x17 0 : x19 := srcAll[srcOff+i].zeroExtend 64.
   have h0 := bytesRegion_lbu_within .x19 .x17 srcBase scratchOld (base + 0)
-    srcBytes i (by decide) h_src_align h_i (by omega) (h_src_valid i h_i)
+    srcAll (srcOff + i) (by decide) h_src_align (by omega) (by omega)
+    (h_src_valid (srcOff + i) (by omega))
   rw [← hsrcP] at h0
   -- [1] SB x18 x19 0 : store at destination index i.
-  have h1 := bytesRegion_sb_within .x18 .x19 memBase ((srcBytes[i]'h_i).zeroExtend 64)
-    (base + 4) (mcopyFwdContent memBytes srcBytes destOff i) (destOff + i) h_mem_align
+  have h1 := bytesRegion_sb_within .x18 .x19 memBase
+    ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)
+    (base + 4) (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i)
+    (destOff + i) h_mem_align
     (by rw [hlen]; omega) (by omega) (h_mem_valid (destOff + i) (by omega))
   rw [← hdestP, hset] at h1
   -- [2] ADDI x17 x17 1
   have h2 := addi_spec_gen_same_within .x17 srcP (1 : BitVec 12) (base + 8) (by decide)
-  rw [show srcP + signExtend12 (1 : BitVec 12) = srcBase + BitVec.ofNat 64 (i + 1) from by
-        rw [hsrcP, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega] at h2
+  rw [show srcP + signExtend12 (1 : BitVec 12)
+        = srcBase + BitVec.ofNat 64 (srcOff + (i + 1)) from by
+        rw [hsrcP, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+        bv_omega] at h2
   -- [3] ADDI x18 x18 1
   have h3 := addi_spec_gen_same_within .x18 destP (1 : BitVec 12) (base + 12) (by decide)
   rw [show destP + signExtend12 (1 : BitVec 12) = memBase + BitVec.ofNat 64 (destOff + (i + 1)) from by
@@ -138,28 +170,32 @@ theorem rdc_body_spec_within
   rw [show (base + 16 : Word) + 4 = base + 20 from by bv_omega] at h4e
   have f0 := cpsTripleWithin_frameR
     (((.x18 : Reg) ↦ᵣ destP) ** ((.x16 : Reg) ↦ᵣ cntV) **
-     bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff i)) (by pcFreeR) h0e
+     bytesRegion memBase
+       (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i)) (by pcFreeR) h0e
   have f1 := cpsTripleWithin_frameR
-    (((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 i)) ** ((.x16 : Reg) ↦ᵣ cntV) **
-     bytesRegion srcBase srcBytes) (by pcFreeR) h1e
+    (((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) ** ((.x16 : Reg) ↦ᵣ cntV) **
+     bytesRegion srcBase srcAll) (by pcFreeR) h1e
   have f2 := cpsTripleWithin_frameR
-    (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'h_i).zeroExtend 64)) **
+    (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
      ((.x18 : Reg) ↦ᵣ destP) **
      ((.x16 : Reg) ↦ᵣ cntV) **
-     bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-     bytesRegion srcBase srcBytes) (by pcFreeR) h2e
+     bytesRegion memBase
+       (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+     bytesRegion srcBase srcAll) (by pcFreeR) h2e
   have f3 := cpsTripleWithin_frameR
-    (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'h_i).zeroExtend 64)) **
-     ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (i + 1))) **
+    (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
+     ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
      ((.x16 : Reg) ↦ᵣ cntV) **
-     bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-     bytesRegion srcBase srcBytes) (by pcFreeR) h3e
+     bytesRegion memBase
+       (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+     bytesRegion srcBase srcAll) (by pcFreeR) h3e
   have f4 := cpsTripleWithin_frameR
-    (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'h_i).zeroExtend 64)) **
-     ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (i + 1))) **
+    (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
+     ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
      ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + (i + 1)))) **
-     bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-     bytesRegion srcBase srcBytes) (by pcFreeR) h4e
+     bytesRegion memBase
+       (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+     bytesRegion srcBase srcAll) (by pcFreeR) h4e
   simp only [sepConj_assoc'] at f0 f1 f2 f3 f4
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) f0 f1
   have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 f2
@@ -172,14 +208,15 @@ theorem rdc_body_spec_within
     remaining count.  The loop is bottom-tested, so it always copies at least one
     byte — the spec is stated for a nonzero remaining count `n+1`. -/
 theorem evm_returndatacopy_loop_spec_within
-    (base memBase srcBase : Word) (destOff n i : Nat)
-    (srcBytes memBytes : List (BitVec 8)) (scratchV : Word)
-    (h_ni : i + (n + 1) = srcBytes.length)
+    (base memBase srcBase : Word) (destOff srcOff size n i : Nat)
+    (srcAll memBytes : List (BitVec 8)) (scratchV : Word)
+    (h_ni : i + (n + 1) = size)
+    (h_fits : srcOff + size ≤ srcAll.length)
     (h_src_align : srcBase.toNat % 8 = 0)
     (h_mem_align : memBase.toNat % 8 = 0)
-    (h_win : destOff + srcBytes.length ≤ memBytes.length)
-    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
-    (h_src_valid : ∀ k, k < srcBytes.length →
+    (h_win : destOff + size ≤ memBytes.length)
+    (h_src_over : srcBase.toNat + srcAll.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcAll.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (h_mem_over : memBase.toNat + memBytes.length < 2 ^ 64)
     (h_mem_valid : ∀ k, k < memBytes.length →
@@ -187,17 +224,19 @@ theorem evm_returndatacopy_loop_spec_within
     cpsTripleWithin (6 * (n + 1)) (base + 0) (base + 24)
       (evm_returndatacopy_loop_code .x18 .x17 .x16 .x19 base)
       (((.x16 : Reg) ↦ᵣ BitVec.ofNat 64 (n + 1)) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 i)) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
        ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + i))) **
        ((.x19 : Reg) ↦ᵣ scratchV) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff i) **
-       bytesRegion srcBase srcBytes)
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff i) **
+       bytesRegion srcBase srcAll)
       (((.x16 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 srcBytes.length)) **
-       ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + srcBytes.length))) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + size))) **
+       ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + size))) **
        regOwn .x19 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff srcBytes.length) **
-       bytesRegion srcBase srcBytes) := by
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff size) **
+       bytesRegion srcBase srcAll) := by
   have hmono5 : ∀ a i, CodeReq.singleton (base + 20) (.BNE .x16 .x0 (-20 : BitVec 13)) a = some i
       → evm_returndatacopy_loop_code .x18 .x17 .x16 .x19 base a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr base
@@ -209,10 +248,10 @@ theorem evm_returndatacopy_loop_spec_within
   have ha_f : (base + 20 : Word) + 4 = base + 24 := by bv_omega
   induction n generalizing i scratchV with
   | zero =>
-    have hi_lt : i < srcBytes.length := by omega
-    have hbody := rdc_body_spec_within base memBase srcBase destOff i srcBytes memBytes
-      (BitVec.ofNat 64 1) scratchV hi_lt h_src_align h_mem_align h_win h_src_over
-      h_src_valid h_mem_over h_mem_valid
+    have hi_lt : i < size := by omega
+    have hbody := rdc_body_spec_within base memBase srcBase destOff srcOff size i srcAll
+      memBytes (BitVec.ofNat 64 1) scratchV hi_lt h_fits h_src_align h_mem_align h_win
+      h_src_over h_src_valid h_mem_over h_mem_valid
     rw [show (BitVec.ofNat 64 1) + signExtend12 (-1 : BitVec 12) = (0 : Word) from by
           have h := cc_word_succ_dec 0; rw [show (0 : Word) = BitVec.ofNat 64 0 from by decide];
           simpa using h] at hbody
@@ -225,31 +264,33 @@ theorem evm_returndatacopy_loop_spec_within
       obtain ⟨_, _, _, _, _, hQ⟩ := hQt
       exact ((sepConj_pure_right _).1 hQ).2 rfl)
     have hntf := cpsTripleWithin_frameR
-      (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'hi_lt).zeroExtend 64)) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (i + 1))) **
+      (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
        ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + (i + 1)))) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-       bytesRegion srcBase srcBytes) (by pcFreeR) hnt
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+       bytesRegion srcBase srcAll) (by pcFreeR) hnt
     simp only [sepConj_assoc'] at hbodyf hntf
     have s := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hbodyf hntf
-    -- i + 1 = srcBytes.length in this case.
-    rw [show i + 1 = srcBytes.length from by omega] at s
+    -- i + 1 = size in this case.
+    rw [show i + 1 = size from by omega] at s
     refine cpsTripleWithin_mono_nSteps (by omega)
       (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun sState hq => by
-        have hq2 : (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'hi_lt).zeroExtend 64)) **
+        have hq2 : (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
             ((.x16 : Reg) ↦ᵣ (0 : Word)) **
-            ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 srcBytes.length)) **
-            ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + srcBytes.length))) **
+            ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + size))) **
+            ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + size))) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff srcBytes.length) **
-            bytesRegion srcBase srcBytes) sState := by xperm_chunked hq
+            bytesRegion memBase
+              (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff size) **
+            bytesRegion srcBase srcAll) sState := by xperm_chunked hq
         have hq3 := sepConj_mono_left (regIs_implies_regOwn .x19) _ hq2
         xperm_chunked hq3) s)
   | succ m ih =>
-    have hi_lt : i < srcBytes.length := by omega
-    have hbody := rdc_body_spec_within base memBase srcBase destOff i srcBytes memBytes
-      (BitVec.ofNat 64 (m + 2)) scratchV hi_lt h_src_align h_mem_align h_win h_src_over
-      h_src_valid h_mem_over h_mem_valid
+    have hi_lt : i < size := by omega
+    have hbody := rdc_body_spec_within base memBase srcBase destOff srcOff size i srcAll
+      memBytes (BitVec.ofNat 64 (m + 2)) scratchV hi_lt h_fits h_src_align h_mem_align h_win
+      h_src_over h_src_valid h_mem_over h_mem_valid
     rw [show (BitVec.ofNat 64 (m + 2)) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 (m + 1) from
           cc_word_succ_dec (m + 1)] at hbody
     have hbodyf := cpsTripleWithin_frameR ((.x0 : Reg) ↦ᵣ (0 : Word)) (by pcFreeR) hbody
@@ -262,12 +303,13 @@ theorem evm_returndatacopy_loop_spec_within
       obtain ⟨_, _, _, _, _, hQ⟩ := hQf
       exact cc_word_succ_ne_zero m (by omega) ((sepConj_pure_right _).1 hQ).2)
     have htf := cpsTripleWithin_frameR
-      (((.x19 : Reg) ↦ᵣ ((srcBytes[i]'hi_lt).zeroExtend 64)) **
-       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (i + 1))) **
+      (((.x19 : Reg) ↦ᵣ ((srcAll[srcOff + i]'(by omega)).zeroExtend 64)) **
+       ((.x17 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + (i + 1)))) **
        ((.x18 : Reg) ↦ᵣ (memBase + BitVec.ofNat 64 (destOff + (i + 1)))) **
-       bytesRegion memBase (mcopyFwdContent memBytes srcBytes destOff (i + 1)) **
-       bytesRegion srcBase srcBytes) (by pcFreeR) ht
-    have hih := ih (i + 1) ((srcBytes[i]'hi_lt).zeroExtend 64) (by omega)
+       bytesRegion memBase
+         (mcopyFwdContent memBytes ((srcAll.drop srcOff).take size) destOff (i + 1)) **
+       bytesRegion srcBase srcAll) (by pcFreeR) ht
+    have hih := ih (i + 1) ((srcAll[srcOff + i]'(by omega)).zeroExtend 64) (by omega)
     simp only [sepConj_assoc'] at hbodyf htf
     have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hbodyf htf
     have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 hih
