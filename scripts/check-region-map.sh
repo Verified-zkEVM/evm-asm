@@ -13,11 +13,15 @@
 #       coalesced children sit at the RegionMap arena-relative offsets, the arena
 #       is fully inside .bss, and its extent == frameArrayBytes.
 #
-#   LINK-LAYOUT (hard fail, but fixed by regeneration): the .text/.data SIZES and
-#     the symbol->address TSV are link-dependent. When a guest change moves them,
-#     regenerate: `scripts/gen-symbol-addresses.py --build` and update
-#     RegionMap.textSizeBytes/dataSizeBytes to the reported sizes. This keeps the
-#     Lean map matching the ELF (the .6 contract) instead of quietly diverging.
+#   LINK-LAYOUT (hard fail, repaired by a manual convergent regen): the section
+#     sizes and symbol->address TSV are link-dependent. `gen-symbol-addresses.py`
+#     writes only the TSV; it does NOT update RegionMap or GuestImage. On drift:
+#       1. relink + regenerate the TSV; regenerate GuestAddrs and GuestImageEntries;
+#       2. copy the ELF's .text/.data/.bss sizes into RegionMap and its .bss end
+#          into GuestImage.lean's `guestScratch_sat` literals; then
+#       3. relink and repeat from step 1 until those values stop moving.
+#     See docs/regenerating-generated-files.md. This keeps the Lean map matching
+#     the ELF (the .6 contract) instead of quietly diverging.
 #
 # Skips gracefully (exit 0) when the RISC-V toolchain is absent, mirroring
 # scripts/check-asm-to-program.sh.
@@ -169,7 +173,7 @@ sys.exit(1 if bad else 0)
 PY
 
 # --- link-dependent sizes vs RegionMap constants ---
-echo "== link-layout (regenerate on drift: gen-symbol-addresses.py --build) =="
+echo "== link-layout (DRIFT REPAIR: relink + TSV/GuestAddrs/GuestImageEntries; pin RegionMap .text/.data/.bss and GuestImage .bss end from that ELF; repeat to fixpoint — docs/regenerating-generated-files.md) =="
 LEAN_TEXT=$(grep -oE 'def textSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_COMMITTED=$(grep -oE 'def committedStorageSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_DATA=$(grep -oE 'def dataSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')

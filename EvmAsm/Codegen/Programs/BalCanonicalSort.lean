@@ -210,7 +210,7 @@ def balCanonicalSortFunction : String :=
   ".Lbalsort_bad_segs:\n" ++
   "  li a0, 2; j .Lbalsort_ret\n" ++
   ".Lbalsort_segs_ok:\n" ++
-  "  li t0, " ++ toString accountWritesCapacity ++ "; bgtu a1, t0, .Lbalsort_over_capacity\n" ++
+  "  li t0, " ++ toString blockAccountWritesCapacity ++ "; bgtu a1, t0, .Lbalsort_over_capacity\n" ++
   "  mv s0, a0\n" ++                       -- s0 = base
   "  mv s1, a1\n" ++                       -- s1 = count
   "  mv s8, a2\n" ++                       -- s8 = stride

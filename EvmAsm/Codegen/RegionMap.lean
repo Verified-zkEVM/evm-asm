@@ -220,23 +220,29 @@ def schemeAAnchors : List GuestRegion :=
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x100000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 1 MiB = 16384x64 "
         ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" },
-    -- GH #10695 nonstorage half: ONE container pair covers balance, nonce AND code,
-    -- because the spec keeps one non-storage write dict per level
-    -- (account_writes: Dict[Address, Optional[Account]], state_tracker.py:70 block,
-    -- :97 transaction) and update_builder_from_tx derives all three BAL fields from
-    -- a single loop over it (block_access_lists.py:637-664).  Three containers would
-    -- mirror the issue's wording rather than the spec's structure.
-    { name := "account_writes_area",    base := 0xa24a0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2 MiB = 16384x128 "
-        ++ "(address++balance++nonce++present++codeHash, 112 B used of a 128 B stride); "
-        ++ "block level, filled only by account_writes_incorporate_tx" },
-    { name := "tx_account_writes_area", base := 0xa26a0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; per-tx account_writes, "
-        ++ "target of account_write_record (mirrors set_account, state_tracker.py:486)" },
-    -- Same rationale as the storage undo journal: take_snapshot copies the dict
-    -- (state_tracker.py:795), which is unaffordable at capacity x call depth, so the
-    -- bounded equivalent is a reverse-replayed journal.
-    { name := "account_writes_undo_area", base := 0xa28a0000, size := 0x200000, mode := .rw, zone := .ram,
+    -- #10695/#10699: the NONSTORAGE half of the same two levels -- BlockState
+    -- .account_writes (state_tracker.py:75) and TransactionState.account_writes
+    -- (:102).  Same shape as the storage trio above and for the same reasons, so the
+    -- entries mirror them rather than inventing a second convention.
+    --
+    -- NOTE THE ROW-COUNT ASYMMETRY, which is deliberate (#10719): the BLOCK map is
+    -- 20480 rows while the TX map is 16384.  The two levels are bounded by different
+    -- things -- the block map by the distinct-account bound across a whole block
+    -- (19047), the tx map by what one transaction can touch -- so sizing them
+    -- together would either waste 2.5 MiB or cap the block level too low.
+    { name := "account_writes_area",    base := 0xa24a0000, size := 0x280000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2.5 MiB = 20480x128 "
+        ++ "(addr++nonce++present++balance++codeHash, 128 B stride); block level, "
+        ++ "filled only by account_writes_incorporate_tx; 20480 covers the 19047 "
+        ++ "distinct block-account bound" },
+    { name := "tx_account_writes_area", base := 0xa2720000, size := 0x200000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
+        ++ "account_writes, target of account_write_record (mirrors the spec's "
+        ++ "nonstorage setters, state_tracker.py:102)" },
+    -- Same rationale as storage_writes_undo_area: the spec rolls a frame back by
+    -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
+    -- depth, so the bounded equivalent is a reverse-replayed journal.
+    { name := "account_writes_undo_area", base := 0xa2920000, size := 0x200000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
         ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
         ++ "reverse-replayed by account_writes_restore_frame" } ]
@@ -423,7 +429,7 @@ def schemeAAnchors : List GuestRegion :=
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x06469c
+def textSizeBytes : Nat := 0x064ae8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -450,7 +456,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b77b460
+def bssSizeBytes : Nat := 0x1b77b480
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
