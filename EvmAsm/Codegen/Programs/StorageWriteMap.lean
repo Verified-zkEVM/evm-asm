@@ -74,9 +74,20 @@
   exec-log arenas, so this slice cannot change any verdict. Wiring the
   comparators over is S3 (forward) and S4 (reverse).
 
-  `write_sets_restore_tx`, the third operation, is deliberately absent — see the
-  rollback note above; its representation is a named forcing-constraint decision
-  and lands with S5 rather than being guessed at here.
+  ## Rollback (r59nm S5a)
+
+  `write_sets_snapshot_frame` / `write_sets_restore_frame` stand in for
+  `take_snapshot` (`:800-806`) and `restore_tx_state` (`:809-826`) via an UNDO
+  JOURNAL rather than a dict copy.
+
+  **Forcing constraint:** no dynamic allocation, so the spec's per-frame copy of
+  a keyed map would cost capacity × call depth (16384 × 1024), four orders of
+  magnitude beyond what can be reserved. The journal is bounded by the number of
+  writes instead, and needs no overflow path of its own because the SSTORE
+  handler already exits on the 16385th exec-log append.
+
+  This is the *reasoned-to-be-the-same* form rather than the *looking-the-same*
+  form, which is why the constraint is named rather than assumed.
 -/
 
 import EvmAsm.Rv64.Program
@@ -111,9 +122,14 @@ def storageWritesCapacity : Nat := 16384
     to leave the verified `evm_sstore` Program untouched. -/
 def storageWriteRecordFunction : String :=
   "storage_write_record:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -96\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  -- r59nm S5a: no longer a leaf (it journals before mutating), so ra must
+  -- be saved; a3-a5 carry the helper args and are LIVE in the SSTORE
+  -- handler across this call, so they are saved too and the
+  -- clobbers-nothing-visible contract in the docstring still holds.
+  "  sd ra, 56(sp); sd a3, 64(sp); sd a4, 72(sp); sd a5, 80(sp)\n" ++
   "  la t0, tx_storage_writes_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t3, 0xa21a0000\n" ++                                     -- t3 = TX_STORAGE_WRITES_AREA
   "  li t4, 0\n" ++                                              -- t4 = i
@@ -130,12 +146,22 @@ def storageWriteRecordFunction : String :=
   "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lswr_next\n" ++
-  "  j .Lswr_store\n" ++                                         -- key hit: overwrite in place
+  -- Key hit.  Journal the SUPERSEDED value before overwriting it (r59nm S5a):
+  -- undo{entryIndex = t4, wasAbsent = 0, prevValue = entry[64..96]}.
+  "  mv a3, t4; li a4, 0; addi a5, t5, 64\n" ++
+  "  jal ra, storage_writes_undo_push\n" ++
+  "  j .Lswr_store\n" ++                                         -- then overwrite in place
   ".Lswr_next:\n" ++
   "  addi t4, t4, 1; j .Lswr_scan\n" ++
   ".Lswr_append:\n" ++
   "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lswr_overflow\n" ++
+  -- Journal the APPEND before making it: undo{entryIndex = t1, wasAbsent = 1}.
+  -- wasAbsent is a field rather than a zero sentinel because zero is a
+  -- legitimate stored value -- restoring an appended key by writing zero would
+  -- invent a written-zero slot where the spec has no key at all.
+  "  mv a3, t1; li a4, 1; li a5, 0\n" ++
+  "  jal ra, storage_writes_undo_push\n" ++
   "  slli t5, t1, 7; add t5, t3, t5\n" ++                        -- t5 = &entry[count]
   "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
   "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
@@ -158,7 +184,8 @@ def storageWriteRecordFunction : String :=
   ".Lswr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld ra, 56(sp); ld a3, 64(sp); ld a4, 72(sp); ld a5, 80(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret\n"
 
 /-! ## `write_sets_incorporate_tx`
@@ -198,6 +225,10 @@ def writeSetsIncorporateTxFunction : String :=
   -- state_tracker.py:879-881 -- clear the tx level after merging up.
   "  sd zero, 0(s0)\n" ++
   "  la s5, tx_storage_writes_overflow; sd zero, 0(s5)\n" ++
+  -- r59nm S5a: the undo records index into the tx map that was just
+  -- cleared, so they must go with it -- a stale record would restore a
+  -- value into a slot the next transaction has reused.
+  "  la s5, storage_writes_undo_count; sd zero, 0(s5)\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
   "  addi sp, sp, 80\n" ++
@@ -259,6 +290,106 @@ def storageWritesBlockUpsertFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `storage_writes_undo_push`
+
+    Append one undo record. Called by `storage_write_record` BEFORE it mutates,
+    which is what makes the journal a faithful stand-in for `take_snapshot`'s
+    dict copy (`state_tracker.py:800-806`).
+
+      a3 = entryIndex, a4 = wasAbsent (0/1), a5 = prevValue ptr (32 B; ignored
+      when a4 = 1)
+
+    Preserves `t0`-`t6` so the caller's scan state survives the call.
+
+    No overflow path, and that is a derived fact rather than an omission: the
+    SSTORE handler exits on the 16385th exec-log append, so a transaction cannot
+    perform more writes than this arena holds. -/
+def storageWritesUndoPushFunction : String :=
+  "storage_writes_undo_push:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
+  "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable: see the docstring
+  "  li t3, 0xa23a0000\n" ++                 -- STORAGE_WRITES_UNDO_AREA
+  "  slli t4, t1, 6; add t4, t3, t4\n" ++    -- 64 B stride
+  "  sd a3, 0(t4)\n" ++
+  "  sd a4, 8(t4)\n" ++
+  "  bnez a4, .Lswup_bump\n" ++              -- appended key: prevValue unused
+  "  ld t5, 0(a5);  sd t5, 32(t4)\n" ++
+  "  ld t5, 8(a5);  sd t5, 40(t4)\n" ++
+  "  ld t5, 16(a5); sd t5, 48(t4)\n" ++
+  "  ld t5, 24(a5); sd t5, 56(t4)\n" ++
+  ".Lswup_bump:\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lswup_done:\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
+/-! ## `write_sets_restore_frame`
+
+    The pair that stands in for `take_snapshot` (`state_tracker.py:800-806`) and
+    `restore_tx_state` (`:809-826`).
+
+    The frame's mark is the journal cursor at descend. It is captured INLINE in
+    `call_frame_descend`, into a per-depth slot, rather than through a named
+    helper — mirroring `create_nonce_undo_checkpoint`, which is the same
+    mechanism for the CREATE nonce journal and does it the same way. Taking a
+    mark copies nothing, which is the whole point of the journal.
+
+    `write_sets_restore_frame` takes that mark in `a0` and replays the journal
+    backwards down to it: an overwrite has its previous value written back, an
+    append is unwound by decrementing the map count. Then the cursor is reset to
+    the mark.
+
+    **Reverse order is load-bearing**, not stylistic. A slot written twice in one
+    frame has two undo records, and only the *earlier* one holds the value the
+    frame started with; replaying forwards would leave the intermediate value.
+    And appends are only safely unwound from the end, which reverse order
+    guarantees because frames nest LIFO.
+
+    **A successful frame does NOT discard its segment.** Its entries stay above
+    the parent's mark so that a later parent revert still undoes them — the same
+    merge-on-success discipline `frame_return` already applies to the exec-log
+    cursors. Success is simply the absence of a restore call. -/
+def writeSetsRestoreFrameFunction : String :=
+  "write_sets_restore_frame:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++   -- t1 = cursor
+  "  li t3, 0xa23a0000\n" ++                                -- undo area
+  "  li t6, 0xa21a0000\n" ++                                -- tx map area
+  ".Lswrf_loop:\n" ++
+  "  bleu t1, a0, .Lswrf_done\n" ++                         -- cursor <= mark -> finished
+  "  addi t1, t1, -1\n" ++
+  "  slli t4, t1, 6; add t4, t3, t4\n" ++                   -- &undo[cursor]
+  "  ld t2, 8(t4)\n" ++                                     -- wasAbsent
+  "  bnez t2, .Lswrf_unappend\n" ++
+  -- Overwrite: restore prevValue into entry[index].value (+64).
+  "  ld t2, 0(t4); slli t5, t2, 7; add t5, t6, t5\n" ++
+  "  ld t2, 32(t4); sd t2, 64(t5)\n" ++
+  "  ld t2, 40(t4); sd t2, 72(t5)\n" ++
+  "  ld t2, 48(t4); sd t2, 80(t5)\n" ++
+  "  ld t2, 56(t4); sd t2, 88(t5)\n" ++
+  "  j .Lswrf_loop\n" ++
+  ".Lswrf_unappend:\n" ++
+  -- Append: the key did not exist before this write, so remove it.  Reverse
+  -- replay guarantees it is the LAST entry, so dropping the count is exact.
+  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
+  "  beqz t5, .Lswrf_loop\n" ++
+  "  addi t5, t5, -1; sd t5, 0(t2)\n" ++
+  "  j .Lswrf_loop\n" ++
+  ".Lswrf_done:\n" ++
+  "  la t0, storage_writes_undo_count; sd a0, 0(t0)\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
 /-! ## `write_sets_discard_tx`
 
     The transaction-level map is dropped WITHOUT being promoted.
@@ -290,6 +421,7 @@ def writeSetsDiscardTxFunction : String :=
   "write_sets_discard_tx:\n" ++
   "  la t0, tx_storage_writes_count; sd zero, 0(t0)\n" ++
   "  la t0, tx_storage_writes_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, storage_writes_undo_count; sd zero, 0(t0)\n" ++
   "  ret\n"
 
 /-- Data symbols for the two `storage_writes` levels.
@@ -305,6 +437,12 @@ def storageWriteMapDataSection : String :=
   "storage_writes_count:\n  .zero 8\n" ++
   "storage_writes_overflow:\n  .zero 8\n" ++
   "tx_storage_writes_count:\n  .zero 8\n" ++
-  "tx_storage_writes_overflow:\n  .zero 8\n"
+  "tx_storage_writes_overflow:\n  .zero 8\n" ++
+  "storage_writes_undo_count:\n  .zero 8\n" ++
+  -- Per-depth journal high-water mark, exactly mirroring
+  -- `create_nonce_undo_checkpoint` (CreateCreatorNonce.lean): one 8-byte
+  -- slot per call depth, written at descend and replayed to on child
+  -- failure.  1025 slots for depths 0..1024.
+  "storage_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
 
 end EvmAsm.Codegen
