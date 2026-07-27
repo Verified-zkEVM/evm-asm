@@ -259,6 +259,39 @@ def storageWritesBlockUpsertFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `write_sets_discard_tx`
+
+    The transaction-level map is dropped WITHOUT being promoted.
+
+    The spec gets this for free: every transaction runs against a **fresh**
+    `TransactionState` (`fork.py:1043`), so a transaction whose writes are never
+    incorporated simply has them discarded when the object goes away. The guest
+    reuses one arena across transactions, so the drop has to be a named
+    operation — the same reason `read_sets_discard_tx` exists on the read side
+    for `fork.py:745-752`'s throwaway state.
+
+    **Why this is required rather than tidy.** `write_sets_incorporate_tx` is
+    called from `account_state_commit_pending`, which the multi-tx loop
+    **skips** on transaction failure (`BlockVerdictMtxRuntime`: a zero receipt
+    status with no applied auth phase jumps straight to
+    `.Lbv_mtx_code_commit_done`). Without this call the failed transaction's
+    writes would still be sitting in the tx-level map when the next transaction
+    starts, and would be promoted to the block level by *its* incorporate — a
+    failed transaction's writes surviving into the block, which is precisely the
+    lifetime error this bead exists to remove.
+
+    Note the asymmetry with the read side, which is the whole point of the two
+    containers: the reads of a failed transaction are **kept** (they are already
+    promoted, and the spec's read sets survive rollback), while its writes are
+    **dropped**. Same event, opposite treatment.
+
+    No arguments; no result register. -/
+def writeSetsDiscardTxFunction : String :=
+  "write_sets_discard_tx:\n" ++
+  "  la t0, tx_storage_writes_count; sd zero, 0(t0)\n" ++
+  "  la t0, tx_storage_writes_overflow; sd zero, 0(t0)\n" ++
+  "  ret\n"
+
 /-- Data symbols for the two `storage_writes` levels.
 
     The entries live in `STORAGE_WRITES_AREA` / `TX_STORAGE_WRITES_AREA` (NOBITS
