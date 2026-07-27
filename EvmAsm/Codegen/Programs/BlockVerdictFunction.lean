@@ -280,8 +280,6 @@ def blockVerdictFunction : String :=
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++
   blockVerdictMtxRuntimeLoop ++
-  ".Lbv_singletx:\n" ++
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
