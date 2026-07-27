@@ -326,12 +326,31 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxPrecompileSettlement ++
   blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
-  -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
-  -- 0 for system, i+1 for the i-th user tx; fork.py:1030) so the SSTORE handler tags every
-  -- exec-log entry it appends during this dispatch with the right per-tx index. Without this
-  -- the loop leaves current_block_access_index at its single-tx default 1, and the per-tx
-  -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
-  -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
+  -- GH #10695: NO block_access_index STAMP HAPPENS ON THIS PATH.  An earlier version of this
+  -- comment said one did -- "stamp this user tx's block_access_index = i+1 (EIP-7928: 0 for
+  -- system, i+1 for the i-th user tx; fork.py:1030) so the SSTORE handler tags every exec-log
+  -- entry it appends during this dispatch with the right per-tx index" -- and the next emitted
+  -- line stamps `dtrc_use_pre_header`, an unrelated flag.  Corrected here rather than fixed:
+  -- adding the store changes what a live rejecting consumer sees, so it is gated behind a
+  -- paired sweep (#10695), not folded into a comment repair.
+  --
+  -- What the emitted guest actually does.  `current_block_access_index` has exactly TWO store
+  -- sites program-wide: the EOA-recipient path (.Lbv_mtx_recipient_lookup_resolved) and the
+  -- creation path (.Lbv_mtx_creation_access_done).  The four recipient-code-hash `bne`s above
+  -- jump PAST the EOA one straight to this label, so a contract recipient -- the only tx class
+  -- that can execute SSTORE at all -- reaches `dispatch_tx_runtime_code` with the index still
+  -- holding its static default 1, or whatever the last EOA/creation tx left behind.  The SSTORE
+  -- handler stamps `exec_log_txindex[row]` from it (.Lsstore_append_entry), so those rows carry
+  -- a value the transaction never wrote.  Measured: 398/400 rows disagreeing with i+1.
+  --
+  -- The same old comment also called the consumers "still-unwired".  They are not:
+  -- `exec_log_txindex` is the a4 base of `bal_all_accounts_tuple_sequences_consistent_skip_list`
+  -- at both the mtx and single-tx call sites, and a nonzero return from either rejects the block.
+  -- Nothing objects today only because that comparator's per-change loop iterates zero times
+  -- (#10681) -- i.e. IT CANNOT BE MADE NON-VACUOUS UNTIL THIS STAMP EXISTS, because the first
+  -- thing a working comparator does is read a transaction index no contract tx ever wrote.
+  -- scripts/check-block-access-index-stamped.sh asserts the invariant and currently FAILS here
+  -- by design; it is wired into CI together with the fix, not before it.
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
