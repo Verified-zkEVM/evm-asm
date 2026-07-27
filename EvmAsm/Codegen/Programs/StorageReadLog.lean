@@ -125,6 +125,70 @@ def storageReadRecordFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `account_state_promote_delete_reads`
+
+    Successful transaction finalization promotes storage rows touched by an
+    EIP-6780 deletion into the transaction `storage_reads` set.  The delete
+    address set is the execution-side source of truth; the regular storage log
+    is walked by address and every matching slot is inserted through
+    `storage_read_record`, whose set scan supplies the required deduplication.
+
+    The normal nested-callee key is the byte-reversed stack-word form.  A
+    constructor that self-destructs is the depth-0/top-frame exception and can
+    leave the address in canonical big-endian form, so both forms are checked.
+    This routine is called before `read_sets_incorporate_tx`, while the
+    transaction read set is still live.  Its caller is the successful
+    `account_state_commit_pending` boundary; reverted transactions never reach
+    it and therefore cannot contribute reads.
+-/
+def accountStatePromoteDeleteReadsFunction : String :=
+  "account_state_promote_delete_reads:\n" ++
+  "  addi sp, sp, -224; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, 8192; bgtu s0, t0, .Laspdr_over\n" ++
+  "  la t0, evm_env; ld s2, 448(t0); li t0, 16384; bgtu s2, t0, .Laspdr_over\n" ++
+  "  li s1, 0\n" ++
+  ".Laspdr_delete:\n" ++
+  "  bgeu s1, s0, .Laspdr_done\n" ++
+  "  slli t0, s1, 5; la t1, account_state_delete; add s4, t1, t0; ld t0, 24(s4); beqz t0, .Laspdr_next_delete\n" ++
+  -- Reverse (nested-callee) key at sp+96; bal_addr_to_exec_log_key zeroes padding.
+  "  mv a0, s4; addi a1, sp, 96; jal ra, bal_addr_to_exec_log_key\n" ++
+  -- Canonical BE key at sp+128 for the top-frame constructor exception.
+  "  addi s5, sp, 128; sd zero, 0(s5); sd zero, 8(s5); sd zero, 16(s5); sd zero, 24(s5); li t0, 0\n" ++
+  ".Laspdr_be_copy:\n" ++
+  "  li t1, 20; beq t0, t1, .Laspdr_scan_reverse; add t1, s4, t0; lbu t2, 0(t1); add t1, s5, t0; sb t2, 0(t1); addi t0, t0, 1; j .Laspdr_be_copy\n" ++
+  -- Scan the persistent execution storage log for the reverse key.
+  ".Laspdr_scan_reverse:\n" ++
+  "  addi s6, sp, 96; li s3, 0\n" ++
+  ".Laspdr_rev_loop:\n" ++
+  "  bgeu s3, s2, .Laspdr_scan_be\n" ++
+  "  slli t0, s3, 7; li t1, 0xa0630000; add s7, t1, t0\n" ++
+  "  ld t1, 0(s7); ld t2, 0(s6); bne t1, t2, .Laspdr_rev_next\n" ++
+  "  ld t1, 8(s7); ld t2, 8(s6); bne t1, t2, .Laspdr_rev_next\n" ++
+  "  ld t1, 16(s7); ld t2, 16(s6); bne t1, t2, .Laspdr_rev_next\n" ++
+  "  ld t1, 24(s7); ld t2, 24(s6); bne t1, t2, .Laspdr_rev_next\n" ++
+  "  mv a0, s6; addi a1, s7, 32; jal ra, storage_read_record\n" ++
+  ".Laspdr_rev_next:\n" ++
+  "  addi s3, s3, 1; j .Laspdr_rev_loop\n" ++
+  -- Scan the same log for the canonical BE key (top-frame constructor path).
+  ".Laspdr_scan_be:\n" ++
+  "  mv s6, s5; li s3, 0\n" ++
+  ".Laspdr_be_loop:\n" ++
+  "  bgeu s3, s2, .Laspdr_next_delete\n" ++
+  "  slli t0, s3, 7; li t1, 0xa0630000; add s7, t1, t0\n" ++
+  "  ld t1, 0(s7); ld t2, 0(s6); bne t1, t2, .Laspdr_be_next\n" ++
+  "  ld t1, 8(s7); ld t2, 8(s6); bne t1, t2, .Laspdr_be_next\n" ++
+  "  ld t1, 16(s7); ld t2, 16(s6); bne t1, t2, .Laspdr_be_next\n" ++
+  "  ld t1, 24(s7); ld t2, 24(s6); bne t1, t2, .Laspdr_be_next\n" ++
+  "  mv a0, s6; addi a1, s7, 32; jal ra, storage_read_record\n" ++
+  ".Laspdr_be_next:\n" ++
+  "  addi s3, s3, 1; j .Laspdr_be_loop\n" ++
+  ".Laspdr_next_delete:\n" ++
+  "  addi s1, s1, 1; j .Laspdr_delete\n" ++
+  ".Laspdr_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 224; ret\n" ++
+  ".Laspdr_over:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Laspdr_done\n"
+
 /-- Data symbols for the `storage_reads` container.
 
     The entries themselves live in `STORAGE_READS_AREA` (a NOBITS RAM slab, so

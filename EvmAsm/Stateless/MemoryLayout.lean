@@ -102,6 +102,7 @@
   | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 1 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -313,6 +314,43 @@ def TX_CODE_READS_AREA      : Word := 0xa1f20000
 def STORAGE_WRITES_AREA     : Word := 0xa1fa0000
 /-- Per-transaction `storage_writes` — the target of `storage_write_record`. -/
 def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
+
+/-! ### The write-map UNDO JOURNAL (r59nm S5a)
+
+    The spec rolls a frame back by *copying* the write dict on the way in
+    (`take_snapshot`, `state_tracker.py:800-806`, `dict(tx_state.storage_writes)`)
+    and rebinding the copy on failure (`restore_tx_state`, `:809-826`).
+
+    **Forcing constraint:** no dynamic allocation, so a per-frame copy of a
+    fixed-capacity keyed map would cost capacity × call depth — 16384 × 1024
+    entries, four orders of magnitude beyond what can be reserved. The undo
+    journal is the bounded equivalent: same before-and-after states, same
+    lifetime, but sized by the number of writes rather than by the map.
+
+    It needs no overflow path of its own. The SSTORE handler hard-caps the
+    persistent exec log at 16384 rows and exits on the 16385th
+    (`Storage.lean`: `li x14, 16384; bgeu x15, x14, .exit_outofgas`), so a
+    transaction physically cannot perform more writes than the journal can
+    hold — it inherits an already-enforced bound.
+
+    Entry layout (64 B stride, exact fit, all fields 8-aligned):
+
+        +0  entryIndex (8 B)   index into the tx-level map this write touched
+        +8  wasAbsent  (8 B)   1 if the write APPENDED a new key, else 0
+        +32 prevValue  (32 B)  the value before the write (unused if wasAbsent)
+
+    `wasAbsent` is a distinct field rather than a sentinel because **zero is a
+    legitimate stored value**: restoring an appended key by writing zero would
+    silently invent a written-zero slot where the spec has no key at all.
+
+    Nesting is LIFO, so reverse replay is exact: a child frame's entries sit
+    above its parent's mark, appended keys are unwound from the end, and a
+    successful child's entries are RETAINED so a later parent revert still
+    undoes them — mirroring `frame_return`'s merge-on-success cursor
+    discipline. -/
+
+/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 64 B = 1 MiB. -/
+def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
