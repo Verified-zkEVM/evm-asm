@@ -37,6 +37,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -64,14 +65,14 @@ def sstoreRegularGasFunction : String :=
   "  li t0, 3000\n" ++                              -- COLD_STORAGE_ACCESS
   "  j .Lsrg_cold_done\n" ++
   ".Lsrg_warm_access:\n" ++
-  "  li t0, 100\n" ++                               -- WARM_ACCESS
+  s!"  li t0, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++                     -- WARM_ACCESS
 
   ".Lsrg_cold_done:\n" ++
   -- clean-changing = original_eq_current && !current_eq_new
   "  beqz s3, .Lsrg_warm\n" ++                      -- original != current -> warm-access branch
   "  bnez a0, .Lsrg_warm\n" ++                      -- current == new (no change) -> warm-access branch
 
-  "  li t1, 10000; add t0, t0, t1\n" ++             -- STORAGE_WRITE
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}; add t0, t0, t1\n" ++
 
   "  j .Lsrg_done\n" ++
   ".Lsrg_warm:\n" ++

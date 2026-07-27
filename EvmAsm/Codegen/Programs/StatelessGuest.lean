@@ -105,6 +105,7 @@ def statelessGuestUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    ".section .data\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -115,9 +116,11 @@ def statelessGuestUnit : BuildUnit := {
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
     builderContractAddrData ++
+    ".section .bss, \"aw\", @nobits\n" ++
     deriveBlockSystemRequestsData ++ "\n" ++
     -- 8uld3.2.3.2 (B): deposit-derivation data (DEPOSIT_CONTRACT_ADDRESS, deposit event sig,
     -- pdr_out body buffer, pdr_status). None present in the guest/dispatcher data.
+    ".section .data\n" ++
     ".balign 8\n" ++
     "pdr_deposit_addr:\n" ++
     "  .byte 0x00, 0x00, 0x00, 0x00, 0x21, 0x9a, 0xb5, 0x40\n" ++
@@ -129,6 +132,7 @@ def statelessGuestUnit : BuildUnit := {
     "  .byte 0xaf, 0xea, 0x4e, 0x5c, 0xd8, 0x2d, 0x40, 0x49\n" ++
     "  .byte 0xe7, 0xe1, 0xee, 0x91, 0x2f, 0xc0, 0x88, 0x9a\n" ++
     "  .byte 0xa7, 0x90, 0x80, 0x3b, 0xe3, 0x90, 0x38, 0xc5\n" ++
+    ".section .bss, \"aw\", @nobits\n" ++
     ".balign 8\n" ++
     "pdr_out:\n  .zero 2048\n" ++
     "pdr_status:\n  .zero 8\n" ++

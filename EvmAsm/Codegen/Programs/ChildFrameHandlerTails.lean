@@ -14,6 +14,7 @@ import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
+import EvmAsm.Stateless.SpecRef.Gas
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
@@ -53,7 +54,7 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
-  "  ld t0, 568(x20)\n  li t1, 100\n  bltu t0, t1, .exit_outofgas\n" ++
+  s!"  ld t0, 568(x20)\n  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
@@ -178,11 +179,11 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     -- Caller nonce: header value, overlaid by an earlier same-tx effect.
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_caller_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
-    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  jal ra, account_at_header_state_root_tracked; mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_caller_nonce; la t0, nse_acct; sd zero, 0(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_caller_nonce:\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, nse_acct; jal ra, nonstorage_effect_latest_nonce\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, nse_acct; jal ra, account_state_latest_nonce\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  la t0, nse_acct; ld a3, 0(t0); mv a4, a3\n" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; la a1, cd_balance_be; la a2, cd_caller_newbal; jal ra, record_nonstorage_effect\n" ++
@@ -190,12 +191,12 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     -- Callee credit: use its header state (or zero) plus any earlier same-tx credit.
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20); ld a1, 584(x20); la a2, nse_callee_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, nse_acct\n" ++
-    "  jal ra, account_at_header_state_root; mv t0, a0\n" ++
+    "  jal ra, account_at_header_state_root_tracked; mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_callee_pre; la t0, nse_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_callee_pre:\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; jal ra, nonstorage_effect_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; jal ra, nonstorage_effect_latest_nonce; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; jal ra, account_state_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; jal ra, account_state_latest_nonce; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, nse_acct; addi a0, a0, 8; la a1, cd_value_be; la a2, nse_post_bal; jal ra, u256_add_be; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16\n" ++
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la t0, nse_acct; ld a3, 0(t0); mv a4, a3; la a0, nse_callee_be; addi a1, t0, 8; la a2, nse_post_bal; jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
@@ -965,7 +966,7 @@ def basicPrecompileCallTail
     "  li x16, 160\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm tag 160 12000 519 "bls12_g1_msm_discount_table" ++
+    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 160 12000 519 "bls12_g1_msm_discount_table" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1125,7 +1126,7 @@ def basicPrecompileCallTail
     "  li x16, 288\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm tag 288 22500 524 "bls12_g2_msm_discount_table" ++
+    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 288 22500 524 "bls12_g2_msm_discount_table" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++

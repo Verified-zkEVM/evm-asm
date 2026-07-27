@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BalCodePreimagesAux
 import EvmAsm.Codegen.Programs.BalCodePreimagesCreateCollision
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -1071,8 +1072,14 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s0; mv a1, s9\n" ++
   "  jal ra, bbcv_addr_eq20\n" ++
   "  beqz a0, .Lbsbd_next\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_source_final\n" ++
+  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_source_selected\n" ++
+  ".Lbsbd_source_final:\n" ++
   "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
+  ".Lbsbd_source_selected:\n" ++
   "  bnez a0, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
   -- The last BAL code change is the tx-state code seen by execution-specs.
@@ -1120,7 +1127,7 @@ def balCodePreimagesValidFunction : String :=
   -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
   "  li t2, 1; bne s10, t2, .Lbsbd_skip_charge\n" ++
   "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
-  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
+  s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -1195,7 +1202,12 @@ def balCodePreimagesValidFunction : String :=
   "  jal ra, bal_find_account_by_address\n" ++
   "  bnez a0, .Lbsbd_target_create_effect\n" ++        -- target absent from final BAL: try same-tx CREATE code
   "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_target_final\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_target_selected\n" ++
+  ".Lbsbd_target_final:\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
+  ".Lbsbd_target_selected:\n" ++
   "  bnez a0, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
@@ -1215,25 +1227,21 @@ def balCodePreimagesValidFunction : String :=
   ".Lbsbd_active_create_empty:\n" ++
   "  li a0, 2\n" ++
   "  j .Lbsbd_ret\n" ++
-  -- A delegation target may have been CREATEd earlier in this transaction and
-  -- SELFDESTRUCTed before the delegated CALL.  EIP-6780 deletes that account at
-  -- transaction finalization; it does not erase its code during message
-  -- execution.  Its final BAL row therefore has empty/deleted code, while the
-  -- CREATE code-effect log still contains the code that get_code observes.
-  -- Resolve that exact same-tx code here instead of treating the delegated CALL
-  -- as an empty-code success.  Storage context remains the delegating authority:
-  -- only cahsr_code_* is redirected to the target's code bytes.
+  -- A delegation target created earlier in this transaction remains executable
+  -- until transaction finalization.  Resolve it through the same layered
+  -- CodeState used by CALL and EXTCODE*, not through comparison evidence.
   ".Lbsbd_target_create_effect:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); addi a2, s9, 3\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
+  "  addi a0, s9, 3\n" ++
+  "  jal ra, code_state_lookup_current\n" ++
+  "  mv t3, a1; mv t1, a2\n" ++
   -- The delegation marker was found and its target access was already charged.
   -- If no committed CREATE effect exists, the target has empty code (for
   -- example because its CREATE frame reverted); do not report a generic miss,
   -- which makes the caller fall back to and charge the stale pre-state marker.
-  "  beqz a0, .Lbsbd_active_create_empty\n" ++
-  "  ld t1, 40(a0); la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
-  "  addi t1, a0, 48; ld t2, 112(sp); sub t1, t1, t2\n" ++
-  "  la t2, cahsr_code_offset; sd t1, 0(t2)\n" ++
+  "  li t0, 1; bne a0, t0, .Lbsbd_active_create_empty\n" ++
+  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
+  "  ld t2, 112(sp); sub t3, t3, t2\n" ++
+  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
@@ -1342,7 +1350,8 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 104\n" ++
   "  ret\n" ++
   "\n" ++
-  balCodePreimagesCreateCollisionFunctions ++
+  balCodePreimagesCreateCollisionFunctions ++ "\n" ++
+  balAccountCodeAtOrBeforeFunction ++ "\n" ++
   balCodePreimagesAuxFunctions
 
 end EvmAsm.Codegen

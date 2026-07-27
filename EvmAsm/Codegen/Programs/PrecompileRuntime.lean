@@ -492,11 +492,11 @@ def precompileSuccess64FromFrameAsm
     x17) WITHOUT charging — for entries on the EIP-150 child-allotment
     gas model (`bn254ChargeGateAsm` consumes x16 next). Mirrors
     `chargeBls12G1MsmGasAsm`'s math, but the multiplication overflow
-    guards route to the tag's allotment-burn failure stub instead of
-    `.exit_outofgas` (a precompile failure burns the child allotment,
-    not the whole transaction). Clobbers x16/x17/x22/x23; the input
-    byte length is read from x18. -/
-def bls12MsmCostAsm (tag : String)
+    guards route to `failureLabel` rather than `.exit_outofgas`.
+
+    ABI: input byte length is x18; discounted cost is returned in x16;
+    x17/x22/x23 are clobbered. -/
+def bls12MsmCostAsm (failureLabel : String)
     (pairBytes basePerPair maxDiscount : Nat) (tableLabel : String) : String :=
   "  li x22, " ++ toString pairBytes ++ "\n" ++
   "  divu x17, x18, x22\n" ++
@@ -504,7 +504,7 @@ def bls12MsmCostAsm (tag : String)
   "  mul x16, x17, x16\n" ++
   "  li x22, " ++ toString basePerPair ++ "\n" ++
   "  divu x23, x16, x22\n" ++
-  "  bne x23, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  bne x23, x17, " ++ failureLabel ++ "\n" ++
   "  li x22, 128\n" ++
   "  bltu x22, x17, 44f\n" ++
   "  addi x23, x17, -1\n" ++
@@ -520,7 +520,7 @@ def bls12MsmCostAsm (tag : String)
   "  divu x22, x16, x23\n" ++
   "  li x23, " ++ toString basePerPair ++ "\n" ++
   "  mul x23, x17, x23\n" ++
-  "  bne x22, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  bne x22, x23, " ++ failureLabel ++ "\n" ++
   "  li x23, 1000\n" ++
   "  divu x16, x16, x23\n"
 

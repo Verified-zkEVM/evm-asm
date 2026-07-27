@@ -32,7 +32,9 @@
 
      0      addi sp, sp, -64
      1–8    sd ra/s0/s1/s2/s3/s4/s5/s6, 0/8/…/56(sp)
-     9–14   mv s0,a0 ; mv s1,a3 ; mv s2,a4 ; mv s6,a1 ; mv a0,a1 ; mv a1,a2
+     9–14   mv s0,a0 ; mv s1,a3 ; mv s2,a4 ; mv s5,a5 ; mv a0,a1 ; mv a1,a2
+            (s5 = the ENTRY STRIDE argument, a5 — parked in a callee-saved
+             register because the rlp_walk_* calls clobber a5; GH #10619)
     15      jal rlp_walk_init            (AccountChanges outer list)
     16      bnez a2 → 100
     17      mv s6, a1                    (account end)
@@ -55,9 +57,9 @@
     56–60   lbu x15,(x28) ; sb x15,(x29) ; x28-- ; x29++ ; x30--
     61      j 55
     62–63   mv t2,s2 ; beqz t2 → 100     (empty log but a read claimed)
-    64–65   slli x28,t2,7 ; add x28,s1,x28   (past-last log entry)
+    64–65   mul x28,t2,s5 ; add x28,s1,x28   (past-last log entry)
     66–67   la x31, bsr_krev
-    68      addi x28, x28, -128          (SCAN LOOP HEAD: step to prev entry)
+    68      sub x28, x28, s5             (SCAN LOOP HEAD: step to prev entry)
     69–92   8 × (ld/ld/bne → 94)         (addr 4 dwords, then key 4 dwords)
     93      j 97                         (all 8 matched → advance)
     94–95   mv x29,s1 ; bne x28,x29 → 68 (not at first entry → keep scanning)
@@ -121,7 +123,12 @@ theorem bsre_prog_eq_abiFrame :
 #guard 4 * 61 - 24 = 4 * 55
 -- Scan loop: entry-step, compare-cascade join, pointer-test back-edge,
 -- absent-exit, advance back-edge.
-#guard bsreProg[68]? = some (.ADDI .x28 .x28 (-128 : BitVec 12))
+-- The cursor step subtracts the STRIDE REGISTER (`x21`, loaded from the `a5`
+-- argument), not a baked-in 128, so a caller cannot re-point the scan at another
+-- log without also supplying that log's entry width (GH #10619).
+#guard bsreProg[68]? = some (.SUB .x28 .x28 .x21)
+#guard bsreProg[64]? = some (.MUL .x28 .x7 .x21)   -- count × stride = past-last-entry
+#guard bsreProg[12]? = some (.MV .x21 .x15)        -- a5 → s5, parked across the calls
 #guard bsreProg[93]? = some (.JAL .x0 (16 : BitVec 21))   -- 8/8 matched → advance
 #guard 4 * 93 + 16 = 4 * 97
 #guard bsreProg[95]? = some (.BNE .x28 .x29 (-108 : BitVec 13))  -- scan back-edge

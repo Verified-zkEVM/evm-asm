@@ -60,15 +60,17 @@ for line in sys.stdin:
 " "$1"
 }
 read TEXT_BASE TEXT_SIZE <<<"$(sec .text)"
+read COMMITTED_BASE COMMITTED_SIZE <<<"$(sec .committed_storage)"
 read DATA_BASE DATA_SIZE <<<"$(sec .data)"
 read BSS_BASE  BSS_SIZE  <<<"$(sec .bss)"
 read SSZ_BASE  SSZ_SIZE  <<<"$(sec .sszscratch)"
 
 echo "== structural (must never drift) =="
 check ".text base"       "0000000080000000" "$TEXT_BASE"
+check ".committed_storage base" "00000000a2000000" "$COMMITTED_BASE"
 check ".data base"       "00000000a3000000" "$DATA_BASE"
 check ".bss base"        "00000000a4000000" "$BSS_BASE"
-check ".sszscratch base" "00000000bf600000" "$SSZ_BASE"
+check ".sszscratch base" "00000000bf980000" "$SSZ_BASE"
 
 # emitted-reality anchors the section table omits (guest stack top + ZisK MTVEC).
 # These live in the emitted .s (absolute `li` constants), not the ELF symtab.
@@ -91,9 +93,9 @@ BSS_END=$(python3 -c "print('%x' % (0x$BSS_BASE + 0x$BSS_SIZE))")
 python3 - "$DATA_END" "$BSS_END" <<'PY' || fail=1
 import sys
 data_end, bss_end = [int(x, 16) for x in sys.argv[1:]]
-ok = data_end <= 0xa4000000 and bss_end < 0xbf600000 and bss_end < 0xc0000000
+ok = data_end <= 0xa4000000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
 print(f"  {'OK  ' if ok else 'DRIFT'} .data end 0x{data_end:x} <= .bss base 0xa4000000")
-print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf600000 and < RAM ceiling 0xc0000000")
+print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf980000 and < RAM ceiling 0xc0000000")
 sys.exit(0 if ok else 1)
 PY
 
@@ -103,9 +105,10 @@ symaddr() { "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n {print $2; exit}'; }
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
   "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
   "$(symaddr baap_storage_values)" \
-  "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" <<'PY' || fail=1
+  "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" \
+  "$(symaddr evm_memory)" <<'PY' || fail=1
 import sys
-(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend) = [int(x,16) for x in sys.argv[1:]]
+(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend, emem) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
 syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
@@ -139,15 +142,40 @@ bad |= (not sys_ok)
 pool_ok = pool == cfa + frameArrayBytes and pend - pool == 0x6000000 and pend <= bbase + bsize
 print(f"  {'OK  ' if pool_ok else 'DRIFT'} evm_memory_pool adjacent, 96 MiB, and within .bss")
 bad |= (not pool_ok)
+# GH #10557: SECOND LINE OF DEFENCE for the memory-clamp fill loops. An overshoot
+# past a dense arena's top end corrupts whatever is mapped above it -- and
+# rb_running_block_bloom sits at exactly evm_memory_pool_end with zero slack, so
+# on that boundary an off-by-N reaches verdict state (see the layout invariant at
+# the pool's emission site in Programs/BlockVerdictDataSectionTail.lean).
+#
+# The mitigation that costs nothing is that ONE of the two arenas ends exactly at
+# __BSS_END__, whose neighbour is ~7.2 MiB of UNMAPPED address space: nothing
+# there can be corrupted into a committed value. Today that is evm_memory
+# (evm_memory + 0x400000 == __BSS_END__ exactly). This is a COINCIDENCE between an
+# arena size and a section layout, not a construction, so it is pinned here --
+# appending any new .bss section would otherwise silently push both arenas away
+# from the boundary and remove the backstop with no other signal.
+#
+# Deliberately written as "whichever arena is last", not "evm_memory is last", so
+# it survives the #10557 reorder that would put evm_memory_pool at the top
+# instead. It fails only if NEITHER arena ends at __BSS_END__.
+bss_end = bbase + bsize
+backstop_ok = bss_end in (emem + 0x400000, pend)
+which = "evm_memory" if bss_end == emem + 0x400000 else ("evm_memory_pool" if bss_end == pend else "NEITHER")
+print(f"  {'OK  ' if backstop_ok else 'DRIFT'} a dense arena ends at __BSS_END__ "
+      f"(unmapped backstop): {which}")
+bad |= (not backstop_ok)
 sys.exit(1 if bad else 0)
 PY
 
 # --- link-dependent sizes vs RegionMap constants ---
 echo "== link-layout (regenerate on drift: gen-symbol-addresses.py --build) =="
 LEAN_TEXT=$(grep -oE 'def textSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
+LEAN_COMMITTED=$(grep -oE 'def committedStorageSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_DATA=$(grep -oE 'def dataSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_BSS=$(grep -oE 'def bssSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 check "RegionMap.textSizeBytes" "$(printf '%x' $LEAN_TEXT)" "$(printf '%x' 0x$TEXT_SIZE)"
+check "RegionMap.committedStorageSizeBytes" "$(printf '%x' $LEAN_COMMITTED)" "$(printf '%x' 0x$COMMITTED_SIZE)"
 check "RegionMap.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
 check "RegionMap.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
 

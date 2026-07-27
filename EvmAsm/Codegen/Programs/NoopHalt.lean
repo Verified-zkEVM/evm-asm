@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -159,23 +160,21 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  sub t2, t2, t0\n  sd t2, 0(t1)\n" ++                                  -- reservoir covers it
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
-      -- Capture execution-specs generic_create target_alive current-tx evidence BEFORE
-      -- appending this CREATE's own code-effect record. A previous same-tx CREATE deposit
-      -- leaves a code-effect record even if the block-pre balance is zero; the later refund
-      -- decision combines this flag with nse_create_pre_bal.
+      -- Capture execution-specs generic_create target_alive current-tx evidence
+      -- before publishing this CREATE.  This is a transaction-local CodeState
+      -- membership query, not an append-only code-effect scan.
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
 " ++
-      "  addi sp, sp, -16
+      -- `account_state_created_contains` uses a1..a3 for its bounded table
+      -- scan.  x13/a3 is the CREATE return-data base below, so preserve it.
+      "  addi sp, sp, -24
   sd x10, 0(sp)
   sd x12, 8(sp)
+  sd x13, 16(sp)
 " ++
-      "  la a0, exec_code_effect_log
-  la t0, exec_code_effect_count
-  ld a1, 0(t0)
-  la a2, create_address_be
-" ++
-      "  jal ra, find_code_effect_by_address
+      "  la a0, create_address_be
+  jal ra, account_state_created_contains
 " ++
       "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
 " ++
@@ -187,7 +186,8 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
 " ++
       "  ld x10, 0(sp)
   ld x12, 8(sp)
-  addi sp, sp, 16
+  ld x13, 16(sp)
+  addi sp, sp, 24
 " ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
@@ -516,7 +516,7 @@ private def selfdestructTailAsm : String :=
   -- x10 restore clobbers it.
   "  beqz a0, .L_selfdestruct_access_floor_done\n" ++
   "  ld t0, 568(x20)\n" ++
-  "  li t1, 100\n" ++
+  s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
   "  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n" ++
   "  sd t0, 568(x20)\n" ++
@@ -555,15 +555,31 @@ private def selfdestructTailAsm : String :=
   "  la t1, create_frame_flag\n  slli t2, t0, 3\n  add t1, t1, t2\n  ld t1, 0(t1)\n" ++
   "  beqz t1, .L_selfdestruct_ctit_codecheck\n" ++
   "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
-  "  j .L_selfdestruct_created_in_tx_done\n" ++   -- no code record to clear (constructor never deposited)
+  "  j .L_selfdestruct_created_in_tx_mark\n" ++
   ".L_selfdestruct_ctit_codecheck:\n" ++
-  "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
-  "  la a0, exec_code_effect_log\n  la t0, exec_code_effect_count\n  ld a1, 0(t0)\n  la a2, sdai_origin_address\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  mv t1, a0\n" ++                                  -- t1 = code-effect record ptr (or 0)
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
+  -- AccountState's transaction-local created set follows the normal caller-saved ABI and
+  -- clobbers a0-a3.  x13 is the live EVM stack cursor on this halt path, so
+  -- preserve it with the other runtime cursors before asking the CodeState.
+  "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, sdai_origin_address\n" ++
+  "  jal ra, account_state_created_contains\n" ++
+  "  mv t1, a0\n" ++                                  -- current-tx creation membership
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   "  beqz t1, .L_selfdestruct_created_in_tx_done\n" ++
-  "  la t0, evm_selfdestruct_created_in_tx\n  li t2, 1\n  sd t2, 0(t0)\n" ++
+  "  j .L_selfdestruct_created_in_tx_mark\n" ++
+  ".L_selfdestruct_created_in_tx_mark:\n" ++
+  -- Deletion is deferred until transaction finalization.  Queue the address
+  -- in AccountState; the current entry stays executable for later same-tx
+  -- CALLs.  Keep the live runtime cursors intact across the set helpers.
+  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24; beqz t3, .L_selfdestruct_created_legacy_clear\n" ++
+  ".L_selfdestruct_created_delete_restore_overflow:\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
+  ".L_selfdestruct_created_delete_overflow:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
+  ".L_selfdestruct_created_legacy_clear:\n" ++
   -- coc3g.6.5: EIP-6780 DELETES the created-in-tx contract, so its deployed code is removed --
   -- a created-then-destroyed-same-tx account has NET-ZERO code change and the BAL declares no
   -- codeChange. The CREATE deposit appended a code-effect record (has_code_change=1) to
@@ -572,7 +588,9 @@ private def selfdestructTailAsm : String :=
   -- both the forward (bal_account_code_consistent: has_code_change=0 + BAL silent -> consistent) and
   -- the reverse (_covers: has_code_change=0 -> no obligation) treat it as no code change. KEEP code_len
   -- (record+40) so both comparators' variable-stride walk stays aligned.
-  "  sd x0, 32(t1)\n" ++
+  "  addi sp, sp, -16; sd x10, 0(sp); sd x12, 8(sp); la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, sdai_origin_address; jal ra, find_code_effect_by_address; mv t1, a0; ld x10, 0(sp); ld x12, 8(sp); addi sp, sp, 16; beqz t1, .L_selfdestruct_created_in_tx_finish; sd x0, 32(t1)\n" ++
+  ".L_selfdestruct_created_in_tx_finish:\n" ++
+  "  la t0, evm_selfdestruct_created_in_tx; li t1, 1; sd t1, 0(t0); j .L_selfdestruct_created_in_tx_done\n" ++
   ".L_selfdestruct_created_in_tx_done:\n" ++
   selfdestructBalanceTransferRuntimeAsm ++
   selfdestructEip7708LogRuntimeAsm ++

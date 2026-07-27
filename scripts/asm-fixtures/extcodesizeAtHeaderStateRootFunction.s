@@ -57,7 +57,8 @@ extcodesize_at_header_state_root:
   addi a2, s7, 72            # &acct.code_hash
   la a3, ecsahsr_dummy_offset
   la a4, ecsahsr_code_len
-  jal ra, witness_codes_lookup_by_hash
+  mv a5, s2                  # GH #10619: address ptr for the CodeRead tuple
+  jal ra, code_read_fetch
   beqz a0, .Lecsahsr_ret
   # miss -> witness integrity violation (5); zero output.
   la t0, ecsahsr_code_len

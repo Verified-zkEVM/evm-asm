@@ -92,7 +92,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
                  "2:\n" ++
                  memDynamicArenaOogGuardAsm "calldatacopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "calldatacopy" "x15" "x16" "x17" "x18" ++
-                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
+                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true false
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]

@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -134,18 +135,16 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_not_create_self:\n" ++
-    -- Check exec_code_effect_log for CREATE'd contract code (extcodehash
-    -- after CREATE: the deployed code is in the log but not in the BAL
-    -- code_changes or the pre-state witness).
-    "  la a0, exec_code_effect_log\n" ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-    "  la a2, eahsr_address_scratch\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    -- Execution code visibility is resolved from the layered mutable
+    -- CodeState, never from the append-only BAL comparison log.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodehash_witness_check\n" ++
-    -- Found CREATE'd code: keccak(code) → hash
-    "  mv t3, a0\n" ++
-    "  ld a1, 40(t3)\n" ++
-    "  addi a0, t3, 48\n" ++
+    "  li t3, 3; beq a0, t3, .Lextcodehash_codestate_deleted\n" ++
+    "  li t3, 2; beq a0, t3, .Lextcodehash_create_self_empty\n" ++
+    "  li t3, 1; bne a0, t3, .Lextcodehash_witness_check\n" ++
+    -- Found CREATE'd code: keccak(code) → hash.
+    "  mv t3, a1; mv a1, a2; mv a0, t3\n" ++
     "  la a2, rsbd_hash\n" ++
     "  jal ra, zkvm_keccak256\n" ++
     "  ld x10, 0(sp)\n" ++
@@ -159,6 +158,13 @@ private def extcodehashWitnessTail : HandlerTail :=
     ".Lextcodehash_create_rev_done:\n" ++
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
+    dispatchContinueRet ++ "\n" ++
+    -- A durable CodeState tombstone is a transaction-finalized EIP-6780
+    -- deletion.  It masks stale pre-block code and is non-existent for
+    -- EXTCODEHASH (zero, unlike an existing empty-code account's keccak("")).
+    ".Lextcodehash_codestate_deleted:\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x21, 16(sp)\n  ld x13, 24(sp)\n" ++
+    "  addi sp, sp, 32\n  sd zero, 0(x12)\n  sd zero, 8(x12)\n  sd zero, 16(x12)\n  sd zero, 24(x12)\n  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_witness_check:\n" ++
     "  la t0, eahsr_same_tx_empty_flag; sd zero, 0(t0)\n" ++
@@ -283,7 +289,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  ld x13, 24(sp)\n" ++
     "  addi sp, sp, 32\n" ++
     "  ld t0, 568(x20)\n" ++
-    "  li t1, 100\n" ++
+    s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n" ++
     "  bltu t0, t1, .exit_outofgas\n" ++
     "  sub t0, t0, t1\n" ++
     "  sd t0, 568(x20)\n" ++
@@ -308,14 +314,13 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_after_same_block:\n" ++
-    -- Check exec_code_effect_log for CREATE'd contract code
-    "  la a0, exec_code_effect_log\n" ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-    "  la a2, eahsr_address_scratch\n" ++
-    "  jal ra, find_code_effect_by_address\n" ++
+    -- Consult the shared CodeState before the authenticated witness fallback.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodesize_witness_check\n" ++
-    -- Found: return code_len
-    "  ld t1, 40(a0)\n" ++
+    "  li t3, 1; bne a0, t3, .Lextcodesize_codestate_empty\n" ++
+    -- Found: return code_len.
+    "  mv t1, a2\n" ++
     "  ld x10, 0(sp)\n" ++
     "  ld x12, 8(sp)\n" ++
     "  ld x21, 16(sp)\n" ++
@@ -326,6 +331,10 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  sd zero, 16(x12)\n" ++
     "  sd zero, 24(x12)\n" ++
     "  addi x10, x10, 1\n" ++
+    dispatchContinueRet ++ "\n" ++
+    ".Lextcodesize_codestate_empty:\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x21, 16(sp)\n  ld x13, 24(sp)\n" ++
+    "  addi sp, sp, 32\n  sd zero, 0(x12)\n  sd zero, 8(x12)\n  sd zero, 16(x12)\n  sd zero, 24(x12)\n  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_witness_check:\n" ++
     "  ld x10, 0(sp)\n" ++

@@ -32,6 +32,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 
 namespace EvmAsm.Codegen
 
@@ -50,7 +51,7 @@ open EvmAsm.Rv64
       2 * floor(200_000_000 / 10400) = 38_460.
     CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
     separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
-    separate block budget and cannot reduce this bound. 65536 therefore covers the full raw stream
+    separate block budget and cannot reduce this bound. 40960 therefore covers the full raw stream
     with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
     verdict assumption.
 
@@ -60,7 +61,15 @@ open EvmAsm.Rv64
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 65536
+def nonstorageEffectLogCap : Nat := 40960
+
+/-! The 32-byte address field stores a 20-byte address followed by twelve
+padding bytes. Byte 20 is a component-validity mask: it is outside the key
+used by every address comparison and radix pass, so the fixed 112-byte layout
+can represent the spec's independent balance and nonce changes without a
+parallel log. -/
+def nonstorageEffectHasBalance : Nat := 1
+def nonstorageEffectHasNonce : Nat := 2
 
 /-! ## record_nonstorage_effect
     Append one per-account balance/nonce effect record (c2#5 layout, 112 B fixed).
@@ -70,8 +79,8 @@ def nonstorageEffectLogCap : Nat := 65536
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
 def recordNonstorageEffectFunction : String :=
   "record_nonstorage_effect:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp)\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd ra, 40(sp)\n" ++
   "  mv s0, a0                   # addr ptr\n" ++
   "  mv s1, a1                   # pre_balance ptr\n" ++
   "  mv s2, a2                   # post_balance ptr\n" ++
@@ -87,18 +96,24 @@ def recordNonstorageEffectFunction : String :=
   "  beqz t6, .Lrnse_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lrnse_cpa\n" ++
   ".Lrnse_cpa_d:\n" ++
+  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; sb t4, 20(t3)\n" ++
   "  ld t4, 0(s1); sd t4, 32(t3); ld t4, 8(s1); sd t4, 40(t3); ld t4, 16(s1); sd t4, 48(t3); ld t4, 24(s1); sd t4, 56(t3)\n" ++  -- pre_balance
   "  ld t4, 0(s2); sd t4, 64(t3); ld t4, 8(s2); sd t4, 72(t3); ld t4, 16(s2); sd t4, 80(t3); ld t4, 24(s2); sd t4, 88(t3)\n" ++  -- post_balance
   "  sd s3, 96(t3)               # pre_nonce\n" ++
   "  sd s4, 104(t3)              # post_nonce\n" ++
   "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  -- tqj1m: mirror the comparison trace into the full execution AccountState
+  -- journal.  The legacy record remains intact for the BAL comparator until
+  -- the final comparison-materialization switch; a bounded journal failure
+  -- fails closed through this producer's established overflow path.
+  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
   ".Lrnse_overflow:\n" ++
   "  la t0, exec_nonstorage_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lrnse_ret:\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); addi sp, sp, 40\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld ra, 40(sp); addi sp, sp, 48\n" ++
   "  ret"
 
 /-! ## nonstorage_effect_latest_balance (yisv8 .spine.1)
@@ -107,8 +122,8 @@ def recordNonstorageEffectFunction : String :=
     live-value read: an account's current balance during execution = its latest recorded
     post_balance, falling back to the pre-state when no value transfer touched it. Mirrors
     exec_log_latest_value (storage) at the 112-byte non-storage stride.
-    a0 = address ptr (32B: 20-byte BE address in bytes 0..19, bytes 20..31 = 0 -- matches the
-      record's zero-padded addr@0)   a1 = out ptr (32B BE post_balance, written only on a hit).
+    a0 = address ptr (20-byte BE key in bytes 0..19; bytes 20..31 are ignored because
+      record byte 20 is the component-validity mask)   a1 = out ptr (32B BE post_balance, written only on a hit).
     Returns a0 = 1 found / 0 not found (out left untouched on a miss). Leaf; only t-regs + a0-a2. -/
 def nonstorageEffectLatestBalance_prog : Program :=
   [ .LI .x31 (0 : Word),
@@ -128,12 +143,12 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .LD .x28 .x7 (8 : BitVec 12),
     .LD .x29 .x10 (8 : BitVec 12),
     .BNE .x28 .x29 (64 : BitVec 13),
-    .LD .x28 .x7 (16 : BitVec 12),
-    .LD .x29 .x10 (16 : BitVec 12),
+    .LWU .x28 .x7 (16 : BitVec 12),
+    .LWU .x29 .x10 (16 : BitVec 12),
     .BNE .x28 .x29 (52 : BitVec 13),
-    .LD .x28 .x7 (24 : BitVec 12),
-    .LD .x29 .x10 (24 : BitVec 12),
-    .BNE .x28 .x29 (40 : BitVec 13),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .LD .x28 .x7 (64 : BitVec 12),
     .SD .x11 .x28 (0 : BitVec 12),
     .LD .x28 .x7 (72 : BitVec 12),
@@ -258,6 +273,10 @@ def ziskNonstorageEffectLogPrologue : String :=
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lnsel_done\n" ++
   recordNonstorageEffectFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateRecordNonstorageFunction ++ "\n" ++
   ".Lnsel_done:"
 
 def ziskNonstorageEffectLogDataSection : String :=
@@ -270,7 +289,8 @@ def ziskNonstorageEffectLogDataSection : String :=
   "nsel_qa:\n  .zero 32\n" ++
   "nsel_pb:\n  .zero 32\n" ++
   "nsel_qb:\n  .zero 32\n" ++
-  nonstorageEffectLogData
+  nonstorageEffectLogData ++
+  codeStateData
 
 def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
   body        := NOP
@@ -389,9 +409,25 @@ def nonstorageEffectAggregateFunction : String :=
   "  li t3, 112; beq t2, t3, .Lnea_emit_post\n" ++
   "  add t3, s9, t2; lbu t4, 0(t3); add t3, s11, t2; sb t4, 0(t3)\n" ++
   "  addi t2, t2, 1; j .Lnea_emit_copy\n" ++
-  ".Lnea_emit_post:\n" ++                                           -- overwrite post_balance@64 (32B) + post_nonce@104 from last
-  "  addi t0, s10, -1; li t1, 112; mul t1, t0, t1; add t0, s5, t1\n" ++
-  "  ld t1, 64(t0); sd t1, 64(s11); ld t1, 72(t0); sd t1, 72(s11); ld t1, 80(t0); sd t1, 80(s11); ld t1, 88(t0); sd t1, 88(s11); ld t1, 104(t0); sd t1, 104(s11)\n" ++
+  ".Lnea_emit_post:\n" ++
+  -- The raw record's byte 20 independently marks balance and nonce. Fold the
+  -- run component-wise: first valid pre, last valid post. This is the same
+  -- shape as execution-specs' independent field emission, so a nonce-only
+  -- record never writes or overwrites a balance component.
+  "  sb zero, 20(s11); mv t6, s8\n" ++
+  ".Lnea_emit_component_loop:\n" ++
+  "  bgeu t6, s10, .Lnea_emit_component_done; li t0, 112; mul t0, t6, t0; add t0, s5, t0; lbu t1, 20(t0)\n" ++
+  "  andi t2, t1, " ++ toString nonstorageEffectHasBalance ++ "; beqz t2, .Lnea_emit_nonce; lbu t2, 20(s11); andi t3, t2, " ++ toString nonstorageEffectHasBalance ++ "; bnez t3, .Lnea_emit_balance_post\n" ++
+  "  ld t3, 32(t0); sd t3, 32(s11); ld t3, 40(t0); sd t3, 40(s11); ld t3, 48(t0); sd t3, 48(s11); ld t3, 56(t0); sd t3, 56(s11)\n" ++
+  ".Lnea_emit_balance_post:\n" ++
+  "  ld t3, 64(t0); sd t3, 64(s11); ld t3, 72(t0); sd t3, 72(s11); ld t3, 80(t0); sd t3, 80(s11); ld t3, 88(t0); sd t3, 88(s11); lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasBalance ++ "; sb t2, 20(s11)\n" ++
+  ".Lnea_emit_nonce:\n" ++
+  "  andi t2, t1, " ++ toString nonstorageEffectHasNonce ++ "; beqz t2, .Lnea_emit_component_next; lbu t2, 20(s11); andi t3, t2, " ++ toString nonstorageEffectHasNonce ++ "; bnez t3, .Lnea_emit_nonce_post; ld t3, 96(t0); sd t3, 96(s11)\n" ++
+  ".Lnea_emit_nonce_post:\n" ++
+  "  ld t3, 104(t0); sd t3, 104(s11); lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasNonce ++ "; sb t2, 20(s11)\n" ++
+  ".Lnea_emit_component_next:\n" ++
+  "  addi t6, t6, 1; j .Lnea_emit_component_loop\n" ++
+  ".Lnea_emit_component_done:\n" ++
   "  addi s7, s7, 1\n" ++
   "  mv s8, s10; j .Lnea_run_loop\n" ++
   ".Lnea_done:\n" ++
@@ -409,10 +445,21 @@ def nonstorageEffectAggregateFunction : String :=
 
 /-- Shared sort scratch for `nonstorage_effect_aggregate` (cap x 112 B each). -/
 def nonstorageEffectAggregateScratch : String :=
+  -- This is runtime scratch, not initialized input data.  Name the section
+  -- explicitly because the main dispatcher appends it while emitting `.data`.
+  -- In particular, AccountState's phase alias must cover both radix buffers
+  -- in the same NOBITS region.
+  ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
-  "nea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  -- The per-transaction AccountState journal is dead before this post-dispatch
+  -- radix scratch is first used. Durable AccountState remains separate.
+  "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
-  "nea_counts:\n  .zero 2048\n"
+  ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
+  ".set account_state_delete, account_state_pending + " ++ toString (accountStateTableBytes + accountStateCreatedCapacity * 32) ++ "\n" ++
+  "nea_counts:\n  .zero 2048\n" ++
+  -- Callers append initialized dispatcher storage after this shared scratch.
+  ".section .data\n"
 
 /-- `zisk_nonstorage_effect_aggregate`: known-answer probe. Three input records
     (A=0x11.., B=0x22.., A again) exercise dedup with first-pre / last-post:

@@ -18,8 +18,7 @@ namespace EvmAsm.Codegen
 /-- Gated multi-transaction runtime-gas loop fragment, ending before `.Lbv_singletx`. -/
 def blockVerdictMtxRuntimeLoop : String :=
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
-  -- tx_count==1 (and the degenerate 0-tx block) fall through to the existing
-  -- single-tx path BYTE-IDENTICALLY. For 2..16 transactions, only when the block
+  -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
   -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
   -- by more than one tx_index) AND every recipient is a self-contained contract,
   -- dispatch each tx against the block-PRE state to measure its runtime gas,
@@ -32,8 +31,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- tx shape / EOA recipient / dispatch miss bails to the conservative path
   -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
-  "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbv_singletx\n" ++
-  "  li t1, 2; bltu t0, t1, .Lbv_singletx          # 0-tx block -> existing path\n" ++
+  -- Production MTx selector: the empty block keeps the existing single-tx/empty
+  -- path, while every non-empty block enters MTx.  The now-unrouted legacy
+  -- count==1 implementation is deleted separately after this baseline is
+  -- measured independently.
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_singletx\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
@@ -62,7 +64,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted sender index once from public keys. The exact per-tx nonce
   -- check below binary-searches this table and mutates the count field as the
-  -- running prior-seen count; the B1 final-nonce tail rebuilds totals later.
+  -- running block-global nonce delta (transactions plus valid EIP-7702
+  -- authorizations); the B1 final-nonce tail consumes that same table.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_sender_seed_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_seed_done\n" ++
@@ -81,7 +84,67 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
   "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
   ".Lbv_mtx_sender_count_zero_done:\n" ++
+  -- The historical S1 authority materialization below is retained only as a
+  -- frozen reference for the old proof artifact.  It is not a valid live
+  -- state source: it is block-final/header seeded and can reject before the
+  -- ordered AccountState transaction pass runs.  The sole live parser and
+  -- writer is `eip7702_auth_state_prepare` at the common transaction boundary.
+  "  j .Lbv_mtx_state_init\n" ++
+  -- S1: materialize the ordered authority state once at the multi-tx pass
+  -- boundary.  The event stream starts with every transaction sender, then
+  -- adds each successfully recovered type-4 authority.  It intentionally
+  -- does not decide authorization validity here: S2 consumes this immutable
+  -- header-seeded table and applies the ordered nonce/code predicate once,
+  -- shared by every gas/result pass.
+  "  la t0, bv_eip7702_authority_event_count; la t1, bv_tx_count; ld t1, 0(t1); sd t1, 0(t0); la t0, bv_eip7702_authority_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_sender_copy_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_sender_copy_done\n" ++
+  "  slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3; slli t3, t1, 5; la t5, nea_sort_b; add t5, t5, t3; li t6, 0\n" ++
+  ".Lbv_eas_sender_copy_bytes:\n" ++
+  "  li a0, 32; beq t6, a0, .Lbv_eas_sender_copy_next\n" ++
+  "  add a0, t4, t6; lbu a1, 0(a0); add a0, t5, t6; sb a1, 0(a0); addi t6, t6, 1; j .Lbv_eas_sender_copy_bytes\n" ++
+  ".Lbv_eas_sender_copy_next:\n" ++
+  "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_eas_sender_copy_loop\n" ++
+  ".Lbv_eas_sender_copy_done:\n" ++
+  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_tx_loop:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_materialize\n" ++
+  "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context; la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_sender_nonce_fail\n" ++
+  "  ld t2, 160(t0); li t3, 4; bne t2, t3, .Lbv_eas_tx_next\n" ++
+  -- Field 9 is the type-4 authorization list.  A malformed list is a
+  -- fail-closed verdict error; an unrecoverable signature simply contributes
+  -- no authority event, matching the later validity admission semantics.
+  "  ld a0, 176(t0); ld a1, 184(t0); li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add t1, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); mv a0, t1; la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, b1an_auth_i; sd zero, 0(t0)\n" ++
+  ".Lbv_eas_auth_loop:\n" ++
+  "  la t0, b1an_auth_i; ld t3, 0(t0); la t0, b1an_auth_count; ld t6, 0(t0); bgeu t3, t6, .Lbv_eas_tx_next\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t1, b1an_auth_len; ld a1, 0(t1); mv a2, t3; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t0, b1an_item_off; ld t0, 0(t0); add a0, a0, t0; la t0, b1an_item_len; ld a1, 0(t0); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Lbv_eas_auth_next\n" ++
+  "  la t0, bv_eip7702_authority_event_count; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgeu t1, t2, .Lbv_sender_nonce_fail; slli t2, t1, 5; la t5, nea_sort_b; add t5, t5, t2; la t4, b1an_authority; li t2, 0\n" ++
+  ".Lbv_eas_auth_copy:\n" ++
+  "  li t6, 32; beq t2, t6, .Lbv_eas_auth_append\n" ++
+  "  add t6, t4, t2; lbu a0, 0(t6); add t6, t5, t2; sb a0, 0(t6); addi t2, t2, 1; j .Lbv_eas_auth_copy\n" ++
+  ".Lbv_eas_auth_append:\n" ++
+  "  addi t1, t1, 1; la t0, bv_eip7702_authority_event_count; sd t1, 0(t0)\n" ++
+  ".Lbv_eas_auth_next:\n" ++
+  "  la t0, b1an_auth_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_auth_loop\n" ++
+  ".Lbv_eas_tx_next:\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_tx_loop\n" ++
+  ".Lbv_eas_materialize:\n" ++
+  "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
+  -- Execution CodeState is block-lived in the sequential lane.  The callable
+  -- dispatcher resets only its pending overlay; durable state and retained
+  -- comparator bytes survive until this loop finishes.
+  -- CodeState is the sole execution code/existence model for every block,
+  -- including the one-transaction case.  The immutable witness is consulted
+  -- only after its pending and durable overlays miss.
+  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
   "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
@@ -98,6 +161,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_bf_rev_done:\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
+  -- The dispatcher resets this marker only when it is reached.  Every MTx
+  -- iteration must begin phase-zero as well: a pre-dispatch rejection or an
+  -- EOA/non-runtime route otherwise inherits a previous transaction's
+  -- successful preparation and incorrectly retains staged authorization gas.
+  "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
@@ -151,11 +221,29 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, bv_b1_sender_table; la t2, bv_b1_sender_count; ld a1, 0(t2); la a2, bv_mtx_sender_addr\n" ++
   "  jal ra, b1_sender_table_find\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  mv t6, a1; ld t5, 32(t6); addi a0, t5, 1; sd a0, 32(t6)\n" ++
+  "  mv t6, a1; ld t5, 32(t6)\n" ++
   "  la t0, bv_mtx_nonce_pre; ld t0, 0(t0)\n" ++
   "  add t0, t0, t5\n" ++                                       -- t0 = expected = pre_nonce + count
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != pre+count -> reject (Nonce*Error)
+  -- Commit this transaction's sender increment only after its nonce matched,
+  -- then apply every valid authorization from the already-classified type-4
+  -- payload.  This is the execution-specs order: process_transaction first,
+  -- process_authorization_list second.
+  "  addi t5, t5, 1; sd t5, 32(t6)\n" ++
+  -- Sole EIP-7702 state/gas writer: run at the common per-transaction
+  -- boundary, before recipient routing.  The old B1 replay is a frozen
+  -- reference only; executing it here would be a second writer and can bail
+  -- a later transaction before it observes AccountState's prior commit.
+  -- Authorization recovery is part of the preparation phase itself.  The EOA
+  -- shortcut installs this backend later, so the common boundary must stage it
+  -- first or valid authorizations are silently skipped before their charges.
+  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
+  -- One live intrinsic/auth accounting boundary.  It uses AccountState as of
+  -- this transaction and writes the ordinary intrinsic-state settlement cell
+  -- directly; no block-final BAL replay or auth overlay follows later.
+  "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
@@ -209,25 +297,26 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.4 (e): code 2 = MPT could not resolve this tx's recipient at the
-  -- pre-state root. The recipient is ACCESSED (the tx sends to it), so a complete stateless
-  -- witness MUST carry it -> code 2 means the witness genuinely lacks a node on its path
-  -- (verified: the multi_transaction_gas_accounting GAS_USED_OVERFLOW witness omits tx1's
-  -- recipient node, 22 vs the valid variant's 24 nodes). An unverifiable accessed account =>
-  -- the block cannot be statelessly validated as valid => REJECT (not conservative-accept,
-  -- which was the false-accept). A valid block's witness always resolves the recipient
-  -- (code 0), so this never false-rejects. Codes 3/4 (decode/header) stay conservative.
-  "  li t1, 2; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
+  -- A status-2 recipient lookup stays a hard failure after preparation.  It is
+  -- routed only through the shared EIP-7702 preparation prefix first: an
+  -- ExceptionalHalt there restores the auth snapshot before the spec reads
+  -- recipient code, while a completed prefix returns to the same status-2
+  -- failure without executing a body.
+  "  li t1, 2; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_eoa\n" ++
+  ".Lbv_mtx_recipient_lookup_resolved:\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 16(t0); ld t4, 16(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_mtx_is_contract\n" ++
+  blockVerdictMtxPrecompileSettlement ++
   blockVerdictMtxEoaSettlement ++
   ".Lbv_mtx_is_contract:\n" ++
   -- bmvmx.1.6.6 multi-tx enabler: stamp this user tx's block_access_index = i+1 (EIP-7928:
@@ -236,7 +325,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- the loop leaves current_block_access_index at its single-tx default 1, and the per-tx
   -- tuple-sequence comparators (bmvmx.1.6.6) would see tx i>0 writes mis-indexed as 1.
   -- Additive/inert today: exec_log_txindex is consumed only by those (still-unwired) checks.
-  "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
   -- byte-identical to #8686 (no >10% regression recurrence). Reset immediately after.
@@ -277,9 +365,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
-  "  la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
+  "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_mtx_sender_addr; sd t1, 0(t0); la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
@@ -309,23 +398,51 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
+  -- Contract/EOA contexts retain their raw recipient here; the creation route
+  -- above has re-keyed ctx+72 to bv_create_addr before joining this postlude.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 5; la t2, bv_mtx_effective_recipient_table; add t2, t2, t1; la t0, bv_mtx_ctx; addi t0, t0, 72; li t3, 20\n" ++
+  ".Lbv_mtx_effective_recipient_copy:\n  beqz t3, .Lbv_mtx_effective_recipient_done; lbu t4, 0(t0); sb t4, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbv_mtx_effective_recipient_copy\n" ++
+  ".Lbv_mtx_effective_recipient_done:\n" ++
+  -- The sole MTx terminal state-gas finalizer.  Every supported terminal
+  -- route (contract, creation, and EOA) reaches this postlude exactly once;
+  -- a zero receipt status retains only intrinsic/auth state gas after a body
+  -- rollback, while a successful status includes the captured execution part.
+  "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
   -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
   -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
-  -- (mirrors state clearing), so capture only on success. Rows are captured from
-  -- index 0: the preload rows (addrHash=0) are inert in every consumer scan.
+  -- (mirrors state clearing), so capture only on success. The capture helper
+  -- filters seed/preload rows through explicit per-row provenance rather than
+  -- assuming they occupy a stable prefix of the live log.
   -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
-  "  beqz a4, .Lbv_mtx_user_capture_done\n" ++
-  "  la t0, callee_seed_count; ld a0, 0(t0); la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
+  "  beqz a4, .Lbv_mtx_snapshot_empty\n" ++
+  "  li a0, 0; la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_user_capture_done:\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.2: snapshot this tx's committed storage into the cross-tx table,
-  -- re-keyed to its recipient so the next tx's preload can thread prior committed values.
-  -- Duplicate (recipient, slotKey) writes update in place; only new unique keys consume capacity.
-  "  la a0, bv_mtx_ctx; addi a0, a0, 72             # recipient key\n" ++
-  "  li a1, 0xa0630000                              # live storage log base\n" ++
-  "  la t0, evm_env; ld a2, 448(t0)                 # live log entry count\n" ++
+  -- Commit the exact unseeded slice just copied into the user-write arena.
+  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2; j .Lbv_mtx_snapshot_ready\n" ++
+  ".Lbv_mtx_snapshot_empty:\n" ++
+  "  la a1, bv_user_storage_log; li a2, 0\n" ++
+  ".Lbv_mtx_snapshot_ready:\n" ++
+  -- Commit the just-successful transaction's current CodeState overlay before
+  -- the next callable dispatch.  A failed receipt commits no code/existence
+  -- mutations, exactly like its effect-log rollback above.
+  -- Match `process_message`'s two snapshots: a successful body commits all
+  -- pending AccountState; a failed body still commits the authorization phase
+  -- iff the dispatcher reached the post-preparation coverage point.  A
+  -- preparation OOG never reaches that point and therefore drops pending auth.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_auth_phase_applied; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
+  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); j .Lbv_mtx_code_commit_done\n" ++
+  ".Lbv_mtx_code_commit:\n" ++
+  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  -- `account_state_commit_pending` uses a1/a2 for durable-map operations.
+  -- Reconstruct the successful transaction's captured storage slice before the
+  -- committed-storage upsert: a1/a2 are caller-saved and must not be reused
+  -- across that call.  This is the same slice computed at snapshot_ready.
+  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2\n" ++
+  ".Lbv_mtx_code_commit_done:\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
+  "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
   "  li a5, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a6, bv_mtx_committed_chunk_overflow\n" ++
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
@@ -357,6 +474,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- nonce have already been established by the common mtx prelude above.
   "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
+  -- EIP-684 observes the current block state before the immutable witness.
+  -- A durable CodeState entry is a prior-tx live account and collides; a
+  -- durable tombstone is a same-tx-created account already deleted at an
+  -- earlier transaction boundary, so it deliberately falls through to the
+  -- pre-block predicate (where it is absent and may be recreated).
+  "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
+  "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
+  "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
+  "  j .Lbv_mtx_creation_unsupported\n" ++
+  ".Lbv_mtx_creation_header_collision:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0); jal ra, has_code_or_nonce_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
   "  la t0, hcon_predicate; ld t0, 0(t0); bnez t0, .Lbv_mtx_creation_unsupported\n" ++
@@ -440,5 +567,52 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_bail:\n" ++
   bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
+
+/-- Rebuild S1 immediately before the gas replay from authenticated immutable
+    transaction data. `nea_sort_a` is only the immediate input to the radix
+    materializer; no later phase treats it as durable state. -/
+def blockVerdictEip7702AuthorityReplayMaterializeFunction : String :=
+  "block_verdict_eip7702_authority_replay_materialize:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  la t0, bv_tx_count; ld s1, 0(t0); li t1, " ++ toString bvMtxFullTxCap ++ "; bgtu s1, t1, .Leasr_fail\n" ++
+  "  la s2, nea_sort_a; li s0, 0\n" ++
+  ".Leasr_sender_loop:\n" ++
+  "  bgeu s0, s1, .Leasr_sender_done\n" ++
+  "  slli t0, s0, 6; add t0, t0, s0; la t1, bv_public_keys_ptr; ld t1, 0(t1); addi a0, t1, 1; add a0, a0, t0\n" ++
+  "  slli t0, s0, 5; add a1, s2, t0; jal ra, address_from_pubkey\n" ++
+  "  addi s0, s0, 1; j .Leasr_sender_loop\n" ++
+  ".Leasr_sender_done:\n" ++
+  "  la t0, bv_eip7702_authority_event_count; sd s1, 0(t0); la t0, bv_eip7702_authority_overflow; sd zero, 0(t0)\n" ++
+  "  li s0, 0\n" ++
+  ".Leasr_tx_loop:\n" ++
+  "  bgeu s0, s1, .Leasr_materialize\n" ++
+  "  la a0, bv_mtx_ctx; mv a1, s0; jal ra, multi_tx_nth_context\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 0(t0); bnez t1, .Leasr_fail\n" ++
+  "  ld t1, 160(t0); li t2, 4; bne t1, t2, .Leasr_tx_next\n" ++
+  "  ld t1, 176(t0); ld t2, 184(t0); li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; mv a0, t1; mv a1, t2; jal ra, rlp_list_nth_item; bnez a0, .Leasr_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .Leasr_fail\n" ++
+  "  li s3, 0\n" ++
+  ".Leasr_auth_loop:\n" ++
+  "  la t0, b1an_auth_count; ld t1, 0(t0); bgeu s3, t1, .Leasr_tx_next\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); mv a2, s3; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .Leasr_fail\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add a0, t1, t2; la t0, b1an_item_off; ld t0, 0(t0); add a0, a0, t0; la t0, b1an_item_len; ld a1, 0(t0); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
+  "  bnez a0, .Leasr_auth_next\n" ++
+  "  la t0, bv_eip7702_authority_event_count; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgeu t1, t2, .Leasr_fail; slli t2, t1, 5; add t2, s2, t2; la t3, b1an_authority; li t4, 0\n" ++
+  ".Leasr_auth_copy:\n" ++
+  "  li t5, 32; beq t4, t5, .Leasr_auth_append; add t5, t3, t4; lbu t6, 0(t5); add t5, t2, t4; sb t6, 0(t5); addi t4, t4, 1; j .Leasr_auth_copy\n" ++
+  ".Leasr_auth_append:\n" ++
+  "  addi t1, t1, 1; la t0, bv_eip7702_authority_event_count; sd t1, 0(t0)\n" ++
+  ".Leasr_auth_next:\n" ++
+  "  addi s3, s3, 1; j .Leasr_auth_loop\n" ++
+  ".Leasr_tx_next:\n" ++
+  "  addi s0, s0, 1; j .Leasr_tx_loop\n" ++
+  ".Leasr_materialize:\n" ++
+  "  la a0, nea_sort_a; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Leasr_fail\n" ++
+  "  li a0, 0; j .Leasr_ret\n" ++
+  ".Leasr_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Leasr_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 64; ret\n"
 
 end EvmAsm.Codegen

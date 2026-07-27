@@ -57,6 +57,40 @@ callee-first order, against the separation-logic state-assertion vocabulary.
 - `lake build` (library `EvmAsm`, sources under `EvmAsm/`); heartbeat/recursion
   limits are configured globally in `lakefile.toml` — never per-file.
 
+### Artifact-cache mode (`LAKE_ARTIFACT_CACHE=true`)
+
+Many checkouts run with the lake artifact cache enabled (`LAKE_ARTIFACT_CACHE`,
+`LAKE_CACHE_DIR`). Two consequences are easy to misdiagnose, because in both the
+symptom names something other than the cause.
+
+**1. Never `chmod` `.lake/build`.** Cache-materialized build outputs are
+**hardlinks into the cache**, mode `444`. So `chmod -R u+w .lake/build` does not
+just fail to stick — the build-tree entry and the cache entry are *the same
+inode*, so it makes shared cached artifacts writable and lets a later build
+overwrite an inode other checkouts are linked to. If a build output gives
+permission-denied, do one of:
+
+- **delete the specific offending file** — it is regenerable, and deleting it
+  breaks the hardlink so lake writes a fresh private copy;
+- run that one invocation with `LAKE_ARTIFACT_CACHE=false`;
+- `cp --remove-destination` if you need a writable copy of an existing artifact.
+
+Never `chmod`, and never delete `.lake` wholesale.
+
+**2. Tools built on `lake env lean` do not work in cache mode.** In this mode
+lake satisfies a build from the cache *without materializing oleans* into
+`.lake/build/lib/lean`, and `lake env printenv LEAN_PATH` contains **no** cache
+paths — so `lake env lean` cannot resolve a cache-satisfied module. It fails with
+`object file '….olean' … does not exist`, which reads as a **corrupt build**
+rather than a mode incompatibility; the instinctive response (delete `.lake` and
+rebuild) costs an hour and lands in the identical state. Affects
+`check-axioms.sh`, `port-check.sh`, and `check-opcode-tables.sh` (issue #10537).
+
+If a gate cannot run in your checkout, **say so plainly and explain why** — do
+not list it among the gates you ran. CI runs these in a non-cache environment, so
+the gate is still exercised before merge; a gate claimed but not run is worse
+than one openly skipped.
+
 ## Project Structure
 
 ```
@@ -285,6 +319,31 @@ Verified `Program`s are emitted to RV64 ELFs and run on `ziskemu` — roadmap in
 line) is the build-time gate for `emitInstr` drift. The conformance harness for
 guest changes is `scripts/codegen-eest-stateless-check.sh` (EEST A/B).
 
+#### Choosing the guest ELF, and knowing which one you ran (GH #10617)
+
+Override the guest with the **flag** `--guest-elf <path>`; it implies
+`--no-build`. There is no environment override: `GUEST_ELF` (and its internal
+twin `USER_GUEST_ELF`) now make the script **fail** and point at the flag.
+The variable used to be read as `USER_GUEST_ELF="${GUEST_ELF:-…}"`, so exporting
+the internal name was silently ignored — three consecutive sweeps reported clean
+passes on the default guest, and a 120-row false-reject population was declared
+fixed on that evidence. A misspelled argument fails loudly; a misspelled
+variable is indistinguishable from an unset one.
+
+Every run now echoes the resolved guest path and its **sha256** before running
+anything, and records both (plus `repo_head`, `repo_dirty`, backend and fixture
+tag) in `$RUN_DIR/run-provenance.tsv`; the sha is also in
+`eest-baseline.txt`. `scripts/eest-ab-compare.py` reads that file, so
+self-check 0 (“the two legs are distinct artifacts”) now runs even when a leg's
+guest came from outside the run dir instead of being skipped. The same
+`# guest_elf` / `# guest_elf_sha256` header is written by
+`scripts/lhkn7-semantic-boundary-v2-sweep.py`, and `scripts/spike/parity-check.sh`
+takes `--guest-elf` on the same terms.
+
+**Before believing any result that depends on an override, read back the sha the
+run printed.** An artifact that is not what it says it is has been the shape of
+every measurement failure on this harness so far.
+
 ## Architecture fitness functions (`scripts/check-*.sh`)
 
 The `scripts/check-*.sh` suite **is** a set of *architecture fitness
@@ -406,6 +465,17 @@ Pitfalls:
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*
+  behind mirroring `execution-specs`: align the guest to the spec's MODEL even at a temporary
+  `+FR` cost (`FA = 0` the one gate); replacing a proven routine with unverified emitted code to
+  land a correctness fix is allowed (axiom-clean + empirical `FA = 0` are the only hard gates);
+  build the spec-aligned FINAL form instead of salvaging a near-working stage with a hybrid;
+  represent the spec's Python control flow as a *derived value* in RISC-V memory (e.g. an
+  `auth_phase_applied` cell mirroring a `try/except`), never as free-standing invented state;
+  honor the spec's exact temporal scopes; exact-discrepancy-first / single-writer / ground-truth
+  debugging. **Load when:** a fix touches guest state/gas semantics and you're choosing between
+  mirroring the spec and patching the guest's reconstruction, a fix would break a formal proof,
+  or you're about to add guest state with "no obvious spec counterpart."
 - [`docs/agents/roadmap-4ch8f.md`](docs/agents/roadmap-4ch8f.md) — the epic's master map:
   layer DAG + pick-next rules, recipe-by-routine-shape table, the gate matrix (what CI runs
   vs what you must run per change type), non-negotiable conventions, the family-bead

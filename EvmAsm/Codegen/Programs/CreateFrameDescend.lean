@@ -100,7 +100,7 @@ def createFrameDescendFunction : String :=
   -- executing with a guessed zero balance.
   "  addi sp, sp, -48\n  sd ra, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd a5, 32(sp)\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, create_address_be; li a3, 20; ld a4, 592(x20); ld a5, 600(x20); la a6, create_prebalance_acct\n" ++
-  "  jal ra, account_at_header_state_root\n  mv t6, a0\n" ++
+  "  jal ra, account_at_header_state_root_tracked\n  mv t6, a0\n" ++
   "  ld ra, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld a5, 32(sp); addi sp, sp, 48\n" ++
   "  beqz t6, .Lcfd_create_pre_found\n  li t0, 1; beq t6, t0, .Lcfd_create_pre_absent\n" ++
   "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_create_pre_finish\n" ++
@@ -129,6 +129,16 @@ def createFrameDescendFunction : String :=
   "  la t2, create_value_be; ld t3, 0(t2); sd t3, 0(t0); ld t3, 8(t2); sd t3, 8(t0); ld t3, 16(t2); sd t3, 16(t0); ld t3, 24(t2); sd t3, 24(t0)\n" ++
   "  la t0, create_nonce_by_depth; slli t2, t1, 3; add t0, t0, t2\n" ++
   "  la t2, create_nonce; ld t3, 0(t2); sd t3, 0(t0)\n" ++
+  -- AccountState owns the execution-specs `created_accounts` mirror.  This is
+  -- deliberately before initcode executes, so CREATE followed by constructor
+  -- SELFDESTRUCT is still classified as created-this-tx even with no deposit.
+  -- `code_state_address_set_insert` uses a0..a3.  At this point those ABI
+  -- aliases include the live child PC/stack/memory registers x10/x12/x13;
+  -- preserve all three across the created_accounts insert before dispatching
+  -- the child's initcode.
+  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, 8192; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lcfd_account_created_ok:\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
   -- The new account's nonce is 1 before its initcode runs. Register it now
   -- so recursive CREATE from this child uses nonce 1 even when the address
   -- was pre-funded with pre-state nonce 0.

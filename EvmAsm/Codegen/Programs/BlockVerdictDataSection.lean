@@ -473,9 +473,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_refund_counter:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_calldata_floor:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_block_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- g8zeq.1.4.3: per-tx EIP-8037 state-gas array, the state counterpart of
-  -- bvgr_block_gas_increments. Filled by block_verdict_tx_state_gas_array; fed
-  -- (with bvgr_block_gas_increments) to eip8037_block_gas_used by g8zeq.1.4.2.
+  -- g8zeq.1.4.3: per-tx EIP-8037 intrinsic/auth state-gas array, the state
+  -- counterpart of bvgr_block_gas_increments.  The live transaction boundary
+  -- writes it before runtime dispatch; the common gas gate consumes it later.
   "bvgr_tx_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: per-tx EXECUTED state gas (net of refunds), filled by
   -- dispatcher_capture_exec_state_gas at each contract dispatch (mirrors
@@ -490,8 +490,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- with no state refund and leaves refund plumbing as explicit follow-up debt.
   "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
-  -- delegation marker. Debug/accounting context for auth-base state refunds;
-  -- regular gas refunds are threaded through tx_eip7702_existing_authority_refund.
+  -- delegation marker. The inline transaction-boundary helper uses this
+  -- accounting context when materializing auth state gas.
   "bvgr_tx_predelegated_auth_count:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Preserve the settled-prefix block gas across `bgv_u64le` while checking
   -- whether a following CREATE transaction fits the remaining 2D budget.
@@ -504,9 +504,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_receipt_gas_increments:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_before_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_applied_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- EIP-7702 state-refund scratch used by tx_eip7702_existing_authority_refund.
-  -- The current helper is a coarse syntactic bridge; evm-asm-cqesh tracks the
-  -- precise BAL/account predicate follow-up.
+  -- EIP-7702 authenticated-header lookup scratch retained by the live inline
+  -- authority/account-state helpers.
   "teer_type:\n  .zero 8\n" ++
   "teer_inner_off:\n  .zero 8\n" ++
   "teer_auth_off:\n  .zero 8\n" ++

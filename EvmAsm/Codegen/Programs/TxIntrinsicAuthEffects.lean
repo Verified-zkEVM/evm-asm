@@ -98,6 +98,16 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  ld t1, 48(t0); addi t2, s11, 1; bltu t1, t2, .Lteanse_next\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
+  -- GH #10619 gate 2: this is an EXECUTION read of the authority account and it
+  -- BELONGS on account_at_header_state_root_tracked, not on the raw entry.  It is
+  -- deliberately still raw: the EIP-7702 authorization path is being changed
+  -- concurrently by GH #10635 (the early44 auth nonce EFFECT), and two lanes
+  -- editing one region is how the spec's single mechanism becomes two.  Held for
+  -- sequencing, not overlooked -- the fix is retargeting this one token once
+  -- #10635 lands.  Consequence while held: an authority account touched ONLY by
+  -- an authorization (and by nothing else in the transaction) is missing from
+  -- account_reads, so the container UNDER-records rather than over-records; that
+  -- direction cannot produce a false accept in the BAL comparison.
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteanse_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++
@@ -111,7 +121,7 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   -- latest effect when present instead of repeatedly comparing to header state.
   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct\n" ++
-  "  jal ra, nonstorage_effect_latest_nonce\n" ++
+  "  jal ra, account_state_latest_nonce\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  la t0, teer_pre_acct; ld t1, 0(t0); bne t1, s11, .Lteanse_next\n" ++
   ".Lteanse_record:\n" ++
@@ -122,7 +132,7 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   -- header balance here would otherwise clobber a later value credit/debit.
   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
   "  jal ra, record_nonstorage_effect\n" ++

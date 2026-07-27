@@ -398,8 +398,7 @@ def callFrameDescendFunction : String :=
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
   -- pointer_reentry's re-entered EOA SSTOREs SELFBALANCE=1000 and the directly-called contract
-  -- 100. The witness lookup can't run here (mid-EVM-execution the MPT walk returns absent), so
-  -- dispatch_tx_runtime_code pre-resolved every BAL account's balance into callee_balance_table
+  -- 100. dispatch_tx_runtime_code pre-resolves BAL-account balances into callee_balance_table
   -- (LE-limb order). Reverse the child ADDRESS@0 (20B stack-word/LE, MSB at env+19) into the free
   -- child-env scratch (env+696; frameEnvBytes=768, fields end 688) -> canonical BE, scan the table,
   -- and copy the matching LE balance verbatim into env+32 (h_SELFBALANCE copies env+32 to the LE
@@ -441,7 +440,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
@@ -451,6 +450,25 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
   "  li t2, 1; sd t2, 88(sp)         # committed effect supersedes the table value\n" ++
   ".Lcfd_lbov_done:\n" ++
+  -- The BAL table is intentionally bounded and does not necessarily include every
+  -- account reached by a nested frame.  If neither it nor the live-effect overlay
+  -- supplied a balance, resolve the inherited authenticated header state instead
+  -- of executing with a guessed zero.  This is the same prestate fallback used by
+  -- CREATE descent: a live effect always wins, authenticated absence is zero, and
+  -- malformed lookup results become the existing sticky runtime failure.
+  "  ld t0, 88(sp); bnez t0, .Lcfd_prebalance_done\n" ++
+  "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
+  "  ld a0, 576(s9); ld a1, 584(s9); addi a2, s9, 696; li a3, 20; ld a4, 592(s9); ld a5, 600(s9); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 8\n" ++
+  "  beqz t6, .Lcfd_prebalance_found\n" ++
+  "  li t0, 1; beq t6, t0, .Lcfd_prebalance_done\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_prebalance_done\n" ++
+  ".Lcfd_prebalance_found:\n" ++
+  "  la t0, create_prebalance_acct; addi t0, t0, 39; addi t1, s9, 32; li t2, 32\n" ++
+  ".Lcfd_prebalance_copy:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcfd_prebalance_copy\n" ++
+  ".Lcfd_prebalance_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used,
   -- evm_state_gas_spilled = state gas drawn from gas_left) into the child env
@@ -509,6 +527,12 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- The mutable CodeState is a transaction overlay, so it needs the same
+  -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
+  -- the checkpoints depth-indexed rather than extending the packed env ABI.
+  "  la t1, account_state_pending_count; ld t0, 0(t1); la t1, account_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_created_count; ld t0, 0(t1); la t1, account_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_delete_count; ld t0, 0(t1); la t1, account_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
@@ -649,7 +673,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li t0, 16777216; sd t0, 568(s8); sd zero, 488(s8)\n" ++
   "  mv x13, s7; mv x20, s8\n" ++
   "  li x14, 0x30000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  li t0, 0x1122334455667788; add t1, s7, x14; sd t0, 0(t1)\n" ++
   -- Enter depth 2. Its base must be parent base + parent MSIZE.
   "  la t0, frame_parent_bases; addi t0, t0, 32; sd s7, 0(t0); sd s8, 8(t0)\n" ++
@@ -659,7 +683,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li t0, 16777216; sd t0, 568(s10); sd zero, 488(s10)\n" ++
   "  mv x13, s9; mv x20, s10\n" ++
   "  li x14, 0x40000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  li t0, 0x8877665544332211; add t1, s9, x14; sd t0, 0(t1)\n" ++
   -- Record child isolation and parent readback.
   "  sub t0, s9, s7; sd t0, 0(s0)\n" ++
@@ -669,7 +693,7 @@ def ziskMemoryPoolWitnessPrologue : String :=
   "  li a0, 2; jal ra, call_frame_enter\n" ++
   "  mv s11, a0; mv s6, a2; li t0, 16777216; sd t0, 568(s6); sd zero, 488(s6)\n" ++
   "  mv x13, s11; mv x20, s6; li x14, 0x40000; li x15, 32\n" ++
-  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true ++
+  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
   "  add t1, s11, x14; ld t0, 0(t1); sd t0, 24(s0)\n" ++
   "  li t0, 0xaabbccddeeff0011; sd t0, 0(t1); ld t0, 0(t1); sd t0, 32(s0)\n" ++
   "  li t2, 0x30000; add t1, s7, t2; ld t0, 0(t1); sd t0, 40(s0)\n" ++

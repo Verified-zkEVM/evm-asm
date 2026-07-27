@@ -4,6 +4,8 @@
   Active-precompile gas dispatch fragment for block_verdict simple-transfer handling.
 -/
 
+import EvmAsm.Codegen.Programs.PrecompileRuntime
+
 namespace EvmAsm.Codegen
 
 private def blockVerdictModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) : String :=
@@ -57,6 +59,10 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t4, 17; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g2\n" ++
   "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
   ".Lbv_tx_gas_precharge_value_check:\n" ++
+  -- The MTx empty-code route enters this shared active-precompile recognizer
+  -- with its context copied into the scalar scratch. Falling through here
+  -- means the recipient was not active, so resume indexed EOA settlement.
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_not_active\n" ++
   "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 112(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
@@ -208,14 +214,18 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t6, 375\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 12000; mul t6, t6, t5\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
+  bls12MsmCostAsm ".Lbv_simple_transfer_precompile_fail" 160 12000 519 "bls12_g1_msm_discount_table" ++
+  "  mv t6, x16\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2add:\n" ++
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 512; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t6, 600\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 22500; mul t6, t6, t5\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
+  bls12MsmCostAsm ".Lbv_simple_transfer_precompile_fail" 288 22500 524 "bls12_g2_msm_discount_table" ++
+  "  mv t6, x16\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_pairing:\n" ++
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 384; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; divu t5, t5, t4; li t6, 32600; mul t6, t6, t5; li t4, 37700; add t6, t6, t4\n" ++

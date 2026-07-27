@@ -188,6 +188,130 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
+  GH #10619): inserting one instruction into a `Program` literal moves **four**
+  separate things, and getting any wrong yields assembly that LINKS CLEANLY while
+  jumping into the middle of an instruction — silent corruption no build, diff or
+  `#guard` catches. The script computes them from an anchor annotation:
+  `GuestAddrs.<routine> + N` bumps, relative branches whose **span crosses** the
+  insertion point (measured: 5 / 2 / 4 in the three routines routed for #10619), the
+  **instruction-indexed** reloc side-table, and the `_prog.length` pin. Read-only.
+  Prefer `asm_to_program.py rewrite` where an asm fixture exists — it derives all
+  four — and use this as the independent check on it (that cross-check is how the
+  branch-span and reloc-index classes were found).
+
+- **EIP-7928 read containers** (GH #10619): the spec's three read sets
+  (`state_tracker.py` `storage_reads` / `account_reads` / `code_reads`) mirrored at
+  **both** of the spec's two levels — per-transaction arenas that the recorders
+  write, and block-level arenas filled only by `read_sets_incorporate_tx`
+  (`state_tracker.py:832`; merge `:858-861`, then **clear** `:879-881`).
+  `read_sets_discard_tx` names the never-promoted path (`fork.py:745-752`).
+  Producers: `StorageReadLog` / `AccountReadLog` / `CodeReadLog`, deliberately
+  **three routines rather than one parameterised by kind** — the firing conditions
+  differ (account/storage record unconditionally *before* consulting writes, `:139`
+  / `:295`; code records only on a pre-state fallthrough and skips
+  `EMPTY_CODE_HASH`, `:263-270`), so a shared recorder would over-record code reads
+  and invent witness codes.
+  **Tracked/raw accessor pairs** mirror the spec's tracked-accessor-vs-raw-store
+  distinction: `code_read_fetch` over `witness_codes_lookup_by_hash`, and
+  `account_at_header_state_root_tracked` over `account_at_header_state_root`.
+  Execution call sites route to the tracked entry; verification sites
+  (`block_verdict` ×6, `bal_code_preimages_valid`) and guest-only sites keep the raw
+  one, because recording verification reads is an **over**-record — the direction
+  that produces a false ACCEPT.
+  Why a split and not a classification table: **five** separate instruments
+  mis-measured that one caller set (a single-call-form `jal ra` grep, a
+  lowercase-only label pattern that skipped `h_CALL:`, a hand table that lost three
+  rows, a source-level reading of a parameterised generator, and an
+  end-of-line-anchored attributor that dropped every compound `jal x; mv y`). A
+  table is a promise maintained by whoever last ran the search; the call graph is
+  not. **Rule adopted:** never report a count you did not measure in the emitted
+  image, and reconcile any attributed breakdown against an independent flat count —
+  a breakdown whose rows do not sum to the flat count has *failed*, not
+  approximated.
+  The six arenas cost **zero** ELF bytes (absolute-addressed carve-outs of the
+  pre-existing working-RAM window, not `.bss` objects); the whole ELF cost is 96
+  bytes of cursors and overflow flags. `MemoryBudgetGuard` does **not** cover these
+  regions — it is a gas-affordability guard, not a footprint guard (open follow-up).
+
+- **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
+  GH #10540): kernel-checked (`decide`, classical-3) assertions that the
+  MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding
+  the depth-0 dense arena costs ≈3.4e7 and the nested pool floor ≈6.4e7 against
+  a 1.68e7 cap. Turns a coincidence between three independently-editable
+  constants (`rootRuntimeMemoryArenaLimitBytes`, `evmMemoryPoolBytes`,
+  `SpecRef.TX_MAX_GAS_LIMIT`) into a build failure. Includes non-vacuity pins
+  (91_917 words affordable, 91_918 not) so the guards constrain a real
+  configuration. **Ordering constraint**: if it ever fails, the sparse path goes
+  live, #10522's write becomes reachable, and the global 4096-entry sparse cap
+  becomes a reachable FR — see #10535.
+
+  **Grown since #10540 into the home for constant-relationship invariants
+  generally** — seven guards over three remits: #10522's unreachability
+  precondition, the achievable steps-per-gas constant `k` behind the top
+  theorem's fuel (#10552), and the clamped fill loop's exit exactness
+  (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
+  header records the **admission test** (coincidence needs a kernel-checked pin;
+  construction does not, and a pin there is redundant ceremony), the rule to
+  guard only the coincidental half of a two-half bound *and say why the other
+  needs nothing*, the rule to pin the quantity that is **used** rather than its
+  inputs, and — added in #10563 — the **boundary**: constants Lean can *see*
+  only. An invariant involving a link-chosen address belongs in the ELF gate
+  below, because a `decide` on one would pin a number nobody had checked against
+  the image, which is worse than no guard because it *looks* verified.
+- **Gas-coefficient pins** (`MemoryBudgetGuard.lean`, GH #10565–#10567, #10570,
+  #10571): every inline dynamic-gas coefficient and static tier tied to its
+  SpecRef symbol by a red-tested `decide`, each carrying the instruction for what
+  to fix when it fires (*update the helper's arithmetic, never the theorem*). All
+  were **correct when pinned** — this is drift protection. Three
+  coincidence-class collapses found in the process: `copyWordGasAsm`'s `3` serves
+  two spec constants that must stay *equal* (#10566) **and is emitted from two
+  files** (#10568); CREATE2's `8` is a **sum** of `CODE_INIT_PER_WORD` and
+  `OPCODE_KECCAK256_PER_WORD` (#10567); and the access split `100 + 2900` must
+  reconstitute `COLD_{ACCOUNT,STORAGE}_ACCESS`, where a reprice of `WARM_ACCESS`
+  alone would leave the sum right and the warm path silently wrong (#10571).
+  **Those residuals are now closed, and by a stronger mechanism than pinning.**
+  Rather than adding more `decide`s, the emission sites were changed to
+  *interpolate the SpecRef symbol*, so the guest can no longer hold a value that
+  disagrees with the spec:
+  * SSTORE's `STORAGE_WRITE` and `REFUND_STORAGE_CLEAR` (#10574 → PR #10579) —
+    seven sites over three files, and the guest now inherits SpecRef's
+    *derivation* of `REFUND_STORAGE_CLEAR` rather than its output;
+  * the flat `WARM_ACCESS`, plus the adjacent `COLD_ACCOUNT_ACCESS`
+    (#10572 → PR #10585);
+  * the 256-entry static gas table (#10569 → PR #10586) — every entry that has a
+    SpecRef symbol now names one; only `CREATE`/`CREATE2` (11000) and
+    `SELFDESTRUCT` (5000) keep literals, having no symbol to name.
+
+  All three were verified **byte-identical**, which is also what establishes each
+  symbol choice was right: a wrong symbol with a coincidentally equal value moves
+  no byte, so byte-identity alone does not catch it — `SELFBALANCE` was
+  substituted as `LOW` and corrected to `FAST_STEP`, both being 5. Those cases
+  were settled by reading `execution-specs`, not the value.
+
+  This makes the relationship **construction class** by `MemoryBudgetGuard`'s own
+  admission test, so the surviving pins are now redundancy checks rather than the
+  only line of defence. The remaining audit item on #10569 — whether each
+  access-priced opcode actually *reaches* a cold-delta charge — was checked
+  separately and holds on every non-halting path.
+- **Link-layout ELF gate** (`scripts/check-region-map.sh`, GH #10559): asserts
+  that **whichever** dense arena ends at `__BSS_END__` does so exactly, so the
+  boundary above it faces ~7.2 MiB of unclaimed address space rather than mapped
+  data. Written as a property, not an instance, so it survives an intentional
+  reorder (#10557) and fires only if *neither* arena backstops. Complements the
+  layout invariant recorded at the pool's emission site: `rb_running_block_bloom`
+  begins at **exactly** `evm_memory_pool_end` with zero slack, so any overshoot
+  in a pool-fill loop corrupts verdict state rather than padding (#10556).
+  Note the gap is *unclaimed*, **not** trapping — it lies inside the verified RAM
+  window, so a store there is legal and silent.
+- **A/B comparator with self-checks** (`scripts/eest-ab-compare.py`, GH #10546):
+  compares two `codegen-eest-stateless-check` run dirs and **refuses to report a
+  verdict** unless three assertions hold — both sides scored every manifest row
+  (no short denominator), the join is sound (keyed on `sha256` of each case's
+  input bytes, with within-group output consistency asserted since the key is
+  many-to-one), and coverage is total. Enumerates in-process, so no `ARG_MAX`
+  exposure. Exists because all three failure modes were hit in practice and each
+  fails in the direction that *looks like a pass*.
 - **Separation-logic state-assertion vocabulary** (layout-faithful Assertions
   over the guest's structured arenas, each with a proven faithfulness tie;
   all headline lemmas fenced as `Progress.lean` witnesses):
@@ -218,7 +342,27 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   agreement post `evm-asm-3umhl`: the guest ignores the even-path
   padding nibble exactly like execution-specs `compact_to_nibbles` —
   the original strict-reject divergence was relaxed away with a guest
-  re-emit + full EEST A/B).
+  re-emit + full EEST A/B). **Second relaxation, GH #10528**: the flag
+  nibble is now decoded MOD 4 on both sides — bits 2–3 are ignored
+  rather than rejected, matching execution-specs. `hpDecode` matches on
+  `(b0.toNat / 16) % 4`; `hpDecode_cons_div0..3` take `hi % 4 = N` (a
+  strictly simpler proof under masking); the guest lost its
+  `li x28, 4` / `bgeu x6, x28` guard pair, so `hp_decode_nibbles` is
+  **51 instructions** and reads only the two live bits
+  (`andi x28, x6, 2` is-leaf, `andi x6, x6, 1` parity). **No path
+  theorem was spent**: Paths D/E split on bit 0, which masking does not
+  touch, so deleting the `hi < 4` case split leaves them covering the
+  full domain; only Path B — the theorem about the *removed* guard —
+  went. Exit indices moved 38 → 36 (step bounds are upper bounds, so
+  most needed no change). Layout: 377 symbols shifted by exactly −8
+  bytes, `textSizeBytes` `0x61408` → `0x61400`, plus three pinned
+  address literals in `AccountAccessorTopSpec` / `RlpItemSpanSpec` /
+  `RlpSpliceHelperSpec`.
+  **The SpecRef link is still owed**: the proved chain is
+  `guest → hdnRes → hpDecode`, and `hpDecode → SpecRef.compact_to_nibbles`
+  is not stated as a theorem. It is no longer *false* — `compact_to_nibbles`
+  reads only `first_nibble &&& 0x02` and `&&& 0x01`, so bits 2–3 are dead on
+  both sides — but behavioural agreement is not a proof.
 - **Transient store recipe** (`EvmAsm/Evm64/Transient/`, TSTORE done; TLOAD next):
   Body-as-Program `evm_tstore` (`StoreProgram.lean`) is the la-FREE append core
   (`li 0xa0830000` concrete base, `slli`+`add` for `base+128*n`); the handler
@@ -480,6 +624,19 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `InitCodeCostSAsm.lean` verifies `init_code_cost` byte-identically with a
   writable dword post (`a0 = 0`, output `= gasPerWord * ((len + 31) >> 5)`
   under exact RV64 wrapping semantics).
+  **SCOPE (GH #10524): these five dynamic-gas leaves are reachable ONLY from
+  `zisk_*` probe `BuildUnit`s — the opcode dispatcher does not call them.** It
+  uses six separate inline asm helpers in `Programs/EvmMemoryGas.lean` /
+  `EvmMcopyGas.lean` (`updateActiveMemorySizeAsm`, `copyWordGasAsm`,
+  `keccakWordGasAsm`, `logDynamicGasAsm`, `expDynamicGasAsm`,
+  `mcopyDynamicGasAsm`) which compute *different* functions — base costs folded
+  differently, and wrap/`mulhu` guards present on one side only. So these
+  triples do not currently constrain the emitted guest's gas arithmetic, and the
+  `_byte_tie` pins guard each leaf against its own `Program`, not against the
+  dispatcher. Both live gas defects found in this area were in the inline
+  versions with no counterpart in the proven leaf (#10521 keccak `ceil32` wrap,
+  fixed; #10523 MCOPY missing `mulhu`). Do not cite these leaves as coverage for
+  opcode gas metering.
   Byte-reverse copies (`whileS`, runtime length, read-only src + writable dst):
   `SwrRevLeBeSAsm.lean` (`swrRevLeBeFn_spec`, `dst = (src[0..len)).reverse`,
   byte-identity fully pinned to `swrRevLeBe_prog`; pre REQUIRES src/dst
