@@ -16,7 +16,14 @@ import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTM
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMMT
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Bridge
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeFalse
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeTrue
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Scratch
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
 
 open EvmAsm.Rv64.Tactics
 

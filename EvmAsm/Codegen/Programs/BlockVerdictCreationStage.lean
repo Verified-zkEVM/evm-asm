@@ -6,7 +6,8 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.NonstorageEffectLog
+import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -43,27 +44,30 @@ open EvmAsm.Rv64
     Payload layout for the supported shape:
       +0    u64 bytecode length            (= 1)
       +8    bytecode bytes                 (= 0x00 STOP, padded)
-      +16   u64 calldata length            (= 0)
-      +24   u64 slot_count                 (= 0)
-      +32   blob_base_fee word             (= 0 in this staging-only slice)
-      +64   u64 blob_hash_count            (= 0)
-      +72   u64 current_block_number       (= 0)
-      +80   u64 blockhash_count            (= 0)
-      +88   13 simple-env words
-      +504  SLOTNUM word                   (EIP-7843 slot_number, exec@532)
-      +536  u64 gas_limit                  (= context tx gas limit)
-      +544  u64 validate_tx_gas flag       (= 0; see note below)
-      +552  u64 is_creation flag           (= 1)
-      +560  u64 account-witness header len (= 0)
-      +568  u64 witness.state len          (= 0)
-      +576  u64 witness.codes len          (= 0)
+      +16   u64 calldata length            (= 1; tx.data IS the initcode)
+      +24   calldata bytes                 (= 0x00 STOP, padded)
+      +32   u64 slot_count                 (= 0)
+      +40   blob_base_fee word             (= 0 in this staging-only slice)
+      +72   u64 blob_hash_count            (= 0)
+      +80   u64 current_block_number       (= 0)
+      +88   u64 blockhash_count            (= 0)
+      +96   13 simple-env words
+      +512  SLOTNUM word                   (EIP-7843 slot_number, exec@532)
+      +544  u64 gas_limit                  (= context tx gas limit)
+      +552  u64 validate_tx_gas flag       (= 1; see note below)
+      +560  u64 is_creation flag           (= 1)
+      +568  u64 account-witness header len (= 0)
+      +576  u64 witness.state len          (= 0)
+      +584  u64 witness.codes len          (= 0)
 
-    `validate_tx_gas` is deliberately 0 here. The current dispatcher ABI uses
-    calldata length for creation intrinsic-data and initcode-word gas. This
-    helper stages empty calldata by design, so enabling the dispatcher-side
-    tx-gas gate would undercharge initcode. The integration slice must either
-    precharge before dispatch or extend the ABI before using this for gas-exact
-    receipts.
+    `validate_tx_gas` is 1: the dispatcher computes the v0.6.0 creation
+    intrinsic (TX_BASE + CREATE_ACCESS + data tokens + initcode words +
+    access-list), the calldata floor, the EIP-8037 reservoir split, and the
+    prepare_dispatch NEW_ACCOUNT state charge exactly like execution-specs.
+    For a creation transaction tx.data is the initcode, so it is staged as the
+    dispatcher's calldata for the intrinsic data/initcode-word costs; the
+    supported one-byte STOP shape never reads CALLDATA, so execution is
+    unaffected.
 -/
 def stageCreationRuntimePayloadFunction : String :=
   "stage_creation_runtime_payload:\n" ++
@@ -99,9 +103,9 @@ def stageCreationRuntimePayloadFunction : String :=
   "  li a0, 4\n" ++
   "  j .Lscrp_ret\n" ++
   ".Lscrp_supported:\n" ++
-  -- Zero the fixed 584-byte STOP-shaped payload (73 dwords).
+  -- Zero the fixed 592-byte STOP-shaped payload (74 dwords).
   "  mv t1, s0\n" ++
-  "  li t2, 73\n" ++
+  "  li t2, 74\n" ++
   ".Lscrp_zero:\n" ++
   "  sd zero, 0(t1)\n" ++
   "  addi t1, t1, 8\n" ++
@@ -109,8 +113,13 @@ def stageCreationRuntimePayloadFunction : String :=
   "  bnez t2, .Lscrp_zero\n" ++
   -- bytecode length = 1; bytecode byte is STOP and already zeroed.
   "  li t0, 1; sd t0, 0(s0)\n" ++
-  -- Env trailer starts at +88 for one padded bytecode dword and no calldata/storage.
-  "  addi t6, s0, 88              # env base\n" ++
+  -- calldata length = 1 (tx.data = the initcode); the calldata byte is STOP
+  -- and already zeroed. Staged so the dispatcher's validated intrinsic path
+  -- prices the creation data tokens and initcode words from tx.data.
+  "  li t0, 1; sd t0, 16(s0)\n" ++
+  -- Env trailer starts at +96 for one padded bytecode dword and one padded
+  -- calldata dword, no storage.
+  "  addi t6, s0, 96              # env base\n" ++
   -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
   -- reversed into the low 160 bits of the EVM stack word layout.
   "  addi t1, s2, 32; addi t2, t6, 192; li t3, 0\n" ++
@@ -127,11 +136,12 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t1, s2, 440\n" ++
   "  ld t2, 0(t1); sd t2, 352(t6); ld t2, 8(t1); sd t2, 360(t6)\n" ++
   "  ld t2, 16(t1); sd t2, 368(t6); ld t2, 24(t1); sd t2, 376(t6)\n" ++
-  -- CALLVALUE (word 3): context value. STOP does not observe it, but staging
-  -- it now keeps the trailer shape aligned with the later broader helper.
-  "  addi t1, s1, 96\n" ++
-  "  ld t2, 0(t1); sd t2, 96(t6); ld t2, 8(t1); sd t2, 104(t6)\n" ++
-  "  ld t2, 16(t1); sd t2, 112(t6); ld t2, 24(t1); sd t2, 120(t6)\n" ++
+  -- CALLVALUE (word 3): context value is BE, while the payload's EVM words
+  -- are LE limbs. This legacy emitted stager is currently non-live, but keep
+  -- its ABI correct instead of preserving an emitted raw-BE env seed.
+  "  addi t1, s1, 127; addi t2, t6, 96; li t3, 32\n" ++
+  ".Lscrpp_callvalue_rev:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; bnez t3, .Lscrpp_callvalue_rev\n" ++
   -- EIP-7843 SLOTNUM (trailer word @env_base+416, low limb): block-header
   -- slot_number (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part
   -- of the reconstructed header hash. The dispatcher copies this word to
@@ -146,9 +156,9 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t2, t2, 1; j .Lscrp_slot\n" ++
   ".Lscrp_slot_done:\n" ++
   "  sd t1, 416(t6)               # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
-  -- Trailer: gas@+448, validate@+456 = 0, is_creation@+464 = 1.
+  -- Trailer: gas@+448, validate@+456 = 1, is_creation@+464 = 1.
   "  ld t1, 40(s1); sd t1, 448(t6)\n" ++
-  "  li t1, 1; sd t1, 464(t6)\n" ++
+  "  li t1, 1; sd t1, 456(t6); sd t1, 464(t6)\n" ++
   "  li a0, 0\n" ++
   ".Lscrp_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -163,9 +173,9 @@ def stageCreationRuntimePayloadFunction : String :=
       +0  stage status                         (expect 0)
       +8  bytecode length                      (expect 1)
       +16 first bytecode byte                  (expect 0)
-      +24 calldata length                      (expect 0)
+      +24 calldata length                      (expect 1; tx.data is the initcode)
       +32 is_creation at env_base+464          (expect 1)
-      +40 validate_tx_gas at env_base+456      (expect 0)
+      +40 validate_tx_gas at env_base+456      (expect 1)
       +48 gas at env_base+448                  (expect 53000)
       +56 callvalue low limb at env_base+96    (expect 0x42)
       +64 non-creation status                  (expect 2)
@@ -195,7 +205,7 @@ def ziskStageCreationRuntimePayloadPrologue : String :=
   "  ld t1, 0(t0); sd t1, 8(s0)\n" ++
   "  lbu t1, 8(t0); sd t1, 16(s0)\n" ++
   "  ld t1, 16(t0); sd t1, 24(s0)\n" ++
-  "  li t2, 88; add t2, t0, t2\n" ++
+  "  li t2, 96; add t2, t0, t2\n" ++
   "  ld t1, 464(t2); sd t1, 32(s0)\n" ++
   "  ld t1, 456(t2); sd t1, 40(s0)\n" ++
   "  ld t1, 448(t2); sd t1, 48(s0)\n" ++
@@ -255,6 +265,28 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
 
     Returns:
       a0 = 0 when runtime windows were filled; nonzero staging status otherwise.
+
+    ⚠️ **The `single_tx` in this name is misleading — the MULTI-tx path calls it too.**
+    There are eight call sites (GH #10663):
+
+    | site | |
+    |---|---|
+    | `BlockVerdictCreateCollision.lean:114`  | single-tx creation dispatch |
+    | `BlockVerdictMtxRuntime.lean:521`       | **multi-tx mirror** (`:507` carries the parallel
+                                                `.Lbv_mtx_creation_access_field` structure) |
+    | `EvmDispatchUnits.lean:118,138,145,152,159,165` | six |
+
+    So **"this routine ran" is NOT evidence that the single-tx path ran.** Measured for
+    `create_oog_from_eoa_refunds`: dispatch comes from `MtxRuntime:521` (24/24), never from
+    `CreateCollision:114` (0/24). During GH #10614 this name made a false premise plausible
+    enough to file as an issue (#10662, since closed), and then made two *true* results —
+    "these blocks are on the multi-tx path" and "the creation runtime is entered" — look
+    mutually contradictory. Hours went into reconciling a conflict only the name created.
+
+    Sibling trap: `dispatch_tx_runtime_code` (`BlockVerdictFunction:847`) is a **different**
+    routine, and creation transactions never reach it — they divert at `BlockVerdictFunction:299`
+    into `BlockVerdictCreateCollision:23`, which is also why the single-tx check region at
+    `:1122` is never entered for them. One diversion explains both non-arrivals.
 -/
 def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "block_verdict_single_tx_creation_runtime:\n" ++
@@ -264,42 +296,122 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  mv s0, a0\n" ++
   "  la t0, bv_creation_ctx_ptr; sd s0, 0(t0)  # stable across runtime dispatcher\n" ++
   "  mv s1, a1\n" ++
+  -- A top-level CREATE runs its transaction data as initcode.  Use the common
+  -- arbitrary-code payload stager rather than the old one-byte STOP-only
+  -- layout so the callable runtime receives the real initcode bytes both as
+  -- code and as transaction calldata for intrinsic-gas accounting.
+  -- The callable runtime may resolve code for nested CALL/STATICCALL targets.
+  -- Reserve room for its authenticated M31 context before the common stager
+  -- writes the code/calldata prefix: two padded initcode copies plus the
+  -- pre-header, state witness, codes witness, and fixed trailer must fit the
+  -- same bounded payload buffer as the normal contract path.
+  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8; slli t1, t1, 1\n" ++
+  "  la t0, sv_pre_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, bv_witness_state_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Lbvcr_payload_unsupported\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
-  "  jal ra, stage_creation_runtime_payload\n" ++
+  "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
+  "  li a5, 0; li a6, 0\n" ++
+  "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
+  -- Match the normal contract-dispatch M31 trailer.  The common stager only
+  -- constructs code, calldata, and env words; nested account/code lookups
+  -- require this authenticated pre-transaction header/witness context.
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, sv_pre_rlp_len; ld t2, 0(t1); sd t2, 472(t0)\n" ++
+  "  la t1, bv_witness_state_len; ld t3, 0(t1); sd t3, 480(t0)\n" ++
+  "  la t1, svf_codes_len; ld t4, 0(t1); sd t4, 488(t0)\n" ++
+  "  addi t5, t0, 496\n" ++
+  "  la t1, sv_pre_rlp_ptr; ld t1, 0(t1); mv t6, t2\n" ++
+  ".Lbvcr_ctx_hdr_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_state_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_hdr_copy\n" ++
+  ".Lbvcr_ctx_state_copy_start:\n" ++
+  "  la t1, bv_witness_state_ptr; ld t1, 0(t1); mv t6, t3\n" ++
+  ".Lbvcr_ctx_state_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_codes_copy_start\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_state_copy\n" ++
+  ".Lbvcr_ctx_codes_copy_start:\n" ++
+  "  la t1, svf_codes_ptr; ld t1, 0(t1); mv t6, t4\n" ++
+  ".Lbvcr_ctx_codes_copy:\n" ++
+  "  beqz t6, .Lbvcr_ctx_done\n" ++
+  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_codes_copy\n" ++
+  ".Lbvcr_ctx_done:\n" ++
+  -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
+  -- transaction recipient).  A top-level CREATE has no recipient: its frame
+  -- address is the CREATE(sender, nonce) address already derived by the
+  -- verdict path.  Replace just that word before dispatch; this is required
+  -- for initcode such as ADDRESS; SELFDESTRUCT to execute in the created
+  -- account's context, as `process_create_message` does.
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
+  "  sd zero, 0(t1); sd zero, 8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
+  "  la t2, bv_create_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_address:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_address_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_address\n" ++
+  ".Lbvcr_stage_address_done:\n" ++
+  -- A top-level CREATE runs initcode with CALLER == ORIGIN == the
+  -- authenticated transaction sender.  The common stager leaves those words
+  -- zero for its self-contained recipient slice, so complete the two sender
+  -- identity words here before dispatching initcode.
+  "  ld a0, 24(s0); beqz a0, .Lbvcr_stage_caller_done\n" ++
+  "  la a1, srpc_sender_addr; jal ra, address_from_pubkey\n" ++
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0; addi t1, t1, 64\n" ++
+  "  la t2, srpc_sender_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_caller:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_caller_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_caller\n" ++
+  ".Lbvcr_stage_caller_done:\n" ++
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0; addi t1, t1, 128\n" ++
+  "  la t2, srpc_sender_addr; li t3, 0\n" ++
+  ".Lbvcr_stage_origin:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbvcr_stage_origin_done\n" ++
+  "  li t4, 19; sub t4, t4, t3; add t4, t2, t4; lbu t5, 0(t4); add t4, t1, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbvcr_stage_origin\n" ++
+  ".Lbvcr_stage_origin_done:\n" ++
+  -- Restore the env base for the adjacent SELFBALANCE staging below.
+  "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
+  -- `process_create_message` credits the newly-created account with tx.value
+  -- before initcode executes.  The context stores that value in canonical BE
+  -- order, while h_SELFBALANCE copies env+32 directly onto the LE EVM stack.
+  -- Seed this fresh CREATE frame by reversing BE tx.value into the LE env word,
+  -- so SELFDESTRUCT and SELFBALANCE observe the spec's live account balance.
+  "  addi t1, t1, 32; addi t2, s0, 127; li t3, 32\n" ++
+  ".Lbvcr_stage_selfbalance_rev:\n" ++
+  "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t3, t3, -1; bnez t3, .Lbvcr_stage_selfbalance_rev\n" ++
+  -- A transaction-level CREATE enters initcode in the freshly-created account,
+  -- just like `process_create_message`: mark depth zero as a CREATE frame and
+  -- publish its address/nonce before the dispatcher starts.  The runtime uses
+  -- this marker for EIP-6780 SELFDESTRUCT-to-self accounting; without it an
+  -- initcode SELFDESTRUCT treats its own just-created account as pre-existing.
+  -- Keep the depth-zero metadata in the same form as `create_frame_descend`.
+  -- The nonce-table seed itself must happen after runtime_dispatcher_call's
+  -- per-transaction reset; the callable dispatcher performs that guarded seed.
+  "  la t0, create_frame_flag; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, create_address_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t1, bv_create_addr; li t2, 0\n" ++
+  ".Lbvcr_create_address_copy:\n" ++
+  "  li t3, 20; beq t2, t3, .Lbvcr_create_address_copy_done\n" ++
+  "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
+  ".Lbvcr_create_address_copy_done:\n" ++
+  "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
-  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
-  "  jal ra, runtime_dispatcher_call\n" ++
-  "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
-  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
-  "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
-  "  mv s3, a2\n" ++
-  "  beqz s3, .Lbvcr_runtime_gas_left_ready\n" ++
-  "  la t4, bvgr_tx_state_refund; ld t4, 0(t4); beqz t4, .Lbvcr_fresh_create_receipt_gas\n" ++
-  "  li t0, 23006            # existing balance-only target: NEW_ACCOUNT state gas is refunded\n" ++
-  "  j .Lbvcr_receipt_gas_have\n" ++
-  ".Lbvcr_fresh_create_receipt_gas:\n" ++
-  "  li t0, 206606           # fresh target: regular intrinsic plus NEW_ACCOUNT state gas\n" ++
-  ".Lbvcr_receipt_gas_have:\n" ++
-  "  bltu a0, t0, .Lbvcr_runtime_gas_left_ready\n" ++
-  "  sub a0, a0, t0          # publish combined left: tx.gas - receipt pre-refund gas\n" ++
-  ".Lbvcr_runtime_gas_left_ready:\n" ++
-  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
-  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
-  "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
-  "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
-  -- Amsterdam EIP-7708: process_create_message transfers value into the child
-  -- frame before initcode runs, emitting Transfer(sender, created, value). The
-  -- staged top-level creation path has only STOP initcode, so adding the log
-  -- before the receipt-window snapshot preserves execution-specs ordering.
-  "  beqz s3, .Lbvcr_tl7708_done\n" ++
+  -- Retain only the depth-zero RETURN in a distinct EIP-170-sized fixed
+  -- buffer.  Its status distinguishes STOP (0), captured RETURN (1), and an
+  -- oversized RETURN (2), so the later deposit step can reject rather than
+  -- silently treating an unsupported output as empty code.
+  "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
+  "  la t0, top_level_creation_returndata_len; sd zero, 0(t0)\n" ++
+  "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
+  "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
+  -- `process_create_message` moves the endowment and emits its EIP-7708
+  -- Transfer before initcode executes.  Stage the descriptor now; the
+  -- dispatcher's post-reset hook materializes it as log 0 before initcode.
   "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-  "  beqz t1, .Lbvcr_tl7708_done\n" ++
+  "  beqz t1, .Lbvcr_tl7708_staged\n" ++
   "  ld a0, 24(s0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la a0, bmvmx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
-  "  addi sp, sp, -16\n  sd x20, 0(sp)\n" ++
   "  la t0, eip7708_tl_from32\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
   "  la t1, bmvmx_sender_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
   ".Lbvcr_tl_from:\n  beqz t3, .Lbvcr_tl_from_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_tl_from\n" ++
@@ -311,10 +423,113 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t0, eip7708_tl_val32\n  addi t1, s0, 127; mv t2, t0; li t3, 32\n" ++
   ".Lbvcr_tl_val:\n  beqz t3, .Lbvcr_tl_val_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_tl_val\n" ++
   ".Lbvcr_tl_val_d:\n" ++
-  "  la x20, evm_env\n  la a0, eip7708_tl_from32\n  la a1, eip7708_tl_to32\n  la a2, eip7708_tl_val32\n" ++
-  "  jal ra, eip7708_append_transfer_log\n" ++
-  "  ld x20, 0(sp)\n  addi sp, sp, 16\n" ++
-  ".Lbvcr_tl7708_done:\n" ++
+  "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0); la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
+  ".Lbvcr_tl7708_staged:\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  "  jal ra, runtime_dispatcher_call\n" ++
+  -- `return`/`revert` clear child-depth markers, while a top-level frame has
+  -- no parent return path.  Clear this transaction-local depth-zero marker
+  -- here so the next transaction cannot inherit created-in-tx status.
+  "  la t0, create_frame_flag; sd zero, 0(t0)\n" ++
+  "  la t0, system_call_mode; sd zero, 0(t0)\n" ++
+  "  la t4, runtime_dispatcher_caller_sp; ld sp, 0(t4)\n" ++
+  "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  -- Propagate an unauthenticated nested-CREATE pre-balance lookup as this
+  -- helper's existing nonzero unsupported result.  The caller's normal
+  -- creation-unsupported route reaches the final fail-closed verdict gate.
+  "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Lbvcr_payload_unsupported\n" ++
+  -- `process_create_message` consumes a successful constructor RETURN as the
+  -- deployed code before transaction gas settlement.  STOP has empty code and
+  -- needs no record; a returned payload is captured in the fixed EIP-170
+  -- buffer above.  Any unavailable/invalid/OOG deposit takes this helper's
+  -- existing conservative failure edge rather than using an unverified code
+  -- hash or silently omitting the state-gas charge.
+  "  li t0, 0xa0010000; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
+  "  la t0, top_level_creation_returndata_status; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lbvcr_deposit_validate\n" ++
+  -- A return larger than the fixed EIP-170 retention buffer is exactly the
+  -- over-max-code deployment failure: it is still a valid block with a failed
+  -- receipt, not an unsupported shape.  Other non-return statuses retain the
+  -- existing conservative edge until their individual semantics are wired.
+  "  li t2, 2; beq t1, t2, .Lbvcr_deposit_exception; j .Lbvcr_ret\n" ++
+  ".Lbvcr_deposit_validate:\n" ++
+  "  la a0, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a1, 0(t0); jal ra, create_deployed_code_valid; bnez a0, .Lbvcr_deposit_exception\n" ++
+  -- Hash gas = 6 * ceil32(code_len)/32, charged against the top-level frame.
+  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, 6; mul t0, t0, t1\n" ++
+  "  la t1, evm_env; ld t2, 568(t1); bltu t2, t0, .Lbvcr_ret; sub t2, t2, t0; sd t2, 568(t1)\n" ++
+  -- Code-deposit state gas = 1530 * code_len.  This is the same reservoir /
+  -- spill fold used by the nested CREATE RETURN tail, with the top-level env
+  -- as the regular-gas source.
+  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, 1530; mul t0, t0, t1\n" ++
+  "  la t1, evm_state_gas_left; ld t2, 0(t1); bgeu t2, t0, .Lbvcr_csg_res\n" ++
+  "  sub t3, t0, t2; la t4, evm_env; ld t5, 568(t4); bltu t5, t3, .Lbvcr_ret\n" ++
+  "  sd zero, 0(t1); sub t5, t5, t3; sd t5, 568(t4); la t1, evm_state_gas_spilled; ld t2, 0(t1); add t2, t2, t3; sd t2, 0(t1); j .Lbvcr_csg_used\n" ++
+  ".Lbvcr_csg_res:\n" ++
+  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
+  ".Lbvcr_csg_used:\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
+  "  la a0, bv_create_addr; la a1, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a2, 0(t0); jal ra, create_record_code_effect; bnez a0, .Lbvcr_ret\n" ++
+  -- Publish the full created-account snapshot immediately after the code
+  -- deposit.  The code writer intentionally leaves balance/nonce unknown;
+  -- this companion is the top-level analogue of NoopHalt's child-CREATE
+  -- publication and supplies the live final balance plus final nonce.
+  "  la t0, evm_env; addi t1, t0, 63; la t2, nse_create_post_bal; li t3, 32\n" ++
+  ".Lbvcr_created_post_balance:\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; bnez t3, .Lbvcr_created_post_balance\n" ++
+  "  la a0, bv_create_addr; jal ra, create_creator_nonce_current; mv t4, a0\n" ++
+  "  la a0, bv_create_addr; la a1, nse_zero_bal; la a2, nse_create_post_bal; li a3, 0; mv a4, t4; jal ra, record_nonstorage_effect; bnez a0, .Lbvcr_ret; j .Lbvcr_deposit_done\n" ++
+  -- `process_create_message` treats an invalid returned code (or a deposit
+  -- charge OOG) as an ExceptionalHalt of the top-level CREATE, not as an
+  -- unsupported execution shape: it restores the creation snapshot, burns
+  -- remaining regular gas, refills frame state gas, and emits a failed receipt.
+  -- The callable dispatcher has already completed the initcode successfully,
+  -- so reproduce that post-deposit exception before the common settlement
+  -- trailer.  This mirrors the depth-zero abort cleanup in block_verdict:
+  -- execution effects/logs are rolled back to the pre-dispatch snapshots while
+  -- the access rows are TRUNCATED to the pre-dispatch snapshot (GH #10654).
+  ".Lbvcr_deposit_exception:\n" ++
+  "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0); sd zero, 480(t0)\n" ++
+  "  la t0, evm_log_data_used; sd zero, 0(t0); la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  -- GH #10654: TRUNCATE the aborted deposit's storage exec-log rows, completing the
+  -- net-zero deletion #10641 made on the depth-zero abort path this mirrors.
+  --
+  -- The loop that stood here set `current := original` per row and KEPT the rows, for
+  -- two reasons. The rows were net-zeroed so the change comparators see no change for a
+  -- touched-but-aborted account -- STILL LIVE, and why this is a truncation rather than
+  -- a bare deletion. And they were kept rather than truncated so the slots stayed
+  -- "accessed" for the recipient `storage_reads` check -- DEAD as of #10641, which
+  -- re-pointed `bal_storage_reads_in_exec_log` at the `storage_reads` container that
+  -- rollback does not touch.
+  --
+  -- Truncation discharges the surviving reason more directly (no rows, no changes) and
+  -- mirrors `restore_tx_state` (state_tracker.py:809-826), which restores only the WRITE
+  -- structures and leaves the read sets alone.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  ".Lbvcr_deposit_exception_settle:\n" ++
+  "  li t0, 0xa0010000; li t1, 6; sd t1, 32(t0)\n" ++
+  ".Lbvcr_deposit_done:\n" ++
+  "  jal ra, dispatcher_tx_gas_settle\n" ++
+  "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
+  "  ld s2, 48(s0)               # reload is_creation (the pre-dispatch save in s2 was clobbered too)\n" ++
+  "  mv s3, a2\n" ++
+  -- The staged payload runs with validate_tx_gas = 1, so the dispatcher
+  -- computed the creation intrinsic / floor / reservoir split / NEW_ACCOUNT
+  -- prepare charge itself and dispatcher_tx_gas_settle's a0 is already the
+  -- published combined gas+state left (no post-settle constant adjustment).
+  "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
+  "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
+  -- A failed top-level creation rolls back all logs, including the staged
+  -- endowment Transfer re-emitted before initcode.  Match the normal
+  -- top-level dispatch path before taking this transaction's log snapshot.
+  "  bnez s3, .Lbvcr_tl7708_snapshot\n" ++
+  "  la t0, evm_env; sd x0, 472(t0); sd x0, 480(t0)\n" ++
+  ".Lbvcr_tl7708_snapshot:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
 
   -- Successful top-level STOP creation makes the created account alive with
@@ -332,7 +547,17 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  -- The creation execution/deposit path above is shared by single- and
+  -- multi-transaction callers.  Only publication is mode-specific: retain
+  -- the existing scalar path for single tx, while the multi-tx adapter asks
+  -- us to scatter the identical settled result at its current index.
+  "  la t4, bv_creation_output_mode; ld t5, 0(t4); bnez t5, .Lbvcr_mtx_publish\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  -- Every terminal transaction route finalizes its one combined EIP-8037
+  -- state-gas cell after execution capture and authoritative status are known.
+  -- A successful creation keeps its captured execution component; a reverted
+  -- creation retains only its intrinsic/auth component.
+  "  li a0, 0; snez a1, s3; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
@@ -340,6 +565,22 @@ def blockVerdictSingleTxCreationRuntimeFunction : String :=
   "  li t5, 6; la t4, bv_receipts_completeness_shape; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bv_receipts_enforce_enabled; sd t5, 0(t4)\n" ++
   "  li a0, 0\n" ++
+  "  j .Lbvcr_ret\n" ++
+  ".Lbvcr_mtx_publish:\n" ++
+  "  la t4, bv_creation_output_index; ld t1, 0(t4); mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t4, bv_creation_output_index; ld t1, 0(t4)\n" ++
+  "  slli t0, t1, 3\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t0; la t4, bv_runtime_gas_left; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund; add t3, t3, t0; la t4, bv_runtime_refund_counter; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_calldata; add t3, t3, t0; la t4, bv_runtime_calldata_floor; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t0; snez t5, s3; sd t5, 0(t3)\n" ++
+  "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; sd s2, 0(t3)\n" ++
+  "  slli t0, t1, 4; la t3, bv_tx_log_window; add t3, t3, t0\n" ++
+  "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbvcr_ret\n" ++
+  ".Lbvcr_payload_unsupported:\n" ++
+  "  li a0, 5\n" ++
   ".Lbvcr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++

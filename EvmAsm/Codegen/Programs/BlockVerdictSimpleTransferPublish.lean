@@ -12,15 +12,47 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   ".Lbv_simple_transfer_precompile_fail:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
-  "  la t4, bv_runtime_gas_left; sd zero, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  -- An exceptional top-frame halt burns regular gas, but
+  -- `refill_frame_state_gas` restores the whole state reservoir.  The
+  -- shortcut publishes one effective gas-left scalar, so retain exactly the
+  -- reservoir carved out above TX_MAX_GAS_LIMIT (the intrinsic-regular term
+  -- cancels from `execution_gas - regular_gas`).
+  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); li t6, 16777216\n" ++
+  "  bleu t5, t6, .Lbv_simple_transfer_precompile_fail_no_reservoir\n" ++
+  "  sub t5, t5, t6; j .Lbv_simple_transfer_precompile_fail_have_gas_left\n" ++
+  ".Lbv_simple_transfer_precompile_fail_no_reservoir:\n  li t5, 0\n" ++
+  ".Lbv_simple_transfer_precompile_fail_have_gas_left:\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n  ld t5, 24(sp)\n  la t4, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_runtime_gas_left; sd t5, 0(t4)\n  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
+  -- A failed direct precompile is the depth-0 frame error case. Mirror
+  -- `refill_frame_state_gas` into both the dispatcher counter and its per-tx
+  -- published array; otherwise a preceding top-frame value charge survives as
+  -- executed state gas even though the transaction rolled back.
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n  la t4, evm_state_gas_spilled; sd zero, 0(t4)\n" ++
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_fail_publish\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
+  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_precompile_fail_publish:\n" ++
+  -- The shared kernel computed the exceptional halt in scalar scratch. Publish
+  -- it at the current MTx index and let the common MTx postlude finalize once.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3\n" ++
+  "  la t3, bv_runtime_gas_left; ld t4, 0(t3); la t3, bv_mtx_gas_left; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_refund_counter; ld t4, 0(t3); la t3, bv_mtx_refund; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  li a4, 0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_no_log" "bv_simple_transfer_tx" ++
   "  sd t0, 40(sp)\n" ++
@@ -35,6 +67,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_emit" "bv_simple_transfer_tx" ++
   "  sd t0, 40(sp)\n" ++
@@ -66,7 +99,11 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  bltu t5, t6, .Lbv_simple_transfer_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_gas_have_left\n" ++
   ".Lbv_simple_transfer_gas_exhausted:\n" ++
+  -- v0.6.0 (C8): charge-point OOG -- failed tx, all gas burned, prep
+  -- state charges refill.
   "  li t5, 0\n" ++
+  "  la t4, tgbpv_direct_oog; li t6, 1; sd t6, 0(t4)\n" ++
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n" ++
   ".Lbv_simple_transfer_gas_have_left:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
@@ -79,15 +116,33 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_publish_status_success\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_publish_status_store\n" ++
   ".Lbv_simple_transfer_publish_status_success:\n" ++
+  "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_stp_status_one\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_publish_status_store\n" ++
+  ".Lbv_stp_status_one:\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_publish_status_store:\n" ++
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_publish\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
+  ".Lbv_mtx_precompile_publish:\n" ++
+  -- `t5` is the shared kernel's final status. Transfer scalar outputs to the
+  -- current MTx record; never clobber transaction zero for tx i > 0.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3\n" ++
+  "  la t3, bv_runtime_gas_left; ld t4, 0(t3); la t3, bv_mtx_gas_left; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_refund_counter; ld t4, 0(t3); la t3, bv_mtx_refund; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd t5, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  la t0, bv_tx_status_arr; slli t2, t1, 3; add t0, t0, t2; ld a4, 0(t0)\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_simple_transfer_runtime_publish_fail:\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"

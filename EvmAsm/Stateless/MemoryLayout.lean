@@ -52,7 +52,7 @@
                                [+ 8..16]  LE u64 length of first record
                                [+16..]    SSZ-encoded SszStatelessInput
   0x80000000 .. 0xa0000000   .text + .rodata + .bss (ELF `-Ttext=0x80000000`)
-  0xa3000000 .. 0xbf500000   .data (`-Tdata=0xa3000000`; static tables,
+  0xa3000000 .. 0xbf980000   .data (`-Tdata=0xa3000000`; static tables,
                              fixed data, and 1G-cap BSR/BAL arenas)
   0xa0010000 .. 0xa0020000   OUTPUT_ADDR (64 KiB, public output)
                                [+ 0..N]   SSZ-encoded
@@ -60,7 +60,7 @@
   0xa0020000 .. 0xa3000000   working RAM (decoded structures, DBs,
                              frames) -- the Stateless guest claims this
                              lower tail of ziskemu's RAM region.
-  0xbf500000 .. 0xbfb80000   .sszscratch NOBITS merkleization scratch
+  0xbf980000 .. 0xc0000000   .sszscratch NOBITS merkleization scratch
   ```
 
   `INPUT_ADDR`, `INPUT_DATA_OFFSET`, and `OUTPUT_ADDR` mirror the
@@ -94,6 +94,15 @@
   | `KECCAK_SCRATCH`             | `0xa1b70000`     | 64 KiB      |
   | `ECRECOVER_SCRATCH`          | `0xa1b80000`     | 64 KiB      |
   | `SHA256_SCRATCH`             | `0xa1b90000`     | 64 KiB      |
+  | `STORAGE_READS_AREA`         | `0xa1ba0000`     | 1 MiB       |
+  | `ACCOUNT_READS_AREA`         | `0xa1ca0000`     | 512 KiB     |
+  | `CODE_READS_AREA`            | `0xa1d20000`     | 512 KiB     |
+  | `TX_STORAGE_READS_AREA`      | `0xa1da0000`     | 1 MiB       |
+  | `TX_ACCOUNT_READS_AREA`      | `0xa1ea0000`     | 512 KiB     |
+  | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
+  | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
+  | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 1 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -116,7 +125,7 @@
     frame size is documented at the top of that module's `Program.lean`.
 -/
 
-import EvmAsm.Rv64.Basic
+import EvmAsm.Rv64.Word
 
 namespace EvmAsm.Stateless
 
@@ -197,6 +206,152 @@ def ECRECOVER_SCRATCH       : Word := 0xa1b80000
     around the ZisK ECALL bridges. -/
 def SHA256_SCRATCH          : Word := 0xa1b90000
 
+/-! ## Read containers — the spec's three read sets (GH #10619)
+
+    `state_tracker.py` keeps reads and writes in **separate containers with
+    different lifetimes**, deliberately: at the pin `e5a8caf1b`, `BlockState`
+    (`:67-77`) and `TransactionState` (`:96-104`) each carry
+
+      `account_reads : Set[Address]`
+      `storage_reads : Set[Tuple[Address, Bytes32]]`
+      `code_reads    : Set[CodeRead]`
+
+    and `restore_tx_state` (`:809-826`) restores **only** the write structures.
+    The `TransactionState` docstring (`:90-93`) states the consequence in the
+    spec's own words: these are *"shared references that survive rollback (reads
+    from failed calls still appear in the Block Access List)"*.
+
+    The guest previously had **no read container at all** — one array of
+    128-byte rows (`STATE_TRACKER_AREA`) where a read was the *derived* case
+    `current == original`. That collapse is what these regions remove: rollback
+    truncates writes, and reads live here where rollback does not reach.
+
+    **Three regions, not one merged set**, because the spec has three and the
+    point of the change is to look the same. They are *not* parallel in purpose,
+    which matters when wiring consumers:
+
+      * `storage_reads` → `block_access_lists.py:692` `add_storage_read`
+        → the BAL's `storage_reads` list.
+      * `account_reads` → `block_access_lists.py:696` `add_touched_account`
+        → decides **which accounts appear in the BAL at all**.
+      * `code_reads`    → NOT the BAL. `stateless_host_exec_witness.py:182`
+        `get_witness_codes` → execution-witness generation.
+
+    Entry widths mirror the spec's tuples: a storage read is
+    `addrHash(32) ++ slotKey(32)`, an account read is `addrHash(32)`, a code
+    read is `addrHash(32) ++ codeHash(32)`. Capacities match the write log's
+    16384 rows so a read container cannot overflow before the write log does. -/
+
+/-- `storage_reads` — 16384 × 64 B (`addrHash ++ slotKey`). -/
+def STORAGE_READS_AREA      : Word := 0xa1ba0000
+/-- `account_reads` — 16384 × 32 B (`addrHash`). -/
+def ACCOUNT_READS_AREA      : Word := 0xa1ca0000
+/-- `code_reads` — 8192 × 64 B (`addrHash ++ codeHash`). -/
+def CODE_READS_AREA         : Word := 0xa1d20000
+
+/-! ### The TRANSACTION level of the same three sets (GH #10619, review gate 3)
+
+    The spec has **two** levels, not one. `TransactionState` gets FRESH read sets per
+    transaction (`field(default_factory=set)`; `fork.py:1043`), the recorders target
+    the *transaction* level (`tx_state.storage_reads.add(...)` at `:295`/`:578`,
+    `account_reads` at `:139`/`:199`, `code_reads` at `:269`), and
+    `incorporate_tx_into_block` (`:832`) merges upward at `:858-861` and then CLEARS
+    the tx sets at `:879-881`.
+
+    Mirroring only the block level would be the weaker reasoned-to-be-the-same form,
+    and it fails on one concrete case rather than merely on style: `fork.py:745-752`
+    uses a **throwaway** `TransactionState` to pre-check that a system contract has
+    code — in the spec's own words *"never propagated back to BlockState (no
+    `incorporate_tx_into_block` call)"* — whose reads are deliberately DISCARDED.
+    With block-level containers only, every recorded read is promoted by
+    construction and there is nowhere to express that path.
+
+    Same entry layouts and capacities as their block-level counterparts, so a merge
+    is a straight set-insert per entry. -/
+
+/-- Per-transaction `storage_reads` — merged up and cleared by
+    `read_sets_incorporate_tx`. -/
+def TX_STORAGE_READS_AREA   : Word := 0xa1da0000
+/-- Per-transaction `account_reads`. -/
+def TX_ACCOUNT_READS_AREA   : Word := 0xa1ea0000
+/-- Per-transaction `code_reads`. -/
+def TX_CODE_READS_AREA      : Word := 0xa1f20000
+
+/-! ### `storage_writes` — the WRITE side of the same two levels (GH #10619, r59nm S2)
+
+    The spec keeps writes in `Dict[Address, Dict[Bytes32, U256]]` on **both**
+    levels — `BlockState.storage_writes` (`state_tracker.py:74`) and
+    `TransactionState.storage_writes` (`:101`) — alongside the read sets above.
+    `set_storage` (`:489`) targets the transaction level;
+    `incorporate_tx_into_block` (`:832`) merges upward and clears, exactly as for
+    the reads; `restore_tx_state` (`:809-826`) restores the write structures and
+    **only** those, which is the whole two-lifetime discipline.
+
+    **One map, not one per source.** There is no system-specific write container
+    in the spec: `process_unchecked_system_transaction` (`fork.py:782`) builds an
+    ordinary `TransactionState(parent=block_env.state)` and incorporates at
+    `:858`, regular transactions incorporate at `:1204`, and withdrawals at
+    `:1226` — three sources, one container. The guest's split into
+    `bv_system_storage_log` and `bv_user_storage_log` therefore mirrors nothing,
+    and these two areas replace both as a single keyed map fed by all three
+    paths. The *timing* of the feeds still differs (system writes at block
+    boundaries, user writes inside transactions); unifying the container must not
+    unify the timing.
+
+    Entry layout — the spec's nested key collapsed to one flat key pair, since
+    RISC-V has no dynamic allocation and therefore no nested dict:
+
+        +0  addrHash (32 B)   the outer `Address` key
+        +32 slotKey  (32 B)   the inner `Bytes32` key
+        +64 value    (32 B)   the `U256`
+
+    96 B used of a 128 B stride (`bvStorageLogRowBytes`), shared with the exec
+    logs so that retiring them is a same-stride migration rather than a
+    re-layout. 16384 entries = 2 MiB each, matching the read arenas' capacity so
+    a write container cannot overflow before its read counterpart does. -/
+
+/-- Block-level `storage_writes` — filled only by `write_sets_incorporate_tx`. -/
+def STORAGE_WRITES_AREA     : Word := 0xa1fa0000
+/-- Per-transaction `storage_writes` — the target of `storage_write_record`. -/
+def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
+
+/-! ### The write-map UNDO JOURNAL (r59nm S5a)
+
+    The spec rolls a frame back by *copying* the write dict on the way in
+    (`take_snapshot`, `state_tracker.py:800-806`, `dict(tx_state.storage_writes)`)
+    and rebinding the copy on failure (`restore_tx_state`, `:809-826`).
+
+    **Forcing constraint:** no dynamic allocation, so a per-frame copy of a
+    fixed-capacity keyed map would cost capacity × call depth — 16384 × 1024
+    entries, four orders of magnitude beyond what can be reserved. The undo
+    journal is the bounded equivalent: same before-and-after states, same
+    lifetime, but sized by the number of writes rather than by the map.
+
+    It needs no overflow path of its own. The SSTORE handler hard-caps the
+    persistent exec log at 16384 rows and exits on the 16385th
+    (`Storage.lean`: `li x14, 16384; bgeu x15, x14, .exit_outofgas`), so a
+    transaction physically cannot perform more writes than the journal can
+    hold — it inherits an already-enforced bound.
+
+    Entry layout (64 B stride, exact fit, all fields 8-aligned):
+
+        +0  entryIndex (8 B)   index into the tx-level map this write touched
+        +8  wasAbsent  (8 B)   1 if the write APPENDED a new key, else 0
+        +32 prevValue  (32 B)  the value before the write (unused if wasAbsent)
+
+    `wasAbsent` is a distinct field rather than a sentinel because **zero is a
+    legitimate stored value**: restoring an appended key by writing zero would
+    silently invent a written-zero slot where the spec has no key at all.
+
+    Nesting is LIFO, so reverse replay is exact: a child frame's entries sit
+    above its parent's mark, appended keys are unwound from the end, and a
+    successful child's entries are RETAINED so a later parent revert still
+    undoes them — mirroring `frame_return`'s merge-on-success cursor
+    discipline. -/
+
+/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 64 B = 1 MiB. -/
+def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
+
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
     The SSZ hash_tree_root buffers (merkleize scratch/padded, the byte
@@ -214,7 +369,7 @@ def SHA256_SCRATCH          : Word := 0xa1b90000
     the working-RAM anchors and the stack, and fully inside the verified
     RAM zone `RAM_MEM_START..RAM_MEM_END` (`0xa0000000..0xc0000000`),
     so `isValidMemAddr` already accepts it (no proof changes). -/
-def SSZ_SCRATCH_BASE        : Word := 0xbf500000
-def SSZ_SCRATCH_SIZE        : Nat  := 0x00680000  -- 6.5 MiB (0xbf500000..0xbfb80000)
+def SSZ_SCRATCH_BASE        : Word := 0xbf980000
+def SSZ_SCRATCH_SIZE        : Nat  := 0x00680000  -- 6.5 MiB (0xbf980000..0xc0000000)
 
 end EvmAsm.Stateless

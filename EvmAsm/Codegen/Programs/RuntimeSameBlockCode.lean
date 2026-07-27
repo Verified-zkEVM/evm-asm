@@ -9,7 +9,6 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
@@ -24,9 +23,10 @@ open EvmAsm.Rv64
       a0 = 20-byte address ptr
       runtime_current_bal_ptr/runtime_current_bal_len name the current BAL section
     Returns:
-      a0 = 0 if the BAL has a final code change for this account and that final
-           code is exactly a 23-byte EIP-7702 delegation marker; in that case
-           rsbd_code_ptr/rsbd_code_len name the marker bytes.
+      a0 = 0 if the BAL has an authoritative final code change for this account
+           and that final code is either empty (a cleared EIP-7702 delegation)
+           or exactly a 23-byte EIP-7702 delegation marker; in that case
+           rsbd_code_ptr/rsbd_code_len name those final code bytes.
       a0 = 1 otherwise.
 -/
 def runtimeSameBlockDelegationCode_prog : Program :=
@@ -160,32 +160,32 @@ def runtimeSameBlockDelegationCode_prog : Program :=
     .BNE .x10 .x0 (176 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 512)),
     .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len_cell (GuestAddrs.runtime_same_block_delegation_code + 512)),
-    .LD .x7 .x5 (0 : BitVec 12),
-    .LI .x28 (23 : Word),
-    .BNE .x7 .x28 (160 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 532)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 532)),
+    .LD .x22 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 524)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_tuple_off (GuestAddrs.runtime_same_block_delegation_code + 524)),
     .LD .x6 .x5 (0 : BitVec 12),
     .ADD .x6 .x23 .x6,
-    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 548)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 548)),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 540)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_off (GuestAddrs.runtime_same_block_delegation_code + 540)),
     .LD .x7 .x5 (0 : BitVec 12),
     .ADD .x6 .x6 .x7,
+    .BEQ .x22 .x0 (44 : BitVec 13),
+    .LI .x28 (23 : Word),
+    .BNE .x22 .x28 (124 : BitVec 13),
     .LBU .x28 .x6 (0 : BitVec 12),
     .LI .x29 (239 : Word),
-    .BNE .x28 .x29 (120 : BitVec 13),
+    .BNE .x28 .x29 (116 : BitVec 13),
     .LBU .x28 .x6 (1 : BitVec 12),
     .LI .x29 (1 : Word),
-    .BNE .x28 .x29 (112 : BitVec 13),
+    .BNE .x28 .x29 (108 : BitVec 13),
     .LBU .x28 .x6 (2 : BitVec 12),
-    .BNE .x28 .x0 (108 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 596)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 596)),
+    .BNE .x28 .x0 (104 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 600)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 600)),
     .SD .x5 .x6 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 608)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 608)),
-    .LI .x6 (23 : Word),
-    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 612)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 612)),
+    .SD .x5 .x22 (0 : BitVec 12),
     .LI .x10 (0 : Word),
     .JAL .x0 (76 : BitVec 21),
     .ADDI .x20 .x20 (1 : BitVec 12),
@@ -255,10 +255,10 @@ def runtimeSameBlockDelegationCode_relocs : RelocTable :=
     (124, .la .x14 "rsbd_code_len_cell"),
     (126, .jal .x1 "rlp_list_nth_item"),
     (128, .la .x5 "rsbd_code_len_cell"),
-    (133, .la .x5 "rsbd_tuple_off"),
-    (137, .la .x5 "rsbd_code_off"),
-    (149, .la .x5 "rsbd_code_ptr"),
-    (152, .la .x5 "rsbd_code_len") ]
+    (131, .la .x5 "rsbd_tuple_off"),
+    (135, .la .x5 "rsbd_code_off"),
+    (150, .la .x5 "rsbd_code_ptr"),
+    (153, .la .x5 "rsbd_code_len") ]
 
 def runtimeSameBlockDelegationCodeFunction : String :=
   "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs

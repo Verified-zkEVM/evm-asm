@@ -4,7 +4,7 @@
   making pure arithmetic lemmas depend on the complete RV64 proof pipeline.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
+import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
 import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 
 namespace EvmAsm.Evm64

@@ -1,73 +1,75 @@
 intrinsic_gas_amsterdam_counts:
-  # a0=data ptr, a1=data len, a2=is_creation, a3=access addrs,
-  # a4=access slots, a5=authorization count, a6=intrinsic out, a7=floor out
-  # 0(sp)=value_nonzero, 8(sp)=is_self_transfer at helper entry
-  li t0, 0                    # zero_count
-  li t1, 0                    # non_zero_count
-  mv t2, a0                   # cursor
-  mv t3, a1                   # remaining
-.Ligac_loop:
-  beqz t3, .Ligac_count_done
-  lbu t4, 0(t2)
-  bnez t4, .Ligac_nz
-  addi t0, t0, 1
-  j .Ligac_step
-.Ligac_nz:
-  addi t1, t1, 1
-.Ligac_step:
-  addi t2, t2, 1
-  addi t3, t3, -1
-  j .Ligac_loop
-.Ligac_count_done:
-  slli t5, t1, 2              # non_zero_count * 4
-  add t5, t5, t0              # tokens
-  slli t6, t5, 2              # data cost = tokens * 4
-  li t4, 12000
-  add t6, t6, t4              # intrinsic = base + data
-  beqz a2, .Ligac_not_creation
-  li t4, 11000                # CREATE_ACCESS
-  add t6, t6, t4
-  addi t4, a1, 31
-  srli t4, t4, 5
-  slli t4, t4, 1              # init code cost = 2 * ceil(len / 32)
-  add t6, t6, t4
-  ld t4, 0(sp)                # value_nonzero
-  beqz t4, .Ligac_after_recipient
-  li t4, 1756                 # TRANSFER_LOG_COST for creation with value
-  add t6, t6, t4
-  j .Ligac_after_recipient
-.Ligac_not_creation:
-  ld t4, 8(sp)                # is_self_transfer
-  bnez t4, .Ligac_after_recipient
-  li t4, 3000                 # COLD_ACCOUNT_ACCESS for non-self call
-  add t6, t6, t4
-  ld t4, 0(sp)                # value_nonzero
-  beqz t4, .Ligac_after_recipient
-  li t4, 6000                 # TRANSFER_LOG_COST + TX_VALUE_COST
-  add t6, t6, t4
-.Ligac_after_recipient:
-  li t4, 3000
-  mul t4, a3, t4
-  add t6, t6, t4
-  li t4, 3000
-  mul t4, a4, t4
-  add t6, t6, t4
-  li t4, 80
-  mul t2, a3, t4             # access-list floor tokens: addresses
-  li t4, 128
-  mul t4, a4, t4             # access-list floor tokens: storage keys
-  add t2, t2, t4             # access_tokens
-  slli t4, t2, 4             # access-list floor gas = access_tokens * 16
-  add t6, t6, t4
-  li t4, 15816
-  mul t4, a5, t4
-  add t6, t6, t4
-  sd t6, 0(a6)
-  slli t5, a1, 2             # floor calldata tokens = 4 * data_len
-  add t5, t5, t2             # total floor tokens
-  slli t5, t5, 4             # calldata floor gas = total tokens * 16
-  li t4, 12000
-  add t5, t5, t4
-  sd t5, 0(a7)
-  li a0, 0
-  ret
+  li x5, 0
+  li x6, 0
+  mv x7, x10
+  mv x28, x11
+  beq x28, x0, .+36
+  lbu x29, 0(x7)
+  bne x29, x0, .+12
+  addi x5, x5, 1
+  jal x0, .+8
+  addi x6, x6, 1
+  addi x7, x7, 1
+  addi x28, x28, -1
+  jal x0, .-32
+  slli x30, x6, 2
+  add x30, x30, x5
+  slli x31, x30, 2
+  lui x29, 0x3
+  addiw x29, x29, -288
+  add x31, x31, x29
+  li x28, 0
+  beq x12, x0, .+52
+  lui x29, 0x3
+  addiw x29, x29, -1288
+  add x28, x28, x29
+  addi x29, x11, 31
+  srli x29, x29, 5
+  slli x29, x29, 1
+  add x31, x31, x29
+  ld x29, 0(x2)
+  beq x29, x0, .+56
+  li x29, 1756
+  add x28, x28, x29
+  jal x0, .+44
+  ld x29, 8(x2)
+  bne x29, x0, .+36
+  lui x29, 0x1
+  addiw x29, x29, -1096
+  add x28, x28, x29
+  ld x29, 0(x2)
+  beq x29, x0, .+16
+  lui x29, 0x1
+  addiw x29, x29, 1904
+  add x28, x28, x29
+  add x31, x31, x28
+  lui x29, 0x1
+  addiw x29, x29, -1096
+  mul x29, x13, x29
+  add x31, x31, x29
+  lui x29, 0x1
+  addiw x29, x29, -1096
+  mul x29, x14, x29
+  add x31, x31, x29
+  li x29, 80
+  mul x7, x13, x29
+  li x29, 128
+  mul x29, x14, x29
+  add x7, x7, x29
+  slli x29, x7, 4
+  add x31, x31, x29
+  lui x29, 0x2
+  addiw x29, x29, -376
+  mul x29, x15, x29
+  add x31, x31, x29
+  sd x31, 0(x16)
+  slli x30, x11, 2
+  add x30, x30, x7
+  slli x30, x30, 4
+  lui x29, 0x3
+  addiw x29, x29, -288
+  add x30, x30, x29
+  add x30, x30, x28
+  sd x30, 0(x17)
+  li x10, 0
+  jalr x0, 0(x1)

@@ -352,9 +352,5 @@ theorem selectedDwordCopy_spec (src dst tmp : Reg)
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => hq) hall
 
-#print axioms bytesRegion_ld_within
-#print axioms bytesRegion_sd_within
-#print axioms selectedDwordCopy_spec
-#print axioms copyDwords_covers
 
 end EvmAsm.Rv64.SAsm

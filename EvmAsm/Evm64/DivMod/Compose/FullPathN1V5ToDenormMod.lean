@@ -13,7 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeV5
+import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 
 open EvmAsm.Rv64.Tactics
 

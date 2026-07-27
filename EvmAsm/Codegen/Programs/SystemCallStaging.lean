@@ -127,7 +127,8 @@ def stageSystemCallFunction : String :=
   "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
   "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
   -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
-  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN <= 4096 bytes; a
+  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN within
+  -- systemCallReturndataMaxBytes; a
   -- predeploy that ends in a clean STOP (empty return_data, spec fork.py:976-997) or an
   -- oversized return does NOT write it. Without this reset the consolidation system call would
   -- inherit the withdrawal call's stale length -> a spurious consolidation request body ->
@@ -257,6 +258,37 @@ def consolidationRequestPredeployAddrData : String :=
   "consolidation_request_predeploy_addr:\n" ++
   "  .byte 0x00, 0x00, 0xbb, 0xdd, 0xc7, 0xce, 0x48, 0x86, 0x42, 0xfb, 0x57, 0x9f, 0x8b, 0x00, 0xf3, 0xa5, 0x90, 0x00, 0x72, 0x51\n"
 
+/-- BUILDER_DEPOSIT_CONTRACT_ADDRESS + BUILDER_EXIT_CONTRACT_ADDRESS (EIP-8282,
+    v0.6.0 fork.py:141-146), 20 bytes big-endian each. Referenced by the
+    block-verdict builder checked-system-tx code prechecks. -/
+def builderContractAddrData : String :=
+  ".balign 8\n" ++
+  "builder_deposit_contract_addr:\n" ++
+  "  .byte 0x00, 0x00, 0xbf, 0xf4, 0x69, 0x84, 0xe3, 0x72, 0x56, 0x91, 0xfa, 0x54, 0x0a, 0x8c, 0x75, 0x89, 0x30, 0x0d, 0x82, 0x82\n" ++
+  ".balign 8\n" ++
+  "builder_exit_contract_addr:\n" ++
+  "  .byte 0x00, 0x00, 0x64, 0xd6, 0x78, 0x50, 0x5a, 0xd4, 0x8f, 0x8c, 0xcb, 0x09, 0x3b, 0xc6, 0x56, 0x13, 0x80, 0x0e, 0x82, 0x82\n"
+
+/-! ## EIP-8282 builder request derivation
+
+The builder deposit and exit contracts use the same checked system-call path as
+the EIP-7002/7251 request predeploys. These thin adapters keep the ABI explicit:
+`a0=code`, `a1=code_len`, `a2=block_exec_payload`, `a3=staging_buffer`, and
+return `(return_data_ptr, return_data_len, status)`.
+-/
+
+def deriveBuilderDepositRequestsFunction : String :=
+  "derive_builder_deposit_requests:\n" ++
+  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
+  "  la a0, builder_deposit_contract_addr\n" ++
+  "  j stage_system_call\n"
+
+def deriveBuilderExitRequestsFunction : String :=
+  "derive_builder_exit_requests:\n" ++
+  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
+  "  la a0, builder_exit_contract_addr\n" ++
+  "  j stage_system_call\n"
+
 /-! ## derive_block_system_requests (8uld3.2.3/8uld3.4 verdict glue)
 
     Run BOTH system-call request derivations for a block — withdrawal (EIP-7002) then
@@ -318,10 +350,18 @@ def deriveBlockSystemRequestsData : String :=
   "dbsr_staging:\n  .zero 8\n" ++
   "dbsr_wlen:\n  .zero 8\n" ++
   "dbsr_clen:\n  .zero 8\n" ++
+  "dbsr_bdlen:\n  .zero 8\n" ++
+  "dbsr_belen:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "dbsr_wbody:\n  .zero 2048\n" ++
   ".balign 8\n" ++
   "dbsr_cbody:\n  .zero 2048\n"
+  ++ ".balign 8\n" ++
+  "dbsr_bdbody:\n  .zero 12288\n" ++
+  ".balign 8\n" ++
+  "dbsr_bebody:\n  .zero 2048\n" ++
+  "aer_bd_ptr:\n  .zero 8\naer_bd_len:\n  .zero 8\n" ++
+  "aer_be_ptr:\n  .zero 8\naer_be_len:\n  .zero 8\n"
 
 /-- `zisk_stage_system_call_payload`: probe. Stages a synthetic predeploy + asserts the
     SYSTEM-specific fields: code length @+0, gas @env_base+448 == 30M, CALLER @env_base+64

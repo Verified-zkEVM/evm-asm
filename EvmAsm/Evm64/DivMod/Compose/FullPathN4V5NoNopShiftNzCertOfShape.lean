@@ -20,7 +20,7 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNative
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
 import EvmAsm.Evm64.DivMod.Spec.N4V5AddbackBorrowComplement
 import EvmAsm.Evm64.DivMod.Spec.N4SemanticGen
 import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrowGen

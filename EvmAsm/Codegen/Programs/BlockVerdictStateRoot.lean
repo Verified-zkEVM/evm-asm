@@ -18,7 +18,6 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
@@ -38,7 +37,8 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -89,21 +89,67 @@ def blockStateRootFunction : String :=
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
+  -- v0.6.0: process_unchecked_system_transaction runs the CONTRACT's code
+  -- (fork.py:890-905); an absent or codeless history/beacon-roots contract
+  -- executes nothing and writes nothing. Gate each modeled startup write on
+  -- the pre-state account existing with a non-empty code hash; skipping a
+  -- contract zeroes its descriptor value lengths so the modeled tuple-row
+  -- append becomes a no-op for it as well.
+  "  la t0, bsr_sys_has_2935; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bsr_sys_has_4788; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsr_addr_2935; li a1, 20\n" ++
+  "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
+  "  la a5, bsr_sys_acct\n" ++
+  "  jal ra, account_at_address\n" ++
+  "  li t0, 1; beq a0, t0, .Lbsr_2935_absent\n" ++
+  "  bnez a0, .Lbsr_cons_sys2935\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
+  ".Lbsr_2935_ch_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_2935_gated\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_2935_ch_cmp\n" ++
+  ".Lbsr_2935_absent:\n" ++
+  "  la t0, bsr_sys_has_2935; sd zero, 0(t0)\n" ++
+  "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
+  ".Lbsr_2935_gated:\n" ++
+  "  la a0, bsr_addr_4788; li a1, 20\n" ++
+  "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
+  "  la a5, bsr_sys_acct\n" ++
+  "  jal ra, account_at_address\n" ++
+  "  li t0, 1; beq a0, t0, .Lbsr_4788_absent\n" ++
+  "  bnez a0, .Lbsr_cons_sys4788\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
+  ".Lbsr_4788_ch_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_4788_gated\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_4788_ch_cmp\n" ++
+  ".Lbsr_4788_absent:\n" ++
+  "  la t0, bsr_sys_has_4788; sd zero, 0(t0)\n" ++
+  "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
+  ".Lbsr_4788_gated:\n" ++
   "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
-  "  # system change 0 = EIP-2935\n" ++
+  "  li s1, 0                     # change counter\n" ++
+  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_skip_2935\n" ++
+  "  # system change = EIP-2935\n" ++
   "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val\n" ++
-  "  la t0, swd_2935_vlen; ld a3, 0(t0); li a4, 0\n" ++
+  "  la t0, swd_2935_vlen; ld a3, 0(t0); mv a4, s1\n" ++
+  "  la t0, bsr_sys_slot_2935; sd s1, 0(t0)\n" ++
   "  jal ra, bsr_sys_change; bnez a0, .Lbsr_cons_sys2935\n" ++
-  "  # system change 1 = EIP-4788 (timestamp + parent-root slots in one account)\n" ++
-  "  li a4, 1\n" ++
+  "  addi s1, s1, 1\n" ++
+  ".Lbsr_skip_2935:\n" ++
+  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_skip_4788\n" ++
+  "  # system change = EIP-4788 (timestamp + parent-root slots in one account)\n" ++
+  "  mv a4, s1\n" ++
+  "  la t0, bsr_sys_slot_4788; sd s1, 0(t0)\n" ++
   "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
+  "  addi s1, s1, 1\n" ++
+  ".Lbsr_skip_4788:\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
-  "  li s1, 2                     # change counter (2 system changes already recorded)\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
+  ".Lbsr_bal_replay:\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
   "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
@@ -133,6 +179,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
   "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_system2935\n  li t0, 2; beq a0, t0, .Lbsr_bal_copy_system4788\n  bnez a0, .Lbsr_cons_bal_desc\n" ++
+  ".Lbsr_bal_copy_normal:\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
   "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
@@ -163,47 +210,16 @@ def blockStateRootFunction : String :=
   "  addi s1, s1, 1\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
-  ".Lbsr_bal_copy_system2935:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 0\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
-  ".Lbsr_bal_copy_system4788:\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); li a2, 1\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
+  ".Lbsr_bal_copy_system2935:\n  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_2935; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
+  ".Lbsr_bal_copy_system4788:\n  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_4788; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
-  "  la t6, bsr_bal_count; ld t6, 0(t6); bnez t6, .Lbsr_access_descriptors\n" ++
   ".Lbsr_bal_done:\n" ++
-  ".Lbsr_access_descriptors:\n" ++
-  "  la t0, " ++ runtimeAccessAccountOutcomeCountLabel ++ "; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lbsr_storage_access\n" ++
-  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a4, t3, t2\n" ++
-  "  la a5, bsr_access_paths\n" ++
-  "  la a0, " ++ runtimeAccessAccountOutcomeTableLabel ++ "; mv a1, t1\n" ++
-  "  la a2, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a3, 0(t0)\n" ++
-  "  la a6, bsr_access_count\n" ++
-  "  jal ra, bal_account_access_outcome_descriptors; bnez a0, .Lbsr_cons_account_access\n" ++
-  "  la t0, bsr_access_count; ld t0, 0(t0); add s1, s1, t0\n" ++
-  ".Lbsr_storage_access:\n" ++
-  "  la t0, evm_storage_access_outcome_count; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lbsr_withdrawals\n" ++
-  "  add t2, s1, t1; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  la t0, bsr_storage_access_window; li t2, 1; sd t2, 0(t0); sd zero, 8(t0); sd t1, 16(t0); sd zero, 24(t0)\n" ++
-  "  la t0, bsr_storage_access_path_count; sd zero, 0(t0)\n" ++
-  "  li s0, 0\n" ++
-  ".Lbsr_storage_access_loop:\n" ++
-  "  la t0, bsr_changed_account_count; ld t6, 0(t0)\n" ++
-  "  beq s0, t6, .Lbsr_withdrawals\n" ++
-  "  slli t2, s0, 5; la t3, bsr_changed_accounts; add t4, t3, t2; la t3, bsr_storage_account_token; add t3, t3, t2\n" ++
-  "  sd zero, 0(t3); sw zero, 8(t3); li t5, 0\n" ++
-  ".Lbsr_storage_token_copy:\n" ++
-  "  li a0, 20; beq t5, a0, .Lbsr_storage_token_done\n" ++
-  "  add a0, t4, t5; lbu a1, 0(a0); addi a0, t5, 12; add a0, t3, a0; sb a1, 0(a0)\n" ++
-  "  addi t5, t5, 1; j .Lbsr_storage_token_copy\n" ++
-  ".Lbsr_storage_token_done:\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
-  "  la t0, bsr_storage_access_path_count; ld t2, 0(t0); slli t2, t2, 6; la t3, bsr_storage_access_paths; add a6, t3, t2\n" ++
-  "  la a0, evm_storage_access_outcomes; la t0, evm_storage_access_outcome_count; ld a1, 0(t0); la a2, bsr_storage_access_window; li a3, 1\n" ++
-  "  slli t2, s0, 5; la t3, bsr_storage_account_token; add a4, t3, t2; la a7, bsr_access_count\n" ++
-  "  jal ra, bal_storage_access_outcome_descriptors; bnez a0, .Lbsr_cons_storage_access\n" ++
-  "  la t0, bsr_access_count; ld t0, 0(t0); add t2, s1, t0; li t3, " ++ toString bsrMaxStateChanges ++ "; bgtu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  la t4, bsr_storage_access_path_count; ld t5, 0(t4); add t5, t5, t0; li t6, " ++ toString bsrMaxStorageAccessOutcomes ++ "; bgtu t5, t6, .Lbsr_cons_change_cap; sd t5, 0(t4)\n" ++
-  "  mv s1, t2; addi s0, s0, 1; j .Lbsr_storage_access_loop\n" ++
+  "  # NORMALIZATION BOUNDARY: bsr_changes contains committed, value-bearing\n" ++
+  "  # mutations only (BAL final post-fields plus modeled system/withdrawals).\n" ++
+  "  # Runtime account/storage access outcomes are mode=3 no-ops: they provide\n" ++
+  "  # access evidence but never a state-root value, so do not materialize them\n" ++
+  "  # in this C-sized builder input. In particular, reverted storage windows\n" ++
+  "  # have zero committed entries and cannot become a last-write-wins value.\n" ++
   ".Lbsr_withdrawals:\n" ++
   "  # BAL rows already include withdrawal-induced balance changes, so avoid\n" ++
   "  # applying the SSZ withdrawals a second time when BAL replay was present.\n" ++
@@ -222,7 +238,7 @@ def blockStateRootFunction : String :=
   "  beqz t1, .Lbsr_wl_next\n" ++
   "  li t0, " ++ toString bsrMaxWithdrawalChanges ++ "; bgeu s0, t0, .Lbsr_cons_change_cap\n" ++
   "  # Repeated withdrawals to the same recipient accumulate into one state change.\n" ++
-  "  li t6, 2                     # scan recorded withdrawal changes [2, s1)\n" ++
+  "  li t6, 0                     # compose with every earlier committed mutation [0, s1)\n" ++
   ".Lbsr_dup_scan:\n" ++
   "  beq t6, s1, .Lbsr_no_dup\n" ++
   "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
@@ -275,7 +291,7 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_change_count; sd s1, 0(t0)\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la a3, bsr_changes; mv a4, s1; mv a5, s5     # change count = s1 (40-byte recs)\n" ++
-  "  jal ra, mpt_state_root_ins\n" ++
+  "  jal ra, mpt_bounded_state_root\n" ++
   "  beqz a0, .Lbsr_ret\n" ++
   "  li t0, 130; la t1, bsr_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lbsr_ret\n" ++
@@ -335,6 +351,15 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness_len; ld a1, 0(t0)\n" ++
   "  jal ra, witness_index_build\n" ++
   "  bnez a0, .Lv2_witness_index_fail\n" ++
+  "  # ExecutionWitness.state is SSZ List[ByteList[1024]]: validate the\n" ++
+  "  # per-element cap after the state-only index has checked its offset table.\n" ++
+  "  # Do not put this rule in the generic index: witness.headers/codes differ.\n" ++
+  "  la t0, widx_count; ld t0, 0(t0); la t1, widx_records; li t2, 1024\n" ++
+  ".Lv2_state_node_cap_loop:\n" ++
+  "  beqz t0, .Lv2_state_node_cap_ok\n" ++
+  "  ld t3, 40(t1); bgtu t3, t2, .Lv2_witness_index_fail\n" ++
+  "  addi t1, t1, 48; addi t0, t0, -1; j .Lv2_state_node_cap_loop\n" ++
+  ".Lv2_state_node_cap_ok:\n" ++
   "  # Mirror execution-specs validate_headers(witness.headers): the witness\n" ++
   "  # header list must be a contiguous parent-hash chain before validation can\n" ++
   "  # succeed. SSZ offsets are read bytewise because SSZ_BASE is unaligned.\n" ++
@@ -352,13 +377,45 @@ def statelessVerdictV2Function : String :=
   "  sub t4, t6, t5; la t3, svf_codes_len; sd t4, 0(t3)\n" ++
   "  mv a0, t2; mv a1, t4; jal ra, witness_codes_index_build\n" ++
   "  bnez a0, .Lv2_witness_codes_index_fail\n" ++
+  "  # ExecutionWitness.codes is SSZ List[ByteList[65536]].  The generic\n" ++
+  "  # code index checks the offset table, then records each element length.\n" ++
+  "  # Enforce the SSZ envelope before any code-hash lookup can consume it.\n" ++
+  "  la t0, wcidx_count; ld t0, 0(t0); la t1, wcidx_records; li t2, 65536\n" ++
+  ".Lv2_code_cap_loop:\n" ++
+  "  beqz t0, .Lv2_code_cap_ok\n" ++
+  "  ld t3, 40(t1); bgtu t3, t2, .Lv2_codes_cap_fail\n" ++
+  "  addi t1, t1, 48; addi t0, t0, -1; j .Lv2_code_cap_loop\n" ++
+  ".Lv2_code_cap_ok:\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); addi a0, t0, 8; jal ra, bgv_u32le # headers offset\n" ++
   "  mv t6, a0\n" ++
   "  la t1, svf_witness_section; ld t0, 0(t1); add t2, t0, t6\n" ++
   "  la t3, svf_headers_ptr; sd t2, 0(t3)\n" ++
   "  la t1, svf_witness_end; ld t1, 0(t1); bltu t1, t2, .Lv2_headers_bounds_fail\n" ++
   "  sub a1, t1, t2; la t3, svf_headers_len; sd a1, 0(t3)\n" ++
-  "  mv a0, t2; la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
+  "  # ExecutionWitness.headers is SSZ List[ByteList[1024]].  Validate the\n" ++
+  "  # offset table and each element length before header parsing or keccak.\n" ++
+  "  mv s1, t2; mv s2, a1; beqz s2, .Lv2_header_cap_ok\n" ++
+  "  li t0, 4; bltu s2, t0, .Lv2_headers_cap_fail\n" ++
+  "  mv a0, s1; jal ra, bgv_u32le; mv s3, a0\n" ++
+  "  andi t0, s3, 3; bnez t0, .Lv2_headers_cap_fail\n" ++
+  "  bgtu s3, s2, .Lv2_headers_cap_fail; srli s3, s3, 2\n" ++
+  "  li t0, 256; bgtu s3, t0, .Lv2_headers_cap_fail\n" ++
+  "  li s4, 0\n" ++
+  ".Lv2_header_cap_loop:\n" ++
+  "  beq s4, s3, .Lv2_header_cap_ok\n" ++
+  "  slli t0, s4, 2; add a0, s1, t0; jal ra, bgv_u32le; mv s5, a0\n" ++
+  "  bltu s5, s3, .Lv2_headers_cap_fail; bgtu s5, s2, .Lv2_headers_cap_fail\n" ++
+  "  addi t0, s4, 1; beq t0, s3, .Lv2_header_cap_last\n" ++
+  "  slli t0, t0, 2; add a0, s1, t0; jal ra, bgv_u32le; j .Lv2_header_cap_end\n" ++
+  ".Lv2_header_cap_last:\n" ++
+  "  mv a0, s2\n" ++
+  ".Lv2_header_cap_end:\n" ++
+  "  bltu a0, s5, .Lv2_headers_cap_fail; bgtu a0, s2, .Lv2_headers_cap_fail\n" ++
+  "  sub t0, a0, s5; li t1, 1024; bgtu t0, t1, .Lv2_headers_cap_fail\n" ++
+  "  addi s4, s4, 1; j .Lv2_header_cap_loop\n" ++
+  ".Lv2_header_cap_ok:\n" ++
+  "  la t0, svf_headers_ptr; ld a0, 0(t0); la t0, svf_headers_len; ld a1, 0(t0)\n" ++
+  "  la a2, svf_headers_count; jal ra, headers_validate_chain\n" ++
   "  bnez a0, .Lv2_headers_fail\n" ++
   "  # execution-specs uses the last validated witness header as parent_header.\n" ++
   "  la t0, svf_headers_count; ld t0, 0(t0); beqz t0, .Lv2_headers_fail\n" ++
@@ -376,7 +433,8 @@ def statelessVerdictV2Function : String :=
   -- (stateless_ssz.py:46,108); a payload with >16 withdrawals fails to deserialize and is
   -- rejected. The .Lv2_wl loop below writes svf_descriptors (256B=16) + svf_rlp_arena
   -- (1152B=16), so an uncapped count would overflow into adjacent .data. Cap at 16 and
-  -- reject beyond (mirrors the transactions cap `bgeu s4, 2049, .Lv2_tx_root_fail`).
+  -- reject beyond the gas-derived transaction cap (mirrors the transactions
+  -- cap below).
   "  li t0, 17; bgeu s1, t0, .Lv2_withdrawals_root_fail\n" ++
   "  la t0, svf_wds_ptr;   ld s2, 0(t0)\n" ++
   "  la s3, svf_descriptors\n" ++
@@ -403,7 +461,7 @@ def statelessVerdictV2Function : String :=
   "  beqz a0, .Lv2_tx_root_fail\n" ++
   "  bgtu a0, s1, .Lv2_tx_root_fail\n" ++
   "  srli s4, a0, 2\n" ++
-  "  li t0, 2049; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
+  "  li t0, " ++ toString (bvMtxFullTxCap + 1) ++ "; bgeu s4, t0, .Lv2_tx_root_fail\n" ++
   "  la t0, svf_tx_count; sd s4, 0(t0)\n" ++
   "  li s5, 0\n" ++
   "  la s3, svf_tx_descriptors\n" ++
@@ -427,11 +485,11 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_tx_desc_loop\n" ++
   ".Lv2_tx_desc_done:\n" ++
   "  la a0, svf_tx_descriptors; la t0, svf_tx_count; ld a1, 0(t0); la a2, svf_tx_root\n" ++
-  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  jal ra, mpt_indexed_trie_root_bounded_from_values\n" ++
   "  la t0, bv_tx_root_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lv2_tx_root_fail\n" ++
   "  la a0, svf_descriptors; la t0, svf_wds_count; ld a1, 0(t0); la a2, svf_withdrawals_root\n" ++
-  "  jal ra, mpt_indexed_trie_root_small\n" ++
+  "  jal ra, mpt_indexed_trie_root_bounded_from_values\n" ++
   "  bnez a0, .Lv2_withdrawals_root_fail\n" ++
   "  addi a0, s0, 56; jal ra, bgv_u32le; mv s3, a0     # execution_requests offset\n" ++
   "  addi a0, s0, 4;  jal ra, bgv_u32le; mv s4, a0     # witness offset = NPR end\n" ++
@@ -502,7 +560,7 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_copy:\n" ++
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
   ".Lc1_w_copyd:\n" ++
-  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
@@ -547,7 +605,11 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_copy:\n" ++
   "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
   ".Lc1_c_copyd:\n" ++
-  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count\n" ++
+  -- bmvmx.5.5.10 (bv=37): each system-call dispatch RESETS evm_env+448 to its
+  -- own preload count (Dispatch.lean:2369), so this call's rows are always
+  -- [0, +448) -- the advancing c1_system_log_cursor captured only a suffix
+  -- (or nothing) for every call after the first. Capture from 0.
+  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
@@ -555,6 +617,113 @@ def statelessVerdictV2Function : String :=
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- v0.6.0 (EIP-8282/C12): process_checked_system_transaction pre-checks that
+  -- each BUILDER predeploy holds code (fork.py:985-1005 via :755-765) and
+  -- raises InvalidBlock when it does not -- even though an absent contract's
+  -- (empty) output would not change requests_hash. The spec reads through a
+  -- TransactionState so a contract deployed EARLIER IN THIS BLOCK counts; the
+  -- exec code-effect log carries that same-block case for the guest.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_bd_same_block\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_bd_code_ok\n" ++
+  ".Lc1_bd_same_block:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  bnez a0, .Lc1_bd_code_ok\n" ++
+  -- The BAL's declared code final for the builder address is the remaining
+  -- same-block deployment signal (a deploy the guest's runtime did not replay,
+  -- e.g. an unsupported top-level creation): the code comparators validate the
+  -- BAL's code claims wherever execution is available, so a declared non-empty
+  -- final mirrors the spec's TransactionState read of the just-deployed code.
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_bd_code_ok:\n" ++
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_exit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_be_same_block\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_be_code_ok\n" ++
+  ".Lc1_be_same_block:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
+  "  jal ra, find_code_effect_by_address\n" ++
+  "  bnez a0, .Lc1_be_code_ok\n" ++
+  -- The BAL's declared code final for the builder address is the remaining
+  -- same-block deployment signal (a deploy the guest's runtime did not replay,
+  -- e.g. an unsupported top-level creation): the code comparators validate the
+  -- BAL's code claims wherever execution is available, so a declared non-empty
+  -- final mirrors the spec's TransactionState read of the just-deployed code.
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_nonstorage_finals\n" ++
+  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_be_code_ok:\n" ++
+  -- EIP-8282: derive the builder deposit and builder exit request bodies through
+  -- the same checked system-call path. Their queues are preloaded from the BAL
+  -- exactly like the EIP-7002/7251 queues; empty return data is represented by
+  -- a zero body length and is therefore omitted by the five-field assembler.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, builder_deposit_contract_addr\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_bd_derive_ready\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_bd_derive_ready:\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_bd_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_bd_code_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
+  "  jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_bd_no_preload\n" ++
+  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, builder_deposit_contract_addr; la t2, sps_addr; li t3, 20\n" ++
+  ".Lc1_bd_addr:\n  beqz t3, .Lc1_bd_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_addr\n" ++
+  ".Lc1_bd_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_bd_call\n" ++
+  ".Lc1_bd_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_bd_call:\n  la t0, c1_bd_code_ptr; ld a0, 0(t0); la t0, c1_bd_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_deposit_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail; la t0, dbsr_bdlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bdbody; mv t3, a1\n" ++
+  ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
+  ".Lc1_bd_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- bmvmx.5.5.10 (bv=37): capture the BUILDER DEPOSIT system call's SSTOREs
+  -- too; rows are [0, +448) (per-dispatch reset, see the consolidation site).
+  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
+  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  -- Builder exit.
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  bnez a0, .Lc1_be_derive_ready\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lv2_requests_hash_fail\n" ++
+  ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++
+  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len; jal ra, bal_find_account_by_address\n" ++
+  "  bnez a0, .Lc1_be_no_preload\n  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2); la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
+  "  la t1, builder_exit_contract_addr; la t2, sps_addr; li t3, 20\n  .Lc1_be_addr:\n  beqz t3, .Lc1_be_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_addr\n  .Lc1_be_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
+  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_be_call\n" ++
+  "  .Lc1_be_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
+  "  bnez a2, .Lv2_requests_hash_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
+  "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- bmvmx.5.5.10 (bv=37): capture the BUILDER EXIT system call's SSTOREs too.
+  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
+  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
+  "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
   -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
   -- derives above run the predeploy through the dispatcher; when the (modified) predeploy
@@ -575,9 +744,13 @@ def statelessVerdictV2Function : String :=
   -- the general requests_hash failure path. Tx-bearing paths keep the existing SSZ
   -- deposit prelude until the receipt tail derives deposits from materialized logs.
   "  la t0, svf_tx_count; ld t0, 0(t0); beqz t0, .Lv2_er_empty_deposits\n" ++
-  "  la t0, c1_er_input; ld t1, 0(t0); addi a0, t1, 4; jal ra, bgv_u32le\n" ++
-  "  la t0, c1_er_input; ld t1, 0(t0); addi t2, t1, 12; addi t3, a0, -12\n" ++
-  "  mv a0, t2; mv a1, t3\n" ++
+  -- The v0.6.2 container has five u32 offsets (fixed part = 20 bytes).
+  -- Use the first two offsets for the deposit body; the old four-field
+  -- extraction (`input + 12`, `off1 - 12`) leaves an 8-byte phantom body
+  -- when deposits are empty and makes execution_requests_hash reject every
+  -- transaction-bearing builder fixture with bv_fail=24.
+  "  addi t1, s0, 16; add t1, t1, s3; mv s2, t1; mv a0, t1; jal ra, bgv_u32le; mv t2, a0\n" ++
+  "  addi a0, s2, 4; jal ra, bgv_u32le; sub a1, a0, t2; add a0, s2, t2\n" ++
   "  j .Lv2_er_deposits_ready\n" ++
   ".Lv2_er_empty_deposits:\n" ++
   "  la a0, c1_dbody; li a1, 0\n" ++
@@ -587,7 +760,7 @@ def statelessVerdictV2Function : String :=
   ".Lv2_er_deposits_ready:\n" ++
   "  la t0, dbsr_wbody; mv a2, t0; la t0, dbsr_wlen; ld a3, 0(t0)\n" ++
   "  la t0, dbsr_cbody; mv a4, t0; la t0, dbsr_clen; ld a5, 0(t0)\n" ++
-  "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; addi t0, t0, 12\n" ++
+  "  mv t0, a1; add t0, t0, a3; add t0, t0, a5; la t1, dbsr_bdlen; ld t1, 0(t1); add t0, t0, t1; la t1, dbsr_belen; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 20\n" ++
   "  li t1, " ++ toString bvMaxExecutionRequestSectionBytes ++ "; bgtu t0, t1, .Lv2_requests_hash_fail\n" ++
   "  la a6, c1_er_assembled\n" ++
   "  jal ra, assemble_execution_requests\n" ++
@@ -601,7 +774,10 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Lv2_bal_hash_fail\n" ++
   "  # General transaction and withdrawal trie roots have already been computed above.\n" ++
   "  la t1, sv_params\n" ++
-  "  la t0, svf_payload;        ld t0, 0(t0); sd t0, 0(t1)\n" ++
+  -- System-call dispatch may overwrite the svf_* scratch globals.  Re-derive
+  -- the payload pointer from the stable SSZ input before handing the frame to
+  -- block_verdict; the NPR payload offset is the first u32 at NPR+0.
+  "  addi a0, s0, 16; jal ra, bgv_u32le; add t0, s0, a0; addi t0, t0, 16; la t2, svf_payload; sd t0, 0(t2); la t1, sv_params; sd t0, 0(t1)\n" ++
   "  la t0, svf_parent_rlp;     ld t0, 0(t0); sd t0, 8(t1)\n" ++
   "  la t0, svf_parent_rlp_len; ld t0, 0(t0); sd t0, 16(t1)\n" ++
   "  la t0, svf_parent_sr;      sd t0, 24(t1)\n" ++
@@ -625,6 +801,12 @@ def statelessVerdictV2Function : String :=
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_codes_index_fail:\n" ++
   "  li t0, 25; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_codes_cap_fail:\n" ++
+  "  li t0, 33; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
+  "  j .Lv2_zero\n" ++
+  ".Lv2_headers_cap_fail:\n" ++
+  "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1)\n" ++
   "  j .Lv2_zero\n" ++
   ".Lv2_witness_offsets_fail:\n" ++
   "  li t0, 21; la t1, bv_fail_code; sd t0, 0(t1)\n" ++

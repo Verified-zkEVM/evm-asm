@@ -14,9 +14,10 @@
     K207  header_extract_prev_randao        (field 13)
     K208  header_extract_beneficiary        (field 2, 20B)
 
-  All eight functions share the same shape: K20 `rlp_list_nth_item`
-  + a fixed-size memcpy + status code (0/1/2). They depend only on
-  `rlp_list_nth_item` from `Programs/RlpRead.lean`.
+  The migrated state-root, receipts-root, and withdrawals-root functions
+  use one strict `rlp_walk_init` plus sequential `rlp_walk_next` calls,
+  followed by a fixed-size memcpy + status code (0/1/2). The remaining
+  functions still use K20 `rlp_list_nth_item`.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
@@ -27,6 +28,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 
 namespace EvmAsm.Codegen
 
@@ -53,7 +55,7 @@ open EvmAsm.Rv64.Program
         1 : RLP parse failure / field 3 missing
         2 : field 3 length != 32 -/
 def headerExtractStateRoot_prog : Program :=
-  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
@@ -63,30 +65,53 @@ def headerExtractStateRoot_prog : Program :=
     .MV .x18 .x12,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .LI .x12 (3 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 44)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 44)),
-    .AUIPC .x14 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 52)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 52)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_state_root + 60)),
-    .BNE .x10 .x0 (80 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 68)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extract_state_root + 40)),
+    .BNE .x12 .x0 (192 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .SD .x2 .x11 (40 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_state_root + 64)),
+    .BNE .x11 .x0 (168 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_state_root + 84)),
+    .BNE .x11 .x0 (148 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_state_root + 104)),
+    .BNE .x11 .x0 (128 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_state_root + 124)),
+    .BNE .x11 .x0 (108 : BitVec 13),
+    .SUB .x6 .x10 .x12,
+    .SUB .x6 .x6 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 140)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 152)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .JAL .x0 (4 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_length (GuestAddrs.header_extract_state_root + 168)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (68 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 88)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 88)),
-    .LD .x6 .x5 (0 : BitVec 12),
-    .ADD .x28 .x8 .x6,
-    .LD .x29 .x28 (0 : BitVec 12),
-    .SD .x18 .x29 (0 : BitVec 12),
-    .LD .x29 .x28 (8 : BitVec 12),
-    .SD .x18 .x29 (8 : BitVec 12),
-    .LD .x29 .x28 (16 : BitVec 12),
-    .SD .x18 .x29 (16 : BitVec 12),
-    .LD .x29 .x28 (24 : BitVec 12),
-    .SD .x18 .x29 (24 : BitVec 12),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hesr_offset (GuestAddrs.header_extract_state_root + 188)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SB .x18 .x29 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -96,18 +121,22 @@ def headerExtractStateRoot_prog : Program :=
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
     .LD .x18 .x2 (24 : BitVec 12),
-    .ADDI .x2 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `headerExtractStateRoot_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractStateRoot_relocs : RelocTable :=
-  [ (11, .la .x13 "hesr_offset"),
-    (13, .la .x14 "hesr_length"),
-    (15, .jal .x1 "rlp_list_nth_item"),
-    (17, .la .x5 "hesr_length"),
-    (22, .la .x5 "hesr_offset") ]
+  [ (10, .jal .x1 "rlp_walk_init"),
+    (16, .jal .x1 "rlp_walk_next"),
+    (21, .jal .x1 "rlp_walk_next"),
+    (26, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_walk_next"),
+    (35, .la .x5 "hesr_offset"),
+    (38, .la .x5 "hesr_length"),
+    (42, .la .x5 "hesr_length"),
+    (47, .la .x5 "hesr_offset") ]
 
 def headerExtractStateRootFunction : String :=
   "header_extract_state_root:\n" ++ emitProgramR headerExtractStateRoot_prog headerExtractStateRoot_relocs
@@ -121,7 +150,7 @@ theorem headerExtractStateRootFunction_eq_prog :
     headerExtractStateRootFunction = "header_extract_state_root:\n" ++ emitProgramR headerExtractStateRoot_prog headerExtractStateRoot_relocs := rfl
 
 #guard headerExtractStateRootFunction.startsWith "header_extract_state_root:\n"
-#guard headerExtractStateRoot_prog.length = 45
+#guard headerExtractStateRoot_prog.length = 68
 /-- `zisk_header_extract_state_root`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len
@@ -139,7 +168,8 @@ def ziskHeaderExtractStateRootPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lhesr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ".Lhesr_pdone:"
 
@@ -258,7 +288,7 @@ def ziskHeaderExtractParentHashProbeUnit : BuildUnit := {
         1 : RLP parse failure / field 5 missing
         2 : field 5 length != 32 -/
 def headerExtractReceiptsRoot_prog : Program :=
-  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
@@ -268,30 +298,63 @@ def headerExtractReceiptsRoot_prog : Program :=
     .MV .x18 .x12,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .LI .x12 (5 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 44)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 44)),
-    .AUIPC .x14 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 52)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 52)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_receipts_root + 60)),
-    .BNE .x10 .x0 (80 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 68)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extract_receipts_root + 40)),
+    .BNE .x12 .x0 (232 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .SD .x2 .x11 (40 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 64)),
+    .BNE .x11 .x0 (208 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 84)),
+    .BNE .x11 .x0 (188 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 104)),
+    .BNE .x11 .x0 (168 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 124)),
+    .BNE .x11 .x0 (148 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 144)),
+    .BNE .x11 .x0 (128 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_receipts_root + 164)),
+    .BNE .x11 .x0 (108 : BitVec 13),
+    .SUB .x6 .x10 .x12,
+    .SUB .x6 .x6 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 180)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 180)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 192)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .JAL .x0 (4 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_length (GuestAddrs.header_extract_receipts_root + 208)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (68 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 88)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 88)),
-    .LD .x6 .x5 (0 : BitVec 12),
-    .ADD .x28 .x8 .x6,
-    .LD .x29 .x28 (0 : BitVec 12),
-    .SD .x18 .x29 (0 : BitVec 12),
-    .LD .x29 .x28 (8 : BitVec 12),
-    .SD .x18 .x29 (8 : BitVec 12),
-    .LD .x29 .x28 (16 : BitVec 12),
-    .SD .x18 .x29 (16 : BitVec 12),
-    .LD .x29 .x28 (24 : BitVec 12),
-    .SD .x18 .x29 (24 : BitVec 12),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.herr_offset (GuestAddrs.header_extract_receipts_root + 228)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SB .x18 .x29 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -301,18 +364,24 @@ def headerExtractReceiptsRoot_prog : Program :=
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
     .LD .x18 .x2 (24 : BitVec 12),
-    .ADDI .x2 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `headerExtractReceiptsRoot_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractReceiptsRoot_relocs : RelocTable :=
-  [ (11, .la .x13 "herr_offset"),
-    (13, .la .x14 "herr_length"),
-    (15, .jal .x1 "rlp_list_nth_item"),
-    (17, .la .x5 "herr_length"),
-    (22, .la .x5 "herr_offset") ]
+  [ (10, .jal .x1 "rlp_walk_init"),
+    (16, .jal .x1 "rlp_walk_next"),
+    (21, .jal .x1 "rlp_walk_next"),
+    (26, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_walk_next"),
+    (36, .jal .x1 "rlp_walk_next"),
+    (41, .jal .x1 "rlp_walk_next"),
+    (45, .la .x5 "herr_offset"),
+    (48, .la .x5 "herr_length"),
+    (52, .la .x5 "herr_length"),
+    (57, .la .x5 "herr_offset") ]
 
 def headerExtractReceiptsRootFunction : String :=
   "header_extract_receipts_root:\n" ++ emitProgramR headerExtractReceiptsRoot_prog headerExtractReceiptsRoot_relocs
@@ -326,7 +395,7 @@ theorem headerExtractReceiptsRootFunction_eq_prog :
     headerExtractReceiptsRootFunction = "header_extract_receipts_root:\n" ++ emitProgramR headerExtractReceiptsRoot_prog headerExtractReceiptsRoot_relocs := rfl
 
 #guard headerExtractReceiptsRootFunction.startsWith "header_extract_receipts_root:\n"
-#guard headerExtractReceiptsRoot_prog.length = 45
+#guard headerExtractReceiptsRoot_prog.length = 78
 /-- `zisk_header_extract_receipts_root`: probe BuildUnit. -/
 def ziskHeaderExtractReceiptsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -338,7 +407,8 @@ def ziskHeaderExtractReceiptsRootPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lherr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
   headerExtractReceiptsRootFunction ++ "\n" ++
   ".Lherr_pdone:"
 
@@ -453,7 +523,7 @@ def ziskHeaderExtractTransactionsRootProbeUnit : BuildUnit := {
         1 : RLP parse failure / field 16 missing (pre-Shanghai)
         2 : field 16 length != 32 -/
 def headerExtractWithdrawalsRoot_prog : Program :=
-  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
@@ -463,30 +533,118 @@ def headerExtractWithdrawalsRoot_prog : Program :=
     .MV .x18 .x12,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .LI .x12 (16 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 44)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 44)),
-    .AUIPC .x14 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 52)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 52)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.header_extract_withdrawals_root + 60)),
-    .BNE .x10 .x0 (80 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 68)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extract_withdrawals_root + 40)),
+    .BNE .x12 .x0 (452 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .SD .x2 .x11 (40 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 64)),
+    .BNE .x11 .x0 (428 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 84)),
+    .BNE .x11 .x0 (408 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 104)),
+    .BNE .x11 .x0 (388 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 124)),
+    .BNE .x11 .x0 (368 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 144)),
+    .BNE .x11 .x0 (348 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 164)),
+    .BNE .x11 .x0 (328 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 184)),
+    .BNE .x11 .x0 (308 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 204)),
+    .BNE .x11 .x0 (288 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 224)),
+    .BNE .x11 .x0 (268 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 244)),
+    .BNE .x11 .x0 (248 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 264)),
+    .BNE .x11 .x0 (228 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 284)),
+    .BNE .x11 .x0 (208 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 304)),
+    .BNE .x11 .x0 (188 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 324)),
+    .BNE .x11 .x0 (168 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 344)),
+    .BNE .x11 .x0 (148 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 364)),
+    .BNE .x11 .x0 (128 : BitVec 13),
+    .SD .x2 .x10 (32 : BitVec 12),
+    .LD .x10 .x2 (32 : BitVec 12),
+    .LD .x11 .x2 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_extract_withdrawals_root + 384)),
+    .BNE .x11 .x0 (108 : BitVec 13),
+    .SUB .x6 .x10 .x12,
+    .SUB .x6 .x6 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 400)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 400)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 412)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 412)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .JAL .x0 (4 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_length (GuestAddrs.header_extract_withdrawals_root + 428)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (68 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 88)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 88)),
-    .LD .x6 .x5 (0 : BitVec 12),
-    .ADD .x28 .x8 .x6,
-    .LD .x29 .x28 (0 : BitVec 12),
-    .SD .x18 .x29 (0 : BitVec 12),
-    .LD .x29 .x28 (8 : BitVec 12),
-    .SD .x18 .x29 (8 : BitVec 12),
-    .LD .x29 .x28 (16 : BitVec 12),
-    .SD .x18 .x29 (16 : BitVec 12),
-    .LD .x29 .x28 (24 : BitVec 12),
-    .SD .x18 .x29 (24 : BitVec 12),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 448)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.hewr_offset (GuestAddrs.header_extract_withdrawals_root + 448)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x28 .x8 .x28,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SB .x18 .x29 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -496,18 +654,35 @@ def headerExtractWithdrawalsRoot_prog : Program :=
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
     .LD .x18 .x2 (24 : BitVec 12),
-    .ADDI .x2 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `headerExtractWithdrawalsRoot_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractWithdrawalsRoot_relocs : RelocTable :=
-  [ (11, .la .x13 "hewr_offset"),
-    (13, .la .x14 "hewr_length"),
-    (15, .jal .x1 "rlp_list_nth_item"),
-    (17, .la .x5 "hewr_length"),
-    (22, .la .x5 "hewr_offset") ]
+  [ (10, .jal .x1 "rlp_walk_init"),
+    (16, .jal .x1 "rlp_walk_next"),
+    (21, .jal .x1 "rlp_walk_next"),
+    (26, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_walk_next"),
+    (36, .jal .x1 "rlp_walk_next"),
+    (41, .jal .x1 "rlp_walk_next"),
+    (46, .jal .x1 "rlp_walk_next"),
+    (51, .jal .x1 "rlp_walk_next"),
+    (56, .jal .x1 "rlp_walk_next"),
+    (61, .jal .x1 "rlp_walk_next"),
+    (66, .jal .x1 "rlp_walk_next"),
+    (71, .jal .x1 "rlp_walk_next"),
+    (76, .jal .x1 "rlp_walk_next"),
+    (81, .jal .x1 "rlp_walk_next"),
+    (86, .jal .x1 "rlp_walk_next"),
+    (91, .jal .x1 "rlp_walk_next"),
+    (96, .jal .x1 "rlp_walk_next"),
+    (100, .la .x5 "hewr_offset"),
+    (103, .la .x5 "hewr_length"),
+    (107, .la .x5 "hewr_length"),
+    (112, .la .x5 "hewr_offset") ]
 
 def headerExtractWithdrawalsRootFunction : String :=
   "header_extract_withdrawals_root:\n" ++ emitProgramR headerExtractWithdrawalsRoot_prog headerExtractWithdrawalsRoot_relocs
@@ -521,7 +696,7 @@ theorem headerExtractWithdrawalsRootFunction_eq_prog :
     headerExtractWithdrawalsRootFunction = "header_extract_withdrawals_root:\n" ++ emitProgramR headerExtractWithdrawalsRoot_prog headerExtractWithdrawalsRoot_relocs := rfl
 
 #guard headerExtractWithdrawalsRootFunction.startsWith "header_extract_withdrawals_root:\n"
-#guard headerExtractWithdrawalsRoot_prog.length = 45
+#guard headerExtractWithdrawalsRoot_prog.length = 133
 /-- `zisk_header_extract_withdrawals_root`: probe BuildUnit. -/
 def ziskHeaderExtractWithdrawalsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -533,7 +708,8 @@ def ziskHeaderExtractWithdrawalsRootPrologue : String :=
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lhewr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   ".Lhewr_pdone:"
 

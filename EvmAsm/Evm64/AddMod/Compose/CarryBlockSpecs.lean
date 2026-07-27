@@ -24,7 +24,10 @@
   in `Compose/CondSubSpec.lean`.
 -/
 
-import EvmAsm.Evm64.AddMod.LimbSpec
+import EvmAsm.Rv64.CPSSpec
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Evm64.AddMod.Program
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

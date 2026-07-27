@@ -6,7 +6,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockValidate
+import EvmAsm.Codegen.Programs.Block
+import EvmAsm.Codegen.Programs.TxRoot
+import EvmAsm.Codegen.Programs.HeaderChain
 
 namespace EvmAsm.Codegen
 

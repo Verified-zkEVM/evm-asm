@@ -16,6 +16,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
@@ -35,8 +36,10 @@ open EvmAsm.Rv64
            the count is <= 512 (the caller-buffer cap); if it exceeds 512, NOTHING is
            written and the true count is returned so the caller can bail conservatively.
 
-    Reads item 1 (storage_changes) of the AccountChanges list; for each entry,
-    reads item 0 (the slot key) and writes it left-padded to 32 bytes. -/
+    Reads item 1 (storage_changes) of the AccountChanges list with one cursor
+    pass; for each entry, walks item 0 (the slot key) and writes it left-padded
+    to 32 bytes.  `rlp_list_count_items` remains only for the actual count and
+    caller-buffer cap; no per-index `rlp_list_nth_item` re-walk remains. -/
 def balRecipientStorageKeysFunction : String :=
   "bal_recipient_storage_keys:\n" ++
   "  addi sp, sp, -72\n" ++
@@ -46,12 +49,19 @@ def balRecipientStorageKeysFunction : String :=
   "  mv s0, a0                    # account ptr\n" ++
   "  mv s1, a1                    # account len\n" ++
   "  mv s2, a2                    # out keys ptr\n" ++
-  -- storage_changes = account item 1.
-  "  mv a0, s0; mv a1, s1; li a2, 1; la a3, brsk_off; la a4, brsk_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbrsk_fail\n" ++
-  "  la t0, brsk_off; ld t0, 0(t0); add s3, s0, t0   # sc_ptr\n" ++
-  "  la t0, brsk_len; ld s4, 0(t0)                   # sc_len\n" ++
+  -- storage_changes = account item 1, reached by one cursor pass over the
+  -- account fields (item 0 is consumed and discarded).
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbrsk_fail\n" ++
+  "  mv s3, a0                       # account cursor\n" ++
+  "  mv s4, a1                       # account end\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsk_fail\n" ++
+  "  mv s3, a0\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsk_fail\n" ++
+  "  sub s3, a0, a2                  # storage_changes item start\n" ++
+  "  mv s4, a2                       # storage_changes encoded span\n" ++
   "  mv a0, s3; mv a1, s4; la a2, brsk_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsk_fail\n" ++
@@ -69,21 +79,29 @@ def balRecipientStorageKeysFunction : String :=
   "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s5, t0, .Lbrsk_done            # count > cap -> return count, write nothing\n" ++
   "  mv s6, zero                  # i\n" ++
   "  mv s7, s2                    # out cursor\n" ++
+  -- Walk storage_changes once.  The advanced cursor and content length from
+  -- `rlp_walk_next` recover the current entry start as `advanced - length`.
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbrsk_fail\n" ++
+  "  la t0, brsk_soff; sd a0, 0(t0)                  # entry cursor\n" ++
+  "  la t0, brsk_slen; sd a1, 0(t0)                  # entry end\n" ++
   ".Lbrsk_loop:\n" ++
   "  beq s6, s5, .Lbrsk_done\n" ++
-  -- entry = nth(storage_changes, i).
-  "  mv a0, s3; mv a1, s4; mv a2, s6; la a3, brsk_eoff; la a4, brsk_elen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbrsk_fail\n" ++
-  "  la t0, brsk_eoff; ld t0, 0(t0); add t1, s3, t0  # entry ptr\n" ++
-  "  la t0, brsk_elen; ld t2, 0(t0)                  # entry len\n" ++
-  -- slot key = nth(entry, 0).
-  "  mv a0, t1; mv a1, t2; li a2, 0; la a3, brsk_soff; la a4, brsk_slen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbrsk_fail\n" ++
-  "  la t0, brsk_eoff; ld t0, 0(t0); add t1, s3, t0  # recompute entry ptr\n" ++
-  "  la t0, brsk_soff; ld t3, 0(t0); add t1, t1, t3  # slot bytes ptr\n" ++
-  "  la t0, brsk_slen; ld t4, 0(t0)                  # slot byte length\n" ++
+  "  la t0, brsk_soff; ld a0, 0(t0)\n" ++
+  "  la t0, brsk_slen; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsk_fail\n" ++
+  "  la t0, brsk_soff; sd a0, 0(t0)                  # advance outer cursor\n" ++
+  "  sub t1, a0, a2                                 # entry ptr\n" ++
+  "  mv t2, a2                                      # entry encoded span\n" ++
+  -- slot key = item 0 of the current entry, via a one-item cursor walk.
+  "  mv a0, t1; mv a1, t2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbrsk_fail\n" ++
+  "  mv s3, a0; mv s4, a1\n" ++
+  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsk_fail\n" ++
+  "  sub t1, a0, a2                                 # slot bytes ptr\n" ++
+  "  mv t4, a2                                      # slot byte length\n" ++
   "  li t5, 32; bgtu t4, t5, .Lbrsk_fail\n" ++
   -- zero the 32-byte output slot, then right-align the slot bytes.
   "  mv t0, s7; li t5, 32\n" ++
@@ -123,7 +141,8 @@ def balRecipientStorageKeysFunction : String :=
       a2 = out keys ptr             a3 = max slots to write (remaining buffer capacity)
     Returns a0 = storage_reads count. If count > a3 (or > 512) writes NOTHING and returns the
     true count so the caller bails conservatively instead of overflowing. Empty/absent
-    storage_reads or any parse failure returns 0 (conservative). -/
+    storage_reads or any parse failure returns 0 (conservative). The outer field,
+    entry, and slot traversals use one-time cursor walks. -/
 def balRecipientStorageReadsKeysFunction : String :=
   "bal_recipient_storage_reads_keys:\n" ++
   "  addi sp, sp, -72\n" ++
@@ -134,12 +153,21 @@ def balRecipientStorageReadsKeysFunction : String :=
   "  mv s1, a1                    # AccountChanges len\n" ++
   "  mv s2, a2                    # out keys ptr\n" ++
   "  mv s3, a3                    # max slots (remaining capacity)\n" ++
-  -- storage_reads = AccountChanges item 2.
-  "  mv a0, s0; mv a1, s1; li a2, 2; la a3, brsk_off; la a4, brsk_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbrsrk_zero\n" ++                     -- absent/fail -> 0 reads (conservative)
-  "  la t0, brsk_off; ld t0, 0(t0); add s4, s0, t0   # sr_ptr\n" ++
-  "  la t0, brsk_len; ld s5, 0(t0)                   # sr_len\n" ++
+  -- storage_reads = AccountChanges item 2, reached by one cursor pass over
+  -- fields 0 and 1 before consuming field 2.
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbrsrk_zero\n" ++
+  "  mv s4, a0; mv s5, a1\n" ++
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsrk_zero\n" ++
+  "  mv s4, a0\n" ++
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsrk_zero\n" ++
+  "  mv s4, a0\n" ++
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsrk_zero\n" ++
+  "  sub s4, a0, a2                              # storage_reads item start\n" ++
+  "  mv s5, a2                                   # storage_reads encoded span\n" ++
   "  mv a0, s4; mv a1, s5; la a2, brsk_cnt\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lbrsrk_zero\n" ++
@@ -148,15 +176,21 @@ def balRecipientStorageReadsKeysFunction : String :=
   -- buffers; the real per-caller bound is a3 (remaining capacity), which every caller passes.
   "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu s6, t0, .Lbrsrk_done           # > cap -> count, write nothing\n" ++
   "  bgtu s6, s3, .Lbrsrk_done                       # > remaining capacity -> count, write nothing\n" ++
-  "  li s7, 0                     # i (SAVED reg: rlp_list_nth_item clobbers t-regs)\n" ++
+  "  li s7, 0                     # i (saved across cursor helper calls)\n" ++
+  -- Walk storage_reads once; each entry is itself the slot-key byte string.
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbrsrk_zero\n" ++
+  "  la t0, brsk_soff; sd a0, 0(t0)                  # entry cursor\n" ++
+  "  la t0, brsk_slen; sd a1, 0(t0)                  # entry end\n" ++
   ".Lbrsrk_loop:\n" ++
   "  beq s7, s6, .Lbrsrk_done\n" ++
-  -- entry = nth(storage_reads, i); the entry IS the slot key bytes.
-  "  mv a0, s4; mv a1, s5; mv a2, s7; la a3, brsk_eoff; la a4, brsk_elen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbrsrk_zero\n" ++
-  "  la t0, brsk_eoff; ld t0, 0(t0); add t1, s4, t0  # key bytes ptr\n" ++
-  "  la t0, brsk_elen; ld t4, 0(t0)                  # key byte length\n" ++
+  "  la t0, brsk_soff; ld a0, 0(t0)\n" ++
+  "  la t0, brsk_slen; ld a1, 0(t0)\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbrsrk_zero\n" ++
+  "  la t0, brsk_soff; sd a0, 0(t0)                  # advance cursor\n" ++
+  "  sub t1, a0, a2                                 # key bytes ptr\n" ++
+  "  mv t4, a2                                      # key byte length\n" ++
   "  li t5, 32; bgtu t4, t5, .Lbrsrk_zero\n" ++
   -- dst entry = out + i*32; zero it, then right-align the key bytes.
   "  slli t0, s7, 5; add t2, s2, t0                  # dst entry ptr\n" ++
@@ -183,15 +217,15 @@ def balRecipientStorageReadsKeysFunction : String :=
   "  addi sp, sp, 72\n" ++
   "  ret"
 
-/-- `zisk_bal_recipient_storage_keys`: validation probe over a hand-encoded
-    AccountChanges with one storage_changes entry whose slot key low byte is
-    0x07. RLP layout (63 bytes): f8 3d [94 ++ 20*00] [e3 e2 (a0 ++ 31*00 ++ 07) c0] c0 c0 c0 c0.
-    Output: +0 count (expect 1); +8 slot key byte 31 (expect 0x07); +16 slot key
-    byte 0 (expect 0x00, left-pad). -/
+/-- `zisk_bal_recipient_storage_keys`: probe reads an AccountChanges RLP from
+    host input (`u64 length` at offset 8, bytes at offset 16), writes the count
+    and first output key to OUTPUT, and retains a hand-encoded data fixture in
+    the data section for reproducible reference. -/
 def ziskBalRecipientStorageKeysPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  la a0, brsk_acct\n" ++
-  "  li a1, 63\n" ++
+  "  li a3, 0x40000000\n" ++
+  "  ld a1, 8(a3)\n" ++
+  "  addi a0, a3, 16\n" ++
   "  la a2, brsk_out\n" ++
   "  jal ra, bal_recipient_storage_keys\n" ++
   "  li s0, 0xa0010000\n" ++
@@ -200,7 +234,8 @@ def ziskBalRecipientStorageKeysPrologue : String :=
   "  lbu t1, 31(t0); sd t1, 8(s0)\n" ++
   "  lbu t1, 0(t0); sd t1, 16(s0)\n" ++
   "  j .Lbrskp_done\n" ++
-  rlpListNthItemFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   balRecipientStorageKeysFunction ++ "\n" ++
   ".Lbrskp_done:"

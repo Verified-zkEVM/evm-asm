@@ -102,7 +102,6 @@ import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
@@ -284,7 +283,8 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BlockVerdict
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.OmmersHashAtBlockHash
@@ -396,8 +396,28 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_mpt_insert_walk_db"    => some ziskMptInsertWalkDbProbeUnit
   | "zisk_mpt_insert_acc"        => some ziskMptInsertAccProbeUnit
   | "zisk_mpt_state_root_ins"    => some ziskMptStateRootInsProbeUnit
+  | "zisk_mpt_bounded_sort"      => some ziskMptBoundedSortProbeUnit
+  | "zisk_mpt_bounded_capture_branch_refs" => some ziskMptBoundedCaptureBranchRefsProbeUnit
+  | "zisk_mpt_bounded_resolve_witness" => some ziskMptBoundedResolveWitnessProbeUnit
+  | "zisk_mpt_bounded_classify_node" => some ziskMptBoundedClassifyNodeProbeUnit
+  | "zisk_mpt_bounded_open_root_frame" => some ziskMptBoundedOpenRootFrameProbeUnit
+  | "zisk_mpt_bounded_open_child_frame" => some ziskMptBoundedOpenChildFrameProbeUnit
+  | "zisk_mpt_bounded_partition_frame" => some ziskMptBoundedPartitionFrameProbeUnit
+  | "zisk_mpt_bounded_node_ref" => some ziskMptBoundedNodeRefProbeUnit
+  | "zisk_mpt_bounded_encode_branch" => some ziskMptBoundedEncodeBranchProbeUnit
+  | "zisk_mpt_bounded_encode_leaf_ref" => some ziskMptBoundedEncodeLeafRefProbeUnit
+  | "zisk_mpt_bounded_decode_extension" => some ziskMptBoundedDecodeExtensionProbeUnit
+  | "zisk_mpt_bounded_decode_leaf" => some ziskMptBoundedDecodeLeafProbeUnit
+  | "zisk_mpt_bounded_encode_extension" => some ziskMptBoundedEncodeExtensionProbeUnit
+  | "zisk_mpt_bounded_state_root" => some ziskMptBoundedStateRootProbeUnit
+  | "zisk_mpt_bounded_storage_root" => some ziskMptBoundedStorageRootProbeUnit
+  | "zisk_mpt_bounded_missing_group" => some ziskMptBoundedMissingGroupProbeUnit
   | "zisk_mpt_indexed_trie_root_small" => some ziskMptIndexedTrieRootSmallProbeUnit
   | "zisk_mpt_indexed_large_leaf_hash" => some ziskMptIndexedLargeLeafHashProbeUnit
+  | "zisk_mpt_indexed_stream_leaf_hash" => some ziskMptIndexedStreamLeafHashProbeUnit
+  | "zisk_mpt_indexed_sort_changes" => some ziskMptIndexedSortChangesProbeUnit
+  | "zisk_mpt_indexed_trie_root_bounded" => some ziskMptIndexedTrieRootBoundedProbeUnit
+  | "zisk_mpt_indexed_trie_root_bounded_values" => some ziskMptIndexedTrieRootBoundedValuesProbeUnit
   | "zisk_mpt_delete_walk_db"    => some ziskMptDeleteWalkDbProbeUnit
   | "zisk_mpt_delete_acc"        => some ziskMptDeleteAccProbeUnit
   | "zisk_mpt_set"              => some ziskMptSetProbeUnit

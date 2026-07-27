@@ -10,6 +10,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -30,7 +31,12 @@ open EvmAsm.Rv64
 -- only widens the table (100_000 * 32 = ~3.2 MiB) and the OOG threshold.
 def runtimeAccessAccountCapacity : Nat := 100000
 def runtimeAccessAccountRecordSize : Nat := 32
-def runtimeAccessColdDeltaGas : Nat := 2900
+/-- The helper adds only the cold increment because its callers have already
+    charged the `WARM_ACCESS` floor.  Keep this tied to the executable-spec
+    constants rather than duplicating Amsterdam's 2900 literal. -/
+def runtimeAccessColdDeltaGas : Nat :=
+  EvmAsm.Stateless.SpecRef.GasCosts.COLD_ACCOUNT_ACCESS -
+    EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS
 def runtimeAccessAccountOutcomeCapacity : Nat := 64
 def runtimeAccessAccountOutcomeRecordSize : Nat := 64
 

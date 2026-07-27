@@ -6,7 +6,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.Account
+import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.TxExtract
@@ -117,18 +117,28 @@ def simpleTransferFeeRecipientBalVerifyFunction : String :=
   "  bnez a0, .Lstfv_malformed\n" ++
   "  la t0, stfv_count; ld s8, 0(t0) # BAL row count\n" ++
   "  li s9, 0                    # row index\n" ++
+  -- Walk BAL rows once; s10/s11 retain the current row for post-field checks.
+  "  mv a0, s4; mv a1, s5; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstfv_malformed\n" ++
+  "  la t0, stfv_row_off; sd a0, 0(t0)             # outer row cursor\n" ++
+  "  la t0, stfv_row_len; sd a1, 0(t0)             # outer row end\n" ++
   ".Lstfv_row_loop:\n" ++
   "  bgeu s9, s8, .Lstfv_missing\n" ++
-  "  mv a0, s4; mv a1, s5; mv a2, s9; la a3, stfv_row_off; la a4, stfv_row_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstfv_malformed\n" ++
-  "  la t0, stfv_row_off; ld t1, 0(t0); add s10, s4, t1\n" ++
-  "  la t0, stfv_row_len; ld s11, 0(t0)\n" ++
-  "  mv a0, s10; mv a1, s11; li a2, 0; la a3, stfv_addr_off; la a4, stfv_addr_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstfv_malformed\n" ++
-  "  la t0, stfv_addr_len; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lstfv_next_row\n" ++
-  "  la t0, stfv_addr_off; ld t0, 0(t0); add t0, s10, t0\n" ++
+  "  la t0, stfv_row_off; ld a0, 0(t0)\n" ++
+  "  la t0, stfv_row_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstfv_malformed\n" ++
+  "  la t0, stfv_row_off; sd a0, 0(t0)             # advance outer cursor\n" ++
+  "  sub s10, a0, a2; mv s11, a2                  # row ptr/len\n" ++
+  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lstfv_malformed\n" ++
+  "  la t2, stfv_addr_off; sd a0, 0(t2)\n" ++
+  "  la t2, stfv_addr_len; sd a1, 0(t2)\n" ++
+  "  la t2, stfv_addr_off; ld a0, 0(t2)\n" ++
+  "  la t2, stfv_addr_len; ld a1, 0(t2)\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lstfv_malformed\n" ++
+  "  sub t0, a0, a2; mv t1, a2                   # address bytes ptr/len\n" ++
+  "  li t2, 20; bne t1, t2, .Lstfv_next_row\n" ++
   "  mv t1, s0; li t2, 20\n" ++
   ".Lstfv_cmp_addr:\n" ++
   "  beqz t2, .Lstfv_found\n" ++
@@ -232,6 +242,8 @@ def ziskSimpleTransferFeeRecipientBalVerifyPrologue : String :=
   "  li a7, 0xa0010000\n" ++
   "  jal ra, simple_transfer_fee_recipient_bal_verify\n" ++
   "  j .Lstfvp_done\n" ++
+  -- tx pricing still composes the legacy field decoder; retain K20 in the
+  -- standalone closure even though the migrated BAL-row scan itself is walk-only.
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   rlpFieldToU256BeFunction ++ "\n" ++
@@ -244,6 +256,8 @@ def ziskSimpleTransferFeeRecipientBalVerifyPrologue : String :=
   txEffectiveGasPricingFunction ++ "\n" ++
   u256MulU64BeFunction ++ "\n" ++
   u256IsZeroFunction ++ "\n" ++
+  -- cursor-walk helpers (account_extract_balance decodes via RlpWalk)
+  rlpWalkHelpersClosure ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++

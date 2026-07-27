@@ -18,7 +18,8 @@
   n-alignment of machine store addresses guarantees.
 -/
 
-import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.MemRegionWrite
+import EvmAsm.Rv64.MemRegion
 
 namespace EvmAsm.Rv64
 

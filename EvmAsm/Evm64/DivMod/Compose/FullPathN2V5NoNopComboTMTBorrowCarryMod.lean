@@ -10,7 +10,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarryMod
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMT
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
 
 open EvmAsm.Rv64.Tactics
 

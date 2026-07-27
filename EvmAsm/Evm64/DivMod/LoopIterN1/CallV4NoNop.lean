@@ -4,7 +4,7 @@
   No-NOP/v4 replay of the n=1 BLTU-taken call+skip j=0 loop-body spec.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.Call
+import EvmAsm.Evm64.DivMod.N1CallBase
 
 open EvmAsm.Rv64.Tactics
 

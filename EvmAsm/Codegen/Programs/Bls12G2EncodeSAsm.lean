@@ -52,8 +52,6 @@ namespace Bls12G2EncodeSAsm
 -- Anchors and byte-ties (semantic constants vs address anchors — guide §9).
 -- ============================================================================
 
--- Semantic constants: 4 elements × 48 bytes.
-
 /-- The caller's 4-slot frame: `ra`, `s0`, `s1`, `s2` (the loop counter is
     callee-saved — it must survive the callee's exposed-register clobber). -/
 def encFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24)]
@@ -817,8 +815,6 @@ theorem blsg2Encode_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     xperm_hyp hq2
   abi_frame (40 : BitVec 12) halign hbody
 
-#print axioms blsg2Encode_spec
-#print axioms blsgLeToBeFlat_spec
 
 end Bls12G2EncodeSAsm
 

@@ -76,6 +76,8 @@ def calldataHandlers : List OpcodeHandlerSpec :=
     , preBody := stackUnderflowGuardAsm 3 ++ "\n" ++
                  "  ld x14, 0(x12)\n" ++
                  "  ld x15, 64(x12)\n" ++
+                 memDynamicU256RangeOogGuardAsm
+                   "calldatacopy" "x12" "x15" "x17" "x18" 0 64 ++
                  -- cdcoob.1: the copy body consumes only the low 64-bit source offset.
                  -- If any high limb is nonzero, or the low limb is already outside calldata,
                  -- normalize the source offset to callDataLen so the existing loop takes its
@@ -90,7 +92,7 @@ def calldataHandlers : List OpcodeHandlerSpec :=
                  "2:\n" ++
                  memDynamicArenaOogGuardAsm "calldatacopy" "x14" "x15" "x16" "x17" ++
                  copyWordGasAsm "calldatacopy" "x15" "x16" "x17" "x18" ++
-                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true
+                 updateActiveMemorySizeAsm "calldatacopy" "x14" "x15" "x16" "x17" "x18" "x6" true false
     , body    := EvmAsm.Evm64.Calldata.evm_calldatacopy
                    .x20 .x13 .x14 .x15 .x16 .x17 .x18 .x19
     , tail    := .advanceAndRet 1 } ]

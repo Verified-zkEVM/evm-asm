@@ -238,6 +238,7 @@ def ziskMptStateRootInsPrologue : String :=
   mptResolveCacheResetFunction ++ "\n" ++
   mptNodeResolveFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkHelpersClosure ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++
   mptSetRecordWalkDbFunction ++ "\n" ++
@@ -279,8 +280,10 @@ def ziskMptStateRootInsDataSection : String :=
   "mee_path_off:\n  .zero 8\n" ++
   "mee_path_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "mdacc_leaf_path:\n  .zero 128\n" ++
-  "mdacc_collapsed_path:\n  .zero 128\n" ++
+  -- One extracted state-node HP path is <= 2047 nibbles.  Collapsing an
+  -- extension with a leaf can concatenate two such paths.
+  "mdacc_leaf_path:\n  .zero 2048\n" ++
+  "mdacc_collapsed_path:\n  .zero 4096\n" ++
   ".balign 8\n" ++
   "mset_rw_ptr:\n  .zero 8\n" ++
   "mset_rw_len:\n  .zero 8\n" ++

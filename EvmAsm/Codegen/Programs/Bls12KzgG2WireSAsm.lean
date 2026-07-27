@@ -61,8 +61,6 @@ namespace Bls12KzgG2WireSAsm
 -- Anchors and byte-ties (semantic constants vs address anchors — guide §9).
 -- ============================================================================
 
--- Semantic constants: 4 elements × (16-byte pad + 48-byte body) records.
-
 /-- The caller's 4-slot frame: `ra`, `s0`, `s1`, `s2`. -/
 def wireFrame : FrameDesc := [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24)]
 
@@ -1064,8 +1062,6 @@ theorem blskG2Wire_spec (sp0 ret src dst arb8 arb9 arb18 : Word)
     xperm_hyp hq2
   abi_frame (32 : BitVec 12) halign hbody
 
-#print axioms blskG2Wire_spec
-#print axioms blsgLeToBeWireFlat_spec
 
 end Bls12KzgG2WireSAsm
 

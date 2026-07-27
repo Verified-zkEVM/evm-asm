@@ -12,8 +12,7 @@
 import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
 import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
 import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlockSpecs
-import EvmAsm.Evm64.SDiv.Compose.BaseDividendAbsBlockSpec
-import EvmAsm.Evm64.SDiv.Compose.BaseDivisorAbsBlockSpec
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

@@ -7,7 +7,7 @@
   the result in `a0`.
 -/
 
-import EvmAsm.Codegen.Programs.EvmMessageCallGas
+import EvmAsm.Codegen.Programs.CallExtraGas
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -84,7 +84,6 @@ theorem callExtraGasFn_spec (isCold valueNonzero : Word) (base : Word) :
         simp_all [Cond.holds, execInstrRF, aluSem]
         try decide
 
-#print axioms callExtraGasFn_spec
 
 end CallExtraGasSAsm
 end EvmAsm.Codegen

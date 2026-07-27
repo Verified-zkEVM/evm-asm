@@ -27,6 +27,7 @@ import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
 import EvmAsm.Codegen.Programs.CreateFrameDescend
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
+import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.HashBridge
@@ -60,12 +61,28 @@ import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameReturn
 import EvmAsm.Codegen.Programs.StaticContext
+import EvmAsm.Stateless.SpecRef.InstructionsEnv
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Rounded capture capacity for the Amsterdam builder-deposit predeploy:
+    64 requests × 184 bytes = 11,776 bytes, rounded to 12 KiB so the RV64
+    immediate remains a single instruction.  The builder-exit body is smaller. -/
+def systemCallReturndataMaxBytes : Nat := 12288
+
+#guard systemCallReturndataMaxBytes = 12288
+
+/-- EIP-170's Amsterdam deployed-code limit.  Top-level creation retains a
+    successful initcode RETURN in a fixed buffer of exactly this size before
+    applying the code-deposit rules. -/
+def topLevelCreationReturndataMaxBytes : Nat := 65536
+
+#guard topLevelCreationReturndataMaxBytes = 65536
+
 def selfdestructDestroyedAddressCap : Nat := 32768
+def selfdestructSeenOriginCap : Nat := 65536
 
 /-- Protocol EVM stack depth in 256-bit words. The dispatcher stack arena
     is static, so this is the capacity that valid bytecode may rely on. -/
@@ -86,7 +103,11 @@ def evmStackGuardBytes : Nat := 512
     Depth-0 memory is larger than nested-frame memory so runtime gas replay can
     execute large-but-valid memory expansions without inflating every call-frame
     slot in the preallocated frame array. Nested frames keep `frameMemBytes`. -/
-def runtimeMemoryBytes : Nat := 0x50000
+def runtimeMemoryBytes : Nat := 0x400000
+
+/-- Preserve the historical `.data` layout after moving root EVM memory into
+    its dedicated fixed RegionMap arena. -/
+def runtimeMemoryLayoutPadBytes : Nat := 0x50000
 
 /-- Maximum bytecode length (in bytes) covered by the precomputed
     valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
@@ -466,6 +487,7 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
   "opcode_handlers:\n" ++
   String.intercalate "\n" entries
 
+open EvmAsm.Stateless.SpecRef.GasCosts in
 /-- M30 (gas metering, first slice): the **static base** gas cost of each
     EVM opcode byte, used by the dispatch loop to charge gas per instruction.
 
@@ -486,53 +508,91 @@ def emitJumpTable (registry : List OpcodeHandlerSpec) : String :=
 
     Halt opcodes (STOP/RETURN/REVERT/INVALID/SELFDESTRUCT) and every byte
     not assigned a real opcode are 0, so trusted programs never spuriously
-    run out of gas on a terminator or an unwired byte. -/
+    run out of gas on a terminator or an unwired byte.
+
+    ## Sourced from SpecRef rather than transcribed (GH #10569)
+
+    Every entry with a SpecRef symbol now names it, so a fork repricing an
+    opcode fails the build here instead of silently charging the old value.
+    Before substituting, each symbol's value was compared against the literal it
+    replaces and **all agreed** — so this records that the table was *correct*,
+    not merely that it is now pinned.
+
+    Entries that keep a bare literal, and why:
+    * `CREATE`/`CREATE2` (11000) and `SELFDESTRUCT` (5000) — no SpecRef symbol
+      exists for these base charges;
+    * halt and unwired bytes — deliberately 0 per the note above, so there is
+      no static constant to name. -/
 def staticGasCost (op : Nat) : Nat :=
-  if op = 0x5f then 2                     -- PUSH0 (BASE)
-  else if 0x60 ≤ op ∧ op ≤ 0x7f then 3        -- PUSH1..PUSH32 (VERYLOW)
-  else if 0x80 ≤ op ∧ op ≤ 0x8f then 3   -- DUP1..DUP16 (VERYLOW)
-  else if 0x90 ≤ op ∧ op ≤ 0x9f then 3   -- SWAP1..SWAP16 (VERYLOW)
-  else if 0xe6 ≤ op ∧ op ≤ 0xe8 then 3   -- DUPN/SWAPN/EXCHANGE (EIP-8024, VERYLOW)
-  else if 0xa0 ≤ op ∧ op ≤ 0xa4 then 375 -- LOG0..LOG4 (base)
+  if op = 0x5f then OPCODE_PUSH0
+  else if 0x60 ≤ op ∧ op ≤ 0x7f then OPCODE_PUSH        -- PUSH1..PUSH32
+  else if 0x80 ≤ op ∧ op ≤ 0x8f then OPCODE_DUP         -- DUP1..DUP16
+  else if 0x90 ≤ op ∧ op ≤ 0x9f then OPCODE_SWAP        -- SWAP1..SWAP16
+  else if op = 0xe6 then OPCODE_DUPN                    -- EIP-8024
+  else if op = 0xe7 then OPCODE_SWAPN
+  else if op = 0xe8 then OPCODE_EXCHANGE
+  else if 0xa0 ≤ op ∧ op ≤ 0xa4 then OPCODE_LOG_BASE    -- LOG0..LOG4
   else match op with
     -- arithmetic
-    | 0x01 => 3 | 0x03 => 3                                  -- ADD, SUB
-    | 0x02 => 5 | 0x04 => 5 | 0x05 => 5 | 0x06 => 5 | 0x07 => 5  -- MUL,DIV,SDIV,MOD,SMOD
-    | 0x0b => 5                                              -- SIGNEXTEND
-    | 0x08 => 8 | 0x09 => 8                                  -- ADDMOD, MULMOD
-    | 0x0a => 10                                             -- EXP (base)
-    -- comparison & bitwise (all VERYLOW)
-    | 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x15 => 3
-    | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a => 3
-    | 0x1b | 0x1c | 0x1d => 3
-    | 0x1e => 5                                             -- CLZ (EIP-7939, LOW)
-    | 0x20 => 30                                             -- KECCAK256 (base)
+    | 0x01 => OPCODE_ADD        | 0x03 => OPCODE_SUB
+    | 0x02 => OPCODE_MUL        | 0x04 => OPCODE_DIV
+    | 0x05 => OPCODE_SDIV       | 0x06 => OPCODE_MOD
+    | 0x07 => OPCODE_SMOD       | 0x0b => OPCODE_SIGNEXTEND
+    | 0x08 => OPCODE_ADDMOD     | 0x09 => OPCODE_MULMOD
+    | 0x0a => OPCODE_EXP_BASE
+    -- comparison & bitwise
+    | 0x10 => OPCODE_LT         | 0x11 => OPCODE_GT
+    | 0x12 => OPCODE_SLT        | 0x13 => OPCODE_SGT
+    | 0x14 => OPCODE_EQ         | 0x15 => OPCODE_ISZERO
+    | 0x16 => OPCODE_AND        | 0x17 => OPCODE_OR
+    | 0x18 => OPCODE_XOR        | 0x19 => OPCODE_NOT
+    | 0x1a => OPCODE_BYTE
+    | 0x1b => OPCODE_SHL        | 0x1c => OPCODE_SHR
+    | 0x1d => OPCODE_SAR
+    | 0x1e => OPCODE_CLZ                                 -- EIP-7939
+    | 0x20 => OPCODE_KECCAK256_BASE
     -- environment / context
-    | 0x30 => 2 | 0x32 => 2 | 0x33 => 2 | 0x34 => 2 | 0x3a => 2  -- ADDRESS,ORIGIN,CALLER,CALLVALUE,GASPRICE
-    | 0x35 => 3                                              -- CALLDATALOAD (VERYLOW)
-    | 0x36 => 2 | 0x38 => 2 | 0x3d => 2                      -- CALLDATASIZE,CODESIZE,RETURNDATASIZE
-    | 0x37 => 3 | 0x39 => 3 | 0x3e => 3                      -- CALLDATACOPY,CODECOPY,RETURNDATACOPY (base)
-    | 0x31 => 100 | 0x3b => 100 | 0x3f => 100               -- BALANCE,EXTCODESIZE,EXTCODEHASH (warm floor)
-    | 0x3c => 100                                            -- EXTCODECOPY (warm floor, base)
-    | 0x40 => 20                                             -- BLOCKHASH
-    | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x4a | 0x4b => 2  -- COINBASE..BASEFEE, BLOBBASEFEE, SLOTNUM
-    | 0x47 => 5                                              -- SELFBALANCE (LOW)
-    | 0x49 => 3                                              -- BLOBHASH
+    | 0x30 => OPCODE_ADDRESS    | 0x32 => OPCODE_ORIGIN
+    | 0x33 => OPCODE_CALLER     | 0x34 => OPCODE_CALLVALUE
+    | 0x3a => OPCODE_GASPRICE
+    | 0x35 => OPCODE_CALLDATALOAD
+    | 0x36 => OPCODE_CALLDATASIZE
+    | 0x38 => OPCODE_CODESIZE   | 0x3d => OPCODE_RETURNDATASIZE
+    | 0x37 => OPCODE_CALLDATACOPY_BASE
+    | 0x39 => OPCODE_CODECOPY_BASE
+    | 0x3e => OPCODE_RETURNDATACOPY_BASE
+    -- account-access opcodes: the STATIC entry is the warm floor; the cold
+    -- delta is added by the access-charge path, not here.
+    | 0x31 => WARM_ACCESS       -- BALANCE
+    | 0x3b => WARM_ACCESS       -- EXTCODESIZE
+    | 0x3c => WARM_ACCESS       -- EXTCODECOPY
+    | 0x3f => WARM_ACCESS       -- EXTCODEHASH
+    | 0x40 => OPCODE_BLOCKHASH
+    | 0x41 => OPCODE_COINBASE   | 0x42 => OPCODE_TIMESTAMP
+    | 0x43 => OPCODE_NUMBER     | 0x44 => OPCODE_PREVRANDAO
+    | 0x45 => OPCODE_GASLIMIT   | 0x46 => OPCODE_CHAINID
+    | 0x48 => OPCODE_BASEFEE    | 0x4a => OPCODE_BLOBBASEFEE
+    | 0x4b => OPCODE_SLOTNUM
+    | 0x47 => FAST_STEP                                  -- SELFBALANCE (environment.py:524)
+    | 0x49 => OPCODE_BLOBHASH
     -- stack / memory / flow
-    | 0x50 => 2                                              -- POP (BASE)
-    | 0x51 | 0x52 | 0x53 => 3                                -- MLOAD,MSTORE,MSTORE8 (VERYLOW)
-    | 0x54 => 100 | 0x55 => 100                              -- SLOAD,SSTORE (warm/base)
-    | 0x56 => 8                                              -- JUMP (MID)
-    | 0x57 => 10                                             -- JUMPI (HIGH)
-    | 0x58 | 0x59 | 0x5a => 2                                -- PC,MSIZE,GAS (BASE)
-    | 0x5b => 1                                              -- JUMPDEST
-    | 0x5c => 100 | 0x5d => 100                              -- TLOAD,TSTORE
-    | 0x5e => 3                                              -- MCOPY (base)
-    | 0x5f => 2                                              -- PUSH0 (BASE)
-    -- child frames (base; dynamic call/create costs dropped)
-    | 0xf0 => 11000 | 0xf5 => 11000                            -- CREATE, CREATE2
-    | 0xf1 | 0xf2 | 0xf4 | 0xfa => 100                       -- CALL,CALLCODE,DELEGATECALL,STATICCALL
-    | 0xff => 5000                                           -- SELFDESTRUCT (base)
+    | 0x50 => OPCODE_POP
+    | 0x51 => OPCODE_MLOAD_BASE | 0x52 => OPCODE_MSTORE_BASE
+    | 0x53 => OPCODE_MSTORE8_BASE
+    | 0x54 => WARM_ACCESS       -- SLOAD  (warm floor)
+    | 0x55 => WARM_ACCESS       -- SSTORE (warm floor)
+    | 0x56 => OPCODE_JUMP       | 0x57 => OPCODE_JUMPI
+    | 0x58 => OPCODE_PC         | 0x59 => OPCODE_MSIZE
+    | 0x5a => OPCODE_GAS        | 0x5b => OPCODE_JUMPDEST
+    | 0x5c => OPCODE_TLOAD      | 0x5d => OPCODE_TSTORE
+    | 0x5e => OPCODE_MCOPY_BASE
+    -- child frames (base; dynamic call/create costs charged elsewhere)
+    | 0xf0 => CREATE_ACCESS | 0xf5 => CREATE_ACCESS      -- CREATE, CREATE2 (system.py:193,247)
+    | 0xf1 => WARM_ACCESS       -- CALL         (warm floor)
+    | 0xf2 => WARM_ACCESS       -- CALLCODE
+    | 0xf4 => WARM_ACCESS       -- DELEGATECALL
+    | 0xfa => WARM_ACCESS       -- STATICCALL
+    | 0xff => 5000                                       -- SELFDESTRUCT: no SpecRef symbol
     -- STOP (0x00), RETURN (0xf3), REVERT (0xfd), INVALID (0xfe),
     -- and all unwired bytes → 0.
     | _ => 0
@@ -593,7 +653,10 @@ private def emitBls12G2MsmDiscountTable : String :=
     copying them into caller memory. Layout:
       +precompileFrameStatusOff             status / success word
       +precompileFrameReturndataLenOff      returndata length
-      +precompileFrameReturndataOff         first 256 bytes of returndata scratch
+      +precompileFrameReturndataOff         returndata data window
+                                            (precompileFrameReturndataCapBytes
+                                            bytes — ≥ any stageable retlen, so
+                                            the FULL returndata is staged)
       +precompileFrameBls12G1Input0Off      G1-class compact input scratch
       +precompileFrameBls12G1Input1Off      G1 ADD compact p2 scratch
       +precompileFrameBls12G1OutputOff      G1-class compact result / pairing bool
@@ -609,11 +672,17 @@ private def emitBls12G2MsmDiscountTable : String :=
 
     The lanes are handler-local scratch, so G1/G2 ADD may still reuse the
     older offsets internally. Map-Fp2-to-G2 uses the G2-class lane to avoid
-    colliding with map-Fp-to-G1 stacked PR edits around +144/+336. -/
+    colliding with map-Fp-to-G1 stacked PR edits around +144/+336.
+
+    The BLS/ECRECOVER lanes live INSIDE the returndata data window
+    (+144..+1280 < +16 + precompileFrameReturndataCapBytes). That overlap is
+    the existing discipline: lanes are written and consumed while a handler
+    runs, strictly before that handler stages its returndata bytes (MODEXP
+    already wrote up to +1040 across them). -/
 def emitPrecompileFrameData : String :=
   ".balign 8\n" ++
   "evm_precompile_frame:\n" ++
-  "  .zero 1280\n"
+  "  .zero " ++ toString (precompileFrameReturndataOff + precompileFrameReturndataCapBytes) ++ "\n"
 
 /-- SELFDESTRUCT runtime staging scratch.
 
@@ -653,6 +722,13 @@ def emitSelfdestructData : String :=
   "evm_selfdestruct_staged:\n" ++
   "  .zero 8\n" ++
   ".balign 8\n" ++
+  "evm_selfdestruct_seen_count:\n  .zero 8\n" ++
+  "evm_selfdestruct_seen_overflow:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "evm_selfdestruct_seen_table:\n  .zero " ++ toString (selfdestructSeenOriginCap * 32) ++ "\n" ++
+  ".balign 8\n" ++
+  "evm_selfdestruct_seen_count_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  "evm_selfdestruct_seen_overflow_by_depth:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   "evm_selfdestruct_destroyed_count:\n" ++
   "  .zero 8\n" ++
   "evm_selfdestruct_destroyed_overflow:\n" ++
@@ -735,6 +811,11 @@ def emitCreateChildFrameData : String :=
   -- bmvmx.1.6.3 / .61.8b (.8b-2): the per-created-account CODE-effect log, co-located with
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
   createCodeEffectLogData ++ "\n" ++
+  -- The code-effect log above remains BAL comparator evidence.  Execution reads
+  -- use this bounded, real-address keyed CodeState overlay instead, so CREATE /
+  -- SELFDESTRUCT / recreate follow current Ethereum state rather than an
+  -- append-only event history.
+  codeStateData ++ "\n" ++
   -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
   -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
   createNonceTableData ++ "\n" ++
@@ -761,11 +842,18 @@ def emitCreateChildFrameData : String :=
   -- (BE), captured at create_frame_descend before the endowment credit, used as the pre_balance of
   -- the created-account endowment-credit nonstorage record (ChildFrameHandlerTails .Lcr_nse_done).
   "nse_create_pre_bal:\n  .zero 32\n" ++
+  "cr_alive_bal:\n  .zero 32\n" ++
   -- Amsterdam generic_create computes target_alive from the current tx_state before
   -- incorporating the child. A same-tx-created target can be alive even when its
   -- block-pre balance is zero; NoopHalt stashes that code-effect-log hit here.
   "create_target_alive_current_tx:\n  .zero 8\n" ++
-  "create_state_gas_charged_current:\n  .zero 8\n"
+  "create_state_gas_charged_current:\n  .zero 8\n" ++
+  -- v0.6 (evm-asm-0w05f.17.2): failed-create NEW_ACCOUNT refund gate. The
+  -- REVERT/invalid-deposit/exceptional-halt paths stash the by-depth
+  -- create_target_alive_flag here before frame_return pops the depth; a
+  -- nonzero value (alive target -> charge skipped) suppresses the
+  -- credit_state_gas_refund mirror.
+  "create_failed_refund_skip:\n  .zero 8\n"
 
 /-- Scratch labels shared by runtime account-witness helpers.
 
@@ -1121,6 +1209,18 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  ld t3, 0(t1)\n" ++
     "  beqz t3, 2f\n" ++
     "  sd x0, 0(t1)\n" ++
+    -- An empty CREATE initcode reaches this EOF halt route rather than the
+    -- STOP opcode handler.  Restore the same depth-indexed CREATE metadata
+    -- before entering the shared deposit path, otherwise it observes stale
+    -- globals instead of this child frame's derived address/value/creator.
+    "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+    "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+    "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
     "  li x14, 0\n" ++
     "  li x15, 0\n" ++
     "  j .Lcreate_deposit_from_halt_1\n" ++
@@ -1170,14 +1270,26 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
+  "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++   -- i3djw/.8c: reset the per-created-account code-effect log per tx
-  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++    -- (else CREATE deposits + code_covers carry stale records across txs)
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  -- The comparator evidence heap is per dispatch in standalone mode, but is
+  -- block-lived while the MTx CodeState is active: retained code bytes are the
+  -- backing store for cross-transaction execution reads.
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtd_code_log_kept:\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++ -- AccountState pending journal is tx scoped
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
@@ -1279,9 +1391,15 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  la x6, evm_state_gas_left; sd x28, 0(x6)\n" ++
   "  ld x5, 632(x20); la x6, evm_state_gas_used; sd x5, 0(x6)\n" ++
   "  ld x5, 760(x20); la x6, evm_state_gas_spilled; sd x5, 0(x6)\n" ++
-  -- generic_create credits NEW_ACCOUNT state gas back on child error. Save
-  -- whether this is a CREATE frame before frame_return restores the parent.
+  -- generic_create credits NEW_ACCOUNT state gas back on child error ONLY when
+  -- it charged it (system.py:157-159 `if new_account_charged:`); an alive
+  -- target skipped the conditional charge (v0.6, evm-asm-0w05f.17.2). Save
+  -- "CREATE frame AND target not alive" before frame_return pops the depth.
   "  la x5, create_frame_flag; slli x6, x18, 3; add x5, x5, x6; ld x6, 0(x5); sd x0, 0(x5)\n" ++
+  "  la x5, create_target_alive_flag; slli x7, x18, 3; add x5, x5, x7; ld x7, 0(x5)\n" ++
+  "  beqz x7, 8f\n" ++
+  "  li x6, 0\n" ++
+  "8:\n" ++
   "  la x5, create_target_alive_current_tx; sd x6, 0(x5)\n" ++
   "  sd x0, 568(x20)\n" ++
   "  li a0, 0\n" ++
@@ -1735,6 +1853,11 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
     drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
     (callable repeatedly; mutates no dispatcher state). -/
+/- Preserve executed state gas for successful halts (including the deposit STOP
+   lane), but do not publish reverted/exceptional frame charges as
+   `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
+   accounts for authorization charges; on an error the frame portion is
+   refilled by the settlement fold and must be captured as 0. -/
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1750,11 +1873,11 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (96 : BitVec 13),
+    .BEQ .x6 .x0 (100 : BitVec 13),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (88 : BitVec 13),
+    .BEQ .x6 .x28 (92 : BitVec 13),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (80 : BitVec 13),
+    .BEQ .x6 .x28 (84 : BitVec 13),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
@@ -1763,6 +1886,7 @@ def dispatcherTxGasSettle_prog : Program :=
     .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .LD .x29 .x31 (0 : BitVec 12),
+    .BNE .x12 .x0 (8 : BitVec 13),
     .SD .x30 .x0 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
     .BGEU .x29 .x28 (16 : BitVec 13),
@@ -1799,7 +1923,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 40
+#guard dispatcherTxGasSettle_prog.length = 41
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -1876,6 +2000,24 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
+    accountStateFindFunction ++ "\n" ++
+    accountStateCopyFunction ++ "\n" ++
+    accountStateAppendPendingFunction ++ "\n" ++
+    accountStateUpsertDurableFunction ++ "\n" ++
+    codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+    accountStateCommitPendingFunction ++ "\n" ++
+    accountStatePromoteDeleteReadsFunction ++ "\n" ++
+    accountStateRecordNonstorageFunction ++ "\n" ++
+    accountStateRecordCodeFunction ++ "\n" ++
+    accountStateRecordAuthFunction ++ "\n" ++
+    accountStateAuthCurrentFunction ++ "\n" ++
+    accountStateLatestBalanceFunction ++ "\n" ++
+    accountStateLatestNonceFunction ++ "\n" ++
+    accountStateLookupCurrentFunction ++ "\n" ++
+    accountStateCreatedContainsFunction ++ "\n" ++
+    codeStateLookupCurrentFunction ++ "\n" ++
+    codeStateAddressSetInsertFunction ++ "\n" ++
+    codeStateAddressSetFlagFunction ++ "\n" ++
     createCreatorNonceUseFunction ++ "\n" ++
     zkvmModexpBackendImpl ++ "\n" ++
     emitModexpBnScratchData ++ "\n" ++
@@ -2117,7 +2259,7 @@ def emitDispatcherCallableEpilogueSharedHelpers
     ```
     evm_code:         <bytecode> (~50 B)
     .balign 32
-    evm_memory:       .zero runtimeMemoryBytes (320 KiB EVM memory, M7 onward)
+    evm_memory:       fixed alias into the 16 MiB RegionMap EVM-memory arena
     .balign 8
     evm_env:          runtime environment and helper scratch follows
     lp64_stack:       helper-call stack
@@ -2144,8 +2286,8 @@ def emitDispatcherDataSection
   s!"  .byte {bytecodeBytes}\n" ++
   "evm_code_end:\n" ++   -- M33: exact end of baked bytecode (CODESIZE/CODECOPY length)
   ".balign 32\n" ++
-  "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  "evm_memory_layout_pad:\n" ++
+  "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++
   ".balign 8\n" ++
   "evm_sparse_memory_count:\n  .zero 8\n" ++
   "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
@@ -2169,13 +2311,13 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
@@ -2189,7 +2331,16 @@ def emitDispatcherDataSection
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
-  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
+  "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -2243,7 +2394,10 @@ def emitDispatcherDataSection
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
-  emitJumpTable registry
+  emitJumpTable registry ++ "\n" ++
+  ".balign 32\n" ++
+  "evm_memory:\n" ++
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n"
 
 /-! ## Runtime-bytecode dispatcher (M8.5)
 
@@ -2259,6 +2413,23 @@ def emitDispatcherDataSection
     table) is identical to the `.data`-baked variant — only the
     prologue's `la x10, evm_code` swaps to `li x10, 0x40000010`
     and the `.data` section drops the `evm_code:` block. -/
+
+/-- Seed the per-transaction access-list warm sets from the pending tx span.
+    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
+    the globals zero, so this is inert. It must run after the per-tx warm-set
+    reset and before any preparation charge consults accessed addresses. -/
+def emitTxAccessListSeedLoop : String :=
+  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
+  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
+  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
+  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
+  "  beqz x28, .Ltx_access_seed_done\n" ++
+  "  beqz a0, .Ltx_access_seed_done\n" ++
+  "  beqz a1, .Ltx_access_seed_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
+  ".Ltx_access_seed_done:\n" ++
+  "  mv x10, x21\n"
 
 /-- Runtime-bytecode dispatcher prologue. Same fetch/decode/dispatch
     loop as `emitDispatcherPrologue`; differs only in how `x10` is
@@ -2353,6 +2524,11 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
+  -- This is a memoized control-flow fact, not independent guest state: it is
+  -- set only after the common intrinsic, auth-state, and top-frame regular
+  -- pre-dispatch charges have all passed their gas-coverage checks below.
+  -- A pre-dispatch ExceptionalHalt leaves it zero; a later body REVERT keeps it.
+  "  la x28, runtime_tx_auth_phase_applied; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_count; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_next_epoch; li x29, 1; sd x29, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_epoch_by_depth; sd x0, 0(x28)\n" ++
@@ -2373,8 +2549,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
+  "  la x9, exec_log_seed_flag\n" ++ -- this preload row is not an execution write
   ".preload_expand_loop:\n" ++
   "  beqz x6, .preload_expand_done\n" ++
+  "  li x10, 1; sb x10, 0(x9)\n" ++
   -- addrHash = 0 (32 bytes)
   "  sd x0, 0(x7)\n" ++
   "  sd x0, 8(x7)\n" ++
@@ -2404,6 +2582,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x8, 120(x7)\n" ++
   "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
   "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
+  "  addi x9, x9, 1\n" ++
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
@@ -2536,6 +2715,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  beqz x8, .runtime_tx_gas_no_create\n" ++
   "  li x8, 11000\n" ++            -- CREATE_ACCESS = ACCOUNT_WRITE + COLD_STORAGE_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+  -- `calculate_intrinsic_cost` includes the EIP-7708 synthetic Transfer-log
+  -- cost in a value-carrying CREATE's recipient_regular_gas.  This is part of
+  -- base_regular_gas, so it must feed both the regular intrinsic and the
+  -- calldata floor before the latter is persisted below.
+  "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
+  "  ld x9, 112(x20); or x8, x8, x9\n" ++
+  "  ld x9, 120(x20); or x8, x8, x9\n" ++
+  "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
+  "  li x8, 1756\n" ++             -- TRANSFER_LOG_COST
+  "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++
+  "  j .runtime_tx_gas_recipient_done\n" ++
   ".runtime_tx_gas_no_create:\n" ++
   -- EIP-2780 decomposes the non-create recipient/value components out of the
   -- bundled legacy base. Non-self calls pay COLD_ACCOUNT_ACCESS, and non-self
@@ -2556,12 +2748,15 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   ".runtime_tx_gas_not_self:\n" ++
   "  li x8, 3000\n" ++             -- COLD_ACCOUNT_ACCESS
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
+
   "  ld x8, 96(x20); ld x9, 104(x20); or x8, x8, x9\n" ++
   "  ld x9, 112(x20); or x8, x8, x9\n" ++
   "  ld x9, 120(x20); or x8, x8, x9\n" ++
   "  beqz x8, .runtime_tx_gas_recipient_done\n" ++
   "  li x8, 6000\n" ++             -- TRANSFER_LOG_COST + TX_VALUE_COST
   "  add x7, x7, x8\n" ++
+  "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_recipient_done:\n" ++
   "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
   "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
@@ -2632,15 +2827,16 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- computed floor here; x11 is free (it last held a calldata byte).
   "  la x11, runtime_tx_calldata_floor\n" ++
   "  sd x10, 0(x11)\n" ++
-  -- EIP-7702 adds PER_AUTH_BASE_COST to intrinsic.regular for each
-  -- authorization before the runtime gas reservoir is initialized
-  -- (execution-specs transactions.py: calculate_intrinsic_cost). Charge it in
-  -- the same accumulator used below for both tx.gas validation and the
-  -- tx.gas - gas_left receipt formula.
+  -- v0.6.0 (EIP-2780): the per-authorization intrinsic is the
+  -- state-independent REGULAR_PER_AUTH_BASE_COST 7816 only (the v0.5.0
+  -- worst-case ACCOUNT_WRITE 8000 and the 218790/auth state reserve are
+  -- gone -- the exact state-dependent charges arrive via the staged
+  -- runtime_tx_auth_state_refund / runtime_tx_top_frame_regular_gas
+  -- cells below).
   "  la x11, runtime_tx_auth_count\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_regular_charge_done\n" ++
-  "  li x11, 15816\n" ++
+  "  li x11, 7816\n" ++
   "  mul x9, x9, x11\n" ++
   "  add x7, x7, x9\n" ++
   ".runtime_tx_auth_regular_charge_done:\n" ++
@@ -2649,17 +2845,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bltu x6, x7, .exit_outofgas\n" ++
   "  bltu x6, x10, .exit_outofgas\n" ++
   "  sub x6, x6, x7\n" ++
-  -- EIP-7702 intrinsic state gas is part of intrinsic_gas. Subtract the staged
-  -- authorization state dimension from execution gas before the EIP-8037
-  -- reservoir split.
-  "  la x11, runtime_tx_auth_count\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_auth_state_charge_done\n" ++
-  "  li x11, " ++ toString amsterdamAuthStateGasPerAuth ++ "\n" ++
-  "  mul x9, x9, x11\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  ".runtime_tx_auth_state_charge_done:\n" ++
   -- nxio8 (EIP-8037): split execution gas into gas_left and the state-gas
   -- reservoir (fork.py: gas = min(TX_MAX_GAS_LIMIT - intrinsic.regular,
   -- execution_gas); state_gas_reservoir = execution_gas - gas). x7 still holds
@@ -2675,18 +2860,93 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
-  -- EIP-7702 validate_authorization refunds state gas into the message reservoir
-  -- when the recovered authority already exists (and, separately, for existing
-  -- delegation code). Transaction-aware callers compute the exact BAL/pre-state
-  -- refund and stage it in runtime_tx_auth_state_refund before this setup runs.
+  -- EIP-7702 execution seam: run the authorization traversal once, after the
+  -- state-gas reservoir exists and before its staged charge is consumed.
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
+  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
+  "  jalr ra, x9, 0; mv x9, x10\n" ++
+  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
+  "  bnez x9, .exit_outofgas\n" ++
+  ".runtime_tx_auth_exec_done:\n" ++
+  -- v0.6.0 (EIP-7702 rework): set_delegation CHARGES its exact
+  -- state-dependent costs at the top frame -- reservoir first, spilling
+  -- the remainder into regular gas (OOG halts the frame without
+  -- dispatching, mirroring the spec's prep rollback). The execution callback
+  -- stages the exact charge in runtime_tx_auth_state_refund (cell name kept)
+  -- immediately before this setup. Fold the charge into the per-tx intrinsic
+  -- state cell so prep charges survive body rollback without being counted as
+  -- body execution state.
   "  la x11, runtime_tx_auth_state_refund\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
   "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_auth_state_refund_done\n" ++
+  ".runtime_tx_auth_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  ".runtime_tx_auth_state_used_done:\n" ++
+  -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
+  -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
+  -- reservoir first, spilling the remainder into regular gas; an unaffordable
+  -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
+  -- burned, the charge rolled back -- OOG-checked before the counters are
+  -- touched). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
+  -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
+  -- target is never charged); probes/non-creation paths leave it zero.
+  -- 0w05f.17.2: mirror charge_state_gas COMPLETELY -- the charge counts into
+  -- evm_state_gas_used (and its spill into evm_state_gas_spilled), because the
+  -- v0.6 settlement identity reports it as EXECUTED state gas
+  -- (tx_state = intrinsic + executed, fork.py:1174; spec intrinsic_state_gas
+  -- is 0 for creation). x7 carries the full staged charge across the spill
+  -- split; it is dead here and reloaded from the input header below.
+  "  la x11, runtime_tx_create_state_charge\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  mv x7, x9\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_create_state_used\n" ++
+  ".runtime_tx_create_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  la x11, evm_state_gas_spilled\n" ++
   "  ld x8, 0(x11)\n" ++
   "  add x8, x8, x9\n" ++
   "  sd x8, 0(x11)\n" ++
-  ".runtime_tx_auth_state_refund_done:\n" ++
+  ".runtime_tx_create_state_used:\n" ++
+  "  la x11, evm_state_gas_used\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x7\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_done:\n" ++
+  -- The callable `prepare_only` entry is used only by the block verdict's
+  -- status-2 recipient path.  It must stop after the authorization/state
+  -- prefix has completed but before `prepare_dispatch` reads recipient code.
+  -- `runtime_tx_prepare_prefix_status` is deliberately tri-state: 0 is
+  -- unset, 1 means the prefix was entered (and an OOG may have exited it),
+  -- and 2 means the prefix completed.  The caller treats 2 as an unresolved
+  -- witness failure; only 1 may retain the ExceptionalHalt settlement.
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
+  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  ".runtime_tx_prepare_prefix_continue:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
   -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
@@ -2712,19 +2972,20 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
   "  sd x5, 608(x20)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
-  -- 5tmlt (Part B): warm tx.to's (env.ADDRESS) EIP-7702 delegation target AFTER the
-  -- reset above. The spec warms the delegated_address at the first/free top-level
-  -- access (interpreter.py:152-153); the guest's pre-reset resolutions of it are wiped
-  -- by runtime_access_seed_initial_accounts, so a later CALL/reentry would re-charge
-  -- the target COLD (+2500, bv_fail=53 pointer_to_static_reentry). Convert env.ADDRESS
-  -- (env+0, LE stack word) to a BE-20 scratch, then resolve with a3=0 (no charge) ->
-  -- the resolver's free-warm (Part A) seeds the target into the now-post-reset table.
-  -- No-op when there's no BAL (standalone: bv_bal_start=0) or env.ADDRESS isn't delegated.
-  "  addi x5, x20, 19; la x6, rt_deleg_warm_be; li x7, 20\n" ++
-  ".Lrt_dwarm_be:\n" ++
-  "  lbu x28, 0(x5); sb x28, 0(x6); addi x5, x5, -1; addi x6, x6, 1; addi x7, x7, -1; bnez x7, .Lrt_dwarm_be\n" ++
-  "  la a0, rt_deleg_warm_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  -- execution-specs applies the transaction access list before prepare_dispatch
+  -- tests the delegated address against accessed_addresses (interpreter.py:295-300).
+  -- This runs after the per-tx storage-warm reset above, so it establishes both
+  -- access-list account and storage warmth before the deferred callback charges.
+  emitTxAccessListSeedLoop ++ "\n" ++
+  "  la x5, runtime_tx_post_top_frame_fn\n" ++
+  "  ld x28, 0(x5)\n" ++
+  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  ".runtime_tx_post_top_frame_done:\n" ++
+  -- All preparation charges, including a deferred delegated-code access, have
+  -- now passed.  Only this point commits the auth phase; callback OOG above is
+  -- still a preparation ExceptionalHalt and must roll its auths back.
+  "  la x11, runtime_tx_auth_phase_applied; li x9, 1; sd x9, 0(x11)\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -2737,6 +2998,32 @@ def emitRuntimeDispatcherSetup : String :=
      "  li x21, 0x40000010\n")     -- M15: preserved code base (mirrors x10 init)
 
 def emitRuntimeDispatcherCallableSetup : String :=
+  -- The callable dispatcher executes one transaction in the stateless guest.
+  -- Reset every auxiliary transaction journal before its dispatch.  The
+  -- standalone prologue does the same; retaining any of these across callable
+  -- invocations lets a preceding transaction alter the next transaction's
+  -- execution evidence.
+  "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
+  "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
+  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
+  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
+  "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_code_log_kept:\n" ++
+  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
+  "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
+  "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
     ("  la x5, runtime_dispatcher_input_ptr\n" ++
      "  ld x6, 0(x5)\n" ++
@@ -2808,6 +3095,7 @@ def emitCalleeStorageSeedLoop : String :=
   ".Lcallee_seed_loop:\n" ++
   "  beqz x6, .Lcallee_seed_done\n" ++
   "  ld x29, 448(x20)\n" ++                  -- x29 = current entry count
+  "  la x5, exec_log_seed_flag; add x5, x5, x29; li x31, 1; sb x31, 0(x5)\n" ++
   "  slli x30, x29, 7; add x30, x28, x30\n" ++   -- x30 = entry ptr = base + count*128
   -- addrHash src[0..32] -> entry[0..32]
   "  ld x31, 0(x7);  sd x31, 0(x30)\n" ++
@@ -2827,23 +3115,6 @@ def emitCalleeStorageSeedLoop : String :=
   "  addi x29, x29, 1; sd x29, 448(x20)\n" ++    -- bump persistentLogLength
   "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
   ".Lcallee_seed_done:\n"
-
-/-- Seed the per-transaction storage warm set from a pending tx access-list span.
-    The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
-    the globals zero, so this is inert. Runs after callable setup resets
-    `evm_storage_access_count` and before opcode execution. -/
-def emitTxAccessListSeedLoop : String :=
-  "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
-  "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
-  "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
-  "  sd x0, 0(x5); sd x0, 0(x6); sd x0, 0(x7)\n" ++
-  "  beqz x28, .Ltx_access_seed_done\n" ++
-  "  beqz a0, .Ltx_access_seed_done\n" ++
-  "  beqz a1, .Ltx_access_seed_done\n" ++
-  "  jalr ra, x28, 0\n" ++
-  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
-  ".Ltx_access_seed_done:\n" ++
-  "  mv x10, x21\n"
 
 /-- coc3g.5 multi-hop: seed the EIP-7702 RECOVERED-AUTHORITY warm set from the
     pending authorization_list span. The span/fn are prepared by
@@ -2869,6 +3140,27 @@ def emitTxAuthListWarmLoop : String :=
     opcode-handler calls, so the caller's return address is saved in the
     runtime data section and restored by the callable exit join. -/
 def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : String :=
+  -- `runtime_dispatcher_prepare_only` shares the ordinary callable setup and
+  -- exits at the post-preparation seam above.  Its caller later supplies the
+  -- authenticated code pointer to `runtime_dispatcher_resume`, which enters
+  -- below that seam and therefore cannot replay EIP-7702 authorization writes.
+  "runtime_dispatcher_prepare_only:\n" ++
+  -- Mark entered before setup.  A prefix OOG takes the ordinary exceptional
+  -- exit and leaves this at 1; only the explicit prefix-return writes 2.
+  "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
+  "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
+  "  j runtime_dispatcher_call\n" ++
+  "runtime_dispatcher_resume:\n" ++
+  "  la x5, runtime_dispatcher_caller_ra; sd ra, 0(x5)\n" ++
+  "  la x5, runtime_dispatcher_caller_sp; sd sp, 0(x5)\n" ++
+  "  la x20, evm_env\n" ++
+  "  la x5, runtime_tx_resume_code_ptr; ld x21, 0(x5)\n" ++
+  "  beqz x21, runtime_dispatcher_prepare_only_return\n" ++
+  "  j .runtime_tx_post_top_frame_done\n" ++
+  "runtime_dispatcher_prepare_only_return:\n" ++
+  "  la x5, runtime_dispatcher_caller_sp; ld sp, 0(x5)\n" ++
+  "  la x5, runtime_dispatcher_caller_ra; ld ra, 0(x5)\n" ++
+  "  ret\n" ++
   "runtime_dispatcher_call:\n" ++
   "  la x5, runtime_dispatcher_caller_ra\n" ++
   "  sd ra, 0(x5)\n" ++
@@ -2876,8 +3168,18 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  la x5, runtime_dispatcher_caller_sp\n" ++
   "  sd sp, 0(x5)\n" ++
   emitRuntimeDispatcherCallableSetup ++ "\n" ++
+  -- A top-level CREATE seeds its own nonce to one before executing initcode.
+  -- BlockVerdictCreationStage marks that frame before entering this callable
+  -- dispatcher, but this setup deliberately resets the per-transaction CREATE
+  -- nonce table. Seed only after that reset: a nested CREATE in the constructor
+  -- must derive from the top-level created account's live nonce (1), not its
+  -- header-state nonce (usually 0). Non-creation callers leave the marker zero.
+  "  addi sp, sp, -16\n  sd x10, 0(sp)\n" ++
+  "  la t0, create_frame_flag; ld t1, 0(t0); beqz t1, .Lrtd_top_create_nonce_done\n" ++
+  "  la a0, create_address_be; jal ra, create_creator_nonce_seed_one\n" ++
+  ".Lrtd_top_create_nonce_done:\n" ++
+  "  ld x10, 0(sp); addi sp, sp, 16\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
-  emitTxAccessListSeedLoop ++ "\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
   emitCalleeStorageSeedLoop ++ "\n" ++
   emitRuntimeDispatcherLoop depthAwareStop
@@ -2912,6 +3214,24 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+  accountStateFindFunction ++ "\n" ++
+  accountStateCopyFunction ++ "\n" ++
+  accountStateAppendPendingFunction ++ "\n" ++
+  accountStateUpsertDurableFunction ++ "\n" ++
+  codeStateFinalBalanceNonzeroFunction ++ "\n" ++
+  accountStateCommitPendingFunction ++ "\n" ++
+  accountStatePromoteDeleteReadsFunction ++ "\n" ++
+  accountStateRecordNonstorageFunction ++ "\n" ++
+  accountStateRecordCodeFunction ++ "\n" ++
+  accountStateRecordAuthFunction ++ "\n" ++
+  accountStateAuthCurrentFunction ++ "\n" ++
+  accountStateLatestBalanceFunction ++ "\n" ++
+  accountStateLatestNonceFunction ++ "\n" ++
+  accountStateLookupCurrentFunction ++ "\n" ++
+  accountStateCreatedContainsFunction ++ "\n" ++
+  codeStateLookupCurrentFunction ++ "\n" ++
+  codeStateAddressSetInsertFunction ++ "\n" ++
+  codeStateAddressSetFlagFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
   zkvmModexpBackendImpl ++ "\n" ++
   emitModexpBnScratchData ++ "\n" ++
@@ -2972,8 +3292,11 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createFrameDescendFunction ++ "\n" ++   -- .61.8.3.5.1: CREATE-frame descent (reuses call_frame_descend)
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
   nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
+  nonstorageEffectLatestNonceFunction ++ "\n" ++   -- bmvmx.5.5.10: live-NONCE read (CREATE seed threading)
   nonstorageEffectAggregateFunction ++ "\n" ++   -- bmvmx.5.5.7.3: O(N) per-account effect aggregation (block_verdict tail)
-  frameReturnFunction
+  frameReturnFunction ++ "\n" ++
+  sparseWindowReadFunction ++ "\n" ++   -- evm-asm-0w05f.13: depth-1+ RETURN/REVERT window materialization
+  sparseWindowWriteFunction   -- evm-asm-0w05f.13 surface 2: nested-caller out-window write-back
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
@@ -3201,6 +3524,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   -- refund the 2300 stipend and clear it.
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   "cd_new_account_charged_current:\n  .zero 8\n" ++
+  "cd_callee_alive_before_value:\n  .zero 8\n" ++
   -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
   -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
   -- deferred Transfer log so receipt order is Transfer then Burn.
@@ -3252,9 +3576,25 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_count:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_exec_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_inner_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_inner_len:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_sender_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_type:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_state_charge:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_create_state_charge:\n" ++
   "  .zero 8\n" ++
   runtimeSameBlockDelegationCodeData ++
   ".balign 8\n" ++
@@ -3301,6 +3641,19 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_top_frame_regular_gas:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_phase_applied:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_post_top_frame_fn:\n" ++
+  "  .zero 8\n" ++
+  -- Split-call controls.  `prepare_only` is one-shot and is consumed only
+  -- after the auth/preparation gas boundary succeeds; `resume_code_ptr` is
+  -- written by the block verdict after it has authenticated recipient code.
+  "runtime_tx_prepare_only:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_prepare_prefix_status:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_resume_code_ptr:\n" ++
   "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
@@ -3394,9 +3747,12 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "exec_log_txindex:\n" ++
   "  .zero 131072\n" ++   -- 16384 entries × 8 B
+  ".balign 8\n" ++
+  "exec_log_seed_flag:\n" ++
+  "  .zero 16384\n" ++    -- one provenance byte per persistent-log row; 1 = seed/preload
   ".balign 32\n" ++
-  "evm_memory:\n" ++
-  "  .zero " ++ toString runtimeMemoryBytes ++ "\n" ++  -- 320 KiB root EVM memory for large runtime LOG/COPY ranges
+  "evm_memory_layout_pad:\n" ++
+  "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++
   ".balign 8\n" ++
   "evm_sparse_memory_count:\n  .zero 8\n" ++
   "evm_sparse_memory_next_epoch:\n  .dword 1\n" ++
@@ -3420,13 +3776,13 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 262144\n" ++   -- M26: 1024 × 256-byte bounded LOG event descriptors (6c7v9: was 16×256)
+  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 262144\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
+  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
   ".balign 8\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 16384\n" ++    -- 8uld3.1a: 1024 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
@@ -3440,7 +3796,16 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "system_call_returndata:\n" ++
-  "  .zero 4096\n" ++     -- 8uld3.2.1a: captured top-level RETURN bytes (withdrawal 16x76=1216 / consolidation 2x116=232 max)
+  "  .zero " ++ toString systemCallReturndataMaxBytes ++ "\n" ++     -- 8uld3.2.1a: includes builder deposits (64x184=11776; 12 KiB cap)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_status:\n" ++
+  "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
+  ".balign 8\n" ++
+  "top_level_creation_returndata_len:\n" ++
+  "  .zero 8\n" ++
+  ".balign 8\n" ++
+  "top_level_creation_returndata:\n" ++
+  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
@@ -3509,7 +3874,10 @@ def emitRuntimeDispatcherDataSectionCore
   emitBls12G2MsmDiscountTable ++
   emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
-  emitJumpTable registry
+  emitJumpTable registry ++ "\n" ++
+  ".balign 32\n" ++
+  "evm_memory:\n" ++
+  "  .zero " ++ toString runtimeMemoryBytes ++ "\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked
@@ -3560,7 +3928,8 @@ def runtimeDispatcherStandaloneFrameHelpers : String :=
   createFrameDescendFunction ++ "\n" ++
   frameReturnFunction ++ "\n" ++
   recordNonstorageEffectFunction ++ "\n" ++
-  nonstorageEffectLatestBalanceFunction
+  nonstorageEffectLatestBalanceFunction ++ "\n" ++
+  nonstorageEffectLatestNonceFunction
 
 /-- Frame-arena data labels for the standalone frame-helper closure
     (the guest defines these in `BlockVerdictDataSection`; the bundling

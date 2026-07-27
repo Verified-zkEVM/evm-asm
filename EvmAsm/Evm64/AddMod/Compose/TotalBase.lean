@@ -37,8 +37,9 @@
     end                  : idx 216  byte 864
 -/
 
-import EvmAsm.Evm64.AddMod.LimbSpec
-import EvmAsm.Evm64.AddMod.AddrNorm
+import EvmAsm.Rv64.SepLogic
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Evm64.AddMod.Program
 
 namespace EvmAsm.Evm64.AddMod.Compose
 
@@ -394,7 +395,7 @@ theorem evm_addmod_total_program_code_epilogue_sub
     evm_addmod_epilogue 215
     (by bv_omega) ?_ ?_ ?_
   · evm_addmod_total_slice_rfl
-  · rw [evm_addmod_total_length, evm_addmod_epilogue_length]
+  · rw [evm_addmod_total_length, evm_addmod_epilogue_length]; decide
   · rw [evm_addmod_total_length]; decide
 
 end EvmAsm.Evm64.AddMod.Compose

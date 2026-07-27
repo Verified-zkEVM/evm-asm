@@ -7,11 +7,17 @@
 -- SyscallSpecs transitively imports Basic, Instructions, Program, SepLogic,
 -- Execution, CPSSpec, GenericSpecs, InstructionSpecs, ByteOps, HalfwordOps,
 -- WordOps, and Tactics.SpecDb. ControlFlow also covers Program directly.
+import EvmAsm.Rv64.Word
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow
 -- WP: backward, soundness-first calculators over bounded CPS triples.
-import EvmAsm.Rv64.WP
+import EvmAsm.Rv64.WP.CFG
+import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.WP.Core
+import EvmAsm.Rv64.WP.Examples
+import EvmAsm.Rv64.WP.GeneratedCFG
+import EvmAsm.Rv64.WP.Loop
 import EvmAsm.Rv64.CPSCall
 -- RunBlock → SeqFrame → {XCancel → XPerm, PerfTrace, InstructionSpecs} + SpecDb.
 -- LiftSpec → XSimp → XPerm.
@@ -54,6 +60,12 @@ import EvmAsm.Rv64.SailEquiv.VmemReduction
 import EvmAsm.Rv64.SailEquiv.VmemReductionN
 -- VmemReductionLoads: unconditional LW/LWU/LH/LHU/LB/LBU equivalence lemmas.
 import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
+-- VmemWriteReduction: the store-side bare-mode write chain (writeBytes → vmem_write).
+import EvmAsm.Rv64.SailEquiv.VmemWriteReduction
+-- VmemReductionStores: unconditional SD/SW/SH/SB equivalence lemmas (Tier B).
+import EvmAsm.Rv64.SailEquiv.VmemReductionStores
+-- VmemConstruction: concrete bare-mode/PMA witnesses for memory side conditions.
+import EvmAsm.Rv64.SailEquiv.VmemConstruction
 -- StepSim consolidates the per-instruction lemmas into one step-simulation theorem.
 import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.MExtProofs

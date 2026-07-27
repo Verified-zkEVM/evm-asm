@@ -1,0 +1,6 @@
+# spec-refs-allow.txt — known-stale execution-specs citations (burndown list).
+#
+# Same discipline as the (now-empty) axiom-allow.txt: every entry is a debt
+# with a named owner-fix (update the docstring to the pinned rev's real
+# location, or bump the submodule), and the goal is an empty file.
+# Entries are cited paths relative to the execution-specs submodule root.

@@ -29,7 +29,6 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.HeaderFields
 
 namespace EvmAsm.Codegen
 
@@ -149,14 +148,14 @@ def accountDecode_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 344)),
     .LD .x28 .x5 (0 : BitVec 12),
     .ADD .x28 .x8 .x28,
-    .LD .x29 .x28 (0 : BitVec 12),
-    .SD .x20 .x29 (0 : BitVec 12),
-    .LD .x29 .x28 (8 : BitVec 12),
-    .SD .x20 .x29 (8 : BitVec 12),
-    .LD .x29 .x28 (16 : BitVec 12),
-    .SD .x20 .x29 (16 : BitVec 12),
-    .LD .x29 .x28 (24 : BitVec 12),
-    .SD .x20 .x29 (24 : BitVec 12),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SB .x20 .x29 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
+    .NOP,
+    .NOP,
     .MV .x10 .x8,
     .MV .x11 .x9,
     .LI .x12 (3 : Word),
@@ -175,14 +174,14 @@ def accountDecode_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 448)),
     .LD .x28 .x5 (0 : BitVec 12),
     .ADD .x28 .x8 .x28,
-    .LD .x29 .x28 (0 : BitVec 12),
-    .SD .x21 .x29 (0 : BitVec 12),
-    .LD .x29 .x28 (8 : BitVec 12),
-    .SD .x21 .x29 (8 : BitVec 12),
-    .LD .x29 .x28 (16 : BitVec 12),
-    .SD .x21 .x29 (16 : BitVec 12),
-    .LD .x29 .x28 (24 : BitVec 12),
-    .SD .x21 .x29 (24 : BitVec 12),
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .SB .x21 .x29 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-20 : BitVec 13),
+    .NOP,
+    .NOP,
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (1 : Word),

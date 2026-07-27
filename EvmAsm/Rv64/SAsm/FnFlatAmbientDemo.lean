@@ -83,7 +83,6 @@ theorem multiReadFlat_spec (a0 a1 dst ret base : Word)
       xperm_hyp hq)
     had
 
-#print axioms multiReadFlat_spec
 
 end FnFlatAmbientDemo
 

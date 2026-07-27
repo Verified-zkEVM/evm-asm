@@ -13,7 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FrameShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopUnifiedPost
+import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 
 namespace EvmAsm.Evm64

@@ -16,11 +16,13 @@
   `fullDivN2MulSubEqV5`.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5R10Conservation
+import Mathlib.Algebra.Group.Nat.Defs
+import Mathlib.Tactic.Linarith
+import EvmAsm.Evm64.EvmWord
 
 namespace EvmAsm.Evm64
 
-open EvmAsm.Rv64
+
 open EvmWord
 
 /-- The v5 n=2 3-digit accumulation (pure `Nat`).  `W2` is the top 3-limb window

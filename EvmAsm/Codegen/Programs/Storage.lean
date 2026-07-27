@@ -60,6 +60,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Stateless.SpecRef.Gas
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
@@ -156,7 +157,7 @@ def sstoreValueTransitionGasAsm : String :=
   "  bnez x15, .Lsstore_clean_changing\n" ++
   "  li x9, 1\n" ++
   ".Lsstore_clean_changing:\n" ++
-  "  li x14, 10000\n" ++             -- STORAGE_WRITE
+  s!"  li x14, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}\n" ++
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_missing_slot:\n" ++
   "  li x9, 0\n" ++
@@ -165,7 +166,7 @@ def sstoreValueTransitionGasAsm : String :=
   ".Lsstore_missing_nonzero:\n" ++   -- missing slot = original = current = 0: creation
   "  li x9, 1\n" ++
 
-  "  li x14, 10000\n" ++             -- STORAGE_WRITE
+  s!"  li x14, {EvmAsm.Stateless.SpecRef.GasCosts.STORAGE_WRITE}\n" ++
 
   "  j .Lsstore_charge_delta\n" ++
   ".Lsstore_dirty_or_noop:\n" ++
@@ -214,6 +215,21 @@ def storageHandlers : List OpcodeHandlerSpec :=
     , opcodes := [0x54]
     , preBody :=
         stackUnderflowGuardAsm 1 ++ "\n" ++
+        -- GH #10619: record the storage READ into the block-lifetime read
+        -- container.  The spec records a read on both paths -- get_storage for
+        -- SLOAD, and get_storage_original/get_storage for SSTORE -- and
+        -- storage_reads survives rollback (state_tracker.py:90-93, :809-826),
+        -- so this must NOT be conditional on the frame committing.
+        -- EIP-7928's "a slot both read and written appears only in the
+        -- changes list" is discharged where the spec discharges it: the BAL
+        -- builder's dedup against storage_changes, not by suppressing this.
+        "  addi sp, sp, -24\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  jal ra, storage_read_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
+        "  addi sp, sp, 24\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SLOAD's 100 warm floor, so the helper only charges the
         -- 2900 cold delta on first touch. Preserve handler return address
@@ -264,6 +280,25 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  ld x14, 568(x20)\n" ++
         "  li x15, 2201\n" ++
         "  bltu x14, x15, .exit_outofgas\n" ++
+        -- Placed AFTER the stipend guard on purpose: storage.py runs
+        -- `check_gas(evm, CALL_STIPEND + 1)` BEFORE `get_storage_original`, so an
+        -- SSTORE that fails it records NO read in the spec.  Recording first
+        -- would invent a read the spec never makes.
+        -- GH #10619: record the storage READ into the block-lifetime read
+        -- container.  The spec records a read on both paths -- get_storage for
+        -- SLOAD, and get_storage_original/get_storage for SSTORE -- and
+        -- storage_reads survives rollback (state_tracker.py:90-93, :809-826),
+        -- so this must NOT be conditional on the frame committing.
+        -- EIP-7928's "a slot both read and written appears only in the
+        -- changes list" is discharged where the spec discharges it: the BAL
+        -- builder's dedup against storage_changes, not by suppressing this.
+        "  addi sp, sp, -24\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  jal ra, storage_read_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
+        "  addi sp, sp, 24\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SSTORE's 100 warm floor, so this helper only charges
         -- the 2900 cold delta on first key touch. Run before the scan /
@@ -288,6 +323,28 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 3\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  mv x19, x14\n" ++            -- x19 = access status (0 warm, 1 cold)
+        -- execution-specs gives fresh-created accounts a transaction-local
+        -- zero *original* view. `get_storage` still observes a prior write in
+        -- this transaction, so a matching log row must remain visible for the
+        -- current half of a later SSTORE. `create_frame_flag` alone is too broad:
+        -- it describes a depth, while helper/refund activity at that depth can
+        -- address another account. Require the current env.ADDRESS (LE) to be
+        -- exactly this depth's CREATE address (BE) before taking the zero arm.
+        "  la x14, sstore_created_original_zero; sd zero, 0(x14)\n" ++
+        "  la x14, evm_call_depth; ld x14, 0(x14)\n" ++
+        "  slli x15, x14, 3; la x16, create_frame_flag; add x16, x16, x15; ld x16, 0(x16)\n" ++
+        "  beqz x16, .Lsstore_created_original_scan\n" ++
+        "  slli x15, x14, 5; la x16, create_address_by_depth; add x16, x16, x15\n" ++
+        "  addi x17, x20, 19; li x15, 20\n" ++
+        ".Lsstore_created_addr_cmp:\n" ++
+        "  beqz x15, .Lsstore_created_original_zero\n" ++
+        "  lbu x14, 0(x17); lbu x18, 0(x16); bne x14, x18, .Lsstore_created_original_scan\n" ++
+        "  addi x17, x17, -1; addi x16, x16, 1; addi x15, x15, -1; j .Lsstore_created_addr_cmp\n" ++
+        ".Lsstore_created_original_zero:\n" ++
+        -- Preserve original=0, but keep scanning so a later write sees the
+        -- current value established by an earlier same-transaction write.
+        "  li x14, 1; la x16, sstore_created_original_zero; sd x14, 0(x16); j .Lsstore_created_original_scan\n" ++
+        ".Lsstore_created_original_scan:\n" ++
         "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
         "  ld x15, 448(x20)\n" ++         -- x15 = log_length
         "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
@@ -328,6 +385,74 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi x15, x15, -1\n" ++
         "  bnez x15, 1b\n" ++
         "2:\n" ++                         -- append step
+        -- `created_accounts` changes only get_storage_original. When this
+        -- exact created account already has a log row, synthesize
+        -- {original = 0, current = row.current}; a first touch retains {0,0}.
+        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_prestate_normal\n" ++
+        "  beqz x18, .Lsstore_created_original_done\n" ++
+        "  la x14, sstore_prestate_pair; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
+        "  ld x15, 32(x18); sd x15, 32(x14); ld x15, 40(x18); sd x15, 40(x14); ld x15, 48(x18); sd x15, 48(x14); ld x15, 56(x18); sd x15, 56(x14)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_created_original_done\n" ++
+        ".Lsstore_prestate_normal:\n" ++
+        -- A persistent-log miss is not necessarily an all-zero pre-state slot:
+        -- an untouched nonzero slot need not occur in the BAL-derived seed set,
+        -- yet an SSTORE still needs its authenticated original/current value for
+        -- Amsterdam state-gas classification. Resolve that cold value from the
+        -- parent-state witness before falling back to zero. An absent account/slot
+        -- or an unresolved witness preimage retains the existing cold-zero behavior;
+        -- a successful authenticated lookup supplies the otherwise-missing nonzero
+        -- pre-state value.
+        "  bnez x18, .Lsstore_prestate_done\n" ++
+        "  addi sp, sp, -40\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x19, 32(sp)\n" ++
+        -- env.ADDRESS is the EVM little-endian stack-word representation;
+        -- slot_at_header_state_root takes a canonical 20-byte big-endian address.
+        "  la x15, sstore_prestate_pair; sd zero, 0(x15); sd zero, 8(x15); sd zero, 16(x15); sd zero, 24(x15)\n" ++
+        "  addi x14, x20, 19; la x15, sstore_prestate_pair; li x16, 20\n" ++
+        ".Lsstore_prestate_addr_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_addr_rev\n" ++
+        -- The stack key is likewise little-endian; use the adjacent env scratch
+        -- as the canonical big-endian lookup key.
+        "  addi x14, x12, 31; la x15, sstore_prestate_pair; addi x15, x15, 32; li x16, 32\n" ++
+        ".Lsstore_prestate_key_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_key_rev\n" ++
+        -- The block-committed map is execution-specs' `BlockState.storage_writes`.
+        -- On a cold per-tx log miss it is the winning source for *both*
+        -- `get_storage_original` and `get_storage`: a prior successful tx's
+        -- committed value is the next tx's original and current alike.
+        "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
+        "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .Lsstore_committed_done\n" ++
+        "  mv a0, x20; la a1, sstore_prestate_pair; addi a1, a1, 32\n" ++
+        "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+        "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+        "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
+        "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
+        ".Lsstore_committed_done:\n" ++
+        "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .Lsstore_prestate_header\n" ++
+        "  la x14, sstore_committed_current; la x15, sstore_prestate_pair\n" ++
+        "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
+        "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
+        "  la x18, sstore_prestate_pair; j .Lsstore_prestate_restore\n" ++
+        ".Lsstore_prestate_header:\n" ++
+        "  ld a0, 576(x20); ld a1, 584(x20); la a2, sstore_prestate_pair; addi a3, a2, 32\n" ++
+        "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
+        "  jal ra, slot_at_header_state_root\n" ++
+        "  beqz a0, .Lsstore_prestate_found\n" ++
+        "  j .Lsstore_prestate_zero\n" ++
+        ".Lsstore_prestate_found:\n" ++
+        -- sahsr_u256 is canonical big-endian. Materialize both original and
+        -- current in the exec-log's little-endian-limb order in the dedicated
+        -- original/current pair buffer.
+        "  la x14, sahsr_u256; la x15, sstore_prestate_pair; addi x15, x15, 31; li x16, 32\n" ++
+        ".Lsstore_prestate_value_rev:\n" ++
+        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, 1; addi x15, x15, -1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_value_rev\n" ++
+        "  la x15, sstore_prestate_pair; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
+        "  la x18, sstore_prestate_pair\n" ++
+        ".Lsstore_prestate_zero:\n" ++
+        ".Lsstore_prestate_restore:\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
+        ".Lsstore_prestate_done:\n" ++
+        ".Lsstore_created_original_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
         -- transient-log region; halt conservatively before any append-path
@@ -383,6 +508,19 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x14, evm_state_gas_left; ld x16, 0(x14); add x16, x16, x17; sd x16, 0(x14)\n" ++
         "11:\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x18, 32(sp); addi sp, sp, 48\n" ++
+        -- Value-unchanged rewrites (found entry's current == new) append nothing:
+        -- the found entry already records exactly this state, so last-write-wins
+        -- reads, the end-of-tx commit, and the BAL change-set are all identical
+        -- without a new entry. Skipping the append keeps long loops that rewrite
+        -- the same value (e.g. a success flag per CALL iteration) from exhausting
+        -- the 16384-entry exec-log arena and halting on the capacity guard.
+        "  beqz x18, .Lsstore_append_entry\n" ++
+        "  ld x16, 32(x18); ld x17, 32(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 40(x18); ld x17, 40(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 48(x18); ld x17, 48(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  ld x16, 56(x18); ld x17, 56(x12); bne x16, x17, .Lsstore_append_entry\n" ++
+        "  j .Lsstore_append_done\n" ++
+        ".Lsstore_append_entry:\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
@@ -432,9 +570,40 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- x16/x17/x18 are dead post-append (the tail only uses x10).
         "  la x16, current_block_access_index\n  ld x17, 0(x16)\n" ++
         "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
+        -- A new SSTORE row supersedes any stale provenance byte at this slot.
+        "  la x16, exec_log_seed_flag\n  add x16, x16, x15\n  sb x0, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
-        "  sd x15, 448(x20)"
+        "  sd x15, 448(x20)\n" ++
+        ".Lsstore_append_done:\n" ++
+        -- r59nm S2b: record the storage WRITE into the tx-level storage_writes
+        -- map, mirroring `set_storage` (state_tracker.py:489):
+        -- `tx_state.storage_writes[address][key] = value`.
+        --
+        -- Placed HERE, not in the read recorder's slot at the top of preBody,
+        -- because a write is conditional where a read is not: the spec calls
+        -- set_storage after the gas checks, and every failing path above
+        -- (the stipend guard, the 2929 charge, the 16384-row capacity guard)
+        -- leaves via `.exit_outofgas` without reaching this label.
+        --
+        -- Both the append and the value-unchanged skip converge here, and the
+        -- recorder is called on BOTH.  That is spec-faithful rather than
+        -- sloppy: `set_storage` assigns unconditionally, and an upsert of the
+        -- same value is idempotent, so mirroring the exec log's
+        -- append-skipping optimisation here would be the reconstruction.
+        --
+        -- x12 still points at the pre-pop stack (the verified body's
+        -- `ADDI x12, x12, 64` has not run), so key = x12[0..32] and the new
+        -- value = x12[32..64].  a2 IS x12, so x12 is saved and restored around
+        -- the call.  The verified body is untouched.
+        "  addi sp, sp, -32\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp); sd x12, 24(sp)\n" ++
+        "  mv a0, x20\n" ++
+        "  mv a1, x12\n" ++
+        "  addi a2, x12, 32\n" ++
+        "  jal ra, storage_write_record\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
+        "  addi sp, sp, 32\n"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)
     , tail    := .advanceAndRet 1 }
   , -- M24 real TLOAD. Scan transient log from end; copy matching

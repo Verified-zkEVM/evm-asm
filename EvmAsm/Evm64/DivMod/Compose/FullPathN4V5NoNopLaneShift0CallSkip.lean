@@ -13,7 +13,7 @@
 -/
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkip
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPre
+import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
 import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 

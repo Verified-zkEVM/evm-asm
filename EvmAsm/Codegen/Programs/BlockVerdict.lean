@@ -18,11 +18,12 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
+import EvmAsm.Codegen.Programs.BlockVerdictEip7702AuthNonstorageEffectsArray
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptBoundedSort
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.Header
@@ -31,6 +32,8 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
+import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
+import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
@@ -75,6 +78,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictStateRoot
 import EvmAsm.Codegen.Programs.BlockVerdictFunction
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit
+import EvmAsm.Codegen.Programs.DispatcherTxGasSettle
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 namespace EvmAsm.Codegen
 
@@ -295,6 +299,12 @@ def ziskStatelessVerdictV2Prologue : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   mptIndexedTrieRootLargeFunction ++ "\n" ++
   mptIndexedTrieRootSmallFunction ++ "\n" ++
+  mptIndexedStreamLeafHashFunction ++ "\n" ++
+  mptIndexedSortChangesFunction ++ "\n" ++
+  mptIndexedLeafRefFunction ++ "\n" ++
+  mptIndexedBuildSubtreeFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFunction ++ "\n" ++
+  mptIndexedTrieRootBoundedFromValuesFunction ++ "\n" ++
   headerExtractWithdrawalsRootFunction ++ "\n" ++
   blockValidateWithdrawalsRootIndexedFunction ++ "\n" ++
   validateHeaderBasicFunction ++ "\n" ++
@@ -359,6 +369,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -413,21 +424,26 @@ def ziskStatelessVerdictV2Prologue : String :=
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  eip8037TxGasGateFunction ++ "\n" ++
+  eip8037GasGateBundleFunction ++ "\n" ++
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
   eip7702AuthorizationExtractSignatureFunction ++ "\n" ++
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
-  txEip7702ExistingAuthorityRefundFunction ++ "\n" ++
+  balAccountNonceBeforeIndexFunction ++ "\n" ++
+  eip7702AuthorityAsOfFunction ++ "\n" ++
+  eip7702AuthStatePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
+  blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
-  blockVerdictTxStateGasArrayFunction ++ "\n" ++
+  blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
+  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++
@@ -437,7 +453,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
+  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
+  eip7702AuthorityStateFindFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
+  b1Eip7702ApplyTxFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++

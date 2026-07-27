@@ -12,21 +12,101 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 
 namespace EvmAsm.Codegen
 
+/-- Amsterdam's EIP-7928 `GasCosts.BLOCK_ACCESS_LIST_ITEM`.  This is the
+    proven lower-bound divisor for an input-originated *distinct final state
+    change*: `validate_block_access_list_gas_limit` charges one 2,000-gas BAL
+    item per account and one per distinct storage slot (storage changes and
+    reads are de-duplicated by slot).  It is deliberately not inferred from an
+    EVM `SSTORE` price: BAL is the consensus-level accounting rule that bounds
+    the final state-change input set. -/
 def bsrBalGasCost : Nat := 2000
-/-- Static BAL/state replay arena capacity, sized for the Amsterdam 200M
-    block-gas target: `bal_items <= block_gas_limit / 2000` = 100,000 items at
-    200,000,000 gas. (The former 500,000 value was the 1G worst case, which is
-    out of scope — it cost ~349 MB of the fixed 512 MiB ziskemu RAM window.)
-    High declared block gas is not itself a layout error: the guest first
-    applies Amsterdam's gas-derived BAL rule, then checks actual decoded item
-    counts against these arenas; blocks whose actual counts exceed the
-    capacities take the conservative bsr_fail path. -/
-def bsrMaxBalItems : Nat := 100000
+
+/-- Current Amsterdam resource target.  Keep capacities as functions of this
+    value: changing the supported block gas limit must resize every fixed
+    state-root builder arena rather than silently preserving a stale literal. -/
+def bsrStateRootBlockGasLimit : Nat := 200000000
+
+/-- Static BAL/state replay arena capacity.  EIP-7928 enforces
+    `bal_items <= block_gas_limit / BLOCK_ACCESS_LIST_ITEM`, so a 200M block
+    has at most 100,000 BAL items.  The later bounded builder accepts only the
+    normalized distinct final changes plus the explicitly bounded auxiliary
+    system/withdrawal changes below. -/
+def bsrMaxBalItems : Nat := bsrStateRootBlockGasLimit / bsrBalGasCost
 def bsrModeledSystemChanges : Nat := 2
 def bsrMaxWithdrawalChanges : Nat := 16
 def bsrMaxAuxChanges : Nat := bsrModeledSystemChanges + bsrMaxWithdrawalChanges
 def bsrMaxStateChanges : Nat :=
   bsrMaxBalItems + bsrModeledSystemChanges + bsrMaxWithdrawalChanges
+
+/-- State-trie keys are 32-byte hashes represented as 64 nibbles.  The sorted
+    builder uses an in-place MSD partitioner: its only sort workspace is a
+    bounded pending-range stack (one range per nibble fanout at each depth),
+    never attacker-sized bucket arrays. -/
+def bsrMptKeyNibbles : Nat := 64
+def bsrMptRadixFanout : Nat := 16
+def bsrMptSortRangeStackCapacity : Nat := bsrMptKeyNibbles * bsrMptRadixFanout
+def bsrMptSortRangeFrameBytes : Nat := 32
+
+/-- A Patricia trie has at most one active construction frame per consumed key
+    nibble plus its root frame.  This is depth-derived, not input-count-derived. -/
+def bsrMptBuilderFrameCapacity : Nat := bsrMptKeyNibbles + 1
+/-- A builder frame records one Patricia depth, its input range, and all 17
+    canonical child references (16 branch children plus the value slot).  Each
+    reference may be an inline RLP item or a 33-byte hash reference, so this
+    deliberately reserves a full 1 KiB frame rather than pretending that a
+    handful of scalar words is enough.  The 65-frame array remains bounded by
+    key depth only; it is never indexed by the number of untrusted changes. -/
+def bsrMptBuilderFrameBytes : Nat := 1024
+/-- The SSZ `ByteList[1024]` envelope caps every pre-state witness node.  The
+    bounded builder also uses this as its maximum one-node re-encoding buffer;
+    larger reconstructed nodes are rejected before they can reach a frame. -/
+def bsrMptNodeMaxBytes : Nat := bsrMptBuilderFrameBytes
+/-- Canonical pre-state branch-child references are at most 32 raw bytes:
+    either an inline RLP encoding (<32) or a 32-byte hash.  A frontier frame
+    stores the raw reference length followed by the bytes, rounded to 40 B;
+    all sixteen branch children therefore consume 640 B of its 1 KiB budget.
+    The remaining 384 B is reserved for the range/depth bookkeeping and the
+    branch value/reference produced while unwinding. -/
+def bsrMptFrameChildRefBytes : Nat := 32
+def bsrMptFrameChildRefStride : Nat := 40
+def bsrMptFrameBranchChildrenBytes : Nat := bsrMptRadixFanout * bsrMptFrameChildRefStride
+/-- Frame metadata immediately follows the sixteen retained child references. -/
+def bsrMptFrameNodePtrOffset : Nat := bsrMptFrameBranchChildrenBytes
+def bsrMptFrameNodeLenOffset : Nat := bsrMptFrameNodePtrOffset + 8
+def bsrMptFrameNodeKindOffset : Nat := bsrMptFrameNodeLenOffset + 8
+/-- Sixteen `{start,end}` ranges for the current nibble partition live after
+    root metadata.  They are frame-local, so their capacity is depth-derived
+    rather than proportional to untrusted change count. -/
+def bsrMptFrameRangeTableOffset : Nat := bsrMptFrameNodeKindOffset + 8
+def bsrMptFrameRangeStride : Nat := 16
+def bsrMptFrameRangeTableBytes : Nat := bsrMptRadixFanout * bsrMptFrameRangeStride
+/-- Extension metadata occupies the frame tail after the branch-range table.
+    The decoded path is at most the remaining 64 state-key nibbles; it is
+    deliberately not the SSZ node's potentially 2047-nibble compact path. -/
+def bsrMptFrameExtensionPathLenOffset : Nat := bsrMptFrameRangeTableOffset + bsrMptFrameRangeTableBytes
+def bsrMptFrameExtensionChildPtrOffset : Nat := bsrMptFrameExtensionPathLenOffset + 8
+def bsrMptFrameExtensionChildLenOffset : Nat := bsrMptFrameExtensionChildPtrOffset + 8
+def bsrMptFrameExtensionPathOffset : Nat := bsrMptFrameExtensionChildLenOffset + 8
+def bsrMptFrameExtensionPathBytes : Nat := bsrMptKeyNibbles
+def bsrMptFrameUsedBytes : Nat := bsrMptFrameExtensionPathOffset + bsrMptFrameExtensionPathBytes
+/-- One shared node buffer is enough for depth-first construction: every
+    completed child is reduced to its raw reference before its next sibling is
+    built. This is independent of the gas-derived descriptor count. -/
+def bsrMptBuilderNodeScratchBytes : Nat := bsrMptNodeMaxBytes
+
+/-- Constructed nodes retained for a possible one-child branch collapse are
+    indexed only by Patricia depth.  This is deliberately not a NodeDb: the
+    fixed `65 = 64 + 1` slots cannot grow with the number of changes. -/
+def bsrMptConstructedCacheSlots : Nat := bsrMptBuilderFrameCapacity
+def bsrMptConstructedCacheNodeBytes : Nat := bsrMptNodeMaxBytes
+def bsrMptConstructedCacheBytes : Nat := bsrMptConstructedCacheSlots * bsrMptConstructedCacheNodeBytes
+def bsrMptConstructedCacheRefBytes : Nat := bsrMptConstructedCacheSlots * bsrMptFrameChildRefBytes
+def bsrMptConstructedCacheWordBytes : Nat := bsrMptConstructedCacheSlots * 8
+
+#guard bsrMptConstructedCacheSlots = bsrMptKeyNibbles + 1
+#guard bsrMptConstructedCacheNodeBytes = 1024
+
+#guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
 def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
@@ -62,16 +142,59 @@ def bsrMaxTuplesPerSlot : Nat := 10000
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
-/-- Active multi-transaction execution-loop capacity. The cached `zkevm@v0.4.0`
-    stateless fixtures include blocks with more than the old 16-entry arena
-    cap, topping out at 1021 transactions. Keep this as the conservative loop
-    gate while sender aggregation, skip-list traversal, and other non-cheap
-    algorithms are generalized to the full 200M target. -/
-def bvMtxActiveTxCap : Nat := 1024
+/-- Every valid transaction consumes at least this intrinsic gas.  Together
+    with the explicit block gas limit this is the protocol-enforced upper bound
+    on transaction- and receipt-trie entries; it must not become a detached
+    literal when the supported block limit changes. -/
+def bvMtxIntrinsicGasFloor : Nat := 21000
 
-/-- Full Amsterdam transaction capacity target from the 200M block-gas limit and
-    the 21,000 gas intrinsic floor: floor(200,000,000 / 21,000) = 9,523. -/
-def bvMtxFullTxCap : Nat := 9523
+/-- Full Amsterdam transaction capacity target derived from the supported block
+    gas limit and the 21,000-gas intrinsic floor. -/
+def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
+#guard bvMtxFullTxCap = 9523
+
+/-- Amsterdam `REGULAR_PER_AUTH_BASE_COST`: 101 calldata-floor bytes, one
+    ecrecover precompile, one cold account access, and two warm accesses.  Every
+    authorization tuple pays this regular-gas cost before execution, so it gives
+    a protocol-derived bound on all type-4 authorization records in a block. -/
+def bvEip7702AuthRegularGas : Nat := 7816
+
+/-- Ceiling on authorization tuples in any block under the supported gas limit.
+    This is a gas bound, not a fixture-derived admission cap. -/
+def bvEip7702AuthEntryCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvEip7702AuthRegularGas - 1) / bvEip7702AuthRegularGas
+#guard bvEip7702AuthEntryCapacity = 25589
+
+/-- The ordered EIP-7702 authority simulation materializes the union of all
+    transaction senders and recovered authorization authorities.  The additive
+    bound is conservative (the two maxima cannot both be attained in one valid
+    block) but keeps the static table's fail-closed contract simple. -/
+def bvEip7702AuthorityEventCapacity : Nat :=
+  bvMtxFullTxCap + bvEip7702AuthEntryCapacity
+#guard bvEip7702AuthorityEventCapacity = 35112
+
+/-- One authority-state row is a padded address, running nonce delta, and the
+    current delegation-marker bit. -/
+def bvEip7702AuthorityRowBytes : Nat := 48
+def bvEip7702AuthorityTableBytes : Nat :=
+  bvEip7702AuthorityEventCapacity * bvEip7702AuthorityRowBytes
+#guard bvEip7702AuthorityTableBytes = 1685376
+
+/-- Active multi-transaction execution-loop capacity. Every live per-transaction
+    arena and aggregation table is statically sized to the protocol-derived
+    `bvMtxFullTxCap`, so the loop must use the same bound rather than preserve a
+    fixture-era 1024-transaction false-reject gate. -/
+def bvMtxActiveTxCap : Nat := bvMtxFullTxCap
+
+/-- An RLP transaction/receipt index below `bvMtxFullTxCap` has at most three
+    key bytes, hence at most six nibbles.  The indexed-root replacement keeps
+    its sort stack and construction frames depth-derived; only the descriptor
+    and permutation arrays are gas-derived. -/
+def itrIndexedKeyMaxNibbles : Nat := 6
+def itrIndexedRadixFanout : Nat := 16
+def itrIndexedSortRangeStackCapacity : Nat := itrIndexedKeyMaxNibbles * itrIndexedRadixFanout
+def itrIndexedBuilderFrameCapacity : Nat := itrIndexedKeyMaxNibbles + 1
+def itrIndexedEntryCapacity : Nat := bvMtxFullTxCap
 
 /-- Compatibility alias for existing active-loop call sites. New code should
     choose `bvMtxActiveTxCap` or `bvMtxFullTxCap` explicitly. -/
@@ -114,12 +237,20 @@ def bvMtxCommittedPageCapacity : Nat := 128
 def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
 def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
-/-- Behavior-neutral chunked committed-storage substrate for the follow-up
-    helpers. Each page preserves the current 128-entry layout; the active total
-    capacity is the number of unique `(recipient, slotKey)` entries across the
-    currently wired pages. -/
-def bvMtxCommittedChunkPages : Nat := 4
-def bvMtxCommittedChunkCapacity : Nat := bvMtxCommittedChunkPages * bvMtxCommittedPageCapacity
+/-- A distinct committed storage row can be produced by an access-listed no-op
+    SSTORE, so the block map must not use the 10,000-gas changing-write arm as
+    its bound.  We use 1,900 gas as a deliberately conservative lower bound:
+    it is below Amsterdam's actual 3,000-gas access-list storage-key charge
+    and also leaves room for the following warm SSTORE floor. -/
+def bvMtxCommittedUniqueKeyMinGas : Nat := 1900
+
+/-- Full block-wide `BlockState.storage_writes` capacity. It is keyed by real
+    `(address, slotKey)` pairs and is gas-bounded rather than transaction-bounded:
+    `ceil(200M / 1900) = 105264` rows, or about 13 MiB at the native 128-byte
+    execution-log row stride. -/
+def bvMtxCommittedChunkCapacity : Nat :=
+  (bsrStateRootBlockGasLimit + bvMtxCommittedUniqueKeyMinGas - 1) /
+    bvMtxCommittedUniqueKeyMinGas
 def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
 
 /-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
@@ -176,8 +307,31 @@ def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
 def bvMtxCommittedFullKeyCap : Nat := 600000
 def bvMtxCommittedFullBytes : Nat :=
   bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
-def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * 128
-def bvSystemStorageTxindexBytes : Nat := bvSystemStorageLogCapacity * 8
+/-- Byte stride of one storage exec-log row, shared by the system arena
+    (`bv_system_storage_log`) and the per-tx user arena (`bv_user_storage_log`).
+    Layout: `addrHash@0`, `slotKey@32`, `original@64`, `current@96`. Every scan
+    over either arena addresses it as `slli rd, rs, 7`, so this constant and that
+    shift amount must move together. Routines that reserve a one-row standalone
+    stub for their own link should size it from here rather than restating 128. -/
+def bvStorageLogRowBytes : Nat := 128
+
+/-- Byte width of one `txindex` stamp, parallel to `bvStorageLogRowBytes`: the
+    txindex arenas hold one 8-byte `block_access_index` per log row. -/
+def bvStorageLogTxindexEntryBytes : Nat := 8
+
+def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRowBytes
+def bvSystemStorageTxindexBytes : Nat :=
+  bvSystemStorageLogCapacity * bvStorageLogTxindexEntryBytes
+
+/-- bmvmx.5.5.10 PR-2: per-tx USER-write side arena capacity. The live exec log
+    only holds the LAST dispatch's rows (each dispatch resets persistentLogLength),
+    so cross-tx user SSTOREs are captured per-tx into `bv_user_storage_log` (same
+    128-byte row layout + txindex stamps) for the forward BAL comparator. Sized at
+    half the system arena; overflow bails fail-closed (`.Lbv_mtx_bail`). -/
+def bvUserStorageLogCapacity : Nat := bvPersistentStorageLogCapacity
+def bvUserStorageLogBytes : Nat := bvUserStorageLogCapacity * bvStorageLogRowBytes
+def bvUserStorageTxindexBytes : Nat :=
+  bvUserStorageLogCapacity * bvStorageLogTxindexEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam
@@ -209,7 +363,7 @@ def bvBlockLogFullDescTarget : Nat :=
     the INFEASIBLE upper bound -- 533,333 * 256 = ~136.5 MiB of descriptors
     alone. Combined with `bvBlockLogFullMetaBytes` + `bvBlockLogFullDataBytes`
     the fixed-stride arena is ~162 MiB, which is 2.76x the measured ~58.7 MiB of
-    `.data` headroom before `.sszscratch` (0xbf500000). Kept only to document why
+    `.data` headroom before `.sszscratch` (0xbf800000). Kept only to document why
     the verbatim-copy layout cannot reach the 200M target; the actual
     implementation target is `bvBlockLogPackedDescBytes` below. -/
 def bvBlockLogFullDescBytes : Nat := bvBlockLogFullDescTarget * 256
@@ -277,13 +431,13 @@ def bvBlockLogDescCapacity : Nat := bvBlockLogFullDescTarget
 def bvBlockLogDescBytes : Nat := bvBlockLogPackedDescBytes
 def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 24
 def bvBlockLogDataBytes : Nat := bvBlockLogFullDataBytes
-def bvLogsRlpArenaBytes : Nat := 131072
+def bvLogsRlpArenaBytes : Nat := 1048576
 def bvRecordBloomBytes : Nat := 256
 def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
 def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
-def bvReceiptsRlpBytes : Nat := 131072
-def bvReceiptEncodePayloadBytes : Nat := 131072
-def bvReceiptListPayloadBytes : Nat := 131072
+def bvReceiptsRlpBytes : Nat := 1048576
+def bvReceiptEncodePayloadBytes : Nat := 1048576
+def bvReceiptListPayloadBytes : Nat := 1048576
 def bvReceiptConsensusDescCapacity : Nat := 128
 def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
 
@@ -314,6 +468,10 @@ def c1StagingBytes : Nat := bsrMaxWitnessBytes + bsrAccountSlotCap * 64 + 16384
 def bsrAccountRecordBytes : Nat := 24
 def bsrPathBytes : Nat := 64
 def bsrEncodedAccountBytes : Nat := 256
+/-- A storage leaf contains the RLP encoding of a minimal unsigned 256-bit
+    integer: at most 32 payload bytes plus its one-byte string prefix.  Zero
+    is represented by a deletion descriptor and is never stored as a leaf. -/
+def bsrEncodedStorageValueBytes : Nat := 33
 def bsrSystemAccountBytes : Nat := 128
 def bsrStateChangeBytes : Nat := 40
 def baapStorageDescBytes : Nat := 40
@@ -349,7 +507,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736
 #guard bvMtxSenderCountSkipBytes = 609472
-#guard bvMtxActiveTxCap = 1024
+#guard bvMtxActiveTxCap = bvMtxFullTxCap
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
 #guard bvSystemStorageMinSstoreGas = 100
@@ -368,12 +526,20 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
 #guard bvMtxCommittedBytes = 16384
-#guard bvMtxCommittedChunkCapacity = 512
-#guard bvMtxCommittedChunkBytes = 65536
+#guard bvMtxCommittedUniqueKeyMinGas = 1900
+#guard bvMtxCommittedChunkCapacity = 105264
+#guard bvMtxCommittedChunkBytes = 13473792
 #guard bvMtxCommittedFullKeyCap = 600000
 #guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvResourceBlockGasLimit = 200000000
+#guard bsrStateRootBlockGasLimit = 200000000
+#guard bsrBalGasCost = 2000
+#guard bsrMaxBalItems = bsrStateRootBlockGasLimit / bsrBalGasCost
+#guard bsrMaxBalItems = 100000
+#guard bsrMaxStateChanges = 100018
+#guard bsrMptSortRangeStackCapacity = 1024
+#guard bsrMptBuilderFrameCapacity = 65
 #guard bvBlockLogMinGas = 375
 #guard bvBlockLogDataByteGas = 8
 #guard bvBlockLogFullDescTarget = 533333
@@ -386,12 +552,12 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvBlockLogDescBytes = 17066656
 #guard bvBlockLogMetaBytes = 12799992
 #guard bvBlockLogDataBytes = 25000000
-#guard bvLogsRlpArenaBytes = 131072
+#guard bvLogsRlpArenaBytes = 1048576
 #guard bvRecordBloomsBytes = 2437888
 #guard bvRecordLogsDescBytes = 304736
-#guard bvReceiptsRlpBytes = 131072
-#guard bvReceiptEncodePayloadBytes = 131072
-#guard bvReceiptListPayloadBytes = 131072
+#guard bvReceiptsRlpBytes = 1048576
+#guard bvReceiptEncodePayloadBytes = 1048576
+#guard bvReceiptListPayloadBytes = 1048576
 #guard bvReceiptConsensusDescBytes = 2048
 #guard bvMaxDepositRequestBodyBytes = 1572864
 #guard bvMaxExecutionRequestSectionBytes = 1574324

@@ -122,7 +122,17 @@ def accountTupleSequencesConsistentFunction : String :=
   -- block_access_index array so end-of-block (EIP-7002/7251) rows order after the
   -- user txs (index N+1) instead of being mis-stamped 0 and placed first.
   "  la t0, sust_sys_txindex_ptr; la t1, bv_system_storage_txindex; sd t1, 0(t0)\n" ++
-  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); mv a4, s3; mv a5, s4; mv a6, s5; la a7, atsc_execbuf\n" ++
+  -- bmvmx.5.5.10 PR-2: on the mtx lane the per-tx USER side arena (bv_user_storage_log,
+  -- captured after every user dispatch) is the complete user-write source; the
+  -- caller-passed live log holds only the LAST dispatch's rows. Prefer the arena when
+  -- populated; single-tx lanes leave it empty and keep the legacy live-log source.
+  "  la t0, bv_user_storage_log_count; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Latsc_user_live\n" ++
+  "  la a4, bv_user_storage_log; mv a5, t1; la a6, bv_user_storage_txindex; j .Latsc_user_set\n" ++
+  ".Latsc_user_live:\n" ++
+  "  mv a4, s3; mv a5, s4; mv a6, s5\n" ++
+  ".Latsc_user_set:\n" ++
+  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); la a7, atsc_execbuf\n" ++
   "  jal ra, system_user_exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
   -- fhsxz.2.4.2.66.1.1: symmetric to the BAL-side cap bail above. exec_log_slot_tuples
@@ -166,7 +176,17 @@ def accountTupleSequencesConsistentEmptySystemData : String :=
   -- but the symbol must resolve at link time.
   "bv_system_storage_txindex:\n  .zero 16\n" ++
   ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+  "bv_system_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n" ++
+  -- bmvmx.5.5.10 PR-2: link stubs so the per-account fn's user-arena preference
+  -- resolves; count 0 keeps the probe on the legacy live-log path.  Sized from
+  -- `bvStorageLogRowBytes` (one row) so a stride change cannot leave this probe
+  -- reserving less than one row while the scan still strides by 128.
+  ".balign 8\n" ++
+  "bv_user_storage_log_count:\n  .zero 8\n" ++
+  "bv_user_storage_txindex:\n  .zero " ++
+    toString (2 * bvStorageLogTxindexEntryBytes) ++ "\n" ++
+  ".balign 32\n" ++
+  "bv_user_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):

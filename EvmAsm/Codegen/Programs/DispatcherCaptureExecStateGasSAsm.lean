@@ -11,10 +11,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
 namespace DispatcherCaptureExecStateGasSAsm
 
-#guard GuestAddrs.dispatcher_capture_exec_state_gas = 0x80029fb8
-#guard GuestAddrs.evm_state_gas_used = 0xbb56a710
-#guard GuestAddrs.bvgr_tx_exec_state_gas = 0xaa25dbc8
-
 def captureBody : List Instr := dispatcherCaptureExecStateGas_prog.dropLast
 
 theorem capture_byte_tie :
@@ -157,7 +153,6 @@ theorem dispatcherCaptureExecStateGas_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms dispatcherCaptureExecStateGas_spec
 
 end DispatcherCaptureExecStateGasSAsm
 end EvmAsm.Codegen

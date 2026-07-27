@@ -12,8 +12,6 @@ hp_decode_nibbles:
   lbu t0, 0(s0)              # b0
   srli t1, t0, 4             # high nibble
   andi t2, t0, 0xf           # low nibble
-  li t3, 4
-  bgeu t1, t3, .Lhp_fail     # high ≥ 4 → invalid
   # is_leaf = (high & 2) >> 1
   andi t3, t1, 2
   srli t3, t3, 1
@@ -27,7 +25,8 @@ hp_decode_nibbles:
   addi t6, s2, 1             # output cursor
   j .Lhp_loop_init
 .Lhp_even:
-  bnez t2, .Lhp_fail         # even but low nibble != 0
+  # Even: padding nibble IGNORED (execution-specs compact_to_nibbles,
+  # lenient; bead evm-asm-3umhl).
   li t5, 0
   mv t6, s2
 .Lhp_loop_init:

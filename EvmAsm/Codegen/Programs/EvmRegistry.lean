@@ -97,6 +97,20 @@ def stopHandlerCF : OpcodeHandlerSpec :=
       "  ld t3, 0(t1)\n" ++
       "  beqz t3, .Lstop_call_frame\n" ++
       "  sd x0, 0(t1)\n" ++
+      -- The shared CREATE deposit body is normally reached from RETURN, whose
+      -- depth-aware return tail restores the CREATE metadata for this child
+      -- before calling it.  STOP enters that body directly.  Restore the same
+      -- depth-indexed metadata here, otherwise a nested CREATE leaves the
+      -- inner creator/value/address live and the outer CREATE records its
+      -- parent's balance under the inner creator address.
+      "  la t1, create_address_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+      "  la t2, create_address_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+      "  la t1, create_sender_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+      "  la t2, create_sender_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+      "  la t1, create_value_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+      "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+      "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
+      "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
       "  li x14, 0\n" ++
       "  li x15, 0\n" ++
       "  j .Lcreate_deposit_from_halt_1\n" ++
@@ -137,13 +151,19 @@ def callFrameGuestRegistry : List OpcodeHandlerSpec :=
   blobContextHandlers ++ blockHashHandlers ++ calldataHandlers ++ codeHandlers ++
   controlFlowHandlers ++ hashHandlers ++ logHandlers ++
   balanceWitnessHandlers ++ accountWitnessHandlers ++ extcodecopyWitnessHandlers ++ storageHandlers ++
-  mcopyHandlers ++ haltHandlers true ++ pushZeroHandlers ++ returnDataHandlers ++
+  -- sparseWindows = true (evm-asm-0w05f.13): depth-1+ CALL-frame RETURN/REVERT
+  -- windows beyond the dense arena are charged-only + materialized from the
+  -- sparse word store (`sparse_window_read`, linked via the runtime
+  -- dispatcher's embedded helpers). The roundtrip probe registry above keeps
+  -- the dense arena bail (no sparse cells in its data section).
+  mcopyHandlers ++ haltHandlers true true ++ pushZeroHandlers ++ returnDataHandlers ++
   popPushZeroHandlers ++ copyNoopHandlers ++
   childFrameHandlers
     (callDescendFallThrough "call_target" 192 64 96 128 160 192 0)
     (callDescendFallThrough "callcode_target" 192 64 96 128 160 192 2)
     (callDescendFallThrough "delegatecall_target" 160 0 64 96 128 160 3)
-    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 1) ++
+    (callDescendFallThrough "staticcall_target" 160 0 64 96 128 160 1)
+    (sparseWindows := true) ++
   arithNoopHandlers ++ mulmodHandlers ++ divModHandlers ++ signedDivModHandlers ++
   selfCallingHandlers ++ [stopHandlerCF]
 

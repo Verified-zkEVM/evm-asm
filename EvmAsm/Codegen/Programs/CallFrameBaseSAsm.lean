@@ -36,7 +36,7 @@ namespace CallFrameBaseSAsm
 /-- The 6-instruction body (everything but the `ret`). -/
 def fbBlock : List Instr :=
   [ .ADDI .x5 .x10 (-1 : BitVec 12),
-    .LUI .x6 (57 : BitVec 20),
+    .LUI .x6 (25 : BitVec 20),
     .MUL .x5 .x5 .x6,
     .AUIPC .x6 (laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
     .ADDI .x6 .x6 (laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)),
@@ -75,14 +75,14 @@ def fbRest : List Reg :=
    .x11, .x12, .x13, .x14, .x15, .x16, .x17]
 
 /-- **`frame_base` at its linked address** (genuine post): returns
-    `a0 = call_frame_arena + (depth − 1) · 0x39000`, the call-frame layout
+    `a0 = call_frame_arena + (depth − 1) · 0x19000`, the call-frame layout
     arithmetic, with the arena address `la_resolve`-proven. -/
 theorem frameBase_spec (depth ret : Word)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin 7 (GuestAddrs.frame_base : Word) ret
       (CodeReq.ofProg (GuestAddrs.frame_base : Word) frameBase_prog)
       (((.x10 : Reg) ↦ᵣ depth) ** ((.x1 : Reg) ↦ᵣ ret) ** regOwns fbRest)
-      (((.x10 : Reg) ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word))) **
+      (((.x10 : Reg) ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns fbRest) := by
   -- peel the scratch file
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
@@ -103,7 +103,7 @@ theorem frameBase_spec (depth ret : Word)
     rf [] fbBlock).1 with hrf'
   set s1 := rf.set .x5 (rf.get .x10 + signExtend12 (-1 : BitVec 12)) with hs1
   set s2 := s1.set .x6
-    ((((57 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64) with hs2
+    ((((25 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64) with hs2
   set s3 := s2.set .x5 (s2.get .x5 * s2.get .x6) with hs3
   set s4 := s3.set .x6 (((GuestAddrs.frame_base + 12) : Word)
     + (((laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 12)).zeroExtend 32
@@ -113,8 +113,8 @@ theorem frameBase_spec (depth ret : Word)
   set s6 := s5.set .x10 (s5.get .x6 + s5.get .x5) with hs6
   have hrf'eq : rf' = s6 := rfl
   -- arithmetic facts
-  have hstride : (((57 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64
-      = (0x39000 : Word) := by decide
+  have hstride : (((25 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64
+      = (0x19000 : Word) := by decide
   have hm1 : depth + signExtend12 (-1 : BitVec 12) = depth - 1 := by
     have hsem : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
     rw [hsem]
@@ -125,9 +125,9 @@ theorem frameBase_spec (depth ret : Word)
     rw [hs2, RegFile.get_set_ne _ _ _ _ (by decide), hs1,
       RegFile.get_set_self _ _ _ (by decide), g10]
   have g6s2 : s2.get .x6
-      = (((57 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64 := by
+      = (((25 : BitVec 20)).zeroExtend 32 <<< 12).signExtend 64 := by
     rw [hs2, RegFile.get_set_self _ _ _ (by decide)]
-  have g5s5 : s5.get .x5 = (depth - 1) * (0x39000 : Word) := by
+  have g5s5 : s5.get .x5 = (depth - 1) * (0x19000 : Word) := by
     rw [hs5, RegFile.get_set_ne _ _ _ _ (by decide), hs4,
       RegFile.get_set_ne _ _ _ _ (by decide), hs3,
       RegFile.get_set_self _ _ _ (by decide), g5s2, g6s2, hstride, hm1]
@@ -136,11 +136,11 @@ theorem frameBase_spec (depth ret : Word)
       RegFile.get_set_self _ _ _ (by decide)]
     exact fb_la_resolved
   have g10s6 : s6.get .x10
-      = (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word) := by
+      = (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word) := by
     rw [hs6, RegFile.get_set_self _ _ _ (by decide), g6s5, g5s5]
   -- assemble the valuation equality over the exposed file
-  have hvals : ∀ r ∈ exposedRegs, rf' r = ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word)
-          else if r = .x5 then (depth - 1) * (0x39000 : Word)
+  have hvals : ∀ r ∈ exposedRegs, rf' r = ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word)
+          else if r = .x5 then (depth - 1) * (0x19000 : Word)
           else if r = .x6 then (GuestAddrs.call_frame_arena : Word)
           else vf r)) r := by
     have hraw : ∀ r : Reg, r ≠ .x0 → rf' r = rf'.get r := by
@@ -269,8 +269,8 @@ theorem frameBase_spec (depth ret : Word)
       rfl
   -- rewrite the engine post to the explicit valuation
   have hpost : regAtoms rf' exposedRegs
-      = regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word)
-          else if r = .x5 then (depth - 1) * (0x39000 : Word)
+      = regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word)
+          else if r = .x5 then (depth - 1) * (0x19000 : Word)
           else if r = .x6 then (GuestAddrs.call_frame_arena : Word)
           else vf r)) exposedRegs := by
     rw [regAtoms_eq_regAtomsOf rf' exposedRegs (by decide)]
@@ -284,8 +284,8 @@ theorem frameBase_spec (depth ret : Word)
   -- ---- frames + chain ----
   have hblkF := cpsTripleWithin_frameR (((.x1 : Reg) ↦ᵣ ret)) (by pcf) hblk
   have hretF := cpsTripleWithin_frameR
-    (regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word)
-          else if r = .x5 then (depth - 1) * (0x39000 : Word)
+    (regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word)
+          else if r = .x5 then (depth - 1) * (0x19000 : Word)
           else if r = .x6 then (GuestAddrs.call_frame_arena : Word)
           else vf r)) exposedRegs)
     (pcFree_regAtomsOf _ _) hret
@@ -318,10 +318,10 @@ theorem frameBase_spec (depth ret : Word)
       if_true, if_false] at hp ⊢
     xperm_hyp hp
   · -- engine-post atoms → (x10 ↦ result) ** (x1 ↦ ret) ** regOwns fbRest
-    have hq1 : ((((.x10 : Reg) ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word))) **
+    have hq1 : ((((.x10 : Reg) ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word))) **
         ((.x1 : Reg) ↦ᵣ ret)) **
-        regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x39000 : Word)
-          else if r = .x5 then (depth - 1) * (0x39000 : Word)
+        regAtomsOf ((fun r => if r = .x10 then (GuestAddrs.call_frame_arena : Word) + (depth - 1) * (0x19000 : Word)
+          else if r = .x5 then (depth - 1) * (0x19000 : Word)
           else if r = .x6 then (GuestAddrs.call_frame_arena : Word)
           else vf r)) fbRest) h := by
       simp only [exposedRegs, fbRest, regAtomsOf_cons, regAtomsOf_nil,
@@ -330,7 +330,6 @@ theorem frameBase_spec (depth ret : Word)
     have hq2 := sepConj_mono_right (regAtomsOf_to_regOwns _ fbRest) h hq1
     xperm_hyp hq2
 
-#print axioms frameBase_spec
 
 end CallFrameBaseSAsm
 end EvmAsm.Codegen

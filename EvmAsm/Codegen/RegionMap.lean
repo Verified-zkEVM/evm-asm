@@ -13,9 +13,11 @@
     disjointness lemma and their sizes were only implicit in the gaps between
     successive anchors. Here every anchor gets an explicit extent (the gap to the
     next anchor) and a per-region evidence note.
-  * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`) plus `.text`
+  * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
+    dedicated bounded `.committed_storage` NOBITS map at `0xa2000000`, the
+    zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
-    (`--section-start=.sszscratch=0xbf500000`). Sizes here are the ELF ground
+    (`--section-start=.sszscratch=0xbf980000`). Sizes here are the ELF ground
     truth (`readelf -S`), cross-checked by `scripts/check-region-map.sh`.
 
   **Location rationale.** This module imports both `CallFrameLayout`
@@ -142,7 +144,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1ba0000`. Aspirational —
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
+    the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
     internally consistent, but they are NOT part of `guestRegionMap`. -/
 def schemeAAnchors : List GuestRegion :=
@@ -169,7 +172,33 @@ def schemeAAnchors : List GuestRegion :=
     { name := "ecrecover_scratch",      base := 0xa1b80000, size := 0x10000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout ECRECOVER_SCRATCH; 64 KiB slab" },
     { name := "sha256_scratch",         base := 0xa1b90000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" } ]
+      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" },
+    -- GH #10619: the spec's THREE read sets, each with the BLOCK-long lifetime
+    -- `restore_tx_state` gives them by restoring only the write structures
+    -- (state_tracker.py:809-826; the TransactionState docstring at :90-93 calls
+    -- them "shared references that survive rollback").  Separate regions rather
+    -- than one merged set because the spec has three and looking-the-same is the
+    -- point; separate from `state_tracker_area` because rollback truncates that
+    -- one and must not reach these.
+    { name := "storage_reads_area",     base := 0xa1ba0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_READS_AREA; 1 MiB = 16384x64 (addrHash++slotKey), "
+        ++ "matching the write log's 16384 rows so reads cannot overflow first" },
+    { name := "account_reads_area",     base := 0xa1ca0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_READS_AREA; 512 KiB = 16384x32 (addrHash)" },
+    { name := "code_reads_area",        base := 0xa1d20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout CODE_READS_AREA; 512 KiB = 8192x64 (addrHash++codeHash); "
+        ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" },
+    -- GH #10619 review gate 3: the TRANSACTION level of the same three sets.  The
+    -- spec has two levels (TransactionState's fresh sets, merged up at
+    -- state_tracker.py:858-861 and CLEARED at :879-881), and a block-level-only
+    -- mirror has nowhere to express fork.py:745-752 -- a throwaway TransactionState
+    -- whose reads are deliberately NOT promoted.
+    { name := "tx_storage_reads_area",  base := 0xa1da0000, size := 0x100000,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_READS_AREA; per-tx storage_reads, merged up and cleared" },
+    { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
+    { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -190,16 +219,203 @@ def schemeAAnchors : List GuestRegion :=
     began preferring same-block delegation markers over stale pre-state markers.
     Grew again when EIP-7702 dispatch began allowing same-block marker precedence
     for pointer-to-pointer code. Grew again when multi-tx direct deposits began
-    being derived for EIP-6110 negative system requests. -/
-def textSizeBytes : Nat := 0x564a4
+    being derived for EIP-6110 negative system requests. Shrank net
+    `0x7b0` after CREATE2 selfdestruct-collision handling simplified
+    `ChildFrameHandlers` dispatch. Grew by `0x58` when
+    `account_extract_nonce`/`account_extract_balance` moved to the RlpWalk
+    cursor helpers (bead evm-asm-22pwv.4). Grew by `0xc` when the
+    precompile fast path began returning successful value-call stipends while
+    emitting every EIP-7708 transfer log. Grew by `0x20` when both runtime
+    payload staging paths began reversing PREVRANDAO into EVM word order. Grew
+    by `0x64` when same-transaction CREATE code became available to delegated
+    calls before EIP-6780 deletion is finalized. Shrank by `0x4` when same-block
+    delegation code was rebased directly from the caller's staged codes base.
+    Grew by `0x848` after the cross-transaction authorization-nonce validation
+    landed (bead evm-asm-eip7702-cross-tx). Shrank by `0xc` when RETURNDATACOPY
+    dropped its 256-byte cap guard (evm-asm-pwqhw). Grew further after EIP-8037
+    prefix admission enforcement, parallel EEST worker result-file isolation,
+    and the self-funded EIP-7702 authorization refund fix landed. Grew by
+    `0x30` when EIP-2780 direct-authorization gas context started being
+    preserved. Grew by `0x1cc` when depth-1+ RETURN/REVERT windows gained
+    sparse materialization (`sparse_window_read`, evm-asm-0w05f.13), and by
+    `0x3c8` more for the nested-caller OUT-window write-back
+    (`sparse_window_write` + tail wiring, 0w05f.13 surface 2), by `0x7c`
+    for the epoch-tag packing in the four sparse scans (evm-asm-m8pdu), and by
+    `0x20` when RETURN/REVERT window routing adopted the pool-relative limit
+    (evm-asm-ck36u), and by `0x4` for the settle-reverted-dispatcher-state-gas
+    fix (`fix/dispatcher-revert-state-gas`). Regenerated after the bounded
+    storage-root builder replaced the legacy one-slot mutation path. Grew by
+    `0xa58` for the gas-sized bounded indexed transaction/receipt root
+    builder. Grew by `0x128` for the batch-merge landing the chain-validate
+    Fn.Spec siblings, misaligned-load fixes, and the SSZ envelope-cap check.
+    Grew by `0x4` for the batch-merge landing the divmod cleanup and bounded
+    extension direct-result ABI repair. Grew by `0x60` for the batch-merge
+    landing the BAL delegation-codes-base fix and further divmod cleanup.
+    Grew by `0x40` for the recipient-ownership filter in
+    `bv_mtx_committed_chunked_snapshot_upsert` (`fix/committed-snapshot-recipient-filter`).
+    Grew further to `0x5c688` for the combined batch-merge landing that fix
+    together with the MPT bounded leaf-group delete-collapse fix
+    (`fix/bounded-leaf-group-delete-collapse`), measured via a fresh
+    `readelf -SW` on the relinked ELF after both land together. Grew again
+    to `0x5c6b4` after merging main forward past #10394/#10395 (7702 auth
+    state gas gate + EIP-8037 auth-retention 0-FA guard) into this same
+    integration branch, re-measured via a fresh `readelf -SW`. Grew to
+    `0x5cc58` for the sequential multi-tx lane (`k3-3/bmvmx-5.5.10-seq-threading`,
+    #10391: fail-closed BAL storage whitelist gate, cross-tx CREATE-nonce
+    threading, execution-derived storage arenas), re-measured after merging
+    main forward. Grew to `0x5cc90` after merging main forward past #10385
+    (SSTORE value-unchanged exec-log-append skip), re-measured again. Grew to
+    `0x5ccd0` for the combined batch-merge landing the BAL-completeness
+    0-FA fix (`k3-3/rgtkz-bal-completeness`, #10419) together with the
+    withdrawal/BAL-overlap fail-closed guard (`fix/withdrawals-bal-completeness`,
+    #10420), measured via a fresh `readelf -SW` after both land together.
+    Grew to `0x5cf18` for the withdrawal-BAL-parity fix (`fix/withdrawal-bal-parity`,
+    #10422: models every nonzero EIP-4895 body withdrawal as a standard
+    non-storage effect via the existing BAL comparators, closing the
+    withdrawal-drop false-accept without the fail-closed false-reject of
+    valid withdrawal blocks). Grew to `0x5cf20` for the CREATE
+    nonstorage-effect-nonce-lookup fix (`fix/receipts-root-eip150`, #10429:
+    the caller restored saved x10 before testing the hit bit, discarding a
+    real nonce-table hit on CREATE and emitting a Transfer log for the
+    wrong address). Grew to `0x5cf24` for the EOA body-withdrawal-drop
+    fix (`fix/body-op-state-completeness`, #10435: materializes EIP-4895
+    withdrawal credits as authenticated non-storage effects before the
+    existing BAL 44/45 reconciliation). Grew to `0x5cf6c` for the
+    combined batch-merge landing the BAL bounded-storage-builder
+    fallback fix (`fix/bal-descriptor-exact`, #10438) together with
+    the withdrawal-BAL bailout removal (`fix/withdrawal-bal-bail-removal`,
+    #10439), measured via a fresh `readelf -SW` after both land
+    together. Grew to `0x5cf80` for the combined batch-merge landing
+    the a4gbr s-reg/scratch-own strengthen (#10442), the
+    zisk_stateless_verdict_v2 probe closure fix (#10446), the
+    execCodeEffectLogCap raise (#10447), and the nonstorage-effect
+    overflow guard (#10448). Grew to `0x5cff4` for the net-deleted
+    BAL-storage marker-scan fix (`fix/bal-netdeleted-storage`, #10452:
+    demotes raw storage writes only when the account is recorded in
+    the transaction-scoped EIP-6780 same-tx deletion table). Grew to
+    `0x5d078` for the nested-CREATE final-nonce retention fix
+    (`fix/create-final-nonce`, #10453). Grew to `0x5d120` for the callable
+    per-transaction auxiliary-journal resets, which prevent stale execution
+    evidence from crossing a transaction boundary. Grew to `0x5d188`
+    for the value-CALL net-nonce-preservation fix
+    (`fix/call-effect-net-nonce`, #10455). Grew to `0x5d1bc` for the
+    EIP-7702 authorization net-nonce threading fix
+    (`fix/auth-net-nonce`, #10456), which also split the auth-effect
+    emitter out into `TxIntrinsicAuthEffects.lean` to clear the
+    1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
+    live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
+    #10457), mirroring the earlier beneficiary-balance overlay to fix
+    a phantom second-selfdestruct credit. Settled to `0x5d20c` after
+    merging main forward past #10458 (multi-tx caller-context staging
+    fix) and this PR's own baap=501 delete-walk bail removal, measured
+    via a fresh `readelf -SW`. Grew to `0x5d2a4` for the C3 arena
+    overflow-reject batch (#10460). Grew to `0x5d518` for the bounded
+    storage-root delete-walk fix (`fix/bounded-storage-delete-walk`,
+    #10461), clearing the 98-fixture EIP-7002/7251 code-1 cluster. Shrank
+    to `0x5d508` when full-subtree delete propagation was generalized to the
+    canonical empty-trie root. Grew to `0x5d87c` when EIP-7702 authorization
+    effect rows began preserving a prior value-transfer balance. Grew to
+    `0x5d920` for the SUICIDE-6 selfdestruct/create fix
+    (`diagnose/suicide-code44`, #10467). Grew to `0x5db78` for the
+    per-frame CREATE nonce undo journal. Grew to `0x5dc40` for the
+    CALLCODE stopHandlerCF per-depth metadata restore fix
+    (`fix/mtx-sender-skip`, #10469), fixing the STOP-vs-RETURN
+    asymmetry. Grew to `0x5dc54` for the receipts-shape enforce=true
+    fix (`fix/mtx-receipts-enforce`, #10470), closing a latent
+    false-accept on multi-tx unsupported receipts shapes 60/61/62
+    (bail-elimination doctrine, maintainer-approved intentional FR
+    increase 19->2080 exposing hidden FAs, not a regression). Shrank to
+    `0x5dc4c` for the unconditional mtx process_transaction fix
+    (`measure/mtx-whitelist-bypass`, #10471: removes the whitelist-v0
+    admission gate, matching spec apply_body:913-914). Grew to `0x5e1e8`
+    for the guarded post-setup top-level CREATE nonce seed
+    (`fix/nested-create-nonce-seed`), which preserves the live nonce for
+    nested CREATE executed from initcode. Grew to `0x5e63c` for the
+    same-transaction constructor-SELFDESTRUCT EXTCODEHASH empty-code fallback
+    (`fix/extcodehash-selfdestruct-empty`). Grew by `8` to `0x61160` for the
+    KECCAK256 `ceil32` wraparound guard in `keccakWordGasAsm`
+    (`fix/keccak-word-gas-wrap-guard`): one added `bltu` (4 B) plus 4 B of
+    realignment. Grew by `0x60` to `0x611c0` for the MLOAD/MSTORE fresh-zero-loop
+    arena clamp (`fix/memsize-zero-loop-clamp`, #10522): 13 added instructions
+    plus a `beq`→`bgeu` swap in each of the two sparse handlers, and in NEITHER
+    of the other 15 `updateActiveMemorySizeAsm` call sites — they pass
+    `clampToArena = false` and stay byte-identical. Composes additively with the
+    keccak guard above: `0x61160 + 0x60`. Grew by `0x54` for GH #10619's tracked
+    account accessor (`account_at_header_state_root_tracked`,
+    `AccountReadLog.lean`): 21 instructions — an 8-slot save/restore of `ra` and
+    `a0`-`a6` around one `account_read_record` call, then a tail `j` to the raw
+    entry. The 11 execution call sites retargeted onto it contribute **zero**
+    bytes: a retarget only lengthens a `jal`'s symbol *name*, not the instruction.
+
+    Now `0x61da4` after merging `main`, and the merge is exactly additive:
+    `0x61510` (merge-base) `+ 0x79c` (this branch's six read containers, three
+    producers, two-level promotion and tracked accessor) `+ 0xf8` (what landed on
+    `main` meanwhile, including the BLS MSM discounts). Measured from the relinked
+    ELF, not computed — the sum is stated because it *reconciles*, which is the
+    check that the merge composed rather than one side silently winning. `.data`
+    and `.bss` are unchanged by this branch's merge resolution.
+
+    Grew by `0x4` — a single instruction — for GH #10619's stride
+    parameterisation of `bal_storage_reads_in_exec_log`: the routine now takes
+    its entry stride in `a5` instead of baking 128 into a `slli`/`addi` pair, so
+    a caller cannot re-point the scan at another log without also supplying that
+    log's entry width. Inside the routine the change is byte-neutral
+    (`slli`→`mul`, `addi`→`sub`, and `mv s5, a5` reusing a dead `mv s6, a1`
+    slot); the 4 bytes are the one `li a5, 128` added at the guest's single call
+    site in `BlockVerdictFunction.lean`. The two probe call sites are in the
+    probe unit and contribute nothing here.
+
+    Then SHRANK by `0x40` -- 16 instructions -- to `0x61d68` for GH #10619's
+    net-zero deletion: the tx-abort path's `.Lbv_tx0_storage_revert` loop, which
+    walked the aborted transaction's storage exec-log rows setting
+    `current := original`, is replaced by a single four-instruction truncation of
+    the row count. The loop existed to keep the rows so the slots stayed
+    "accessed" for the recipient `storage_reads` check; that check now reads the
+    `storage_reads` container, so the rows no longer have to survive. First
+    net REMOVAL of emitted bytes on this branch, and the shrink is the
+    measurement that the collapse actually went away rather than becoming a
+    no-op.
+
+    Shrank by `0x40` -- 16 instructions -- to `0x61e0c` for GH #10654: the SECOND
+    instance of the tx-abort net-zero loop, on the deposit-exception path in
+    `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
+    depth-zero abort cleanup, and it did -- identical shape, identical retired
+    justification, identical `0x40` saving as #10641's. That PR fixed the clause
+    it was pointed at; enumerating the pattern found the other one. -/
+def textSizeBytes : Nat := 0x62820
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
     when t1iqb resized `bv_cdl_stage` `32→64` for the verified arena-free
     CALLDATALOAD (`window ++ 32-byte zero pad` footprint). Earlier it grew by
     `0x4010000` (~64 MiB) when the `.71` reconciliation raised `frameStride`
-    `0x29000→0x39000` (the `call_frame_arena` trailing pad). -/
-def dataSizeBytes : Nat := 0x196287d0
+    `0x29000→0x39000` (the `call_frame_arena` trailing pad). Grew by `0x4fb00`
+    (~318 KiB) when `evm_precompile_frame`'s returndata window was sized to
+    `precompileFrameReturndataCapBytes` so RETURNDATACOPY sees the full child
+    return (evm-asm-pwqhw). Grew by `0x40` (64 B) when the `.data`→`.bss`
+    splitter was fixed to keep mixed zero/nonzero groups (`blsg_b_be`,
+    `p256_one_be`) whole in `.data` (evm-asm-rowr9). -/
+def dataSizeBytes : Nat := 0x5370
+
+/-- ELF-measured `.bss` size for the `stateless_guest` unit. Grew by `0x77900`
+    for the fixed, gas-sized bounded indexed-root builder arenas, then `0x1d320`
+    when the transaction descriptor staging was raised to the same gas bound.
+    Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
+    non-storage effect modeling (#10422). Grew by `0x160000`
+    (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
+    200M-gas block can never over-reject on deployed-code volume. Grew by
+    `0xe08000` when the bounded non-storage effect log capacity was raised
+    from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
+    CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
+    capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
+    state table (address, nonce delta, and header-delegated bit). -/
+def bssSizeBytes : Nat := 0x1b2578a0
+
+/-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
+    storage map. It is kept outside `.data` so zero initialization does not
+    materialize a multi-megabyte payload, and outside `.bss` so the existing
+    frame/SSZ layout remains stable. -/
+def committedStorageSizeBytes : Nat := 0xcdd800
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -220,13 +436,25 @@ def textRegion : GuestRegion :=
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; size link-dependent (drift guard); ends 0xbc5156b0" }
+    evidence := "ELF -Tdata=0xa3000000; 0x5370-byte PROGBITS extent" }
+
+/-- Fixed-size cross-transaction committed-storage map
+    (`--section-start=.committed_storage=0xa2000000`). -/
+def committedStorageRegion : GuestRegion :=
+  { name := ".committed_storage", base := 0xa2000000,
+    size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
+
+/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
+def bssRegion : GuestRegion :=
+  { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b20b120-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
-    (`--section-start=.sszscratch=0xbf500000`). -/
+    (`--section-start=.sszscratch=0xbf980000`). -/
 def sszScratchRegion : GuestRegion :=
-  { name := ".sszscratch", base := 0xbf500000, size := 0x680000, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.sszscratch=0xbf500000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
+  { name := ".sszscratch", base := 0xbf980000, size := 0x680000, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.sszscratch=0xbf980000; 6.5 MiB NOBITS; MemoryLayout SSZ_SCRATCH_BASE/SIZE" }
 
 /-! ## Emitted-reality regions the section/anchor lists omit.
 
@@ -273,15 +501,17 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xbc5156b0` below `.sszscratch`; INPUT and
-    `.text` sit in their own zones. The guest's one intentional overlap lives
-    strictly inside the `.data` member and is expanded — as its own inventory —
+    (`0xa3000000`); `.data` ends `0xa3005310`, `.bss` ends `0xbe318fc0`,
+    both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
+    guest's one intentional overlap lives strictly inside the `.bss` member and
+    is expanded — as its own inventory —
     in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
     separate, aspirational port contract (`schemeAAnchors`), deliberately NOT in
     this list because they collide with `guest_stack` in the current build. -/
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
-    stateTrackerLiveRegion, textRegion, dataRegion, sszScratchRegion ]
+    stateTrackerLiveRegion, textRegion, committedStorageRegion, dataRegion,
+    bssRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
@@ -292,7 +522,7 @@ theorem guestRegionMap_fits_ram : allFitZones guestRegionMap = true := by decide
 
 /-- The emitted-reality map is pairwise disjoint — with NO exception list. Every
     byte the emitted guest touches is accounted for by exactly one region; the
-    one intentional overlap lives strictly inside the `.data` member and is
+    one intentional overlap lives strictly inside the `.bss` member and is
     documented separately in `dataUnionChildren`/`aliasedPairs`. -/
 theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = true := by decide
 
@@ -347,20 +577,27 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.EVM_MEMORY_AREA).toNat,
         (EvmAsm.Stateless.KECCAK_SCRATCH).toNat,
         (EvmAsm.Stateless.ECRECOVER_SCRATCH).toNat,
-        (EvmAsm.Stateless.SHA256_SCRATCH).toNat ] := by decide
+        (EvmAsm.Stateless.SHA256_SCRATCH).toNat,
+        -- GH #10619: the spec's three read sets (state_tracker.py:67-77, :96-104).
+        (EvmAsm.Stateless.STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.CODE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
+        (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat ] := by decide
 
-/-! ## Within-`.data` aliasing inventory (the `call_frame_arena` union).
+/-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
     ELF ground truth (`readelf -s`, this build; post-`4ch8f.73` — six children,
     `bv_system_storage_log` un-unioned):
     ```
-    ac44d740  call_frame_arena  == basr_values
-    adcb8940  basr_accounts          (+  S)
-    af523b40  baap_storage_desc      (+ 2S)
-    af8f4440  baap_storage_paths
-    aff0ec40  baap_storage_delete_paths
-    b0529440  baap_storage_values
-    ba886740  call_frame_arena_end   (== base + frameArrayBytes)
+    af420780  call_frame_arena  == basr_values
+    b0c8b980  basr_accounts          (+  S)
+    b24f6b80  baap_storage_desc      (+ 2S)
+    b28c7480  baap_storage_paths
+    b2ee1c80  baap_storage_delete_paths
+    b34fc480  baap_storage_values
+    b5839780  call_frame_arena_end   (== base + frameArrayBytes)
     ```
     with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`. These are relocatable
     symbols reached via independent `la`; only the *offsets within the arena* are
@@ -370,7 +607,33 @@ theorem schemeA_matches_layout :
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xac44d740
+def callFrameArenaBase : Nat := 0xaf420780
+
+/-- Absolute shared nested-frame EVM-memory pool, emitted immediately after
+    `call_frame_arena`. Both endpoints are link-layout-dependent pins checked
+    against the ELF. -/
+def evmMemoryPoolRegion : GuestRegion :=
+  { name := "evm_memory_pool", base := 0xb5839780, size := evmMemoryPoolBytes,
+    mode := .rw, zone := .ram,
+    evidence := "ELF evm_memory_pool..evm_memory_pool_end; 96 MiB shared LIFO frame memory" }
+
+theorem evmMemoryPoolRegion_matches_elf :
+    evmMemoryPoolRegion.base = 0xb5839780
+      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xbb839780 := by decide
+
+/-- The two runtime frame allocations are adjacent, disjoint, fit RAM, and both
+    lie inside `.bss`; this is the pool/slot non-aliasing soundness fence. -/
+def frameRuntimeRegions : List GuestRegion :=
+  [ { name := "call_frame_arena", base := callFrameArenaBase, size := frameArrayBytes,
+      mode := .rw, zone := .ram, evidence := "ELF call_frame_arena..call_frame_arena_end" },
+    evmMemoryPoolRegion ]
+
+theorem frameRuntimeRegions_fit : allFitZones frameRuntimeRegions = true := by decide
+theorem frameRuntimeRegions_pairwise_disjoint :
+    allPairwiseDisjoint frameRuntimeRegions = true := by decide
+theorem frameRuntimeRegions_within_data :
+    frameRuntimeRegions.all (fun r =>
+      decide (bssRegion.base ≤ r.base ∧ r.base + r.size ≤ bssRegion.base + bssRegion.size)) = true := by decide
 
 /-- `S` — the `basr_values`/`basr_accounts` per-arena stride. -/
 def basrArenaBytes : Nat := bsrMaxStateChanges * bsrEncodedAccountBytes
@@ -425,10 +688,10 @@ theorem dataUnionChildren_fit_arena :
     dataUnionChildren.all unionChildFitsArena = true := by decide
 
 /-- The `call_frame_arena` byte range `[base, base + frameArrayBytes)` sits inside
-    the `.data` section. (`call_frame_arena_end = 0xba886740 < .data end 0xbc5156b0`.) -/
+    the `.bss` section. (`call_frame_arena_end` lies below its end.) -/
 theorem callFrameArena_within_data :
-    dataRegion.base ≤ callFrameArenaBase
-      ∧ callFrameArenaBase + frameArrayBytes ≤ dataRegion.base + dataRegion.size := by decide
+    bssRegion.base ≤ callFrameArenaBase
+      ∧ callFrameArenaBase + frameArrayBytes ≤ bssRegion.base + bssRegion.size := by decide
 
 /-! ## `bv_system_storage_log` standalone placement (`4ch8f.73`).
 
@@ -442,7 +705,7 @@ theorem callFrameArena_within_data :
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
     LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
-def syslogBase : Nat := 0xaa30bea0
+def syslogBase : Nat := 0xad2defe0
 
 /-- **The `.73` clobber is closed (load-bearing).** The un-unioned
     `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
@@ -532,10 +795,14 @@ def stableGuestBases : List (String × Nat) :=
     ("zisk_system",       ziskSystemRegion.base),
     ("guest_stack_top",   guestStackTop),
     (".text",             textRegion.base),
+    (".committed_storage", committedStorageRegion.base),
     (".data",             dataRegion.base),
+    (".bss",              bssRegion.base),
     (".sszscratch",       sszScratchRegion.base) ]
   ++ schemeAAnchors.map (fun r => (r.name, r.base))
 
-theorem stableGuestBases_length : stableGuestBases.length = 18 := by decide
+-- 20 -> 23: the three read-container anchors added for GH #10619.
+-- 23 -> 26: the three per-transaction read containers (GH #10619 gate 3).
+theorem stableGuestBases_length : stableGuestBases.length = 26 := by decide
 
 end EvmAsm.Codegen.RegionMap

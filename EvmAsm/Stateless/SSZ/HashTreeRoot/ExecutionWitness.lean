@@ -6,8 +6,8 @@
   witness`):
 
       class SszExecutionWitness(Container):
-        state:   List[ByteList[2^20], 2^20]
-        codes:   List[ByteList[2^24], 2^16]
+        state:   List[ByteList[2^10], 2^22]
+        codes:   List[ByteList[2^16], 2^18]
         headers: List[ByteList[2^10], 2^8]
 
   ## SSZ algorithm for a Container
@@ -61,8 +61,8 @@
 
   Per-field caps (inherited from `ssz_hash_tree_root_list_bytelist`):
 
-      state.N   ≤ 32   (schema allows up to 2^20)
-      codes.N   ≤ 32   (schema allows up to 2^16)
+      state.N   ≤ 32   (schema allows up to 2^22)
+      codes.N   ≤ 32   (schema allows up to 2^18)
       headers.N ≤ 32   (schema allows up to 256)
 
   Production-sized witnesses with thousands of state nodes
@@ -75,7 +75,7 @@
   `ssz_hash_tree_root_execution_witness:`. Reads the three
   u32 offsets, derives per-field section bounds, calls
   `ssz_hash_tree_root_list_bytelist` three times with the
-  spec's capacity log2s (state: 15/20, codes: 19/16,
+  spec's capacity log2s (state: 5/22, codes: 11/18,
   headers: 5/8), then calls `ssz_merkleize` over the 3 child
   roots with limit_log2 = 2 to produce the Container root.
 

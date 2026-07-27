@@ -323,7 +323,5 @@ theorem globalCellIs_to_own (addr v : Word) :
     ∀ h, globalCellIs addr v h → globalCellOwn addr h :=
   fun _ hh => memIs_implies_memOwn _ hh
 
-#print axioms execBlockAt_sound
-#print axioms regFile_auipc_spec_within
 
 end EvmAsm.Rv64.SAsm

@@ -46,7 +46,8 @@ STABLE_BASES = {
     "OUTPUT_ADDR":  0xa0010000,
     ".text":        0x80000000,
     ".data":        0xa3000000,
-    ".sszscratch":  0xbf500000,
+    ".bss":         0xa4000000,
+    ".sszscratch":  0xbf800000,
     "ssz_input_decoded":      0xa0020000,
     "execution_witness_area": 0xa0030000,
     "node_db_buckets":        0xa0130000,
@@ -58,6 +59,16 @@ STABLE_BASES = {
     "keccak_scratch":         0xa1b70000,
     "ecrecover_scratch":      0xa1b80000,
     "sha256_scratch":         0xa1b90000,
+    # GH #10619: the spec's three read sets, block-lifetime, untouched by
+    # rollback (state_tracker.py:67-77 / :96-104; restore_tx_state :809-826
+    # restores only the write structures).
+    "storage_reads_area":     0xa1ba0000,
+    "account_reads_area":     0xa1ca0000,
+    "code_reads_area":        0xa1d20000,
+    # GH #10619 gate 3: the per-transaction level of the same three sets.
+    "tx_storage_reads_area":  0xa1da0000,
+    "tx_account_reads_area":  0xa1ea0000,
+    "tx_code_reads_area":     0xa1f20000,
 }
 
 

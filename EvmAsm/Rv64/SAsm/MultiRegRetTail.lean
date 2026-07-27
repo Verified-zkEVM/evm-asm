@@ -157,6 +157,5 @@ theorem multiRegRetTail_spec (cr : CodeReq) (addr ret : Word)
           xperm_hyp hq)
         (cpsTripleWithin_mono_nSteps (by simp only [List.length_cons]; omega) hc)
 
-#print axioms multiRegRetTail_spec
 
 end EvmAsm.Rv64.SAsm

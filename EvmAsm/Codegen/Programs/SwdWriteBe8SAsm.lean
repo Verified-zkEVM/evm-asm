@@ -261,7 +261,6 @@ theorem swdWriteBe8Fn_spec (v dst : Word) (orig : List (BitVec 8))
     subst hi8
     exact writeBe8Win_8_eq v orig hlen
 
-#print axioms swdWriteBe8Fn_spec
 
 end SwdWriteBe8SAsm
 

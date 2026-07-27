@@ -67,7 +67,8 @@ extcodecopy_at_header_state_root:
   addi a2, s8, 72            # &acct.code_hash
   la a3, ecc_match_offset
   la a4, ecc_match_len
-  jal ra, witness_codes_lookup_by_hash
+  mv a5, s2                  # GH #10619: address ptr for the CodeRead tuple
+  jal ra, code_read_fetch
   beqz a0, .Lecc_step5
   li a0, 5                   # integrity violation
   j .Lecc_ret

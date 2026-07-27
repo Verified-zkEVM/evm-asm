@@ -5,7 +5,7 @@ Run from the repo root via execution-specs dependencies, for example:
 
     uv run --directory execution-specs --quiet python3 \
         ../scripts/eest-eip7934-input-equivalence.py \
-        ../gen-out/eest-fixtures/tests-zkevm@v0.5.0/fixtures/fixtures/blockchain_tests/for_amsterdam/osaka/eip7934_block_rlp_limit/max_block_rlp_size/block_at_rlp_size_limit_boundary.json
+        ../gen-out/eest-fixtures/tests-zkevm@v0.6.2/fixtures/fixtures/blockchain_tests/for_amsterdam/osaka/eip7934_block_rlp_limit/max_block_rlp_size/block_at_rlp_size_limit_boundary.json
 
 The check intentionally does not feed raw fixture RLP to the guest. It reports
 whether the structured stateless input carries the same block-size-relevant data

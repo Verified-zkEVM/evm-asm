@@ -50,6 +50,8 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++         -- memory_start_index
     "  ld x15, 96(x12)
 " ++         -- size
+    memDynamicU256RangeOogGuardAsm
+      "extcodecopy" "x12" "x15" "x16" "x17" 32 96 ++
     -- eccob.1: both EXTCODECOPY copy paths consume only the low 64-bit code offset.
     -- If any high limb is nonzero, or the low limb is at/above the deployed-code cap,
     -- normalize to 32768 so the existing zero-padded copy loops cannot wrap the source index.
@@ -79,34 +81,20 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  la x6, ecc_old_active; sd x5, 0(x6)
 " ++
-    "  addi sp, sp, -8
-" ++
-    "  sd x5, 0(sp)
-" ++
     copyWordGasAsm "extcodecopy" "x15" "x16" "x17" "x18" ++
-    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true ++
-    "  ld x5, 0(sp)
-" ++
-    "  addi sp, sp, 8
-" ++
-    "  ld x6, " ++ toString activeMemorySizeOff ++ "(x20)
-" ++
-    "  add x7, x13, x5
-" ++
-    "  add x8, x13, x6
-" ++
-    ".Lrt_ecc_zero_new_mem:
-" ++
-    "  bgeu x7, x8, .Lrt_ecc_zero_new_done
-" ++
-    "  sb zero, 0(x7)
-" ++
-    "  addi x7, x7, 1
-" ++
-    "  j .Lrt_ecc_zero_new_mem
-" ++
-    ".Lrt_ecc_zero_new_done:
-" ++
+    -- GH #10550: `updateActiveMemorySizeAsm` with chargeGas=true already
+    -- fresh-zeroes exactly [x13+old, x13+rounded) with `sd`, and it stores
+    -- `rounded` into activeMemorySize only AFTER that loop -- so the interval a
+    -- second pass would cover is the same interval by construction, not by
+    -- coincidence.  The byte-wise re-zero that used to sit here was therefore
+    -- pure over-work: 4 instructions per byte against 0.5, ~89% of
+    -- EXTCODECOPY's zeroing steps, for no behavioural difference.
+    --
+    -- The `ecc_old_active` stash above is NOT part of that redundancy and must
+    -- stay: it is read at the same-block-code tail-zero below, which clamps its
+    -- start up to the pre-expansion msize.  Only the stack copy of the old
+    -- msize went with the loop, because nothing else consumed it.
+    updateActiveMemorySizeAsm "extcodecopy" "x14" "x15" "x16" "x17" "x18" "x6" true false ++
     "  add x19, x13, x14
 " ++       -- output ptr = evm_memory + memory_start
     "  la t1, ecc_address_scratch
@@ -144,7 +132,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  ld t0, 568(x20)
 " ++
-    "  li t1, 100
+    s!"  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}
 " ++
     "  bltu t0, t1, .exit_outofgas
 " ++
@@ -278,10 +266,9 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
-    -- A same-transaction CREATE deposit is not visible in the header-state code
-    -- witness. The CREATE return path records deployed bytes in
-    -- exec_code_effect_log, so EXTCODECOPY must consult that current-code overlay
-    -- before falling back to the pre-block trie helper.
+    -- Current code comes from the shared mutable CodeState overlay before the
+    -- authenticated pre-block witness.  The append-only effect log is BAL
+    -- comparator evidence only and must not decide execution visibility.
     "  addi sp, sp, -64
 " ++
     "  sd x10, 0(sp)
@@ -298,15 +285,11 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  sd x21, 48(sp)
 " ++
-    "  la a0, exec_code_effect_log
+    "  la a0, ecc_address_scratch
 " ++
-    "  la t0, exec_code_effect_count; ld a1, 0(t0)
+    "  jal ra, code_state_lookup_current
 " ++
-    "  la a2, ecc_address_scratch
-" ++
-    "  jal ra, find_code_effect_by_address
-" ++
-    "  mv t0, a0
+    "  mv t0, a0; mv t2, a2; sd a1, 56(sp); ld t1, 56(sp)
 " ++
     "  ld x10, 0(sp)
 " ++
@@ -324,11 +307,13 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
-    "  beqz t0, .Lrt_ecc_no_create_effect
+    "  li t5, 1; beq t0, t5, .Lrt_ecc_same_from_codestate
 " ++
-    "  addi t1, t0, 48
+    "  bnez t0, .Lrt_ecc_codestate_empty
 " ++
-    "  ld t2, 40(t0)
+    "  j .Lrt_ecc_no_create_effect
+" ++
+    ".Lrt_ecc_same_from_codestate:
 " ++
     "  ld t3, 64(x12)
 " ++
@@ -336,6 +321,23 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  j .Lrt_ecc_same_loop
 " ++
+    -- An explicit empty/deleted CodeState entry masks pre-block witness code.
+    -- EXTCODECOPY consequently writes zero bytes without touching the witness.
+    ".Lrt_ecc_codestate_empty:
+" ++
+    "  mv t0, x19; mv t1, x15
+" ++
+    ".Lrt_ecc_codestate_zero_loop:
+" ++
+    "  beqz t1, .Lrt_ecc_codestate_zero_done
+" ++
+    "  sb zero, 0(t0); addi t0, t0, 1; addi t1, t1, -1; j .Lrt_ecc_codestate_zero_loop
+" ++
+    ".Lrt_ecc_codestate_zero_done:
+" ++
+    "  addi x12, x12, 128; addi x10, x10, 1
+" ++
+    dispatchContinueRet ++ "\n" ++
     ".Lrt_ecc_no_create_effect:
 " ++
     "  ld t0, 608(x20)

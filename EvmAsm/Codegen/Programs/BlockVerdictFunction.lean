@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPrecompileGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
+import EvmAsm.Codegen.Programs.BlockVerdictWithdrawalEffects
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
@@ -107,8 +108,11 @@ def blockVerdictFunction : String :=
   "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
   "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
   "  # positive. tx list is empty iff transactions_offset == withdrawals_offset.\n" ++
-  "  ld t4, 0(s0)                # exec_payload from extracted params\n" ++
-  "  la t5, bv_exec_p; sd t4, 0(t5)\n" ++
+  -- `blockVerdictBmvMxPrecomputePrefix` has already initialized `bv_exec_p`
+  -- to `s3 + 60`, the execution-payload SSZ base.  `0(s0)` is not populated
+  -- until the later extracted-params stage; overwriting the global here made
+  -- the no-transaction gas gate read an unrelated zero word.
+  "  la t5, bv_exec_p; ld t4, 0(t5)\n" ++
   "  addi a0, t4, 504; jal ra, bgv_u32le        # transactions_offset\n" ++
   "  la t5, bv_tx_off; sd a0, 0(t5)\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 508; jal ra, bgv_u32le   # withdrawals_offset\n" ++
@@ -207,6 +211,14 @@ def blockVerdictFunction : String :=
   -- and bv_chain_id (captured by chain_config_valid).
   "  jal ra, verify_public_keys_match_senders\n" ++
   "  bnez a0, .Lbv_public_keys_sender_fail\n" ++
+  -- evm-asm-7zzfv (v0.6.0 item 8): per-tx chain-id-vs-block gate,
+  -- fork.py:1051-1055 process_transaction: reject the block when chain_id(tx)
+  -- is present and != block_env.chain_id (WrongChainIdError). Typed txs embed
+  -- their own chain id in the signing hash, so the sender recovery above
+  -- succeeds regardless of the block chain id -- without this gate a
+  -- wrong-chain typed tx was a verdict false-accept.
+  "  jal ra, block_verdict_chain_id_gate\n" ++
+  "  bnez a0, .Lbv_chain_id_gate_fail\n" ++
   "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
   "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++
@@ -268,10 +280,23 @@ def blockVerdictFunction : String :=
   "  # pre-account record table materialized by block_state_root.\n" ++
   blockVerdictMtxRuntimeLoop ++
   ".Lbv_singletx:\n" ++
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  jal ra, simple_transfer_tx_context\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 0(t2); bnez t0, .Lbv_after_tx_gas_precharge\n" ++
+  -- The type-4 authorization classifier runs on both the direct EOA path and
+  -- the later gas-result pass. Publish the recovered transaction sender before
+  -- either path so a self-sponsored authorization observes the transaction
+  -- nonce increment exactly as `process_transaction` does.
+  "  ld a0, 24(t2); la a1, bv_stx_sender_addr; jal ra, address_from_pubkey\n" ++
+  -- Use the same live intrinsic/auth writer as the MTx lane.  The shortcut's
+  -- former replay-based producer is deliberately not invoked afterwards.
+  "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_phase_applied; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_i; sd zero, 0(t0); la t2, bv_simple_transfer_tx; ld a0, 8(t2); ld a1, 16(t2); ld a2, 176(t2); ld a3, 184(t2); la a4, bv_stx_sender_addr; ld a5, 160(t2); li a6, 0; jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
+  "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
+  "  la t2, bv_simple_transfer_tx; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
   -- and max_priority_fee_per_gas <= max_fee_per_gas (PriorityFeeGreaterThanMaxFeeError,
@@ -303,6 +328,7 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_cd_eoa_restore        # code-hash lookup failed -> conservative EOA path\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_cd_same_block_delegation\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
@@ -312,6 +338,7 @@ def blockVerdictFunction : String :=
   "  ld t3, 24(t0); ld t4, 24(t1); bne t3, t4, .Lbv_contract_dispatch\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
   "  addi a0, t2, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
+  "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  bnez a0, .Lbv_cd_eoa_confirmed\n" ++
   ".Lbv_cd_same_block_delegation:\n" ++
@@ -324,6 +351,9 @@ def blockVerdictFunction : String :=
   "  ld t0, 64(t2); bnez t0, .Lbv_after_tx_gas_precharge  # unresolved code hash with calldata: conservative skip\n" ++
   ".Lbv_cd_eoa_confirmed:\n" ++
   "  la t2, bv_simple_transfer_tx        # confirmed empty-code recipient\n" ++
+  -- The direct single-tx lane ran the auth writer in
+  -- block_verdict_tx_state_gas_inline_prepare; do not invoke a second writer
+  -- here.  MTx uses the post-reservoir callback in the common dispatcher.
   blockVerdictSimpleTransferPrecompileGasAsm ++
   blockVerdictSimpleTransferPublishAsm ++
   ".Lbv_tx_gas_precharge_not_precompile:\n" ++  "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
@@ -565,23 +595,38 @@ def blockVerdictFunction : String :=
   "  la t1, tgbpv_top_state_gas; sd t0, 0(t1)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
+  "  la t1, tgbpv_direct_oog; sd zero, 0(t1)\n" ++
   "  la t0, tgbpv_top_state_gas; ld t0, 0(t0)\n" ++
   "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_direct_state_publish_ok\n" ++
   "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_state_publish_ok:\n" ++
-  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
-  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); add t6, a1, a3; add t6, t6, t0\n" ++
+  "  la t1, runtime_tx_auth_state_refund; ld t1, 0(t1); add t1, t1, t0; la t2, evm_state_gas_used; sd t1, 0(t2)\n" ++
+  -- `topLevelValueRecipientStateGasAsm` is a callable composition and may
+  -- clobber a1/a3. `simple_transfer_intrinsic_gas` has already published the
+  -- intrinsic regular and net intrinsic state components in these cells; reload
+  -- them to form the same combined pre-refund charge that execution-specs uses
+  -- for `tx.gas - gas_left - state_gas_left`.
+  "  la t1, runtime_tx_intrinsic_regular; ld t4, 0(t1)\n" ++
+  "  la t1, bvgr_tx_state_gas; ld t3, 0(t1); la t1, runtime_tx_auth_state_refund; ld t1, 0(t1); add t3, t3, t1\n" ++
+  "  la t1, bv_simple_transfer_tx; ld t5, 40(t1); add t6, t4, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_direct_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_direct_gas_have_left\n" ++
   ".Lbv_simple_transfer_direct_gas_exhausted:\n" ++
+  -- v0.6.0 (C8): charge-point OOG -- failed tx, all gas burned, all
+  -- prep state charges refill (exec state 0).
   "  li t5, 0\n" ++
+  "  la t4, tgbpv_direct_oog; li t6, 1; sd t6, 0(t4)\n" ++
+  "  la t4, evm_state_gas_used; sd zero, 0(t4)\n" ++
   ".Lbv_simple_transfer_direct_gas_have_left:\n" ++
   "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
   "  la t4, tgbpv_skip_value; ld t5, 0(t4); beqz t5, .Lbv_simple_transfer_direct_status_success\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
   ".Lbv_simple_transfer_direct_status_success:\n" ++
+  "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_std_status_one\n" ++
+  "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
+  ".Lbv_std_status_one:\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_direct_status_store:\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++
@@ -594,7 +639,14 @@ def blockVerdictFunction : String :=
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_runtime_refund_counter; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_runtime_calldata_floor; sd t5, 0(t4)\n" ++
   "  li t5, 1; la t4, bvgr_runtime_count; sd t5, 0(t4)\n" ++
-  "  j .Lbv_after_tx_gas_precharge       # EOA runtime done; skip the contract-dispatch block\n" ++
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
+  -- Direct EOA settlement has completed the transaction effects, but historically
+  -- jumped past the body-effect reconciliation below.  That let a forged payload
+  -- omit a withdrawal while retaining its BAL/state-root credit.  Enter at the
+  -- non-storage seam: it materializes only authenticated body withdrawals and
+  -- compares them with BAL, while avoiding the contract-only recipient/storage
+  -- state that the EOA path does not initialize.
+  "  j .Lbv_eoa_body_effect_reconcile\n" ++
   ".Lbv_st_sender_coinbase_maybe:\n" ++
   "  la t0, bv_tx_gas_precharge; addi t0, t0, 104; ld t1, 0(s0); addi t1, t1, 32; li t2, 20\n" ++
   ".Lbv_st_sender_coinbase_cmp:\n" ++
@@ -793,9 +845,13 @@ def blockVerdictFunction : String :=
   -- storage comparators see no change for a touched-but-aborted account (EIP-7928 records the
   -- access in the BAL but the write is rolled back) while the rows stay for the reads check.
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_stx_sender_addr; sd t1, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++
+  "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, cd_destroyed_empty_hits; ld t0, 0(t0); beqz t0, .Lbv_dispatch_status_ready\n" ++
   "  li a0, 62\n" ++
   ".Lbv_dispatch_status_ready:\n" ++
@@ -809,6 +865,10 @@ def blockVerdictFunction : String :=
   -- raw evm_refund_acc read.
   "  la t4, bv_runtime_refund_counter; sd a3, 0(t4)\n" ++
   "  la t4, bv_tx_status_arr; sd a4, 0(t4)\n" ++   -- .63.1.6.2.1: receipt status, tx 0
+  -- Finalize only after the runtime status has reached its authoritative
+  -- per-transaction cell; a reverted contract body must not retain executed
+  -- state gas, while a successful body must.
+  "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   -- fva3w: the tx errored (a4 == 0 = REVERT / exceptional abort) -> roll back the exec effect
   -- logs to the pre-tx snapshot, discarding the rolled-back value-transfer / CREATE effects so
   -- the all-accounts non-storage/code comparators see net-zero for a touched-but-aborted account
@@ -820,22 +880,29 @@ def blockVerdictFunction : String :=
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  -- bbow4.2: NET-ZERO the aborted tx's storage exec-log rows (set current := original for each
-  -- row in [snap_count, count)). The tx's SSTORE writes are reverted, so the change comparators
-  -- (bal_all_accounts_storage_consistent fwd / bal_storage_covers_exec_log rev) see net-zero;
-  -- but the rows STAY so the slots remain "accessed" for the recipient storage_reads check
-  -- (bal_storage_reads_in_exec_log, bv_fail=38). Truncating the rows instead would drop the
-  -- aborted tx's READ slots -> bv38. Rows: addrHash@0, slotKey@32, original@64, current@96
-  -- (128 B stride at 0xa0630000). We do NOT change evm_env+448 (keep every row).
-  "  la t0, bv_tx_effect_snap_storage_count; ld t0, 0(t0)\n" ++          -- t0 = i = pre-tx row count
-  "  la t1, evm_env; ld t1, 448(t1)\n" ++                                -- t1 = post-dispatch row count
-  "  li t2, 0xa0630000\n" ++                                            -- t2 = storage exec-log base
-  ".Lbv_tx0_storage_revert:\n" ++
-  "  bgeu t0, t1, .Lbv_tx0_effects_kept\n" ++
-  "  slli t3, t0, 7; add t3, t2, t3\n" ++                               -- t3 = &row[i] = base + i*128
-  "  ld t4, 64(t3); sd t4, 96(t3); ld t4, 72(t3); sd t4, 104(t3)\n" ++  -- current := original (32 B)
-  "  ld t4, 80(t3); sd t4, 112(t3); ld t4, 88(t3); sd t4, 120(t3)\n" ++
-  "  addi t0, t0, 1; j .Lbv_tx0_storage_revert\n" ++
+  -- GH #10619: TRUNCATE the aborted tx's storage exec-log rows to the pre-tx count,
+  -- replacing the net-zero-and-keep loop that stood here.
+  --
+  -- That loop existed for TWO reasons, and only one of them is now obsolete. Its own
+  -- note recorded both: the rows were net-zeroed so the change comparators
+  -- (`bal_all_accounts_storage_consistent` fwd / `bal_storage_covers_exec_log` rev)
+  -- would see no change for a touched-but-aborted account, AND the rows were KEPT
+  -- rather than truncated so the slots stayed "accessed" for the recipient
+  -- `storage_reads` check -- "Truncating the rows instead would drop the aborted tx's
+  -- READ slots -> bv38", in its own words. Reads now live in the `storage_reads`
+  -- container, which rollback does not touch and which `bal_storage_reads_in_exec_log`
+  -- reads directly, so that second reason is gone.
+  --
+  -- The FIRST reason is NOT gone, which is why this is a truncation rather than a bare
+  -- deletion. Simply removing the loop would leave the aborted tx's SSTORE values in
+  -- the write log as apparent changes the BAL never declares. Truncation discharges it
+  -- more directly than net-zeroing did -- no rows at all means no changes -- and it is
+  -- what the spec does: `restore_tx_state` (state_tracker.py:809-826) restores only the
+  -- WRITE structures and leaves the read sets alone, and `frame_return` already
+  -- truncates a reverted child the same way. The value-derived read-vs-write
+  -- distinction in the 128-byte row therefore stops being load-bearing here, which is
+  -- the collapse #10619 exists to remove rather than to preserve as a no-op.
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   -- dispatch_tx_runtime_code already snapshots recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.
@@ -865,11 +932,12 @@ def blockVerdictFunction : String :=
   "  jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
   "  li t0, 2; beq a0, t0, .Lbv_recipient_storage_exact_done\n" ++
-  -- If runtime replay could not materialize a complete gas/effect arena,
-  -- the recipient execution storage log is incomplete. The authenticated
-  -- state-root recompute remains binding, so skip this redundant storage
-  -- exactness check rather than false-rejecting BAL rows against a partial log.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_storage_exact_done\n" ++
+  -- `bvgr_arena_tx_count` is not initialized until the later gas-gate prelude.
+  -- The dispatcher has already published its per-tx result here, so gate this
+  -- exactness check on that available runtime evidence instead.  An absent
+  -- runtime result is fail-closed: partial execution evidence must not permit a
+  -- BAL storage row to be omitted.
+  "  la t0, bvgr_runtime_count; ld t0, 0(t0); beqz t0, .Lbv_bal_storage_omit_fail\n" ++
   -- Reverted/exceptional txs keep access evidence, but their storage writes do not commit.
   -- The raw replay log still contains attempted SSTOREs; do not require those reverted writes
   -- to appear as BAL storage_changes. State-root/BAL application already rejects any committed
@@ -926,7 +994,30 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 4; bne t1, t2, .Lbv_rnc_sender_guard\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bacc_finals; jal ra, bal_account_nonstorage_finals\n" ++
   "  bnez a0, .Lbv_rnc_sender_guard; la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbv_rnc_sender_guard\n" ++
-  "  ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
+  -- EIP-7702 NULL delegation is the dual of installing a 23-byte marker: the
+  -- authenticated authority's BAL code change is present but empty, and its
+  -- nonce advances from the signed authorization nonce by exactly one. Skip
+  -- the local unchanged-recipient shortcut only for that precise effect; the
+  -- all-account code/nonstorage comparators still validate the BAL row.
+  "  la t0, teer_success_count; ld t1, 0(t0); li t2, 0; la t3, teer_success_table\n" ++
+  ".Lbv_rnc_clear_find:\n" ++
+  "  beq t2, t1, .Lbv_rnc_marker_check\n" ++
+  "  mv t4, t3; la t5, bv_simple_transfer_tx; addi t5, t5, 72; li t6, 20\n" ++
+  ".Lbv_rnc_clear_addr_cmp:\n" ++
+  "  beqz t6, .Lbv_rnc_clear_addr_match\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lbv_rnc_clear_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbv_rnc_clear_addr_cmp\n" ++
+  ".Lbv_rnc_clear_addr_match:\n" ++
+  "  lw t4, 20(t3); beqz t4, .Lbv_rnc_clear_next\n" ++
+  "  la t4, bacc_finals; ld t5, 56(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 72(t4); bnez t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 40(t4); beqz t5, .Lbv_rnc_marker_check\n" ++
+  "  ld t5, 48(t4); ld t6, 24(t3); addi t6, t6, 1; bne t5, t6, .Lbv_rnc_marker_check\n" ++
+  "  j .Lbv_recipient_nc_done\n" ++
+  ".Lbv_rnc_clear_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lbv_rnc_clear_find\n" ++
+  ".Lbv_rnc_marker_check:\n" ++
+  "  la t0, bacc_finals; ld t2, 72(t0); li t3, 23; bne t2, t3, .Lbv_rnc_sender_guard; ld t2, 64(t0); la t4, bvcd_acct_ptr; ld t4, 0(t4); add t2, t4, t2\n" ++
   "  lbu t3, 0(t2); li t4, 0xef; bne t3, t4, .Lbv_rnc_sender_guard; lbu t3, 1(t2); li t4, 0x01; bne t3, t4, .Lbv_rnc_sender_guard\n" ++
   "  lbu t3, 2(t2); bnez t3, .Lbv_rnc_sender_guard; j .Lbv_recipient_nc_done\n" ++
   ".Lbv_rnc_sender_guard:\n" ++
@@ -988,25 +1079,25 @@ def blockVerdictFunction : String :=
   ".Lbv_recipient_code_check:\n" ++
   "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
   "  jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbv_after_tx_gas_precharge             # malformed/absent -> skip (conservative)\n" ++
+  "  bnez a2, .Lbv_bal_recipient_field_fail           # malformed -> reject (fail-closed)\n" ++
   "  la t0, bv_rcf_off; sd a0, 0(t0); la t0, bv_rcf_len; sd a1, 0(t0)\n" ++
   "  # Walk to item 5 = code_changes.\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done; la t0, bv_rcf_off; sd a0, 0(t0)\n" ++
   "  la t0, bv_rcf_off; ld a0, 0(t0); la t0, bv_rcf_len; ld a1, 0(t0); jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbv_after_tx_gas_precharge\n" ++
+  "  bnez a1, .Lbv_recipient_nc_done\n" ++
   "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbv_bal_recipient_field_fail\n" ++
   "  jal ra, rlp_walk_next\n" ++
-  "  li t0, 2; beq a1, t0, .Lbv_after_tx_gas_precharge\n" ++
+  "  li t0, 2; beq a1, t0, .Lbv_recipient_nc_done\n" ++
   "  j .Lbv_bal_recipient_field_fail\n" ++
   -- bmvmx.1.6.4.3: all-accounts storage exec-vs-BAL. Every NON-recipient BAL account's
   -- storage_changes must match the exec log — forward (every claimed change reproduced) AND
@@ -1024,11 +1115,16 @@ def blockVerdictFunction : String :=
   ".Lbv_storage_skip_sys_o:\n  li t2, 20\n" ++
   ".Lbv_storage_skip_sys_i:\n  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lbv_storage_skip_sys_i\n" ++
   "  addi t0, t0, 12; addi t4, t4, -1; bnez t4, .Lbv_storage_skip_sys_o\n" ++
-  -- If runtime replay could not materialize a complete gas/effect arena,
-  -- the execution storage log is incomplete. The authenticated state-root
-  -- recompute remains binding, so skip these redundant storage/tuple checks
-  -- rather than false-rejecting BAL rows against a partial replay.
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_storage_tuple_checks\n" ++
+  -- rgtkz (bmvmx): run the all-accounts exec-vs-BAL storage/tuple checks only when the
+  -- execution storage log is COMPLETE for the block's writes: exactly one user tx AND its
+  -- dispatch completed. On multi-tx blocks the live log holds only the LAST tx's writes
+  -- (it resets per dispatch), so these checks would false-reject; multi-tx coverage stays
+  -- with the MtxTail comparators (durable stores). The previous arena-count guard skipped
+  -- the checks on every single-tx block (the gas arena is published later), leaving the
+  -- BAL-driven state-root recompute as the only link -- and that root is attacker-
+  -- recomputable (FA rgtkz). Dispatch-failed/partial flows keep the old skip posture.
+  "  la t0, svf_tx_count; ld t0, 0(t0); li t1, 1; bne t0, t1, .Lbv_after_storage_tuple_checks\n" ++
+  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_after_storage_tuple_checks\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
@@ -1077,6 +1173,7 @@ def blockVerdictFunction : String :=
   -- coinbase} are gas/value-coupled (pinned on the gas path); set unconditionally above
   -- (bv_simple_transfer_tx+72, bmvmx_sender_addr, bmvmx_coinbase_addr). 32-byte-strided,
   -- address in the first 20 bytes.
+  ".Lbv_eoa_body_effect_reconcile:\n" ++
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n" ++
@@ -1107,11 +1204,14 @@ def blockVerdictFunction : String :=
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
-  -- If contract replay could not materialize a complete runtime gas/effect arena,
-  -- the final state-root recompute is still the binding authenticated check. Do not
-  -- false-reject such rows in the redundant exec-vs-BAL non-storage comparator with
-  -- an incomplete execution log (observed on same-tx SELFDESTRUCT-via-CALL rows).
-  "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); beqz t0, .Lbv_after_nonstorage_covers\n" ++
+  -- 7rbp3: EIP-4895 body credits are authenticated non-storage effects too.
+  -- Materialize them before aggregation so the existing 44/45 comparators check
+  -- both BAL->effect consistency and effect->BAL coverage.
+  "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- Run the all-account comparison even when replay produced no transaction arena:
+  -- the reverse arm must reject a BAL balance credit with no corresponding body
+  -- withdrawal (or execution) effect. The modeled-system accounts remain skipped.
   -- bmvmx.5.5.7.3: aggregate the raw non-storage effect log per account (first-pre / last-post)
   -- via the linear helper BEFORE the all-accounts comparators. The comparator's find-loop takes
   -- the FIRST matching effect record, so passing the RAW log compared the BAL's block-FINAL
@@ -1119,6 +1219,11 @@ def blockVerdictFunction : String :=
   -- >1 value effect in the tx. Aggregating to last-post fixes that, matches the multi-tx path,
   -- and yields a SORTED agg (enables a future binary-search comparator). Behavior-preserving for
   -- the single-touch common case (0-regress). The helper resets agg_count + preserves s-regs.
+  -- Fail closed if an effect producer overflowed its bounded log. The multi-tx
+  -- validation tail applies the same rule; comparing a truncated prefix would
+  -- otherwise leave later execution effects outside both directions of the
+  -- authenticated BAL reconciliation.
+  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_bal_nonstorage_fail\n" ++
   "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
   "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
   "  jal ra, nonstorage_effect_aggregate\n" ++
@@ -1186,8 +1291,19 @@ def blockVerdictFunction : String :=
   "  li t0, 2; beq a0, t0, .Lbv_after_tx_gas_precharge\n" ++
   "  la a0, evm_env\n" ++
   "  la t0, bvcd_acct_ptr; ld a1, 0(t0); la t0, bvcd_acct_len; ld a2, 0(t0)\n" ++
-  "  li a3, 0xa0630000\n" ++
-  "  la t0, evm_env; ld a4, 448(t0)\n" ++
+  -- GH #10619: this compare now reads the block-level `storage_reads` CONTAINER
+  -- (`STORAGE_READS_AREA` = 0xa1ba0000, `storage_reads_count`, 64-byte
+  -- `addrHash ++ slotKey` entries) rather than the 128-byte exec log. The
+  -- container mirrors the spec's `BlockState.storage_reads` set, which rollback
+  -- does not touch, so a read taken inside a frame that later reverted is still
+  -- present — which is the divergence #10619 exists to remove. The container is
+  -- exactly the exec log's key prefix, and this comparator never reads past
+  -- offset 56, so the comparison itself is unchanged; only the population is.
+  -- a5 = entry stride, travelling WITH the base/count so a base cannot be
+  -- re-pointed without it.
+  "  li a3, 0xa1ba0000\n" ++
+  "  la t0, storage_reads_count; ld a4, 0(t0)\n" ++
+  "  li a5, 64\n" ++
   "  jal ra, bal_storage_reads_in_exec_log\n" ++
   "  bnez a0, .Lbv_bal_reads_fail\n" ++
   -- Execution-derived sender BAL compare. This exact check is entered only after
@@ -1324,37 +1440,37 @@ def blockVerdictFunction : String :=
   "  j .Lbv_after_tx_gas_precharge\n" ++
 
   blockVerdictCreateCollisionBranch ++
-  bvReceiptsShapeSet 60 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvReceiptsShapeSet 60 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_contract_dispatch_unsupported:\n" ++
+  -- A failed/unsupported single-tx runtime has no executed-state component,
+  -- but its already-prepared intrinsic/auth state charge still belongs to the
+  -- receipt and EIP-8037 settlement.  This is the failed arm of the same
+  -- per-transaction finalizer used after successful runtime dispatch.
+  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 false ++  "  j .Lbv_after_tx_gas_precharge\n" ++
+  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
+  -- Exact block-gas settlement needs one runtime result for every transaction.
+  -- Creation and otherwise unsupported execution shapes deliberately leave that
+  -- arena incomplete; their pre-execution EIP-8037 admission was already checked
+  -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
-  -- .57.11.6.5.2: fill bvgr_tx_state_gas (per-tx intrinsic.state) FIRST, so the EIP-7778
-  -- remaining-block-gas check below can apply the spec's 2D REGULAR test
-  -- min(TX_MAX_GAS_LIMIT, tx.gas - intrinsic.state) (amsterdam fork.py:591) instead of the
-  -- 1D over-approx min(TX_MAX, tx.gas). block_verdict_tx_state_gas_array depends only on the
-  -- tx list (not the gas-result arena), so running it here is order-safe; its bail is the
-  -- same conservative skip. (Moved up from just below the EIP-7778 check.)
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
-  "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
-  "  la a3, bvgr_tx_state_gas\n" ++
-  "  la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)\n" ++
-  "  la t2, bv_bal_start; ld a4, 0(t2)\n  la t2, bv_bal_len; ld a5, 0(t2)\n  la t2, bv_chain_id; ld a6, 0(t2)\n" ++
-  "  jal ra, block_verdict_tx_state_gas_array\n" ++
-  -- .57.11.6.5.2: block_verdict_tx_state_gas_array can bail (a0 != 0) even after a successful
-  -- arena_prepare -- e.g. tx_intrinsic_state_gas unsupported for some tx (TxIntrinsicStateGas.lean).
-  -- Do NOT skip the EIP-7778 reject check on that bail (that would be a regression: the check
-  -- ran unconditionally before this reorder). Instead ZERO bvgr_tx_state_gas and fall through:
-  -- the check below then uses intrinsic.state == 0 = the legacy min(TX_MAX, tx.gas) over-approx
-  -- (= the pre-fix behaviour, sound), and the block_state floor sums 0 (no false-reject). The
-  -- floor/ceiling still run, so this is strictly >= the old conservative skip.
-  "  beqz a0, .Lbv_state_gas_filled\n" ++
-  "  la t2, bvgr_tx_state_gas; la t3, bvgr_arena_tx_count; ld t3, 0(t3); li t4, 0\n" ++
-  ".Lbv_state_gas_zero:\n" ++
-  "  beq t4, t3, .Lbv_state_gas_filled\n" ++
-  "  slli t5, t4, 3; add t5, t2, t5; sd zero, 0(t5); addi t4, t4, 1; j .Lbv_state_gas_zero\n" ++
-  ".Lbv_state_gas_filled:\n" ++
+  -- The live per-transaction boundary has already populated
+  -- bvgr_tx_state_gas.  Keep the common total-state and regular-settlement
+  -- consumers below, but never reconstruct intrinsic/auth charges here from
+  -- the block-final transaction list.
+  -- 0w05f.17.2: materialize the v0.6 per-tx settlement identity (fork.py:1174)
+  --   tx_state_gas = intrinsic.state + executed state gas
+  -- into bvgr_tx_total_state_gas BEFORE the EIP-7778 gate, so the per-tx
+  -- regular increment below can subtract it (fork.py:1176-1181). The executed
+  -- component was captured per tx by dispatcher_capture_exec_state_gas.  A
+  -- failed/unsupported transaction finalizes only its intrinsic/auth component
+  -- at its own transaction boundary.
+  -- Each supported transaction finalizes its total state-gas cell immediately
+  -- after execution settles.  The current state-refund substrate is
+  -- identically zero, so no late block-wide netting pass is needed.
+  "  la t2, bv_exact_net_status; sd zero, 0(t2)\n" ++
+  "  la t2, bv_exact_net_index; sd zero, 0(t2)\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  la a1, bvgr_tx_gas_limits\n" ++
   "  la a2, bvgr_gas_left\n" ++
@@ -1362,7 +1478,7 @@ def blockVerdictFunction : String :=
   "  la a4, bvgr_calldata_floor\n" ++
   "  la t2, bvgr_arena_tx_count; ld a5, 0(t2)\n" ++
   "  la a6, bvgr_block_gas_increments\n" ++
-  "  la a7, bvgr_tx_state_gas    # .57.11.6.5.2: per-tx intrinsic.state -> spec 2D regular test\n" ++
+  "  la a7, bvgr_tx_total_state_gas   # 0w05f.17.2: per-tx intrinsic+executed state -> tx_regular = max(before_refund - state, floor)\n" ++
   "  jal ra, eip7778_remaining_block_gas_from_results\n" ++
   "  la t2, bv_eip7778_status; sd a0, 0(t2)\n" ++
   "  la t2, bv_eip7778_index; sd a1, 0(t2)\n" ++
@@ -1371,6 +1487,10 @@ def blockVerdictFunction : String :=
   "  j .Lbv_eip7778_block_gas_fail\n" ++
   ".Lbv_eip7778_gate_ok:\n" ++
   blockVerdictExactGasCheck ++
+  -- Fixed execution arenas are gas-bounded. Their producers latch an overflow
+  -- and return normally to preserve call frames; reject the incomplete record here.
+  "  la t0, create_nonce_table_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, exec_code_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
   blockVerdictReceiptsTail
 
 end EvmAsm.Codegen

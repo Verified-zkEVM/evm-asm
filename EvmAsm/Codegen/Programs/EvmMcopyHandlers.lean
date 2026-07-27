@@ -28,8 +28,8 @@ def mcopyHandlers : List OpcodeHandlerSpec :=
         mcopyDynamicGasAsm ++
         "  addi x12, x12, 96\n" ++
         "  beqz x16, .Lmcopy_done\n" ++
-        updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" "x6" false ++
-        updateActiveMemorySizeAsm "mcopy_dst" "x14" "x16" "x17" "x18" "x19" "x6" false ++
+        updateActiveMemorySizeAsm "mcopy_src" "x15" "x16" "x17" "x18" "x19" "x6" false false ++
+        updateActiveMemorySizeAsm "mcopy_dst" "x14" "x16" "x17" "x18" "x19" "x6" false false ++
         "  add x17, x13, x14\n" ++       -- destination pointer
         "  add x18, x13, x15\n" ++       -- source pointer
         "  add x19, x15, x16\n" ++       -- source end offset

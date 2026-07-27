@@ -183,8 +183,6 @@ theorem demoFrame_spec (ret v0 v1 va0 va1 jt : Word)
     (hbody := hbody)
   exact h
 
-#print axioms demoBody_spec
-#print axioms demoFrame_spec
 
 end AbiFrameDemo
 end SAsm

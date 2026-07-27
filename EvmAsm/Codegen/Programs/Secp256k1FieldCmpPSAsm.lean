@@ -350,7 +350,7 @@ private theorem cmpIter_spec
   have hlbuP := liftCode (cr' := CR)
     (bytesRegion_lbu_within .x29 .x5 pConstAddr v29 (cmpPBase + 24)
       secp256k1PBytes i (by decide) (by decide) hip
-      (by have h : pConstAddr.toNat = 0xa3c052c0 := by decide
+      (by have h : pConstAddr.toNat = 0xa3000680 := by decide
           omega)
       (pByte_valid i hi))
     (by rw [hCR]; code_mem)
@@ -935,7 +935,6 @@ theorem secfCmpP_spec (inPtr outPtr ret : Word) (xs : List (BitVec 8))
     (fun h hq => by unfold cmpPost at hq; exact hq)
     (cpsTripleWithin_mono_nSteps (by omega) hc3)
 
-#print axioms secfCmpP_spec
 
 end Secp256k1FieldCmpPSAsm
 

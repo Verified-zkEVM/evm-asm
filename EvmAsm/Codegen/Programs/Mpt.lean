@@ -431,9 +431,9 @@ def ziskMptBranchChildProbeUnit : BuildUnit := {
     HP encoding cheat-sheet (input byte 0):
       high nibble  meaning
       ----------   -------
-         0         extension, even path length (low nibble must be 0)
+         0         extension, even path length (low nibble ignored)
          1         extension, odd path length (low nibble is first path nibble)
-         2         leaf, even path length (low nibble must be 0)
+         2         leaf, even path length (low nibble ignored)
          3         leaf, odd path length (low nibble is first path nibble)
       anything else → invalid
 
@@ -449,9 +449,12 @@ def ziskMptBranchChildProbeUnit : BuildUnit := {
       a3 (input)  : u64 out ptr (number of nibbles emitted)
       a4 (input)  : u64 out ptr (is_leaf flag: 0 = ext, 1 = leaf)
       ra (input)  : return
-      a0 (output) : 0 success, 1 parse failure (empty input,
-                    high nibble ≥ 4, or even path with non-zero
-                    low nibble of byte 0).
+      a0 (output) : 0 success, 1 parse failure (empty input or
+                    high nibble ≥ 4). The even-path padding nibble
+                    (low nibble of byte 0) is IGNORED, matching
+                    execution-specs `compact_to_nibbles`
+                    (amsterdam/incremental_mpt.py:878-889, lenient;
+                    bead evm-asm-3umhl).
 
     Each output byte holds one nibble in its low 4 bits; the
     high 4 bits are zero. This is the format consumed by future
@@ -469,12 +472,10 @@ def hpDecodeNibbles_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BEQ .x9 .x0 (132 : BitVec 13),
+    .BEQ .x9 .x0 (120 : BitVec 13),
     .LBU .x5 .x8 (0 : BitVec 12),
     .SRLI .x6 .x5 (4 : BitVec 6),
     .ANDI .x7 .x5 (15 : BitVec 12),
-    .LI .x28 (4 : Word),
-    .BGEU .x6 .x28 (112 : BitVec 13),
     .ANDI .x28 .x6 (2 : BitVec 12),
     .SRLI .x28 .x28 (1 : BitVec 6),
     .SD .x20 .x28 (0 : BitVec 12),
@@ -483,8 +484,7 @@ def hpDecodeNibbles_prog : Program :=
     .SB .x18 .x7 (0 : BitVec 12),
     .LI .x30 (1 : Word),
     .ADDI .x31 .x18 (1 : BitVec 12),
-    .JAL .x0 (16 : BitVec 21),
-    .BNE .x7 .x0 (72 : BitVec 13),
+    .JAL .x0 (12 : BitVec 21),
     .LI .x30 (0 : Word),
     .MV .x31 .x18,
     .LI .x5 (1 : Word),
@@ -523,7 +523,7 @@ theorem hpDecodeNibblesFunction_eq_prog :
     hpDecodeNibblesFunction = "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog := rfl
 
 #guard hpDecodeNibblesFunction.startsWith "hp_decode_nibbles:\n"
-#guard hpDecodeNibbles_prog.length = 54
+#guard hpDecodeNibbles_prog.length = 51
 /-- `zisk_hp_decode_nibbles`: probe BuildUnit. Reads
     (path_len, path_bytes) from host input, writes
     (status, count, is_leaf, nibbles...) to OUTPUT.
@@ -1077,7 +1077,9 @@ def ziskMptWalkDataSection : String :=
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "mw_nibble_buf:\n" ++
-  "  .zero 128"
+  -- A state-witness node is SSZ ByteList[1024] (checked by the entry decoder).
+  -- HP decoding emits at most 2 * 1024 - 1 = 2047 one-byte nibbles.
+  "  .zero 2048"
 
 def ziskMptWalkProbeUnit : BuildUnit := {
   body        := NOP
@@ -1350,7 +1352,7 @@ def ziskMptLookupByKeyDataSection : String :=
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "mw_nibble_buf:\n" ++
-  "  .zero 128\n" ++
+  "  .zero 2048\n" ++
   ".balign 32\n" ++
   "mlk_keccak_buf:\n" ++
   "  .zero 32\n" ++

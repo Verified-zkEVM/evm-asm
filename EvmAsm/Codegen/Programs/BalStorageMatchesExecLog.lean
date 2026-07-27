@@ -88,7 +88,7 @@ def balStorageMatchesExecLogFunction : String :=
   -- Same 128-byte row layout (addrHash@0, slotKey@32, original@64, current@96). In the
   -- focused probes bv_system_storage_log_count = 0, so this scan is inert there.
   "  la t0, bv_system_storage_log_count; ld t2, 0(t0)\n" ++
-  "  beqz t2, .Lbsme_user_scan    # no captured system rows -> straight to user log\n" ++
+  "  beqz t2, .Lbsme_uarena_scan # no captured system rows -> user side arena\n" ++
   "  la t1, bv_system_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last system entry\n" ++
   ".Lbsme_sys_scan:\n" ++
   "  addi t3, t3, -128\n" ++
@@ -109,6 +109,34 @@ def balStorageMatchesExecLogFunction : String :=
   ".Lbsme_sys_next:\n" ++
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .Lbsme_sys_scan     # not this row -> earlier system row\n" ++
+  -- bmvmx.5.5.10 PR-2: THEN consult the per-tx USER-write side arena
+  -- (bv_user_storage_log, captured after each mtx dispatch; the live exec log only
+  -- holds the LAST dispatch's rows). Backward scan = last-write-wins across txs.
+  -- These rows precede the end-of-block system writes (block_access_index 1..N <
+  -- N+1), so this scan runs only after the system scan missed. Same 128-byte row
+  -- layout. On single-tx lanes the count is 0 (never populated) and this is inert.
+  "  la t0, bv_user_storage_log_count; ld t2, 0(t0)\n" ++
+  "  beqz t2, .Lbsme_user_scan    # no captured user rows -> live exec log\n" ++
+  "  la t1, bv_user_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last user entry\n" ++
+  ".Lbsme_uarena_scan:\n" ++
+  "  addi t3, t3, -128\n" ++
+  "  ld t4, 0(t3);  ld t5, 0(s0);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 8(t3);  ld t5, 8(s0);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 16(t3); ld t5, 16(s0); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 24(t3); ld t5, 24(s0); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 32(t3); ld t5, 0(t6);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 40(t3); ld t5, 8(t6);  bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 48(t3); ld t5, 16(t6); bne t4, t5, .Lbsme_uarena_next\n" ++
+  "  ld t4, 56(t3); ld t5, 24(t6); bne t4, t5, .Lbsme_uarena_next\n" ++
+  -- User side arena has the (addr,slot): this captured value is the final write.
+  "  ld t4, 96(t3);  ld t5, 32(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 104(t3); ld t5, 40(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 112(t3); ld t5, 48(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  ld t4, 120(t3); ld t5, 56(t6); bne t4, t5, .Lbsme_mismatch\n" ++
+  "  j .Lbsme_advance             # captured final value matches -> next change\n" ++
+  ".Lbsme_uarena_next:\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  bnez t2, .Lbsme_uarena_scan  # not this row -> earlier user row\n" ++
   -- Scan the user exec log from the end (last write wins) for (addrHash==s0, key==krev).
   ".Lbsme_user_scan:\n" ++
   "  mv t2, s2\n" ++
@@ -138,11 +166,27 @@ def balStorageMatchesExecLogFunction : String :=
   "  bnez t2, .Lbsme_scan\n" ++
   "  j .Lbsme_mismatch            # scanned whole log, key not found\n" ++
   ".Lbsme_advance:\n" ++
+  -- Temporary differential trace for a matching row (same layout as mismatch).
+  "  li t0, 0xa0010100\n" ++
+  "  ld t1, 0(s0); sd t1, 0(t0); ld t1, 8(s0); sd t1, 8(t0); ld t1, 16(s0); sd t1, 16(t0); ld t1, 24(s0); sd t1, 24(t0)\n" ++
+  "  ld t1, 0(t6); sd t1, 32(t0); ld t1, 8(t6); sd t1, 40(t0); ld t1, 16(t6); sd t1, 48(t0); ld t1, 24(t6); sd t1, 56(t0)\n" ++
+  "  ld t1, 32(t6); sd t1, 64(t0); ld t1, 40(t6); sd t1, 72(t0); ld t1, 48(t6); sd t1, 80(t0); ld t1, 56(t6); sd t1, 88(t0)\n" ++
+  "  ld t1, 96(t3); sd t1, 96(t0); ld t1, 104(t3); sd t1, 104(t0); ld t1, 112(t3); sd t1, 112(t0); ld t1, 120(t3); sd t1, 120(t0)\n" ++
   "  addi s4, s4, 1; j .Lbsme_loop\n" ++
   ".Lbsme_match:\n" ++
   "  li a0, 0\n" ++
   "  j .Lbsme_ret\n" ++
   ".Lbsme_mismatch:\n" ++
+  -- Temporary direct verdict-debug trace for AccountState convergence: persist the
+  -- failing BAL tuple and the last candidate exec-log row outside the 112-byte
+  -- result window.  The epilogue preserves these offsets for post-run comparison.
+  -- OUTPUT+128 account, +160 slot (LE), +192 BAL value (LE), +224 scanned row,
+  -- +352 log base/count/index.  Diagnostic only; remove after 00199 root pin.
+  "  li t0, 0xa0010100\n" ++
+  "  ld t1, 0(s0); sd t1, 0(t0); ld t1, 8(s0); sd t1, 8(t0); ld t1, 16(s0); sd t1, 16(t0); ld t1, 24(s0); sd t1, 24(t0)\n" ++
+  "  ld t1, 0(t6); sd t1, 32(t0); ld t1, 8(t6); sd t1, 40(t0); ld t1, 16(t6); sd t1, 48(t0); ld t1, 24(t6); sd t1, 56(t0)\n" ++
+  "  ld t1, 32(t6); sd t1, 64(t0); ld t1, 40(t6); sd t1, 72(t0); ld t1, 48(t6); sd t1, 80(t0); ld t1, 56(t6); sd t1, 88(t0)\n" ++
+  "  ld t1, 96(t3); sd t1, 96(t0); ld t1, 104(t3); sd t1, 104(t0); ld t1, 112(t3); sd t1, 112(t0); ld t1, 120(t3); sd t1, 120(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lbsme_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -224,12 +268,18 @@ def ziskBalStorageMatchesExecLogDataSection : String :=
   "bsme_acct:\n  .zero 128\n" ++
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
-  -- lv44p: empty captured-system-log stub so the focused probe links the function's
-  -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
-  ".balign 8\n" ++
-  "bv_system_storage_log_count:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero 128\n"
+   -- lv44p: empty captured-system-log stub so the focused probe links the function's
+   -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
+   ".balign 8\n" ++
+   "bv_system_storage_log_count:\n  .zero 8\n" ++
+   ".balign 32\n" ++
+   "bv_system_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n" ++
+   -- bmvmx.5.5.10 PR-2: same inert stub for the per-tx user-write side arena scan.
+   -- One row, sized from `bvStorageLogRowBytes` so the stub tracks the stride.
+   ".balign 8\n" ++
+   "bv_user_storage_log_count:\n  .zero 8\n" ++
+   ".balign 32\n" ++
+   "bv_user_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n"
 
 def ziskBalStorageMatchesExecLogProbeUnit : BuildUnit := {
   body        := NOP

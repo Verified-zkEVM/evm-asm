@@ -14,7 +14,7 @@
   First sub-unit of the n=2 MOD lane.  Bead `evm-asm-wbc4i.10.3.2.4.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Families
+import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
 import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
 
 namespace EvmAsm.Evm64

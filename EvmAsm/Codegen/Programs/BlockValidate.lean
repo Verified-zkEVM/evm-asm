@@ -26,6 +26,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
@@ -307,10 +308,10 @@ def ziskBlockValidate2txFullProbeUnit : BuildUnit := {
          `0xc0` (== `rlp([])`, the empty list).
       3. Counts the transactions list with K47
          `rlp_list_count_items`; requires count == 2.
-      4. Extracts tx0 and tx1 with K20 `rlp_list_nth_item` on
-         the inner transactions list, returning (offset, len)
-         in the OUTER body's address space (offset relative to
-         body_rlp, ready to feed into K171 etc.).
+      4. Initializes one RLP cursor on the inner transactions list and
+         advances it twice with K20's cursor successors, returning
+         (offset, len) in the OUTER body's address space (offset relative
+         to body_rlp, ready to feed into K171 etc.).
 
     Output struct (32 bytes):
        0..  8  tx0_offset (in body_rlp)
@@ -363,26 +364,27 @@ def blockBodyExtract2txFunction : String :=
   "  la t0, bbe_tx_count; ld t1, 0(t0)\n" ++
   "  li t2, 2\n" ++
   "  bne t1, t2, .Lbbe_count_fail\n" ++
-  "  # (4) Extract tx0\n" ++
-  "  add a0, s0, s3; mv a1, s4; li a2, 0\n" ++
-  "  la a3, bbe_item_off; la a4, bbe_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbbe_txs_fail\n" ++
-  "  la t0, bbe_item_off; ld t1, 0(t0)\n" ++
-  "  add t1, t1, s3                               # offset relative to body\n" ++
+  "  # (4) Walk tx0 and tx1 once from one validated cursor.\n" ++
+  "  add a0, s0, s3; mv a1, s4\n" ++
+  "  jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbbe_txs_fail\n" ++
+  "  mv s3, a0                                  # cursor\n" ++
+  "  mv s4, a1                                  # list end\n" ++
+  "  mv a0, s3; mv a1, s4\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbbe_txs_fail\n" ++
+  "  mv s3, a0\n" ++
+  "  sub t1, a0, a2                              # tx0 content pointer\n" ++
+  "  sub t1, t1, s0                              # offset relative to body\n" ++
   "  sd t1, 0(s2)\n" ++
-  "  la t0, bbe_item_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 8(s2)\n" ++
-  "  # Extract tx1\n" ++
-  "  add a0, s0, s3; mv a1, s4; li a2, 1\n" ++
-  "  la a3, bbe_item_off; la a4, bbe_item_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbbe_txs_fail\n" ++
-  "  la t0, bbe_item_off; ld t1, 0(t0)\n" ++
-  "  add t1, t1, s3\n" ++
+  "  sd a2, 8(s2)\n" ++
+  "  mv a0, s3; mv a1, s4\n" ++
+  "  jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbbe_txs_fail\n" ++
+  "  sub t1, a0, a2                              # tx1 content pointer\n" ++
+  "  sub t1, t1, s0                              # offset relative to body\n" ++
   "  sd t1, 16(s2)\n" ++
-  "  la t0, bbe_item_len; ld t1, 0(t0)\n" ++
-  "  sd t1, 24(s2)\n" ++
+  "  sd a2, 24(s2)\n" ++
   "  li a0, 0\n" ++
   "  j .Lbbe_ret\n" ++
   ".Lbbe_parse_fail:\n" ++
@@ -421,6 +423,8 @@ def ziskBlockBodyExtract2txPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbbe_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpWalkInitFunction ++ "\n" ++
+  rlpWalkNextFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
   blockBodyDecodeFunction ++ "\n" ++
   blockBodyExtract2txFunction ++ "\n" ++
@@ -434,10 +438,6 @@ def ziskBlockBodyExtract2txDataSection : String :=
   "bbe_body_struct:\n" ++
   "  .zero 48\n" ++
   "bbe_tx_count:\n" ++
-  "  .zero 8\n" ++
-  "bbe_item_off:\n" ++
-  "  .zero 8\n" ++
-  "bbe_item_len:\n" ++
   "  .zero 8"
 
 def ziskBlockBodyExtract2txProbeUnit : BuildUnit := {
@@ -595,10 +595,6 @@ def ziskBlockValidate2txFullWithBodyDataSection : String :=
   "bbe_body_struct:\n" ++
   "  .zero 48\n" ++
   "bbe_tx_count:\n" ++
-  "  .zero 8\n" ++
-  "bbe_item_off:\n" ++
-  "  .zero 8\n" ++
-  "bbe_item_len:\n" ++
   "  .zero 8"
 
 def ziskBlockValidate2txFullWithBodyProbeUnit : BuildUnit := {

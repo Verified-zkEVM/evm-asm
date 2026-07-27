@@ -27,7 +27,8 @@ def blockVerdictMtxValidationTail : String :=
   -- at .Lbv_mtx_done, so EVERY tx reached a status-0 supported shape -> re-deriving
   -- each is safe (address_from_pubkey already ran @474, multi_tx_nth_context @438):
   --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)   (as @473-474)
-  --   skip[2i+1] = recipient_i = multi_tx_nth_context(bv_mtx_skip_ctx,i)+72 (pure re-extract)
+  --   skip[2i+1] = effective recipient_i = the dispatch-settled target
+  --                 (raw recipient for CALL/EOA, derived CREATE address for creation)
   --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)            (as @161-164)
   --   skip[2N+1..2N+6] = the genesis system/predeploy contracts plus SYSTEM_ADDRESS
   -- count = 2N+7. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
@@ -42,10 +43,9 @@ def blockVerdictMtxValidationTail : String :=
   "  la t0, bv_public_keys_ptr; ld t0, 0(t0); add t0, t0, t4; addi a0, t0, 1\n" ++  -- a0 = public_keys[i]+1 (skip 0x04)
   "  slli t5, t1, 6; la a1, bv_mtx_skip_list; add a1, a1, t5\n" ++      -- a1 = &skip[2i] (offset i*64)
   "  jal ra, address_from_pubkey\n" ++
-  "  la a0, bv_mtx_skip_ctx; la t0, bv_mtx_skip_idx; ld a1, 0(t0); jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t5, t1, 6; addi t5, t5, 32\n" ++
   "  la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++                      -- t6 = &skip[2i+1] (offset i*64+32)
-  "  la t2, bv_mtx_skip_ctx; addi t2, t2, 72; li t3, 0\n" ++            -- src = recipient (ctx+72)
+  "  la t2, bv_mtx_skip_idx; ld t1, 0(t2); slli t1, t1, 5; la t2, bv_mtx_effective_recipient_table; add t2, t2, t1; li t3, 0\n" ++ -- src = effective recipient
   ".Lbv_skl_rcopy:\n  li t4, 20; beq t3, t4, .Lbv_skl_rcopy_d\n  add t4, t2, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_rcopy\n.Lbv_skl_rcopy_d:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_skl_loop\n" ++
   ".Lbv_skl_done:\n" ++
@@ -60,26 +60,19 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 7; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+7
   -- bmvmx.5.5.2 (umbrella-B1): validate each multi-tx SENDER's BAL FINAL nonce == pre_nonce +
   -- (total count of that sender's txs) -- the multi-tx generalization of the single-tx post-
-  -- nonce check (.Lbv_sender_nonce_fail, status 40). An EOA sender's nonce increments once per
-  -- tx (no internal code), so final == pre+count for every valid block -> never false-rejects;
-  -- catches a BAL forging the sender's final nonce. Post-loop pass; sender_i = skip[2i] (A1),
-  -- compacted by b1_sender_count_table into distinct sender/count rows. Conservative skips:
-  -- sender absent from BAL, account_at failure, no declared nonce change. Cursor in
-  -- bv_mtx_skip_idx walks the distinct table and survives jals via memory.
-  "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
-  "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                              -- reject if table build failed (capacity/malformed)
+  -- nonce check (.Lbv_sender_nonce_fail, status 40).  The runtime loop has
+  -- already built this table from the authenticated sender lanes and advanced
+  -- each row in transaction order, including valid EIP-7702 authorizations.
+  -- Do not rebuild it here: that would discard the block-global nonce delta.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
   ".Lbv_b1_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- t4 = &distinct sender entry
-  "  ld t6, 32(t4); la t0, bv_b1_count; sd t6, 0(t0)\n" ++             -- stash total count (jal clobbers t6)
+  "  ld t6, 32(t4); la t0, bv_b1_count; sd t6, 0(t0)\n" ++             -- stash total delta (jal clobbers)
   "  ld a0, 8(s0); ld a1, 16(s0); mv a2, t4; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
   "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_b1_next\n" ++                                       -- sender lookup fail/absent -> skip (conservative)
-  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++                     -- t0 = pre_nonce (nonce@0)
-  "  la t1, bv_b1_count; ld t1, 0(t1); add t0, t0, t1\n" ++            -- expected = pre_nonce + count
-  "  la t1, bv_b1_expected; sd t0, 0(t1)\n" ++                         -- stash (jal clobbers)
+  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0); la t1, bv_b1_count; ld t1, 0(t1); add t0, t0, t1; la t1, bv_b1_expected; sd t0, 0(t1)\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- reload t4 = &distinct sender entry
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
@@ -131,6 +124,18 @@ def blockVerdictMtxValidationTail : String :=
   "  la a0, bv_fee_egp_scratch; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_mul_u64_be\n" ++                                            -- debit = eff_price * gas_used
   "  bnez a0, .Lbv_b2_next\n" ++                                              -- overflow (unreachable for real values)
+  -- A reverted / exceptional transaction still pays gas, but its call value is
+  -- rolled back.  `bv_tx_status_arr[i]` is the authoritative settle status
+  -- published by the MTx runtime, so add value only for a committed body.  A
+  -- committed transfer to self also retains its value: sender and recipient
+  -- are the same AccountState entry, so only the gas/blob debit is netted.
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 3; la t0, bv_tx_status_arr; add t0, t0, t1; ld t0, 0(t0); beqz t0, .Lbv_b2_after_value\n" ++
+  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t1, t1, 6; la t2, bv_mtx_skip_list; add t2, t2, t1; addi t3, t2, 32; li t4, 20\n" ++
+  ".Lbv_b2_self_value_cmp:\n" ++
+  "  beqz t4, .Lbv_b2_after_value\n" ++
+  "  lbu t5, 0(t2); lbu t6, 0(t3); bne t5, t6, .Lbv_b2_add_value\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lbv_b2_self_value_cmp\n" ++
+  ".Lbv_b2_add_value:\n" ++
   "  la a0, bv_b2_debit_out; addi a0, a0, 16; la a1, bv_mtx_skip_ctx; addi a1, a1, 96; la a2, bv_b2_debit_out; addi a2, a2, 16\n" ++
   "  jal ra, u256_add_be\n" ++                                               -- debit += tx.value
   "  bnez a0, .Lbv_b2_next\n" ++
@@ -252,11 +257,10 @@ def blockVerdictMtxValidationTail : String :=
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
   -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
   -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
-  -- here, consuming the A1 skip-list. CONSERVATIVE guard: effect-log overflow (skip -> never
-  -- false-reject). NOTE (bmvmx.5.5.7.3): with nonstorageEffectLogCap = 32768 the overflow guard is
-  -- now UNREACHABLE under the 200M block-gas envelope (cheapest record-producing op is a value-CALL
-  -- at GAS_WARM_ACCESS+GAS_CALL_VALUE=10400 regular gas, so <= 200M/10400 ~= 19230 < 32768 raw
-  -- records), so it no longer skips any in-scope block.
+  -- here, consuming the A1 skip-list. The raw log is bounded by nonstorageEffectLogCap: a nonzero
+  -- value-CALL emits both debit and credit records, hence at most 2*(200M/10400)=38460 raw records
+  -- under the regular-gas limit; the 65536-entry cap leaves margin. The overflow bit is nevertheless
+  -- retained as the conservative multi-tx skip guard.
   -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
   -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
   -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
@@ -266,6 +270,16 @@ def blockVerdictMtxValidationTail : String :=
   -- that declare no non-storage change. So running the check with withdrawals present is
   -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
   -- effect-having account in a withdrawals block.
+  -- EIP-7702 authorization nonce/balance changes are committed before runtime
+  -- execution.  Mirror the single-tx path: materialize their authenticated
+  -- non-storage effects before the common aggregate/comparator pass.
+  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
+  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
+  "  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
+  "  la t2, bv_bal_start; ld a3, 0(t2)\n" ++
+  "  la t2, bv_bal_len; ld a4, 0(t2)\n" ++
+  "  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
+  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==

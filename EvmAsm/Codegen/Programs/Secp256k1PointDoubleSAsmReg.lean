@@ -19,7 +19,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace Secp256k1PointDoubleSAsm
 
 open Secp256k1FieldConvSAsm (secfBeToLeFn)
-open Secp256k1FieldLeToBeSAsm (secfLeToBeFn)
+open Secp256k1FieldConvSAsm (secfLeToBeFn)
 open Secp256k1FieldIsZeroSAsm (secfIsZero32Fn)
 open Secp256k1FieldLeavesSAsm (secfZero32Fn)
 open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz)
@@ -34,10 +34,10 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 64 < 2 ^ 64)
     (hovalid : ∀ k, k < 64 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
     (harval : ∀ j, j < 64 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
-    (hdIn : inPtr.toNat + 64 ≤ (0xa3c05618 : Nat)
-      ∨ (0xa3c05658 : Nat) ≤ inPtr.toNat)
-    (hdOut : outPtr.toNat + 64 ≤ (0xa3c05618 : Nat)
-      ∨ (0xa3c05658 : Nat) ≤ outPtr.toNat)
+    (hdIn : inPtr.toNat + 64 ≤ (0xa3000950 : Nat)
+      ∨ (0xa3000990 : Nat) ≤ inPtr.toNat)
+    (hdOut : outPtr.toNat + 64 ≤ (0xa3000950 : Nat)
+      ∨ (0xa3000990 : Nat) ≤ outPtr.toNat)
     (hxlt : beBytesToNat xBE < Accel.secpP)
     (hylt : beBytesToNat yBE < Accel.secpP)
     (hy0 : beBytesToNat yBE ≠ 0) :
@@ -178,8 +178,8 @@ theorem pointDoubleRegBody_spec (sp0 inPtr outPtr ret v8 v9 : Word)
       norm_num [arenaB, GuestAddrs.secc_le_p1]
       omega]
     exact harval (32 + k) (by omega)
-  have hdstA : ((GuestAddrs.secc_le_p1 : Word)).toNat = 0xa3c05618 := by decide
-  have hdstA2 : ((arenaB + 32)).toNat = 0xa3c05638 := by decide
+  have hdstA : ((GuestAddrs.secc_le_p1 : Word)).toNat = 0xa3000950 := by decide
+  have hdstA2 : ((arenaB + 32)).toNat = 0xa3000970 := by decide
   have hentry : (GuestAddrs.secp256k1_point_double : Word)
         + BitVec.ofNat 64 (4 * (1 + pdFrame.length))
       = ((GuestAddrs.secp256k1_point_double + 16) : Word) := by decide

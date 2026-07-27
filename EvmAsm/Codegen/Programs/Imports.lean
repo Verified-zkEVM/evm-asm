@@ -59,7 +59,22 @@ import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuest
 import EvmAsm.Codegen.Programs.IntrinsicGas
+import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasSpec
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasPrologue
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEpilogue
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasExtract
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasType
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasEts
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTop
+import EvmAsm.Codegen.Programs.TxTypeDispatchSpec
+import EvmAsm.Codegen.Programs.TxTypeDispatchTyped
+import EvmAsm.Codegen.Programs.TxTypeDispatchTop
+import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
+import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomCallSAsm
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
@@ -68,6 +83,7 @@ import EvmAsm.Codegen.Programs.MptInsert
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptBoundedSort
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
@@ -77,6 +93,28 @@ import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.AccountBalance
+import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
+import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanSpec
+import EvmAsm.Codegen.Programs.MptSpliceSlotSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch
+import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
+import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsGenericBlocks
+import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
+import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
+import EvmAsm.Codegen.Programs.HeaderReceiptsRootTail
+import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootTail
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootChain
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
+import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomSpec
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomSpec
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
@@ -87,6 +125,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszParentHeaderSAsm
+import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
 import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
@@ -104,6 +143,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldCmpPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
@@ -122,6 +162,10 @@ import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldLtPSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsmStage
+import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
+import EvmAsm.Codegen.Programs.Bn254CallAllotmentSAsm
+import EvmAsm.Codegen.Programs.P256LtBeSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Bn254CurveIsInfSAsm
@@ -146,6 +190,8 @@ import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+import EvmAsm.Codegen.Programs.Bls12G1LtPSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgLtBeSAsm
 import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
 import EvmAsm.Codegen.Programs.Bls12G2EqNSAsm
@@ -160,12 +206,17 @@ import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
+import EvmAsm.Codegen.Programs.U256MulU64Be.Common
+import EvmAsm.Codegen.Programs.U256MulU64Be.ZeroLoop
+import EvmAsm.Codegen.Programs.U256MulU64Be.OuterLoop
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.MptEarlyRetShape
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
@@ -179,7 +230,6 @@ import EvmAsm.Codegen.Programs.BalAccountChangeValue
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountNthDescriptor
 import EvmAsm.Codegen.Programs.BalAccountDescriptorArray
-import EvmAsm.Codegen.Programs.BalAccountStateRoot
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
@@ -190,6 +240,15 @@ import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactModel
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactSpec
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactLoop
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactIter
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactStatusNez
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactInduct
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactTop
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactOvf
+import EvmAsm.Codegen.Programs.Eip8037PriorStateUsedExactExecOvf
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
@@ -241,9 +300,18 @@ import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockValidate
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.AccountFields
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptySpec
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose2
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose3
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose4
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose5
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.CalcExcessBlobGasSAsm
+import EvmAsm.Codegen.Programs.CalcExcessBlobGasFnSAsm
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
@@ -264,6 +332,16 @@ import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
+import EvmAsm.Codegen.Programs.BlockVerdictEip7702AuthNonstorageEffectsArray
+import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
+import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose2
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose3
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose4
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
@@ -404,10 +482,14 @@ import EvmAsm.Codegen.Programs.PostMergeInvariantsAtBlockHash
 import EvmAsm.Codegen.Programs.BlockRootsAtBlockHash
 import EvmAsm.Codegen.Programs.NumberTimestampPairAtBlockHash
 import EvmAsm.Codegen.Programs.GasPairAtBlockHash
-import EvmAsm.Codegen.Programs.BlockVerdictGasResults
+import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
+import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.ReceiptList
-import EvmAsm.Codegen.Programs.StatelessGuestUnit
+import EvmAsm.Codegen.Programs.StatelessGuestData
+import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
+import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
+import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
@@ -422,3 +504,96 @@ import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
 import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
 import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsSpec
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop3
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainB3
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC3
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainD
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainE2
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainF
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainG
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainH
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainI
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainJ
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainK
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainL
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainM
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainN
+import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainO
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpWalkInitFlatSAsm
+import EvmAsm.Codegen.Programs.RlpWalkNextFlatSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmFrame
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmInit
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmLoop
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmNext
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmRound
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmTail
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsFlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
+import EvmAsm.Codegen.Programs.SszPackBytesSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeFlatSAsm
+import EvmAsm.Codegen.Programs.RlpContentToU256BeCallSAsm
+import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoop
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleSpec
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoop
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
+import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoop
+import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsSpec
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoop
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersSpec
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeSpec
+
+import EvmAsm.Codegen.Programs.AccountDecodeLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeNonceLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceLoop
+
+import EvmAsm.Codegen.Programs.AccountDecodeCall
+
+import EvmAsm.Codegen.Programs.AccountDecodeFrame
+
+import EvmAsm.Codegen.Programs.AccountDecodeDispatch
+
+import EvmAsm.Codegen.Programs.AccountDecodeBalanceSetup
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose2
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose3
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose4
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose5
+
+import EvmAsm.Codegen.Programs.AccountDecodeClose6

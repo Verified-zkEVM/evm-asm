@@ -863,7 +863,6 @@ theorem blsgLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
     exact outer_step_engine src dst inBytes rf₀ ws₀ A₀ rf2 ws' A' (i + 1) (by omega)
       hs5 hs28 hws0len hlimbs hInv
 
-#print axioms blsgLeToBeFn_spec
 
 end Bls12G1LeToBeSAsm
 

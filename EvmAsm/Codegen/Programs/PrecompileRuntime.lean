@@ -294,82 +294,13 @@ def bn254ChargeGateAsm (tag : String) : String :=
     resumes the dispatch loop. Only reachable via branches. -/
 def failedPrecompileCallNewAccountStateGasAsm (tag : String) : String :=
   if tag != "call_target" then "" else
-    "  ld t0, 64(x12)
-" ++
-    "  ld t1, 72(x12)
-  or t0, t0, t1
-" ++
-    "  ld t1, 80(x12)
-  or t0, t0, t1
-" ++
-    "  ld t1, 88(x12)
-  or t0, t0, t1
-" ++
-    "  beqz t0, .L" ++ tag ++ "_fp_nacc_done
-" ++
-    -- execution-specs charges NEW_ACCOUNT before entering the child/precompile
-    -- call. If the child errors, `generic_call` immediately credits that state
-    -- gas refund. Preserve the upfront OOG behavior, then refund the same amount
-    -- in LIFO order so tx_output.state_gas_used has no net NEW_ACCOUNT charge.
-    liStateGasRuntime "t0" amsterdamStateBytesPerNewAccountV2 ++
-    "  li t3, 0
-" ++
-    "  la t1, evm_state_gas_left
-  ld t2, 0(t1)
-" ++
-    "  bgeu t2, t0, .L" ++ tag ++ "_fp_nacc_res
-" ++
-    "  sub t3, t0, t2
-  sd x0, 0(t1)
-" ++
-    "  ld t2, 568(x20)
-  bltu t2, t3, .exit_outofgas
-" ++
-    "  sub t2, t2, t3
-  sd t2, 568(x20)
-  j .L" ++ tag ++ "_fp_nacc_used
-" ++
-    ".L" ++ tag ++ "_fp_nacc_res:
-" ++
-    "  sub t2, t2, t0
-  sd t2, 0(t1)
-" ++
-    ".L" ++ tag ++ "_fp_nacc_used:
-" ++
-    "  la t1, evm_state_gas_used
-  ld t2, 0(t1)
-  add t2, t2, t0
-  sd t2, 0(t1)
-" ++
-    "  # credit_state_gas_refund(NEW_ACCOUNT) for the failed child/precompile
-" ++
-    "  beqz t3, .L" ++ tag ++ "_fp_nacc_refund_res
-" ++
-    "  ld t2, 568(x20)
-  add t2, t2, t3
-  sd t2, 568(x20)
-" ++
-    ".L" ++ tag ++ "_fp_nacc_refund_res:
-" ++
-    "  sub t4, t0, t3
-" ++
-    "  beqz t4, .L" ++ tag ++ "_fp_nacc_refund_used
-" ++
-    "  la t1, evm_state_gas_left
-  ld t2, 0(t1)
-  add t2, t2, t4
-  sd t2, 0(t1)
-" ++
-    ".L" ++ tag ++ "_fp_nacc_refund_used:
-" ++
-    "  la t1, evm_state_gas_used
-  ld t2, 0(t1)
-  bltu t2, t0, .L" ++ tag ++ "_fp_nacc_done
-" ++
-    "  sub t2, t2, t0
-  sd t2, 0(t1)
-" ++
-    ".L" ++ tag ++ "_fp_nacc_done:
+    -- execution-specs charges NEW_ACCOUNT before entering the child. On a
+    -- precompile error, generic_call refunds that recorded provisional charge
+    -- exactly once, restoring spill first and then the state-gas reservoir.
+    "  la t5, cd_new_account_charged_current
+  ld t4, 0(t5)
+  beqz t4, .L" ++ tag ++ "_fp_call_nacc_done
+  sd x0, 0(t5)
 " ++
     "  ld t6, 64(x12)
 " ++
@@ -383,9 +314,6 @@ def failedPrecompileCallNewAccountStateGasAsm (tag : String) : String :=
   or t6, t6, t5
 " ++
     "  beqz t6, .L" ++ tag ++ "_fp_call_nacc_done
-" ++
-    "  la t5, cd_new_account_charged_current
-  sd x0, 0(t5)
 " ++
     "  la t0, evm_state_gas_used
   ld t1, 0(t0)
@@ -564,11 +492,11 @@ def precompileSuccess64FromFrameAsm
     x17) WITHOUT charging — for entries on the EIP-150 child-allotment
     gas model (`bn254ChargeGateAsm` consumes x16 next). Mirrors
     `chargeBls12G1MsmGasAsm`'s math, but the multiplication overflow
-    guards route to the tag's allotment-burn failure stub instead of
-    `.exit_outofgas` (a precompile failure burns the child allotment,
-    not the whole transaction). Clobbers x16/x17/x22/x23; the input
-    byte length is read from x18. -/
-def bls12MsmCostAsm (tag : String)
+    guards route to `failureLabel` rather than `.exit_outofgas`.
+
+    ABI: input byte length is x18; discounted cost is returned in x16;
+    x17/x22/x23 are clobbered. -/
+def bls12MsmCostAsm (failureLabel : String)
     (pairBytes basePerPair maxDiscount : Nat) (tableLabel : String) : String :=
   "  li x22, " ++ toString pairBytes ++ "\n" ++
   "  divu x17, x18, x22\n" ++
@@ -576,7 +504,7 @@ def bls12MsmCostAsm (tag : String)
   "  mul x16, x17, x16\n" ++
   "  li x22, " ++ toString basePerPair ++ "\n" ++
   "  divu x23, x16, x22\n" ++
-  "  bne x23, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  bne x23, x17, " ++ failureLabel ++ "\n" ++
   "  li x22, 128\n" ++
   "  bltu x22, x17, 44f\n" ++
   "  addi x23, x17, -1\n" ++
@@ -592,7 +520,7 @@ def bls12MsmCostAsm (tag : String)
   "  divu x22, x16, x23\n" ++
   "  li x23, " ++ toString basePerPair ++ "\n" ++
   "  mul x23, x17, x23\n" ++
-  "  bne x22, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+  "  bne x22, x23, " ++ failureLabel ++ "\n" ++
   "  li x23, 1000\n" ++
   "  divu x16, x16, x23\n"
 

@@ -57,6 +57,40 @@ callee-first order, against the separation-logic state-assertion vocabulary.
 - `lake build` (library `EvmAsm`, sources under `EvmAsm/`); heartbeat/recursion
   limits are configured globally in `lakefile.toml` — never per-file.
 
+### Artifact-cache mode (`LAKE_ARTIFACT_CACHE=true`)
+
+Many checkouts run with the lake artifact cache enabled (`LAKE_ARTIFACT_CACHE`,
+`LAKE_CACHE_DIR`). Two consequences are easy to misdiagnose, because in both the
+symptom names something other than the cause.
+
+**1. Never `chmod` `.lake/build`.** Cache-materialized build outputs are
+**hardlinks into the cache**, mode `444`. So `chmod -R u+w .lake/build` does not
+just fail to stick — the build-tree entry and the cache entry are *the same
+inode*, so it makes shared cached artifacts writable and lets a later build
+overwrite an inode other checkouts are linked to. If a build output gives
+permission-denied, do one of:
+
+- **delete the specific offending file** — it is regenerable, and deleting it
+  breaks the hardlink so lake writes a fresh private copy;
+- run that one invocation with `LAKE_ARTIFACT_CACHE=false`;
+- `cp --remove-destination` if you need a writable copy of an existing artifact.
+
+Never `chmod`, and never delete `.lake` wholesale.
+
+**2. Tools built on `lake env lean` do not work in cache mode.** In this mode
+lake satisfies a build from the cache *without materializing oleans* into
+`.lake/build/lib/lean`, and `lake env printenv LEAN_PATH` contains **no** cache
+paths — so `lake env lean` cannot resolve a cache-satisfied module. It fails with
+`object file '….olean' … does not exist`, which reads as a **corrupt build**
+rather than a mode incompatibility; the instinctive response (delete `.lake` and
+rebuild) costs an hour and lands in the identical state. Affects
+`check-axioms.sh`, `port-check.sh`, and `check-opcode-tables.sh` (issue #10537).
+
+If a gate cannot run in your checkout, **say so plainly and explain why** — do
+not list it among the gates you ran. CI runs these in a non-cache environment, so
+the gate is still exercised before merge; a gate claimed but not run is worse
+than one openly skipped.
+
 ## Project Structure
 
 ```
@@ -156,8 +190,8 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
   requires the two 32-byte ranges to be disjoint.
 
 - **Do NOT add `set_option maxHeartbeats` to any file** unless you are in `Evm64/Shift/` composition files (Compose, ShlCompose, SarCompose) for body/path composition proofs. Heartbeat limits are configured globally in `lakefile.toml`.
-- **Do NOT add `set_option maxRecDepth` to any file.** Recursion depth is configured globally in `lakefile.toml`.
-- If a proof times out or hits recursion limits, restructure the proof (e.g., split into smaller lemmas, use intermediate `have` bindings) rather than increasing limits. Increasing `maxRecDepth`/`maxHeartbeats` is almost always a waste of time — the real issue is typically a unification mismatch, wrong argument order, or missing address canonicalization.
+- **`set_option maxRecDepth` may be raised per-file up to `8000`.** It is a build-checked recursion-depth limit — not a performance/fragility smell and not a TCB/soundness concern — so a raise up to `8000` is fine and is NOT worth removing; do not split a proof chain solely to avoid a `maxRecDepth` at or below `8000`. **Above `8000`, bring it back down to `8000`:** first try simply lowering the `set_option` to `8000` (if the file still builds, keep `8000`); if the proof genuinely cannot build at `8000`, restructure it (split into lemmas, intermediate `have` bindings, or an `@[irreducible]` bundled Post) so it fits within `8000` rather than leaving a higher limit. A lingering `maxRecDepth > 8000` is a to-reduce item, not an accepted state. The global default stays in `lakefile.toml`; per-file raises up to `8000` are permitted.
+- If a proof TIMES OUT (heartbeats), restructure it (split into smaller lemmas, use intermediate `have` bindings) rather than raising `maxHeartbeats` — a large heartbeat budget almost always masks the real issue (a unification mismatch, wrong argument order, or missing address canonicalization). (Recursion-depth is different: a `maxRecDepth` up to `8000` is fine — see the note above; only reduce raises that exceed `8000`.)
 - **Do not bump `maxHeartbeats` to make a slow proof compile.** Large heartbeat budgets just slow experiments — and the effect compounds: every retry, every edit, every CI run pays the cost. Needing monitors or `sleep` loops to wait for a build is itself a symptom that `maxHeartbeats` is too big. If a proof legitimately needs more than the default, it is too complicated — diagnose what is actually slow (a failing `rfl`, a stuck `xperm_hyp`, an accidentally false goal, or an `xperm` target with too many conjuncts) and simplify by:
   1. Splitting the proof into smaller named lemmas.
   2. Marking expensive intermediate definitions `@[irreducible]` and proving a small set of lemmas about them, so later proofs unfold via those lemmas instead of re-reducing the body each time.
@@ -191,6 +225,7 @@ silent `cpsTripleWithin N` inflation surfaces as a registry diff.
 
 ### SAsm Proof Repair Notes
 
+- When adapting a verified leaf for use through `Fn.retSpecFlat`, ensure the leaf `Fn.pre` and `Fn.post` pin the ambient assertion (`A = empAssertion`) and that loop invariants preserve that ambient equality. Otherwise the leaf may build standalone, but the flat caller adapter cannot discharge its `hpostEmp` side condition; this came up when reusing the secp256k1 BE/LE converters inside `secf_mul_mod_p`.
 - When `rfl` on a generated SAsm equality times out or spins, assume the equality
   is nontrivial before increasing budgets. Split the proof into named helper
   lemmas that expose the exact register/memory update being used, then rewrite
@@ -283,6 +318,31 @@ Verified `Program`s are emitted to RV64 ELFs and run on `ziskemu` — roadmap in
 `EvmAsm/Codegen/RoundTripTests.lean` (`#guard` per `Instr` constructor → GNU-as
 line) is the build-time gate for `emitInstr` drift. The conformance harness for
 guest changes is `scripts/codegen-eest-stateless-check.sh` (EEST A/B).
+
+#### Choosing the guest ELF, and knowing which one you ran (GH #10617)
+
+Override the guest with the **flag** `--guest-elf <path>`; it implies
+`--no-build`. There is no environment override: `GUEST_ELF` (and its internal
+twin `USER_GUEST_ELF`) now make the script **fail** and point at the flag.
+The variable used to be read as `USER_GUEST_ELF="${GUEST_ELF:-…}"`, so exporting
+the internal name was silently ignored — three consecutive sweeps reported clean
+passes on the default guest, and a 120-row false-reject population was declared
+fixed on that evidence. A misspelled argument fails loudly; a misspelled
+variable is indistinguishable from an unset one.
+
+Every run now echoes the resolved guest path and its **sha256** before running
+anything, and records both (plus `repo_head`, `repo_dirty`, backend and fixture
+tag) in `$RUN_DIR/run-provenance.tsv`; the sha is also in
+`eest-baseline.txt`. `scripts/eest-ab-compare.py` reads that file, so
+self-check 0 (“the two legs are distinct artifacts”) now runs even when a leg's
+guest came from outside the run dir instead of being skipped. The same
+`# guest_elf` / `# guest_elf_sha256` header is written by
+`scripts/lhkn7-semantic-boundary-v2-sweep.py`, and `scripts/spike/parity-check.sh`
+takes `--guest-elf` on the same terms.
+
+**Before believing any result that depends on an override, read back the sha the
+run printed.** An artifact that is not what it says it is has been the shape of
+every measurement failure on this harness so far.
 
 ## Architecture fitness functions (`scripts/check-*.sh`)
 
@@ -405,6 +465,17 @@ Pitfalls:
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*
+  behind mirroring `execution-specs`: align the guest to the spec's MODEL even at a temporary
+  `+FR` cost (`FA = 0` the one gate); replacing a proven routine with unverified emitted code to
+  land a correctness fix is allowed (axiom-clean + empirical `FA = 0` are the only hard gates);
+  build the spec-aligned FINAL form instead of salvaging a near-working stage with a hybrid;
+  represent the spec's Python control flow as a *derived value* in RISC-V memory (e.g. an
+  `auth_phase_applied` cell mirroring a `try/except`), never as free-standing invented state;
+  honor the spec's exact temporal scopes; exact-discrepancy-first / single-writer / ground-truth
+  debugging. **Load when:** a fix touches guest state/gas semantics and you're choosing between
+  mirroring the spec and patching the guest's reconstruction, a fix would break a formal proof,
+  or you're about to add guest state with "no obvious spec counterpart."
 - [`docs/agents/roadmap-4ch8f.md`](docs/agents/roadmap-4ch8f.md) — the epic's master map:
   layer DAG + pick-next rules, recipe-by-routine-shape table, the gate matrix (what CI runs
   vs what you must run per change type), non-negotiable conventions, the family-bead

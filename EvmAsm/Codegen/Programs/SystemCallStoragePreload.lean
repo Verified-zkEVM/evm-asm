@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
+import EvmAsm.Codegen.Programs.Tx
 
 namespace EvmAsm.Codegen
 

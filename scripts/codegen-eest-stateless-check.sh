@@ -56,11 +56,12 @@
 #     --budget-retry-min-gas N
 #                        only retry BUDGET rows whose manifest gas_limit is at
 #                        least N (default $EEST_BUDGET_RETRY_MIN_GAS or 100000000)
-#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2).
+#     --jobs N|auto      parallel guest-emulator jobs (default $EEST_JOBS or auto,
+#                        capped by the automatic memory/CPU cap).
 #                        Auto per-job budgets are sized for the uncached ELF->ROM
 #                        transpile; when the ziskemu ROM cache is detected via the
 #                        first-case warmup (see below) they are relaxed and the
-#                        job count is recomputed up to the same --max-jobs cap.
+#                        job count is recomputed up to the same automatic cap.
 #     --max-failures N   stop after N FAIL/ERROR results (default: disabled)
 #     --stop-after-failures N
 #                        alias for --max-failures
@@ -83,9 +84,6 @@
 #                        $EEST_SPIKE_JOB_MEM_MIB or 1024 MiB.
 #                        CPU cap uses one core/job on patched ziskemu/spike and
 #                        four cores/job on stock ziskemu unless EEST_JOB_CPU_THREADS is set.
-#     --max-jobs N       cap parallel guest-emulator jobs after memory/CPU auto-cap
-#                        (default $EEST_MAX_JOBS or 2; set higher explicitly
-#                        when this host is not sharing ziskemu capacity).
 #     --min-succ N       exit 1 if fewer than N succ-bit matches (regression gate)
 #     --min-full N       exit 1 if fewer than N full (105-byte) matches (regression gate)
 #     --min-root N       exit 1 if fewer than N root matches (regression gate)
@@ -95,8 +93,10 @@
 #     --verify-execution-spec-input
 #                        decode the same guest-visible bytes through
 #                        execution-specs run_stateless_guest's input path
-#     --random           shuffle fixtures into a random order before applying
-#                        --limit; use to sample a different subset on each run
+#     --specref-oracle   also run SpecRef on each input and fail on any
+#                        byte-for-byte guest↔SpecRef divergence
+#     --random           sample individual stateless blocks uniformly before
+#                        applying --limit; use a seed to reproduce a sample
 #                        and discover failures outside the default first-N fixtures
 #     --seed N           integer seed for --random (default: auto-generated and
 #                        printed so any discovery run can be exactly reproduced)
@@ -105,6 +105,25 @@
 #                        first-N selection without shuffling. Applied after
 #                        --random when both are given (reverses the shuffle).
 #     --tag TAG          EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
+#     --guest-elf PATH   run PATH instead of building a guest. This is the ONLY
+#                        supported way to override the guest, and it implies
+#                        --no-build. See "Guest identity" below.
+#
+# Guest identity (GH #10617):
+#   The resolved guest path and its sha256 are echoed at the start of every run
+#   and recorded in $RUN_DIR/run-provenance.tsv, so a result can never be
+#   silently about a different artifact than the one that was chosen.
+#
+#   The former `GUEST_ELF` environment override is REMOVED: having it PRESENT in
+#   the environment -- even empty, even alongside a correct `--guest-elf` -- is a
+#   hard error. It read `USER_GUEST_ELF="${GUEST_ELF:-...}"`, where
+#   USER_GUEST_ELF is the script's *internal* name -- so exporting the internal
+#   name was silently ignored and ran the default guest with no error and no
+#   warning. Three consecutive sweeps reported clean passes on an artifact
+#   nobody had chosen, and a 120-row false-reject population was wrongly
+#   declared fixed on that evidence. A misspelled *argument* fails loudly; a
+#   misspelled *variable* is indistinguishable from not setting one. Removing
+#   the mechanism beats promising to remember it.
 #
 # Environment:
 #   EEST_RUN_DIR         explicit conversion/result directory. When unset, each
@@ -118,6 +137,11 @@
 #   1 -- build/convert failure, no fixtures, or a --min-{succ,full,root} regression
 set -euo pipefail
 
+# The directory the caller invoked us from, captured BEFORE the cd below so a
+# relative `--guest-elf` path resolves against the caller's cwd rather than
+# silently against the repo root (GH #10617: a path that resolves somewhere
+# unexpected is the same class of bug as an override that is not read at all).
+INVOCATION_CWD="$PWD"
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
@@ -143,13 +167,20 @@ export MALLOC_ARENA_MAX
 ALL=0
 SKIP=0
 LIMIT=50
+# No default scope: --limit N or --all must be chosen explicitly (see the
+# hard error below).  LIMIT keeps a value so the smoke path is unchanged
+# once the flag IS passed; LIMIT_SET records whether it was.
+LIMIT_SET=0
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
 # runaway/very-large runs; a case that halts earlier consumes only the steps it
 # needs. The EIP-8037 state_gas_reservoir max-gas fixture can require more than
 # the default on current ziskemu builds, so high-gas BUDGET rows get one larger
 # retry before they are reported as budget exhaustion.
-BACKEND="${EEST_BACKEND:-ziskemu}"
+# No default backend (GH #10533).  EEST_BACKEND remains an opt-in override
+# for scripted callers; what was removed is the fallback when neither the
+# flag nor the variable is set.
+BACKEND="${EEST_BACKEND:-}"
 STEPS="${EEST_STEPS:-5000000000}"
 BUDGET_RETRY_STEPS="${EEST_BUDGET_RETRY_STEPS:-50000000000}"
 BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
@@ -160,7 +191,6 @@ BUDGET_RETRY_MIN_GAS="${EEST_BUDGET_RETRY_MIN_GAS:-100000000}"
 # differently; a non-match safely falls through to ERROR.
 STEP_LIMIT_RE="${EEST_STEP_LIMIT_RE:-(step[s]? limit|maximum steps|max[_ ]*steps|exceeded.*step|step.*exceeded|out of steps|reached.*steps|step budget|EmulationNoCompleted)}"
 JOBS="${EEST_JOBS:-auto}"
-MAX_JOBS="${EEST_MAX_JOBS:-2}"
 JOB_MEM_MIB="${EEST_JOB_MEM_MIB:-auto}"
 JOB_CPU_THREADS="${EEST_JOB_CPU_THREADS:-auto}"
 MEM_RESERVE_MIB="${EEST_MEM_RESERVE_MIB:-4096}"
@@ -174,14 +204,37 @@ MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
 DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
-DEFAULT_TAG="${DEFAULT_TAG:-tests-zkevm@v0.5.0}"
+DEFAULT_TAG="${DEFAULT_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
 NO_BUILD="${EEST_NO_BUILD:-0}"
-USER_GUEST_ELF="${GUEST_ELF:-}"
+# GH #10617: the guest override is a FLAG, never an environment variable.  Both
+# the old public name and the old internal name are rejected loudly here rather
+# than honoured or ignored -- an ignored override is the most persuasive wrong
+# answer available, because its output is exactly what a working setup produces.
+#
+# Three deliberate choices:
+#  * PRESENCE, not a non-empty value (`${var+x}`, not `-n`): an empty export is
+#    still someone attempting an override, and deserves the same complaint.
+#  * unconditional, even when --guest-elf is also given: a lingering export beside
+#    a correct flag is ambiguous about intent, and a stale export in a shell
+#    profile or a wrapper is exactly how someone comes to believe a run used an
+#    artifact it did not. Failing on presence is unambiguous; precedence is not.
+#  * before argument parsing, so no run can begin under an ambiguous guest.
+for stale_var in GUEST_ELF USER_GUEST_ELF; do
+  if [[ -n "${!stale_var+x}" ]]; then
+    echo "error: $stale_var is no longer supported; pass --guest-elf <path> instead (GH #10617)." >&2
+    echo "  unset $stale_var and put the path in the flag${!stale_var:+, e.g.: --guest-elf ${!stale_var}}" >&2
+    echo "  (the variable was silently ignored in one of its two spellings, which" >&2
+    echo "   reported clean passes on the default guest; the flag fails loudly.)" >&2
+    exit 1
+  fi
+done
+GUEST_ELF_OVERRIDE=""
 VERDICT_DEBUG="${EEST_VERDICT_DEBUG:-1}"
 VERDICT_DEBUG_ELF=""
 VERIFY_INPUT_PARITY="${EEST_VERIFY_INPUT_PARITY:-1}"
 VERIFY_EXECUTION_SPEC_INPUT="${EEST_VERIFY_EXECUTION_SPEC_INPUT:-0}"
+SPECREF_ORACLE="${EEST_SPECREF_ORACLE:-0}"
 RANDOM_ORDER="${EEST_RANDOM_ORDER:-0}"
 RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
@@ -202,7 +255,7 @@ Options:
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
   --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
-  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by $EEST_MAX_JOBS or 2);
+  --jobs N|auto            parallel guest-emulator jobs (default $EEST_JOBS or auto, capped by the automatic memory/CPU cap);
                            per-job budgets relax automatically (up to the same caps)
                            when the ziskemu ROM cache is detected by the first-case warmup
   --max-failures N         stop after N FAIL/ERROR results
@@ -214,7 +267,6 @@ Options:
   --bsr-witness-cap N      experimental: run with a proposed block_state_root witness cap
   --bsr-bal-cap N          experimental: add a lower block_state_root BAL row cap
   --job-mem-mib N|auto     memory budget per ziskemu job
-  --max-jobs N             cap parallel guest-emulator jobs after memory/CPU auto-cap
   --min-succ N             exit 1 if fewer than N succ-bit matches
   --min-full N             exit 1 if fewer than N full matches
   --min-root N             exit 1 if fewer than N root matches
@@ -222,11 +274,19 @@ Options:
   --no-verify-input-parity skip the default input parity check
   --verify-execution-spec-input
                            additionally decode guest bytes via execution-specs
+  --specref-oracle         compare every guest output byte-for-byte with SpecRef;
+                           classify verdict differences as false-accept/reject
   --tag TAG                EEST fixture tag (default $EEST_FIXTURE_TAG or scripts/eest-fixture-tag.txt)
   --no-build               skip lake build + ELF emit (reuse existing gen-out/stateless_guest.elf)
+  --guest-elf PATH         run PATH instead of building a guest (implies --no-build).
+                           The ONLY supported guest override; the GUEST_ELF
+                           environment variable is removed and is now an error.
+                           The resolved path and its sha256 are echoed and
+                           recorded in the run's run-provenance.tsv.
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
-  --random                 shuffle fixtures into a random order before --limit; run
-                           repeatedly to sample different subsets and seek discoveries
+  --random                 after --filter, sample individual stateless blocks
+                           uniformly WITHOUT replacement BEFORE --limit
+                           (requires --seed)
   --seed N                 integer seed for --random (default: auto-generated and printed)
   --reverse                process the selected fixtures last-to-first (applied after --random)
   --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
@@ -250,13 +310,12 @@ while [[ $# -gt 0 ]]; do
     --all) ALL=1; shift ;;
     --backend) require_arg "$1" "${2:-}"; BACKEND="$2"; shift 2 ;;
     --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
-    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; shift 2 ;;
+    --limit) require_arg "$1" "${2:-}"; LIMIT="$2"; LIMIT_SET=1; shift 2 ;;
     --filter) require_arg "$1" "${2:-}"; FILTER="$2"; shift 2 ;;
     --steps) require_arg "$1" "${2:-}"; STEPS="$2"; shift 2 ;;
     --budget-retry-steps) require_arg "$1" "${2:-}"; BUDGET_RETRY_STEPS="$2"; shift 2 ;;
     --budget-retry-min-gas) require_arg "$1" "${2:-}"; BUDGET_RETRY_MIN_GAS="$2"; shift 2 ;;
     --jobs) require_arg "$1" "${2:-}"; JOBS="$2"; shift 2 ;;
-    --max-jobs) require_arg "$1" "${2:-}"; MAX_JOBS="$2"; shift 2 ;;
     --max-failures|--stop-after-failures) require_arg "$1" "${2:-}"; MAX_FAILURES="$2"; shift 2 ;;
     --quiet-passes) QUIET_PASSES=1; shift ;;
     --show-passes) QUIET_PASSES=0; shift ;;
@@ -270,9 +329,11 @@ while [[ $# -gt 0 ]]; do
     --verify-input-parity) VERIFY_INPUT_PARITY=1; shift ;;
     --no-verify-input-parity) VERIFY_INPUT_PARITY=0; shift ;;
     --verify-execution-spec-input) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1; shift ;;
+    --specref-oracle) SPECREF_ORACLE=1; shift ;;
     --tag) require_arg "$1" "${2:-}"; TAG="$2"; shift 2 ;;
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
+    --guest-elf) require_arg "$1" "${2:-}"; GUEST_ELF_OVERRIDE="$2"; shift 2 ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
@@ -282,10 +343,88 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+MISSING_CHOICE=0
+
+if [[ "$ALL" -eq 0 && "$LIMIT_SET" -eq 0 ]]; then
+  MISSING_CHOICE=1
+  cat >&2 <<'SCOPE_ERR'
+error: a run scope is required (no default).
+
+  --all         the full 26104-case corpus.  Required for a HIGH-BLAST-RADIUS
+                change -- a gas constant, a shared helper, anywhere you cannot
+                trust path-targeting -- and for re-baselining after main moves.
+                Use --backend spike; it is parallel-tolerant.
+  --limit N     a subset of N cases.  Use for iteration, and for a FOCUSED run
+                on a targeted change: known-failing cases, plus fixtures
+                touching the changed path, plus a random control drawn from the
+                PASSING set (a focused set built only from known-failing and
+                path-touching cases is blind in the OK->FR direction).
+
+Pick deliberately, and state the scope with every number you report.  A subset
+run reports honestly over its N cases and reads exactly like a corpus pass, so
+an unscoped run is how a 50-case result gets mistaken for a 26104-case one.
+
+(If you invoked a wrapper script rather than this one, add the flag to that
+wrapper's own invocation.)
+SCOPE_ERR
+fi
+
+if [[ -z "$BACKEND" ]]; then
+  MISSING_CHOICE=1
+  cat >&2 <<'BACKEND_ERR'
+error: --backend is required (no default).
+
+  --backend spike     fast verdict-level A/B gate; parallel-tolerant.
+                      Use for anything whose observable effect is a verdict or
+                      gas outcome, and for full-corpus sweeps (--jobs 30).
+  --backend ziskemu   ground-truth oracle. Use to CONFIRM a divergence Spike
+                      reported, and for probes needing the real loader or the
+                      accelerators. MUST be run serially (--jobs 1): it is
+                      memory-hungry and an earlyoom kill presents as a 0-byte
+                      log plus a non-zero exit that looks like a real failure.
+
+  If Spike and ziskemu disagree, ziskemu wins.
+
+EEST_BACKEND=spike|ziskemu also works, for scripted callers.
+
+If you reached this from one of the codegen-eest-*-check.sh probes rather than
+by running this script directly: those inherited the old silent default and now
+have to say what they mean. Pick the backend for what THAT probe measures, and
+add the flag to its own invocation. Background: GH #10533, GH #10582.
+BACKEND_ERR
+fi
+
+if [[ "$MISSING_CHOICE" -eq 1 ]]; then
+  exit 1
+fi
+
 case "$BACKEND" in
   ziskemu|spike) ;;
   *) echo "--backend/EEST_BACKEND must be ziskemu or spike (got: $BACKEND)" >&2; exit 1 ;;
 esac
+
+if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
+  # Resolve against the CALLER's cwd and fail if it is not a readable file.  An
+  # override that names a nonexistent path must not fall back to the default
+  # guest -- that fallback is the incident this flag replaces.
+  [[ "$GUEST_ELF_OVERRIDE" == /* ]] || GUEST_ELF_OVERRIDE="$INVOCATION_CWD/$GUEST_ELF_OVERRIDE"
+  if [[ ! -f "$GUEST_ELF_OVERRIDE" ]]; then
+    echo "--guest-elf: not a readable file: $GUEST_ELF_OVERRIDE" >&2
+    exit 1
+  fi
+  GUEST_ELF_OVERRIDE="$(cd "$(dirname "$GUEST_ELF_OVERRIDE")" && pwd)/$(basename "$GUEST_ELF_OVERRIDE")"
+  # An override supplies the artifact, so building one would either overwrite it
+  # or (worse) run a different guest than the one named.
+  if [[ "$NO_BUILD" -eq 0 ]]; then
+    echo "==> --guest-elf implies --no-build (using the supplied artifact, not building one)"
+    NO_BUILD=1
+  fi
+  if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
+    echo "--guest-elf cannot be combined with --bsr-witness-cap/--bsr-bal-cap:" >&2
+    echo "  those patch the emitted assembly and relink, which requires a build." >&2
+    exit 1
+  fi
+fi
 
 if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
   echo "--skip must be a nonnegative integer (got: $SKIP)" >&2
@@ -293,10 +432,6 @@ if ! [[ "$SKIP" =~ ^[0-9]+$ ]]; then
 fi
 if [[ "$JOBS" != "auto" ]] && { ! [[ "$JOBS" =~ ^[0-9]+$ ]] || [[ "$JOBS" -lt 1 ]]; }; then
   echo "--jobs must be a positive integer or auto (got: $JOBS)" >&2
-  exit 1
-fi
-if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || [[ "$MAX_JOBS" -lt 1 ]]; then
-  echo "--max-jobs/EEST_MAX_JOBS must be a positive integer (got: $MAX_JOBS)" >&2
   exit 1
 fi
 if [[ "$JOB_MEM_MIB" != "auto" ]] && { ! [[ "$JOB_MEM_MIB" =~ ^[0-9]+$ ]] || [[ "$JOB_MEM_MIB" -lt 1 ]]; }; then
@@ -339,6 +474,10 @@ case "$VERIFY_EXECUTION_SPEC_INPUT" in
   1|true|yes) VERIFY_EXECUTION_SPEC_INPUT=1; VERIFY_INPUT_PARITY=1 ;;
   *) VERIFY_EXECUTION_SPEC_INPUT=0 ;;
 esac
+if [[ "$SPECREF_ORACLE" != "0" && "$SPECREF_ORACLE" != "1" ]]; then
+  echo "EEST_SPECREF_ORACLE must be 0 or 1 (got: $SPECREF_ORACLE)" >&2
+  exit 1
+fi
 if [[ -n "$MAX_FAILURES" ]] && { ! [[ "$MAX_FAILURES" =~ ^[0-9]+$ ]] || [[ "$MAX_FAILURES" -lt 1 ]]; }; then
   echo "--max-failures must be a positive integer when set (got: $MAX_FAILURES)" >&2
   exit 1
@@ -510,15 +649,20 @@ compute_job_cap() {
 }
 
 CPUS="$(nproc 2>/dev/null || echo 1)"
+if [[ "$BACKEND" == "ziskemu" && "$JOBS" != "1" ]]; then
+  echo "==> WARNING: --backend ziskemu forces --jobs 1 (requested: $JOBS)." >&2
+  echo "    ziskemu is memory-hungry; in parallel an earlyoom kill presents as a" >&2
+  echo "    0-byte log plus a non-zero exit that looks like a real failure." >&2
+  echo "    Use --backend spike if you want parallelism (GH #10533)." >&2
+  JOBS=1
+fi
+
 JOBS_REQUESTED="$JOBS"
 JOB_CAP="$(compute_job_cap)"
-if [[ "$JOB_CAP" -gt "$MAX_JOBS" ]]; then
-  JOB_CAP="$MAX_JOBS"
-fi
 if [[ "$JOBS" == "auto" ]]; then
   JOBS="$JOB_CAP"
 elif [[ "$JOBS" -gt "$JOB_CAP" ]]; then
-  echo "==> requested --jobs $JOBS capped to $JOB_CAP (max_jobs=${MAX_JOBS}, job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
+  echo "==> requested --jobs $JOBS capped to $JOB_CAP (job_mem=${JOB_MEM_MIB}MiB, reserve=${MEM_RESERVE_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS); rechecked after ROM-cache warmup" >&2
   JOBS="$JOB_CAP"
 fi
 
@@ -540,25 +684,24 @@ recalibrate_jobs_for_rom_cache() {
   [[ "$JOB_MEM_MIB_AUTO" -eq 1 ]] && JOB_MEM_MIB="$ZISKEMU_CACHED_JOB_MEM_MIB"
   [[ "$JOB_CPU_THREADS_AUTO" -eq 1 ]] && JOB_CPU_THREADS="$ZISKEMU_CACHED_JOB_CPU_THREADS"
   new_cap="$(compute_job_cap)"
-  [[ "$new_cap" -gt "$MAX_JOBS" ]] && new_cap="$MAX_JOBS"
   if [[ "$JOBS_REQUESTED" == "auto" ]]; then
     JOBS="$new_cap"
   else
     JOBS="$JOBS_REQUESTED"
     [[ "$JOBS" -gt "$new_cap" ]] && JOBS="$new_cap"
   fi
-  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS, max_jobs=$MAX_JOBS)"
+  echo "==> ROM cache active (warmup ${warmup_secs}s): jobs=$JOBS (job_mem=${JOB_MEM_MIB}MiB, cpu_threads/job=$JOB_CPU_THREADS)"
 }
 
 if [[ "$BACKEND" == "ziskemu" ]]; then
   echo "==> backend: ziskemu"
   echo "    ziskemu: $ZISKEMU"
   echo "    version: $ZISKEMU_VERSION"
-  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:  $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 else
   echo "==> backend: spike"
   echo "    spike_run: $SPIKE_RUN"
-  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget, max_jobs=$MAX_JOBS) -> jobs=$JOBS (cpus=$CPUS)"
+  echo "    flavor:    $ZISKEMU_FLAVOR (${JOB_MEM_MIB} MiB/proc budget) -> jobs=$JOBS (cpus=$CPUS)"
 fi
 
 # --- locate fixtures --------------------------------------------------------
@@ -587,7 +730,7 @@ fi
 rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR"
 GUEST_PREFIX="$RUN_DIR/stateless_guest"
-GUEST_ELF="$GUEST_PREFIX.elf"
+RESOLVED_GUEST_ELF="$GUEST_PREFIX.elf"
 
 resolve_riscv_tool() {
   local env_var="$1"; shift
@@ -635,7 +778,7 @@ PYPATCH
 patch_bsr_caps_and_relink() {
   local asm="$GUEST_PREFIX.s"
   local obj="$GUEST_PREFIX.o"
-  local elf="$GUEST_ELF"
+  local elf="$RESOLVED_GUEST_ELF"
   local as_tool ld_tool
 
   patch_bsr_caps_asm "$asm"
@@ -644,13 +787,16 @@ patch_bsr_caps_and_relink() {
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
   "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-    --section-start=.sszscratch=0xbf500000 \
+    --section-start=.bss=0xa4000000 \
+    --section-start=.sszscratch=0xbf800000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
 if [[ "$NO_BUILD" -eq 0 ]]; then
-  echo "==> lake build codegen"
-  lake build codegen
+  build_targets=(codegen)
+  [[ "$SPECREF_ORACLE" -eq 1 ]] && build_targets+=(specref-eest-check)
+  echo "==> lake build ${build_targets[*]}"
+  lake build "${build_targets[@]}"
 
   if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
     cap_note=""
@@ -665,13 +811,43 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
   fi
 else
   echo "==> skipping build (--no-build)"
-  GUEST_ELF="${USER_GUEST_ELF:-$REPO_ROOT/gen-out/stateless_guest.elf}"
-  if [[ ! -f "$GUEST_ELF" ]]; then
-    echo "--no-build requested, but stateless_guest ELF does not exist: $GUEST_ELF" >&2
-    echo "set GUEST_ELF=/path/to/stateless_guest.elf or run without --no-build" >&2
+  RESOLVED_GUEST_ELF="${GUEST_ELF_OVERRIDE:-$REPO_ROOT/gen-out/stateless_guest.elf}"
+  if [[ ! -f "$RESOLVED_GUEST_ELF" ]]; then
+    echo "--no-build requested, but stateless_guest ELF does not exist: $RESOLVED_GUEST_ELF" >&2
+    echo "pass --guest-elf /path/to/stateless_guest.elf, or run without --no-build" >&2
     exit 1
   fi
 fi
+
+# GH #10617: state the artifact's identity before it is used, and record it in
+# the run dir.  This is the property that makes a result self-describing: no
+# comparison can silently be about a different guest than the one printed here,
+# whatever mechanism supplied it.
+GUEST_ELF_SHA256="$(sha256sum "$RESOLVED_GUEST_ELF" | cut -d' ' -f1)"
+if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
+  GUEST_ELF_SOURCE="--guest-elf"
+elif [[ "$NO_BUILD" -eq 1 ]]; then
+  GUEST_ELF_SOURCE="no-build-default"
+else
+  GUEST_ELF_SOURCE="built"
+fi
+echo "==> guest ELF: $RESOLVED_GUEST_ELF"
+echo "    sha256:    $GUEST_ELF_SHA256  (source: $GUEST_ELF_SOURCE)"
+GUEST_PROVENANCE="$RUN_DIR/run-provenance.tsv"
+{
+  printf '# schema=run-provenance-v1\n'
+  printf 'field\tvalue\n'
+  printf 'guest_elf\t%s\n' "$RESOLVED_GUEST_ELF"
+  printf 'guest_elf_sha256\t%s\n' "$GUEST_ELF_SHA256"
+  printf 'guest_elf_source\t%s\n' "$GUEST_ELF_SOURCE"
+  printf 'guest_elf_bytes\t%s\n' "$(stat -c %s "$RESOLVED_GUEST_ELF")"
+  printf 'backend\t%s\n' "$BACKEND"
+  printf 'fixture_tag\t%s\n' "$TAG"
+  printf 'repo_head\t%s\n' "$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+  printf 'repo_dirty\t%s\n' "$([[ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]] && echo 1 || echo 0)"
+  printf 'generated\t%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+} > "$GUEST_PROVENANCE"
+echo "    provenance: $GUEST_PROVENANCE"
 
 
 run_guest_elf() {
@@ -1001,7 +1177,8 @@ ensure_verdict_debug_probe() {
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
     "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-      --section-start=.sszscratch=0xbf500000 \
+      --section-start=.bss=0xa4000000 \
+      --section-start=.sszscratch=0xbf800000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2
@@ -1026,6 +1203,15 @@ verdict_debug_for_case() {
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
+# GH #10596: the SHUFFLE must happen before the cap, so it belongs in the
+# converter. Shuffling here (after conversion) only reordered an already
+# truncated manifest.
+if [[ "$RANDOM_ORDER" -eq 1 ]]; then
+  if [[ -z "$RANDOM_SEED" ]]; then
+    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
+  fi
+  conv_args+=(--random --seed "$RANDOM_SEED")
+fi
 [[ -n "$FILTER" ]] && conv_args+=(--filter "$FILTER")
 [[ "$VERIFY_INPUT_PARITY" -eq 1 ]] && conv_args+=(--verify-input-parity)
 [[ "$VERIFY_EXECUTION_SPEC_INPUT" -eq 1 ]] && conv_args+=(--verify-execution-spec-input)
@@ -1055,19 +1241,11 @@ for i in "${!manifestLines[@]}"; do
 done
 
 if [[ "$RANDOM_ORDER" -eq 1 ]]; then
-  if [[ -z "$RANDOM_SEED" ]]; then
-    RANDOM_SEED="$(python3 -c 'import random; print(random.randint(0, 2**31-1))')"
-  fi
-  echo "==> random order: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
-  mapfile -t manifestLines < <(
-    printf '%s\n' "${manifestLines[@]}" | python3 -c "
-import sys, random
-lines = sys.stdin.read().splitlines()
-random.Random(int(sys.argv[1])).shuffle(lines)
-print('\n'.join(lines))
-" "$RANDOM_SEED"
-  )
-  selection="$selection, random(seed=$RANDOM_SEED)"
+  # The converter sampled individual blocks with this seed; preserve that
+  # selected order rather than building a second full permutation merely to
+  # alter execution order.
+  echo "==> random block selection: seed=$RANDOM_SEED (pass --seed $RANDOM_SEED to reproduce this run)"
+  selection="$selection, random-blocks(seed=$RANDOM_SEED)"
 fi
 
 if [[ "$REVERSE_ORDER" -eq 1 ]]; then
@@ -1101,14 +1279,33 @@ run_case() {
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
-  local tmp_result="$result.tmp.$$"
+  # `run_case` runs in background workers.  `$$` remains the parent shell's
+  # PID in those workers, so it races when several cases finish together.
+  # `BASHPID` is unique to each worker subshell and keeps the final rename
+  # atomic without letting one case publish another case's result.
+  local tmp_result="$result.tmp.$BASHPID"
   local actual_hex run_steps
+
+  run_specref_oracle() {
+    [[ "$SPECREF_ORACLE" -eq 1 ]] || return 0
+    local oracle_out="$RUN_DIR/$label.specref.output"
+    local oracle_log="$RUN_DIR/$label.specref.log"
+    local oracle_hex
+    if ! lake exe specref-eest-check "$input" "$oracle_out" >"$oracle_log" 2>&1; then
+      printf 'ERROR\tspecref\n' > "$tmp_result"
+      mv "$tmp_result" "$result"
+      return 1
+    fi
+    oracle_hex="$(xxd -p "$oracle_out" 2>/dev/null | tr -d '\n' || true)"
+    printf 'OK\t%s\t%s\n' "$actual_hex" "$oracle_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  }
 
   run_steps="$STEPS"
   run_emulator_case() {
     local steps="$1"
     local run_log="$2"
-    run_guest_elf "$GUEST_ELF" "$input" "$out" "$run_log" "$steps"
+    run_guest_elf "$RESOLVED_GUEST_ELF" "$input" "$out" "$run_log" "$steps"
   }
 
   retry_budget_case() {
@@ -1149,8 +1346,12 @@ run_case() {
       if retry_budget_case; then
         actual_hex="$(xxd -p -l "$expected_bytes" "$out" 2>/dev/null | tr -d '\n' || true)"
         if [[ "${#actual_hex}" -ge "${#expected_hex}" ]]; then
-          printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-          mv "$tmp_result" "$result"
+          if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+            run_specref_oracle || true
+          else
+            printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+            mv "$tmp_result" "$result"
+          fi
           return 0
         fi
       fi
@@ -1165,8 +1366,12 @@ run_case() {
     mv "$tmp_result" "$result"
     return 0
   fi
-  printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
-  mv "$tmp_result" "$result"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    run_specref_oracle || true
+  else
+    printf 'OK\t%s\n' "$actual_hex" > "$tmp_result"
+    mv "$tmp_result" "$result"
+  fi
 }
 
 wait_for_one_worker() {
@@ -1188,6 +1393,7 @@ wait_for_one_worker() {
 #   tail [33:]    = remaining expected SSZ tail (hex 66..)
 declare -A classifiedLabels=()
 total=0 err=0 full=0 succ=0 root=0 tail=0 fail=0 rod=0 budget=0
+oracleMatch=0 oracleDiff=0 guestFalseAccept=0 guestFalseReject=0
 # Progress tracking (--progress): RUN_START is stamped just before the run loop;
 # lastProgressTotal suppresses duplicate lines when `total` has not advanced.
 RUN_START=0
@@ -1226,7 +1432,7 @@ print_progress() {
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex exp r s t
+  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex oracle_hex exp r s t
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
@@ -1244,7 +1450,7 @@ classify_case_result() {
   fi
   classifiedLabels["$label"]=1
   total=$((total + 1))
-  IFS=$'\t' read -r status actual_hex < "$result"
+  IFS=$'\t' read -r status actual_hex oracle_hex < "$result"
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
@@ -1259,6 +1465,20 @@ classify_case_result() {
       *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
     esac
     return 0
+  fi
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    if [[ "$actual_hex" == "$oracle_hex" ]]; then
+      oracleMatch=$((oracleMatch + 1))
+    else
+      oracleDiff=$((oracleDiff + 1))
+      local guest_verdict="${actual_hex:64:2}" oracle_verdict="${oracle_hex:64:2}" oracle_class="output"
+      if [[ "$guest_verdict" == "01" && "$oracle_verdict" == "00" ]]; then
+        guestFalseAccept=$((guestFalseAccept + 1)); oracle_class="guest-false-accept"
+      elif [[ "$guest_verdict" == "00" && "$oracle_verdict" == "01" ]]; then
+        guestFalseReject=$((guestFalseReject + 1)); oracle_class="guest-false-reject"
+      fi
+      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath") (succ guest=$guest_verdict specref=$oracle_verdict)"
+    fi
   fi
   exp="$expected_hex"
 
@@ -1431,6 +1651,8 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  generated:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "  fixture tag: $TAG"
   echo "  selection:   $selection"
+  echo "  guest elf:   $RESOLVED_GUEST_ELF ($GUEST_ELF_SOURCE)"
+  echo "  guest sha256:$GUEST_ELF_SHA256"
   echo "  backend:     $BACKEND"
   if [[ "$BACKEND" == "ziskemu" ]]; then
     echo "  ziskemu:     $ZISKEMU (steps=$STEPS, budget_retry_steps=$BUDGET_RETRY_STEPS, budget_retry_min_gas=$BUDGET_RETRY_MIN_GAS)"
@@ -1443,6 +1665,7 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
+  echo "  fail:        $fail"
   echo "  budget:      $budget   (--steps exhausted before halt; NOT a correctness failure)"
   echo "  ran:         $ran"
   echo "  full match:    $full   (exact fixture output bytes)"
@@ -1450,14 +1673,25 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   echo "  succ match:    $succ   (byte 32     = successful_validation)"
   echo "  tail match:    $tail   (bytes after successful_validation)"
   echo "  root-only diff:$rod   (succ+tail match; ONLY root differs => 1 field from full)"
-  echo "  fail:          $fail"
+  if [[ "$SPECREF_ORACLE" -eq 1 ]]; then
+    echo "  oracle match:  $oracleMatch   (exact guest↔SpecRef bytes)"
+    echo "  oracle diff:   $oracleDiff"
+    echo "    guest false-accept: $guestFalseAccept"
+    echo "    guest false-reject: $guestFalseReject"
+  fi
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
-cp "$BASELINE" "$REPO_ROOT/gen-out/eest-baseline.txt"
-echo "==> updated latest baseline: $REPO_ROOT/gen-out/eest-baseline.txt"
+# No global "latest baseline" copy.  It was only ever a convenience, and during
+# a parallel A/B it is actively wrong: both legs raced to write one file and the
+# second writer silently won, so anyone reading gen-out/eest-baseline.txt got
+# the other leg's numbers.  The per-run baseline above is the authoritative
+# artifact and is already scoped to its own --run-dir.
 
 rc=0
+if [[ "$SPECREF_ORACLE" -eq 1 && "$oracleDiff" -gt 0 ]]; then
+  echo "==> ORACLE REGRESSION: $oracleDiff guest↔SpecRef divergence(s)" >&2; rc=1
+fi
 if [[ -n "$MIN_SUCC" && "$succ" -lt "$MIN_SUCC" ]]; then
   echo "==> REGRESSION: succ match $succ < --min-succ $MIN_SUCC" >&2; rc=1
 fi

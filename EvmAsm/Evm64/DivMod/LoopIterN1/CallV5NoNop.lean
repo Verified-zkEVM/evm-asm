@@ -11,7 +11,7 @@
   references) and is reused directly for v5.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.Call
+import EvmAsm.Evm64.DivMod.N1CallBase
 import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
 
 namespace EvmAsm.Evm64

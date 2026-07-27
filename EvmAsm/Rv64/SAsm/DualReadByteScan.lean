@@ -904,8 +904,6 @@ theorem scan_spec
 
 end Scan
 
-#print axioms bytes_eq_of_prefix_eq
-#print axioms scan_spec
 
 end DualReadByteScan
 

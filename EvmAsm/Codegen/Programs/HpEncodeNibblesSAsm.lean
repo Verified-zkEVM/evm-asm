@@ -166,8 +166,6 @@ def hpEncodeNibblesFn (src dst : Word) (len : Nat) (isLeaf : Word)
     ws = hpEncoded srcBytes len isLeaf ∧ A = empAssertion
   body := hpEncodeNibblesBody src dst len isLeaf srcBytes orig
 
-#guard GuestAddrs.hp_encode_nibbles = 0x800045bc
-
 #guard (hpEncodeNibblesBody 0 0 0 0 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 0] =
   hpEncodeNibbles_prog
 
@@ -878,7 +876,6 @@ theorem hpEncodeNibblesFn_spec (src dst : Word) (len : Nat) (isLeaf : Word)
       bv_omega
     · rw [hwin, hpWin_done srcBytes orig len isLeaf hlenOrig]
 
-#print axioms hpEncodeNibblesFn_spec
 
 end HpEncodeNibblesSAsm
 

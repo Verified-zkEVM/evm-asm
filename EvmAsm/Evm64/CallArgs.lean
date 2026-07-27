@@ -4,7 +4,7 @@
   Pure stack-argument records for CALL-family opcodes (GH #114).
 -/
 
-import EvmAsm.Evm64.Basic
+import EvmAsm.Evm64.EvmWord
 
 namespace EvmAsm.Evm64
 

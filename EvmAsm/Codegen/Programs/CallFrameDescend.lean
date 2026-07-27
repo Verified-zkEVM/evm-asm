@@ -12,8 +12,8 @@
   verdict-critical dispatcher path.
 
   Layout offsets from `CallFrameLayout` (docs/call-frame-memory-layout.md §4):
-  `frameMemOff = 0`, `frameStackTopOff = 0x28200`, `frameEnvOff = 0x38400`,
-  `FRAME_STRIDE = 0x39000`. Per the non-uniform layout, this helper is for
+  `frameStackTopOff = 0x8200`, `frameEnvOff = 0x18400`, and
+  `FRAME_STRIDE = 0x19000`. Per the non-uniform layout, this helper is for
   child depth `d >= 1` (frame[0] keeps the existing `evm_memory`/stack/env).
 
   HARD soundness requirement (docs §1, §5): the child slot aliases the
@@ -29,14 +29,16 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.StaticContext
+import EvmAsm.Codegen.Programs.EvmMemoryGas
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
 /-- `call_frame_enter(a0 = child depth d >= 1)`: rebase the per-frame registers
-    onto child `frame[d]` and zero-init its EVM memory. Returns
-    `a0 = child memBase` (x13 = `frame_base(d) + frameMemOff`),
+    onto child `frame[d]` and select its shared-pool EVM memory. Returns
+    `a0 = child memBase` (pool base for depth 1, otherwise
+    `parentMemBase + parentMSIZE`),
     `a1 = child stack top` (x12 = `frame_base(d) + frameStackTopOff`),
     `a2 = child env base` (x20 = `frame_base(d) + frameEnvOff`).
     The caller saves the parent's pc/codebase via `frame_save_regs` before
@@ -53,21 +55,21 @@ def callFrameEnterFunction : String :=
   "  slli t2, a0, 3\n" ++
   "  add t0, t0, t2\n" ++
   "  sd t1, 0(t0)\n" ++
-  "  jal ra, frame_base                 # a0 = call_frame_arena + (d-1)*0x39000\n" ++
-  "  mv s0, a0                          # s0 = child slot base (frameMemOff = 0)\n" ++
-  -- Zero-init the child's 128 KiB EVM memory [base, base + 0x20000).
-  "  mv t0, s0\n" ++
-  "  li t1, 0x20000\n" ++
-  ".Lcfe_zero:\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -8\n" ++
-  "  bnez t1, .Lcfe_zero\n" ++
+  "  jal ra, frame_base                 # a0 = call_frame_arena + (d-1)*0x19000\n" ++
+  "  mv s0, a0                          # s0 = child slot base\n" ++
+  -- call_frame_descend populated frame_parent_bases[d] before entry.
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  li t2, 1; beq t1, t2, .Lcfe_pool_first\n" ++
+  "  la t0, frame_parent_bases; slli t1, t1, 4; add t0, t0, t1\n" ++
+  "  ld t1, 0(t0); ld t2, 8(t0); ld t2, 488(t2); add a0, t1, t2\n" ++
+  "  j .Lcfe_pool_have\n" ++
+  ".Lcfe_pool_first:\n" ++
+  "  la a0, evm_memory_pool\n" ++
+  ".Lcfe_pool_have:\n" ++
   -- Child register bases.
-  "  mv a0, s0                          # x13 = base + frameMemOff (0)\n" ++
-  "  li t0, 0x28200\n" ++
+  "  li t0, 0x8200\n" ++
   "  add a1, s0, t0                     # x12 = base + frameStackTopOff\n" ++
-  "  li t0, 0x38400\n" ++
+  "  li t0, 0x18400\n" ++
   "  add a2, s0, t0                     # x20 = base + frameEnvOff\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
   "  ret"
@@ -249,6 +251,13 @@ def callFrameDescendFunction : String :=
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s6, 40(sp); sd s7, 48(sp); sd s8, 56(sp); sd s9, 64(sp)\n" ++
   "  sd s10, 72(sp); sd s11, 80(sp)\n" ++
+  -- Return a per-invocation balance-staging bit in a5. The CREATE descent
+  -- consumes it immediately after this call: a set bit means this generic
+  -- descent already supplied the child with a live balance (from the BAL table
+  -- or a committed in-tx effect), so a later CREATE-specific header fallback
+  -- must not overwrite it. Keep it in this frame's unused final save slot,
+  -- rather than in global scratch, so nested descents cannot clobber it.
+  "  sd zero, 88(sp)                 # a5 return: child env+32 was staged\n" ++
   -- &desc arrives in a1 (x11) so it does NOT alias x10/x12/x13/x20/x21 (the live
   -- parent PC/stack/mem/env/code-base, which this routine reads first).
   "  mv s7, a1                      # &desc\n" ++
@@ -280,7 +289,7 @@ def callFrameDescendFunction : String :=
   "  add t0, t0, t1\n" ++
   "  sd s2, 0(t0)                   # parent memory base\n" ++
   "  sd s3, 8(t0)                   # parent env base\n" ++
-  -- 4. enter the child frame (rebase + zero-init). Stash the returned child
+  -- 4. enter the child frame (slot rebase + pool memory base). Stash the returned child
   --    mem/stack/env bases in callee-saved regs — the helper calls below clobber
   --    a0-a4 (= x10/x11/x12/x13/x14), so the live dispatcher regs are set LAST.
   "  mv a0, s8; jal ra, call_frame_enter\n" ++
@@ -389,8 +398,7 @@ def callFrameDescendFunction : String :=
   -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
   -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
   -- pointer_reentry's re-entered EOA SSTOREs SELFBALANCE=1000 and the directly-called contract
-  -- 100. The witness lookup can't run here (mid-EVM-execution the MPT walk returns absent), so
-  -- dispatch_tx_runtime_code pre-resolved every BAL account's balance into callee_balance_table
+  -- 100. dispatch_tx_runtime_code pre-resolves BAL-account balances into callee_balance_table
   -- (LE-limb order). Reverse the child ADDRESS@0 (20B stack-word/LE, MSB at env+19) into the free
   -- child-env scratch (env+696; frameEnvBytes=768, fields end 688) -> canonical BE, scan the table,
   -- and copy the matching LE balance verbatim into env+32 (h_SELFBALANCE copies env+32 to the LE
@@ -407,6 +415,7 @@ def callFrameDescendFunction : String :=
   "  ld t2, 8(t1); ld t3, 704(s9); bne t2, t3, .Lcfd_sb_next\n" ++
   "  lwu t2, 16(t1); lwu t3, 712(s9); bne t2, t3, .Lcfd_sb_next\n" ++
   "  ld t2, 32(t1); sd t2, 32(s9); ld t2, 40(t1); sd t2, 40(s9); ld t2, 48(t1); sd t2, 48(s9); ld t2, 56(t1); sd t2, 56(s9)\n" ++
+  "  li t2, 1; sd t2, 88(sp)         # table supplied the child's live pre-balance\n" ++
   "  j .Lcfd_sb_done\n" ++
   ".Lcfd_sb_next:\n" ++
   "  addi t1, t1, 64; addi t0, t0, -1; j .Lcfd_sb_scan\n" ++
@@ -431,7 +440,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  jal ra, nonstorage_effect_latest_balance\n" ++
+  "  jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
@@ -439,7 +448,27 @@ def callFrameDescendFunction : String :=
   "  addi t0, s9, 728; addi t1, s9, 63; li t2, 32\n" ++
   ".Lcfd_lbov_wb:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
+  "  li t2, 1; sd t2, 88(sp)         # committed effect supersedes the table value\n" ++
   ".Lcfd_lbov_done:\n" ++
+  -- The BAL table is intentionally bounded and does not necessarily include every
+  -- account reached by a nested frame.  If neither it nor the live-effect overlay
+  -- supplied a balance, resolve the inherited authenticated header state instead
+  -- of executing with a guessed zero.  This is the same prestate fallback used by
+  -- CREATE descent: a live effect always wins, authenticated absence is zero, and
+  -- malformed lookup results become the existing sticky runtime failure.
+  "  ld t0, 88(sp); bnez t0, .Lcfd_prebalance_done\n" ++
+  "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
+  "  ld a0, 576(s9); ld a1, 584(s9); addi a2, s9, 696; li a3, 20; ld a4, 592(s9); ld a5, 600(s9); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 8\n" ++
+  "  beqz t6, .Lcfd_prebalance_found\n" ++
+  "  li t0, 1; beq t6, t0, .Lcfd_prebalance_done\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lcfd_prebalance_done\n" ++
+  ".Lcfd_prebalance_found:\n" ++
+  "  la t0, create_prebalance_acct; addi t0, t0, 39; addi t1, s9, 32; li t2, 32\n" ++
+  ".Lcfd_prebalance_copy:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcfd_prebalance_copy\n" ++
+  ".Lcfd_prebalance_done:\n" ++
   -- nxio8.4.1: snapshot the parent's pre-child EIP-8037 state gas (the global
   -- evm_state_gas_left = state_gas_left reservoir, evm_state_gas_used = state_gas_used,
   -- evm_state_gas_spilled = state gas drawn from gas_left) into the child env
@@ -489,10 +518,31 @@ def callFrameDescendFunction : String :=
   "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
   "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
   ".Lcfd_nse_snap_done:\n" ++
+  -- Every child frame owns a journal high-water mark captured at ITS entry.
+  -- In particular, a CREATE's creator-nonce advance is already committed before
+  -- its child descends, so a child REVERT must retain that parent mutation and
+  -- roll back only mutations made inside the child (its seed/nested CREATEs).
+  "  la t1, create_nonce_undo_count; ld t0, 0(t1)\n" ++
+  "  la t1, create_nonce_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  -- r59nm S5a: the storage write-map undo journal takes its mark the same way
+  -- and for the same reason -- a child REVERT must roll back only the writes
+  -- made inside the child, leaving the parent's earlier writes standing.
+  "  la t1, storage_writes_undo_count; ld t0, 0(t1)\n" ++
+  "  la t1, storage_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
   "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
   "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  -- The mutable CodeState is a transaction overlay, so it needs the same
+  -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
+  -- the checkpoints depth-indexed rather than extending the packed env ABI.
+  "  la t1, account_state_pending_count; ld t0, 0(t1); la t1, account_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_created_count; ld t0, 0(t1); la t1, account_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, account_state_delete_count; ld t0, 0(t1); la t1, account_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
+  "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
+  "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
+  "  la t1, evm_selfdestruct_seen_overflow; ld t0, 0(t1)\n" ++
+  "  la t1, evm_selfdestruct_seen_overflow_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
   -- 3hlnt.2.2: snapshot the hot running block bloom into the child-depth
   -- checkpoint slab. The consensus receipt/log-bloom path still comes from
   -- descriptors; this only gives the hot accumulator the same rollback shape
@@ -515,7 +565,7 @@ def callFrameDescendFunction : String :=
   -- 9. child env.codeSize (env+496).
   "  ld t0, 72(s7); sd t0, 496(s9)\n" ++
   -- 10. frame-relative stack bounds: point the under/overflow guards at the
-  --     CHILD arena stack. cur_top = child stack top (s11 = base+0x28200);
+  --     CHILD arena stack. cur_top = child stack top (s11 = base+0x8200);
   --     cur_low = cur_top - 1024*32 (0x8000), the bottom of the child's arena.
   "  la t0, evm_cur_stack_top\n" ++
   "  sd s11, 0(t0)\n" ++
@@ -530,6 +580,7 @@ def callFrameDescendFunction : String :=
   "  ld t0, 64(s7)                  # code_ptr\n" ++
   "  mv x21, t0                     # child code base\n" ++
   "  mv x10, t0                     # child PC at code[0]\n" ++
+  "  ld a5, 88(sp)                  # return whether env+32 already has a live value\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s6, 40(sp); ld s7, 48(sp); ld s8, 56(sp); ld s9, 64(sp)\n" ++
@@ -544,11 +595,11 @@ def callFrameDescendFunction : String :=
     Output:
       +0  depth after push from 0            (expect 1)
       +8  child x13 (= frame_base(1))         (expect call_frame_arena)
-      +16 child x12                           (= base + 0x28200)
-      +24 child x20                           (= base + 0x38400)
+      +16 child x12                           (= base + 0x8200)
+      +24 child x20                           (= base + 0x18400)
       +32 child mem[0] after zero-init        (expect 0, was pre-dirtied)
-      +40 x12 - x13                           (expect 0x28200)
-      +48 x20 - x13                           (expect 0x38400)
+      +40 x12 - x13                           (expect 0x8200)
+      +48 x20 - x13                           (expect 0x18400)
       +56 x13 - call_frame_arena              (expect 0 — depth 1 slot) -/
 def ziskCallDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -567,8 +618,8 @@ def ziskCallDescendPrologue : String :=
   "  sub t1, a1, a0; sd t1, 40(s0)\n" ++
   "  sub t1, a2, a0; sd t1, 48(s0)\n" ++
   "  la t0, call_frame_arena; sub t1, a0, t0; sd t1, 56(s0)\n" ++
-  -- Env setup test: child env = call_frame_arena + frameEnvOff (0x38400) for depth 1.
-  "  la a0, call_frame_arena; li t0, 0x38400; add a0, a0, t0\n" ++
+  -- Env setup test: child env = call_frame_arena + frameEnvOff (0x18400) for depth 1.
+  "  la a0, call_frame_arena; li t0, 0x18400; add a0, a0, t0\n" ++
   "  la a1, cfd_parent_env\n" ++
   "  la a2, cfd_to_word\n" ++
   "  la a3, cfd_value_word\n" ++
@@ -577,12 +628,12 @@ def ziskCallDescendPrologue : String :=
   "  ld t0, 0(a0); sd t0, 64(s0)\n" ++       -- child ADDRESS limb0 (expect 0xaaaaaaaa = to)
   "  ld t0, 64(a0); sd t0, 72(s0)\n" ++      -- child CALLER limb0 (expect 0xbbbbbbbb = parent ADDRESS)
   "  ld t0, 96(a0); sd t0, 80(s0)\n" ++      -- child CALLVALUE limb0 (expect 0xcccccccc = value)
-  "  la a0, call_frame_arena; li t0, 0x38400; add a0, a0, t0\n" ++
+  "  la a0, call_frame_arena; li t0, 0x18400; add a0, a0, t0\n" ++
   "  la a1, cfd_parent_env; la a2, cfd_to_word; la a3, cfd_value_word; li a4, 1\n" ++  -- STATICCALL
   "  jal ra, call_frame_set_call_env\n" ++
   "  ld t0, 96(a0); sd t0, 88(s0)\n" ++      -- child CALLVALUE limb0 (expect 0 = static)
   -- Calldata alias test: child callDataPtr@416 = parent_mem + argsOff, len@424.
-  "  la a0, call_frame_arena; li t0, 0x38400; add a0, a0, t0\n" ++
+  "  la a0, call_frame_arena; li t0, 0x18400; add a0, a0, t0\n" ++
   "  la a1, call_frame_arena; li a2, 0x40; li a3, 0x20\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
   "  ld t0, 416(a0); la t1, call_frame_arena; sub t0, t0, t1; sd t0, 96(s0)\n" ++  -- expect 0x40
@@ -606,7 +657,7 @@ def ziskCallDescendPrologue : String :=
 def ziskCallDescendDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x19000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
   "evm_call_depth:\n  .zero 8\n" ++
   ".balign 32\n" ++
@@ -614,10 +665,63 @@ def ziskCallDescendDataSection : String :=
   "cfd_to_word:\n  .quad 0xaaaaaaaa, 0, 0, 0\n" ++       -- call target
   "cfd_value_word:\n  .quad 0xcccccccc, 0, 0, 0\n"       -- call value
 
+/-- Positive witness for the shared memory pool. A depth-1 frame expands past
+    the former 128 KiB limit, a depth-2 child occupies the next LIFO slice, and
+    a reused sibling slice is zeroed on expansion without touching the parent. -/
+def ziskMemoryPoolWitnessPrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  -- Enter depth 1 at the pool base.
+  "  la t0, evm_call_depth; li t1, 1; sd t1, 0(t0)\n" ++
+  "  li a0, 1; jal ra, call_frame_enter\n" ++
+  "  mv s7, a0; mv s8, a2\n" ++
+  "  li t0, 16777216; sd t0, 568(s8); sd zero, 488(s8)\n" ++
+  "  mv x13, s7; mv x20, s8\n" ++
+  "  li x14, 0x30000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_parent" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
+  "  li t0, 0x1122334455667788; add t1, s7, x14; sd t0, 0(t1)\n" ++
+  -- Enter depth 2. Its base must be parent base + parent MSIZE.
+  "  la t0, frame_parent_bases; addi t0, t0, 32; sd s7, 0(t0); sd s8, 8(t0)\n" ++
+  "  la t0, evm_call_depth; li t1, 2; sd t1, 0(t0)\n" ++
+  "  li a0, 2; jal ra, call_frame_enter\n" ++
+  "  mv s9, a0; mv s10, a2\n" ++
+  "  li t0, 16777216; sd t0, 568(s10); sd zero, 488(s10)\n" ++
+  "  mv x13, s9; mv x20, s10\n" ++
+  "  li x14, 0x40000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_child" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
+  "  li t0, 0x8877665544332211; add t1, s9, x14; sd t0, 0(t1)\n" ++
+  -- Record child isolation and parent readback.
+  "  sub t0, s9, s7; sd t0, 0(s0)\n" ++
+  "  add t1, s7, x14; li t2, 0x30000; sub t1, t1, x14; add t1, t1, t2; ld t0, 0(t1); sd t0, 8(s0)\n" ++
+  "  add t1, s9, x14; ld t0, 0(t1); sd t0, 16(s0)\n" ++
+  -- Re-enter the same depth as a sibling. Expansion must erase stale child bytes.
+  "  li a0, 2; jal ra, call_frame_enter\n" ++
+  "  mv s11, a0; mv s6, a2; li t0, 16777216; sd t0, 568(s6); sd zero, 488(s6)\n" ++
+  "  mv x13, s11; mv x20, s6; li x14, 0x40000; li x15, 32\n" ++
+  updateActiveMemorySizeAsm "pool_witness_sibling" "x14" "x15" "x16" "x17" "x18" "x19" true false ++
+  "  add t1, s11, x14; ld t0, 0(t1); sd t0, 24(s0)\n" ++
+  "  li t0, 0xaabbccddeeff0011; sd t0, 0(t1); ld t0, 0(t1); sd t0, 32(s0)\n" ++
+  "  li t2, 0x30000; add t1, s7, t2; ld t0, 0(t1); sd t0, 40(s0)\n" ++
+  "  sub t0, s11, s9; sd t0, 48(s0)\n" ++
+  "  j .Lpool_witness_done\n" ++
+  ".exit_outofgas:\n  li t0, -1; sd t0, 56(s0); j .Lpool_witness_done\n" ++
+  frameBaseFunction ++ "\n" ++ frameDepthPushFunction ++ "\n" ++
+  callFrameEnterFunction ++ "\n" ++
+  ".Lpool_witness_done:"
+
+def ziskMemoryPoolWitnessDataSection : String :=
+  ".section .data\n.balign 32\n" ++
+  "call_frame_arena:\n  .zero 0x32000\n" ++
+  ".balign 8\nevm_memory_pool:\n  .zero 0x100000\nevm_memory_pool_end:\n" ++
+  "evm_call_depth:\n  .zero 8\n" ++
+  "evm_sparse_memory_next_epoch:\n  .quad 1\n" ++
+  "evm_sparse_memory_epoch_by_depth:\n  .zero 8200\n" ++
+  "frame_parent_bases:\n  .zero 16400\n"
+
 def ziskCallDescendProbeUnit : BuildUnit := {
   body        := NOP
-  prologueAsm := ziskCallDescendPrologue
-  dataAsm     := ziskCallDescendDataSection
+  prologueAsm := ziskMemoryPoolWitnessPrologue
+  dataAsm     := ziskMemoryPoolWitnessDataSection
 }
 
 /-- `zisk_call_frame_descend`: end-to-end probe for `call_frame_descend`. Sets up
@@ -634,7 +738,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +40  ctx[1].outSize                  (expect 0x20)
       +48  ctx[1].netPopBytes              (expect 192)
       +56  child x13 - &call_frame_arena   (expect 0   = frame_base(1)+frameMemOff)
-      +64  child x20 - &call_frame_arena   (expect 0x38400 = +frameEnvOff)
+      +64  child x20 - &call_frame_arena   (expect 0x18400 = +frameEnvOff)
       +72  child x21 - &cfd2_code          (expect 0   = callee code base)
       +80  child x10 - &cfd2_code          (expect 0   = child PC at code[0])
       +88  child env.ADDRESS limb0         (expect 0xbb = to)
@@ -645,7 +749,7 @@ def ziskCallDescendProbeUnit : BuildUnit := {
       +128 child env.gasRemaining          (expect 3300 = min(1000,98438)+2300)
       +136 child env.codeSize              (expect 0x33)
       +144 child env witness.state ptr     (expect 0x592 marker, copied env+592)
-      +152 evm_cur_stack_top - &arena      (expect 0x28200 = child frame stack top)
+      +152 evm_cur_stack_top - &arena      (expect 0x8200 = child frame stack top)
       +160 evm_cur_stack_low - &arena      (expect 0x20200 = top - 1024*32)
       +168 parent env.gasRemaining        (expect 88700 = 100000 - transfer 10300 - cost 1000)
       +176/+184 state-gas snapshots       (expect 12345/67890)
@@ -742,7 +846,7 @@ def ziskCallFrameDescendPrologue : String :=
 def ziskCallFrameDescendDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
-  "call_frame_arena:\n  .zero " ++ toString (0x39000 : Nat) ++ "\n" ++
+  "call_frame_arena:\n  .zero " ++ toString (0x19000 : Nat) ++ "\n" ++
   ".balign 8\n" ++
   "evm_call_depth:\n  .zero 8\n" ++
   ".balign 16\n" ++

@@ -9,9 +9,6 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace FrameLoadRegsSAsm
 
-#guard GuestAddrs.frame_load_regs = 0x80038338
-#guard GuestAddrs.frame_save_area = 0xbc2bd590
-
 def frameLoadRegsBody : List Instr := frameLoadRegs_prog.dropLast
 
 theorem frameLoadRegs_byte_tie :
@@ -107,6 +104,5 @@ theorem frameLoadRegs_spec (depth old5 old6 old11 pcVal codeBase ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
-#print axioms frameLoadRegs_spec
 end FrameLoadRegsSAsm
 end EvmAsm.Codegen

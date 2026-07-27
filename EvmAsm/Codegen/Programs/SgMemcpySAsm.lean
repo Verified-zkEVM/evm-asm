@@ -339,7 +339,6 @@ theorem sgMemcpyFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8))
     show ws = bs.take i
     rw [hwin, copyWin_len_eq bs orig i hol hlb]
 
-#print axioms sgMemcpyFn_spec
 
 end SgMemcpySAsm
 

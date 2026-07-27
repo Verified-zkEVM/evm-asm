@@ -236,7 +236,6 @@ theorem nestedDoWhileDemoFn_spec (base : Word) : nestedDoWhileDemoFn.Spec base :
     rintro rf ws A ⟨⟨i, hi, hx5, hx6, hx29⟩, -⟩
     exact ⟨hx5, hx6, hx29⟩
 
-#print axioms nestedDoWhileDemoFn_spec
 
 -- ============================================================================
 -- 3. A fully verified nested `doWhileS`: the outer loop rereads a register
@@ -364,6 +363,5 @@ theorem nestedDoWhileSDemoFn_spec (base : Word) : nestedDoWhileSDemoFn.Spec base
     have heq : rf.get .x5 = rf.get .x6 := Decidable.of_not_not hng
     exact ⟨heq.trans hx6, hx6⟩
 
-#print axioms nestedDoWhileSDemoFn_spec
 
 end EvmAsm.Codegen.Proofs

@@ -122,7 +122,6 @@ theorem gdDemo_spec (K old ret v5 v6 v7 : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) c4
 
-#print axioms gdDemo_spec
 
 end GlobalDataDemo
 

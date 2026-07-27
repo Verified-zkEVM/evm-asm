@@ -18,12 +18,6 @@ namespace Secp256k1FieldSubModPSAsm
 
 open Secp256k1FieldReduceOnceSAsm
 
-#guard GuestAddrs.secf_sub_mod_p = 0x8001ff74
-#guard GuestAddrs.u256_sub_be = 0x80005248
-#guard GuestAddrs.secf_copy32 = 0x8001fca4
-#guard GuestAddrs.secf_tmp0 = 0xa3c053c0
-#guard GuestAddrs.secp256k1_c_be = 0xa3c052e0
-
 def secfSubModPFrame : FrameDesc :=
   [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
 
@@ -1238,7 +1232,6 @@ theorem secfSubModP_spec
   exact cpsTripleWithin_weaken (fun _ hp => by rw [hnewSp]; xperm_hyp hp)
     (fun _ hq => by rw [hnewSp]; xperm_hyp hq) h1234
 
-#print axioms secfSubModP_spec
 
 end Secp256k1FieldSubModPSAsm
 

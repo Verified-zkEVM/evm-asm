@@ -4,7 +4,7 @@
   SDIV wrapper base spec for the result sign-fixup block.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseCode
+import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 import EvmAsm.Evm64.SDiv.LimbSpec
 import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
 

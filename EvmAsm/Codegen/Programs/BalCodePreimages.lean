@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BalCodePreimagesAux
 import EvmAsm.Codegen.Programs.BalCodePreimagesCreateCollision
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
 
@@ -1029,7 +1030,7 @@ def balCodePreimagesValidFunction : String :=
   "# a0 = 20-byte target address ptr, a1/a2 = witness.state ptr/len, a3 = charge delegation access.\n" ++
   "# On success, cahsr_code_offset/cahsr_code_length name the delegated pre-state code.\n" ++
   "bal_same_block_delegation_code_resolve:\n" ++
-  "  addi sp, sp, -112\n" ++
+  "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
@@ -1038,6 +1039,16 @@ def balCodePreimagesValidFunction : String :=
   "  mv s1, a1                  # witness.state ptr\n" ++
   "  mv s2, a2                  # witness.state len\n" ++
   "  mv s10, a3                 # charge delegated access when nonzero\n" ++
+  -- evm-asm-uzb6b: the codes base that cahsr_code_offset is re-based against is
+  -- an explicit argument (a4), NOT the caller's x20. Top-level callers
+  -- (dispatch_tx_runtime_code / block_verdict contract + mtx paths) have no
+  -- runtime env in x20 (x20 is evm_env scratch there, slot 608 unread zero-page
+  -- .bss), so reading *(x20+608) subtracted a garbage base and the top-level
+  -- `.Ldtrc_have_code` re-add of *svf_codes_ptr produced a wild code pointer
+  -- (load-access fault in bytecode_is_self_contained on the EIP-7702
+  -- chain/self-delegation + pointer_to_pointer cluster). Callers pass
+  -- a4 = *svf_codes_ptr (top level) or a4 = 608(x20) (nested CALL frames).
+  "  sd a4, 112(sp)             # codes base for the cahsr_code_offset re-base\n" ++
   "  la t0, bsbd_code_from_bal; sd zero, 0(t0)\n" ++
   "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
@@ -1061,11 +1072,21 @@ def balCodePreimagesValidFunction : String :=
   "  mv a0, s0; mv a1, s9\n" ++
   "  jal ra, bbcv_addr_eq20\n" ++
   "  beqz a0, .Lbsbd_next\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_source_final\n" ++
+  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_source_selected\n" ++
+  ".Lbsbd_source_final:\n" ++
   "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
+  ".Lbsbd_source_selected:\n" ++
   "  bnez a0, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
+  -- The last BAL code change is the tx-state code seen by execution-specs.
+  -- An empty final value is therefore authoritative delegation clearing, not
+  -- a lookup miss that may fall back to the stale pre-state marker.
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_cleared\n" ++
+  "  li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
   "  la t0, bacc_finals; ld t1, 64(t0); add s9, s7, t1\n" ++
   "  lbu t0, 0(s9); li t1, 0xef; bne t0, t1, .Lbsbd_no\n" ++
   "  lbu t0, 1(s9); li t1, 0x01; bne t0, t1, .Lbsbd_no\n" ++
@@ -1078,6 +1099,19 @@ def balCodePreimagesValidFunction : String :=
   -- warming call in emitRuntimeDispatcherSetup (Part B) so the seed lands in the
   -- EXECUTION phase (the pre-reset resolutions are wiped by runtime_access_seed_initial_accounts).
   -- runtime_access_account_seed preserves s-regs (s9/s10 intact); a0..a3 reloaded below.
+  -- v0.6.0 (C7): export the delegate address for the warm/cold
+  -- top-frame access decision at the staging sites.
+  -- a3=2 is a pure PROBE: resolve without charging AND without warming. The
+  -- value-CALL aliveness check uses it — the spec's is_account_alive(to) never
+  -- touches accessed_addresses, and a free-warm here made the later charged
+  -- resolution of the same CALL see the delegate WARM (100) where the spec
+  -- charges COLD (3000): a 2,900 receipt under-count on every first delegated
+  -- access behind a value CALL (set_code_to_system_contract bv_fail=53).
+  "  la t0, bsbd_deleg_target; addi t1, s9, 3; li t2, 20\n" ++
+  ".Lbsbd_deleg_export:\n" ++
+  "  beqz t2, .Lbsbd_deleg_exported\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lbsbd_deleg_export\n" ++
+  ".Lbsbd_deleg_exported:\n" ++
   "  bnez s10, .Lbsbd_skip_freewarm\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -1091,9 +1125,9 @@ def balCodePreimagesValidFunction : String :=
   -- skipped it -> gas under-counted -> bv_fail=34 on EIP-7702 fixtures.
   -- x20 is the caller runtime env; reload the saved env pointer before
   -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
-  "  beqz s10, .Lbsbd_skip_charge\n" ++
+  "  li t2, 1; bne s10, t2, .Lbsbd_skip_charge\n" ++
   "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
-  "  ld t0, 568(x20); li t1, 100; bltu t0, t1, .exit_outofgas\n" ++
+  s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
   "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
@@ -1140,30 +1174,81 @@ def balCodePreimagesValidFunction : String :=
   -- in the BAL and point cahsr_code_* at it so the descend runs the marker bytes (-> invalid
   -- opcode -> 0). Soundness: descending runs the EXACT single-hop code the spec runs;
   -- the BAL comparator independently checks each declared final, so this can only fix a
-  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers;
-  -- x20 (env) is preserved here (the buggy 40(sp) reload above is on the pre-state-hit path).
+  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers.
   ".Lbsbd_target_sameblock:\n" ++
+  -- The BAL contains the block-final code, but an address currently being
+  -- CREATEd has empty code until its constructor returns successfully and the
+  -- deposit completes.  In particular, an EIP-7702 pointer may target its own
+  -- not-yet-created delegate from inside that delegate's initcode.  Do not make
+  -- the final BAL bytes visible early: scan all active CREATE ancestors and
+  -- resolve a matching target as empty code.  The delegation access charge was
+  -- already applied above, so only code visibility changes here.
+  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+  "  la t2, create_frame_flag; la t3, create_address_by_depth\n" ++
+  ".Lbsbd_active_create_scan:\n" ++
+  "  beqz t1, .Lbsbd_active_create_done\n" ++
+  "  slli t4, t1, 3; add t5, t2, t4; ld t5, 0(t5); beqz t5, .Lbsbd_active_create_next\n" ++
+  "  slli t4, t1, 5; add t5, t3, t4; addi t6, s9, 3; li a0, 20\n" ++
+  ".Lbsbd_active_create_cmp:\n" ++
+  "  beqz a0, .Lbsbd_active_create_empty\n" ++
+  "  lbu a1, 0(t5); lbu a2, 0(t6); bne a1, a2, .Lbsbd_active_create_next\n" ++
+  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbsbd_active_create_cmp\n" ++
+  ".Lbsbd_active_create_next:\n" ++
+  "  addi t1, t1, -1; j .Lbsbd_active_create_scan\n" ++
+  ".Lbsbd_active_create_done:\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  addi a2, s9, 3             # single-hop target address ptr\n" ++
   "  la a3, bsbd_tgt_ptr; la a4, bsbd_tgt_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++                          -- target not a BAL account / parse error
+  "  bnez a0, .Lbsbd_target_create_effect\n" ++        -- target absent from final BAL: try same-tx CREATE code
   "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
+  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_target_final\n" ++
+  "  jal ra, bal_account_code_at_or_before\n" ++
+  "  j .Lbsbd_target_selected\n" ++
+  ".Lbsbd_target_final:\n" ++
   "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++   -- target has no same-block code
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_no\n" ++   -- empty code -> EOA, not a code descent
+  ".Lbsbd_target_selected:\n" ++
+  "  bnez a0, .Lbsbd_target_create_effect\n" ++
+  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
+  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
   -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
-  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus svf_codes_ptr (608(x20), the descend base).
+  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus the codes base passed by the
+  -- caller in a4 (saved at 112(sp)): *svf_codes_ptr at top level (whose
+  -- `.Ldtrc_have_code` re-adds *svf_codes_ptr), 608(x20) in nested CALL frames
+  -- (whose `.Lcd_descend_` re-adds 608(x20)).
   "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
   "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
-  "  la t0, svf_codes_ptr; ld t5, 0(t0); sub t3, t3, t5\n" ++
+  "  ld t5, 112(sp); sub t3, t3, t5\n" ++
   "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
   "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
   -- charge already applied above (.Lbsbd_skip_charge)
   "  li a0, 0\n" ++
   "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_active_create_empty:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbsbd_ret\n" ++
+  -- A delegation target created earlier in this transaction remains executable
+  -- until transaction finalization.  Resolve it through the same layered
+  -- CodeState used by CALL and EXTCODE*, not through comparison evidence.
+  ".Lbsbd_target_create_effect:\n" ++
+  "  addi a0, s9, 3\n" ++
+  "  jal ra, code_state_lookup_current\n" ++
+  "  mv t3, a1; mv t1, a2\n" ++
+  -- The delegation marker was found and its target access was already charged.
+  -- If no committed CREATE effect exists, the target has empty code (for
+  -- example because its CREATE frame reverted); do not report a generic miss,
+  -- which makes the caller fall back to and charge the stale pre-state marker.
+  "  li t0, 1; bne a0, t0, .Lbsbd_active_create_empty\n" ++
+  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
+  "  ld t2, 112(sp); sub t3, t3, t2\n" ++
+  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
+  "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lbsbd_ret\n" ++
   ".Lbsbd_precompile_empty:\n" ++
+  "  li a0, 2\n" ++
+  "  j .Lbsbd_ret\n" ++
+  ".Lbsbd_cleared:\n" ++
   "  li a0, 2\n" ++
   "  j .Lbsbd_ret\n" ++
   ".Lbsbd_next:\n" ++
@@ -1175,7 +1260,7 @@ def balCodePreimagesValidFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
+  "  addi sp, sp, 128\n" ++
   "  ret\n" ++
   "\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
@@ -1265,7 +1350,8 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 104\n" ++
   "  ret\n" ++
   "\n" ++
-  balCodePreimagesCreateCollisionFunctions ++
+  balCodePreimagesCreateCollisionFunctions ++ "\n" ++
+  balAccountCodeAtOrBeforeFunction ++ "\n" ++
   balCodePreimagesAuxFunctions
 
 end EvmAsm.Codegen

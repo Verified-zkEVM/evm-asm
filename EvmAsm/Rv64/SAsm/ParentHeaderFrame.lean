@@ -1841,5 +1841,3 @@ end ParentHeaderFrame
 end SAsm
 end EvmAsm.Rv64
 
-#print axioms EvmAsm.Rv64.SAsm.ParentHeaderFrame.phmwCore_spec
-#print axioms EvmAsm.Rv64.SAsm.ParentHeaderFrame.phmwFrame_spec

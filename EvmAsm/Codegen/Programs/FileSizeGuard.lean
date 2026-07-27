@@ -22,7 +22,7 @@ partial def collectLeanFiles (root : System.FilePath) : IO (Array System.FilePat
       pure acc
 
 def registryHub : System.FilePath :=
-  System.FilePath.mk "EvmAsm/Codegen/Programs.lean"
+  System.FilePath.mk "EvmAsm/Codegen/Programs/Imports.lean"
 
 def programsDir : System.FilePath :=
   System.FilePath.mk "EvmAsm/Codegen/Programs"

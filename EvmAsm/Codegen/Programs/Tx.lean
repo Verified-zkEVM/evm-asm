@@ -39,7 +39,6 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.U256
@@ -66,7 +65,7 @@ open EvmAsm.Rv64
 
     Composes PR-K20 `rlp_list_nth_item` + per-byte BE decode.
     The output is stored as a native LE u64 at *a3. -/
-def rlpFieldToU64_prog : Program :=
+def rlpFieldToU64_legacy_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
@@ -110,15 +109,67 @@ def rlpFieldToU64_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Canonical-strict K34 wrapper. It preserves the original 32-byte ABI frame
+    and `rfu_offset`/`rfu_length` scratch footprint, but delegates list
+    selection and scalar decoding to their verified strict implementations.
+    Both callees use the guest-linked symbolic relocation table. -/
+def rlpFieldToU64Wrapper_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x13,
+    .SD .x9 .x0 (0 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 28)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 28)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 36)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 36)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.rlp_field_to_u64 + 44)),
+    .BNE .x10 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 52)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .ADD .x10 .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 68)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64
+      (GuestAddrs.rlp_field_to_u64 + 80)),
+    .BNE .x11 .x0 (16 : BitVec 13),
+    .SD .x9 .x10 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x5 (2 : Word),
+    .BEQ .x11 .x5 (20 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def rlpFieldToU64_prog : Program :=
+  rlpFieldToU64Wrapper_prog
+
+#guard rlpFieldToU64Wrapper_prog.length = 37
+#guard rlpFieldToU64_prog.length = 37
+
 /-- Reloc side-table for `rlpFieldToU64_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def rlpFieldToU64_relocs : RelocTable :=
-  [ (6, .la .x13 "rfu_offset"),
-    (8, .la .x14 "rfu_length"),
-    (10, .jal .x1 "rlp_list_nth_item"),
-    (12, .la .x5 "rfu_length"),
-    (17, .la .x5 "rfu_offset") ]
+  [ (7, .la .x13 "rfu_offset"),
+    (9, .la .x14 "rfu_length"),
+    (11, .jal .x1 "rlp_list_nth_item"),
+    (13, .la .x5 "rfu_offset"),
+    (17, .la .x5 "rfu_length"),
+    (20, .jal .x1 "rlp_content_to_u64") ]
 
 def rlpFieldToU64Function : String :=
   "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs
@@ -132,7 +183,7 @@ theorem rlpFieldToU64Function_eq_prog :
     rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs := rfl
 
 #guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
-#guard rlpFieldToU64_prog.length = 42
+#guard rlpFieldToU64_prog.length = 37
 /-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes) from host
     input, writes (status, u64) to OUTPUT. -/
@@ -149,6 +200,7 @@ def ziskRlpFieldToU64Prologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lrfu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
+  rlpContentToU64Function ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   ".Lrfu_pdone:"
 

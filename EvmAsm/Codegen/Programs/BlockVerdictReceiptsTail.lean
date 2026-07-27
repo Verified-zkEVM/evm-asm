@@ -20,6 +20,9 @@ namespace EvmAsm.Codegen
     before the consensus checks. -/
 def blockVerdictReceiptsTail : String :=
   ".Lbv_after_gas_result_gate:\n" ++
+  "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 2; bltu t0, t1, .Lbv_mtx_b2_return\n" ++
+  "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
+  "  j .Lbv_b2_entry\n" ++
   ".Lbv_mtx_b2_return:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
@@ -74,6 +77,7 @@ def blockVerdictReceiptsTail : String :=
   "  la t2, c1_dlen; sd a0, 0(t2)\n" ++
   "  la t2, c1_dstatus; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
   "  la t2, c1_dlen; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
+  "  la t2, bv_deposit_runtime_capture_complete; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
   blockVerdictDirectDepositFallback ++
   ".Lbv_deposit_after_direct:\n" ++
   ".Lbv_deposit_body_ready:\n" ++
@@ -120,6 +124,12 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_receipt_logs_helper_status:\n" ++
   "  j .Lbv_receipts_helper_fail\n" ++
   ".Lbv_receipts_accept:\n" ++
+  -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
+  -- conservative bail; the single-tx destroyed-empty detector may replace a
+  -- successful result with 62.  Every nonzero route bypasses the single-tx
+  -- all-account storage/tuple comparators, so none may accept based only on a
+  -- matching attacker-chosen receipts root.
+  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_bal_storage_omit_fail\n" ++
   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
@@ -145,6 +155,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 6; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_public_keys_sender_fail:\n" ++   -- bmvmx.3.2: a witness public_keys[i] != recovered tx[i] signer (or recovery failed)
   "  li t0, 52; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_chain_id_gate_fail:\n" ++        -- evm-asm-7zzfv: chain_id(tx) present and != block chain id (WrongChainIdError)
+  "  li t0, 57; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_gas_fail:\n" ++
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++
@@ -229,6 +241,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_mtx_sender_balance_fail:\n" ++    -- bmvmx.5.5.2.2.3 (B2.3): a multi-tx pure-payer sender's BAL final balance != pre - Σ(actual gas+value debit)
   "  li t0, 57; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_fixed_arena_overflow_fail:\n" ++
+  "  li t0, 58; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++

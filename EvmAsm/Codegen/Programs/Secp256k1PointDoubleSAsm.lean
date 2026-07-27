@@ -50,7 +50,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 namespace Secp256k1PointDoubleSAsm
 
 open Secp256k1FieldConvSAsm (secfBeToLeFn)
-open Secp256k1FieldLeToBeSAsm (secfLeToBeFn)
+open Secp256k1FieldConvSAsm (secfLeToBeFn)
 open Secp256k1FieldIsZeroSAsm (secfIsZero32Fn)
 open Secp256k1FieldLeavesSAsm (secfZero32Fn)
 open EvmAsm.Rv64.SAsm.WhileBreakDemo (nlz nlz_le nlz_spec nlz_boundary)
@@ -75,10 +75,10 @@ theorem pointDouble_spec (sp0 inPtr outPtr ret v8 v9 : Word)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 64 < 2 ^ 64)
     (hovalid : ∀ k, k < 64 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
     (harval : ∀ j, j < 64 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
-    (hdIn : inPtr.toNat + 64 ≤ (0xa3c05618 : Nat)
-      ∨ (0xa3c05658 : Nat) ≤ inPtr.toNat)
-    (hdOut : outPtr.toNat + 64 ≤ (0xa3c05618 : Nat)
-      ∨ (0xa3c05658 : Nat) ≤ outPtr.toNat)
+    (hdIn : inPtr.toNat + 64 ≤ (0xa3000950 : Nat)
+      ∨ (0xa3000990 : Nat) ≤ inPtr.toNat)
+    (hdOut : outPtr.toNat + 64 ≤ (0xa3000950 : Nat)
+      ∨ (0xa3000990 : Nat) ≤ outPtr.toNat)
     (hxlt : beBytesToNat xBE < Accel.secpP)
     (hylt : beBytesToNat yBE < Accel.secpP)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
@@ -604,13 +604,6 @@ theorem pointDouble_spec (sp0 inPtr outPtr ret v8 v9 : Word)
         xBE yBE oX oY ws hxlen hylen hoXlen hoYlen hwslen hwfX hwfY
         hoal hoov hovalid harval hdIn hdOut hxlt hylt hy0)
 
-#print axioms pointDouble_spec
-#print axioms pointDoubleRegBody_spec
-#print axioms curveStep_spec
-#print axioms secfBeToLeFlat_spec
-#print axioms secfLeToBeFlat_spec
-#print axioms secfIsZero32Flat_spec
-#print axioms secfZero32Flat_spec
 
 end Secp256k1PointDoubleSAsm
 

@@ -9,9 +9,6 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 namespace FrameDepthPushSAsm
 
-#guard GuestAddrs.frame_depth_push = 0x800382ec
-#guard GuestAddrs.evm_call_depth = 0xbc2bd580
-
 def frameDepthPushBody : List Instr :=
   [ .AUIPC .x5 (laHi GuestAddrs.evm_call_depth GuestAddrs.frame_depth_push),
     .ADDI .x5 .x5 (laLo GuestAddrs.evm_call_depth GuestAddrs.frame_depth_push),
@@ -88,6 +85,5 @@ theorem frameDepthPush_spec (depth old5 old10 ret : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) h12345
 
-#print axioms frameDepthPush_spec
 end FrameDepthPushSAsm
 end EvmAsm.Codegen

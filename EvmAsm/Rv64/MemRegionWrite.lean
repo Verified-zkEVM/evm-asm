@@ -11,7 +11,7 @@
   of dwords (`eq_of_forall_extractByte`).
 -/
 
-import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.ByteOps
 
 namespace EvmAsm.Rv64
 

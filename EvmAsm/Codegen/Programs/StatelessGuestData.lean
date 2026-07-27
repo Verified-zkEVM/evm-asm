@@ -273,11 +273,15 @@ def statelessGuestDataSection : String :=
   "  .byte 0x9a, 0x07, 0xe7, 0x56, 0xde, 0xef, 0x72, 0xb3\n" ++
   "  .byte 0x58, 0x8a, 0x4b, 0x05, 0x36, 0x22, 0x06, 0xb5\n" ++
   ".balign 8\n" ++
-  -- execution-specs stateless_guest._default_failed_stateless_output():
+  -- execution-specs stateless_guest._default_failed_stateless_output()
+  -- at tests-zkevm@v0.6.0 (ForkConfig = {activation} only):
   -- zero new_payload_request_root, successful_validation=false, and
-  -- ChainConfig(chain_id=0, active_fork=Frontier, no activation, no blob schedule).
-  -- This SSZ serialization is 73 bytes, shorter than the normal Amsterdam
-  -- success/failure echo with a populated chain_config.
+  -- ChainConfig(chain_id=0, activation with both optionals empty).
+  -- This SSZ serialization is 61 bytes (pinned against
+  -- SpecRef.serialize_stateless_output _default_failed_stateless_output):
+  -- 32x00 root | 00 succ | 25 00 00 00 cc_offset | 8x00 chain_id |
+  -- 0c 00 00 00 fc_offset | 04 00 00 00 activation_offset |
+  -- 08 00 00 00 08 00 00 00 empty bn/ts offsets.
   ".balign 8\n" ++
   "default_failed_stateless_output:\n" ++
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
@@ -286,10 +290,8 @@ def statelessGuestDataSection : String :=
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
   "  .byte 0x00, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
   "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00\n" ++
-  "  .byte 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n" ++
-  "  .byte 0x00, 0x10, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00\n" ++
-  "  .byte 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00\n" ++
-  "  .byte 0x00\n" ++
+  "  .byte 0x00, 0x04, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00\n" ++
+  "  .byte 0x00, 0x08, 0x00, 0x00, 0x00\n" ++
   -- fhsxz.2.4.2.57.11.6.5: save area for the 105-byte SszStatelessValidationResult
   -- (npr_root[0:32] + tail[33:105]) across the stateless_verdict_v2 call. The verdict's
   -- contract dispatch lets real RETURN/REVERT handlers write OUTPUT_ADDR (0xa0010000),
@@ -523,8 +525,8 @@ def statelessGuestDataSection : String :=
   -- ===== .sszscratch: large NOBITS SSZ-merkleization work region =====
   -- Relocated here (out of .data) and enlarged so hash_tree_root of a large element fits:
   -- the largest EEST transaction element is ~1 MiB and block_access_list
-  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xbf500000 by the linker's
-  -- --section-start=.sszscratch=0xbf500000 (see Driver.lean). @nobits =>
+  -- ~90 KiB. Placed at SSZ_SCRATCH_BASE = 0xbf800000 by the linker's
+  -- --section-start=.sszscratch=0xbf800000 (see Driver.lean). @nobits =>
   -- the multi-MiB reservation never lands in the ELF file. Inside the
   -- verified RAM zone (0xa0000000..0xc0000000), so isValidMemAddr already
   -- accepts it. Same labels as before => every `la <buf>` resolves here.

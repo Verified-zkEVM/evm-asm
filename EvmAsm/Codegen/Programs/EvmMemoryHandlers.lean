@@ -14,17 +14,6 @@ namespace EvmAsm.Codegen
 
 
 
-/-- Sparse high-memory backing for 32-byte MSTORE/MLOAD windows that exceed the
-    materialized per-frame arena. This preserves execution-specs memory-expansion
-    gas/MSIZE behavior for high offsets without treating the guest's dense arena
-    limit as an EVM OOG condition. Entries are append-only per dispatch; MLOAD
-    scans backward so later writes shadow earlier ones. Depth epochs prevent
-    stale entries from a reused child-frame slot from becoming visible to a
-    later frame at the same depth. The stored payload is the EVM stack-word limb
-    representation, which is exactly what a matching MLOAD reconstructs from the
-    big-endian byte layout of MSTORE. -/
-def sparseMemoryWordCapacity : Nat := 4096
-
 def sparseMemoryStoreWordAsm (tag : String) : String :=
   -- x15 holds the low offset limb and memory gas/MSIZE has already been charged.
   memoryArenaLimitAsm ("sparse_store_" ++ tag) "x18" ++
@@ -52,11 +41,31 @@ def sparseMemoryStoreWordAsm (tag : String) : String :=
 " ++
   "  add x19, x19, x6
 " ++
+  -- evm-asm-m8pdu: entry field 0 is the frame TAG = (depth-epoch << 16) | depth,
+  -- not the raw depth. call_frame_enter stamps a fresh epoch into
+  -- evm_sparse_memory_epoch_by_depth[d] on every descend, so a returned
+  -- sibling frame's entries (older epoch, same depth) can never match a
+  -- later frame's scans. depth <= 1024 fits 16 bits; the per-tx epoch
+  -- counter (reset to 1 each dispatch) stays far below 2^48.
   "  la x6, evm_call_depth
 " ++
   "  ld x6, 0(x6)
 " ++
-  "  sd x6, 0(x19)
+  "  la x16, evm_sparse_memory_epoch_by_depth
+" ++
+  "  slli x6, x6, 3
+" ++
+  "  add x16, x16, x6
+" ++
+  "  ld x16, 0(x16)
+" ++
+  "  slli x16, x16, 16
+" ++
+  "  srli x6, x6, 3
+" ++
+  "  or x16, x16, x6
+" ++
+  "  sd x16, 0(x19)
 " ++
   "  sd x15, 8(x19)
 " ++
@@ -96,9 +105,26 @@ def sparseMemoryLoadWordAsm (tag : String) : String :=
 " ++
   "  ld x17, 0(x18)
 " ++
+  -- evm-asm-m8pdu: match entries by frame TAG = (depth-epoch << 16) | depth
+  -- (see sparseMemoryStoreWordAsm) so a returned same-depth sibling's stale
+  -- entries never shadow this frame's reads.
   "  la x19, evm_call_depth
 " ++
   "  ld x19, 0(x19)
+" ++
+  "  la x16, evm_sparse_memory_epoch_by_depth
+" ++
+  "  slli x19, x19, 3
+" ++
+  "  add x16, x16, x19
+" ++
+  "  ld x16, 0(x16)
+" ++
+  "  slli x16, x16, 16
+" ++
+  "  srli x19, x19, 3
+" ++
+  "  or x19, x16, x19
 " ++
   "  beqz x17, .Lsparse_load_" ++ tag ++ "_done
 " ++

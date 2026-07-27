@@ -18,7 +18,8 @@
   - `divK_save_trial_load_spec_within`, `divK_trial_call_path_spec_within`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPathBase
+import EvmAsm.Evm64.DivMod.LoopBody.TrialCallHelpers
 import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
 
 open EvmAsm.Rv64.Tactics
@@ -197,7 +198,7 @@ def divKTrialCallV4QHat (uHi uLo vTop : Word) : Word :=
   (divKTrialCallV4Q1dd uHi uLo vTop <<< (32 : BitVec 6).toNat) |||
     divKTrialCallV4Q0dd uHi uLo vTop
 
-theorem div128Quot_phase2b_q0'_and_form (q rhat dLo un : Word) :
+private theorem div128Quot_phase2b_q0'_and_form_legacy (q rhat dLo un : Word) :
     (if rhat >>> (32 : BitVec 6).toNat = 0 ∧
         BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
       q + signExtend12 4095
@@ -222,7 +223,7 @@ theorem div128Quot_phase2b_q0'_and_form (q rhat dLo un : Word) :
     rw [if_neg h_and]
     rw [if_neg h_hi]
 
-theorem div128Quot_phase2b_rhat_and_form (q rhat dHi dLo un : Word) :
+private theorem div128Quot_phase2b_rhat_and_form_legacy (q rhat dHi dLo un : Word) :
     (if rhat >>> (32 : BitVec 6).toNat = 0 ∧
         BitVec.ult ((rhat <<< (32 : BitVec 6).toNat) ||| un) (q * dLo) then
       rhat + dHi

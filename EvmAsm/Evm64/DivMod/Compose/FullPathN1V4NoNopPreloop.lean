@@ -6,8 +6,7 @@
 
 import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
 import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN1.MaxV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN1.MaxAddbackV4NoNop
+import EvmAsm.Evm64.DivMod.N1MaxChain
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
 import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
 
