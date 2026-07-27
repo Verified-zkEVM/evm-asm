@@ -400,6 +400,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  -- Use the account-write undo cursor as the authoritative body rollback mark.
+  -- It is taken after pre-body effects and before runtime dispatch, exactly like
+  -- the nonstorage/code snapshots above; status-zero restores to this mark.
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_mtx_sender_addr; sd t1, 0(t0); la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
@@ -438,6 +442,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- truncation. Restore the persistent SSTORE log to the exact pre-dispatch
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
   -- Contract/EOA contexts retain their raw recipient here; the creation route
   -- above has re-keyed ctx+72 to bv_create_addr before joining this postlude.
@@ -498,7 +503,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- latched failure at the transaction boundary rather than serializing a
   -- truncated block map later.
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_post_preparation_reached; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
@@ -517,7 +521,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
   "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
   "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
+  -- Body effects are already rolled back to the undo mark above on status=0.
+  -- The coinbase fee is appended after that rollback and survives either
+  -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
   "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
@@ -585,6 +594,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0); la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0); la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0); la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
   "  la t0, bv_creation_output_mode; li t1, 1; sd t1, 0(t0); la t0, bv_mtx_i; ld t1, 0(t0); la t0, bv_creation_output_index; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  la t0, bv_creation_output_mode; sd zero, 0(t0); la t0, dtrc_use_pre_header; sd zero, 0(t0)\n" ++
@@ -599,7 +609,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  bnez a4, .Lbv_mtx_effects_kept\n" ++
   "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0); j .Lbv_mtx_effects_kept\n" ++
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_mtx_creation_unsupported:\n" ++
   -- A creation transaction is not yet dispatched by this loop, but every
   -- preceding transaction has an exact settled runtime result in the strided

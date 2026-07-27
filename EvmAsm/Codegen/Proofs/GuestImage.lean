@@ -201,11 +201,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa4000000 0xbf76b380 :=
-    satWithin_ramRegion 0xa4000000 0x1b76b380 (by omega) (by omega)
+      0xa4000000 0xbf76b3a0 :=
+    satWithin_ramRegion 0xa4000000 0x1b76b3a0 (by omega) (by omega)
       (by omega) (by omega)
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3005370 0xbf76b380 :=
+      0xa3005370 0xbf76b3a0 :=
     t7.mono (by omega) (le_refl _)
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=

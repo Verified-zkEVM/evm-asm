@@ -57,16 +57,13 @@
 
   DOES: establish the two levels, keyed fieldwise upsert, tx→block merge and
   clear helpers, discard helper, overflow latches and frame rollback via a
-  reverse-replayed undo journal. The emitted helper bundle and its overflow
-  readers are intentionally present even though no current execution producer
-  invokes them.
-
-  DOES NOT YET: feed execution facts into either map. In particular,
-  `record_nonstorage_effect` and `create_record_code_effect` deliberately do
-  not call `account_write_record`, so the transaction container has no
-  execution data and no later path serializes these arenas. Producer wiring is
-  held behind the distinct-account capacity proof for both map levels; raw
-  `record_nonstorage_effect`'s 38460-row admission limit is not that proof.
+  reverse-replayed undo journal. `record_nonstorage_effect` and
+  `create_record_code_effect` dual-record successful execution facts into the
+  transaction map; the MTx body-rollback boundary restores the same undo mark
+  as the existing execution-effect logs, then the post-body coinbase effect is
+  recorded and the surviving transaction map is incorporated. The
+  distinct-account capacity proof covers the block level;
+  raw `record_nonstorage_effect`'s 38460-row admission limit is not that proof.
 
   DOES NOT: emit BAL changes. The emission needs the spec's *pre-tx* baseline —
   `_get_pre_tx_account` reads the BLOCK-cumulative value and falls back to
@@ -74,6 +71,13 @@
   comparison whose inequality test is what makes net-zero filtering automatic.
   That serializer/builder walk is deliberately separate: this map retains
   execution facts but does not yet emit BAL rows.
+
+  Known coverage boundary (evm-asm-tdbn0): this initial producer wiring covers
+  the execution nonstorage/code effects and the post-body coinbase fee. It does
+  not yet feed the sender nonce, which is published directly through
+  `account_state_publish_sender_inclusion`, nor the sender gas debit, which is
+  checked by the separate B2.3 running-balance path. A builder reader must not
+  consume this map until those producer paths are represented too.
 
   ## The `present` field
 

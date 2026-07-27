@@ -33,6 +33,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -107,6 +108,10 @@ def recordNonstorageEffectFunction : String :=
   -- the final comparison-materialization switch; a bounded journal failure
   -- fails closed through this producer's established overflow path.
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  -- Preserve this successful execution effect in the transaction-local map.
+  -- The mask says what was written; a later BAL builder compares final values
+  -- to the block-cumulative baseline to decide whether to emit changes.
+  "  mv a0, s0; mv a1, s2; mv a2, s4; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasBalance + accountWriteHasNonce) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
   ".Lrnse_overflow:\n" ++
