@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Forbidden-tactic guard (no bv_decide / native_decide / TCB expanders)
         run: scripts/check-forbidden-tactics.sh
+      - name: Sail pin guard (vendored model matches its provenance extraction)
+        run: scripts/check-sail-pin.sh
       - name: Symbolic guest-PC guard (SAsm wrappers follow GuestAddrs)
         run: scripts/check-no-hardcoded-guest-pc.sh
       - name: File-size guardrail
