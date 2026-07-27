@@ -89,6 +89,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  -- Unlike the contract path this shortcut bypasses dispatch_tx_runtime_code.
+  -- Consume the same one-shot sender-upfront tuple after its local reset so an
+  -- EOA transaction materializes the debit and clears the flag too.
+  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   -- An unresolved recipient must not be staged as STOP.  Run only the shared
