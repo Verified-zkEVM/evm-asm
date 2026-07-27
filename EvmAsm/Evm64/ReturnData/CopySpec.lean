@@ -164,5 +164,165 @@ theorem evm_returndatacopy_stack_spec_within
       have k2 := rdc_shed2 _ _ _ sState k1
       xperm_chunked k2) hloop)
 
+/-! ## Composed body witness -/
+
+/-- Lift a sub-program spec's `CodeReq` to the whole RETURNDATACOPY body. -/
+private theorem rdc_mono_sub
+    (frameHi : BitVec 20) (frameLo : BitVec 12) (off1 off2 : BitVec 13)
+    (base subBase : Word) (pre mid suf : List Instr) (idx : Nat)
+    (h_prog : evm_returndatacopy frameHi frameLo off1 off2 = pre ++ mid ++ suf)
+    (h_pre_len : pre.length = idx)
+    (h_addr : subBase = base + BitVec.ofNat 64 (4 * idx)) :
+    ∀ a i, (CodeReq.ofProg subBase mid) a = some i →
+           (evm_returndatacopy_code frameHi frameLo off1 off2 base) a = some i := by
+  intro a i h
+  have hbound : 4 * (pre ++ mid ++ suf).length < 2 ^ 64 := by
+    rw [← h_prog, evm_returndatacopy_length]; norm_num
+  have haddr' : base + BitVec.ofNat 64 (4 * pre.length) = subBase := by
+    rw [h_pre_len, h_addr]
+  have hsub := CodeReq.ofProg_mono_subrange base pre mid suf hbound a i
+    (by rw [haddr']; exact h)
+  unfold evm_returndatacopy_code
+  rw [h_prog]
+  exact hsub
+
+/-- **RETURNDATACOPY body `.proven` witness.**  Stack-level triple over the whole
+    verified body (`base → base+80`): the bounds guards fall through, the operands
+    are popped, the pointers are set up, and the copy loop writes the in-bounds
+    return-data slice `stagedBytes[start ..< start+size]` into the EVM-memory
+    window `[destOffset, destOffset+size)`.
+
+    Scope matches CALLDATACOPY's registered witness: the handler's interleaved
+    dynamic-gas / OOG / MSIZE glue is framed out (DRIFT TCB boundary), and the
+    high-limb operand checks the handler performs in that glue region appear here
+    as the `h_destOff`/`h_srcOff`/`h_size` low-limb hypotheses.  The two invalid
+    exits are the companion theorems
+    `evm_returndatacopy_guard_{wrap,len}_invalid_stack_spec_within`. -/
+theorem evm_returndatacopy_body_stack_spec_within
+    (frameHi : BitVec 20) (frameLo : BitVec 12) (off1 off2 : BitVec 13)
+    (base sp memBase frameAddr returnDataLen : Word)
+    (destOffset dataOffset size : EvmWord) (rest : List EvmWord)
+    (destOff srcOff sz : Nat)
+    (srcAll memBytes : List (BitVec 8))
+    (x14Old x15Old x16Old x17Old x18Old x19Old : Word)
+    (hla : base + 12 + ((frameHi.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
+              + signExtend12 frameLo = frameAddr)
+    (h_destOff : destOffset.getLimbN 0 = BitVec.ofNat 64 destOff)
+    (h_srcOff : dataOffset.getLimbN 0 = BitVec.ofNat 64 srcOff)
+    (h_sizeV : size.getLimbN 0 = BitVec.ofNat 64 sz)
+    (h_nowrap : ¬ BitVec.ult (dataOffset.getLimbN 0 + size.getLimbN 0)
+      (dataOffset.getLimbN 0))
+    (h_in_bounds : ¬ BitVec.ult returnDataLen
+      (dataOffset.getLimbN 0 + size.getLimbN 0))
+    (h_pos : 1 ≤ sz)
+    (h_fits : srcOff + sz ≤ srcAll.length)
+    (h_src_align : (frameAddr + 16).toNat % 8 = 0)
+    (h_mem_align : memBase.toNat % 8 = 0)
+    (h_win : destOff + sz ≤ memBytes.length)
+    (h_src_over : (frameAddr + 16).toNat + srcAll.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcAll.length →
+      isValidByteAccess ((frameAddr + 16) + BitVec.ofNat 64 k) = true)
+    (h_mem_over : memBase.toNat + memBytes.length < 2 ^ 64)
+    (h_mem_valid : ∀ k, k < memBytes.length →
+      isValidByteAccess (memBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (14 + 6 * sz) base (base + 80)
+      (evm_returndatacopy_code frameHi frameLo off1 off2 base)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ sp) **
+       ((.x13 : Reg) ↦ᵣ memBase) ** ((.x14 : Reg) ↦ᵣ x14Old) **
+       ((.x15 : Reg) ↦ᵣ x15Old) ** ((.x16 : Reg) ↦ᵣ x16Old) **
+       ((.x17 : Reg) ↦ᵣ x17Old) ** ((.x18 : Reg) ↦ᵣ x18Old) **
+       ((.x19 : Reg) ↦ᵣ x19Old) **
+       evmStackIs sp [destOffset, dataOffset, size] **
+       evmStackIs (sp + 96) rest **
+       ((frameAddr + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ returnDataLen) **
+       bytesRegion memBase memBytes ** bytesRegion (frameAddr + 16) srcAll)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ (sp + 96)) **
+       ((.x13 : Reg) ↦ᵣ memBase) ** ((.x14 : Reg) ↦ᵣ (BitVec.ofNat 64 destOff)) **
+       ((.x15 : Reg) ↦ᵣ (BitVec.ofNat 64 srcOff)) ** ((.x16 : Reg) ↦ᵣ (0 : Word)) **
+       regOwn .x17 ** regOwn .x18 ** regOwn .x19 **
+       evmStackIs sp [destOffset, dataOffset, size] **
+       evmStackIs (sp + 96) rest **
+       ((frameAddr + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ returnDataLen) **
+       bytesRegion memBase
+         (memBytes.take destOff ++ (srcAll.drop srcOff).take sz ++
+          memBytes.drop (destOff + sz)) **
+       bytesRegion (frameAddr + 16) srcAll) := by
+  -- Code-requirement lifts for the three segments of the body image.
+  have hprog : evm_returndatacopy frameHi frameLo off1 off2
+      = evm_returndatacopy_revert frameHi frameLo off1 off2 ++
+        (evm_returndatacopy_setup ++ evm_returndatacopy_loop .x18 .x17 .x16 .x19) := rfl
+  have mono_guard := rdc_mono_sub frameHi frameLo off1 off2 base base
+    [] (evm_returndatacopy_revert frameHi frameLo off1 off2)
+    (evm_returndatacopy_setup ++ evm_returndatacopy_loop .x18 .x17 .x16 .x19) 0
+    rfl rfl (by bv_omega)
+  have mono_setup := rdc_mono_sub frameHi frameLo off1 off2 base (base + 36)
+    (evm_returndatacopy_revert frameHi frameLo off1 off2) evm_returndatacopy_setup
+    (evm_returndatacopy_loop .x18 .x17 .x16 .x19) 9
+    (List.append_assoc _ _ _).symm
+    (evm_returndatacopy_revert_length ..)
+    (by bv_omega)
+  have mono_loop := rdc_mono_sub frameHi frameLo off1 off2 base (base + 56)
+    (evm_returndatacopy_revert frameHi frameLo off1 off2 ++ evm_returndatacopy_setup)
+    (evm_returndatacopy_loop .x18 .x17 .x16 .x19) [] 14
+    (by rw [hprog, List.append_nil]; exact (List.append_assoc _ _ _).symm)
+    (by simp [evm_returndatacopy_revert_length, evm_returndatacopy_setup_length])
+    (by bv_omega)
+  -- Size as a nonzero machine word.
+  have hsz_lt : sz < 2 ^ 64 := by
+    have : srcAll.length < 2 ^ 64 := by omega
+    omega
+  have hsz_ne : BitVec.ofNat 64 sz ≠ (0 : Word) := by
+    intro hc
+    have := congrArg BitVec.toNat hc
+    rw [BitVec.toNat_ofNat] at this
+    simp at this
+    omega
+  -- Segment 1: the bounds guards (base → base+36).
+  have hguard := evm_returndatacopy_guard_success_stack_spec_within
+    frameHi frameLo off1 off2 sp base frameAddr x14Old x15Old x16Old x17Old x18Old
+    x19Old destOffset dataOffset size returnDataLen rest hla h_nowrap h_in_bounds
+  have hguardc := cpsTripleWithin_extend_code mono_guard hguard
+  -- Segment 2: pointer setup (base+36 → base+56).
+  have hsetup := evm_returndatacopy_setup_spec_within (base + 36) sp memBase frameAddr
+    (destOffset.getLimbN 0) (dataOffset.getLimbN 0) (size.getLimbN 0) returnDataLen
+    (by rw [h_sizeV]; exact hsz_ne)
+  rw [show (base + 36 : Word) + 20 = base + 56 from by bv_omega] at hsetup
+  have hsetupc := cpsTripleWithin_extend_code mono_setup hsetup
+  -- Segment 3: the copy loop (base+56 → base+80).
+  have hloop := evm_returndatacopy_stack_spec_within (base + 56) memBase (frameAddr + 16)
+    destOff srcOff sz srcAll memBytes
+    (BitVec.ofNat 64 srcOff + BitVec.ofNat 64 sz) h_pos h_fits h_src_align h_mem_align
+    h_win h_src_over h_src_valid h_mem_over h_mem_valid
+  rw [show (base + 56 : Word) + 0 = base + 56 from by bv_omega,
+      show (base + 56 : Word) + 24 = base + 80 from by bv_omega] at hloop
+  have hloopc := cpsTripleWithin_extend_code mono_loop hloop
+  -- Frame the resources each segment does not touch.
+  have gf := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x13 : Reg) ↦ᵣ memBase) **
+     bytesRegion memBase memBytes ** bytesRegion (frameAddr + 16) srcAll)
+    (by pcFreeR) hguardc
+  have sf := cpsTripleWithin_frameR
+    (((.x19 : Reg) ↦ᵣ (BitVec.ofNat 64 srcOff + BitVec.ofNat 64 sz)) **
+     evmStackIs sp [destOffset, dataOffset, size] ** evmStackIs (sp + 96) rest **
+     ((frameAddr + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ returnDataLen) **
+     bytesRegion memBase memBytes ** bytesRegion (frameAddr + 16) srcAll)
+    (by pcFreeR) hsetupc
+  have lf := cpsTripleWithin_frameR
+    (((.x12 : Reg) ↦ᵣ (sp + 96)) ** ((.x13 : Reg) ↦ᵣ memBase) **
+     ((.x14 : Reg) ↦ᵣ (BitVec.ofNat 64 destOff)) **
+     ((.x15 : Reg) ↦ᵣ (BitVec.ofNat 64 srcOff)) **
+     evmStackIs sp [destOffset, dataOffset, size] ** evmStackIs (sp + 96) rest **
+     ((frameAddr + BitVec.ofNat 64 returnDataSizeOff) ↦ₘ returnDataLen))
+    (by pcFreeR) hloopc
+  -- Value bridges: the guard/setup specs are stated over the stack limbs, the
+  -- loop entry over the `Nat` offsets.
+  rw [h_destOff, h_srcOff, h_sizeV] at gf sf
+  simp only [sepConj_assoc'] at gf sf lf
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) gf sf
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 lf
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hp => by xperm_chunked hp) s2)
+
 end ReturnData
 end EvmAsm.Evm64
