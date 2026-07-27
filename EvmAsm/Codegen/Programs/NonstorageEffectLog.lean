@@ -51,9 +51,9 @@ open EvmAsm.Rv64
       2 * floor(200_000_000 / 10400) = 38_460.
     CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
     separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
-    separate block budget and cannot reduce this bound. 40960 therefore covers the full raw stream
-    with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
-    verdict assumption.
+    separate block budget and cannot reduce this bound. 38,460 is therefore the
+    exact full raw-stream bound. The overflow flag remains a fail-closed runtime
+    guard, rather than a verdict assumption.
 
     Cost: the aggregate radix-sort and both comparators iterate over the live `count`, never `cap`,
     so a larger cap is pure reserved BSS (4 × cap×112 ≈ 28 MiB + cap-byte covered[]), comfortably
@@ -61,7 +61,7 @@ open EvmAsm.Rv64
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 40960
+def nonstorageEffectLogCap : Nat := 38460
 
 /-! The 32-byte address field stores a 20-byte address followed by twelve
 padding bytes. Byte 20 is a component-validity mask: it is outside the key

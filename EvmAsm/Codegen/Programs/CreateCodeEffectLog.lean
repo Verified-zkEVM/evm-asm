@@ -47,11 +47,15 @@ open EvmAsm.Rv64
     1.0 MiB absolute ceiling); the EIP-7907 large-code extra gas only lowers
     this, and the empty-CREATE / EIP-7702 delegation marker paths (48-byte
     records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
-    cap therefore reserves 1.5 MiB (≈50% margin over the 1.0 MiB ceiling).
+    cap therefore reserves the exact 1.0 MiB ceiling.  For nonempty code,
+    `round8(48 + code_len) ≤ code_len + 55` while the CREATE base charge makes
+    every additional record reduce the available code-byte budget by 160 bytes;
+    empty CREATE/delegation records are bounded more tightly by their fixed
+    per-event gas.  Thus neither form can reach the one-mebibyte reservation.
 
     On overflow the producer sets `exec_code_effect_overflow`; block_verdict
     consumes that flag as a rejection. -/
-def execCodeEffectLogCap : Nat := 1572864
+def execCodeEffectLogCap : Nat := 1048576
 
 /-! ## Bounded execution CodeState
 
@@ -89,14 +93,14 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
     truth.  Pending entries form a per-transaction journal; durable entries
     retain the latest successful block state.  Both are fixed arenas.
 
-    40,960 entries is a gas-derived bound.  The lowest-cost operation that
+    38,460 entries is the gas-derived bound.  The lowest-cost operation that
     changes two accounts is a value transfer; the existing 200M-gas bound is
     38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
     cost, keeping its two-account writes below this cap.  Pending is reset at
     every transaction boundary, while durable stores one latest entry per
     address for the block. -/
 def accountStateEntryBytes : Nat := 128
-def accountStateEntryCapacity : Nat := 40960
+def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
 def accountStateCreatedCapacity : Nat := 8192
 
