@@ -454,18 +454,29 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- pending AccountState; a failed body still commits the authorization phase
   -- iff the dispatcher reached the post-preparation coverage point.  A
   -- preparation OOG never reaches that point and therefore drops pending auth.
+  -- r59nm: the storage_writes map commits on TX STATUS ALONE, decided here and
+  -- NOT inside account_state_commit_pending.  The AccountState gate below also
+  -- commits when `runtime_tx_auth_phase_applied` is set, and that flag does NOT
+  -- mean an authorization was applied -- it marks the dispatcher reaching the
+  -- POST-PREPARATION COVERAGE POINT, which nearly every transaction whose body
+  -- fails after preparation reaches.  Merging storage on that disjunct promoted
+  -- failed transactions' writes into the block map (measured: sstore_0to0to_x
+  -- d5-g0, status 0, flag 1, the reverted write present in the block map).
+  -- The spec has no such carve-out for storage: incorporate_tx_into_block runs
+  -- for committing transactions, and a failed one contributes nothing
+  -- (state_tracker.py:832; fresh TransactionState per tx at fork.py:1043).
+  -- Reads are deliberately untouched either way -- same event, opposite
+  -- treatment, which is why there are two containers.
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2)\n" ++
+  "  beqz t2, .Lbv_mtx_storage_drop\n" ++
+  "  jal ra, write_sets_incorporate_tx; j .Lbv_mtx_storage_done\n" ++
+  ".Lbv_mtx_storage_drop:\n" ++
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbv_mtx_storage_done:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_auth_phase_applied; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
-  -- r59nm S2b: this path SKIPS account_state_commit_pending, and with it the
-  -- write_sets_incorporate_tx that would have merged-and-cleared the tx-level
-  -- storage_writes map.  Drop that map explicitly, mirroring the spec's fresh
-  -- TransactionState per transaction (fork.py:1043) -- otherwise this failed
-  -- transaction's writes are still resident when the next one starts and get
-  -- promoted by ITS incorporate.  The READS of this transaction are deliberately
-  -- kept: same event, opposite treatment, which is why there are two containers.
-  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
-  "  jal ra, write_sets_discard_tx\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
