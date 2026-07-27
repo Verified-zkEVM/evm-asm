@@ -822,6 +822,15 @@ def blockVerdictFunction : String :=
   "  li t2, 1; la t1, bv_pending_upfront_balance_flag; sd t2, 0(t1)\n" ++
   ".Lbv_stx_pending_upfront_done:\n" ++
   ".Lbv_stx_checks_done:\n" ++
+  -- #10695: stamp block_access_index = 1 explicitly for the single-tx lane's only user tx
+  -- (EIP-7928: 0 for system, i+1 for the i-th user tx; i = 0 here).  This is the value the
+  -- global already holds from its static initialiser, so the emitted behaviour is unchanged --
+  -- but relying on the initialiser of a MUTABLE global that the mtx lane stores to is the same
+  -- fragility that produced the contract-path gap, one accident away from the same bug.  Making
+  -- it explicit is free and puts all four stamp sites under one invariant (stated at the mtx
+  -- contract-path store in BlockVerdictMtxRuntime) instead of leaving this lane correct only by
+  -- an initialiser that a reader has to go find.
+  "  li t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  jal ra, bv_emit_single_tx_tl7708\n" ++
   -- fva3w: snapshot the exec effect logs before the contract runtime dispatch. A top-level
   -- tx that reverts/aborts (INVALID/REVERT/OOG at depth 0) discards its state changes; its
