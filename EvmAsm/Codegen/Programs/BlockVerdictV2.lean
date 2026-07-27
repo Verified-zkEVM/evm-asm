@@ -67,6 +67,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
@@ -146,6 +147,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Mirrored here for the same reason as the storage set: this unit has its own
     -- `.elf`, so an omission surfaces only as a link error inside an A/B leg.
     accountWriteMapFunctions ++ "\n" ++
+    -- GH #10680: canonical ordering for both write containers. Inert -- nothing
+    -- consumes the ordering yet -- but emitted so the assembler and linker see it.
+    balCanonicalSortFunctions ++ "\n" ++
     accountReadRecordFunction ++ "\n" ++
     accountAtHeaderStateRootTrackedFunction ++ "\n" ++
     codeReadRecordFunction ++ "\n" ++
@@ -236,6 +240,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
     storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
+    balCanonicalSortDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
     codeReadLogDataSection ++ "\n" ++
     readSetsBlockDataSection ++ "\n" ++
@@ -552,6 +557,9 @@ def statelessVerdictV2GuestClosure : String :=
   -- emitted so the assembler and linker see them, since an unreferenced routine is
   -- unverified code.  The change-emission slice adds the callers.
   accountWriteMapFunctions ++ "\n" ++
+    -- GH #10680: canonical ordering for both write containers. Inert -- nothing
+    -- consumes the ordering yet -- but emitted so the assembler and linker see it.
+    balCanonicalSortFunctions ++ "\n" ++
   -- GH #10619: producer for the account_reads CONTAINER.  Fires
   -- UNCONDITIONALLY (state_tracker.py:139 records before consulting
   -- account_writes) -- unlike the code-read producer.
@@ -676,6 +684,7 @@ def statelessVerdictV2GuestData : String :=
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
+    balCanonicalSortDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
   codeReadLogDataSection ++ "\n" ++
   readSetsBlockDataSection
