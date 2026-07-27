@@ -221,8 +221,16 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 38; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_sender_nonce_fail:\n" ++           -- bmvmx.1.6.3: BAL sender post nonce != pre_nonce + 1 (execution increments once)
+  -- This is deliberately a catch-all legacy code, not a mechanism identifier:
+  -- transaction-nonce validity; EIP-7702 self-authority/auth parsing/recovery/signer
+  -- binding; and MTx setup/materialization/inclusion/state-gas helper failures reach it.
+  ".Lbv_sender_nonce_fail:\n" ++
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- Retirement-scoped: declared-versus-execution BAL final-nonce comparison.
+  -- Code 59 retires with the storage/nonstorage BAL families in the 10680 inventory;
+  -- code 40's transaction-validity/auth reachers deliberately do not.
+  ".Lbv_mtx_sender_final_nonce_fail:\n" ++  -- bmvmx.5.5.2: declared BAL sender final nonce != execution-derived final nonce
+  "  li t0, 59; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_tuple_fail:\n" ++              -- bmvmx.1.6.6: a non-recipient account's per-slot (block_access_index,value) tuple sequence != exec
