@@ -222,23 +222,21 @@ def accountStateUpsertDurableFunction : String :=
     next transaction sees the durable tombstone. -/
 def accountStateCommitPendingFunction : String :=
   "account_state_commit_pending:\n" ++
-  -- GH #10619 gate 3: this is the guest's incorporate_tx_into_block for the
-  -- account/code overlay, so it is where the READ sets are promoted too --
-  -- merge the three tx-level sets up and clear them (state_tracker.py:832,
-  -- merge :858-861, clear :879-881).  Ordered BEFORE the write merge below,
-  -- matching the spec: update_builder_from_tx and the read merges run before
-  -- account_writes/storage_writes are folded into the block.
+  -- The generic read-set promotion is deliberately NOT here.  The spec
+  -- incorporates storage/account/code reads for every transaction, including
+  -- a preparation failure that bypasses this AccountState commit; MTxRuntime
+  -- owns that unconditional transaction-boundary call.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   -- GH #10645: SELFDESTRUCT storage rows are execution reads too.  Promote
   -- them while the tx-level read set is still live; this helper is reached only
   -- from successful transaction finalization.
   "  jal ra, account_state_promote_delete_reads\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
   -- r59nm: the STORAGE half of the merge is NOT here.  This function is called
   -- on a commit predicate that also fires for a FAILED body when the
   -- post-preparation coverage point was reached, which is correct for
   -- AccountState and wrong for storage_writes.  The storage decision is made on
-  -- tx status alone in BlockVerdictMtxRuntime.  Reads stay here.
+  -- tx status alone in BlockVerdictMtxRuntime.  Generic read promotion is at
+  -- that routine's unconditional transaction-boundary join.
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
   "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++

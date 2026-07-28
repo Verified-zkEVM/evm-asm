@@ -1047,6 +1047,10 @@ def balSerializerRebuildHashFunction : String :=
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  mv s0, a0; mv s1, a1\n" ++
+  -- `_build_from_builder` first folds the block account-read set into the
+  -- builder as empty touched-account entries.  This must precede every sort:
+  -- the account walk below is the single source of outer BAL rows.
+  "  jal ra, bal_builder_incorporate_touched_accounts\n" ++
   -- SEVEN ORDERING RULES (block_access_lists.py:539-579), all of them here so the
   -- emitters can stay order-free. Every stride below is 8-ALIGNED, per the rule on
   -- `balBuilderAccountRowBytes` -- the sort swaps rows with ld/sd.

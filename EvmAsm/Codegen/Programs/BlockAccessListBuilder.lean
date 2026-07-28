@@ -322,6 +322,33 @@ def balBuilderEnsureAccountFunction : String :=
   ".Lbabe_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
 
+/-! ## `bal_builder_incorporate_touched_accounts`
+
+The spec's final build step feeds every address in the block-lifetime
+`account_reads` set through `add_touched_account` before sorting the builder
+(`block_access_lists.py:_build_from_builder`).  The guest already promotes that
+set at each committed transaction; this late walk is its only consumer in the
+BAL builder.  `bal_builder_ensure_account` is exactly the corresponding
+primitive: a miss creates an account entry with all five change lists empty,
+and a hit preserves an entry created earlier by a change producer.
+
+`account_reads` rows are 32-byte slots with a BE20 address at their start.
+Only those 20 bytes are passed to the builder, whose account table has a
+24-byte stride for aligned sorting.  The source-set capacity is 16,384 and the
+common builder overflow latch is checked by the block-verdict tail, so this
+loop must not silently truncate a failed insertion. -/
+def balBuilderIncorporateTouchedAccountsFunction : String :=
+  "bal_builder_incorporate_touched_accounts:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  la s0, account_reads_count; ld s1, 0(s0); li s2, 0\n" ++
+  ".Lbbita_loop:\n" ++
+  "  bgeu s2, s1, .Lbbita_done\n" ++
+  "  slli t0, s2, 5; li t1, 0xa1ca0000; add a0, t1, t0\n" ++
+  "  jal ra, bal_builder_ensure_account\n" ++
+  "  addi s2, s2, 1; j .Lbbita_loop\n" ++
+  ".Lbbita_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 32; ret\n"
+
 /-! ## Non-storage append primitives
 
 These mirror `add_balance_change`, `add_nonce_change`, and `add_code_change`.
@@ -665,6 +692,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerRebuildHashFunction ++
   balSerializerVerifyFunction ++
   balBuilderEnsureAccountFunction ++
+  balBuilderIncorporateTouchedAccountsFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
