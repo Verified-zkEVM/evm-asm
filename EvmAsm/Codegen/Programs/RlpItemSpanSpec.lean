@@ -149,7 +149,7 @@ theorem cursor_lt_length (items : List RLPItem) (k : Nat) (hk : k < items.length
 /-- Guest entry of `rlp_item_span`. -/
 def rlpItemSpanBase : Word := BitVec.ofNat 64 GuestAddrs.rlp_item_span
 
-theorem rlpItemSpanBase_eq : rlpItemSpanBase = (0x80004abc : Word) := by decide
+theorem rlpItemSpanBase_eq : rlpItemSpanBase = (0x80004dc0 : Word) := by decide
 
 /-- The `rlp_item_span` body at its linked guest address. -/
 abbrev rlpItemSpanCode : CodeReq :=
@@ -159,8 +159,8 @@ theorem rlpItemSpan_prog_length : rlpItemSpan_prog.length = 53 := by decide
 theorem rlpItemSize_prog_length : rlpItemSize_prog.length = 35 := by decide
 
 /-- Full deployed layout: `rlp_item_span` plus its callee `rlp_item_size`
-    at their linked guest addresses (contiguous: size `0x80004a30..0x80004abc`,
-    span `0x80004abc..0x80004b90`). -/
+    at their linked guest addresses (contiguous: size `0x80004b3c..0x80004bc8`,
+    span `0x80004bc8..0x80004c9c`). -/
 abbrev rlpItemSpanFullCode : CodeReq :=
   rlpItemSpanCode.union rlpItemSizeCode
 

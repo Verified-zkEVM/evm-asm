@@ -695,6 +695,7 @@ def balSerializerEmitStorageFunction : String :=
   "  ld t3, 80(sp); addi a0, t3, 64; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 88(sp); add t4, t4, a0; sd t4, 88(sp)\n" ++
   "  mv a0, s0; ld a1, 88(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_storage_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 80(sp); mv a0, s0; addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   ".Lbses_chg_next:\n" ++
@@ -731,6 +732,7 @@ def balSerializerEmitReadsFunction : String :=
   "  ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written\n" ++
   "  bnez a0, .Lbser_next\n" ++
   "  ld t4, 48(sp); mv a0, s0; addi a1, t4, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  la t0, bv_bal_shadow_emit_storage_reads; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lbser_next:\n" ++
   "  addi s4, s4, 1; j .Lbser_loop\n" ++
   ".Lbser_done:\n" ++
@@ -746,12 +748,24 @@ def balSerializerEmitBalanceFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
   "  la t0, bal_builder_balance_count; ld s3, 0(t0)\n" ++
+  -- Diagnostic cell: the builder row count as the emitter sees it.  Written on
+  -- every call (the emitter runs once per account), so last-write-wins leaves
+  -- the count; it is the same value each call because nothing appends during
+  -- serialization.  This is the cell that separates "no row was ever built"
+  -- from "rows exist and the emitter's address filter dropped them".
+  "  la t0, bald_bal_builder_count; sd s3, 0(t0)\n" ++
   "  li s4, 0\n" ++
   ".Lbseb_loop:\n" ++
   "  bgeu s4, s3, .Lbseb_done\n" ++
   "  li t0, 64; mul t1, s4, t0; la t2, bal_builder_balance_changes; add t3, t2, t1\n" ++
   "  sd t3, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  -- Diagnostic cell: one increment per address-filter comparison attempted.
+  -- If this equals builder_count x (accounts visited) then every row was offered
+  -- to every account and a missing row was REJECTED by the compare (cause 3, the
+  -- key representation); a shortfall means the account loop never reached it
+  -- (cause 4).  t3 is already spilled to 48(sp), so t0/t1 are free.
+  "  la t0, bald_bal_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
   "  beqz a0, .Lbseb_next\n" ++
   -- Measure the pair BEFORE emitting the header: streaming means no backpatch.
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
@@ -760,6 +774,7 @@ def balSerializerEmitBalanceFunction : String :=
   "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_balance_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 48(sp); mv a0, s0; addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   ".Lbseb_next:\n" ++
@@ -778,12 +793,16 @@ def balSerializerEmitNonceFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
   "  la t0, bal_builder_nonce_count; ld s3, 0(t0)\n" ++
+  -- Diagnostic cell; see `bald_bal_builder_count` in the balance emitter.
+  "  la t0, bald_non_builder_count; sd s3, 0(t0)\n" ++
   "  li s4, 0\n" ++
   ".Lbsen_loop:\n" ++
   "  bgeu s4, s3, .Lbsen_done\n" ++
   "  slli t1, s4, 5; slli t2, s4, 3; add t1, t1, t2\n" ++
   "  la t2, bal_builder_nonce_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  -- Diagnostic cell; see `bald_bal_cmp_attempts` in the balance emitter.
+  "  la t0, bald_non_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
   "  beqz a0, .Lbsen_next\n" ++
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
   "  jal ra, bal_serializer_u64_to_field\n" ++
@@ -793,6 +812,7 @@ def balSerializerEmitNonceFunction : String :=
   "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_nonce_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   -- Re-widen the BAI: the field is a single shared buffer and the nonce overwrote it.
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
   "  jal ra, bal_serializer_u64_to_field\n" ++
@@ -833,6 +853,7 @@ def balSerializerEmitCodeFunction : String :=
   "  jal ra, bal_rlp_measure_into_throwaway\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_code_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 48(sp); mv a0, s0; ld a1, 32(t3); ld a2, 40(t3)\n" ++
   "  la a3, bal_serializer_hdr_scratch; jal ra, bal_rlp_emit_bytes\n" ++

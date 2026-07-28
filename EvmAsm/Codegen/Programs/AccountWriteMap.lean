@@ -332,18 +332,52 @@ def accountWritesEmitBuilderTxFunction : String :=
   -- precedence into the shared account scratch.
   "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
   ".Laweb_balance_have:\n" ++
+  -- Diagnostic cell (bald_*): the producer bit as OBSERVED here, one increment
+  -- per account-loop iteration whose mask carries balance.  Placed past the
+  -- label so it is inside the block the branch selects; t0/t1 are dead (t0 held
+  -- the `andi` result already consumed by the `bnez`).
+  "  la t0, bald_bal_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la s6, account_builder_pre_account; addi s6, s6, 8\n" ++
   ".Laweb_balance_cmp:\n" ++
-  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
+  -- The final `beq` is RELABELLED to the witness block rather than having a probe
+  -- spliced into the equal path: the branch already exists, so relabelling cannot
+  -- change which comparisons are made, and `bit_set = eq + ne` is the built-in
+  -- check that the relabel did not lose a path.
+  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_bal_eq\n" ++
   ".Laweb_balance_emit:\n" ++
+  -- Diagnostic cell: the compare found inequality, so the append is CALLED.
+  -- bit_set minus differs is exactly the "compare found equality" population
+  -- (cause 2); differs minus builder_count is an append that did not land.
+  "  la t0, bald_bal_differs; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bald_bal_ne_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
   "  mv a0, s4; mv a1, s7; addi a2, s4, 32; jal ra, bal_builder_append_balance\n" ++
+  -- Jump over the witness block; falling through would run it on the append path.
+  "  j .Laweb_nonce\n" ++
+  ".Laweb_bal_eq:\n" ++
+  "  la t0, bald_bal_eq_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s6); la t0, bald_bal_eq_val_lo; sd t1, 0(t0); ld t1, 24(s6); la t0, bald_bal_eq_val_hi; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
   -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
   ".Laweb_nonce_have:\n" ++
+  -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here
+  -- and is reloaded by `.Laweb_nonce_cmp` below.
+  "  la t0, bald_non_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, account_builder_pre_account; ld t0, 0(t0)\n" ++
   ".Laweb_nonce_cmp:\n" ++
-  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  -- The nonce differs-cell must sit AFTER the skip-on-equal branch, so it counts
+  -- appends and not bit-set accounts.  t5/t6 rather than t0/t1: t0 carries the
+  -- resolver's pre-state nonce and t1 the post value passed as a2.
+  "  ld t1, 64(s4); beq t0, t1, .Laweb_non_eq; la t5, bald_non_differs; ld t6, 0(t5); addi t6, t6, 1; sd t6, 0(t5); la t5, bald_non_ne_bai_mask; ld t6, 0(t5); li t3, 1; sll t3, t3, s7; or t6, t6, t3; sd t6, 0(t5); mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  "  j .Laweb_code\n" ++
+  -- Witness block for the equal path.  t0 is the resolver's pre nonce and t1 the
+  -- post read from 64(s4); both are published even though they are equal here,
+  -- because the pair distinguishes "both zero, so the post was never staged" from
+  -- "the pre side already carries the post value".
+  ".Laweb_non_eq:\n" ++
+  "  la t2, bald_non_eq_bai_mask; ld t3, 0(t2); li t4, 1; sll t4, t4, s7; or t3, t3, t4; sd t3, 0(t2)\n" ++
+  "  la t2, bald_non_eq_val_pre; sd t0, 0(t2); la t2, bald_non_eq_val_post; sd t1, 0(t2)\n" ++
   -- Code compares hashes, never code pointer/length identity.  The header
   -- reader zeroes its output on authenticated absence, so select the canonical
   -- EMPTY_CODE_HASH in that one case.
@@ -421,14 +455,26 @@ def accountResolvePreStateFunction : String :=
   ".Larp_block_nonce:\n" ++
   "  andi t1, t0, 2; beqz t1, .Larp_block_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
   ".Larp_block_done:\n" ++
-  -- Second source: durable AccountState. Pending state is tx-local and must
-  -- not outrank the block's already-incorporated pre-transaction value here.
-  "  li t0, 3; beq s7, t0, .Larp_header_done\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
-  "  beqz a0, .Larp_header_done; mv s6, a0; ld t0, 88(s6)\n" ++
-  "  andi t1, s7, 1; bnez t1, .Larp_durable_nonce; andi t1, t0, 32; beqz t1, .Larp_durable_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
-  ".Larp_durable_nonce:\n" ++
-  "  andi t1, s7, 2; bnez t1, .Larp_header_done; andi t1, t0, 64; beqz t1, .Larp_header_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  -- There is NO second source.  `_get_pre_tx_account`
+  -- (`block_access_lists.py:583-598`) has exactly TWO tiers -- the cumulative
+  -- `pre_tx_accounts` map, then `pre_state.get_account_optional(address)` -- and
+  -- `pre_state` is the IMMUTABLE PRE-BLOCK state.
+  --
+  -- This routine used to consult the durable `AccountState` overlay in between.
+  -- That overlay is LIVE MUTATED STATE: `update_builder_from_tx` runs at the
+  -- transaction boundary, by which point the sender's gas debit and nonce
+  -- increment have already been applied to it.  So for an account with NO
+  -- block-map row -- i.e. its first touch in the block -- the overlay returned the
+  -- POST value as the "pre" value, the caller's change-compare found equality,
+  -- and the row was silently dropped.  Measured on six EIP-7928 fixtures: the
+  -- nonce deficit equalled the number of distinct senders on all six, and on
+  -- multi-tx-same-sender blocks the sender's LATER rows appended correctly
+  -- (`ne_bai_mask = {2,3}`) because from the second transaction on the block map
+  -- hits and supplies a genuine pre value.  See GH #10799.
+  --
+  -- Falling straight through to the authenticated parent witness is what the spec
+  -- says and is also correct on its own terms: if no earlier transaction in this
+  -- block touched the account, its pre-transaction state IS the parent state.
   ".Larp_header_done:\n" ++
   "  li t0, 3; beq s7, t0, .Larp_ok\n" ++
   -- Final source: authenticated parent witness. Absence is a valid zero
