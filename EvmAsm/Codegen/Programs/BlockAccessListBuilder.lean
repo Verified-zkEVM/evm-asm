@@ -1139,6 +1139,72 @@ def balSerializerMeasureAccountFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 48\n" ++
   "  ret\n"
 
+/-- Emit this account's `storage_changes` field into a keccak context.
+
+    a0 = keccak ctx, a1 = address ptr (20 BE bytes), a2 = scratch (>= 33 bytes).
+
+    Walks the same rows in the same order as `bal_serializer_measure_storage` and takes
+    every nested length from `bal_serializer_measure_slot`, so the two passes cannot
+    disagree about a header. Emission is streaming -- bytes are absorbed, never buffered
+    -- so a header written before its payload cannot be backpatched, which is exactly
+    why the lengths have to come from the shared measurer rather than from a local count.
+
+    THE ADDRESS IS NOT EMITTED HERE and this routine must not use
+    `bal_rlp_emit_address`: that helper REVERSES its input (`src[19-i]`), because it
+    expects the address in the low bytes of an LE stack word. Builder rows hold the
+    address big-endian already -- which is why `bal_serializer_addr_matches_be` exists --
+    so passing a row through it would silently reverse every address. -/
+def balSerializerEmitStorageFunction : String :=
+  "bal_serializer_emit_storage:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++       -- ctx, address, scratch
+  "  la t0, bal_builder_storage_change_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++                              -- outer row index
+  ".Lbses_slot:\n" ++
+  "  bgeu s4, s3, .Lbses_done\n" ++
+  "  li t0, 96; mul t1, s4, t0; la t2, bal_builder_storage_changes; add s5, t2, t1\n" ++
+  "  mv a0, s1; mv a1, s5; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbses_slot_next\n" ++
+  "  mv a0, s1; mv a1, s5; mv a2, s4; jal ra, bal_serializer_slot_seen_before\n" ++
+  "  bnez a0, .Lbses_slot_next\n" ++
+  -- Both nested payloads come from the measurer the measure pass uses.
+  "  mv a0, s1; mv a1, s5; jal ra, bal_serializer_measure_slot\n" ++
+  "  mv s6, a0; mv s7, a1\n" ++                  -- s6 = SlotChanges payload, s7 = inner
+  "  mv a0, s0; mv a1, s6; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; addi a1, s5, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  mv a0, s0; mv a1, s7; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  li s8, 0\n" ++                              -- inner row index
+  ".Lbses_chg:\n" ++
+  "  bgeu s8, s3, .Lbses_chg_done\n" ++
+  "  li t0, 96; mul t1, s8, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
+  "  sd t3, 80(sp)\n" ++
+  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbses_chg_next\n" ++
+  "  ld t3, 80(sp); addi a0, s5, 32; addi a1, t3, 32; jal ra, bal_serializer_slot_eq\n" ++
+  "  beqz a0, .Lbses_chg_next\n" ++
+  -- StorageChange payload = scalar(bai) + scalar(new_value), measured before emitting
+  -- the header, because the header goes into the sponge first and cannot be revised.
+  "  ld t3, 80(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 88(sp)\n" ++
+  "  ld t3, 80(sp); addi a0, t3, 64; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  ld t4, 88(sp); add t4, t4, a0; sd t4, 88(sp)\n" ++
+  "  mv a0, s0; ld a1, 88(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  ld t3, 80(sp); mv a0, s0; addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  ".Lbses_chg_next:\n" ++
+  "  addi s8, s8, 1; j .Lbses_chg\n" ++
+  ".Lbses_chg_done:\n" ++
+  ".Lbses_slot_next:\n" ++
+  "  addi s4, s4, 1; j .Lbses_slot\n" ++
+  ".Lbses_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerAddrMatchesBeFunction ++
@@ -1154,12 +1220,35 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerMeasureNonceFunction ++
   balSerializerMeasureCodeFunction ++
   balSerializerMeasureAccountFunction ++
+  balSerializerEmitStorageFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
+
+/-! ## Guards for the storage emitter -/
+
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_storage:").length == 2
+
+-- THREE list headers per slot: SlotChanges, the changes list, and each StorageChange.
+-- Same three levels the measurer counts; dropping one leaves well-formed RLP of the
+-- wrong shape, and the only symptom is a different digest.
+#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_rlp_emit_list_header").length == 4
+
+-- Every nested length comes from the SHARED measurer. Emission is streaming, so a header
+-- absorbed before its payload cannot be backpatched -- a locally recomputed length is
+-- free to drift from the measure pass and nothing but the digest would show it.
+#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_measure_slot").length == 2
+
+-- It must NOT use `bal_rlp_emit_address`, which reverses its input for an LE stack word.
+-- Builder rows hold the address big-endian, so that helper would silently reverse it.
+#guard (balSerializerEmitStorageFunction.splitOn "bal_rlp_emit_address").length == 1
+
+-- Same walk shape as the measurer: address filter at both loop levels, dedup at the outer.
+#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
+#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
 
 /-! ## Guards for the shared slot measurement -/
 
