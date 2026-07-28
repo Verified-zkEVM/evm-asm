@@ -42,8 +42,9 @@ this FA exploits). The diff is one declared value plus two forced re-pins.
   tests-zkevm@v0.6.2): **REJECTS** — output succ byte = 0. Re-running the
   `verify_stateless_new_payload` body without its blanket `except` raises
   `ethereum.exceptions.InvalidBlock` from `execute_block`
-  (`fork.py:379`, the block-diff / BAL-vs-state check inside
-  `execute_new_payload_request`).
+  (`fork.py:379`, the state-root comparison inside
+  `execute_new_payload_request`: execution-derived post-state root vs
+  header `state_root`).
 - **Guest** (`stateless_guest` ELF, spike): **ACCEPTS** — output succ byte = 1.
 - **Verdict probe** (`zisk_stateless_verdict_v2`, pristine): verdict = 1,
   bv_fail = 0, header_status = 0, state_status = 0.
@@ -53,9 +54,22 @@ Compared pair (BAI-2 postBalance for the withdrawal address):
 - declared: 5,000,000,000 wei
 - true:     15,000,000,000 wei (withdrawal of 10,000,000,000 wei credited)
 
-Conclusion: on the MTx route nothing validates withdrawal credits against
-execution; the only reconciler (`block_verdict_withdrawal_nonstorage_effects`)
-is reachable solely from the dead legacy route (tx count 0).
+Conclusion: on the MTx route the BAL-vs-effects comparators DO run
+(MtxTail 286-289 aggregates the effect log, 291-295 compares the declared
+BAL against that aggregate, 297-301 the reverse direction, gating
+`.Lbv_bal_nonstorage_fail`) — but against an effect log containing no
+withdrawal rows, because the only recorder of the withdrawal credit
+(`block_verdict_withdrawal_nonstorage_effects`, which computes
+amount × 1e9 + post and calls `record_nonstorage_effect`; the comparison
+itself is `bal_all_accounts_nonstorage_consistent` / `_covers`) is reachable
+solely from the dead legacy route (tx count 0). A live comparator reading
+an incomplete input: the withdrawal credit is compared against nothing.
+
+Mechanism: the guest's post-state root is BAL-fed, so with the mutated BAL
+it derives a root that is wrong but self-consistent, then accepts it — while
+the spec executes the block, computes the true root, and rejects on the
+state-root comparison. The header's state-root oracle cannot catch any BAL
+field here because the guest's output IS that oracle once re-pinned.
 
 ## Guest-derived root extraction
 

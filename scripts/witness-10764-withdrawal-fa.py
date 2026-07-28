@@ -11,11 +11,20 @@ The guest's legacy/simple-transfer dispatch route is dead for any block with
 at least one transaction (BlockVerdictMtxRuntime branches
 bv_tx_count == 0 -> .Lbv_recipient_nc_done, so every non-empty block enters
 the MTx path).  The only call to
-block_verdict_withdrawal_nonstorage_effects -- the routine that reconciles
-withdrawal balance credits against the declared block access list (BAL) --
-sits in BlockVerdictEoaBodyEffectReconcile, reachable only from that dead
-route.  Open question: does anything else on the MTx route validate
-withdrawal credits?
+block_verdict_withdrawal_nonstorage_effects -- the routine that RECORDS the
+withdrawal's balance credit into the nonstorage-effect log (it computes
+amount * 1e9 + post and calls record_nonstorage_effect; the reconciliation
+of the log against the declared block access list is done separately by
+bal_all_accounts_nonstorage_consistent and _covers) -- sits in
+BlockVerdictEoaBodyEffectReconcile, reachable only from that dead route.
+
+The comparators DO run on the MTx route: MtxTail 286-289 aggregates the
+effect log, 291-295 compares the declared BAL against that aggregate, and
+297-301 does the reverse direction, both gating .Lbv_bal_nonstorage_fail.
+But they compare against a log with NO withdrawal rows in it, because the
+recorder never runs on this route.  The defect is therefore a LIVE
+comparator reading an incomplete input, not a missing comparison; the
+repair is to call the recorder, not to add a comparison.
 
 Construction
 ------------
