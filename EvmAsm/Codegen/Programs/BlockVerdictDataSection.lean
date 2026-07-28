@@ -54,6 +54,23 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_block_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
+  -- ON TODAY: `.dword 1` with NO WRITER anywhere in the guest, so only a source edit
+  -- turns it off. What it gates is larger than its name suggests.
+  --
+  -- It guards the block-hash comparison at `BlockVerdictFunction.lean:70`. That
+  -- comparison is ALSO the only thing binding the supplied block-access-list bytes to
+  -- the header: the guest never reads a header BAL-hash field, it CONSTRUCTS one --
+  -- `svf_bal_hash` (keccak over the supplied BAL bytes) is passed as a7 to
+  -- `block_header_ssz_to_rlp` (`BlockHeaderSszToRlp.lean:77`, a7 = block_access_list_hash
+  -- ptr) and embedded while the header RLP is rebuilt. `block_hash_from_header` then
+  -- hashes that RLP and compares it byte-by-byte against the payload's block hash.
+  --
+  -- So with this flag at zero, NOTHING binds the supplied BAL to the header, and a
+  -- rebuild-and-compare check over that BAL becomes self-referential -- verifying its
+  -- own input against itself. That consequence is invisible from here and from the
+  -- comparison site; the dependency runs from this declaration, through an argument
+  -- register, into a routine two levels away, and neither end mentioned the other.
+  -- See GH #10770.
   "bv_block_hash_check_enabled:\n  .dword 1\n" ++
   ".balign 8\n" ++
   "svf_tx_count:\n  .zero 8\n" ++
