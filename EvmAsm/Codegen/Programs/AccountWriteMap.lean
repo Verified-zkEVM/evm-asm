@@ -356,6 +356,7 @@ def accountWritesEmitBuilderTxFunction : String :=
   ".Laweb_bal_eq:\n" ++
   "  la t0, bald_bal_eq_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
   "  ld t1, 0(s6); la t0, bald_bal_eq_val_lo; sd t1, 0(t0); ld t1, 24(s6); la t0, bald_bal_eq_val_hi; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
   -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++

@@ -872,7 +872,7 @@ def statelessGuestEpilogue : String :=
   -- Witness cells at 264..328.  Nothing else in the unit writes an OUTPUT base
   -- above 256 except `block_verdict_creation_runtime` at 472/480, established by
   -- the same forward walk from every `li rd, 0xa0010000`.  Needs
-  -- `SPIKE_OUTPUT_LEN=336` to read (the default dump is 256 bytes).
+  -- `SPIKE_OUTPUT_LEN=344` to read (the default dump is 256 bytes).
   --
   -- USEFUL ASYMMETRY for a future reader: the `_bai_mask` cells shift by `bai`, and
   -- RV64 takes the low 6 bits of the shift amount, so on a block with 64 or more
@@ -889,6 +889,8 @@ def statelessGuestEpilogue : String :=
   "  la t5, bald_non_ne_bai_mask; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 304(t0)\n" ++
   "  la t5, bald_non_eq_val_pre; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 312(t0)\n" ++
   "  la t5, bald_non_eq_val_post; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 320(t0)\n" ++
+  "  la t5, bald_bal_eq_addr_a; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 328(t0)\n" ++
+  "  la t5, bald_bal_eq_addr_b; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 336(t0)\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++

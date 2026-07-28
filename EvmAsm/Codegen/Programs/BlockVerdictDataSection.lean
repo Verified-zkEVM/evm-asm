@@ -306,6 +306,19 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bald_non_ne_bai_mask:\n  .zero 8\n" ++
   "bald_non_eq_val_pre:\n  .zero 8\n" ++
   "bald_non_eq_val_post:\n  .zero 8\n" ++
+  -- Address witness, BALANCE ONLY.  The bai masks establish that the lost rows are
+  -- per-account and not per-index, so naming the account is the last step before a
+  -- fix site: if the stale-post account is a credit RECIPIENT (tx recipient,
+  -- coinbase fee, withdrawal) then this deficit and the #10786 EOA-credit producer
+  -- gap are one defect; if it is an ordinary sender they are separate.
+  -- Bytes 0..15 of the 20-byte canonical address at `0(s4)`, which is more than
+  -- enough to discriminate the four accounts in these fixtures.
+  --
+  -- NOT mirrored for nonce on purpose: the nonce reading is UNIFORM (both operands
+  -- zero on every iteration of every fixture), so an address cannot discriminate
+  -- anything there and the cell would only look like coverage.
+  "bald_bal_eq_addr_a:\n  .zero 8\n" ++
+  "bald_bal_eq_addr_b:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bv_bal_shadow_scratch:\n  .zero 40\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
