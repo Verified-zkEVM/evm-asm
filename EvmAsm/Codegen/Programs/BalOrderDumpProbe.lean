@@ -151,6 +151,7 @@ def ziskBalOrderDumpPrologue : String :=
   "  j .Lbod_done\n" ++
   balOrderDumpSink ++
   balSerializerSlotToLeFunction ++
+  balSerializerBalanceToLeFunction ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerAddrMatchesFunction ++
   balSerializerSlotEqFunction ++
@@ -198,6 +199,7 @@ def ziskBalOrderDumpDataSection : String :=
   "bal_serializer_len_table:\n  .zero 48\n" ++
   "bal_serializer_u64_field:\n  .zero 32\n" ++
   "bal_serializer_slot_le:\n  .zero 32\n" ++
+  "bal_serializer_balance_le:\n  .zero 32\n" ++
   "bal_serializer_outer_payload:\n  .zero 8\n" ++
   "bal_serializer_sort_status:\n  .zero 8\n" ++
   "bal_serializer_rebuilt_ctx:\n  .zero 512\n" ++

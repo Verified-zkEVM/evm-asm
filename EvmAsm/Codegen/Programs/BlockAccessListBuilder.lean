@@ -208,7 +208,7 @@ def balBuilderPersistentBytes : Nat :=
     | storage_changes | value |  64 |    32 | LE     (passed VERBATIM)      |
     | balance_changes | addr  |   0 |    20 | BE20   (already canonical)    |
     | balance_changes | bai   |  24 |     8 | native LE u64                 |
-    | balance_changes | post  |  32 |    32 | LE                            |
+    | balance_changes | post  |  32 |    32 | BE32  (reversed on serialize) |
     | nonce_changes   | addr  |   0 |    20 | BE20                          |
     | nonce_changes   | bai   |  24 |     8 | native LE u64                 |
     | nonce_changes   | nonce |  32 |     8 | native LE u64                 |
@@ -226,8 +226,11 @@ def balBuilderPersistentBytes : Nat :=
 
     CONSEQUENCE FOR READERS: `bal_rlp_scalar_len` / `bal_rlp_emit_scalar` are documented
     for LE limbs (`BalRlpEncode.lean:375`) -- they scan DOWN from byte 31 for the most
-    significant byte. They are correct on every LE field above and WRONG on the storage
-    slot, which must be reversed into scratch before being handed to them. Sources:
+    significant byte. They are correct on every LE field above and WRONG on TWO BE fields -- the storage
+    slot and (GH #10820) the balance post, both of which must be reversed into scratch
+    before being handed to them. Judge a field by its PRODUCER, not by its row position:
+    the balance sits beside the LE storage value and is produced by the `u256_*_be`
+    helpers, and that grouping is how it was mislabelled LE here for so long. Sources:
     `AccountWriteMap.lean:129`/`:160` for the account-write convention,
     `StorageReadLog.lean:43` for the exec-log stack word, `balSortBuilderStorageSegments`
     for the storage row's three sorted segments. -/
@@ -264,6 +267,8 @@ def blockAccessListBuilderDataSection : String :=
   -- widened u64 at a time and is consumed immediately by the scalar measurer.
   "bal_serializer_u64_field:\n  .zero 32\n" ++
   "bal_serializer_slot_le:\n  .zero 32\n" ++
+  -- #10820: LE image of the row's BE32 post balance, mirroring the slot buffer above.
+  "bal_serializer_balance_le:\n  .zero 32\n" ++
   "bal_serializer_sort_status:\n  .zero 8\n" ++
   "bal_serializer_rebuilt_ctx:\n  .zero 512\n" ++
   "bal_serializer_rebuilt_hash:\n  .zero 32\n" ++
@@ -642,6 +647,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerFilterReadsFunction ++
   balSerializerMeasureReadsFunction ++
   balSerializerSlotToLeFunction ++
+  balSerializerBalanceToLeFunction ++
   balSerializerMeasureSlotFunction ++
   balSerializerMeasureStorageFunction ++
   balSerializerMeasureBalanceFunction ++
@@ -773,7 +779,13 @@ def blockAccessListBuilderFunctions : String :=
 -- index BEFORE value, in each of the four change emitters. Keyed on adjacency: the
 -- scalar emitted from `bal_serializer_u64_field` (the widened index) must precede the
 -- one emitted from the row's value offset.
-#guard (((balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
+-- #10820: the balance value is now emitted from the LE scratch rather than from `row+32`,
+-- so the adjacency is keyed on that buffer instead. The ORDER property being pinned is
+-- unchanged -- widened index first, value second. This guard caught the fix: it was pinning
+-- the raw `row+32` hand-off, which is exactly the defect, so it failed the moment the
+-- hand-off was removed. A guard that pins an emitted form will always do that, and the
+-- right response is to re-pin the corrected form rather than to relax the guard.
+#guard (((balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 #guard (((balSerializerEmitCodeFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "jal ra, bal_rlp_emit_bytes").length == 2
 #guard (((balSerializerEmitStorageFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 -- Nonce emits the index and the nonce from the SAME buffer, re-widened between the two,
@@ -862,6 +874,20 @@ def blockAccessListBuilderFunctions : String :=
 #guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_to_le").length == 2
 #guard (balSerializerMeasureSlotFunction.splitOn "addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len").length == 1
 #guard (balSerializerEmitStorageFunction.splitOn "addi a1, s5, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 1
+
+-- #10820: the BALANCE leg has the identical shape to the slot leg above -- a BE32 field
+-- handed to the LE-only scalar pair. BOTH readers must go through the reversal, and the
+-- direct `row+32` hand-off must not come back. Positive guards pin the reversal; negative
+-- guards pin the absence of the raw hand-off, because a reversal that is present while the
+-- raw pass ALSO survives would measure one buffer and emit the other.
+#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_serializer_balance_to_le").length == 2
+#guard (balSerializerEmitBalanceFunction.splitOn "jal ra, bal_serializer_balance_to_le").length == 2
+#guard (balSerializerMeasureBalanceFunction.splitOn "addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len").length == 1
+#guard (balSerializerEmitBalanceFunction.splitOn "addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 1
+-- Measure and emit must consume the SAME buffer, or the length prefix and payload diverge.
+#guard (balSerializerMeasureBalanceFunction.splitOn "la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len").length == 2
+#guard (balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_balance_le:").length == 2
 
 -- The VALUE is passed verbatim and must NOT be reversed -- same row, opposite convention.
 #guard (balSerializerEmitStorageFunction.splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2

@@ -294,6 +294,37 @@ def balSerializerSlotToLeFunction : String :=
   ".Lbssl_done:\n" ++
   "  ret\n"
 
+/-- Reverse the BE32 balance at `a0` into `bal_serializer_balance_le`, an LE field the
+    scalar pair can read.  a0 = pointer to the row's post balance (row+32).
+
+    Same defect and same remedy as `bal_serializer_slot_to_le`, on a different field.
+    The balance is produced by the `u256_*_be` helpers -- `u256AddBe_prog` propagates carry
+    from byte 31 DOWN TO byte 0, so byte 0 is the most significant -- and it is then copied
+    verbatim at every hop (`record_nonstorage_effect` -> `account_write_record` ->
+    `bal_builder_append_balance`).  `bal_rlp_scalar_len` scans DOWN FROM BYTE 31 for the
+    most significant byte, so on a BE32 field holding a 12-byte value right-aligned in
+    bytes 20..31 it reported 32 significant bytes and every balance row encoded as a
+    33-byte string instead of its minimal form.  GH #10820.
+
+    The builder row field table called this field LE, which is why the hand-off looked
+    correct: the balance was grouped with the storage VALUE (a genuine LE stack word) by
+    row position rather than by provenance.
+
+    A separate scratch buffer rather than reusing `bal_serializer_slot_le`: the balance
+    legs and the storage legs are independent, and sharing one buffer would make their
+    emit order load-bearing. Duplicating the six-line REVERSAL is not the duplication
+    `bal_serializer_slot_to_le` argues against -- that argument is about the
+    canonical-minimal-length logic, which still exists exactly once. -/
+def balSerializerBalanceToLeFunction : String :=
+  "bal_serializer_balance_to_le:\n" ++
+  "  la t0, bal_serializer_balance_le; li t1, 32; addi t2, a0, 31\n" ++
+  ".Lbsbl_rev:\n" ++
+  "  beqz t1, .Lbsbl_done\n" ++
+  "  lbu t3, 0(t2); sb t3, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1\n" ++
+  "  j .Lbsbl_rev\n" ++
+  ".Lbsbl_done:\n" ++
+  "  ret\n"
+
 /-- One slot's `SlotChanges` measurement, shared by the measure pass and the emit pass.
 
 `a0` = address ptr, `a1` = a representative builder row for this slot (its slot key is
@@ -505,7 +536,12 @@ def balSerializerMeasureBalanceFunction : String :=
   -- inner payload = scalar(bai) + scalar(post_balance)
   "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
   "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
+  -- #10820: the row's post balance is BE32; the scalar pair reads LE limbs.  Reverse
+  -- into scratch first, exactly as the slot leg does.  MUST stay in lockstep with
+  -- `bal_serializer_emit_balance` -- if only one side is corrected the length prefix and
+  -- the payload disagree and the RLP is malformed with a still-plausible total.
+  "  addi a0, s4, 32; jal ra, bal_serializer_balance_to_le\n" ++
+  "  la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
   -- the row's ENCODED size adds the inner list's own header
   "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
   "  add s2, s2, t5\n" ++
@@ -771,12 +807,19 @@ def balSerializerEmitBalanceFunction : String :=
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
   "  jal ra, bal_serializer_u64_to_field\n" ++
   "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
-  "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  -- #10820: reverse the BE32 balance into LE scratch before measuring, in lockstep with
+  -- `bal_serializer_measure_balance`.  The reversal happens ONCE here and the same scratch
+  -- is emitted below, so the measured length and the emitted payload cannot diverge.
+  "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_serializer_balance_to_le\n" ++
+  "  la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
   "  la t0, bv_bal_shadow_emit_balance_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  ld t3, 48(sp); mv a0, s0; addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  -- #10820: emit the SAME LE scratch that was measured above.  `bal_serializer_u64_to_field`
+  -- writes a different buffer (`bal_serializer_u64_field`), so the reversed balance survives
+  -- the intervening bai emit and no second reversal is needed.
+  "  mv a0, s0; la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   ".Lbseb_next:\n" ++
   "  addi s4, s4, 1; j .Lbseb_loop\n" ++
   ".Lbseb_done:\n" ++
