@@ -1205,6 +1205,179 @@ def balSerializerEmitStorageFunction : String :=
   "  addi sp, sp, 112\n" ++
   "  ret\n"
 
+/-- Emit `storage_reads`: a flat list of slot scalars. a0 = ctx, a1 = address, a2 = scratch.
+
+    Mirrors `bal_serializer_measure_reads`, including its use of
+    `bal_serializer_addr_matches` -- the REVERSING comparator -- rather than the `_be`
+    one. Read rows come from the exec log at `0xa1ba0000` and hold the address in the low
+    bytes of an LE stack word, unlike the builder rows, which are big-endian. The two
+    comparators are not interchangeable and picking the wrong one silently matches
+    nothing. -/
+def balSerializerEmitReadsFunction : String :=
+  "bal_serializer_emit_reads:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la t0, storage_reads_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++
+  ".Lbser_loop:\n" ++
+  "  bgeu s4, s3, .Lbser_done\n" ++
+  "  li t0, 0xa1ba0000; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)\n" ++
+  "  mv a0, s1; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
+  "  beqz a0, .Lbser_next\n" ++
+  "  ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written\n" ++
+  "  bnez a0, .Lbser_next\n" ++
+  "  ld t4, 48(sp); mv a0, s0; addi a1, t4, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  ".Lbser_next:\n" ++
+  "  addi s4, s4, 1; j .Lbser_loop\n" ++
+  ".Lbser_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n"
+
+/-- Emit `balance_changes`: one `[block_access_index, post_balance]` list per row.
+    a0 = ctx, a1 = address, a2 = scratch. Mirrors `bal_serializer_measure_balance`. -/
+def balSerializerEmitBalanceFunction : String :=
+  "bal_serializer_emit_balance:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la t0, bal_builder_balance_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++
+  ".Lbseb_loop:\n" ++
+  "  bgeu s4, s3, .Lbseb_done\n" ++
+  "  li t0, 64; mul t1, s4, t0; la t2, bal_builder_balance_changes; add t3, t2, t1\n" ++
+  "  sd t3, 48(sp)\n" ++
+  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbseb_next\n" ++
+  -- Measure the pair BEFORE emitting the header: streaming means no backpatch.
+  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
+  "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
+  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  ld t3, 48(sp); mv a0, s0; addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  ".Lbseb_next:\n" ++
+  "  addi s4, s4, 1; j .Lbseb_loop\n" ++
+  ".Lbseb_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
+/-- Emit `nonce_changes`: one `[block_access_index, new_nonce]` list per row. Both members
+    are u64s widened through the scalar field, so BOTH need the widener -- unlike balance,
+    whose post value is already a 32-byte field. a0 = ctx, a1 = address, a2 = scratch. -/
+def balSerializerEmitNonceFunction : String :=
+  "bal_serializer_emit_nonce:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la t0, bal_builder_nonce_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++
+  ".Lbsen_loop:\n" ++
+  "  bgeu s4, s3, .Lbsen_done\n" ++
+  "  slli t1, s4, 5; slli t2, s4, 3; add t1, t1, t2\n" ++
+  "  la t2, bal_builder_nonce_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
+  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsen_next\n" ++
+  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
+  "  ld t3, 48(sp); ld a1, 32(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len\n" ++
+  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
+  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  -- Re-widen the BAI: the field is a single shared buffer and the nonce overwrote it.
+  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  ld t3, 48(sp); ld a1, 32(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  ".Lbsen_next:\n" ++
+  "  addi s4, s4, 1; j .Lbsen_loop\n" ++
+  ".Lbsen_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
+/-- Emit `code_changes`: one `[block_access_index, new_code]` list per row, where the code
+    is a byte string rather than a scalar. a0 = ctx, a1 = address, a2 = scratch.
+
+    The code length is measured through the throwaway-keccak route, exactly as
+    `bal_serializer_measure_code` does, because a byte string's encoded size is not
+    derivable from a fixed field width. -/
+def balSerializerEmitCodeFunction : String :=
+  "bal_serializer_emit_code:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la t0, bal_builder_code_count; ld s3, 0(t0)\n" ++
+  "  li s4, 0\n" ++
+  ".Lbsec_loop:\n" ++
+  "  bgeu s4, s3, .Lbsec_done\n" ++
+  "  slli t1, s4, 6; la t2, bal_builder_code_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
+  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  "  beqz a0, .Lbsec_next\n" ++
+  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
+  "  jal ra, bal_serializer_u64_to_field\n" ++
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
+  "  la a0, bal_serializer_throwaway_ctx; la a1, bal_rlp_emit_bytes\n" ++
+  "  ld t3, 48(sp); ld a2, 32(t3); ld a3, 40(t3); la a4, bal_serializer_hdr_scratch\n" ++
+  "  jal ra, bal_rlp_measure_into_throwaway\n" ++
+  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
+  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  ld t3, 48(sp); mv a0, s0; ld a1, 32(t3); ld a2, 40(t3)\n" ++
+  "  la a3, bal_serializer_hdr_scratch; jal ra, bal_rlp_emit_bytes\n" ++
+  ".Lbsec_next:\n" ++
+  "  addi s4, s4, 1; j .Lbsec_loop\n" ++
+  ".Lbsec_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
+/-- Emit one account's `AccountChanges`. a0 = ctx, a1 = address, a2 = scratch.
+
+    `bal_serializer_measure_account` MUST have run for this address first: every header
+    here is read from the length table, never recomputed. The five field headers come
+    from table entries +8..+40 and the account header from +0.
+
+    Field order follows `AccountChanges` in `block_access_lists.py`: address,
+    storage_changes, storage_reads, balance_changes, nonce_changes, code_changes. -/
+def balSerializerEmitAccountFunction : String :=
+  "bal_serializer_emit_account:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  -- account list header, payload from table +0
+  "  la t0, bal_serializer_len_table; ld a1, 0(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  -- address: a 21-byte RLP string via emit_bytes with length 20, which writes 0x94 then
+  -- the bytes VERBATIM. Not `bal_rlp_emit_address`, which reverses for an LE stack word.
+  "  mv a0, s0; mv a1, s1; li a2, 20; mv a3, s2; jal ra, bal_rlp_emit_bytes\n" ++
+  "  la t0, bal_serializer_len_table; ld a1, 8(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_storage\n" ++
+  "  la t0, bal_serializer_len_table; ld a1, 16(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_reads\n" ++
+  "  la t0, bal_serializer_len_table; ld a1, 24(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_balance\n" ++
+  "  la t0, bal_serializer_len_table; ld a1, 32(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_nonce\n" ++
+  "  la t0, bal_serializer_len_table; ld a1, 40(t0)\n" ++
+  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_code\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerAddrMatchesBeFunction ++
@@ -1221,12 +1394,49 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerMeasureCodeFunction ++
   balSerializerMeasureAccountFunction ++
   balSerializerEmitStorageFunction ++
+  balSerializerEmitReadsFunction ++
+  balSerializerEmitBalanceFunction ++
+  balSerializerEmitNonceFunction ++
+  balSerializerEmitCodeFunction ++
+  balSerializerEmitAccountFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
+
+/-! ## Guards for the field emitters and the account emitter -/
+
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_reads:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_balance:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_nonce:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_code:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_account:").length == 2
+
+-- The reads emitter uses the REVERSING comparator, matching its measurer. Read rows come
+-- from the exec log and hold an LE stack word; builder rows are big-endian. Swapping the
+-- two comparators silently matches nothing rather than erroring.
+#guard (balSerializerEmitReadsFunction.splitOn "jal ra, bal_serializer_addr_matches\n").length == 2
+#guard (balSerializerEmitReadsFunction.splitOn "addr_matches_be").length == 1
+-- ...and every OTHER emitter uses the big-endian one.
+#guard (balSerializerEmitBalanceFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
+#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
+#guard (balSerializerEmitCodeFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
+
+-- Nonce widens FOUR times, not two: the scalar field is one shared buffer, so measuring
+-- the pair overwrites it and both members must be re-widened before being emitted.
+-- Emitting straight after the measure loop sends the nonce twice and drops the index.
+#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 5
+
+-- The account emitter reads SIX table entries and emits six headers; it must never
+-- recompute a length. And the address goes through emit_bytes, never emit_address.
+#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_list_header").length == 7
+#guard (balSerializerEmitAccountFunction.splitOn "la t0, bal_serializer_len_table").length == 7
+#guard (balSerializerEmitAccountFunction.splitOn "bal_rlp_emit_address").length == 1
+#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_bytes").length == 2
+-- All five field emitters called, in AccountChanges order.
+#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_").length == 6
 
 /-! ## Guards for the storage emitter -/
 

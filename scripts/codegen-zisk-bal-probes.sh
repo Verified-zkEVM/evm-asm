@@ -83,6 +83,13 @@ CASES = [
 # than capturing it is what stops a golden file from enshrining a bug as correct.
 EXPECTED_RLP = bytes.fromhex('c501c3c20105')
 
+# Case 7: the whole AccountChanges for the same input. 0xe0 is 0xc0 + 32, the account
+# payload being 21 (address) + 7 (storage_changes) + four empty lists. The four trailing
+# 0xc0 are the point -- an empty field is an empty LIST, not an omitted one, and dropping
+# them still yields well-formed RLP for a different account.
+EXPECTED_ACCOUNT_RLP = bytes.fromhex(
+    'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0')
+
 if len(data) < 56:
     print(f"==> FAIL: probe output is {len(data)} bytes, need at least 56"); sys.exit(1)
 
@@ -147,6 +154,15 @@ else:
     bad += 1
     print(f"  FAIL  case 6  emitted digest {got[:16]}... != reference {want[:16]}...")
     print(f"        expected RLP was {EXPECTED_RLP.hex()}")
+
+want_acct = keccak256(EXPECTED_ACCOUNT_RLP).hex()
+got_acct  = data[96:128].hex()
+if got_acct == want_acct:
+    print(f"  ok    case 7  whole-account digest       = {got_acct[:16]}...")
+else:
+    bad += 1
+    print(f"  FAIL  case 7  account digest {got_acct[:16]}... != reference {want_acct[:16]}...")
+    print(f"        expected RLP was {EXPECTED_ACCOUNT_RLP.hex()}")
 
 print()
 if bad:

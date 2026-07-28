@@ -114,6 +114,19 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
   "  jal ra, bal_serializer_emit_storage\n" ++
   "  la a0, bsmp_ctx; addi a1, s0, 64; jal ra, keccak_final\n" ++
+  -- Case 7: measure and then EMIT the whole AccountChanges, publishing its digest at
+  -- +96. With only case 1's single storage change and every other field empty, the
+  -- encoding is derivable by hand end to end:
+  --   e0 94 <20 addr bytes> c6 c5 01 c3 c2 01 05 c0 c0 c0 c0
+  -- i.e. account payload 32 (21 address + 7 storage_changes + four empty lists), so the
+  -- account header is 0xc0+32 = 0xe0. The four trailing 0xc0 are the point: an empty
+  -- field is an empty LIST, not an omitted one, and dropping them still yields
+  -- well-formed RLP of a different account.
+  "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_account\n" ++
+  "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
+  "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
+  "  jal ra, bal_serializer_emit_account\n" ++
+  "  la a0, bsmp_ctx; addi a1, s0, 96; jal ra, keccak_final\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -127,6 +140,20 @@ def ziskBalSerializerMeasurePrologue : String :=
   balRlpEmitScalarFunction ++
   balRlpEmitListHeaderFunction ++
   balSerializerEmitStorageFunction ++
+  balSerializerEmitReadsFunction ++
+  balSerializerEmitBalanceFunction ++
+  balSerializerEmitNonceFunction ++
+  balSerializerEmitCodeFunction ++
+  balSerializerEmitAccountFunction ++
+  balSerializerMeasureAccountFunction ++
+  balSerializerMeasureReadsFunction ++
+  balSerializerMeasureBalanceFunction ++
+  balSerializerMeasureNonceFunction ++
+  balSerializerMeasureCodeFunction ++
+  balSerializerAddrMatchesFunction ++
+  balSerializerSlotWrittenFunction ++
+  balRlpEmitBytesFunction ++
+  balRlpMeasureIntoThrowawayFunction ++
   keccakIncrementalFunctions ++
   zkvmKeccak256Function ++ "\n" ++
   ".Lbsmp_done:"
@@ -146,6 +173,15 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bsmp_ctx:\n  .zero 512\n" ++
   "bsmp_scratch:\n  .zero 256\n" ++
   "zk3_state:\n  .zero 200\n" ++
+  "storage_reads_count:\n  .zero 8\n" ++
+  "bal_builder_balance_count:\n  .zero 8\n" ++
+  "bal_builder_balance_changes:\n  .zero 128\n" ++
+  "bal_builder_nonce_count:\n  .zero 8\n" ++
+  "bal_builder_nonce_changes:\n  .zero 128\n" ++
+  "bal_builder_code_count:\n  .zero 8\n" ++
+  "bal_builder_code_changes:\n  .zero 128\n" ++
+  "bal_serializer_throwaway_ctx:\n  .zero 512\n" ++
+  "bal_serializer_hdr_scratch:\n  .zero 64\n" ++
   keccakIncrementalDataSection
 
 def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
@@ -158,8 +194,11 @@ def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
 
 The probe is only worth anything if the discriminating cases are really present. -/
 
--- Five `measure_storage` runs plus the one `measure_slot` run.
-#guard (ziskBalSerializerMeasurePrologue.splitOn "jal ra, bal_serializer_measure_storage").length == 6
+-- Five `measure_storage` runs, keyed on the probe's OWN call site. A bare mnemonic count
+-- drifts every time another body is spliced into the closure -- `measure_account` calls
+-- `measure_storage` too -- and says nothing about how many cases the probe runs.
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_storage\n").length == 6
 -- Keyed on the probe's OWN call site, not on a bare mnemonic. The prologue splices in
 -- `measure_storage` and `emit_storage`, which both call `measure_slot` themselves, so a
 -- bare count is a function of who else got spliced -- it drifts every time the closure
@@ -185,5 +224,15 @@ The probe is only worth anything if the discriminating cases are really present.
   "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n  jal ra, bal_serializer_emit_storage\n").length == 2
 #guard (ziskBalSerializerMeasurePrologue.splitOn
   "  la a0, bsmp_ctx; addi a1, s0, 64; jal ra, keccak_final\n").length == 2
+
+-- Case 7 must MEASURE before it emits: every header in the account emitter is read
+-- from the length table, so emitting against a stale table yields a well-formed
+-- account with the wrong headers and only the digest would notice.
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_account\n").length == 2
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  jal ra, bal_serializer_emit_account\n").length == 2
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_ctx; addi a1, s0, 96; jal ra, keccak_final\n").length == 2
 
 end EvmAsm.Codegen
