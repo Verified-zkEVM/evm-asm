@@ -364,6 +364,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasNonce ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
+  -- Authorization preparation starts after sender inclusion and the upfront
+  -- debit.  A preparation ExceptionalHalt must restore only auth-produced map
+  -- rows; a later body revert restores the separate pre-dispatch mark instead
+  -- and therefore retains the successful authorization phase.
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, account_writes_auth_prepare_mark; sd t1, 0(t0)\n" ++
   -- Sole EIP-7702 state/gas writer: run after the inclusion snapshot, before
   -- recipient routing.  The old B1 replay is a frozen reference only.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
@@ -600,6 +605,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- sender `create_ether` refund before AccountState commits this transaction.
   blockVerdictMtxRecordSenderRefund ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_post_preparation_reached; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
+  -- `process_message` restores the preparation snapshot when preparation
+  -- itself halts.  The map's direct auth producer mirrors that control-flow
+  -- fact with its own cursor, rather than reusing the dead frame checkpoint.
+  "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
