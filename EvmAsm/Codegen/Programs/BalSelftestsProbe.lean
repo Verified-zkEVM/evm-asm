@@ -45,6 +45,26 @@ def ziskBalSelftestsPrologue : String :=
   "  la a0, bslf_sort_arena\n" ++
   "  jal ra, bal_canonical_sort_selftest\n" ++
   "  sd a0, 8(s0)\n" ++
+  -- STRIDE EXPERIMENT. Same sort, same environment, same descriptor the account list
+  -- needs (0x9400: offset 0, width 0x80|20, the 0x80 being the big-endian flag). The
+  -- only variable is the row stride: 32 here, against the 20 that faults.
+  --
+  -- `bal_canonical_sort` swaps rows with 8-byte loads (BalCanonicalSort.lean:254), and
+  -- 20-byte rows put row 1 at base+20, which is not 8-aligned. Every existing caller
+  -- passes 128. If stride is the constraint this sorts cleanly and row 0 comes back
+  -- 0xAA; if it faults at the same instruction, alignment is not the whole story.
+  --
+  -- Seeded DESCENDING (B then A) so a sort that never runs is distinguishable from one
+  -- that runs and works. Slots carry 0xdead first so a fault cannot read as a pass.
+  "  li t0, 0xdead; sd t0, 16(s0); sd t0, 24(s0)\n" ++
+  "  la t0, bslf_stride_rows\n" ++
+  "  sd zero, 0(t0);  sd zero, 8(t0);  sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 32(t0)\n" ++
+  "  la a0, bslf_stride_rows; li a1, 2; li a2, 32; li a3, 0x9400; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  sd a0, 16(s0)\n" ++
+  "  la t0, bslf_stride_rows; lbu t1, 0(t0); sd t1, 24(s0)\n" ++
   "  j .Lbslf_done\n" ++
   keccakIncrementalFunctions ++
   zkvmKeccak256Function ++ "\n" ++
@@ -69,6 +89,8 @@ def ziskBalSelftestsDataSection : String :=
   "zk3_state:\n  .zero 200\n" ++
   ".balign 8\n" ++
   "bslf_sort_arena:\n  .zero 512\n" ++
+  ".balign 8\n" ++
+  "bslf_stride_rows:\n  .zero 128\n" ++
   keccakIncrementalDataSection ++
   balCanonicalSortDataSection
 
