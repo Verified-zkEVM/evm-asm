@@ -1731,6 +1731,28 @@ def blockAccessListBuilderFunctions : String :=
 -- the docstring's claim and the code in agreement.
 #guard (balSerializerEmitOuterFunction.splitOn "bal_canonical_sort").length == 1
 
+/-! ## `block_access_index` values, verified against the spec
+
+    The spec assigns the index in `fork.py`:
+
+      per transaction   `block_access_index = index + Uint(1)`  (`:1040`), so the 0-based
+                        transaction `i` stamps `i + 1`
+      post-execution    `ulen(transactions) + Uint(1)`          (`:917`), i.e. N+1
+      system            0, the value before any transaction sets it
+
+    The guest matches the transaction case exactly:
+    `BlockVerdictMtxRuntime.lean:407` and `:448` compute `bv_mtx_i + 1` into
+    `current_block_access_index`, and `bv_mtx_i` is the 0-based transaction index.
+
+    THE OTHER TWO CASES HAVE NO PRODUCER IN THE GUEST. Nothing stamps 0 and nothing
+    stamps N+1, so system-level and post-execution changes cannot appear in a rebuilt
+    BAL at all. That is a PRODUCER gap, not a serializer one -- the emitters encode
+    whatever index the row carries -- but it bounds what a digest comparison can prove:
+    a block whose only divergence is a missing system-level change would still be
+    accepted, because neither side of the comparison would contain it.
+
+    Recorded here because the serializer is where someone will look for it. -/
+
 /-! ## Guards for the CHANGE-STRUCT field order
 
     Verified against the class definitions in `block_access_lists.py`: `StorageChange`,
