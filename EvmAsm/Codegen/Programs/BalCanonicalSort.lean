@@ -247,7 +247,10 @@ def balCanonicalSortFunction : String :=
   "  bne t3, t6, .Lbalsort_scan_next\n" ++
   "  beq t1, s7, .Lbalsort_scan_match\n" ++
   -- Swap rows t1 and s7, 8 bytes at a time through two registers -- no scratch
-  -- buffer, so the routine has no hidden capacity of its own.
+  -- buffer, so the routine has no hidden capacity of its own. The count comes from s8,
+  -- the CALLER's stride, so the swap is correct for any stride -- but it steps by 8 and
+  -- tests against zero, so a stride that is not a multiple of 8 runs off the end. That
+  -- is the same 8-alignment precondition the ld/sd pair imposes, restated by the loop.
   "  mul t2, s7, s8; add t2, s0, t2\n" ++
   "  mv t4, s8\n" ++
   ".Lbalsort_swap:\n" ++
