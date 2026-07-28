@@ -655,6 +655,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
+  -- EIP-7928's block access index advances once more for the post-transaction
+  -- system/withdrawal boundary.  The producers already dual-record into the
+  -- transaction AccountWrite map; make this N+1 boundary feed the same builder
+  -- walk and block-level incorporate path before receipts consume the result.
+  "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
   "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
   -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
