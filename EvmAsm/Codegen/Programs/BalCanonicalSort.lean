@@ -150,7 +150,10 @@ def balCanonicalDigitAsm : String :=
   "  li a6, 0\n" ++
   ".Lbalsort_dig_seg:\n" ++
   "  slli a7, a6, 4; srl t5, s10, a7; andi t5, t5, 255\n" ++      -- t5 = seg offset
-  "  addi a7, a7, 8; srl t3, s10, a7; andi t3, t3, 255\n" ++      -- t3 = seg width
+  -- 0x7f, NOT 255: bit 7 is the endianness flag, so a BE segment's width byte 0x94
+  -- reads as 148 under a 255 mask and the walk never leaves segment 0. The flag is
+  -- re-read from the descriptor at the digit site below rather than carried in t3.
+  "  addi a7, a7, 8; srl t3, s10, a7; andi t3, t3, 0x7f\n" ++      -- t3 = seg width
   "  bltu t2, t3, .Lbalsort_dig_in\n" ++
   "  sub t2, t2, t3; addi a6, a6, 1; j .Lbalsort_dig_seg\n" ++
   ".Lbalsort_dig_in:\n" ++
@@ -162,7 +165,9 @@ def balCanonicalDigitAsm : String :=
   -- canonical BE20 address already, so reversing every segment would order the
   -- builder's rows by a byte-reversed address -- sorted, permutation-preserving and
   -- wrong, with no local symptom.
-  "  andi a7, t3, 0x80; andi t3, t3, 0x7f\n" ++
+  -- t3 no longer carries the flag (masked at the walk), so re-read it from the
+  -- descriptor for this segment.
+  "  slli a7, a6, 4; addi a7, a7, 8; srl a7, s10, a7; andi a7, a7, 0x80\n" ++
   "  bnez a7, .Lbalsort_dig_be\n" ++
   "  add t5, t5, t3; addi t5, t5, -1; sub t5, t5, t2\n" ++
   "  j .Lbalsort_dig_have\n" ++
@@ -247,7 +252,10 @@ def balCanonicalSortFunction : String :=
   "  bne t3, t6, .Lbalsort_scan_next\n" ++
   "  beq t1, s7, .Lbalsort_scan_match\n" ++
   -- Swap rows t1 and s7, 8 bytes at a time through two registers -- no scratch
-  -- buffer, so the routine has no hidden capacity of its own.
+  -- buffer, so the routine has no hidden capacity of its own. The count comes from s8,
+  -- the CALLER's stride, so the swap is correct for any stride -- but it steps by 8 and
+  -- tests against zero, so a stride that is not a multiple of 8 runs off the end. That
+  -- is the same 8-alignment precondition the ld/sd pair imposes, restated by the loop.
   "  mul t2, s7, s8; add t2, s0, t2\n" ++
   "  mv t4, s8\n" ++
   ".Lbalsort_swap:\n" ++
@@ -474,7 +482,12 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 #guard (balCanonicalDigitAsm.splitOn ".Lbalsort_dig_be:").length == 2
 -- The width mask must strip the endianness bit in BOTH the digit path and the
 -- key-width sum; masking one and not the other makes every BE segment 128 bytes wide.
-#guard (balCanonicalDigitAsm.splitOn "andi t3, t3, 0x7f").length == 2
+-- NEGATIVE GUARD, deliberately. The positive form -- count the occurrences of the
+-- CORRECT mask -- cannot tell WHICH site satisfies it, and this one was satisfied by the
+-- digit path while the segment walk still used 255. Worse, it asserted EXACTLY ONE
+-- occurrence, so fixing the walk added a second and the guard would have REJECTED the
+-- fix. Absence of the defect is site-independent; presence of the fix is not.
+#guard (balCanonicalDigitAsm.splitOn "andi t3, t3, 255").length == 1
 #guard (balCanonicalSortFunction.splitOn "andi t0, t0, 0x7f").length == 2
 -- The segment walk must SUBTRACT each width as it steps past a segment, or every
 -- byte index would be read against the first segment.

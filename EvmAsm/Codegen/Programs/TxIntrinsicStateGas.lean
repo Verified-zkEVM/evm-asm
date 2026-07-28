@@ -183,8 +183,14 @@ def eip7702AuthStatePrepareFunction : String :=
   "  bgeu s7, s6, .L77prep_ok\n" ++
   "  mv a0, s4; mv a1, s5; mv a2, s7; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .L77prep_bad_span\n" ++
   "  la t0, b1an_item_off; ld t0, 0(t0); add s8, s4, t0; la t0, b1an_item_len; ld s9, 0(t0)\n" ++
-  -- chain id, target and signed nonce are all read from the immutable tuple.
-  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64; bnez a0, .L77prep_bad_chain; la t0, b1an_field; ld t0, 0(t0); beqz t0, .L77prep_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .L77prep_next\n" ++
+  -- Chain id is a U256 in execution-specs.  For a canonical scalar wider
+  -- than u64, validate it with the U256 decoder and skip this authorization:
+  -- it cannot equal the u64 block chain id.  The U256 decoder preserves the
+  -- fail-closed behavior for non-canonical or over-32-byte scalar content.
+  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item; bnez a0, .L77prep_bad_chain; la t0, b1an_target_len; ld t0, 0(t0); li t1, 8; bltu t1, t0, .L77prep_chain_wide\n" ++
+  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64; bnez a0, .L77prep_bad_chain; la t0, b1an_field; ld t0, 0(t0); beqz t0, .L77prep_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .L77prep_next; j .L77prep_chain_ok\n" ++
+  ".L77prep_chain_wide:\n" ++
+  "  la t0, b1an_target_off; ld t0, 0(t0); add a0, s8, t0; la t0, b1an_target_len; ld a1, 0(t0); la a2, b1an_recover_scratch; jal ra, rlp_content_to_u256_be; bnez a0, .L77prep_bad_chain; j .L77prep_next\n" ++
   ".L77prep_chain_ok:\n" ++
   "  mv a0, s8; mv a1, s9; li a2, 2; la a3, b1an_signed_nonce; jal ra, rlp_field_to_u64; bnez a0, .L77prep_bad_nonce; la t0, b1an_signed_nonce; ld t0, 0(t0); li t1, -1; beq t0, t1, .L77prep_next\n" ++
   -- `rlp_list_nth_item` returns raw byte-string CONTENT, with its RLP prefix
@@ -285,6 +291,14 @@ def eip7702AuthStatePrepareFunction : String :=
   "  li a0, 1\n" ++
   ".L77prep_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 176; ret"
+
+-- The widened scalar read is reached through typed-transaction field 9, then
+-- authorization-tuple field 0.  Pin both emitted selectors: outer field 0 is
+-- a U64 transaction chain id and must never take the U256 authorization path.
+#guard eip7702AuthStatePrepareFunction.contains
+  "li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item"
+#guard eip7702AuthStatePrepareFunction.contains
+  "li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
