@@ -20,11 +20,16 @@
   `GuestAddrs`: the instance module does that, and is the only module that
   does for this path.
 
-  `GuestLayout.zero` is the emission-time layout: `emitProgramR` keeps
-  `la`/`jal` symbolic via the reloc side-table, so the emitted strings and
-  the `#guard` length facts are independent of the actual addresses and are
-  stated against the zero layout in the leaves.  The concrete immediates
-  are tied to the real link by the bridge and by the
+  `GuestLayout.zero` is the emission-time layout: the emitted strings and
+  the `#guard` length facts are stated against the zero layout in the
+  leaves.  That the emission really is layout-independent is CHECKED, not
+  assumed, by two pre-existing gates bounding the claim from opposite
+  sides: the emitted-reloc-count check rejects any `la`/`jal` whose target
+  got baked from a layout instead of going through the reloc side-table,
+  and `assemble_cmp` against the hand-written fixture catches any
+  non-`la`/`jal` layout-dependent value (an `li` of an absolute address
+  renders as 0 under `.zero` and diverges from the fixture).  The concrete
+  immediates are tied to the real link by the bridge and by the
   `check-asm-to-program` concrete-render gate.
 -/
 

@@ -17,6 +17,11 @@
   the original `_prog` names and types, so all consumers compile
   untouched.  All `*Function`/`_relocs`/`_eq_prog` declarations remain
   available here transitively via the leaf import.
+
+  The bridge def names are REQUIRED, not just a consumer convenience:
+  `check-asm-to-program`'s concrete-render gate looks up
+  `emitProgram <camel(entry)>_prog` and ties its immediates to the linked
+  image, so the `<name>_prog : Program` surface must exist in this module.
 -/
 
 import EvmAsm.Codegen.Programs.HashBridgeProg
