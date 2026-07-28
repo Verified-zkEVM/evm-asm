@@ -204,7 +204,10 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_block_state_gas_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used < block_state_gas floor
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_gas_used_over_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used > max(block_regular, block_state) (over-claim)
-  "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- Keep this upper-bound failure distinct from the recipient / BAL code-41
+  -- family.  The terminal route and verdict are unchanged; this only gives
+  -- OUTPUT+112 a stable diagnostic identity for the gas-over arm.
+  "  li t0, 62; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_mtx_recipient_unresolvable_fail:\n" ++   -- fhsxz.2.4.2.57.11.6.5.4 (e): mtx tx recipient unresolvable at pre-state root (incomplete witness)
   "  li t0, 47; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
