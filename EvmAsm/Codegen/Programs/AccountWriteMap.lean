@@ -522,8 +522,26 @@ def accountWritesDiscardTxFunction : String :=
     the journal inherits the exec log's already-enforced 16384-row cap. -/
 def accountWritesUndoPushFunction : String :=
   "account_writes_undo_push:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp)\n" ++
+  -- GH #10810: save t5/t6 as well, so this routine's CONTRACT matches what its callers
+  -- already assume.  `account_write_record`'s hit path holds the target row address in t5
+  -- ACROSS this call and then stores every field through it -- balance at 32(t5), nonce at
+  -- 64(t5), the valid mask at 112(t5) -- without re-establishing it, while the append path
+  -- DOES recompute t5 afterwards.  That asymmetry is evidence someone already knew the call
+  -- is not t5-safe.  The hit path was correct only because this body happens to use t0..t4
+  -- exclusively, whereas the prologue promised only t0..t4 -- i.e. t5 was documented as
+  -- clobberable and merely accidentally preserved.
+  --
+  -- The failure mode if that accident ever ended: a stale t5 sends the fieldwise stores,
+  -- INCLUDING the valid-mask `or` at 112(t5), into a DIFFERENT 128-byte row -- one account's
+  -- balance or nonce written onto another account's record, and a mask bit set on an account
+  -- that never had that component written, with no trap and no error code.  That is the
+  -- wrong-row class only a whole-structure hash catches.
+  --
+  -- Fixing the CALLEE rather than recomputing t5 at the one call site is deliberate: it
+  -- protects every future caller instead of leaving the next one to rediscover the hazard.
+  -- Frame grows 48 -> 64 to hold the two extra saves (still 16-byte aligned).
+  "  addi sp, sp, -64\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, 0xa2920000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
@@ -539,8 +557,8 @@ def accountWritesUndoPushFunction : String :=
   "  ld t2, 96(t4);  sd t2, 80(t3); ld t2, 104(t4); sd t2, 88(t3); ld t2, 112(t4); sd t2, 96(t3); ld t2, 120(t4); sd t2, 104(t3)\n" ++
   ".Lawu_appended:\n" ++
   "  addi t1, t1, 1; la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret\n"
 
 /-! ## `account_writes_restore_frame`
@@ -680,6 +698,11 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
+-- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
+-- target row address in t5 ACROSS this call. Pin the save AND the restore: a prologue-only save
+-- would leave the register clobbered on return and read as a fix.
+#guard (accountWritesUndoPushFunction.splitOn "sd t5, 40(sp); sd t6, 48(sp)").length == 2
+#guard (accountWritesUndoPushFunction.splitOn "ld t5, 40(sp); ld t6, 48(sp)").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_resolve_pre_state:").length == 2
