@@ -72,6 +72,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.AuthChainIdEncodingProbe
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
@@ -383,6 +384,7 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_headers_validate_chain" => some ziskHeadersValidateChainProbeUnit
   | "zisk_witness_lookup_by_hash" => some ziskWitnessLookupByHashProbeUnit
   | "zisk_rlp_list_nth_item"    => some ziskRlpListNthItemProbeUnit
+  | "zisk_auth_chain_id_encoding_probe" => some ziskAuthChainIdEncodingProbeUnit
   | "zisk_rlp_list_count_items" => some ziskRlpListCountItemsProbeUnit
   | "zisk_access_list_count"    => some ziskAccessListCountProbeUnit
   | "zisk_blob_gas_used_from_versioned_hashes" => some ziskBlobGasUsedFromVersionedHashesProbeUnit
