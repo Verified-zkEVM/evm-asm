@@ -25,16 +25,9 @@ block_verdict_withdrawal_nonstorage_effects:
   beqz t2, .Lbv_wdne_addr_done
   lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_wdne_addr_copy
 .Lbv_wdne_addr_done:
-  la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; jal ra, account_state_latest_balance
-  mv s5, a0; beqz s5, .Lbv_wdne_prestate
-  la a0, bv_wdne_addr; la a1, bv_wdne_acct; jal ra, account_state_latest_nonce; j .Lbv_wdne_have_base
-.Lbv_wdne_prestate:
-  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bv_wdne_addr; li a3, 20
-  la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, bv_wdne_acct
-  jal ra, account_at_header_state_root_tracked
-  beqz a0, .Lbv_wdne_have_base
-  li t0, 1; bne a0, t0, .Lbv_wdne_fail
-  la t0, bv_wdne_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)
+  la a0, bv_wdne_addr; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0)
+  la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state
+  bnez a0, .Lbv_wdne_fail
 .Lbv_wdne_have_base:
   la t0, bsw_amount; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)
   addi a0, s3, 36; li a1, 8; la a2, bsw_amount; addi a2, a2, 24; jal ra, swr_rev_le_be

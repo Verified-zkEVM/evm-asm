@@ -64,6 +64,12 @@ open EvmAsm.Rv64
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
 def nonstorageEffectLogCap : Nat := 38460
 
+/-- The resolver in AccountWriteMap emits the same AccountState capacity as
+    CreateCodeEffectLog. Keep the cross-module fact kernel-checked so a future
+    capacity change cannot silently leave the resolver's scan bound stale. -/
+theorem accountStateResolverCapacity_eq :
+    accountStateResolverCapacity = accountStateEntryCapacity := by decide
+
 /-! The 32-byte address field stores a 20-byte address followed by twelve
 padding bytes. Byte 20 is a component-validity mask: it is outside the key
 used by every address comparison and radix pass, so the fixed 112-byte layout
