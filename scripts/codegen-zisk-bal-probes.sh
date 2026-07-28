@@ -100,6 +100,46 @@ EXPECTED_ACCOUNT_RLP = bytes.fromhex(
 # fixture can produce this -- read-in-one-tx/written-in-another only exists across txs.
 EXPECTED_READS_RLP = bytes.fromhex('0b')
 
+# ---------------------------------------------------------------------------
+# PENDING: the end-to-end producer-path case (case 11), not yet built.
+#
+# Its expectation is DERIVED AND FROZEN HERE BEFORE THE CASE EXISTS, on purpose. Every
+# other case in this file derives its bytes from the RLP rules with the producer OUT of
+# the loop, so a mistake shows up as a mismatch. Case 11 puts `bal_emit_storage_changes`
+# IN the loop, and a digest captured from a run would certify the producer's behaviour by
+# definition -- it could not fail, and it would enshrine a reversal bug as correct. That
+# is the same trap a captured baseline would have set with the widener's 33-byte scalar.
+#
+# Scenario: one tx storage write. Address 0xAA.. , slot 7, value 5, block_access_index 1.
+# The tx row holds addr and slot as LE stack words; the producer reverses both to BE on
+# append (see the builder row field table). SLOT 7 IS NON-SYMMETRIC ON PURPOSE -- a
+# BE-vs-LE dword compare matches only byte-symmetric values, so slot 0 would pass under
+# the very defect this case exists to catch.
+#
+# Derivation, from the field table and the yellow paper:
+#   StorageChange   [bai=1, value=5]  -> c2 01 05                       3 bytes
+#   changes list    payload 3         -> c3 c2 01 05                    4
+#   SlotChanges     scalar(7) ++ above, payload 5 -> c5 07 c3 c2 01 05  6
+#   storage_changes payload 6         -> c6 c5 07 c3 c2 01 05           7
+#   account payload 21 addr + 7 + four empty lists = 32 -> header 0xe0
+#
+# EXPECTED_E2E_ACCOUNT_RLP = e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0
+# EXPECTED_E2E_DIGEST      = 24f0ad8bc447e2a80bdc208c22a07d3a444bfaa952874d78fe7050df2598370d
+#
+# Construction (verified against the emitted code, not inferred):
+#   1. tx rows at 0xa21a0000, count in `tx_storage_writes_count`; addr LE word at 0..31,
+#      slot LE word at 32..63.
+#   2. block container: one entry whose FIRST 64 BYTES equal the tx row's, and
+#      `storage_writes_count` = 1. The scan is eight dword compares over 0..63 and a hit
+#      does `addi s5, t5, 64` then jumps to `.Lbesc_have` -- which SKIPS
+#      `slot_at_header_state_root`, so no witness globals are needed.
+#   3. the container value must DIFFER from 5, or the net-zero check emits nothing.
+#   4. call `bal_emit_storage_changes` with a0 = 1, then measure_account + emit_account.
+#
+# If the first run disagrees with the digest above, that is information about the
+# producer. Do not update the constant to match the run.
+# ---------------------------------------------------------------------------
+
 EXPECTED_OUTER_RLP = bytes.fromhex(
     'f842'
     'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0'
