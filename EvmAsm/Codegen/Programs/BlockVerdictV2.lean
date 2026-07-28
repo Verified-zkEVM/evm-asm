@@ -135,6 +135,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- the byte-tie sees it. It surfaced as a link error buried inside an A/B leg.
     -- Same class as the earlier code_reads constant (a6c31440a) -- an emit is only
     -- verified once the `.elf` EXISTS, and this unit has its own `.elf`.
+    execLogAddrToBalCanonicalFunction ++ "\n" ++
     storageReadRecordFunction ++ "\n" ++
     -- r59nm S2: the WRITE-side counterpart.  Mirrored into this unit for the same
     -- reason as the read recorders above -- this unit has its own `.elf`, so an
@@ -549,6 +550,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
   -- handler preBody so the verified evm_sload body stays byte-identical.
+  execLogAddrToBalCanonicalFunction ++ "\n" ++
   storageReadRecordFunction ++ "\n" ++
   -- r59nm S2: producer and promotion boundary for the storage_writes MAP (spec
   -- dict semantics, two levels, upsert rather than append).  Not yet consulted --

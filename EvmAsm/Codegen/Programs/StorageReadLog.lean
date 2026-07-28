@@ -64,6 +64,36 @@ import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
 
+/-! ## `exec_log_addr_to_bal_canonical`
+
+    Convert the 32-byte address key carried by the execution storage log into
+    the builder's canonical 20-byte big-endian address.
+
+    Both live `storage_read_record` callers pass `x20`, the frame's
+    `env.ADDRESS`.  The top-level runtime stager writes it as a little-endian
+    stack word, and `call_frame_set_call_env` copies that same form for nested
+    frames.  Thus this producer has one representation at every depth: reverse
+    its low 20 bytes into the builder's BE20 key.  The representation belongs
+    to the producing call site, not to call depth; a wrong form merely creates
+    a silent zero-match in the BAL, which is why this convention has one named
+    helper.
+
+    Calling convention:
+      a0 = 32-byte exec-log address key
+      a1 = writable 20-byte canonical-BE output
+
+    Leaf; clobbers `t0`-`t4`. -/
+def execLogAddrToBalCanonicalFunction : String :=
+  "exec_log_addr_to_bal_canonical:\n" ++
+  "  li t0, 0\n" ++
+  ".Lelatbc_loop:\n" ++
+  "  li t1, 20; beq t0, t1, .Lelatbc_done\n" ++
+  "  li t2, 19; sub t2, t2, t0; add t2, a0, t2; lbu t3, 0(t2)\n" ++
+  "  add t4, a1, t0; sb t3, 0(t4)\n" ++
+  "  addi t0, t0, 1; j .Lelatbc_loop\n" ++
+  ".Lelatbc_done:\n" ++
+  "  ret\n"
+
 /-! ## `storage_read_record`
 
     Calling convention:
@@ -73,7 +103,13 @@ namespace EvmAsm.Codegen
       ra = return
       no result register.
 
-    Clobbers **nothing** the caller can see: `t0`-`t6` are saved and restored, so
+    After inserting (or finding) the read, it interns the same account in the
+    block access-list builder.  This mirrors `add_storage_read` ensuring the
+    account at read-record time, so a reverted transaction's read still has an
+    account entry independently of the transaction-promotion boundary.
+
+    Clobbers **nothing** the caller can see: input registers `a0`-`a2`,
+    `t0`-`t6`, and `ra` are saved and restored, so
     this is safe to call from a handler `preBody` that is holding live dispatcher
     state in caller-saved registers. That matters because the SLOAD handler's body
     is a *verified* Program (`EvmAsm.Evm64.Storage.evm_sload`, witnessed by
@@ -81,9 +117,10 @@ namespace EvmAsm.Codegen
     read from `preBody` leaves that proof untouched instead of invalidating it. -/
 def storageReadRecordFunction : String :=
   "storage_read_record:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
+  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
   "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Lsrr_overflow\n" ++
@@ -102,7 +139,7 @@ def storageReadRecordFunction : String :=
   "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrr_next\n" ++
   "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrr_next\n" ++
   "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrr_next\n" ++
-  "  j .Lsrr_done\n" ++                                       -- already in the set
+  "  j .Lsrr_intern_account\n" ++                             -- already in the set
   ".Lsrr_next:\n" ++
   "  addi t4, t4, 1; j .Lsrr_scan\n" ++
   ".Lsrr_append:\n" ++
@@ -116,13 +153,18 @@ def storageReadRecordFunction : String :=
   "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
   "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
   "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrr_intern_account:\n" ++
+  "  addi a1, sp, 64\n" ++
+  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
+  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
   "  j .Lsrr_done\n" ++
   ".Lsrr_overflow:\n" ++
   "  la t0, tx_storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lsrr_done:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret\n"
 
 /-! ## `account_state_promote_delete_reads`
