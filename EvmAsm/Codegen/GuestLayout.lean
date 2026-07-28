@@ -45,6 +45,9 @@ structure GuestLayout where
   zk3_state : Nat
   zkvm_keccak256 : Nat
   zkvm_keccak256_segments : Nat
+  -- BloomAddValue (bloom_add_value); `zkvm_keccak256` already above.
+  bav_hash : Nat
+  bloom_add_value : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -55,6 +58,8 @@ def GuestLayout.zero : GuestLayout :=
     zkvm_sha256 := 0
     zk3_state := 0
     zkvm_keccak256 := 0
-    zkvm_keccak256_segments := 0 }
+    zkvm_keccak256_segments := 0
+    bav_hash := 0
+    bloom_add_value := 0 }
 
 end EvmAsm.Codegen
