@@ -694,8 +694,6 @@ theorem rlp_item_size_form_own_spec_within (base ptr raVal : Word)
 /-- Guest entry of `rlp_item_size`. -/
 def rlpItemSizeBase : Word := BitVec.ofNat 64 GuestAddrs.rlp_item_size
 
-theorem rlpItemSizeBase_eq : rlpItemSizeBase = (0x80004a30 : Word) := by decide
-
 /-- The `rlp_item_size` body at its linked guest address. -/
 abbrev rlpItemSizeCode : CodeReq :=
   CodeReq.ofProg rlpItemSizeBase rlpItemSize_prog

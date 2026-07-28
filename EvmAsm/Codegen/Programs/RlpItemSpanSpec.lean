@@ -149,8 +149,6 @@ theorem cursor_lt_length (items : List RLPItem) (k : Nat) (hk : k < items.length
 /-- Guest entry of `rlp_item_span`. -/
 def rlpItemSpanBase : Word := BitVec.ofNat 64 GuestAddrs.rlp_item_span
 
-theorem rlpItemSpanBase_eq : rlpItemSpanBase = (0x80004abc : Word) := by decide
-
 /-- The `rlp_item_span` body at its linked guest address. -/
 abbrev rlpItemSpanCode : CodeReq :=
   CodeReq.ofProg rlpItemSpanBase rlpItemSpan_prog
