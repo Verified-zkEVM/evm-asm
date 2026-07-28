@@ -135,6 +135,32 @@ STRIPPED="$(mktemp)"
 sed -E 's|^info: [^:]*:[0-9]+:[0-9]+: ||' "$RAWOUT" > "$STRIPPED"
 mv "$STRIPPED" "$RAWOUT"
 
+# Completeness (GH #10601): a summary line quoting the number of NAMES is
+# not evidence the names were checked.  A sed pattern that stops matching
+# a future lake output format, a moved message channel, or a truncated log
+# would all yield zero parsed reports — and the gate would still print a
+# pass quoting the count of names it INTENDED to check.  Compare the
+# PARSED report records against the registry: every witness must produce
+# exactly one record, else fail naming the missing witnesses.
+mapfile -t REPORTED < <(
+  awk '/^\x27/ {
+         line = $0
+         q1 = index(line, "\x27"); rest = substr(line, q1 + 1)
+         q2 = index(rest, "\x27")
+         print substr(rest, 1, q2 - 1)
+       }' "$RAWOUT" | LC_ALL=C sort -u
+)
+if (( ${#REPORTED[@]} != ${#NAMES[@]} )) \
+  || ! diff -q <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}") >/dev/null; then
+  echo "check-axioms: FAIL: parsed ${#REPORTED[@]} axiom report(s) for ${#NAMES[@]} registry witness(es)" >&2
+  MISSING="$(comm -23 <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}"))"
+  if [[ -n "$MISSING" ]]; then
+    echo "check-axioms: witnesses with no parsed report:" >&2
+    echo "$MISSING" >&2
+  fi
+  exit 1
+fi
+
 # --------------------------------------------------------------------
 # 3. Parse into THEOREM<TAB>AXIOM rows.
 #    `#print axioms` prints either
