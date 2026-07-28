@@ -1378,6 +1378,70 @@ def balSerializerEmitAccountFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n"
 
+/-- Outer accumulation: the BAL is a list of `AccountChanges`, so its payload is the sum
+    of each account's ENCODED size, not of their payloads. a0 (out) = that sum, also
+    stored to `bal_serializer_outer_payload`.
+
+    Summing payloads instead of encoded sizes is the same error the account measurer
+    guards against one level down, and it is silent in exactly the same way: the result
+    is a well-formed list whose header is short by one header per account. -/
+def balSerializerMeasureOuterFunction : String :=
+  "bal_serializer_measure_outer:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, bal_builder_account_count; ld s1, 0(t0)\n" ++
+  "  li s2, 0\n" ++                                    -- s2 = outer payload accumulator
+  "  li s3, 0\n" ++                                    -- s3 = account index
+  ".Lbsmo_loop:\n" ++
+  "  bgeu s3, s1, .Lbsmo_done\n" ++
+  "  li t0, 20; mul t1, s3, t0; la t2, bal_builder_accounts; add s0, t2, t1\n" ++
+  "  mv a0, s0; jal ra, bal_serializer_measure_account\n" ++
+  "  mv t5, a0\n" ++
+  "  jal ra, bal_rlp_list_header_len\n" ++
+  "  add s2, s2, t5; add s2, s2, a0\n" ++              -- ENCODED size, not payload
+  "  addi s3, s3, 1; j .Lbsmo_loop\n" ++
+  ".Lbsmo_done:\n" ++
+  "  la t0, bal_serializer_outer_payload; sd s2, 0(t0)\n" ++
+  "  mv a0, s2\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
+/-- Emit the whole block access list. a0 = keccak ctx, a1 = scratch (>= 33 bytes).
+
+    THE ACCOUNT LIST MUST ALREADY BE IN CANONICAL ORDER. EIP-7928 sorts accounts by
+    address, and this walks `bal_builder_accounts` in storage order -- it does not sort.
+    Ordering is `bal_canonical_sort`'s job and must happen before this runs; emitting an
+    unsorted list produces a perfectly well-formed BAL with the wrong hash, which is the
+    one failure the digest comparison cannot localise.
+
+    Each account is re-measured immediately before it is emitted, because the length
+    table holds ONE account at a time and the emitters read their headers from it. -/
+def balSerializerEmitOuterFunction : String :=
+  "bal_serializer_emit_outer:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++                        -- ctx, scratch
+  "  jal ra, bal_serializer_measure_outer\n" ++
+  "  mv a0, s0; la t0, bal_serializer_outer_payload; ld a1, 0(t0); mv a2, s1\n" ++
+  "  jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bal_builder_account_count; ld s2, 0(t0)\n" ++
+  "  li s3, 0\n" ++
+  ".Lbseo_loop:\n" ++
+  "  bgeu s3, s2, .Lbseo_done\n" ++
+  "  li t0, 20; mul t1, s3, t0; la t2, bal_builder_accounts; add t3, t2, t1\n" ++
+  "  sd t3, 40(sp)\n" ++
+  -- Re-measure THIS account: the table is a single-account buffer, and
+  -- `measure_outer` above left it holding whichever account it saw last.
+  "  mv a0, t3; jal ra, bal_serializer_measure_account\n" ++
+  "  ld t3, 40(sp); mv a0, s0; mv a1, t3; mv a2, s1\n" ++
+  "  jal ra, bal_serializer_emit_account\n" ++
+  "  addi s3, s3, 1; j .Lbseo_loop\n" ++
+  ".Lbseo_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerAddrMatchesBeFunction ++
@@ -1399,12 +1463,35 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerEmitNonceFunction ++
   balSerializerEmitCodeFunction ++
   balSerializerEmitAccountFunction ++
+  balSerializerMeasureOuterFunction ++
+  balSerializerEmitOuterFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
+
+/-! ## Guards for the outer accumulation -/
+
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_outer:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_outer:").length == 2
+-- The outer payload is a sum of ENCODED sizes. Summing the accounts' payloads instead
+-- leaves the outer header short by one header per account -- well-formed RLP, wrong
+-- hash, and no intermediate check notices. The `list_header_len` call is the conversion.
+#guard (balSerializerMeasureOuterFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 2
+#guard (balSerializerMeasureOuterFunction.splitOn "  add s2, s2, t5; add s2, s2, a0\n").length == 2
+
+-- Each account is re-measured immediately before being emitted. The length table holds
+-- ONE account, and `measure_outer` leaves it on whichever account it saw last, so
+-- emitting without re-measuring would give every account the last one's headers.
+#guard (balSerializerEmitOuterFunction.splitOn "jal ra, bal_serializer_measure_account").length == 2
+#guard (balSerializerEmitOuterFunction.splitOn "jal ra, bal_serializer_emit_account").length == 2
+
+-- It does NOT sort. Ordering is `bal_canonical_sort`'s job and must precede this; an
+-- unsorted emission is a well-formed BAL with the wrong hash. Pinning the absence keeps
+-- the docstring's claim and the code in agreement.
+#guard (balSerializerEmitOuterFunction.splitOn "bal_canonical_sort").length == 1
 
 /-! ## Guards for the field emitters and the account emitter -/
 

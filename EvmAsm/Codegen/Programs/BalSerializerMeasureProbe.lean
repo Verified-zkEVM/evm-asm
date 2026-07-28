@@ -127,6 +127,22 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
   "  jal ra, bal_serializer_emit_account\n" ++
   "  la a0, bsmp_ctx; addi a1, s0, 96; jal ra, keccak_final\n" ++
+  -- Case 8: the OUTER list over two accounts, digest at +128. Two accounts of 33 bytes
+  -- each make a 66-byte payload, which is past the 55-byte boundary, so the outer header
+  -- takes the LONG form f8 42 rather than 0xc0+66. That boundary is the reason for two
+  -- accounts rather than one: a single account stays in short form and the long-form
+  -- branch of the header emitter would never run.
+  probeRow 0 0xAA 1 1 5 ++
+  probeRow 1 0xBB 1 1 5 ++
+  "  la t0, bal_builder_storage_change_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la t0, bal_builder_accounts\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
+  "  sd zero, 20(t0); sd zero, 28(t0); sd zero, 36(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 20(t0)\n" ++
+  "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
+  "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n" ++
+  "  la a0, bsmp_ctx; addi a1, s0, 128; jal ra, keccak_final\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -145,6 +161,8 @@ def ziskBalSerializerMeasurePrologue : String :=
   balSerializerEmitNonceFunction ++
   balSerializerEmitCodeFunction ++
   balSerializerEmitAccountFunction ++
+  balSerializerMeasureOuterFunction ++
+  balSerializerEmitOuterFunction ++
   balSerializerMeasureAccountFunction ++
   balSerializerMeasureReadsFunction ++
   balSerializerMeasureBalanceFunction ++
@@ -182,6 +200,9 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bal_builder_code_changes:\n  .zero 128\n" ++
   "bal_serializer_throwaway_ctx:\n  .zero 512\n" ++
   "bal_serializer_hdr_scratch:\n  .zero 64\n" ++
+  "bal_serializer_outer_payload:\n  .zero 8\n" ++
+  "bal_builder_account_count:\n  .zero 8\n" ++
+  "bal_builder_accounts:\n  .zero 128\n" ++
   keccakIncrementalDataSection
 
 def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
@@ -215,8 +236,10 @@ The probe is only worth anything if the discriminating cases are really present.
 -- multi-byte scalar path goes untested.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "sb t1, 65(t0)").length == 2
 
--- Address B must actually differ from A, or case 4 tests nothing.
-#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 2
+-- Address B must actually differ from A, or case 4 tests nothing. THREE, because case 8
+-- also places B as its second account -- the two uses are independent and both are load
+-- bearing, so this counts them rather than pretending there is one.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 3
 
 -- Case 6 must actually EMIT and finalise, or the digest slot holds whatever keccak_init
 -- left and a wrong digest reads as a wrong constant rather than as a missing call.
@@ -230,9 +253,18 @@ The probe is only worth anything if the discriminating cases are really present.
 -- account with the wrong headers and only the digest would notice.
 #guard (ziskBalSerializerMeasurePrologue.splitOn
   "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_account\n").length == 2
+-- Keyed on case 7's own call site: `emit_outer` is spliced in and calls `emit_account`
+-- too, so a bare count tracks the closure rather than the case.
 #guard (ziskBalSerializerMeasurePrologue.splitOn
-  "  jal ra, bal_serializer_emit_account\n").length == 2
+  "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n  jal ra, bal_serializer_emit_account\n").length == 2
 #guard (ziskBalSerializerMeasurePrologue.splitOn
   "  la a0, bsmp_ctx; addi a1, s0, 96; jal ra, keccak_final\n").length == 2
+
+-- Case 8 needs TWO accounts. With one the outer payload is 33, inside the short form,
+-- and the long-form branch of the list-header emitter is never exercised.
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n").length == 2
+#guard (ziskBalSerializerMeasurePrologue.splitOn
+  "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n").length == 2
 
 end EvmAsm.Codegen

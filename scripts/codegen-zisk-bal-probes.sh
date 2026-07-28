@@ -90,6 +90,14 @@ EXPECTED_RLP = bytes.fromhex('c501c3c20105')
 EXPECTED_ACCOUNT_RLP = bytes.fromhex(
     'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0')
 
+# Case 8: the outer list over TWO accounts. 2 x 33 = 66 bytes of payload is past the
+# 55-byte boundary, so the header takes the LONG form f8 42. One account would stay in
+# short form and the long-form branch of the header emitter would never run.
+EXPECTED_OUTER_RLP = bytes.fromhex(
+    'f842'
+    'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0'
+    'e094bb00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0')
+
 if len(data) < 56:
     print(f"==> FAIL: probe output is {len(data)} bytes, need at least 56"); sys.exit(1)
 
@@ -163,6 +171,15 @@ else:
     bad += 1
     print(f"  FAIL  case 7  account digest {got_acct[:16]}... != reference {want_acct[:16]}...")
     print(f"        expected RLP was {EXPECTED_ACCOUNT_RLP.hex()}")
+
+want_outer = keccak256(EXPECTED_OUTER_RLP).hex()
+got_outer  = data[128:160].hex()
+if got_outer == want_outer:
+    print(f"  ok    case 8  outer-list digest (2 accts) = {got_outer[:16]}...")
+else:
+    bad += 1
+    print(f"  FAIL  case 8  outer digest {got_outer[:16]}... != reference {want_outer[:16]}...")
+    print(f"        expected RLP was {EXPECTED_OUTER_RLP.hex()}")
 
 print()
 if bad:
