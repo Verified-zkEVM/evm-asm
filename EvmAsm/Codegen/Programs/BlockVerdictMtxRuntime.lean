@@ -12,8 +12,73 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
+
+/-- Stage the execution-start sender debit into the existing one-shot tuple.
+    The tuple is consumed by `dispatcher_seed_pending_upfront_balance`; it is
+    deliberately not a B2.3 reconstruction.  `account_state_latest_balance`
+    supplies the prior transaction's durable balance when present, otherwise
+    the already-authenticated header lookup supplies the first transaction's
+    balance. -/
+private def blockVerdictMtxStageSenderUpfront : String :=
+  -- The main fee gate intentionally preserves its existing handling for
+  -- non-priceable malformed inputs.  Do not turn a diagnostic tuple into a
+  -- second reject path: mirror the single-tx producer and stage only when a
+  -- fresh effective-price calculation succeeds.
+  "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch; jal ra, tx_effective_gas_pricing\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  bnez a0, .Lbv_mtx_su_have_pre\n" ++
+  "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  ".Lbv_mtx_su_have_pre:\n" ++
+  -- `check_transaction` debits gas_limit * effective_gas_price, rather than
+  -- the max-fee affordability reservation used immediately above.
+  "  la a0, bv_fee_egp_scratch; la t0, bv_mtx_ctx; ld a1, 40(t0); la a2, bv_upfront_cost; jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la a0, bv_upfront_cost; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_upfront_cost; jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la t0, bv_upfront_blob_cost; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_mtx_su_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct; jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0); la t3, bv_mtx_ctx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_mtx_su_done; li t2, 6; bgtu a1, t2, .Lbv_mtx_su_done; slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, bv_upfront_blob_cost; jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost; jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  ".Lbv_mtx_su_blob_done:\n" ++
+  "  la a0, bv_pending_upfront_sender_pre; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post; jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Lbv_mtx_su_done\n" ++
+  "  la t0, bv_mtx_sender_addr; la t1, bv_pending_upfront_sender_addr; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); sd zero, 24(t1)\n" ++
+  "  la t0, sttc_nonce; ld t1, 0(t0); addi t1, t1, 1; la t0, bv_pending_upfront_sender_nonce; sd t1, 0(t0)\n" ++
+  "  li t1, 1; la t0, bv_pending_upfront_balance_flag; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_su_done:\n"
+
+/-- Record the post-execution sender refund.  The preceding execution-start
+    record has already placed the gas-limit debit in AccountState; this second
+    record applies `create_ether(sender, gas_refund_amount)` from the actual
+    dispatch result.  The transaction map upsert deliberately collapses both
+    writes to the final per-transaction balance. -/
+private def blockVerdictMtxRecordSenderRefund : String :=
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3\n" ++
+  "  la t0, bv_mtx_ctx; ld a0, 40(t0); la t2, bv_mtx_gas_left; add t2, t2, t1; ld a1, 0(t2); la t2, bv_mtx_refund; add t2, t2, t1; ld a2, 0(t2); la t2, bv_mtx_calldata; add t2, t2, t1; ld a3, 0(t2); jal ra, tx_gas_result_increments\n" ++
+  "  bnez a0, .Lbv_mtx_sr_done\n" ++
+  "  la t0, bv_mtx_ctx; ld t1, 40(t0); bgtu a2, t1, .Lbv_mtx_bail; sub a1, t1, a2\n" ++
+  "  la a0, bv_fee_egp_scratch; la a2, bv_pending_upfront_sender_post; jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  bnez a0, .Lbv_mtx_sr_have_pre\n" ++
+  "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  ".Lbv_mtx_sr_have_pre:\n" ++
+  "  la a0, bv_pending_upfront_sender_pre; la a1, bv_pending_upfront_sender_post; la a2, bv_pending_upfront_sender_post; jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_sr_done:\n"
 
 /-- Gated multi-transaction runtime-gas loop fragment.  On `bv_tx_count == 0` it
     branches straight to `.Lbv_recipient_nc_done`; the former `.Lbv_singletx`
@@ -191,6 +256,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_post_preparation_reached; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
+  -- The tuple is one-shot.  A pre-dispatch terminal route must not leak an
+  -- unconsumed predecessor tuple into this transaction.
+  "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
@@ -287,10 +355,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
   "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
   -- `process_transaction` increments the sender nonce before preparation.
-  -- Publish only that monotone execution fact.  Balance has later value,
-  -- refund, and coinbase-credit writes, so it needs its own complete state
-  -- transition rather than an inclusion-time snapshot here.
+  -- Publish that monotone execution fact both to the durable execution overlay
+  -- and to the transaction-local BAL map. This is deliberately before the
+  -- body rollback checkpoint: a failed body keeps the transaction nonce, while
+  -- the checkpoint removes later body writes. Balance has later value, refund,
+  -- and coinbase-credit writes, so it needs its own complete state transition
+  -- rather than an inclusion-time snapshot here.
   "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasNonce ++ "; jal ra, account_write_record\n" ++
+  blockVerdictMtxStageSenderUpfront ++
+  -- Authorization preparation starts after sender inclusion and the upfront
+  -- debit.  A preparation ExceptionalHalt must restore only auth-produced map
+  -- rows; a later body revert restores the separate pre-dispatch mark instead
+  -- and therefore retains the successful authorization phase.
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, account_writes_auth_prepare_mark; sd t1, 0(t0)\n" ++
   -- Sole EIP-7702 state/gas writer: run after the inclusion snapshot, before
   -- recipient routing.  The old B1 replay is a frozen reference only.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
@@ -302,6 +380,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Route here rather than at context extraction, where ctx+24 is deliberately
   -- still null and the generalized runner would hash a null sender pointer.
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
+  -- The recipient classifier must see the accumulating execution state before
+  -- it asks the immutable parent witness.  A successful tx1 CREATE publishes
+  -- its code to AccountState, so tx2 must enter the contract lane even though
+  -- the target is absent from the pre-block header.  This mirrors the layered
+  -- resolver already used by child CALL-family handlers and by the dispatcher
+  -- itself; only a genuine overlay miss may fall through to the header lookup.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_state_lookup_current\n" ++
+  "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_eoa\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- A status-2 recipient lookup stays a hard failure after preparation.  It is
@@ -400,10 +486,33 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  -- Use the account-write undo cursor as the authoritative body rollback mark.
+  -- It is taken after pre-body effects and before runtime dispatch, exactly like
+  -- the nonstorage/code snapshots above; status-zero restores to this mark.
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_mtx_sender_addr; sd t1, 0(t0); la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- `write_sets_incorporate_tx` clears the transaction-local latch after a
+  -- successful merge.  Test it before either success or rollback can discard
+  -- the evidence: a full tx map is an incomplete execution record, never a
+  -- reason to silently skip the storage comparison.
+  "  la t0, tx_storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, tx_account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10731: the READ-side latches, which were set and never examined. Same
+  -- reasoning as the write-side pair above -- a full read map is an incomplete
+  -- execution record -- and the same failure label, so this completes the existing
+  -- list rather than introducing a reject path.
+  --
+  -- ONE ASYMMETRY WORTH KNOWING: unlike the write-side latches, these have NO clear
+  -- site (`read_sets_discard_tx` clears the counts, not the flags), so a set flag is
+  -- STICKY for the rest of the block rather than per-transaction. Since the outcome is
+  -- a reject either way, stickiness can only be more conservative — but it is a real
+  -- difference from the lines above and not an oversight in this change.
+  "  la t0, tx_storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, tx_account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, tx_code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
@@ -432,6 +541,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- truncation. Restore the persistent SSTORE log to the exact pre-dispatch
   -- count before publishing committed storage for the next transaction.
   "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
   -- Contract/EOA contexts retain their raw recipient here; the creation route
   -- above has re-keyed ctx+72 to bv_create_addr before joining this postlude.
@@ -487,8 +597,34 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, write_sets_discard_tx\n" ++
   ".Lbv_mtx_storage_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- The block-lifetime map can overflow while incorporating a successful tx.
+  -- Its producer returns normally to preserve the caller frame, so consume the
+  -- latched failure at the transaction boundary rather than serializing a
+  -- truncated block map later.
+  "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10731: the block-lifetime READ latches, set by read_sets_merge_one through the
+  -- a7 pointer read_sets_incorporate_tx hands it, and examined nowhere until now. Same
+  -- position and label as the write-side line above: consume a latched truncation at
+  -- the transaction boundary rather than serializing a short read set later.
+  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- The debit was materialized before execution; apply the spec's later
+  -- sender `create_ether` refund before AccountState commits this transaction.
+  blockVerdictMtxRecordSenderRefund ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_post_preparation_reached; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
+  -- `process_message` restores the preparation snapshot when preparation
+  -- itself halts.  The map's direct auth producer mirrors that control-flow
+  -- fact with its own cursor, rather than reusing the dead frame checkpoint.
+  "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
+  -- `blockVerdictMtxRecordSenderRefund` and the rollback helper both use
+  -- caller-saved a1/a2.  The snapshot ABI takes this transaction's captured
+  -- slice, not the cumulative `bv_user_storage_log`: a preparation halt has
+  -- no such rows, so restore base + length zero explicitly.  Do not reconstruct
+  -- from capture counters, which may still describe tx N-1 (and must remain
+  -- available to the later BAL consumer through the cumulative arena).
+  "  la a1, bv_user_storage_log; li a2, 0\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
@@ -505,9 +641,32 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
   "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
   "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
+  -- Body effects are already rolled back to the undo mark above on status=0.
+  -- The coinbase fee is appended after that rollback and survives either
+  -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  -- `update_builder_from_tx` precedes `incorporate_tx_into_block` in the spec:
+  -- the tx account-map reader must see the block-cumulative *pre-tx* baseline
+  -- before incorporation overwrites it and clears the tx map.  The helper reads
+  -- `current_block_access_index` (bv_mtx_i + 1), not the unwritten builder-local
+  -- BAI cell.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_mtx_loop\n" ++
   ".Lbv_mtx_done:\n" ++
+  -- EIP-7928's block access index advances once more for the post-transaction
+  -- system/withdrawal boundary.  The producers already dual-record into the
+  -- transaction AccountWrite map; make this N+1 boundary feed the same builder
+  -- walk and block-level incorporate path before receipts consume the result.
+  -- EIP-4895 withdrawals are a block-level producer, not a transaction effect.
+  -- Run the existing recorder here so its 112-byte execution record and
+  -- transaction AccountWrite entry are present for the N+1 builder walk.
+  "  jal ra, block_verdict_withdrawal_nonstorage_effects; bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
   "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
   -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
@@ -573,6 +732,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0); la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0); la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0); la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
   "  la t0, bv_creation_output_mode; li t1, 1; sd t1, 0(t0); la t0, bv_mtx_i; ld t1, 0(t0); la t0, bv_creation_output_index; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  la t0, bv_creation_output_mode; sd zero, 0(t0); la t0, dtrc_use_pre_header; sd zero, 0(t0)\n" ++
@@ -587,7 +747,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  bnez a4, .Lbv_mtx_effects_kept\n" ++
   "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
   "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0); j .Lbv_mtx_effects_kept\n" ++
+  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_mtx_creation_unsupported:\n" ++
   -- A creation transaction is not yet dispatched by this loop, but every
   -- preceding transaction has an exact settled runtime result in the strided

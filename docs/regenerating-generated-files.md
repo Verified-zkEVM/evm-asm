@@ -11,7 +11,7 @@ The four files, what regenerates each, and what it depends on:
 |---|---|---|
 | `scripts/asm-fixtures/symbol-addresses.tsv` | `scripts/gen-symbol-addresses.py --build` | the linked ELF (`lake exe codegen`) |
 | `EvmAsm/Codegen/GuestAddrs.lean` | `python3 scripts/asm_to_program.py guest-addrs` | the TSV above |
-| `EvmAsm/Codegen/RegionMap.lean` (the `textSizeBytes` / `dataSizeBytes` fields) | manual edit to the ELF section sizes | the linked ELF |
+| `EvmAsm/Codegen/RegionMap.lean` (the `textSizeBytes` / `dataSizeBytes` / `bssSizeBytes` fields) | manual edit to the ELF section sizes | the linked ELF |
 | `EvmAsm/Codegen/Proofs/GuestImageEntries.lean` | `python3 scripts/guest_image_coverage.py --emit-lean` | `GuestAddrs` + the linked function set |
 
 ## Prerequisites
@@ -33,11 +33,32 @@ python3 scripts/asm_to_program.py guest-addrs
 # 3. Regenerate the guest-image entry list.
 python3 scripts/guest_image_coverage.py --emit-lean
 
-# 4. RegionMap.lean is NOT fully auto-generated: if the ELF section sizes changed,
-#    update RegionMap.textSizeBytes / dataSizeBytes to the sizes reported by
-#    `readelf -S` on the relinked ELF. Everything else in RegionMap is a fixed,
-#    kernel-checked layout statement and should not change on a routine re-emit.
+# 4. RegionMap.lean is NOT fully auto-generated: update textSizeBytes,
+#    dataSizeBytes, and bssSizeBytes from `readelf -S` on the relinked ELF.
+#    Everything else in RegionMap is a fixed, kernel-checked layout statement and
+#    should not change on a routine re-emit.
+
+# 5. Repeat steps 1-4 until a complete pass makes no changes. Updating
+#    RegionMap.textSizeBytes can itself change the emitted image, so a one-pass
+#    relink is not a convergence check.
 ```
+
+## Layout invariants during a regen
+
+- **Reach a fixed point.** `textSizeBytes` is an input to emission as well as a
+  record of it. After repinning it, relink and repeat the complete procedure
+  until a further pass changes neither the generated files nor the reported
+  section sizes. Do not trust a one-pass repin.
+- **Keep `.data` fixed.** Its base is `0xa3000000`; growth shifts downstream
+  data symbols and breaks the hard `rfl` address proofs. In particular,
+  `GuestAddrs.bnf_le_a` must remain `2734690016` (`0xa3000ee0`). A changed
+  value is a layout regression to investigate, not an address to accept.
+- **Update the handwritten `.bss` proof literals too.**
+  `EvmAsm/Codegen/Proofs/GuestImage.lean` contains the handwritten `.bss`
+  extent/end literals used by `guestScratch_sat`; no generator updates them.
+  Keep them consistent with `RegionMap.bssSizeBytes` and the fixed `.bss` base
+  (`0xa4000000`). A stale literal can fail to typecheck before
+  `check-region-map.sh` gets a chance to report the drift.
 
 ## Verify
 
@@ -52,8 +73,11 @@ guest change, a regen step above was missed or RegionMap's sizes are stale.
 
 ## Notes
 
-- **Do not use `scripts/regen-cycle.sh`** — it is broken (hardcoded dead scratch path + an
-  uncommitted helper). Use the commands above.
+- **`scripts/regen-cycle.sh` was removed** (#10746). It hardcoded a dead scratch path and
+  invoked an uncommitted helper (`remap_sasm.py`, which exists in no tree) — and with a
+  missing scratch directory its clean-test `[ ! -s "$S/failpass.txt" ]` was satisfied by the
+  *absence* of the file it had failed to write, so it printed `REGEN_CLEAN pass=1` and exited
+  0 regardless of actual drift. Use the commands above.
 - Step 2 (`GuestAddrs.lean`) is the file that churns on essentially every layout change: the
   per-function `_prog` defs reference its constants by name (`AsmReloc.{laHi,laLo,jalOff}`), so a
   size change only requires regenerating the TSV + `GuestAddrs.lean`, never the hundreds of
@@ -104,5 +128,7 @@ pre-bootstrap state, and only address literals / generated doc counts (`GuestAdd
 `RegionMap.lean`, the TSV) change. `scripts/check-forbidden-tactics.sh` and
 `scripts/check-axioms.sh` stay clean throughout — no `sorry`, no `native_decide`/`bv_decide`, no
 weakened statement. If conflict markers from a merge are also present in the four generated files,
-resolve those with either side first (`git checkout --ours <file>` is fine — the regen overwrites
-them) so the tree parses before step 1.
+seed them from the side with the superset of symbols (normally `origin/main`), rather than
+reflexively taking `--ours`, so the tree can build far enough to run step 1. In one incident an
+`--ours` placeholder lacked `block_access_list_hash_core` and prevented codegen from building.
+The subsequent regen remains authoritative, but it can only run from a buildable placeholder.

@@ -77,7 +77,7 @@ def blockVerdictMtxValidationTail : String :=
   "  la t0, bv_b1_finals; ld t1, 40(t0); beqz t1, .Lbv_b1_next\n" ++   -- has_nonce == 0 -> skip (conservative)
   "  ld t1, 48(t0)\n" ++                                               -- t1 = BAL declared final nonce
   "  la t0, bv_b1_expected; ld t0, 0(t0)\n" ++                         -- t0 = pre_nonce + count
-  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                          -- BAL sender final nonce != pre + count -> reject
+  "  bne t1, t0, .Lbv_mtx_sender_final_nonce_fail\n" ++                -- BAL sender final nonce != execution-derived final -> reject
   ".Lbv_b1_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
   ".Lbv_b1_done:\n" ++

@@ -103,6 +103,9 @@
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
   | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 1 MiB       |
+  | `ACCOUNT_WRITES_AREA`        | `0xa24a0000`     | 2.5 MiB     |
+  | `TX_ACCOUNT_WRITES_AREA`     | `0xa2720000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2920000`     | 2 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -351,6 +354,56 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
 
 /-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 64 B = 1 MiB. -/
 def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
+
+/-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
+
+    The spec keeps **one** container per level for every non-storage account
+    field: `account_writes: Dict[Address, Optional[Account]]` on both
+    `BlockState` (`state_tracker.py:70`) and `TransactionState` (`:97`). An
+    `Account` carries nonce, balance and code together, and
+    `update_builder_from_tx` derives **all three** BAL fields —
+    `balance_changes`, `nonce_changes`, `code_changes` — from a single loop over
+    it (`block_access_lists.py:637-664`).
+
+    That is why this is ONE arena pair and not three. The nonstorage side of
+    #10695 was scoped as "three fields lacking attribution", which invited three
+    containers; the spec's own structure says one. Mirroring the spec's shape is
+    what makes attribution fall out by construction rather than being maintained
+    by hand at each append site — which is exactly the failure #10697 fixed.
+
+    Entry layout (128 B stride, matching the storage map's, all 8-aligned):
+
+        +0   address    (20 B used, 32 reserved)  the `Address` key
+        +32  balance    (32 B)                    `Account.balance`
+        +64  nonce      (8 B)                     `Account.nonce`
+        +72  present    (8 B)                     0 = the spec's `None` (deleted)
+        +80  codeHash   (32 B)                    `Account.code_hash`
+        +112 (16 B pad to the 128 B stride)
+
+    `present` is a field rather than an all-zero-record sentinel for the same
+    reason `wasAbsent` is on the storage side: the spec's value type is
+    `Optional[Account]`, and `None` (the account does not exist) is a *distinct*
+    state from an account whose balance, nonce and code hash are all zero. -/
+
+/-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
+    20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound. -/
+def ACCOUNT_WRITES_AREA      : Word := 0xa24a0000
+/-- Per-transaction `account_writes` — the target of `account_write_record`. -/
+def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2720000
+/-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB.
+
+    Same rationale as `STORAGE_WRITES_UNDO_AREA`: the spec rolls a frame back by
+    copying the dict, which is unaffordable at capacity × call depth, so the
+    bounded equivalent is a reverse-replayed journal. Entry layout (128 B):
+
+        +0   entryIndex   (8 B)   index into the tx-level map this write touched
+        +8   wasAbsent    (8 B)   1 if the write APPENDED a new key, else 0
+        +16  prevNonce    (8 B)
+        +24  prevPresent  (8 B)
+        +32  prevBalance  (32 B)
+        +64  prevCodeHash (32 B)
+        +96  (32 B pad) -/
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2920000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 

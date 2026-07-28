@@ -33,6 +33,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -51,9 +52,9 @@ open EvmAsm.Rv64
       2 * floor(200_000_000 / 10400) = 38_460.
     CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
     separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
-    separate block budget and cannot reduce this bound. 40960 therefore covers the full raw stream
-    with substantial margin. The overflow flag remains a fail-closed runtime guard, rather than a
-    verdict assumption.
+    separate block budget and cannot reduce this bound. 38,460 is therefore the
+    exact full raw-stream bound. The overflow flag remains a fail-closed runtime
+    guard, rather than a verdict assumption.
 
     Cost: the aggregate radix-sort and both comparators iterate over the live `count`, never `cap`,
     so a larger cap is pure reserved BSS (4 × cap×112 ≈ 28 MiB + cap-byte covered[]), comfortably
@@ -61,7 +62,13 @@ open EvmAsm.Rv64
     blocks; 0-regress (buffer-size-only change for any non-overflow block). The
     exec_nonstorage_effect_log / exec_nonstorage_effect_agg / nea_sort_a / nea_sort_b buffers and
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 40960
+def nonstorageEffectLogCap : Nat := 38460
+
+/-- The resolver in AccountWriteMap emits the same AccountState capacity as
+    CreateCodeEffectLog. Keep the cross-module fact kernel-checked so a future
+    capacity change cannot silently leave the resolver's scan bound stale. -/
+theorem accountStateResolverCapacity_eq :
+    accountStateResolverCapacity = accountStateEntryCapacity := by decide
 
 /-! The 32-byte address field stores a 20-byte address followed by twelve
 padding bytes. Byte 20 is a component-validity mask: it is outside the key
@@ -107,6 +114,10 @@ def recordNonstorageEffectFunction : String :=
   -- the final comparison-materialization switch; a bounded journal failure
   -- fails closed through this producer's established overflow path.
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  -- Preserve this successful execution effect in the transaction-local map.
+  -- The mask says what was written; a later BAL builder compares final values
+  -- to the block-cumulative baseline to decide whether to emit changes.
+  "  mv a0, s0; mv a1, s2; mv a2, s4; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasBalance + accountWriteHasNonce) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
   ".Lrnse_overflow:\n" ++

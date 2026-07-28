@@ -25,6 +25,14 @@ extract_payload_and_withdrawals:
   # bal_off = u32 @ exec_payload+528
   addi a0, s4, 528
   jal ra, spw_u32le
+  mv t6, a0                   # bal_off; retain across the vh_off helper call
+  # Require the VersionedHashes start to be at/after `44 + bal_off`.
+  # Equivalently: NPR + vh_off >= exec_payload + bal_off.
+  addi a0, t2, 4
+  jal ra, spw_u32le
+  addi t0, t6, 44
+  bltu a0, t0, .Lspw_fail
+  mv a0, t6
   # a0 = bal_off ; t4 = wd_off
   li t0, 540
   bltu t4, t0, .Lspw_fail     # withdrawals must start after the fixed payload part

@@ -10,6 +10,26 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
 namespace EvmAsm.Codegen
 
+private def blockVerdictMtxEoaRecipientCredit : String :=
+  -- This runs after the dispatcher returns and after the indexed status
+  -- store. The pending AccountState clear is therefore over; status-zero
+  -- transactions contribute no recipient mutation. These gates describe
+  -- BALANCE changes only: a zero-value transfer can still create an account,
+  -- which is an existence change handled by a separate producer.
+  "  beqz a2, .Lbv_mtx_eoa_credit_done\n" ++
+  "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; beqz t1, .Lbv_mtx_eoa_credit_done\n" ++
+  "  la t0, bv_mtx_sender_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_mtx_eoa_credit_selfcmp:\n" ++
+  "  beqz t2, .Lbv_mtx_eoa_credit_done; lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_eoa_credit_distinct; addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_eoa_credit_selfcmp\n" ++
+  ".Lbv_mtx_eoa_credit_distinct:\n" ++
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la a0, bv_wdne_acct; addi a0, a0, 8; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_pending_recipient_post; jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; addi a1, a1, 8; la a2, bv_pending_recipient_post; la t0, bv_wdne_acct; ld a3, 0(t0); mv a4, a3; jal ra, record_nonstorage_effect\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  ".Lbv_mtx_eoa_credit_done:\n"
+
 /-- Enter the shared direct-precompile kernel from the MTx empty-code route.
     The kernel consumes the scalar transaction scratch, so this bounded adapter
     copies the current fixed-layout context and sender, marks the publication
@@ -89,6 +109,10 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
+  -- Unlike the contract path this shortcut bypasses dispatch_tx_runtime_code.
+  -- Consume the same one-shot sender-upfront tuple after its local reset so an
+  -- EOA transaction materializes the debit and clears the flag too.
+  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   -- An unresolved recipient must not be staged as STOP.  Run only the shared
@@ -195,10 +219,17 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a0, 0(t3)\n" ++
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a2, 0(t3)\n" ++
+  blockVerdictMtxEoaRecipientCredit ++
+  -- The credit fragment clobbers the pre-fragment byte offset in t0. Rebuild
+  -- the indexed-array offset before the existing creation/calldata stores.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; la t4, bv_mtx_ctx; ld t5, 48(t4); sd t5, 0(t3)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd t5, 0(t3)\n" ++
-  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  -- The recipient-credit resolver/record path clobbers t1. Reload the
+  -- transaction index before capturing the per-tx execution gas result; the
+  -- pre-fragment t1 held bv_mtx_i only by convention and is not callee-saved.
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_receipts_completeness_shape; ld t4, 0(t4); li t5, 60; bgeu t4, t5, .Lbv_mtx_eoa_receipts_ready\n" ++
   bvReceiptsShapeSet 4 true ++
   ".Lbv_mtx_eoa_receipts_ready:\n" ++
