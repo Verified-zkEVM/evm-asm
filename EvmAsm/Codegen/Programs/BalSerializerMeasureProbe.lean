@@ -65,7 +65,10 @@ private def probeRow (idx : Nat) (addrByte bai slotByte valByte : Nat) : String 
   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
   "  li t1, " ++ toString addrByte ++ "; sb t1, 0(t0)\n" ++
   "  li t1, " ++ toString bai ++ "; sd t1, 24(t0)\n" ++
-  "  li t1, " ++ toString slotByte ++ "; sb t1, 32(t0)\n" ++
+  -- Slot at byte 63, not 32: the row holds the slot BIG-ENDIAN, as the producer
+  -- writes it (see the builder row field table). Seeding it at byte 32 would be the
+  -- READER's convention, which is what made the byte-order defect invisible here.
+  "  li t1, " ++ toString slotByte ++ "; sb t1, 63(t0)\n" ++
   "  li t1, " ++ toString valByte ++ "; sb t1, 64(t0)\n"
 
 /-- Set the row count and run `measure_storage` for address A, storing to `off(s0)`. -/
@@ -209,6 +212,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   balSerializerSlotEqFunction ++
   balSerializerSlotSeenBeforeFunction ++
   balSerializerU64ToFieldFunction ++
+  balSerializerSlotToLeFunction ++
   balSerializerMeasureSlotFunction ++
   balSerializerMeasureStorageFunction ++
   balRlpScalarLenFunction ++
@@ -249,6 +253,7 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bal_builder_storage_change_count:\n  .zero 8\n" ++
   "bal_serializer_len_table:\n  .zero 48\n" ++
   "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_serializer_slot_le:\n  .zero 32\n" ++
   "bal_builder_storage_changes:\n  .zero 480\n" ++
   ".balign 8\n" ++
   "bsmp_ctx:\n  .zero 512\n" ++

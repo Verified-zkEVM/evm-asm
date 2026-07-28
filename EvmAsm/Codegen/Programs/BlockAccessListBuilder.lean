@@ -188,6 +188,49 @@ def balBuilderPersistentBytes : Nat :=
   balBuilderAccountBytes + balBuilderStorageChangeBytes + balBuilderBalanceBytes +
     balBuilderNonceBytes + balBuilderCodeBytes
 
+/-! ## Builder row field table -- THE authoritative byte-order declaration
+
+    Cite this table. Do not re-derive a field's byte order from a nearby docstring: three
+    byte-order defects in this area were each two components internally consistent with a
+    different correct-sounding reading, and what was missing was one statement both sides
+    could contradict.
+
+    THE RULE THE TABLE FOLLOWS: canonical BE20 arrives FROM THE PRODUCER. A row whose
+    source is an EVM stack word is reversed on append; a row whose source is an
+    account-write row is not, because that row is already canonical. Every entry below is
+    a consequence of where its source came from.
+
+    | stream          | field | off | width | byte order                    |
+    | storage_changes | addr  |   0 |    20 | BE20   (reversed on append)   |
+    | storage_changes | bai   |  24 |     8 | native LE u64                 |
+    | storage_changes | slot  |  32 |    32 | BE32   (reversed on append)   |
+    | storage_changes | value |  64 |    32 | LE     (passed VERBATIM)      |
+    | balance_changes | addr  |   0 |    20 | BE20   (already canonical)    |
+    | balance_changes | bai   |  24 |     8 | native LE u64                 |
+    | balance_changes | post  |  32 |    32 | LE                            |
+    | nonce_changes   | addr  |   0 |    20 | BE20                          |
+    | nonce_changes   | bai   |  24 |     8 | native LE u64                 |
+    | nonce_changes   | nonce |  32 |     8 | native LE u64                 |
+    | code_changes    | addr  |   0 |    20 | BE20                          |
+    | code_changes    | bai   |  24 |     8 | native LE u64                 |
+    | code_changes    | ptr   |  32 |     8 | pointer (no byte order)       |
+    | code_changes    | len   |  40 |     8 | length  (no byte order)       |
+    | storage_reads   | addr  |   0 |    32 | LE stack word                 |
+    | storage_reads   | slot  |  32 |    32 | LE stack word                 |
+
+    THE STORAGE ROW CARRIES TWO CONVENTIONS AT ONCE and that is not an accident to be
+    tidied away: `bal_emit_storage_changes` reverses the address and the slot into
+    `besc_addr_be` / `besc_slot_be`, then passes the value as `a3 = s4+64` verbatim. Slot
+    is BE32 and value is LE32 in the same 96-byte row.
+
+    CONSEQUENCE FOR READERS: `bal_rlp_scalar_len` / `bal_rlp_emit_scalar` are documented
+    for LE limbs (`BalRlpEncode.lean:375`) -- they scan DOWN from byte 31 for the most
+    significant byte. They are correct on every LE field above and WRONG on the storage
+    slot, which must be reversed into scratch before being handed to them. Sources:
+    `AccountWriteMap.lean:129`/`:160` for the account-write convention,
+    `StorageReadLog.lean:43` for the exec-log stack word, `balSortBuilderStorageSegments`
+    for the storage row's three sorted segments. -/
+
 /-- BSS labels for the persistent builder.  Every producer has its own count
     and latches the shared overflow bit; later append routines will additionally
     set their component latch to make diagnostics precise. -/
@@ -219,6 +262,7 @@ def blockAccessListBuilderDataSection : String :=
   -- The widener's destination. 32 bytes, 8-aligned, reused per scalar -- it holds one
   -- widened u64 at a time and is consumed immediately by the scalar measurer.
   "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_serializer_slot_le:\n  .zero 32\n" ++
   "bal_serializer_sort_status:\n  .zero 8\n" ++
   "bal_serializer_rebuilt_ctx:\n  .zero 512\n" ++
   "bal_serializer_rebuilt_hash:\n  .zero 32\n" ++
@@ -625,11 +669,21 @@ def balSerializerSlotWrittenFunction : String :=
   "  bgeu t3, t1, .Lbssw_no\n" ++
   "  li t0, 96; mul t2, t3, t0; la t4, bal_builder_storage_changes; add t4, t4, t2\n" ++
   -- slot at +32 of the change row, 4 dwords, against the read row's slot
+  -- CROSS-CONVENTION COMPARE. The read row's slot is an LE stack word
+  -- (`StorageReadLog.lean:43`); the change row's slot is BE32, reversed on append. So
+  -- byte i of the read slot must be compared against byte 31-i of the change slot. A
+  -- dword-wise compare of the two matches only palindromic slots -- and matches
+  -- everything if both sides happen to be seeded in one convention, which is how this
+  -- survived. See the builder row field table.
   "  ld a2, 8(sp)\n" ++
-  "  ld t5, 32(t4); ld t6, 0(a2);  bne t5, t6, .Lbssw_next\n" ++
-  "  ld t5, 40(t4); ld t6, 8(a2);  bne t5, t6, .Lbssw_next\n" ++
-  "  ld t5, 48(t4); ld t6, 16(a2); bne t5, t6, .Lbssw_next\n" ++
-  "  ld t5, 56(t4); ld t6, 24(a2); bne t5, t6, .Lbssw_next\n" ++
+  "  li t5, 32; li t6, 0\n" ++
+  ".Lbssw_scmp:\n" ++
+  "  beq t6, t5, .Lbssw_slot_eq\n" ++
+  "  add t0, a2, t6\n" ++
+  "  li t2, 31; sub t2, t2, t6; addi t2, t2, 32; add t2, t4, t2\n" ++
+  "  lbu t0, 0(t0); lbu t2, 0(t2); bne t0, t2, .Lbssw_next\n" ++
+  "  addi t6, t6, 1; j .Lbssw_scmp\n" ++
+  ".Lbssw_slot_eq:\n" ++
   -- address at +0, BE20 in both, so a straight byte compare
   "  ld a2, 16(sp); li t5, 20; li t6, 0\n" ++
   ".Lbssw_acmp:\n" ++
@@ -825,6 +879,29 @@ def balSerializerMeasureReadsFunction : String :=
       a0 (out) = payload length, stored at `bal_serializer_len_table + 8`
 
     DELIBERATELY INERT PENDING ITS CALLER. -/
+/-- Reverse the BE32 slot at `a0` into `bal_serializer_slot_le`, an LE field the scalar
+    pair can read. a0 = pointer to the row's slot (row+32).
+
+    Needed because the storage row carries TWO conventions: the slot is reversed to BE32
+    on append while the value four dwords later is passed verbatim as LE. See the builder
+    row field table above. `bal_rlp_scalar_len` / `bal_rlp_emit_scalar` are documented for
+    LE limbs, so they are correct on the value and wrong on the slot.
+
+    Reversing into scratch rather than adding a BE variant of the scalar pair is
+    deliberate: a second implementation of one encoding rule can agree with the first by
+    construction rather than by correctness, and the canonical-minimal-length logic is
+    exactly the part that must not be duplicated. `bal_emit_storage_changes` already uses
+    this shape with `besc_slot_be`, in the opposite direction. -/
+def balSerializerSlotToLeFunction : String :=
+  "bal_serializer_slot_to_le:\n" ++
+  "  la t0, bal_serializer_slot_le; li t1, 32; addi t2, a0, 31\n" ++
+  ".Lbssl_rev:\n" ++
+  "  beqz t1, .Lbssl_done\n" ++
+  "  lbu t3, 0(t2); sb t3, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1\n" ++
+  "  j .Lbssl_rev\n" ++
+  ".Lbssl_done:\n" ++
+  "  ret\n"
+
 /-- One slot's `SlotChanges` measurement, shared by the measure pass and the emit pass.
 
 `a0` = address ptr, `a1` = a representative builder row for this slot (its slot key is
@@ -867,7 +944,9 @@ def balSerializerMeasureSlotFunction : String :=
   -- SlotChanges payload = scalar(slot) + encoded(changes list)
   "  mv s7, s5\n" ++                                             -- s7 = inner payload, preserved
   "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
-  "  addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
+  -- The slot is BE32 in the row; the scalar pair reads LE. Reverse first.
+  "  addi a0, s4, 32; jal ra, bal_serializer_slot_to_le\n" ++
+  "  la a0, bal_serializer_slot_le; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
   "  mv a0, s5; mv a1, s7\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s4, 24(sp)\n" ++
   "  ld s5, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
@@ -1204,7 +1283,8 @@ def balSerializerEmitStorageFunction : String :=
   "  mv a0, s1; mv a1, s5; jal ra, bal_serializer_measure_slot\n" ++
   "  mv s6, a0; mv s7, a1\n" ++                  -- s6 = SlotChanges payload, s7 = inner
   "  mv a0, s0; mv a1, s6; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; addi a1, s5, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  addi a0, s5, 32; jal ra, bal_serializer_slot_to_le\n" ++
+  "  mv a0, s0; la a1, bal_serializer_slot_le; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  mv a0, s0; mv a1, s7; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
   "  li s8, 0\n" ++                              -- inner row index
   ".Lbses_chg:\n" ++
@@ -1571,6 +1651,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerU64ToFieldFunction ++
   balSerializerFilterReadsFunction ++
   balSerializerMeasureReadsFunction ++
+  balSerializerSlotToLeFunction ++
   balSerializerMeasureSlotFunction ++
   balSerializerMeasureStorageFunction ++
   balSerializerMeasureBalanceFunction ++
@@ -1703,6 +1784,26 @@ def blockAccessListBuilderFunctions : String :=
 -- Same walk shape as the measurer: address filter at both loop levels, dedup at the outer.
 #guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
 #guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
+
+/-! ## Guards for the slot byte-order conversion -/
+
+-- `slot_written` compares ACROSS conventions: an LE read slot against a BE row slot, so
+-- byte i against byte 31-i. A dword-wise compare matches only palindromic slots.
+#guard (balSerializerSlotWrittenFunction.splitOn ".Lbssw_scmp:").length == 2
+#guard (balSerializerSlotWrittenFunction.splitOn "ld t5, 32(t4); ld t6, 0(a2)").length == 1
+
+#guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_slot_le:").length == 2
+
+-- BOTH readers of the slot must go through the reversal. The row's slot is BE32 and the
+-- scalar pair reads LE limbs, so a direct `row+32` hand-off is the defect this fixes --
+-- and it is invisible to any probe that seeds rows in the reader's convention.
+#guard (balSerializerMeasureSlotFunction.splitOn "jal ra, bal_serializer_slot_to_le").length == 2
+#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_to_le").length == 2
+#guard (balSerializerMeasureSlotFunction.splitOn "addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len").length == 1
+#guard (balSerializerEmitStorageFunction.splitOn "addi a1, s5, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 1
+
+-- The VALUE is passed verbatim and must NOT be reversed -- same row, opposite convention.
+#guard (balSerializerEmitStorageFunction.splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 
 /-! ## Guards for the shared slot measurement -/
 
