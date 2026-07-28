@@ -19,6 +19,13 @@ Variants
     (rows: sender gas debit, sender refund, coinbase fee, withdrawal
     recipient pre=0 post=10e9), and bv_mtx_skip_list contains the tx
     recipient, so the recipient's balance is both unrecorded and skipped.
+  coinbase: coinbase postBalance 0x095da8 -> 2x (613,800 -> 1,227,600 wei)
+    -- the BAL lies about the PRIORITY-FEE credit.  Unlike bai1/bai2 the
+    fee IS present in the effect log on pristine main; the row escapes
+    comparison only because bv_mtx_skip_list contains the coinbase
+    (GH #10791: a skip entry with nothing to accommodate).  The row is the
+    coinbase's only balanceChanges entry, hence final, hence constrained by
+    the state root and the BAL hash -- same two-re-pin shape as bai2.
 
 Diagnostic only: constructs a mutated stateless input and measures whether
 the emitted guest accepts a block that execution-specs rejects.  It does not
@@ -116,8 +123,8 @@ Verdict rule
 
 Usage:
   uv run --directory execution-specs --quiet python3 \
-      scripts/witness-10764-withdrawal-fa.py run [--variant bai2|bai1] \
-      [--work-dir DIR]
+      scripts/witness-10764-withdrawal-fa.py run \
+      [--variant bai2|bai1|coinbase] [--work-dir DIR]
 
 Requires the guest and probe ELFs (built once, no --no-build games):
   lake build codegen
@@ -167,6 +174,25 @@ BAI1_OLD_POST_BALANCE = bytes.fromhex("85012a05f200")  #  5_000_000_000
 BAI1_NEW_POST_BALANCE = bytes.fromhex("8505deadbeef")  # 25_210_765_039
 BAI1_EDIT_CONTEXT = bytes.fromhex("c70185012a05f200c702")
 
+# coinbase variant (#10791): the declared coinbase fee credit -> 2x itself.
+# The coinbase (0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba, the standard
+# EEST miner address) has a SINGLE balanceChanges row, BAI 1 -> 0x095da8
+# (613,800 wei, the priority-fee credit: it is a FINAL-balance row, so it is
+# constrained by the state root AND the BAL hash -- same re-pin shape as
+# bai2).  bv_mtx_skip_list contains the coinbase, so the nonstorage
+# comparators never check this row even though the fee IS present in the
+# effect log (#10786's pristine dump: sender gas debit, sender refund,
+# coinbase fee) -- a skip entry with nothing to accommodate.  RLP: the row
+# is c5 01 83 095da8; the inner string 83 095da8 occurs exactly once in the
+# blob (offset 1010), inside the context c0 c6 c5 01 83 095da8 c0 c0.
+# Replacement 83 12bb50 = 2 * 0x095da8 (1,227,600 wei), same 4-byte length,
+# so no SSZ offsets move.  NB the fee is DERIVED from gas, so if the guest
+# rejected this mutation for a gas-accounting reason that would be a false
+# negative looking like safety -- the compared pair below is the guard.
+COINBASE_OLD_POST_BALANCE = bytes.fromhex("83095da8")  #    613_800
+COINBASE_NEW_POST_BALANCE = bytes.fromhex("8312bb50")  #  1_227_600 (2x)
+COINBASE_EDIT_CONTEXT = bytes.fromhex("c0c6c50183095da8c0c0")
+
 # Probe OUTPUT (0xa0010000) layout; spike_run dumps a 256-byte window.
 PROBE_OUT_VERDICT = 0
 PROBE_OUT_BV_FAIL = 8
@@ -179,6 +205,8 @@ TRUE_WEI = 15_000_000_000
 WITHDRAWAL_WEI = 10_000_000_000
 BAI1_DECLARED_WEI = 0x05DEADBEEF
 BAI1_TRUE_WEI = 5_000_000_000
+COINBASE_DECLARED_WEI = 1_227_600
+COINBASE_TRUE_WEI = 613_800
 
 
 def pack_ziskemu_input(blob: bytes) -> bytes:
@@ -275,12 +303,13 @@ def main() -> None:
     ap.add_argument("command", choices=["run"])
     ap.add_argument(
         "--variant",
-        choices=["bai2", "bai1"],
+        choices=["bai2", "bai1", "coinbase"],
         default="bai2",
         help="bai2: withdrawal-credit row (BAI-2 15e9->5e9, the original "
         "#10764 witness); bai1: transaction-credit row (BAI-1 5e9->"
         "0x05deadbeef), testing whether the class covers ordinary tx "
-        "credits",
+        "credits; coinbase: declared coinbase fee credit row (0x095da8->"
+        "2x), testing the #10791 skip entry",
     )
     ap.add_argument(
         "--fixture",
@@ -298,7 +327,7 @@ def main() -> None:
         declared_wei, true_wei = DECLARED_WEI, TRUE_WEI
         pair_label = "BAI-2 postBalance for the withdrawal address"
         pair_note = f" (withdrawal of {WITHDRAWAL_WEI} wei credited)"
-    else:
+    elif args.variant == "bai1":
         old_pb, new_pb, edit_ctx = (
             BAI1_OLD_POST_BALANCE,
             BAI1_NEW_POST_BALANCE,
@@ -307,6 +336,15 @@ def main() -> None:
         declared_wei, true_wei = BAI1_DECLARED_WEI, BAI1_TRUE_WEI
         pair_label = "BAI-1 postBalance for the tx recipient"
         pair_note = " (transaction value-transfer credit)"
+    else:
+        old_pb, new_pb, edit_ctx = (
+            COINBASE_OLD_POST_BALANCE,
+            COINBASE_NEW_POST_BALANCE,
+            COINBASE_EDIT_CONTEXT,
+        )
+        declared_wei, true_wei = COINBASE_DECLARED_WEI, COINBASE_TRUE_WEI
+        pair_label = "BAI-1 postBalance for the coinbase"
+        pair_note = " (priority-fee credit; skip-listed per #10791)"
     stem = args.variant
     for elf in (GUEST_ELF, PROBE_ELF, NOHASH_PROBE_ELF):
         if not elf.exists():
@@ -370,9 +408,11 @@ def main() -> None:
         "header_status={header_status} state_status={state_status}".format(**f1)
     )
     declared_state_root = blob0[STATE_ROOT_OFF : STATE_ROOT_OFF + 32]
-    if args.variant == "bai2":
+    if args.variant in ("bai2", "coinbase"):
         # Expected signature: block_state_root ran on the mutated BAL and
-        # the BAL-fed root mismatches the pinned payload state_root.
+        # the BAL-fed root mismatches the pinned payload state_root.  (For
+        # coinbase the mutated row is the account's ONLY row, hence final,
+        # hence state-root-constrained -- same shape as bai2.)
         sig_ok = (
             f1["verdict"] == 0
             and f1["bv_fail"] == 1
