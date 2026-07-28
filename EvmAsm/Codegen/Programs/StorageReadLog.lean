@@ -121,6 +121,14 @@ def storageReadRecordFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
   "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
+  -- System calls execute through the ordinary SLOAD handler but are not part of
+  -- a user transaction. `storage_reads` is block-lifetime in the spec, so route
+  -- those keys directly to the block-level set instead of leaving them in the
+  -- transaction-local arena with no promotion boundary. The block recorder
+  -- performs the same canonicalisation and set deduplication.
+  "  la t0, system_call_mode; ld t0, 0(t0); beqz t0, .Lsrr_tx\n" ++
+  "  jal ra, storage_read_record_block; j .Lsrr_done\n" ++
+  ".Lsrr_tx:\n" ++
   "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Lsrr_overflow\n" ++
@@ -161,6 +169,68 @@ def storageReadRecordFunction : String :=
   ".Lsrr_overflow:\n" ++
   "  la t0, tx_storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lsrr_done:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret\n"
+
+/-! ## `storage_read_record_block`
+
+    Insert an execution-keyed storage read directly into the block-level set.
+    Modeled system calls have no user-transaction promotion boundary, so their
+    `storage_reads` must not enter the transaction-local arena first.
+
+    Calling convention and address representation match `storage_read_record`:
+      a0 = 32-byte little-endian execution address key
+      a1 = 32-byte little-endian execution slot key
+
+    The builder performs read/write suppression later. This helper records only
+    the block-lifetime read set. -/
+def storageReadRecordBlockFunction : String :=
+  "storage_read_record_block:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
+  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
+  "  la t0, storage_reads_count; ld t1, 0(t0)\n" ++
+  "  li t2, 16384\n" ++
+  "  bgeu t1, t2, .Lsrrb_overflow\n" ++
+  "  li t3, 0xa1ba0000\n" ++
+  "  li t4, 0\n" ++
+  ".Lsrrb_scan:\n" ++
+  "  bgeu t4, t1, .Lsrrb_append\n" ++
+  "  slli t5, t4, 6; add t5, t3, t5\n" ++
+  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrrb_next\n" ++
+  "  j .Lsrrb_intern_account\n" ++
+  ".Lsrrb_next:\n" ++
+  "  addi t4, t4, 1; j .Lsrrb_scan\n" ++
+  ".Lsrrb_append:\n" ++
+  "  slli t5, t1, 6; add t5, t3, t5\n" ++
+  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
+  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
+  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
+  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
+  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
+  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
+  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
+  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrrb_intern_account:\n" ++
+  "  addi a1, sp, 64\n" ++
+  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
+  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
+  "  j .Lsrrb_done\n" ++
+  ".Lsrrb_overflow:\n" ++
+  "  la t0, storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrrb_done:\n" ++
   "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
