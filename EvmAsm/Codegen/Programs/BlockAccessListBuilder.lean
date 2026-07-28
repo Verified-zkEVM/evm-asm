@@ -35,19 +35,33 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
-/-- 24, not 20. The address is 20 bytes; the extra 4 are ALIGNMENT PADDING.
+/-- Account-table row: a 20-byte big-endian `Address` in 24 bytes.
 
-    `bal_canonical_sort` swaps rows with 8-byte loads (`BalCanonicalSort.lean:254`), so
-    the rows it is given must be 8-aligned. At a 20-byte stride row 1 starts at base+20
-    and the sort faults -- measured, not inferred: the same call at stride 32 sorts
-    cleanly and returns the expected order, and every other caller in the tree passes
-    128. The sort's ABI documents `a2 = row stride` with no constraint, and its comment
-    about using `mul` "so the routine is not silently wrong for a non-power-of-two stride
-    a future caller passes" reads as an invitation to pass any stride; it is not.
+    THE 4 PADDING BYTES ARE LOAD-BEARING, and the rule behind them is project-wide rather
+    than local to this table.
 
-    24 rather than 32 because the accounts arena is capacity 76923: at 24 bytes it grows
-    by 307,692 and fits the 1,501,248 bytes below `.sszscratch`; a separate 32-byte
-    staging copy would have needed 2,461,536 and does not fit. -/
+    ANY ROW ARRAY THAT WILL BE SORTED MUST HAVE AN 8-ALIGNED STRIDE. `bal_canonical_sort`
+    swaps rows with `ld`/`sd` (`BalCanonicalSort.lean:254`), and per AGENTS.md:211 the
+    verified RV64 semantics give `LD`/`SD` NO SEMANTICS unless the address is a multiple
+    of 8 -- `isValidDwordAccess` is `isValidMemAddr && isAligned8`. This is not a platform
+    quirk to be worked around: a proof that reaches a misaligned access cannot close. 24
+    is the smallest 8-aligned stride that holds a 20-byte address.
+
+    The sort's own ABI does not say this. It documents `a2 = row stride in bytes` with no
+    constraint, and its comment about using `mul` rather than a shift "so the routine is
+    not silently wrong for a non-power-of-two stride a future caller passes" reads as an
+    invitation to pass any stride. Violating the real precondition faults rather than
+    returning one of its five documented status codes.
+
+    MEASURED ON SPIKE, AND ZISKEMU WOULD NOT HAVE CAUGHT IT. Same sort, same descriptor,
+    only the stride varied: 32 sorts cleanly and returns the expected order, 20 faults at
+    that swap instruction. AGENTS.md:220 warns that ziskemu tolerates unaligned reads at
+    runtime, so the 20-byte layout would likely have PASSED under it -- a green test
+    certifying a layout the verified semantics reject.
+
+    24 rather than 32: the arena is capacity 76923, so 24 costs 307,692 bytes and fits
+    below `.sszscratch`, while a separate 32-byte staging copy needed 2,461,536 and did
+    not. -/
 def balBuilderAccountRowBytes : Nat := 24
 /-- `{address[20], pad[4], u64 BAI, slot[32], post value[32]}`. -/
 def balBuilderStorageChangeRowBytes : Nat := 96
@@ -1596,8 +1610,8 @@ def blockAccessListBuilderFunctions : String :=
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
 #guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
 
--- Stride 24, which is 8-ALIGNED. The sort swaps rows with 8-byte loads, so a 20-byte
--- stride puts row 1 at base+20 and faults -- measured at stride 32 working and 20 not.
+-- Stride 24, which is 8-ALIGNED, per the rule on `balBuilderAccountRowBytes`: the sort
+-- swaps rows with ld/sd, and AGENTS.md:211 gives those no semantics off an 8-boundary.
 #guard (balSerializerRebuildHashFunction.splitOn "li a2, 24").length == 2
 #guard balBuilderAccountRowBytes % 8 == 0
 -- ...and it must precede the emission, not follow it.

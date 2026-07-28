@@ -183,8 +183,11 @@ def ziskBalSerializerMeasurePrologue : String :=
   -- only the SEQUENCE is wrong, so an in-order seed passes whether or not the sort is
   -- ever called.
   --
-  -- This faulted at a 20-byte account stride: the sort swaps rows with 8-byte loads and
-  -- row 1 landed at base+20. The rows are 24 bytes now, which is 8-aligned.
+  -- RUN THIS ON SPIKE, NOT ZISKEMU. It faulted at a 20-byte account stride because the
+  -- sort swaps rows with ld/sd and row 1 landed at base+20; rows are 24 bytes now, which
+  -- is 8-aligned (see `balBuilderAccountRowBytes`). AGENTS.md:220 notes ziskemu tolerates
+  -- unaligned reads at runtime, so under it the broken layout would likely have passed --
+  -- a green case certifying a layout the verified semantics reject.
   "  li t0, 0xdead; sd t0, 224(s0); sd t0, 232(s0)\n" ++
   -- Reset the reads count. Case 9 left it at 2, and the cases share one set of globals,
   -- so without this the accounts carry a storage_reads field and the digest cannot
