@@ -1578,6 +1578,50 @@ def balSerializerRebuildHashFunction : String :=
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  mv s0, a0; mv s1, a1\n" ++
+  -- SEVEN ORDERING RULES (block_access_lists.py:539-579), all of them here so the
+  -- emitters can stay order-free. Every stride below is 8-ALIGNED, per the rule on
+  -- `balBuilderAccountRowBytes` -- the sort swaps rows with ld/sd.
+  --
+  -- The storage sort carries TWO rules in one pass: sorting the change rows by
+  -- (address, slot, block_access_index) makes slots ascend within an account AND
+  -- changes ascend by index within a slot, because the emitter walks rows in order and
+  -- takes each slot at its first occurrence. `balSortBuilderStorageSegments` is exactly
+  -- that key and already exists -- offset 0 width 20 BE, offset 32 width 32 BE, offset
+  -- 24 width 8 LE.
+  "  la a0, bal_builder_storage_changes\n" ++
+  "  la t0, bal_builder_storage_change_count; ld a1, 0(t0)\n" ++
+  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  -- storage_reads by slot value. The read row's slot is an LE stack word at +32, so the
+  -- segment carries no BE flag: offset 0x20, width 0x20.
+  "  li a0, 0xa1ba0000\n" ++
+  "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x2020; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  -- balance, nonce and code each by (address, block_access_index): segment 0 is the
+  -- BE20 address, segment 1 the native-LE u64 index at +24 -> 0x08189400.
+  "  la a0, bal_builder_balance_changes\n" ++
+  "  la t0, bal_builder_balance_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  "  la a0, bal_builder_nonce_changes\n" ++
+  "  la t0, bal_builder_nonce_count; ld a1, 0(t0)\n" ++
+  "  li a2, 40; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  "  la a0, bal_builder_code_changes\n" ++
+  "  la t0, bal_builder_code_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
   "  la a0, bal_builder_accounts\n" ++
   "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
   "  li a2, 24; li a3, 0x9400; li a4, 1\n" ++
@@ -1683,13 +1727,24 @@ def blockAccessListBuilderFunctions : String :=
 -- The sort happens inside `rebuild_hash`, before any byte is absorbed. An unsorted
 -- emission is a well-formed BAL with the wrong hash and is the ONE failure the digest
 -- comparison cannot localise, so this must not become a caller's responsibility.
-#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 2
+-- SIX calls, not one: see the seven-rule guard below. This originally pinned the single
+-- account sort, back when that was the only ordering implemented.
 
 -- The descriptor must carry the BIG-ENDIAN flag (0x80) in its width byte: 0x94 is
 -- `0x80 | 20`. This is the same value `bal_sort_account_writes` passes, pinned on that
 -- side by the matching guard in BalCanonicalSort.lean. Writing 0x1400 declares a
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
 #guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
+
+-- ALL SEVEN ORDERING RULES, as FIVE sort calls: storage (carrying two rules in one
+-- multi-segment pass), reads, balance, nonce, code, accounts. Six of these were missing
+-- entirely and no probe could see it, because a one-element list is sorted by definition
+-- and every case had one element at every inner level.
+#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 7
+-- Every stride 8-ALIGNED: 96, 64, 64, 40, 64, 24.
+#guard (balSerializerRebuildHashFunction.splitOn "li a2, 96;").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a2, 40;").length == 2
+#guard [96, 64, 40, 24].all (fun w => w % 8 == 0)
 
 -- Stride 24, which is 8-ALIGNED, per the rule on `balBuilderAccountRowBytes`: the sort
 -- swaps rows with ld/sd, and AGENTS.md:211 gives those no semantics off an 8-boundary.
