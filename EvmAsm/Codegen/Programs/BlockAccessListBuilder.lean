@@ -1731,6 +1731,36 @@ def blockAccessListBuilderFunctions : String :=
 -- the docstring's claim and the code in agreement.
 #guard (balSerializerEmitOuterFunction.splitOn "bal_canonical_sort").length == 1
 
+/-! ## Guards for the CHANGE-STRUCT field order
+
+    Verified against the class definitions in `block_access_lists.py`: `StorageChange`,
+    `BalanceChange`, `NonceChange` and `CodeChange` all declare `block_access_index`
+    FIRST and the value second; `SlotChanges` is `slot` then `changes`. Every emitter
+    matches.
+
+    Nothing pinned that. Each change is a two-element positional RLP list, so emitting
+    the value before the index produces a well-formed change with its members
+    transposed -- and when both encode to one byte, as `index 1` and `value 5` do, the
+    only difference is which byte is which. A wrong order here is a wrong BAL that
+    decodes cleanly at every level.
+
+    Same gap as the `AccountChanges` field order, one level down, and found the same
+    way: by enumerating what had been carried from prose rather than read. -/
+
+-- index BEFORE value, in each of the four change emitters. Keyed on adjacency: the
+-- scalar emitted from `bal_serializer_u64_field` (the widened index) must precede the
+-- one emitted from the row's value offset.
+#guard (((balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
+#guard (((balSerializerEmitCodeFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "jal ra, bal_rlp_emit_bytes").length == 2
+#guard (((balSerializerEmitStorageFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
+-- Nonce emits the index and the nonce from the SAME buffer, re-widened between the two,
+-- so adjacency cannot separate them; pin the re-widen count instead. Four widens: two to
+-- measure the pair, two to re-emit it in order.
+#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 5
+
+-- SlotChanges is `slot` then `changes`: the slot scalar must precede the inner list.
+#guard (((balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_to_le").getD 1 "").splitOn "mv a1, s7; mv a2, s2; jal ra, bal_rlp_emit_list_header").length == 2
+
 /-! ## Guards for the field emitters and the account emitter -/
 
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_emit_reads:").length == 2
