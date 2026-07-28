@@ -143,6 +143,35 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
   "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n" ++
   "  la a0, bsmp_ctx; addi a1, s0, 128; jal ra, keccak_final\n" ++
+  -- Case 9: THE DISCRIMINATING storage_reads CASE. Slot 7 is read AND written (at
+  -- block_access_index 3, i.e. a different transaction from the read); slot 11 is read
+  -- and never written. EIP-7928 excludes a read whose slot is written ANYWHERE in the
+  -- block, so 7 must drop out and 11 must survive.
+  --
+  -- No single-transaction fixture can produce this: the exclusion is block-scoped, so
+  -- read-in-tx-0/written-in-tx-3 only exists across transactions. That is why it is here
+  -- rather than in the EEST corpus.
+  --
+  -- Read rows live at 0xa1ba0000 on a 64-byte stride and hold the address as an LE stack
+  -- word, so BE byte 0 of the address sits at row byte 19 -- not byte 0, which is where
+  -- the builder rows keep it.
+  "  li t0, 0xa1ba0000\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  sd zero, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 19(t0); sb t1, 83(t0)\n" ++
+  "  li t1, 7; sb t1, 32(t0); li t1, 11; sb t1, 96(t0)\n" ++
+  "  la t0, storage_reads_count; li t1, 2; sd t1, 0(t0)\n" ++
+  -- one write: address A, slot 7, at block_access_index 3
+  probeRow 0 0xAA 3 7 5 ++
+  "  la t0, bal_builder_storage_change_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_reads\n" ++
+  "  sd a0, 160(s0)\n" ++
+  "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
+  "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
+  "  jal ra, bal_serializer_emit_reads\n" ++
+  "  la a0, bsmp_ctx; addi a1, s0, 192; jal ra, keccak_final\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -266,5 +295,13 @@ The probe is only worth anything if the discriminating cases are really present.
   "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n").length == 2
 #guard (ziskBalSerializerMeasurePrologue.splitOn
   "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n").length == 2
+
+-- Case 9 must write the slot at a DIFFERENT block_access_index from any read, or it
+-- stops testing the cross-transaction exclusion and becomes a same-tx case that a
+-- fixture could already produce.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 3; sd t1, 24(t0)").length == 2
+-- Two reads, one written and one not. With both written or both unwritten the case
+-- cannot distinguish an exclusion from a blanket drop or a blanket keep.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 7; sb t1, 32(t0); li t1, 11; sb t1, 96(t0)").length == 2
 
 end EvmAsm.Codegen
