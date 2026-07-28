@@ -10,7 +10,8 @@
   consumer of `Stmt.whileHeader`.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -144,8 +145,12 @@ def u256DivU64BeFn (srcPtr outPtr b : Word)
   post := u256DivU64BePost srcPtr outPtr b srcBytes orig
   body := u256DivU64BeBody srcPtr outPtr b srcBytes orig
 
-#guard (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
-  = u256DivU64Be_prog
+/-- Layout-independence interlock: the body flattens to `u256DivU64Be_prog_of
+    L` for an ARBITRARY layout `L`, so the body cannot reference the layout.
+    (`rfl` closes it; a future layout reference would make it fail.) -/
+theorem u256DivU64BeBody_flatten (L : GuestLayout) :
+    (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = u256DivU64Be_prog_of L := rfl
 
 #guard (u256DivU64BeBody 0 0 1 [] []).flatten 0 =
   (u256DivU64BeBody 0 0 1 [] []).flatten 0x80000000

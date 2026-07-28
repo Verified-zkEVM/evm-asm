@@ -8,7 +8,8 @@
   legacy single-exit `Fn.Spec` epilogue path.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Codegen.Programs.Bn254Field
 import EvmAsm.Rv64.SAsm.Tactic
 
@@ -434,8 +435,11 @@ theorem u256Eq_spec (ptr1 ptr2 base ret : Word) (bs1 bs2 : List (BitVec 8))
     (sepConj_mono_right (asrtM_mono (u256Eq_sp_post ptr1 ptr2 bs1 bs2))) hsound
 
 
--- Byte-identity to the existing emitted `u256_eq` program.
-#guard (u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog
+-- Byte-identity to the emitted `u256_eq` program, for an ARBITRARY layout:
+-- the body cannot reference the layout (`rfl`; a future layout reference
+-- would make this fail).
+theorem u256EqBody_flatten (L : GuestLayout) :
+    (u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog_of L := rfl
 #guard (u256EqBody 0 0 [] []).retOffsetsOk
 #guard !(u256EqBody 0 0 [] []).offsetsOk
 
