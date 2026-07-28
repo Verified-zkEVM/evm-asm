@@ -140,6 +140,12 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  sd t0, 568(x20)
 " ++
+    -- Record only after this handler's additional warm-floor check: an OOG
+    -- EXTCODECOPY does not reach the accessed-account builder update.
+    "  la a0, ecc_address_scratch
+" ++
+    "  jal ra, account_read_record
+" ++
     "  ld x14, 32(x12)
 " ++
 
