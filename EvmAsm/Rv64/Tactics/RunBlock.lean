@@ -1066,6 +1066,42 @@ private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
     extractCrEntriesPure args[0]! ++ extractCrEntriesPure args[1]!
   else []
 
+/-- Return the program argument of the first `CodeReq.ofProg` in a CodeReq tree. -/
+private partial def ofProgArg? (cr : Expr) : Option Expr :=
+  if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
+    let args := cr.getAppArgs
+    (ofProgArg? args[0]!).orElse fun _ => ofProgArg? args[1]!
+  else if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then
+    some cr.getAppArgs[1]!
+  else none
+
+private def isConcreteGuestLayout (e : Expr) : Bool :=
+  match e.getAppFn with
+  | .const name _ => name.toString == "EvmAsm.Codegen.guestLayout"
+  | _ => false
+
+/-- Recognize exactly the two-step Codegen bridge shape
+    `foo_prog := foo_prog_of guestLayout` and its applied `_prog_of` target.
+    Unrelated opaque `CodeReq.ofProg` arguments deliberately remain opaque. -/
+private def layoutProgramHeadDef? (prog : Expr) : MetaM (Option Name) := do
+  match prog.getAppFn with
+  | .const name _ =>
+    let args := prog.getAppArgs
+    if name.toString.endsWith "_prog_of" then
+      if args.any isConcreteGuestLayout then return some name else return none
+    if name.toString.endsWith "_prog" then
+      match (← getEnv).find? name with
+      | some (.defnInfo info) =>
+        let body := info.value
+        match body.getAppFn with
+        | .const bodyName _ =>
+          if bodyName.toString.endsWith "_prog_of" && body.getAppArgs.any isConcreteGuestLayout
+          then return some name else return none
+        | _ => return none
+      | _ => return none
+    return none
+  | _ => return none
+
 /-- Walk a concrete `List Instr` (whnf'd) and emit `(base + 4*k, instr)` entries. -/
 private partial def extractProgEntries (base : Expr) (progList : Expr) (off : Nat := 0) :
     MetaM (List (Expr × Expr)) := do
@@ -1298,11 +1334,15 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
     -- in the actual goal so all proof terms share the same expression.
     let mvarGoal ← do
       let crEntries := extractCrEntriesPure goalCr
+      let layoutOfProgHead? ← match ofProgArg? goalCr with
+        | some prog => layoutProgramHeadDef? prog
+        | none => Pure.pure none
       if crEntries.isEmpty then
         match goalCr.getAppFn with
         | .const name _ =>
           if name == ``EvmAsm.Rv64.CodeReq.singleton || name == ``EvmAsm.Rv64.CodeReq.union ||
-             name == ``EvmAsm.Rv64.CodeReq.empty then
+             name == ``EvmAsm.Rv64.CodeReq.empty ||
+             (name == ``EvmAsm.Rv64.CodeReq.ofProg && layoutOfProgHead?.isSome) then
             Pure.pure mvarGoal
           else
             trace[runBlock] "deltaTarget: unfolding CodeReq abbrev {name}"
@@ -1310,6 +1350,38 @@ elab "runBlock" specs:ident* : tactic => withMainContext do
             catch _ => Pure.pure mvarGoal
         | _ => Pure.pure mvarGoal
       else Pure.pure mvarGoal
+    -- A layout-parameterised program often reaches the goal as
+    -- `CodeReq.ofProg base (foo_prog_of guestLayout)`.  Unlike a literal list,
+    -- its bridge and parameterised definition need target-level delta unfolding
+    -- before `CodeReq.ofProg` can expose the singleton chain used for framing.
+    -- Keep this bounded and recognize only the concrete GuestLayout bridge shape:
+    -- unrelated opaque program arguments remain on the old path.
+    let mvarGoal ← do
+      let mut workingGoal := mvarGoal
+      let mut keepUnfolding := true
+      for _ in [:4] do
+        if keepUnfolding then
+          let ty := inlineLets (← instantiateMVars (← workingGoal.getType))
+          match ← parseCpsTripleWithin? ty with
+          | some (_, _, _, cr, _, _) =>
+            match ofProgArg? cr with
+            | some prog =>
+              match ← layoutProgramHeadDef? prog with
+              | some name =>
+                trace[runBlock] "deltaTarget: unfolding CodeReq.ofProg head {name}"
+                try workingGoal ← workingGoal.deltaTarget (· == name)
+                catch _ => keepUnfolding := false
+              | none => keepUnfolding := false
+            | none => keepUnfolding := false
+          | none => keepUnfolding := false
+      if keepUnfolding then
+        let ty := inlineLets (← instantiateMVars (← workingGoal.getType))
+        if let some (_, _, _, cr, _, _) ← parseCpsTripleWithin? ty then
+          if let some prog := ofProgArg? cr then
+            if let some name ← layoutProgramHeadDef? prog then
+              throwError "runBlock: layout CodeReq.ofProg normalization exhausted 4 steps at {name}; \
+                add an explicit bridge theorem or increase the tactic fuel deliberately."
+      Pure.pure workingGoal
     -- Re-parse goal after potential delta-unfolding
     let goalType := inlineLets (← instantiateMVars (← mvarGoal.getType))
     -- Normalize addresses in goal type (signExtend12, e+0, address flattening)
