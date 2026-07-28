@@ -5,13 +5,11 @@ import EvmAsm.Codegen.Programs.BalRlpEncode
 
 Split out of `BlockAccessListBuilder.lean`, which crossed the 1500-line cap for
 `Codegen/Programs`. The boundary is the one the code already had: this file holds the
-routines that READ builder rows and produce RLP -- the measure pass, the emitters, the
-outer accumulation and the rebuild-and-compare pair -- while the builder file keeps the
-arenas, the row layouts and the append/upsert producers.
+routines that READ builder rows and produce RLP; the builder file keeps the arenas, the
+row layouts and the append/upsert producers.
 
 The guards stay with `blockAccessListBuilderFunctions` in the builder file, because they
-assert properties of the CONCATENATED guest text rather than of these definitions alone,
-and a guard that moved away from the string it checks would be pinning a different thing.
+assert properties of the CONCATENATED guest text rather than of these definitions alone.
 -/
 
 namespace EvmAsm.Codegen
@@ -851,8 +849,16 @@ def balSerializerEmitCodeFunction : String :=
     here is read from the length table, never recomputed. The five field headers come
     from table entries +8..+40 and the account header from +0.
 
-    Field order follows `AccountChanges` in `block_access_lists.py`: address,
-    storage_changes, storage_reads, balance_changes, nonce_changes, code_changes. -/
+    FIELD ORDER, verified against the `AccountChanges` class definition at
+    `block_access_lists.py:174-208` rather than taken from prose: `address`,
+    `storage_changes`, `storage_reads`, `balance_changes`, `nonce_changes`,
+    `code_changes`. An RLP list is positional, so a swapped pair is a well-formed
+    account with two fields exchanged -- and if both are empty lists, byte-identical.
+    That is why the order is cited to the class rather than to a docstring.
+
+    Accounts are NOT filtered: `_build_from_builder` appends every entry in
+    `builder.accounts`, so an account whose fields are all empty still emits as five
+    empty lists. `emit_outer` walks every account for the same reason. -/
 def balSerializerEmitAccountFunction : String :=
   "bal_serializer_emit_account:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -977,6 +983,50 @@ def balSerializerRebuildHashFunction : String :=
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  mv s0, a0; mv s1, a1\n" ++
+  -- SEVEN ORDERING RULES (block_access_lists.py:539-579), all of them here so the
+  -- emitters can stay order-free. Every stride below is 8-ALIGNED, per the rule on
+  -- `balBuilderAccountRowBytes` -- the sort swaps rows with ld/sd.
+  --
+  -- The storage sort carries TWO rules in one pass: sorting the change rows by
+  -- (address, slot, block_access_index) makes slots ascend within an account AND
+  -- changes ascend by index within a slot, because the emitter walks rows in order and
+  -- takes each slot at its first occurrence. `balSortBuilderStorageSegments` is exactly
+  -- that key and already exists -- offset 0 width 20 BE, offset 32 width 32 BE, offset
+  -- 24 width 8 LE.
+  "  la a0, bal_builder_storage_changes\n" ++
+  "  la t0, bal_builder_storage_change_count; ld a1, 0(t0)\n" ++
+  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  -- storage_reads by slot value. The read row's slot is an LE stack word at +32, so the
+  -- segment carries no BE flag: offset 0x20, width 0x20.
+  "  li a0, 0xa1ba0000\n" ++
+  "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x2020; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  -- balance, nonce and code each by (address, block_access_index): segment 0 is the
+  -- BE20 address, segment 1 the native-LE u64 index at +24 -> 0x08189400.
+  "  la a0, bal_builder_balance_changes\n" ++
+  "  la t0, bal_builder_balance_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  "  la a0, bal_builder_nonce_changes\n" ++
+  "  la t0, bal_builder_nonce_count; ld a1, 0(t0)\n" ++
+  "  li a2, 40; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
+  "  la a0, bal_builder_code_changes\n" ++
+  "  la t0, bal_builder_code_count; ld a1, 0(t0)\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  bnez a0, .Lbsrh_ret\n" ++
   "  la a0, bal_builder_accounts\n" ++
   "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
   "  li a2, 24; li a3, 0x9400; li a4, 1\n" ++

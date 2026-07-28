@@ -321,10 +321,19 @@ def b1Eip7702ApplyTxFunction : String :=
   "  mv a0, s7; mv a1, s8; mv a2, s10; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span\n" ++
   "  bnez a0, .Lb1an_bad\n" ++
   "  la t0, b1an_item_off; ld t0, 0(t0); add s11, s7, t0; la t0, b1an_item_len; ld t0, 0(t0); sd t0, 104(sp)\n" ++
-  -- chain_id is field 0 (zero means this chain); nonce is field 2.
+  -- chain_id is field 0 (zero means this chain); nonce is field 2.  An
+  -- authorization chain id is a U256 in execution-specs: a canonical value
+  -- wider than u64 cannot match the u64 block chain id, so it is an ignored
+  -- authorization rather than malformed transaction RLP.  Validate that
+  -- wide scalar with the U256 decoder before skipping it; non-canonical and
+  -- over-32-byte values still fail closed.
+  "  mv a0, s11; ld a1, 104(sp); li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item\n" ++
+  "  bnez a0, .Lb1an_bad; la t0, b1an_target_len; ld t0, 0(t0); li t1, 8; bltu t1, t0, .Lb1an_chain_wide\n" ++
   "  mv a0, s11; ld a1, 104(sp); li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Lb1an_bad\n" ++
-  "  la t0, b1an_field; ld t0, 0(t0); beqz t0, .Lb1an_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .Lb1an_next\n" ++
+  "  la t0, b1an_field; ld t0, 0(t0); beqz t0, .Lb1an_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .Lb1an_next; j .Lb1an_chain_ok\n" ++
+  ".Lb1an_chain_wide:\n" ++
+  "  la t0, b1an_target_off; ld t0, 0(t0); add a0, s11, t0; la t0, b1an_target_len; ld a1, 0(t0); la a2, b1an_recover_scratch; jal ra, rlp_content_to_u256_be; bnez a0, .Lb1an_bad; j .Lb1an_next\n" ++
   ".Lb1an_chain_ok:\n" ++
   "  mv a0, s11; ld a1, 104(sp); li a2, 2; la a3, b1an_field; jal ra, rlp_field_to_u64\n" ++
   "  bnez a0, .Lb1an_bad\n" ++
@@ -368,6 +377,15 @@ def b1Eip7702ApplyTxFunction : String :=
   "  li a0, 1\n" ++
   ".Lb1an_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 112; ret"
+
+-- The only widened scalar read in this helper is authorization tuple field 0:
+-- field 9 selects the authorization list before the loop enters a tuple.
+-- Keep both emitted selectors pinned so an index edit cannot accidentally
+-- widen the outer transaction's U64 chain id.
+#guard b1Eip7702ApplyTxFunction.contains
+  "li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item"
+#guard b1Eip7702ApplyTxFunction.contains
+  "li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item"
 
 /-! `b1_sender_table_find`
 
