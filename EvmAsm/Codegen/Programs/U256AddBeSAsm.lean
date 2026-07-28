@@ -10,7 +10,8 @@
   writable window, so this theorem covers the non-overlapping ownership shape.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -146,8 +147,12 @@ def u256AddBeFn (aPtr bPtr outPtr : Word)
   post := u256AddBePost aPtr bPtr outPtr aBytes bBytes orig
   body := u256AddBeBody aPtr bPtr outPtr aBytes bBytes orig
 
-#guard (u256AddBeBody 0 0 0 [] [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
-  = u256AddBe_prog
+/-- The flattened body is layout-independent: `u256AddBeBody` never
+    references a `GuestLayout` field, so `rfl` closes this with `L`
+    free (it would fail if the body ever baked a layout value in). -/
+theorem u256AddBeBody_flatten (L : GuestLayout) :
+    (u256AddBeBody 0 0 0 [] [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = u256AddBe_prog_of L := rfl
 
 #guard (u256AddBeBody 0 0 0 [] [] []).flatten 0 =
   (u256AddBeBody 0 0 0 [] [] []).flatten 0x80000000
@@ -758,8 +763,11 @@ def u256AddBeInPlaceFn (aPtr bPtr : Word)
     ws = u256AddBeBytes aBytes bBytes aBytes ∧ A = bytesRegion bPtr bBytes
   body := u256AddBeInPlaceBody aPtr bPtr aBytes bBytes
 
-#guard (u256AddBeInPlaceBody 0 0 [] []).flatten 0 ++
-  [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256AddBe_prog
+/-- Layout-independence of the in-place body: it flattens to the same
+    program as `u256AddBeBody` (see `u256AddBeBody_flatten`). -/
+theorem u256AddBeInPlaceBody_flatten (L : GuestLayout) :
+    (u256AddBeInPlaceBody 0 0 [] []).flatten 0 ++
+      [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256AddBe_prog_of L := rfl
 
 private theorem execBlock_lbu_rw_current (aPtr : Word) (rf : RegFile)
     (ws aBytes bBytes : List (BitVec 8)) (i : Nat) (hi : i ≤ 31)
