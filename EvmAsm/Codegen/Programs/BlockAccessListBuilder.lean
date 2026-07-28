@@ -1457,8 +1457,16 @@ def balSerializerEmitCodeFunction : String :=
     here is read from the length table, never recomputed. The five field headers come
     from table entries +8..+40 and the account header from +0.
 
-    Field order follows `AccountChanges` in `block_access_lists.py`: address,
-    storage_changes, storage_reads, balance_changes, nonce_changes, code_changes. -/
+    FIELD ORDER, verified against the `AccountChanges` class definition at
+    `block_access_lists.py:174-208` rather than taken from prose: `address`,
+    `storage_changes`, `storage_reads`, `balance_changes`, `nonce_changes`,
+    `code_changes`. An RLP list is positional, so a swapped pair is a well-formed
+    account with two fields exchanged -- and if both are empty lists, byte-identical.
+    That is why the order is cited to the class rather than to a docstring.
+
+    Accounts are NOT filtered: `_build_from_builder` appends every entry in
+    `builder.accounts`, so an account whose fields are all empty still emits as five
+    empty lists. `emit_outer` walks every account for the same reason. -/
 def balSerializerEmitAccountFunction : String :=
   "bal_serializer_emit_account:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -1816,7 +1824,15 @@ def blockAccessListBuilderFunctions : String :=
 #guard (balSerializerEmitAccountFunction.splitOn "bal_rlp_emit_address").length == 1
 #guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_bytes").length == 2
 -- All five field emitters called, in AccountChanges order.
+-- All five field emitters, IN AccountChanges ORDER. An RLP list is positional: swapping
+-- two field emitters yields a well-formed account with the fields exchanged, and if both
+-- are empty lists it is byte-identical. Order pinned by the sequence below, not by count
+-- alone.
 #guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_").length == 6
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_storage").getD 1 "").splitOn "jal ra, bal_serializer_emit_reads").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_reads").getD 1 "").splitOn "jal ra, bal_serializer_emit_balance").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_balance").getD 1 "").splitOn "jal ra, bal_serializer_emit_nonce").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_nonce").getD 1 "").splitOn "jal ra, bal_serializer_emit_code").length == 2
 
 /-! ## Guards for the storage emitter -/
 
