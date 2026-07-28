@@ -129,7 +129,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 512; bgeu t1, t2, .Lscs_bal_done\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
-  "  jal ra, account_at_header_state_root_tracked\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lscs_bal_done\n" ++                  -- absent/error -> skip (descend default 0)
   "  la t0, callee_balance_count; ld t1, 0(t0); slli t2, t1, 6; la t3, callee_balance_table; add t3, t3, t2\n" ++
   -- addr (canonical BE, csce_addrp) -> entry+0..19, zero-pad +20..31
