@@ -58,6 +58,12 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  ld x21, 16(sp)\n" ++
     "  ld x13, 24(sp)\n" ++
     "  addi sp, sp, 32\n" ++
+    -- x10 is the dispatch PC; a0 aliases it, so preserve the live value while
+    -- passing the scratch address to the no-result BAL read recorder.
+    "  addi sp, sp, -16; sd x10, 0(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_read_record\n" ++
+    "  ld x10, 0(sp); addi sp, sp, 16\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
@@ -293,6 +299,11 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  bltu t0, t1, .exit_outofgas\n" ++
     "  sub t0, t0, t1\n" ++
     "  sd t0, 568(x20)\n" ++
+    -- As above, preserve x10 before using its a0 alias for the recorder.
+    "  addi sp, sp, -16; sd x10, 0(sp)\n" ++
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_read_record\n" ++
+    "  ld x10, 0(sp); addi sp, sp, 16\n" ++
     "  addi sp, sp, -32\n" ++
     "  sd x10, 0(sp)\n" ++
     "  sd x12, 8(sp)\n" ++
