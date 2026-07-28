@@ -81,3 +81,65 @@ untouched) reaches `block_state_root` and reports the expected state-root
 mismatch signature (verdict=0, bv_fail=1, statuses 0) with
 `sv_recomputed` at OUTPUT+168. The pristine ELFs were used for every final
 number above.
+
+## Variant bai1: intermediate BAI row (tx credit)
+
+Both variants come from one generator (`--variant bai2|bai1`), run against
+the same fixture and the same pristine ELFs. After the refactor that
+introduced `--variant`, the bai2 numbers above were re-verified identical
+(`0xa73c76...`, `0xd8a995...`), so the shared script did not drift between
+the two results.
+
+Mutation: BAI-1 `postBalance` (the ordinary tx credit to the same address)
+5,000,000,000 -> 25,210,765,039 wei (`0x5deadbeef`), an equal-length 5-byte
+RLP string at blob offset 1043. The edit is anchored on row context because
+the 5e9 RLP string also occurs at offset 636 inside the tx RLP (the transfer
+value), which is left untouched.
+
+Results:
+
+- **execution-specs**: **REJECTS** — succ byte = 0; bare re-run raises
+  `ethereum.exceptions.InvalidBlock` "Invalid block access list hash" at
+  `fork.py:391` inside `execute_block` (computed BAL hash vs header
+  `block_access_list_hash`). A different spec check than bai2's
+  `fork.py:379` state-root comparison: the spec's BAL-vs-execution
+  validation firing directly.
+- **Guest**: **ACCEPTS** — succ byte = 1; pristine probe verdict = 1,
+  bv_fail = 0, header_status = 0, state_status = 0.
+
+Compared pair (BAI-1 postBalance): declared 25,210,765,039 vs true
+5,000,000,000 wei.
+
+The structural claim: **a final-balance row is constrained by both the state
+root and the BAL hash; an intermediate row is constrained by the BAL hash
+alone — therefore any check built only on the state root is blind to
+intermediate rows.** The trie commits to the final balance, so a lie about
+an intermediate BAI value is invisible to the state root by construction,
+and the only spec mechanism that catches it is the BAL hash comparison —
+which the guest does not yet perform.
+
+The bai1 witness exhibits exactly this. The mutated row is the *intermediate*
+BAI-1 value, and BAI-2 pins the account's final balance, so the guest's
+BAL-fed state root is unchanged: the no-hash probe returned `sv_recomputed`
+equal to the original declared state root
+(`0x205facaa70b938f4c70e381b36d7e03c6fbd1216a867c69a84732c4226ee2255`) and the
+state-root re-pin was a no-op. Only the `block_hash` re-pin is load-bearing
+(new value `0xf7df9bad6c6a2433090d30983bfac647434492afc155cedd2cafe79df3583b38`).
+Correspondingly the spec caught this variant not at the state-root comparison
+but at the BAL hash comparison (`fork.py:391`).
+
+It also shows the granular per-account/per-field comparators are insufficient
+in principle, not merely incomplete: they never check ordering or BAI
+indices. On the tx-credit side this matches the measured log: no
+nonstorage-effect row for the recipient's 5e9 credit, and the recipient is
+in `bv_mtx_skip_list` — unrecorded AND skipped.
+
+The re-pin count forms a spectrum of *witness construction*, not of attacker
+difficulty or severity. Re-pinning is a cost only because we mutate an
+existing valid fixture and must keep its internal consistency; an attacker
+constructs the block outright, so every header field (state root, block
+hash, declared BAL) is theirs to choose from the start, subject only to
+which checks the verifier performs. Re-pinning is therefore free to an
+attacker, and the bai1 and bai2 lies are equally exploitable and equally
+severe — the guest accepts an invalid block in both. The spectrum is how the
+structural claim above was discovered; the claim is what it means.

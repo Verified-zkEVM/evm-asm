@@ -1,5 +1,24 @@
 #!/usr/bin/env python3
-"""Witness generator for GH issue #10764 (withdrawal-credit false accept).
+"""Witness generator for GH issue #10764 (nonstorage-effect false accept).
+
+Diagnostic only: constructs a mutated stateless input and measures whether
+the emitted guest accepts a block that execution-specs rejects.  It does not
+change any guest code.
+
+Variants
+--------
+  bai2 (default): BAI-2 postBalance 15e9 -> 5e9 -- the BAL declares the
+    withdrawal credited nothing (original #10764 witness).
+  bai1: BAI-1 postBalance 5e9 -> 0x05deadbeef (25,210,765,039 wei) -- the
+    BAL lies about the TRANSACTION's own value-transfer credit.  The
+    replacement is a synthetic 5-byte RLP string (same length, no SSZ
+    offsets move) that cannot arise from any fee/gas/withdrawal mechanism
+    in this block.  Tests whether the false-accept class covers ordinary
+    transaction credits, not just withdrawals: on pristine main the
+    nonstorage-effect log has no row for the tx recipient's credit either
+    (rows: sender gas debit, sender refund, coinbase fee, withdrawal
+    recipient pre=0 post=10e9), and bv_mtx_skip_list contains the tx
+    recipient, so the recipient's balance is both unrecorded and skipped.
 
 Diagnostic only: constructs a mutated stateless input and measures whether
 the emitted guest accepts a block that execution-specs rejects.  It does not
@@ -97,7 +116,8 @@ Verdict rule
 
 Usage:
   uv run --directory execution-specs --quiet python3 \
-      scripts/witness-10764-withdrawal-fa.py run [--work-dir DIR]
+      scripts/witness-10764-withdrawal-fa.py run [--variant bai2|bai1] \
+      [--work-dir DIR]
 
 Requires the guest and probe ELFs (built once, no --no-build games):
   lake build codegen
@@ -139,6 +159,14 @@ OLD_POST_BALANCE = bytes.fromhex("85037e11d600")  # RLP string: 15_000_000_000
 NEW_POST_BALANCE = bytes.fromhex("85012a05f200")  # RLP string:  5_000_000_000
 EDIT_CONTEXT = bytes.fromhex("c70185012a05f200c70285037e11d600c0c0")
 
+# bai1 variant: the transaction's own 5 gwei credit (BAI-1 row) -> synthetic.
+# NB the 5e9 pattern occurs TWICE in the blob: @636 inside the tx RLP
+# (to=0xc0f6...992b, value=5e9 -- must NOT be touched) and @1043 in the BAL
+# BAI-1 row (the edit target, pinned by context c701 .. c702).
+BAI1_OLD_POST_BALANCE = bytes.fromhex("85012a05f200")  #  5_000_000_000
+BAI1_NEW_POST_BALANCE = bytes.fromhex("8505deadbeef")  # 25_210_765_039
+BAI1_EDIT_CONTEXT = bytes.fromhex("c70185012a05f200c702")
+
 # Probe OUTPUT (0xa0010000) layout; spike_run dumps a 256-byte window.
 PROBE_OUT_VERDICT = 0
 PROBE_OUT_BV_FAIL = 8
@@ -149,6 +177,8 @@ PROBE_OUT_SV_RECOMPUTED = 168
 DECLARED_WEI = 5_000_000_000
 TRUE_WEI = 15_000_000_000
 WITHDRAWAL_WEI = 10_000_000_000
+BAI1_DECLARED_WEI = 0x05DEADBEEF
+BAI1_TRUE_WEI = 5_000_000_000
 
 
 def pack_ziskemu_input(blob: bytes) -> bytes:
@@ -244,6 +274,15 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", choices=["run"])
     ap.add_argument(
+        "--variant",
+        choices=["bai2", "bai1"],
+        default="bai2",
+        help="bai2: withdrawal-credit row (BAI-2 15e9->5e9, the original "
+        "#10764 witness); bai1: transaction-credit row (BAI-1 5e9->"
+        "0x05deadbeef), testing whether the class covers ordinary tx "
+        "credits",
+    )
+    ap.add_argument(
         "--fixture",
         type=Path,
         default=REPO_ROOT / FIXTURE_REL,
@@ -254,6 +293,21 @@ def main() -> None:
 
     work = args.work_dir
     work.mkdir(parents=True, exist_ok=True)
+    if args.variant == "bai2":
+        old_pb, new_pb, edit_ctx = OLD_POST_BALANCE, NEW_POST_BALANCE, EDIT_CONTEXT
+        declared_wei, true_wei = DECLARED_WEI, TRUE_WEI
+        pair_label = "BAI-2 postBalance for the withdrawal address"
+        pair_note = f" (withdrawal of {WITHDRAWAL_WEI} wei credited)"
+    else:
+        old_pb, new_pb, edit_ctx = (
+            BAI1_OLD_POST_BALANCE,
+            BAI1_NEW_POST_BALANCE,
+            BAI1_EDIT_CONTEXT,
+        )
+        declared_wei, true_wei = BAI1_DECLARED_WEI, BAI1_TRUE_WEI
+        pair_label = "BAI-1 postBalance for the tx recipient"
+        pair_note = " (transaction value-transfer credit)"
+    stem = args.variant
     for elf in (GUEST_ELF, PROBE_ELF, NOHASH_PROBE_ELF):
         if not elf.exists():
             raise SystemExit(
@@ -280,17 +334,23 @@ def main() -> None:
         raise SystemExit("method sanity failed on the original blob")
 
     # --- Step 1: BAL mutation -------------------------------------------
-    if blob0.count(OLD_POST_BALANCE) != 1:
-        raise SystemExit("15e9 pattern not unique in blob")
-    off = blob0.index(OLD_POST_BALANCE)
-    ctx = blob0[off - 10 : off + len(OLD_POST_BALANCE) + 2]
-    if ctx != EDIT_CONTEXT:
-        raise SystemExit(f"edit context mismatch at {off}: {ctx.hex()}")
-    print(f"edit offset: {off} (expected 1051)")
-    blob1 = blob0[:off] + NEW_POST_BALANCE + blob0[off + len(OLD_POST_BALANCE) :]
+    # Anchor on the row context (c7 <idx> <old postBalance> ...), not on the
+    # value pattern: for bai1 the 5e9 string also appears inside the tx RLP.
+    if blob0.count(edit_ctx) != 1:
+        raise SystemExit("edit context not unique in blob")
+    inner = edit_ctx.index(old_pb)
+    off = blob0.index(edit_ctx) + inner
+    assert blob0[off : off + len(old_pb)] == old_pb
+    if len(new_pb) != len(old_pb):
+        raise SystemExit(
+            "replacement RLP length differs from original; SSZ offsets "
+            "would shift -- refusing (length-preserving discipline)"
+        )
+    print(f"edit offset: {off}")
+    blob1 = blob0[:off] + new_pb + blob0[off + len(old_pb) :]
     assert len(blob1) == len(blob0)
-    (work / "v1-bal-only.blob").write_bytes(blob1)
-    (work / "v1-bal-only.input").write_bytes(pack_ziskemu_input(blob1))
+    (work / f"{stem}-v1-bal-only.blob").write_bytes(blob1)
+    (work / f"{stem}-v1-bal-only.input").write_bytes(pack_ziskemu_input(blob1))
 
     # --- Step 2: nohash probe on v1 to get the guest-derived root -------
     # The pristine probe dies at .Lbv_block_hash_mismatch (bv_fail=31)
@@ -299,26 +359,49 @@ def main() -> None:
     # mismatch signature (verdict=0, bv_fail=1, statuses 0).
     run_spike(
         NOHASH_PROBE_ELF,
-        work / "v1-bal-only.input",
-        work / "v1.probe.out",
-        work / "v1.probe.log",
+        work / f"{stem}-v1-bal-only.input",
+        work / f"{stem}-v1.probe.out",
+        work / f"{stem}-v1.probe.log",
     )
-    f1 = probe_fields(work / "v1.probe.out")
+    f1 = probe_fields(work / f"{stem}-v1.probe.out")
     sv_recomputed = f1["sv_recomputed"]
     print(
         "nohash probe on v1 (BAL-only): verdict={verdict} bv_fail={bv_fail} "
         "header_status={header_status} state_status={state_status}".format(**f1)
     )
-    if not (
-        f1["verdict"] == 0
-        and f1["bv_fail"] == 1
-        and f1["header_status"] == 0
-        and f1["state_status"] == 0
-        and sv_recomputed != b"\x00" * 32
-    ):
+    declared_state_root = blob0[STATE_ROOT_OFF : STATE_ROOT_OFF + 32]
+    if args.variant == "bai2":
+        # Expected signature: block_state_root ran on the mutated BAL and
+        # the BAL-fed root mismatches the pinned payload state_root.
+        sig_ok = (
+            f1["verdict"] == 0
+            and f1["bv_fail"] == 1
+            and f1["header_status"] == 0
+            and f1["state_status"] == 0
+            and sv_recomputed != b"\x00" * 32
+            and sv_recomputed != declared_state_root
+        )
+        sig_desc = "state-root mismatch (verdict=0, bv_fail=1)"
+    else:
+        # bai1 lies about an INTERMEDIATE (per-tx) balance; BAI-2 pins the
+        # same account's final balance, so the BAL-fed root must be
+        # UNCHANGED -- the state-root re-pin below is then a no-op and only
+        # the block-hash re-pin is load-bearing.
+        sig_ok = (
+            f1["verdict"] == 1
+            and f1["bv_fail"] == 0
+            and f1["header_status"] == 0
+            and f1["state_status"] == 0
+            and sv_recomputed == declared_state_root
+        )
+        sig_desc = (
+            "root unchanged (verdict=1, sv_recomputed == declared state_root)"
+        )
+    if not sig_ok:
         raise SystemExit(
-            "nohash probe on v1 did not reach block_state_root as expected; "
-            "refusing to re-pin from an untrusted sv_recomputed"
+            f"nohash probe on v1 did not show the expected {args.variant} "
+            f"signature ({sig_desc}); refusing to re-pin from an untrusted "
+            "sv_recomputed"
         )
     print(f"sv_recomputed (guest-derived post-state root): 0x{sv_recomputed.hex()}")
 
@@ -326,8 +409,8 @@ def main() -> None:
     blob2 = blob1[:STATE_ROOT_OFF] + sv_recomputed + blob1[STATE_ROOT_OFF + 32 :]
     new_block_hash = payload_block_hash(blob2)
     blob3 = blob2[:BLOCK_HASH_OFF] + new_block_hash + blob2[BLOCK_HASH_OFF + 32 :]
-    (work / "v3-pinned.blob").write_bytes(blob3)
-    (work / "v3-pinned.input").write_bytes(pack_ziskemu_input(blob3))
+    (work / f"{stem}-v3-pinned.blob").write_bytes(blob3)
+    (work / f"{stem}-v3-pinned.input").write_bytes(pack_ziskemu_input(blob3))
     print(f"re-pinned state_root: 0x{sv_recomputed.hex()}")
     print(f"re-pinned block_hash: 0x{new_block_hash.hex()}")
 
@@ -383,19 +466,19 @@ def main() -> None:
     # --- Step 5: guest verdict on v3 -------------------------------------
     run_spike(
         GUEST_ELF,
-        work / "v3-pinned.input",
-        work / "v3.guest.out",
-        work / "v3.guest.log",
+        work / f"{stem}-v3-pinned.input",
+        work / f"{stem}-v3.guest.out",
+        work / f"{stem}-v3.guest.log",
     )
-    guest_out = (work / "v3.guest.out").read_bytes()
+    guest_out = (work / f"{stem}-v3.guest.out").read_bytes()
     guest_succ = guest_out[32] if len(guest_out) > 32 else None
     run_spike(
         PROBE_ELF,
-        work / "v3-pinned.input",
-        work / "v3.probe.out",
-        work / "v3.probe.log",
+        work / f"{stem}-v3-pinned.input",
+        work / f"{stem}-v3.probe.out",
+        work / f"{stem}-v3.probe.log",
     )
-    f3 = probe_fields(work / "v3.probe.out")
+    f3 = probe_fields(work / f"{stem}-v3.probe.out")
     print(f"guest on v3: succ byte = {guest_succ}")
     print(
         "probe on v3: verdict={verdict} bv_fail={bv_fail} "
@@ -404,16 +487,16 @@ def main() -> None:
 
     # --- Verdict ----------------------------------------------------------
     print()
-    print("compared pair (BAI-2 postBalance for the withdrawal address):")
-    print(f"  declared: {DECLARED_WEI} wei")
-    print(f"  true:     {TRUE_WEI} wei (withdrawal of {WITHDRAWAL_WEI} wei credited)")
+    print(f"compared pair ({pair_label}):")
+    print(f"  declared: {declared_wei} wei (0x{declared_wei:x})")
+    print(f"  true:     {true_wei} wei (0x{true_wei:x}){pair_note}")
     accepts = guest_succ == 1
     if spec_rejects and accepts:
         print("RESULT: spec REJECTS + guest ACCEPTS => FALSE ACCEPT CONFIRMED")
     elif not accepts:
         print(
-            "RESULT: guest REJECTS => something else validates withdrawal "
-            "credits; claim withdrawn"
+            f"RESULT: guest REJECTS the {args.variant} mutation => the "
+            "false-accept class does NOT cover this row; claim narrowed"
         )
     else:
         print("RESULT: unexpected combination; inspect artifacts in work dir")
