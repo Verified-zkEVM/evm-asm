@@ -275,6 +275,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la t0, bal_builder_account_count; li t1, 1; sd t1, 0(t0)\n" ++
   "  la a0, bsmp_scratch; la a1, bsmp_rebuilt; jal ra, bal_serializer_rebuild_hash\n" ++
   "  la t0, bsmp_rebuilt; ld t1, 0(t0); sd t1, 248(s0)\n" ++
+  "  la t0, bal_serializer_len_table; ld t1, 8(t0); sd t1, 56(s0)\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
