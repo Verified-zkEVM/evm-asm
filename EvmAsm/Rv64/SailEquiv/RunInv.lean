@@ -247,14 +247,72 @@ theorem RunInv.access_ok {lo hi : Nat} {sRv : MachineState} {sSail : SailState}
   · simp only [RAM_MEM_START] at hram; omega
   · simp only [RAM_MEM_END] at hhi; omega
 
--- NOTE (vendored model 2026-07-27-9901550): the extraction now includes the
--- `Zicsr_insts` module, so `currentlyEnabled` has a real `Ext_Zicsr` arm and
--- `update_elp_state` (the first action of `execute_JALR`) no longer faults
--- unconditionally.  The lemmas `currentlyEnabled_Ext_Zicsr_error` /
--- `currentlyEnabled_Ext_Zicfilp_error` / `update_elp_state_error` that recorded
--- the old always-fault behavior are gone — they are now false.  `JALR` remains
--- excluded from `Instr.runSimulable` for the moment; un-excluding it (now that
--- the model permits it) is tracked as a follow-up on this branch.
+-- ============================================================================
+-- `update_elp_state` is a no-op in bare mode (#10688)
+--
+-- The vendored model regen (tag 2026-07-27-9901550) added the `Zicsr_insts`
+-- module, giving `currentlyEnabled` a real `Ext_Zicsr` arm.  Under the old
+-- extraction that arm was missing, so `currentlyEnabled Ext_Zicfilp` (which
+-- gates `update_elp_state`, the first action of `execute_JALR`) threw in every
+-- state — recorded then as `currentlyEnabled_Ext_Zicsr_error` /
+-- `currentlyEnabled_Ext_Zicfilp_error` / `update_elp_state_error`, all now
+-- false and deleted.  The lemmas below prove the mirror: with the arm restored,
+-- the Zicfilp gate evaluates to `false` in bare mode (Machine privilege,
+-- `mseccfg.MLPE = 0`), so `update_elp_state` reduces to `pure ()`.
+-- ============================================================================
+
+/-- `currentlyEnabled Ext_Zicsr` succeeds in **every** state: the regenerated
+    model's arm is `pure (hartSupports Ext_Zicsr)` and the reference config
+    supports Zicsr.  (Under the pre-regen model this computation threw
+    unconditionally — the root cause of #10688.) -/
+theorem currentlyEnabled_Ext_Zicsr (s : SailState) :
+    currentlyEnabled extension.Ext_Zicsr s = .ok true s := by
+  rw [currentlyEnabled.eq_def]
+  simp only [hartSupports]
+  rfl
+
+/-- In Machine mode, `get_xLPE` (the per-privilege landing-pad-enable read) is
+    exactly the `MLPE` bit of `mseccfg`, read without touching state. -/
+theorem get_xLPE_Machine {s : SailState} {msec : BitVec 64}
+    (h_sec : s.regs.get? Register.mseccfg = some msec) :
+    get_xLPE Privilege.Machine s
+      = .ok (bool_bit_backwards (_get_Seccfg_MLPE msec)) s := by
+  rw [get_xLPE.eq_def]
+  simp [PreSail.readReg, h_sec, Pure.pure, EStateM.pure, bind, Bind.bind,
+    EStateM.bind, EStateM.get, get, MonadState.get, getThe, MonadStateOf.get]
+
+/-- In Machine mode with `mseccfg.MLPE = 0`, the Zicfilp extension is *disabled*:
+    `currentlyEnabled Ext_Zicfilp` reduces (through the now-present `Ext_Zicsr`
+    arm, `hartSupports Ext_Zicfilp = true`, and `get_xLPE Machine`) to
+    `.ok false` without touching state. -/
+theorem currentlyEnabled_Ext_Zicfilp_false {s : SailState} {msec : BitVec 64}
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_sec : s.regs.get? Register.mseccfg = some msec)
+    (h_mlpe : _get_Seccfg_MLPE msec = 0#1) :
+    currentlyEnabled extension.Ext_Zicfilp s = .ok false s := by
+  rw [currentlyEnabled.eq_def]
+  simp [currentlyEnabled_Ext_Zicsr, get_xLPE_Machine h_sec, h_mlpe, bool_bit_backwards,
+    PreSail.readReg, h_priv, Pure.pure, EStateM.pure, bind, Bind.bind, EStateM.bind,
+    EStateM.get, get, MonadState.get, getThe, MonadStateOf.get]
+
+/-- **`update_elp_state` is a no-op in bare mode** (#10688 resolution).
+
+    `execute_JALR` runs `update_elp_state` (Zicfilp forward-CFI landing-pad
+    bookkeeping) before anything else.  With the machine in Machine privilege
+    and `mseccfg.MLPE = 0` — both facts carried by `RunInv.bare` via
+    `BareModeInv.h_priv` / `BareModeInv.h_sec` and the bundled `MLPE` equation —
+    the `currentlyEnabled Ext_Zicfilp` gate is `false`, so the body takes its
+    `else (pure ())` branch: no register is written and no fault is raised.
+    This is what makes the `h_elp` premise of `jalr_sail_equiv` dischargeable
+    (see `jalr_sideCond_of_runInv` in `StepRun.lean`). -/
+theorem update_elp_state_noop (rs1 : regidx) (s : SailState) {msec : BitVec 64}
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_sec : s.regs.get? Register.mseccfg = some msec)
+    (h_mlpe : _get_Seccfg_MLPE msec = 0#1) :
+    update_elp_state rs1 s = .ok () s := by
+  unfold update_elp_state
+  simp [currentlyEnabled_Ext_Zicfilp_false h_priv h_sec h_mlpe,
+    bind, Bind.bind, EStateM.bind, Pure.pure, EStateM.pure]
 
 -- ============================================================================
 -- Toy-side per-step side conditions

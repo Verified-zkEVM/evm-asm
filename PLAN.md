@@ -1226,17 +1226,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     invariant discharges every per-instruction Sail obligation) and
     `sailStep_run_sim` — **no `h_nextpc` hypothesis anywhere** — then iterates it
     with `sailStepN`/`sailStepN_run_sim` over `Execution.stepN`.
-    Two documented scopes: (i) `Instr.runSimulable` = `simulable` minus `JALR`,
-    and (ii) memory is confined to a window inside the RAM zone
-    `[0xa0000000, 0xc0000000)`. (ii) is forced: the toy legacy MEM zone
+    One documented scope: memory is confined to a window inside the RAM zone
+    `[0xa0000000, 0xc0000000)`. This is forced: the toy legacy MEM zone
     `[0x20, 0x78000000]` is not inside any PMA region of `sailInitPmaRegions`
-    (main memory is `[0x80000000, 0x100000000)`). (i) was a **vendored-model
-    defect** (the old extraction's `currentlyEnabled` had no `Ext_Zicsr` arm, so
-    `execute_JALR`'s leading `update_elp_state` faulted in every state; recorded
-    then as `update_elp_state_error`). The 2026-07-27-9901550 regen (module scope
-    widened by `Zicsr_insts`) fixed the arm; those error lemmas are deleted and
-    un-excluding `JALR` from `Instr.runSimulable` is the follow-up on
-    `fix/sail-zicsr-scope`.
+    (main memory is `[0x80000000, 0x100000000)`). A second scope — `JALR`
+    excluded via a run-only predicate `Instr.runSimulable` — was a
+    **vendored-model defect** (#10688: the old extraction's `currentlyEnabled`
+    had no `Ext_Zicsr` arm, so `execute_JALR`'s leading `update_elp_state`
+    faulted in every state; recorded then as `update_elp_state_error`, and
+    `jalr_sail_equiv` was vacuous). **Resolved on `fix/sail-zicsr-scope`
+    (pending merge)**: the 2026-07-27-9901550 regen (module scope widened by
+    `Zicsr_insts`) fixed the arm; `update_elp_state_noop` (`RunInv.lean`)
+    proves the call is a bare-mode no-op (Machine mode, `mseccfg.MLPE = 0` →
+    Zicfilp gate false → `pure ()`), `jalr_sideCond_of_runInv` discharges the
+    `JALR` side condition from `RunInv` + the post-fetch `nextPC` fact (the
+    anti-vacuity mirror, relative form), `jalr_sideCond_satisfiable` exhibits a
+    concrete witness pair (absolute form), and `Instr.runSimulable` — now
+    extensionally equal to `Instr.simulable` — is deleted, so JALR is covered
+    at run level by `sailStep_run_sim`/`sailStepN_run_sim`.
     The vendored fetch (`run_hart_active`) is deliberately **not** reduced: it
     reads instruction bytes from Sail `mem` via `translateAddr`, whereas the toy
     `MachineState.code` is a separate unrelated field — that decode tie is
