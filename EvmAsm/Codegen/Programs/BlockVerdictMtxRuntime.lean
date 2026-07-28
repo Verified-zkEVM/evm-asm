@@ -602,13 +602,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- latched failure at the transaction boundary rather than serializing a
   -- truncated block map later.
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  -- GH #10731: the block-lifetime READ latches, set by read_sets_merge_one through the
-  -- a7 pointer read_sets_incorporate_tx hands it, and examined nowhere until now. Same
-  -- position and label as the write-side line above: consume a latched truncation at
-  -- the transaction boundary rather than serializing a short read set later.
-  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   -- The debit was materialized before execution; apply the spec's later
   -- sender `create_ether` refund before AccountState commits this transaction.
   blockVerdictMtxRecordSenderRefund ++
@@ -634,6 +627,21 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- across that call.  This is the same slice computed at snapshot_ready.
   "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
+  -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
+  -- storage, account, and code reads survive a failed transaction even when
+  -- its AccountState commit is bypassed.  This join is after the committed
+  -- SELFDESTRUCT-read producer and after rollback/effects, but before the
+  -- transaction's BAL builder emission, matching fork.py's boundary.
+  -- The joined paths prepared `a1/a2` as the exact storage slice for the
+  -- committed-chunk snapshot below.  The read-set helper uses caller-saved
+  -- argument registers, so preserve that slice across the independent call.
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a1, 8(sp); sd a2, 16(sp); jal ra, read_sets_incorporate_tx; ld ra, 0(sp); ld a1, 8(sp); ld a2, 16(sp); addi sp, sp, 32\n" ++
+  -- The merge latches overflow through the a7 pointers it receives.  Consume
+  -- each latch immediately after the unconditional merge, before later code
+  -- can serialize a truncated block-level read set.
+  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
