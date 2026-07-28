@@ -48,6 +48,9 @@ structure GuestLayout where
   -- BloomAddValue (bloom_add_value); `zkvm_keccak256` already above.
   bav_hash : Nat
   bloom_add_value : Nat
+  -- U256 (u256_mul_u64_be: accumulator window and entry).
+  u256m_acc : Nat
+  u256_mul_u64_be : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -60,6 +63,8 @@ def GuestLayout.zero : GuestLayout :=
     zkvm_keccak256 := 0
     zkvm_keccak256_segments := 0
     bav_hash := 0
-    bloom_add_value := 0 }
+    bloom_add_value := 0
+    u256m_acc := 0
+    u256_mul_u64_be := 0 }
 
 end EvmAsm.Codegen
