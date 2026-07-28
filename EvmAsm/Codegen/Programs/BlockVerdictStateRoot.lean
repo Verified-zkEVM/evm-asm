@@ -126,6 +126,10 @@ def blockStateRootFunction : String :=
   "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
   "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
   ".Lbsr_4788_gated:\n" ++
+  -- Live across the BAI-0 tuple/builder helper and modeled-system changes:
+  -- s3 = withdrawal descriptors, s4 = descriptor count, s5 = output root,
+  -- s1 = state-change counter after its initialization below.  The helper's
+  -- builder JAL may clobber a0-a4, so each modeled-state-root call reloads them.
   "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
   "  li s1, 0                     # change counter\n" ++
   "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_skip_2935\n" ++
