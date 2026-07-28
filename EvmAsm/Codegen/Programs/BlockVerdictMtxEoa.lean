@@ -220,10 +220,16 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a2, 0(t3)\n" ++
   blockVerdictMtxEoaRecipientCredit ++
+  -- The credit fragment clobbers the pre-fragment byte offset in t0. Rebuild
+  -- the indexed-array offset before the existing creation/calldata stores.
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; la t4, bv_mtx_ctx; ld t5, 48(t4); sd t5, 0(t3)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd t5, 0(t3)\n" ++
-  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  -- The recipient-credit resolver/record path clobbers t1. Reload the
+  -- transaction index before capturing the per-tx execution gas result; the
+  -- pre-fragment t1 held bv_mtx_i only by convention and is not callee-saved.
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
   "  la t4, bv_receipts_completeness_shape; ld t4, 0(t4); li t5, 60; bgeu t4, t5, .Lbv_mtx_eoa_receipts_ready\n" ++
   bvReceiptsShapeSet 4 true ++
   ".Lbv_mtx_eoa_receipts_ready:\n" ++
