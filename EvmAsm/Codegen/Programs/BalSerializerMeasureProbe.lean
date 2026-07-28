@@ -4,6 +4,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Programs.BalCanonicalSort
 
 /-!
 # `zisk_bal_serializer_measure` -- the first EXECUTING test of the measure pass
@@ -232,6 +233,10 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bal_serializer_outer_payload:\n  .zero 8\n" ++
   "bal_builder_account_count:\n  .zero 8\n" ++
   "bal_builder_accounts:\n  .zero 128\n" ++
+  "bal_serializer_sort_status:\n  .zero 8\n" ++
+  "bal_serializer_rebuilt_ctx:\n  .zero 512\n" ++
+  "bsmp_rebuilt:\n  .zero 32\n" ++
+  balCanonicalSortDataSection ++
   keccakIncrementalDataSection
 
 def ziskBalSerializerMeasureProbeUnit : BuildUnit := {
@@ -266,8 +271,9 @@ The probe is only worth anything if the discriminating cases are really present.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "sb t1, 65(t0)").length == 2
 
 -- Address B must actually differ from A, or case 4 tests nothing. THREE, because case 8
--- also places B as its second account -- the two uses are independent and both are load
--- bearing, so this counts them rather than pretending there is one.
+-- also places B, as does case 8: TWO uses, both load bearing. Only the `probeRow`
+-- expansions match -- the account seeds spell `0xBB` in raw asm rather than going
+-- through `toString`, so they read as 0xBB and not as 187.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 3
 
 -- Case 6 must actually EMIT and finalise, or the digest slot holds whatever keccak_init

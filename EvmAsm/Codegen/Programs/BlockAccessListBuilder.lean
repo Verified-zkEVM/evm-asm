@@ -193,6 +193,10 @@ def blockAccessListBuilderDataSection : String :=
   -- The widener's destination. 32 bytes, 8-aligned, reused per scalar -- it holds one
   -- widened u64 at a time and is consumed immediately by the scalar measurer.
   "bal_serializer_u64_field:\n  .zero 32\n" ++
+  "bal_serializer_sort_status:\n  .zero 8\n" ++
+  "bal_serializer_rebuilt_ctx:\n  .zero 512\n" ++
+  "bal_serializer_rebuilt_hash:\n  .zero 32\n" ++
+  "bal_serializer_supplied_hash:\n  .zero 32\n" ++
   "bal_serializer_hdr_scratch:\n  .zero 16\n" ++
   "bal_serializer_throwaway_ctx:\n  .zero 208\n" ++
   "bal_builder_storage_changes:\n  .zero " ++ toString balBuilderStorageChangeBytes ++ "\n" ++
@@ -1442,6 +1446,95 @@ def balSerializerEmitOuterFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n"
 
+/-- Sort the accounts into canonical order and hash the rebuilt BAL.
+    a0 = scratch (>= 33 bytes), a1 = 32-byte output pointer.
+    a0 (out) = 0, or the canonical sort's own nonzero status.
+
+    Split out from `bal_serializer_verify` so it can be executed on its own: the probe
+    seeds the accounts OUT of order and checks the digest still matches the in-order one,
+    which is the only way to demonstrate that the sort actually runs. Verifying that
+    through the full comparator would need a real SSZ payload for the supplied side.
+
+    THE SORT LIVES HERE, NOT IN A CALLER. Ordering is part of the encoding: an unsorted
+    emission is a well-formed BAL with the wrong hash, and it is the single failure a
+    digest comparison cannot localise, because every byte is individually correct and
+    only the sequence is wrong. Leaving it to a caller makes the one unlocalisable
+    failure the easiest to cause.
+
+    Accounts are 20-byte rows sorted on one BIG-ENDIAN 20-byte segment: offset byte 0,
+    width byte 0x94 -- that is `0x80 | 20`, the 0x80 being the big-endian flag -- so the
+    descriptor is 0x9400, the same value `bal_sort_account_writes` passes. Writing 0x1400
+    instead declares a big-endian address little-endian; it does not sort wrongly and
+    carry on, it faults on a bad pointer inside the sort. -/
+def balSerializerRebuildHashFunction : String :=
+  "bal_serializer_rebuild_hash:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  la a0, bal_builder_accounts\n" ++
+  "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
+  "  li a2, 20; li a3, 0x9400; li a4, 1\n" ++
+  "  jal ra, bal_canonical_sort\n" ++
+  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
+  "  beqz a0, .Lbsrh_sorted\n" ++
+  "  j .Lbsrh_ret\n" ++
+  ".Lbsrh_sorted:\n" ++
+  -- Streaming: nothing is buffered, so no size bound applies to the rebuilt BAL.
+  "  la a0, bal_serializer_rebuilt_ctx; jal ra, keccak_init\n" ++
+  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s0; jal ra, bal_serializer_emit_outer\n" ++
+  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s1; jal ra, keccak_final\n" ++
+  "  li a0, 0\n" ++
+  ".Lbsrh_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n"
+
+/-- Rebuild the block access list and compare its hash against the supplied one.
+    a0 = SSZ_BASE, a1 = scratch (>= 33 bytes).
+    a0 (out) = 0 the rebuilt BAL hashes to the supplied BAL's hash, 1 it does not,
+               2 the canonical sort failed (its code is in `bal_serializer_sort_status`).
+
+    This is the spec's own check rather than an approximation of it: EIP-7928 commits the
+    BAL through a hash, so agreeing on the hash is agreeing on every byte. Nothing weaker
+    substitutes -- matching lengths, counts and field sets are all satisfiable by a BAL
+    that hashes differently.
+
+    INERT AS OF THIS COMMIT: nothing calls it. Wiring it into the verdict is a separate
+    change and a substantial one. Two reasons, both external to the serializer:
+
+      * it is the first thing to READ the builder streams, so every neutrality claim
+        measured over unconsumed builder output expires the moment it lands, and it owes
+        a fresh paired A/B with both halves live rather than inheriting a number measured
+        over dead output;
+      * the producer side is incomplete -- `append_code`/`append_nonce` cannot fire for
+        EIP-7702 authorities until #10757, and #10730 has a cross-transaction storage
+        write that is never captured -- and a rebuilt BAL missing a row cannot match a
+        declared BAL that has it. Those fixtures will fail for producer reasons, not
+        serializer ones, and a hash mismatch yields one bit and no localisation. That is
+        why the probes underneath it exist. -/
+def balSerializerVerifyFunction : String :=
+  "bal_serializer_verify:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  mv a0, a1; la a1, bal_serializer_rebuilt_hash; jal ra, bal_serializer_rebuild_hash\n" ++
+  "  beqz a0, .Lbsv_rebuilt\n" ++
+  "  li a0, 2; j .Lbsv_ret\n" ++
+  ".Lbsv_rebuilt:\n" ++
+  "  mv a0, s0; la a1, bal_serializer_supplied_hash; jal ra, block_access_list_hash\n" ++
+  "  la t0, bal_serializer_rebuilt_hash; la t1, bal_serializer_supplied_hash\n" ++
+  "  ld t2, 0(t0);  ld t3, 0(t1);  bne t2, t3, .Lbsv_differ\n" ++
+  "  ld t2, 8(t0);  ld t3, 8(t1);  bne t2, t3, .Lbsv_differ\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbsv_differ\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbsv_differ\n" ++
+  "  li a0, 0; j .Lbsv_ret\n" ++
+  ".Lbsv_differ:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbsv_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n"
+
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++
   balSerializerAddrMatchesBeFunction ++
@@ -1465,12 +1558,44 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerEmitAccountFunction ++
   balSerializerMeasureOuterFunction ++
   balSerializerEmitOuterFunction ++
+  balSerializerRebuildHashFunction ++
+  balSerializerVerifyFunction ++
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balEmitStorageChangesFunction ++
   balBuilderAppendBalanceFunction ++
   balBuilderAppendNonceFunction ++
   balBuilderAppendCodeFunction
+
+/-! ## Guards for the rebuild-and-compare pair -/
+
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_rebuild_hash:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_verify:").length == 2
+
+-- The sort happens inside `rebuild_hash`, before any byte is absorbed. An unsorted
+-- emission is a well-formed BAL with the wrong hash and is the ONE failure the digest
+-- comparison cannot localise, so this must not become a caller's responsibility.
+#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 2
+
+-- The descriptor must carry the BIG-ENDIAN flag (0x80) in its width byte: 0x94 is
+-- `0x80 | 20`. This is the same value `bal_sort_account_writes` passes, pinned on that
+-- side by the matching guard in BalCanonicalSort.lean. Writing 0x1400 declares a
+-- big-endian address little-endian and faults inside the sort on a bad pointer.
+#guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
+-- ...and it must precede the emission, not follow it.
+#guard (((balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").getD 0 "").splitOn "bal_serializer_emit_outer").length == 1
+
+-- A nonzero sort status must abort rather than fall through to emitting an unsorted BAL.
+#guard (balSerializerRebuildHashFunction.splitOn "  beqz a0, .Lbsrh_sorted\n").length == 2
+
+-- The comparison is a full 32 bytes, four dwords. Comparing fewer accepts a collision on
+-- the compared prefix, which is the one way a hash check can be weaker than it looks.
+#guard (balSerializerVerifyFunction.splitOn "bne t2, t3, .Lbsv_differ").length == 5
+
+-- Verify must hash the SUPPLIED bal through the routine the verdict path already uses,
+-- not re-derive it. Two hashes of the same bytes by two implementations is a way to
+-- agree by construction rather than by correctness.
+#guard (balSerializerVerifyFunction.splitOn "jal ra, block_access_list_hash").length == 2
 
 /-! ## Guards for the outer accumulation -/
 
