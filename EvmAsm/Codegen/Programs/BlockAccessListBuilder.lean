@@ -598,6 +598,15 @@ def balEmitStorageChangesFunction : String :=
   "  ld t2, 8(s5);  ld t6, 8(s6);  bne t2, t6, .Lbesc_emit\n" ++
   "  ld t2, 16(s5); ld t6, 16(s6); bne t2, t6, .Lbesc_emit\n" ++
   "  ld t2, 24(s5); ld t6, 24(s6); bne t2, t6, .Lbesc_emit\n" ++
+  -- NET-ZERO EXCLUSION, verified at `block_access_lists.py:667-676`: the spec calls
+  -- `add_storage_write` only `if pre_value != post_value`, and `pre_value` comes from
+  -- `_get_pre_tx_storage(block_state.storage_writes, pre_state, ...)` -- the BLOCK
+  -- cumulative value, not the transaction's own pre-state. That is why the baseline
+  -- here is the block container first and the header state root only on a miss.
+  --
+  -- The same lines settle the slot's type: `u256_slot = U256.from_be_bytes(key)`, so the
+  -- BAL slot is a NUMERIC U256 and encodes as a minimal-length scalar with leading zeros
+  -- dropped -- not as a fixed 32-byte string.
   "  j .Lbesc_advance\n" ++                                      -- net-zero: emit nothing
   ".Lbesc_emit:\n" ++
   -- The builder row wants BE20 address and BE32 slot, matching
