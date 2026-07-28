@@ -455,14 +455,26 @@ def accountResolvePreStateFunction : String :=
   ".Larp_block_nonce:\n" ++
   "  andi t1, t0, 2; beqz t1, .Larp_block_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
   ".Larp_block_done:\n" ++
-  -- Second source: durable AccountState. Pending state is tx-local and must
-  -- not outrank the block's already-incorporated pre-transaction value here.
-  "  li t0, 3; beq s7, t0, .Larp_header_done\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
-  "  beqz a0, .Larp_header_done; mv s6, a0; ld t0, 88(s6)\n" ++
-  "  andi t1, s7, 1; bnez t1, .Larp_durable_nonce; andi t1, t0, 32; beqz t1, .Larp_durable_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
-  ".Larp_durable_nonce:\n" ++
-  "  andi t1, s7, 2; bnez t1, .Larp_header_done; andi t1, t0, 64; beqz t1, .Larp_header_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  -- There is NO second source.  `_get_pre_tx_account`
+  -- (`block_access_lists.py:583-598`) has exactly TWO tiers -- the cumulative
+  -- `pre_tx_accounts` map, then `pre_state.get_account_optional(address)` -- and
+  -- `pre_state` is the IMMUTABLE PRE-BLOCK state.
+  --
+  -- This routine used to consult the durable `AccountState` overlay in between.
+  -- That overlay is LIVE MUTATED STATE: `update_builder_from_tx` runs at the
+  -- transaction boundary, by which point the sender's gas debit and nonce
+  -- increment have already been applied to it.  So for an account with NO
+  -- block-map row -- i.e. its first touch in the block -- the overlay returned the
+  -- POST value as the "pre" value, the caller's change-compare found equality,
+  -- and the row was silently dropped.  Measured on six EIP-7928 fixtures: the
+  -- nonce deficit equalled the number of distinct senders on all six, and on
+  -- multi-tx-same-sender blocks the sender's LATER rows appended correctly
+  -- (`ne_bai_mask = {2,3}`) because from the second transaction on the block map
+  -- hits and supplies a genuine pre value.  See GH #10799.
+  --
+  -- Falling straight through to the authenticated parent witness is what the spec
+  -- says and is also correct on its own terms: if no earlier transaction in this
+  -- block touched the account, its pre-transaction state IS the parent state.
   ".Larp_header_done:\n" ++
   "  li t0, 3; beq s7, t0, .Larp_ok\n" ++
   -- Final source: authenticated parent witness. Absence is a valid zero
