@@ -145,6 +145,7 @@ def blockStateRootFunction : String :=
   "  mv a4, s1\n" ++
   "  la t0, bsr_sys_slot_4788; sd s1, 0(t0)\n" ++
   "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
+  "  jal ra, record_modeled_eip4788_storage_reads\n" ++
   "  addi s1, s1, 1\n" ++
   ".Lbsr_skip_4788:\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
