@@ -46,10 +46,21 @@ private def balOrderDumpRow (idx bai slotByte valByte : Nat) : String :=
 
 /-- Byte-sink replacements for the incremental keccak ABI. -/
 def balOrderDumpSink : String :=
+  -- THE SINK MUST DISTINGUISH CONTEXTS. `bal_serializer_measure_code` measures the code
+  -- blob through the THROWAWAY keccak route, which absorbs into
+  -- `bal_serializer_throwaway_ctx`. A sink that appends every context to one buffer
+  -- records the measurement pass as well as the emission -- and `keccak_init` on the
+  -- throwaway resets the cursor mid-emission. Both were visible in the first dump: the
+  -- code blobs appeared before the outer header and again inside the field.
+  --
+  -- So init and absorb act ONLY on the real context and ignore the throwaway.
   "keccak_init:\n" ++
+  "  la t2, bal_serializer_rebuilt_ctx; bne a0, t2, .Lbod_skip_init\n" ++
   "  la t0, bod_cursor; la t1, bod_buf; sd t1, 0(t0)\n" ++
+  ".Lbod_skip_init:\n" ++
   "  ret\n" ++
-  "keccak_absorb:\n" ++                        -- a0 = ctx (ignored), a1 = ptr, a2 = len
+  "keccak_absorb:\n" ++                        -- a0 = ctx, a1 = ptr, a2 = len
+  "  la t2, bal_serializer_rebuilt_ctx; bne a0, t2, .Lbod_absorb_ret\n" ++
   "  la t0, bod_cursor; ld t1, 0(t0)\n" ++
   ".Lbod_cp:\n" ++
   "  beqz a2, .Lbod_cp_done\n" ++
@@ -57,6 +68,7 @@ def balOrderDumpSink : String :=
   "  j .Lbod_cp\n" ++
   ".Lbod_cp_done:\n" ++
   "  la t0, bod_cursor; sd t1, 0(t0)\n" ++
+  ".Lbod_absorb_ret:\n" ++
   "  ret\n" ++
   "keccak_final:\n" ++
   "  ret\n"
@@ -105,7 +117,23 @@ def ziskBalOrderDumpPrologue : String :=
   "  li t1, 0xAA; sb t1, 19(t0); li t1, 11; sb t1, 32(t0)\n" ++
   "  li t1, 0xAA; sb t1, 83(t0); li t1, 5;  sb t1, 96(t0)\n" ++
   "  la t0, storage_reads_count; li t1, 2; sd t1, 0(t0)\n" ++
-  "  la t0, bal_builder_code_count; sd zero, 0(t0)\n" ++
+  -- TWO code changes, seeded DESCENDING by index. Code is the one field whose value is
+  -- a BYTE STRING rather than a scalar, so the two entries carry different-length blobs
+  -- (1 and 2 bytes) and encode to different widths -- index 1 as the self-encoding 0x2a,
+  -- index 2 as 0x82 60 00. Equal-length blobs would order correctly by accident if the
+  -- entries were swapped. Row is 64 bytes: addr BE20 at 0, index at 24, ptr 32, len 40.
+  "  la t0, bod_code_a; li t1, 0x2a; sb t1, 0(t0)\n" ++
+  "  la t0, bod_code_b; li t1, 0x60; sb t1, 0(t0); sb zero, 1(t0)\n" ++
+  "  la t0, bal_builder_code_changes\n" ++
+  "  sd zero, 0(t0);  sd zero, 8(t0);  sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  sd zero, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0);  li t1, 2; sd t1, 24(t0)\n" ++
+  "  la t2, bod_code_b; sd t2, 32(t0); li t1, 2; sd t1, 40(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 64(t0); li t1, 1; sd t1, 88(t0)\n" ++
+  "  la t2, bod_code_a; sd t2, 96(t0); li t1, 1; sd t1, 104(t0)\n" ++
+  "  la t0, bal_builder_code_count; li t1, 2; sd t1, 0(t0)\n" ++
   "  la t0, bal_builder_accounts\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
   "  li t1, 0xAA; sb t1, 0(t0)\n" ++
@@ -163,6 +191,8 @@ def ziskBalOrderDumpDataSection : String :=
   "bod_hashout:\n  .zero 32\n" ++
   "bod_cursor:\n  .zero 8\n" ++
   "bod_buf:\n  .zero 512\n" ++
+  "bod_code_a:\n  .zero 8\n" ++
+  "bod_code_b:\n  .zero 8\n" ++
   "bal_builder_storage_change_count:\n  .zero 8\n" ++
   "bal_builder_storage_changes:\n  .zero 512\n" ++
   "bal_serializer_len_table:\n  .zero 48\n" ++
@@ -195,11 +225,15 @@ def ziskBalOrderDumpProbeUnit : BuildUnit := {
 -- The sink must REPLACE the sponge, and nothing here may check a digest -- a unit that
 -- stubs keccak and then verifies a hash is verifying the stub.
 #guard (ziskBalOrderDumpPrologue.splitOn "keccak_absorb:").length == 2
+-- The sink must gate on the context: the throwaway measurement absorbs too, and a sink
+-- that records it dumps the measure pass alongside the emission.
+#guard (ziskBalOrderDumpPrologue.splitOn "bal_serializer_rebuilt_ctx; bne a0, t2").length == 3
 #guard (ziskBalOrderDumpPrologue.splitOn "keccak_init:").length == 2
 
 -- Descending at BOTH levels, or the dump cannot distinguish a sort from its absence.
 -- Descending at BOTH storage levels AND in the balance list: index 2 seeded before
 -- index 1 in each. Two occurrences of the index-2 store, one per stream.
-#guard (ziskBalOrderDumpPrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 4
+-- Descending seeds in all five streams: two storage levels, balance, nonce and code.
+#guard (ziskBalOrderDumpPrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 5
 
 end EvmAsm.Codegen
