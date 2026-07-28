@@ -618,6 +618,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- fact with its own cursor, rather than reusing the dead frame checkpoint.
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
+  -- `blockVerdictMtxRecordSenderRefund` and the rollback helper both use
+  -- caller-saved a1/a2.  The snapshot ABI takes this transaction's captured
+  -- slice, not the cumulative `bv_user_storage_log`: a preparation halt has
+  -- no such rows, so restore base + length zero explicitly.  Do not reconstruct
+  -- from capture counters, which may still describe tx N-1 (and must remain
+  -- available to the later BAL consumer through the cumulative arena).
+  "  la a1, bv_user_storage_log; li a2, 0\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
