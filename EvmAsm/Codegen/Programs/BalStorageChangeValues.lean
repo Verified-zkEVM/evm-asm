@@ -15,6 +15,21 @@
   writes superseded within the block.
 
   Both keys and values are emitted as 32-byte big-endian, left-padded.
+
+  ## Deliberately lenient slot payloads
+
+  Slot keys and post values here accept any RLP payload of length at most 32 and
+  zero-left-pad it; this reader deliberately does not require a shortest scalar
+  encoding or call `rlp_content_to_u256_be`.  The local normalization is safe
+  only because the supplied BAL bytes are committed into the rebuilt header via
+  its BAL hash, and `block_hash_from_header` compares that header commitment
+  with the payload block hash.  A non-canonical supplied payload therefore
+  cannot survive the block-hash binding even when it normalizes to the same
+  32-byte key/value as a canonical payload.
+
+  This is a cross-file dependency, not a property of this reader.  The binding
+  is conditional on `bv_block_hash_check_enabled`; see #10771 and #10777.
+  Do not tighten or rely on this acceptance without re-auditing that gate.
 -/
 
 import EvmAsm.Rv64.Program
