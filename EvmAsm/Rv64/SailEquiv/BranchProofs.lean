@@ -21,14 +21,17 @@
   carries a bundled `h_elp` hypothesis: a witness mid-state in which
   `update_elp_state` has succeeded and the entry facts still hold.
 
-  **`jalr_sail_equiv` is currently vacuous (#10688).** The extracted
-  `currentlyEnabled` has no `Ext_Zicsr` arm and errors on that query; the
-  `Ext_Zicfilp` gate reaches it first, so `update_elp_state` faults in *every*
-  state. The `h_elp` premise above is therefore unsatisfiable and no caller can
-  discharge it — `update_elp_state_error` in `RunInv.lean` is the kernel-checked
-  proof. The theorem is correctly proved but establishes nothing about JALR
-  until the vendored model is regenerated with that arm. The other seven
-  theorems in this file are unaffected.
+  **`jalr_sail_equiv` was vacuous under the old vendored model — fixed
+  (#10688).** The old extraction's `currentlyEnabled` had no `Ext_Zicsr` arm,
+  so `update_elp_state` faulted in every state and the `h_elp` premise was
+  unsatisfiable. As of the regenerated model (tag 2026-07-27-9901550,
+  `Zicsr_insts` in scope) the arm is present and `h_elp` is dischargeable:
+  `update_elp_state_noop` (`RunInv.lean`) proves the call is a bare-mode no-op,
+  `jalr_sideCond_of_runInv` (`StepRun.lean`) discharges the whole `h_elp`
+  bundle from the run-level invariant (with `s_mid := sSail`), and
+  `jalr_sideCond_satisfiable` exhibits a concrete witness pair — so the theorem
+  now has content, and JALR is included in the run-level simulation
+  (`sailStep_run_sim` / `sailStepN_run_sim`).
 
   Committing the target into SAIL's `PC` (via `tick_pc`) is `StepProofs.lean`'s
   job; this file stays at the `execute_*` boundary, where only `nextPC` is

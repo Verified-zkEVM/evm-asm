@@ -3,6 +3,7 @@ import Out.Prelude
 import Out.PlatformConfig
 import Out.Regs
 import Out.AddrChecks
+import Out.SplitAccessUtils
 import Out.Mem
 import Out.Vmem
 import Out.FetchRvfi
@@ -137,6 +138,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -155,6 +157,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -162,6 +165,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -172,11 +176,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -206,7 +210,10 @@ def fetch_bytes (fetch_start : (BitVec 64)) (granule_start : (BitVec 64)) (width
     | .Ok (paddr, pbmt, _) => (pure (paddr, pbmt)) ) : SailME (FetchBytes_Result width)
     (physaddr × page_based_mem_type) )
   match (← (mem_read (InstructionFetch ()) pbmt paddr width false false false)) with
-  | .Err e => (pure (FetchBytes_Exception e))
+  | .Err (exc_addr, e) =>
+    (do
+      assert (exc_addr == paddr) "postlude/fetch.sail:44.30-44.31"
+      (pure (FetchBytes_Exception e)))
   | .Ok bytes => (pure (FetchBytes_Success bytes))
 
 def fetch (_ : Unit) : SailM FetchResult := SailME.run do

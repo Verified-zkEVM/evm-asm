@@ -4,6 +4,23 @@
 **Date:** 2026-07-10. **Branch:** `feat/sail-tier-b-stores`.
 **Affects:** the vendored scoped Sail model `vendor/sail-riscv-zkvm-lean/` (package `out`, lib `Out`).
 
+> **Partial-resolution note (2026-07-28, `fix/sail-zicsr-scope`, #10688).** The
+> 2026-07-27-9901550 regen widened the module scope by `Zicsr_insts`, restoring
+> the `Ext_Zicsr` arm of `currentlyEnabled`. That fixed the *JALR* consequence
+> of this same scoping defect: `update_elp_state` no longer faults, so
+> `jalr_sail_equiv` is no longer vacuous and JALR is covered at run level (see
+> `update_elp_state_noop` in `RunInv.lean` and `jalr_sideCond_of_runInv` /
+> `jalr_sideCond_satisfiable` in `StepRun.lean`). **`sail_model_init` itself is
+> still broken**, kernel-checked against the new model: `currentlyEnabled`
+> still has no arms for `Ext_Zkr`, `Ext_Zicboz`, `Ext_Zicbom` (nor `Ext_Zicntr`
+> / `Ext_Zfhmin`), and `legalize_senvcfg` — init's first monadic step — still
+> binds `← currentlyEnabled Ext_Zicboz` first, so
+> `∃ e s', legalize_senvcfg o v s = .error e s'` remains provable for all
+> args/states (`legalize_mseccfg` likewise errors via `Ext_Zkr`). The
+> initializer tie-in stays blocked until the scope also includes the
+> `zicbo`/`zkr` (and, for totality, `zicntr`/`zfh`) modules or the model is
+> generated unscoped.
+
 ## TL;DR
 
 `sail_model_init` — the vendored Sail RISC-V model's platform initializer — **errors for

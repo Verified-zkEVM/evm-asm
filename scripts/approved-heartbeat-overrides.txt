@@ -121,6 +121,7 @@ vendor/sail-riscv-zkvm-lean/Out/RvfiDiiV2.lean               1000000000
 vendor/sail-riscv-zkvm-lean/Out/Sign.lean                    1000000000
 vendor/sail-riscv-zkvm-lean/Out/SimpleInterruptGenerator.lean 1000000000
 vendor/sail-riscv-zkvm-lean/Out/Smcntrpmf.lean               1000000000
+vendor/sail-riscv-zkvm-lean/Out/SplitAccessUtils.lean        1000000000
 vendor/sail-riscv-zkvm-lean/Out/StateenAccessChecks.lean     1000000000
 vendor/sail-riscv-zkvm-lean/Out/StateenRegs.lean             1000000000
 vendor/sail-riscv-zkvm-lean/Out/Step.lean                    1000000000
@@ -150,3 +151,5 @@ vendor/sail-riscv-zkvm-lean/Out/ZicbomTypes.lean             1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicbopTypes.lean             1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicfilpInsts.lean            1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicfilpRegs.lean             1000000000
+vendor/sail-riscv-zkvm-lean/Out/ZicsrInsts.lean              1000000000
+vendor/sail-riscv-zkvm-lean/Out/ZicsrTypes.lean              1000000000

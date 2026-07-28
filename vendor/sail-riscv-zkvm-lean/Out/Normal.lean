@@ -130,6 +130,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -148,6 +149,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -155,6 +157,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -165,11 +168,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -185,13 +188,13 @@ open AtomicSupport
 open Architecture
 open AmocasOddRegisterReservedBehavior
 
-/-- Type quantifiers: k_ex249642_ : Nat, k_ex249642_ ∈ {16, 32, 64, 128} -/
-def float_is_normal (op : (BitVec k_ex249642_)) : Bool :=
+/-- Type quantifiers: k_ex476004_ : Nat, k_ex476004_ ∈ {16, 32, 64, 128} -/
+def float_is_normal (op : (BitVec k_ex476004_)) : Bool :=
   let { exp := exp, sign := _, mantissa := _ } := (float_decompose op)
   ((! (is_all_ones exp)) && (! (is_all_zeros exp)))
 
-/-- Type quantifiers: k_ex249660_ : Nat, k_ex249660_ ∈ {16, 32, 64, 128} -/
-def float_is_subnormal (op : (BitVec k_ex249660_)) : Bool :=
+/-- Type quantifiers: k_ex476022_ : Nat, k_ex476022_ ∈ {16, 32, 64, 128} -/
+def float_is_subnormal (op : (BitVec k_ex476022_)) : Bool :=
   let { exp := exp, mantissa := mantissa, sign := _ } := (float_decompose op)
   ((is_all_zeros exp) && (! (is_all_zeros mantissa)))
 

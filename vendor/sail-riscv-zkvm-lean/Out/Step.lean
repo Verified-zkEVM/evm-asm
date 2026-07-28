@@ -155,6 +155,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -173,6 +174,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -180,6 +182,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -190,11 +193,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -210,7 +213,7 @@ open AtomicSupport
 open Architecture
 open AmocasOddRegisterReservedBehavior
 
-/-- Type quantifiers: k_ex263739_ : Bool, _step_no : Nat, 0 ≤ _step_no -/
+/-- Type quantifiers: k_ex503796_ : Bool, _step_no : Nat, 0 ≤ _step_no -/
 def run_hart_waiting (_step_no : Nat) (wr : WaitReason) (instbits : (BitVec 32)) (exit_wait : Bool) : SailM Step := do
   if ((← (shouldWakeForInterrupt ())) : Bool)
   then
@@ -386,7 +389,7 @@ def wait_is_nop (wr : WaitReason) : Bool :=
   | .WAIT_WRS_STO => false
   | .WAIT_WRS_NTO => false
 
-/-- Type quantifiers: k_ex263794_ : Bool, step_no : Nat, 0 ≤ step_no -/
+/-- Type quantifiers: k_ex503851_ : Bool, step_no : Nat, 0 ≤ step_no -/
 def try_step (step_no : Nat) (exit_wait : Bool) : SailM Bool := do
   let _ : Unit := (ext_pre_step_hook ())
   writeReg minstret_increment (← (should_inc_minstret (← readReg cur_privilege)))
@@ -462,7 +465,7 @@ def try_step (step_no : Nat) (exit_wait : Bool) : SailM Bool := do
         else ()
       (pure false))
 
-def loop (_ : Unit) : SailM Unit := do
+def loop (_ : Unit) : SailM Nat := do
   let i : Nat := 0
   let step_no : Nat := 0
   let (i, step_no) ← (( do
@@ -484,20 +487,8 @@ def loop (_ : Unit) : SailM Unit := do
               (pure step_no))
           else (pure step_no) ) : SailM Nat )
         let i ← (( do
-          if ((← readReg htif_done) : Bool)
+          if ((not (← readReg htif_done)) : Bool)
           then
-            (do
-              let exit_val ← do (pure (BitVec.toNatInt (← readReg htif_exit_code)))
-              if ((exit_val == 0) : Bool)
-              then (pure (print "SUCCESS"))
-              else
-                (pure (print_endline
-                    (HAppend.hAppend "FAILURE: "
-                      (HAppend.hAppend (Int.repr exit_val)
-                        (HAppend.hAppend " ("
-                          (HAppend.hAppend (BitVec.toFormatted (← readReg htif_exit_code)) ")"))))))
-              (pure i))
-          else
             (do
               let i : Nat := (i +i 1)
               if ((i == plat_insns_per_tick) : Bool)
@@ -505,8 +496,14 @@ def loop (_ : Unit) : SailM Unit := do
                 (do
                   (tick_clock ())
                   (pure 0))
-              else (pure i)) ) : SailM Nat )
+              else (pure i))
+          else (pure i) ) : SailM Nat )
         (pure (i, step_no))
     (pure loop_vars) ) : SailM (Nat × Nat) )
-  (pure ())
+  let exit_val ← do (pure (BitVec.toNatInt (← readReg htif_exit_code)))
+  let _ : Unit :=
+    if ((exit_val == 0) : Bool)
+    then (print_endline "SUCCESS")
+    else (print_int "FAILURE: " exit_val)
+  (pure exit_val)
 

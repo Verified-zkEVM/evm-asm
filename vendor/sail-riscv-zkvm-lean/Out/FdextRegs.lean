@@ -137,6 +137,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -155,6 +156,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -162,6 +164,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -172,11 +175,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -980,12 +983,16 @@ def write_fcsr (frm : (BitVec 3)) (fflags : (BitVec 5)) : SailM Unit := do
   (dirty_fd_context_if_present ())
 
 def accrue_fflags (flags : (BitVec 5)) : SailM Unit := do
-  let f ← do (pure ((_get_Fcsr_FFLAGS (← readReg fcsr)) ||| flags))
-  if (((_get_Fcsr_FFLAGS (← readReg fcsr)) != f) : Bool)
-  then
-    (do
-      writeReg fcsr (Sail.BitVec.updateSubrange (← readReg fcsr) 4 0 f)
-      (dirty_fd_context_if_present ()))
+  let new_fflags ← do (pure ((_get_Fcsr_FFLAGS (← readReg fcsr)) ||| flags))
+  let fflags_changed ← do (pure ((_get_Fcsr_FFLAGS (← readReg fcsr)) != new_fflags))
+  let set_dirty : Bool :=
+    match fflags_dirty_policy with
+    | .Fflags_Dirty_Precise => fflags_changed
+    | .Fflags_Dirty_Flag => (flags != (zeros (n := 5)))
+    | .Fflags_Dirty_Instruction => true
+  writeReg fcsr (Sail.BitVec.updateSubrange (← readReg fcsr) 4 0 new_fflags)
+  if (set_dirty : Bool)
+  then (dirty_fd_context_if_present ())
   else (pure ())
   (csr_name_write_callback "fflags" (zero_extend (m := 64) (_get_Fcsr_FFLAGS (← readReg fcsr))))
   (csr_name_write_callback "fcsr" (zero_extend (m := 64) (← readReg fcsr)))
