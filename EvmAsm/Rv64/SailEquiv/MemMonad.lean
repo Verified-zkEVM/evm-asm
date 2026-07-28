@@ -133,18 +133,18 @@ theorem runSail_checked_mem_write_bare (paddr : physaddr) (data : BitVec 64) (s 
       hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
       Int.toNat_one, Int.toNat_zero, untilFuelM_one,
       Sail.assert, PreSail.assert, if_true,
-      BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
-      Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+      BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
+      ofInt_zero_bv, BitVec.add_zero,
       Int.toNat_natCast, bits_of_physaddr_mk,
-      hpmp, hmmio, Bool.false_eq_true, if_false, write_kind_of_flags,
-      EStateM.map, Bind.bind, bind, EStateM.bind, Pure.pure, pure, EStateM.pure,
+      hpmp, hmmio, if_false, write_kind_of_flags,
+      EStateM.map, Bind.bind, bind, EStateM.bind, Pure.pure, EStateM.pure,
       ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
       MonadLift.monadLift, monadLift, liftM, Functor.map]
     rw [show ((8 : Int) * ((0 : Int) + 1) * ((8 : Nat) : Int) - 1).toNat = 8 * 8 - 1
           from by omega,
         show ((8 : Int) * (0 : Int) * ((8 : Nat) : Int)).toNat = 0 from by omega]
-    simp only [extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.true_and, Bool.and_self,
-      ExceptT.bindCont, EStateM.bind, EStateM.pure, EStateM.map]
+    simp only [extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.and_self,
+      ExceptT.bindCont, EStateM.bind, EStateM.pure]
   simp only [runSail, hmain]
 
 /-- **`mem_write_value` fully reduced** (bare-Machine, plain doubleword store): it

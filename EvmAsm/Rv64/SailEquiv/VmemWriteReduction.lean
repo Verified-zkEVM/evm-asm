@@ -197,8 +197,7 @@ theorem phys_access_check_store_ok (addr : BitVec 64) (width : Nat) (s : SailSta
   unfold phys_access_check
   simp only [bind, EStateM.bind,
     pmpCheck_machine_off_store (physaddr.Physaddr addr) width s cfgs pmpaddrs h_cfg h_addr h_off,
-    pmaCheck_store_ok (physaddr.Physaddr addr) width s regions region h_reg h_match h_write h_align,
-    pure, EStateM.pure]
+    pmaCheck_store_ok (physaddr.Physaddr addr) width s regions region h_reg h_match h_write h_align]
 
 -- ============================================================================
 -- The physical write: writeBytes → canonical insert chain
@@ -334,8 +333,8 @@ theorem mem_write_ea_plain (addr : BitVec 64) (width : Nat) (s : SailState) (mst
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
     Sail.assert, PreSail.assert, if_true,
-    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
-    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
+    ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
     hpmp, write_kind_of_flags, write_ram_ea,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
@@ -382,10 +381,10 @@ theorem checked_mem_write_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
     Sail.assert, PreSail.assert, if_true,
-    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
-    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
+    ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
-    hpmp, hmmio, Bool.false_eq_true, if_false, write_kind_of_flags,
+    hpmp, hmmio, if_false, write_kind_of_flags,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
     MonadLift.monadLift, monadLift, liftM, Functor.map]
@@ -394,8 +393,8 @@ theorem checked_mem_write_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState
       show ((8 : Int) * (0 : Int) * ((w : Nat) : Int)).toNat = 0 from by omega]
   rcases hwlit with rfl | rfl | rfl | rfl <;>
     simp only [extractLsb_full_w1, extractLsb_full_w2, extractLsb_full_w4,
-      extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.true_and, Bool.and_self,
-      ExceptT.bindCont, EStateM.bind, EStateM.pure, EStateM.map]
+      extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.and_self,
+      ExceptT.bindCont, EStateM.bind, EStateM.pure]
 
 /-- `mem_write_value` for a bare-mode aligned writable width-`w` store (capstone of the
     `mem_write` chain): effective privilege is Machine (`MPRV = 0`), the alignment guard
@@ -484,11 +483,11 @@ theorem vmem_write_addr_store_core (w : Nat) (vaddr : virtaddr) (s s' : SailStat
     SailME.run, PreSail.PreSailME.run,
     hpage, PreSail.readReg, h_priv, h_mst,
     effectivePrivilege_machine s _ mst _ h_mprv, translationMode_machine,
-    sys_misaligned_order_decreasing, bne, is_store_conditional,
+    sys_misaligned_order_decreasing, bne,
     show (SATPMode.Bare == SATPMode.Bare) = true from rfl,
     Bool.false_and, Bool.true_and, ite_self,
     Int.toNat_natCast,
-    htrans, zero_extend64_id, bits_of_virtaddr_mk,
+    htrans, zero_extend64_id,
     Sail.assert, PreSail.assert, if_true,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
@@ -499,16 +498,13 @@ theorem vmem_write_addr_store_core (w : Nat) (vaddr : virtaddr) (s s' : SailStat
   rw [show (if (false = true) then ((w : Nat) : Int) else ((w : Nat) : Int))
         = ((w : Nat) : Int) from rfl]
   erw [hea]
-  simp only [EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
-    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
-    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  simp only [EStateM.map, EStateM.bind, pure, ExceptT.bindCont]
   rw [show ((8 : Int) * ((w : Nat) : Int) - 1).toNat = 8 * w - 1 from by omega]
   rcases hwlit with rfl | rfl | rfl | rfl <;>
   · simp only [extractLsb_full_w1, extractLsb_full_w2, extractLsb_full_w4,
-      extractLsb_full_w8, BitVec.setWidth_eq]
+      extractLsb_full_w8]
     erw [hmwv]
-    simp only [Bool.true_and, Bool.and_self, ExceptT.bindCont, EStateM.bind, EStateM.pure,
-      EStateM.map]
+    simp only [ExceptT.bindCont, EStateM.bind, EStateM.pure]
 
 /-- **`vmem_write` for a bare-mode aligned width-`w` store.** The effective-address
     pipeline (`ext_data_get_addr` reads `rs_addr`; `transform_effective_address` is the

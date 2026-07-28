@@ -505,8 +505,7 @@ theorem phys_access_check_load_ok (addr : BitVec 64) (width : Nat) (s : SailStat
   unfold phys_access_check
   simp only [bind, EStateM.bind,
     pmpCheck_machine_off (physaddr.Physaddr addr) width s cfgs pmpaddrs h_cfg h_addr h_off,
-    pmaCheck_load_ok (physaddr.Physaddr addr) width s regions region h_reg h_match h_read h_align,
-    pure, EStateM.pure]
+    pmaCheck_load_ok (physaddr.Physaddr addr) width s regions region h_reg h_match h_read h_align]
 
 /-- A full-width `updateSubrange` (bits 63..0 of a 64-bit word) is just the written value:
     the mask `~~~(allOnes <<< 0)` is `0`, so `(0 &&& x) ||| y = y`. Used to collapse the
@@ -630,10 +629,10 @@ theorem checked_mem_read_load_w (w : Nat) (addr : BitVec 64) (s : SailState) (v 
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
     Sail.assert, PreSail.assert, if_true,
-    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
-    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
+    ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
-    hpmp, hmmio, Bool.false_eq_true, if_false, read_kind_of_flags, hram, default_meta,
+    hpmp, hmmio, if_false, read_kind_of_flags, hram, default_meta,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
     MonadLift.monadLift, monadLift, liftM, Functor.map]
@@ -913,8 +912,7 @@ theorem vmem_read_addr_load_bare (vaddr : virtaddr) (s : SailState) (mst : BitVe
     effectivePrivilege_machine s _ mst _ h_mprv, translationMode_machine,
     sys_misaligned_order_decreasing, bne,
     show (SATPMode.Bare == SATPMode.Bare) = true from rfl,
-    Bool.false_and, Bool.and_false, Bool.true_and, if_true, ite_self,
-    Int.toNat_natCast,
+    Bool.false_and, Bool.true_and,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
@@ -926,11 +924,9 @@ theorem vmem_read_addr_load_bare (vaddr : virtaddr) (s : SailState) (mst : BitVe
   rw [show (if (false = true) then ((8 : Nat) : Int) else ((8 : Nat) : Int))
         = ((8 : Nat) : Int) from rfl]
   erw [htrv]
-  simp only [EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
-    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
-    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  simp only [EStateM.bind, EStateM.pure, ExceptT.bindCont]
   rw [show ((8 : Int) * ((8 : Nat) : Int) - 1).toNat = 63 from by omega]
-  simp only [BitVec.setWidth_eq, updateSubrange_full]
+  simp only [updateSubrange_full]
   erw [BitVec.setWidth_eq]
 
 /-- `pm_transform_PA` with `pmlen = 0` is the identity: it extracts bits `63..0` of the

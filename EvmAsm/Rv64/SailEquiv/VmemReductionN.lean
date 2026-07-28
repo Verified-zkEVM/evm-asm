@@ -351,8 +351,7 @@ theorem vmem_read_addr_load_core (w : Nat) (vaddr : virtaddr) (s : SailState)
     effectivePrivilege_machine s _ mst _ h_mprv, translationMode_machine,
     sys_misaligned_order_decreasing, bne,
     show (SATPMode.Bare == SATPMode.Bare) = true from rfl,
-    Bool.false_and, Bool.true_and, ite_self,
-    Int.toNat_natCast,
+    Bool.false_and, Bool.true_and,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
@@ -360,9 +359,7 @@ theorem vmem_read_addr_load_core (w : Nat) (vaddr : virtaddr) (s : SailState)
   rw [show (if (false = true) then ((w : Nat) : Int) else ((w : Nat) : Int))
         = ((w : Nat) : Int) from rfl]
   erw [htrv]
-  simp only [EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
-    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
-    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  simp only [EStateM.bind, EStateM.pure, ExceptT.bindCont]
   rw [show ((8 : Int) * ((w : Nat) : Int) - 1).toNat = 8 * w - 1 from by omega]
   rcases hwlit with rfl | rfl | rfl <;>
     (simp only [Sail.BitVec.updateSubrange, updateSubrange'_full]; erw [BitVec.setWidth_eq])
