@@ -435,6 +435,7 @@ def statelessVerdictV2GuestClosure : String :=
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++

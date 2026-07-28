@@ -190,6 +190,41 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "jal ra, .Lamsr_append_one").length == 4
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "la a0, bsr_addr_4788").length == 3
 
+/-! ## record_modeled_eip4788_storage_reads
+
+    The EIP-4788 system transaction is a real `TransactionState` in
+    execution-specs: each SSTORE reads its slot before deciding whether its
+    write changes state, then `incorporate_tx_into_block` promotes those reads.
+    Thus a zero-over-zero parent-root write has no `storage_changes` row but
+    still has a `storage_reads` row.
+
+    This runs only after the modeled beacon call completed. It writes both
+    SSTORE keys directly to the existing block-level recorder, avoiding a
+    transaction-boundary clear from this post-transaction phase. The timestamp
+    read is normally filtered later by its storage change; the parent-root read
+    survives when net-equal.
+    `bsr_kbuf` and `bsr_delta` are dead after `bsr_beacon_change` returns, so
+    they supply the two LE32 recorder keys without a new data allocation. -/
+def recordModeledEip4788StorageReadsFunction : String :=
+  "record_modeled_eip4788_storage_reads:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la a0, bsr_addr_4788; la a1, bsr_kbuf; jal ra, bal_addr_to_exec_log_key\n" ++
+  "  la t0, swd_4788_slot; addi t0, t0, 31; la t1, bsr_delta; li t2, 32\n" ++
+  ".Lrmesr_timestamp_slot:\n" ++
+  "  beqz t2, .Lrmesr_timestamp_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmesr_timestamp_slot\n" ++
+  ".Lrmesr_timestamp_done:\n" ++
+  "  la a0, bsr_kbuf; la a1, bsr_delta; jal ra, storage_read_record_block\n" ++
+  "  la t0, swd_4788_root_slot; addi t0, t0, 31; la t1, bsr_delta; li t2, 32\n" ++
+  ".Lrmesr_root_slot:\n" ++
+  "  beqz t2, .Lrmesr_root_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmesr_root_slot\n" ++
+  ".Lrmesr_root_done:\n" ++
+  "  la a0, bsr_kbuf; la a1, bsr_delta; jal ra, storage_read_record_block\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
+
+#guard (recordModeledEip4788StorageReadsFunction.splitOn "jal ra, storage_read_record_block").length == 3
+
 /-- `zisk_capture_system_storage_exec_rows`: focused side-arena copy probe.
     Copies source rows [1,3), so output checks that two rows were appended,
     both side txindex entries are 0, and the first/last copied dwords match
