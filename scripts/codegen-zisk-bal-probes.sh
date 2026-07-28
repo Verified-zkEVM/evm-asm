@@ -197,6 +197,25 @@ else:
     print(f"  FAIL  case 9  reads digest {got_reads[:16]}... != reference {want_reads[:16]}...")
     print(f"        expected only the unwritten slot: {EXPECTED_READS_RLP.hex()}")
 
+# Case 10: the accounts are seeded in DESCENDING address order and `rebuild_hash` sorts
+# before emitting, so the digest must equal case 8's ascending one. Seeding in order would
+# pass whether or not the sort ever ran -- an unsorted emission is a well-formed BAL where
+# every byte is right and only the sequence is wrong.
+sort_status = struct.unpack_from('<Q', data, 224)[0]
+rebuilt_w0  = struct.unpack_from('<Q', data, 232)[0]
+want_w0     = int.from_bytes(keccak256(EXPECTED_OUTER_RLP)[:8], 'little')
+if sort_status == 0xdead or rebuilt_w0 == 0xdead:
+    bad += 1
+    print("  FAIL  case 10 sort-then-rebuild          NEVER RAN (sentinel intact -- guest faulted)")
+elif sort_status != 0:
+    bad += 1
+    print(f"  FAIL  case 10 canonical sort returned {sort_status}")
+elif rebuilt_w0 != want_w0:
+    bad += 1
+    print(f"  FAIL  case 10 descending seed gave {rebuilt_w0:#018x}, want {want_w0:#018x} (sort did not run?)")
+else:
+    print(f"  ok    case 10 sort-then-rebuild digest    = {rebuilt_w0:#018x}")
+
 print()
 if bad:
     print(f"==> FAIL: {bad} checks disagree with the RLP derivation")

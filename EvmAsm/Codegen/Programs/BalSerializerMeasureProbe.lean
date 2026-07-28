@@ -5,6 +5,7 @@ import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.BalCanonicalSort
+import EvmAsm.Codegen.Programs.BalCanonicalSort
 
 /-!
 # `zisk_bal_serializer_measure` -- the first EXECUTING test of the measure pass
@@ -138,8 +139,8 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la t0, bal_builder_storage_change_count; li t1, 2; sd t1, 0(t0)\n" ++
   "  la t0, bal_builder_accounts\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
-  "  sd zero, 20(t0); sd zero, 28(t0); sd zero, 36(t0)\n" ++
-  "  li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 20(t0)\n" ++
+  "  sd zero, 24(t0); sd zero, 32(t0); sd zero, 40(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0); li t1, 0xBB; sb t1, 24(t0)\n" ++
   "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n" ++
   "  la a0, bsmp_ctx; jal ra, keccak_init\n" ++
   "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n" ++
@@ -173,6 +174,33 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la a0, bsmp_ctx; la a1, bsmp_addr_a; la a2, bsmp_scratch\n" ++
   "  jal ra, bal_serializer_emit_reads\n" ++
   "  la a0, bsmp_ctx; addi a1, s0, 192; jal ra, keccak_final\n" ++
+  -- Case 10: SORT-THEN-REBUILD. Same two accounts as case 8, seeded in DESCENDING
+  -- address order (B before A). `bal_serializer_rebuild_hash` sorts before it emits, so
+  -- the digest must come out IDENTICAL to case 8's ascending one.
+  --
+  -- Seeding out of order is the only construction that can demonstrate the sort runs: an
+  -- unsorted emission is a well-formed BAL where every byte is individually correct and
+  -- only the SEQUENCE is wrong, so an in-order seed passes whether or not the sort is
+  -- ever called.
+  --
+  -- This faulted at a 20-byte account stride: the sort swaps rows with 8-byte loads and
+  -- row 1 landed at base+20. The rows are 24 bytes now, which is 8-aligned.
+  "  li t0, 0xdead; sd t0, 224(s0); sd t0, 232(s0)\n" ++
+  -- Reset the reads count. Case 9 left it at 2, and the cases share one set of globals,
+  -- so without this the accounts carry a storage_reads field and the digest cannot
+  -- match case 8. Caught by this case disagreeing rather than by inspection.
+  "  la t0, storage_reads_count; sd zero, 0(t0)\n" ++
+  probeRow 0 0xAA 1 1 5 ++
+  probeRow 1 0xBB 1 1 5 ++
+  "  la t0, bal_builder_storage_change_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la t0, bal_builder_accounts\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
+  "  sd zero, 24(t0); sd zero, 32(t0); sd zero, 40(t0)\n" ++
+  "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 24(t0)\n" ++
+  "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_scratch; la a1, bsmp_rebuilt; jal ra, bal_serializer_rebuild_hash\n" ++
+  "  sd a0, 224(s0)\n" ++
+  "  la t0, bsmp_rebuilt; ld t1, 0(t0); sd t1, 232(s0)\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -193,6 +221,8 @@ def ziskBalSerializerMeasurePrologue : String :=
   balSerializerEmitAccountFunction ++
   balSerializerMeasureOuterFunction ++
   balSerializerEmitOuterFunction ++
+  balSerializerRebuildHashFunction ++
+  balCanonicalSortFunction ++
   balSerializerMeasureAccountFunction ++
   balSerializerMeasureReadsFunction ++
   balSerializerMeasureBalanceFunction ++
@@ -220,6 +250,7 @@ def ziskBalSerializerMeasureDataSection : String :=
   ".balign 8\n" ++
   "bsmp_ctx:\n  .zero 512\n" ++
   "bsmp_scratch:\n  .zero 256\n" ++
+
   "zk3_state:\n  .zero 200\n" ++
   "storage_reads_count:\n  .zero 8\n" ++
   "bal_builder_balance_count:\n  .zero 8\n" ++
@@ -274,7 +305,7 @@ The probe is only worth anything if the discriminating cases are really present.
 -- also places B, as does case 8: TWO uses, both load bearing. Only the `probeRow`
 -- expansions match -- the account seeds spell `0xBB` in raw asm rather than going
 -- through `toString`, so they read as 0xBB and not as 187.
-#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 3
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 4
 
 -- Case 6 must actually EMIT and finalise, or the digest slot holds whatever keccak_init
 -- left and a wrong digest reads as a wrong constant rather than as a missing call.
@@ -298,7 +329,7 @@ The probe is only worth anything if the discriminating cases are really present.
 -- Case 8 needs TWO accounts. With one the outer payload is 33, inside the short form,
 -- and the long-form branch of the list-header emitter is never exercised.
 #guard (ziskBalSerializerMeasurePrologue.splitOn
-  "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n").length == 2
+  "  la t0, bal_builder_account_count; li t1, 2; sd t1, 0(t0)\n").length == 3
 #guard (ziskBalSerializerMeasurePrologue.splitOn
   "  la a0, bsmp_ctx; la a1, bsmp_scratch; jal ra, bal_serializer_emit_outer\n").length == 2
 

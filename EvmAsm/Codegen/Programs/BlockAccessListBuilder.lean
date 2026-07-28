@@ -35,8 +35,20 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
-/-- Canonical account-table entry: exactly the 20-byte big-endian `Address`. -/
-def balBuilderAccountRowBytes : Nat := 20
+/-- 24, not 20. The address is 20 bytes; the extra 4 are ALIGNMENT PADDING.
+
+    `bal_canonical_sort` swaps rows with 8-byte loads (`BalCanonicalSort.lean:254`), so
+    the rows it is given must be 8-aligned. At a 20-byte stride row 1 starts at base+20
+    and the sort faults -- measured, not inferred: the same call at stride 32 sorts
+    cleanly and returns the expected order, and every other caller in the tree passes
+    128. The sort's ABI documents `a2 = row stride` with no constraint, and its comment
+    about using `mul` "so the routine is not silently wrong for a non-power-of-two stride
+    a future caller passes" reads as an invitation to pass any stride; it is not.
+
+    24 rather than 32 because the accounts arena is capacity 76923: at 24 bytes it grows
+    by 307,692 and fits the 1,501,248 bytes below `.sszscratch`; a separate 32-byte
+    staging copy would have needed 2,461,536 and does not fit. -/
+def balBuilderAccountRowBytes : Nat := 24
 /-- `{address[20], pad[4], u64 BAI, slot[32], post value[32]}`. -/
 def balBuilderStorageChangeRowBytes : Nat := 96
 /-- `{address[20], pad[4], u64 BAI, post balance[32]}`. -/
@@ -225,15 +237,16 @@ def balBuilderEnsureAccountFunction : String :=
   "  mv s0, a0; la s1, bal_builder_account_count; ld s2, 0(s1); li s3, 0; la s4, bal_builder_accounts\n" ++
   ".Lbabe_scan:\n" ++
   "  bgeu s3, s2, .Lbabe_append\n" ++
-  -- `s5 = accounts + 20 * index` without a multiply extension dependency.
-  "  slli s5, s3, 2; add s5, s5, s3; slli s5, s5, 2; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
+  -- `s5 = accounts + 24 * index` as (i*3)*8, without a multiply extension dependency.
+  -- 24 is the ROW stride; only the low 20 bytes are the address, the rest is padding.
+  "  slli s5, s3, 1; add s5, s5, s3; slli s5, s5, 3; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
   ".Lbabe_cmp:\n" ++
   "  beqz t0, .Lbabe_hit; lbu t3, 0(t1); lbu t4, 0(t2); bne t3, t4, .Lbabe_next; addi t1, t1, 1; addi t2, t2, 1; addi t0, t0, -1; j .Lbabe_cmp\n" ++
   ".Lbabe_next:\n" ++
   "  addi s3, s3, 1; j .Lbabe_scan\n" ++
   ".Lbabe_append:\n" ++
   "  li t0, " ++ toString balBuilderAccountCapacity ++ "; bgeu s2, t0, .Lbabe_overflow\n" ++
-  "  slli s5, s2, 2; add s5, s5, s2; slli s5, s5, 2; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
+  "  slli s5, s2, 1; add s5, s5, s2; slli s5, s5, 3; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
   ".Lbabe_copy:\n" ++
   "  beqz t0, .Lbabe_append_done; lbu t3, 0(t2); sb t3, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t0, t0, -1; j .Lbabe_copy\n" ++
   ".Lbabe_append_done:\n" ++
@@ -1398,7 +1411,7 @@ def balSerializerMeasureOuterFunction : String :=
   "  li s3, 0\n" ++                                    -- s3 = account index
   ".Lbsmo_loop:\n" ++
   "  bgeu s3, s1, .Lbsmo_done\n" ++
-  "  li t0, 20; mul t1, s3, t0; la t2, bal_builder_accounts; add s0, t2, t1\n" ++
+  "  li t0, 24; mul t1, s3, t0; la t2, bal_builder_accounts; add s0, t2, t1\n" ++
   "  mv a0, s0; jal ra, bal_serializer_measure_account\n" ++
   "  mv t5, a0\n" ++
   "  jal ra, bal_rlp_list_header_len\n" ++
@@ -1433,7 +1446,7 @@ def balSerializerEmitOuterFunction : String :=
   "  li s3, 0\n" ++
   ".Lbseo_loop:\n" ++
   "  bgeu s3, s2, .Lbseo_done\n" ++
-  "  li t0, 20; mul t1, s3, t0; la t2, bal_builder_accounts; add t3, t2, t1\n" ++
+  "  li t0, 24; mul t1, s3, t0; la t2, bal_builder_accounts; add t3, t2, t1\n" ++
   "  sd t3, 40(sp)\n" ++
   -- Re-measure THIS account: the table is a single-account buffer, and
   -- `measure_outer` above left it holding whichever account it saw last.
@@ -1473,7 +1486,7 @@ def balSerializerRebuildHashFunction : String :=
   "  mv s0, a0; mv s1, a1\n" ++
   "  la a0, bal_builder_accounts\n" ++
   "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
-  "  li a2, 20; li a3, 0x9400; li a4, 1\n" ++
+  "  li a2, 24; li a3, 0x9400; li a4, 1\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  beqz a0, .Lbsrh_sorted\n" ++
@@ -1582,6 +1595,11 @@ def blockAccessListBuilderFunctions : String :=
 -- side by the matching guard in BalCanonicalSort.lean. Writing 0x1400 declares a
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
 #guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
+
+-- Stride 24, which is 8-ALIGNED. The sort swaps rows with 8-byte loads, so a 20-byte
+-- stride puts row 1 at base+20 and faults -- measured at stride 32 working and 20 not.
+#guard (balSerializerRebuildHashFunction.splitOn "li a2, 24").length == 2
+#guard balBuilderAccountRowBytes % 8 == 0
 -- ...and it must precede the emission, not follow it.
 #guard (((balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").getD 0 "").splitOn "bal_serializer_emit_outer").length == 1
 
@@ -1870,12 +1888,14 @@ private def balStorageMeasurePair : String :=
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_read_scratch:").length == 1
 #guard (balSerializerFilterReadsFunction.splitOn "bal_serializer_read_scratch;").length == 1
 
-#guard balBuilderAccountBytes = 1538460
+-- 76923 * 24. Was 1538460 at a 20-byte row; the row is now 8-ALIGNED so
+-- `bal_canonical_sort` can swap it with 8-byte loads. +307,692 bytes.
+#guard balBuilderAccountBytes = 1846152
 #guard balBuilderStorageChangeBytes = 1476864
 #guard balBuilderBalanceBytes = 3200000
 #guard balBuilderNonceBytes = 666640
 #guard balBuilderCodeBytes = 400000
-#guard balBuilderPersistentBytes = 7281964
+#guard balBuilderPersistentBytes = 7589656
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_ensure_account:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_balance:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_nonce:").length == 2
