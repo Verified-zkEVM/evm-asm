@@ -617,6 +617,16 @@ def lean_camel(entry):
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
+def layout_leaf_path(path, root=""):
+    # GH #10753 layout split: a converted module `<Name>.lean` (the bridge)
+    # has its generated program blocks in the leaf `<Name>Prog.lean` next to
+    # it.  Return the leaf path (same relative/absolute flavour as `path`)
+    # when it exists, else None.  `root` is prepended for the existence
+    # test only, so both repo-relative and absolute callers work.  Shared
+    # by check_file's layout detection and guest_image_coverage.py.
+    leaf=path[:-len(".lean")]+"Prog.lean"
+    return leaf if os.path.exists(os.path.join(root,leaf)) else None
+
 def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
     n=len(renders)
