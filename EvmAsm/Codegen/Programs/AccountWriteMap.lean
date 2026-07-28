@@ -495,6 +495,19 @@ def accountWriteMapBssSection : String :=
   -- are not BAL events at all.  Kept alongside the storage-write checkpoint
   -- rather than in the packed frame ABI.
   "account_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  -- EIP-7702 authorization code is represented by a 23-byte delegation
+  -- designator.  Transaction/account-write rows retain a pointer to those
+  -- bytes until the later BAL builder pass, so this must be a block-lifetime
+  -- NOBITS arena, not a reusable per-auth scratch.  One slot per possible
+  -- authorization tuple is bounded by the regular-gas admission floor.
+  "eip7702_auth_code_next:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "eip7702_auth_code_slots:\n  .zero " ++ toString (bvEip7702AuthEntryCapacity * 24) ++ "\n" ++
+  -- Mark immediately before authorization preparation.  A preparation
+  -- ExceptionalHalt drops accepted auth mutations but retains sender inclusion
+  -- and the already-staged transaction debit; a body revert uses the later
+  -- body mark and keeps the authorization phase.
+  "account_writes_auth_prepare_mark:\n  .zero 8\n" ++
   -- Transaction-boundary builder-walk scratch.  This stays in BSS: it is
   -- runtime-only comparison state, and a data-section addition would shift the
   -- pinned descriptor area for no semantic benefit.

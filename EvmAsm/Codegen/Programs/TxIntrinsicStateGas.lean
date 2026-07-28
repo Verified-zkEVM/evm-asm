@@ -254,7 +254,22 @@ def eip7702AuthStatePrepareFunction : String :=
   -- non-storage comparator as an extra effect and regress the existing
   -- single-tx surface.  Keep the execution-time AccountState write on the
   -- MTx lane, where the next transaction reads the committed prior-tx state.
-  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record; j .L77prep_next\n" ++
+  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- The direct single-tx lane has no account-write builder pass.  MTx records
+  -- the same accepted authorization into the transaction map, with a
+  -- block-lifetime code slot: the map retains code pointers past tx-map clear,
+  -- so a reusable authorization scratch would corrupt earlier authorities.
+  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next\n" ++
+  "  la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add t4, t4, t3; addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  beqz s11, .L77prep_auth_code_ready; li t0, 0xef; sb t0, 0(t4); li t0, 1; sb t0, 1(t4); sb zero, 2(t4); li t0, 0\n" ++
+  ".L77prep_auth_code_copy:\n" ++
+  "  li t1, 20; beq t0, t1, .L77prep_auth_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, t4, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_auth_code_copy\n" ++
+  ".L77prep_auth_code_ready:\n" ++
+  "  la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, t4; beqz s11, .L77prep_auth_code_null; li a4, 23; j .L77prep_auth_code_record\n" ++
+  ".L77prep_auth_code_null:\n" ++
+  "  li a4, 0\n" ++
+  ".L77prep_auth_code_record:\n" ++
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
