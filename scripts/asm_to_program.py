@@ -673,6 +673,77 @@ theorem {func_name}_eq_prog :
 #guard {prog_name}.length = {n}
 '''
 
+def gen_lean_layout(entry, renders, func_name, prog_name, relocs=None):
+    """GH #10753 layout-parameterised conversion. Returns (leaf_block, bridge_block).
+
+    Leaf block (`Programs/<Name>Prog.lean`, imports GuestLayout, NOT
+    GuestAddrs): `def {prog}_of (L : GuestLayout) : Program` with every
+    `GuestAddrs.X` in the renders rewritten to `L.X`; the emission view
+    (`{func_name}`, `_eq_prog`, `#guard`s) is applied at `.zero`, which is
+    sound because `emitProgramR` keeps `la`/`jal` symbolic via the reloc
+    side-table, so the emitted string and the length facts are independent
+    of the layout.
+
+    Bridge block (`Programs/<Name>.lean`, the manifest path, unchanged):
+    `def {prog} : Program := {prog}_of guestLayout` — the ORIGINAL name and
+    type, so all consumers compile untouched.  The concrete immediates are
+    tied to the real link by the `{fn}#c` concrete-render gate against the
+    bridge's applied program.
+    """
+    lrenders=[r.replace('GuestAddrs.','L.') for r in renders]
+    body=",\n    ".join(lrenders)
+    n=len(renders)
+    bridge=f"def {prog_name} : Program := {prog_name}_of guestLayout\n"
+    if not relocs:
+        leaf=f'''def {prog_name}_of (L : GuestLayout) : Program :=
+  [ {body} ]
+
+def {func_name} : String :=
+  "{entry}:\\n" ++ emitProgram ({prog_name}_of .zero)
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `{prog_name}_of .zero` rendered under its label (layout-parameterised
+    per GH #10753; emission is layout-independent, mechanical conversion by
+    `scripts/asm_to_program.py`). -/
+theorem {func_name}_eq_prog :
+    {func_name} = "{entry}:\\n" ++ emitProgram ({prog_name}_of .zero) := rfl
+
+#guard {func_name}.startsWith "{entry}:\\n"
+#guard ({prog_name}_of .zero).length = {n}
+'''
+        return leaf, bridge
+    reloc_kind={'la':'la','jal':'jal'}
+    rel_body=",\n    ".join(
+        f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
+    reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
+    leaf=f'''def {prog_name}_of (L : GuestLayout) : Program :=
+  [ {body} ]
+
+/-- Reloc side-table for `{prog_name}_of`: the `la`/cross-`jal` instruction
+    indices kept SYMBOLIC in the emitted image text (`emitProgramR`), while
+    the Program above carries the layout-parameterised immediates
+    (`laHi`/`laLo`/`jalOff L.…`) for verification. -/
+def {reloc_name} : RelocTable :=
+  [ {rel_body} ]
+
+def {func_name} : String :=
+  "{entry}:\\n" ++ emitProgramR ({prog_name}_of .zero) {reloc_name}
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `{prog_name}_of .zero` rendered under its label with the
+    `la`/`jal` relocs kept symbolic (layout-parameterised per GH #10753;
+    emission is layout-independent, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp
+    over the bridge's `{prog_name}` (`_of guestLayout`). -/
+theorem {func_name}_eq_prog :
+    {func_name} = "{entry}:\\n" ++ emitProgramR ({prog_name}_of .zero) {reloc_name} := rfl
+
+#guard {func_name}.startsWith "{entry}:\\n"
+#guard ({prog_name}_of .zero).length = {n}
+'''
+    return leaf, bridge
+
 # --------------------------------------------------------------------------- #
 # CLI                                                                         #
 # --------------------------------------------------------------------------- #
@@ -1026,6 +1097,17 @@ def check_file(path, funcs, rendered=None):
     `rendered` may be a precomputed {func: lean-string} map (so a batch caller
     runs the Lean elaborator once). Returns a list of problem strings."""
     text=open(path).read(); problems=[]
+    # GH #10753 layout-parameterised conversion: a manifest file <Name>.lean
+    # that has been split into a leaf <Name>Prog.lean (abstract `_prog_of`
+    # (L : GuestLayout)) + a bridge <Name>.lean (`_prog := _prog_of
+    # guestLayout`) is detected by the leaf's existence.  The drift gate then
+    # pins the LEAF block verbatim in the leaf and the BRIDGE def verbatim in
+    # the manifest file; the render gates above are unchanged (the bridge
+    # re-exposes every name, so `lean_render` over the manifest modules sees
+    # both the symbolic `{fn}` and the concrete `{fn}#c` views).
+    leaf_path=path[:-5]+'Prog.lean' if path.endswith('.lean') else None
+    layout_mode=leaf_path is not None and os.path.exists(leaf_path)
+    leaf_text=open(leaf_path).read() if layout_mode else None
     if rendered is None:
         rendered=lean_render({fn:os.path.relpath(os.path.abspath(path),
                      os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) for fn in funcs})
@@ -1073,9 +1155,17 @@ def check_file(path, funcs, rendered=None):
                                 f"(emitInstr/py_emit divergence or guest-binary change)"); continue
         # source drift
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
-        if fn not in SOURCE_DRIFT_ALLOW and block not in text:
-            problems.append(f"{fn}: generated block not found verbatim (source drift)")
+        if layout_mode:
+            leaf_block,bridge_block=gen_lean_layout(entry,renders,fn,prog,relocs)
+            if leaf_block.rstrip() not in leaf_text:
+                problems.append(f"{fn}: generated LEAF block not found verbatim in "
+                                f"{os.path.basename(leaf_path)} (source drift)")
+            if bridge_block.rstrip() not in text:
+                problems.append(f"{fn}: generated BRIDGE def not found verbatim (source drift)")
+        elif fn not in SOURCE_DRIFT_ALLOW:
+            block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
+            if block not in text:
+                problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
 REPO=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
