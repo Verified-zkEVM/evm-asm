@@ -748,12 +748,24 @@ def balSerializerEmitBalanceFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
   "  la t0, bal_builder_balance_count; ld s3, 0(t0)\n" ++
+  -- Diagnostic cell: the builder row count as the emitter sees it.  Written on
+  -- every call (the emitter runs once per account), so last-write-wins leaves
+  -- the count; it is the same value each call because nothing appends during
+  -- serialization.  This is the cell that separates "no row was ever built"
+  -- from "rows exist and the emitter's address filter dropped them".
+  "  la t0, bald_bal_builder_count; sd s3, 0(t0)\n" ++
   "  li s4, 0\n" ++
   ".Lbseb_loop:\n" ++
   "  bgeu s4, s3, .Lbseb_done\n" ++
   "  li t0, 64; mul t1, s4, t0; la t2, bal_builder_balance_changes; add t3, t2, t1\n" ++
   "  sd t3, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  -- Diagnostic cell: one increment per address-filter comparison attempted.
+  -- If this equals builder_count x (accounts visited) then every row was offered
+  -- to every account and a missing row was REJECTED by the compare (cause 3, the
+  -- key representation); a shortfall means the account loop never reached it
+  -- (cause 4).  t3 is already spilled to 48(sp), so t0/t1 are free.
+  "  la t0, bald_bal_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
   "  beqz a0, .Lbseb_next\n" ++
   -- Measure the pair BEFORE emitting the header: streaming means no backpatch.
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
@@ -781,12 +793,16 @@ def balSerializerEmitNonceFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
   "  la t0, bal_builder_nonce_count; ld s3, 0(t0)\n" ++
+  -- Diagnostic cell; see `bald_bal_builder_count` in the balance emitter.
+  "  la t0, bald_non_builder_count; sd s3, 0(t0)\n" ++
   "  li s4, 0\n" ++
   ".Lbsen_loop:\n" ++
   "  bgeu s4, s3, .Lbsen_done\n" ++
   "  slli t1, s4, 5; slli t2, s4, 3; add t1, t1, t2\n" ++
   "  la t2, bal_builder_nonce_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
+  -- Diagnostic cell; see `bald_bal_cmp_attempts` in the balance emitter.
+  "  la t0, bald_non_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
   "  beqz a0, .Lbsen_next\n" ++
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
   "  jal ra, bal_serializer_u64_to_field\n" ++

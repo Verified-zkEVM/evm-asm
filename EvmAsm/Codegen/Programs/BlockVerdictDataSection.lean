@@ -248,6 +248,77 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_bal_shadow_emit_balance_changes:\n  .zero 8\n" ++
   "bv_bal_shadow_emit_nonce_changes:\n  .zero 8\n" ++
   "bv_bal_shadow_emit_code_changes:\n  .zero 8\n" ++
+  -- Producer-side diagnostic cells for the balance/nonce row-population gap.
+  -- The ten `bv_bal_shadow_emit_*` counters above are all EMIT-side, downstream
+  -- of every candidate cause, so they measure the composition and localise
+  -- nothing.  These four per component stage the pipeline instead:
+  --
+  --   `_bit_set`        producer bit observed at the consumer (`s8` mask bit
+  --                     0 = balance, 1 = nonce), per account-loop iteration.
+  --   `_differs`        the change-compare against the resolver baseline found
+  --                     inequality, so `bal_builder_append_*` was CALLED.
+  --   `_builder_count`  `bal_builder_*_count` snapshotted at the point the
+  --                     emitter starts -- rows that actually landed in the
+  --                     builder array, so an append that overflowed or a
+  --                     builder reset between produce and emit is visible.
+  --   `_cmp_attempts`   emitter address-filter comparisons attempted, i.e.
+  --                     (rows in builder) x (accounts the emit loop visited).
+  --
+  -- Adjacent differences localise one stage each: bit_set->differs is the
+  -- compare, differs->builder_count is the append, builder_count->emit is the
+  -- address filter, and cmp_attempts separates "the filter rejected the row"
+  -- from "the account loop never offered it".  All-zero groups are promoted to
+  -- `.bss` by `Layout.moveZeroDataLines`, so this adds no `.data` bytes and
+  -- shifts no address-pinned `.data` symbol.
+  "bald_bal_bit_set:\n  .zero 8\n" ++
+  "bald_bal_differs:\n  .zero 8\n" ++
+  "bald_bal_builder_count:\n  .zero 8\n" ++
+  "bald_bal_cmp_attempts:\n  .zero 8\n" ++
+  "bald_non_bit_set:\n  .zero 8\n" ++
+  "bald_non_differs:\n  .zero 8\n" ++
+  "bald_non_builder_count:\n  .zero 8\n" ++
+  "bald_non_cmp_attempts:\n  .zero 8\n" ++
+  -- Witness cells.  The four staging cells above give COUNTS, and a count cannot
+  -- distinguish "the two second rows of the multi-row accounts were lost" from
+  -- "the two single-row accounts were lost" -- both predict differs = 4 of 6 on
+  -- `bal_2935_simple`, whose six declared balance rows are four accounts, two of
+  -- them carrying rows at both block_access_index 1 and 2.
+  --
+  --   `_eq_bai_mask`  bit `bai` set for every (address, bai) iteration whose
+  --                   change-compare found EQUALITY, i.e. the lost rows.
+  --   `_ne_bai_mask`  the same for iterations that appended, i.e. the working
+  --                   rows.  Together the two masks partition every mask-set
+  --                   iteration by bai, so the working rows are a differential
+  --                   control rather than an inference.
+  --   `_eq_val_lo/hi` the two compared limbs on an equal row (they are equal by
+  --                   construction, so one value; publishing it distinguishes
+  --                   "both sides zero, nothing populated" from "the pre side
+  --                   already carries the post value").
+  --
+  -- The masks use `sll` by bai, whose RV64 shift amount is the low 6 bits, so a
+  -- bai of 64 or more ALIASES onto a low bit.  Sound for these fixtures (bai is
+  -- 1..2 here) and a diagnostic-only limitation, not a silent one.
+  "bald_bal_eq_bai_mask:\n  .zero 8\n" ++
+  "bald_bal_ne_bai_mask:\n  .zero 8\n" ++
+  "bald_bal_eq_val_lo:\n  .zero 8\n" ++
+  "bald_bal_eq_val_hi:\n  .zero 8\n" ++
+  "bald_non_eq_bai_mask:\n  .zero 8\n" ++
+  "bald_non_ne_bai_mask:\n  .zero 8\n" ++
+  "bald_non_eq_val_pre:\n  .zero 8\n" ++
+  "bald_non_eq_val_post:\n  .zero 8\n" ++
+  -- Address witness, BALANCE ONLY.  The bai masks establish that the lost rows are
+  -- per-account and not per-index, so naming the account is the last step before a
+  -- fix site: if the stale-post account is a credit RECIPIENT (tx recipient,
+  -- coinbase fee, withdrawal) then this deficit and the #10786 EOA-credit producer
+  -- gap are one defect; if it is an ordinary sender they are separate.
+  -- Bytes 0..15 of the 20-byte canonical address at `0(s4)`, which is more than
+  -- enough to discriminate the four accounts in these fixtures.
+  --
+  -- NOT mirrored for nonce on purpose: the nonce reading is UNIFORM (both operands
+  -- zero on every iteration of every fixture), so an address cannot discriminate
+  -- anything there and the cell would only look like coverage.
+  "bald_bal_eq_addr_a:\n  .zero 8\n" ++
+  "bald_bal_eq_addr_b:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bv_bal_shadow_scratch:\n  .zero 40\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
