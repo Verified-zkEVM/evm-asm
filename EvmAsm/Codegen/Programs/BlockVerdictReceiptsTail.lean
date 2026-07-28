@@ -254,6 +254,27 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
+  -- Shadow-only rebuilt-BAL digest comparison.  It runs after every granular
+  -- verdict path has reached its terminal result; its status is exported for
+  -- diagnosis only and never selects a verdict branch.  Preserve the original
+  -- a0 verdict across the serializer, which mutates builder order in place.
+  "  sd a0, 40(sp)\n" ++
+  -- Inputs that never passed the BAL decoding/gas gate have no valid slice to
+  -- inspect.  Use the same structural reachability condition as the granular
+  -- comparators, not a hand-rolled nonzero-pointer test.
+  "  li t0, 3; la t1, bv_bal_shadow_status; sd t0, 0(t1); la t1, bv_bal_shadow_ready; ld t1, 0(t1); beqz t1, .Lbv_shadow_done\n" ++
+  -- The block body has already materialized NPR = SSZ_BASE + 16.  Use that
+  -- stable cell rather than an ambient register at this late terminal seam.
+  "  la t0, bv_bal_shadow_emit_storage_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_storage_reads; sd zero, 0(t0); la t0, bv_bal_shadow_emit_balance_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_nonce_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_code_changes; sd zero, 0(t0)\n" ++
+  "  la t0, bv_npr_p; ld a0, 0(t0); addi a0, a0, -16; la a1, bv_bal_shadow_scratch; jal ra, bal_serializer_verify\n" ++
+  "  la t0, bv_bal_shadow_status; sd a0, 0(t0)\n" ++
+  -- `verify`'s rebuild has measured the outer payload.  Add the outer RLP
+  -- header to obtain the whole rebuilt BAL byte length, and retain the input
+  -- slice length beside it; neither value is a verdict input.
+  "  la t0, bal_serializer_outer_payload; ld a0, 0(t0); jal ra, bal_rlp_list_header_len; la t0, bal_serializer_outer_payload; ld t1, 0(t0); add a0, a0, t1; la t0, bv_bal_shadow_rebuilt_len; sd a0, 0(t0)\n" ++
+  "  la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)\n" ++
+  ".Lbv_shadow_done:\n" ++
+  "  ld a0, 40(sp)\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"

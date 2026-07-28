@@ -229,6 +229,27 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_npr_p:\n  .zero 8\n" ++
   "bv_bal_start:\n  .zero 8\n" ++
   "bv_bal_len:\n  .zero 8\n" ++
+  -- Shadow-only rebuilt-BAL digest result: 0 = hash match, 1 = mismatch,
+  -- 2 = serializer/sort failure, 3 = skipped on an already-rejected input.
+  -- The 40-byte scratch satisfies the verifier's at-least-33-byte ABI without
+  -- reusing a serializer-internal work buffer.
+  "bv_bal_shadow_status:\n  .zero 8\n" ++
+  -- Shadow-only rebuilt/supplied BAL byte lengths.  A hash mismatch with
+  -- unequal lengths is a missing/extra-row problem; equal lengths instead
+  -- localise the next diagnostic pass to wrong values or ordering.
+  "bv_bal_shadow_rebuilt_len:\n  .zero 8\n" ++
+  "bv_bal_shadow_supplied_len:\n  .zero 8\n" ++
+  -- Set only after BAL slice decoding/gas validation, the structural precondition
+  -- shared by the downstream granular BAL comparators.
+  "bv_bal_shadow_ready:\n  .zero 8\n" ++
+  -- Shadow serializer list counters: actual rows emitted, not producer writes.
+  "bv_bal_shadow_emit_storage_changes:\n  .zero 8\n" ++
+  "bv_bal_shadow_emit_storage_reads:\n  .zero 8\n" ++
+  "bv_bal_shadow_emit_balance_changes:\n  .zero 8\n" ++
+  "bv_bal_shadow_emit_nonce_changes:\n  .zero 8\n" ++
+  "bv_bal_shadow_emit_code_changes:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "bv_bal_shadow_scratch:\n  .zero 40\n" ++
   "bv_tx_off:\n  .zero 8\n" ++
   "bv_tx_list_ptr:\n  .zero 8\nbv_tx_list_len:\n  .zero 8\nbv_tx_count:\n  .zero 8\nbv_tx_index:\n  .zero 8\nbv_tx_item_start:\n  .zero 8\n" ++
   "bv_public_keys_ptr:\n  .zero 8\n" ++

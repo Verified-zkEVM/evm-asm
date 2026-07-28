@@ -695,6 +695,7 @@ def balSerializerEmitStorageFunction : String :=
   "  ld t3, 80(sp); addi a0, t3, 64; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 88(sp); add t4, t4, a0; sd t4, 88(sp)\n" ++
   "  mv a0, s0; ld a1, 88(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_storage_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 80(sp); mv a0, s0; addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   ".Lbses_chg_next:\n" ++
@@ -731,6 +732,7 @@ def balSerializerEmitReadsFunction : String :=
   "  ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written\n" ++
   "  bnez a0, .Lbser_next\n" ++
   "  ld t4, 48(sp); mv a0, s0; addi a1, t4, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
+  "  la t0, bv_bal_shadow_emit_storage_reads; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lbser_next:\n" ++
   "  addi s4, s4, 1; j .Lbser_loop\n" ++
   ".Lbser_done:\n" ++
@@ -760,6 +762,7 @@ def balSerializerEmitBalanceFunction : String :=
   "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_balance_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 48(sp); mv a0, s0; addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   ".Lbseb_next:\n" ++
@@ -793,6 +796,7 @@ def balSerializerEmitNonceFunction : String :=
   "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_nonce_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   -- Re-widen the BAI: the field is a single shared buffer and the nonce overwrote it.
   "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
   "  jal ra, bal_serializer_u64_to_field\n" ++
@@ -833,6 +837,7 @@ def balSerializerEmitCodeFunction : String :=
   "  jal ra, bal_rlp_measure_into_throwaway\n" ++
   "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
   "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
+  "  la t0, bv_bal_shadow_emit_code_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
   "  ld t3, 48(sp); mv a0, s0; ld a1, 32(t3); ld a2, 40(t3)\n" ++
   "  la a3, bal_serializer_hdr_scratch; jal ra, bal_rlp_emit_bytes\n" ++

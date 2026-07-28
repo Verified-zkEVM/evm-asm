@@ -827,6 +827,21 @@ def statelessGuestEpilogue : String :=
   -- result prefix) for multi-tx census/debug probes.  This is diagnostic-only
   -- and does not participate in the SSZ validation result.
   "  la t5, bv_fail_code; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 112(t0)\n" ++
+  -- Shadow rebuilt-BAL comparison: 0 = rebuilt hash matches supplied BAL,
+  -- 1 = mismatch, 2 = serializer/sort failure, 3 = rejected-input skip.
+  -- OUTPUT+120 is outside the saved SSZ result prefix and never feeds a
+  -- verdict branch.
+  "  la t5, bv_bal_shadow_status; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 120(t0)\n" ++
+  -- The two lengths partition a shadow hash mismatch: unequal means a row
+  -- population gap; equal means the next diagnostic must inspect values/order.
+  "  la t5, bv_bal_shadow_rebuilt_len; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 128(t0)\n" ++
+  "  la t5, bv_bal_shadow_supplied_len; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 136(t0)\n" ++
+  "  la t5, bv_bal_shadow_emit_storage_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 144(t0)\n" ++
+  "  la t5, bv_bal_shadow_emit_storage_reads; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 152(t0)\n" ++
+  "  la t5, bv_bal_shadow_emit_balance_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 160(t0)\n" ++
+  "  la t5, bv_bal_shadow_emit_nonce_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 168(t0)\n" ++
+  "  la t5, bv_bal_shadow_emit_code_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 176(t0)\n" ++
+  "  la t5, storage_reads_count; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 184(t0)\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
