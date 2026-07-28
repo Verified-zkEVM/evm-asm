@@ -842,6 +842,53 @@ def statelessGuestEpilogue : String :=
   "  la t5, bv_bal_shadow_emit_nonce_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 168(t0)\n" ++
   "  la t5, bv_bal_shadow_emit_code_changes; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 176(t0)\n" ++
   "  la t5, storage_reads_count; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 184(t0)\n" ++
+  -- Producer-side BAL diagnostic cells (see BlockVerdictDataSection for the
+  -- staging argument).  OUTPUT+192..248 is outside the 112-byte saved SSZ result
+  -- prefix and outside the 0..184 range the existing probes claim.  Exclusivity
+  -- was established from the EMITTED asm, not from source greps: every `li rd,
+  -- 0xa0010000` in `stateless_guest.s` was walked forward to the stores that use
+  -- rd, which gives the complete per-function offset inventory.  It found that
+  -- `h_RETURN` and `h_REVERT` write OUTPUT+0/8/16/24/32/64/248, so **248 is
+  -- contended** and the eighth cell sits at 256 instead.  These stores run after
+  -- `stateless_verdict_v2` returns, so a cell at 248 would have won the race and
+  -- read correctly anyway -- but only by store order, and `h_RETURN`'s 248 is a
+  -- return-data length capped at 176, i.e. a value that would have read as a
+  -- plausible count had the order been the other way.  192..240 and 256 have no
+  -- other writer at all, which is the claim worth having.  NOTE: the harness dumps
+  -- 256 OUTPUT bytes by default, i.e. offsets 0..248, so the cell at 256 is only
+  -- visible with `SPIKE_OUTPUT_LEN=264` (spike) or an equivalently widened read.
+  -- The other seven are inside the default dump;
+  -- the stores at 192..248 off `a2`/`a6` elsewhere in the file are the EVM value
+  -- stack in `h_SWAP6` and a frame record near `evm_memory`, not OUTPUT.
+  -- Read order per component: bit_set, differs, builder_count, cmp_attempts.
+  "  la t5, bald_bal_bit_set; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 192(t0)\n" ++
+  "  la t5, bald_bal_differs; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 200(t0)\n" ++
+  "  la t5, bald_bal_builder_count; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 208(t0)\n" ++
+  "  la t5, bald_bal_cmp_attempts; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 216(t0)\n" ++
+  "  la t5, bald_non_bit_set; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 224(t0)\n" ++
+  "  la t5, bald_non_differs; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 232(t0)\n" ++
+  "  la t5, bald_non_builder_count; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 240(t0)\n" ++
+  "  la t5, bald_non_cmp_attempts; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 256(t0)\n" ++
+  -- Witness cells at 264..328.  Nothing else in the unit writes an OUTPUT base
+  -- above 256 except `block_verdict_creation_runtime` at 472/480, established by
+  -- the same forward walk from every `li rd, 0xa0010000`.  Needs
+  -- `SPIKE_OUTPUT_LEN=336` to read (the default dump is 256 bytes).
+  --
+  -- USEFUL ASYMMETRY for a future reader: the `_bai_mask` cells shift by `bai`, and
+  -- RV64 takes the low 6 bits of the shift amount, so on a block with 64 or more
+  -- transactions THE MASKS BECOME UNTRUSTWORTHY WHILE THE COUNTS STAY VALID.
+  -- The cells remain usable there, just not all of them.
+  --
+  -- The `_eq_val_*` cells are LAST-WRITE-WINS across equal rows, so on a fixture
+  -- with more than one equal row they name a value but not which row produced it.
+  "  la t5, bald_bal_eq_bai_mask; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 264(t0)\n" ++
+  "  la t5, bald_bal_ne_bai_mask; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 272(t0)\n" ++
+  "  la t5, bald_bal_eq_val_lo; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 280(t0)\n" ++
+  "  la t5, bald_bal_eq_val_hi; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 288(t0)\n" ++
+  "  la t5, bald_non_eq_bai_mask; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 296(t0)\n" ++
+  "  la t5, bald_non_ne_bai_mask; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 304(t0)\n" ++
+  "  la t5, bald_non_eq_val_pre; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 312(t0)\n" ++
+  "  la t5, bald_non_eq_val_post; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 320(t0)\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++

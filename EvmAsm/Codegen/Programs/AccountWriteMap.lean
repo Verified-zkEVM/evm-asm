@@ -332,18 +332,51 @@ def accountWritesEmitBuilderTxFunction : String :=
   -- precedence into the shared account scratch.
   "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
   ".Laweb_balance_have:\n" ++
+  -- Diagnostic cell (bald_*): the producer bit as OBSERVED here, one increment
+  -- per account-loop iteration whose mask carries balance.  Placed past the
+  -- label so it is inside the block the branch selects; t0/t1 are dead (t0 held
+  -- the `andi` result already consumed by the `bnez`).
+  "  la t0, bald_bal_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la s6, account_builder_pre_account; addi s6, s6, 8\n" ++
   ".Laweb_balance_cmp:\n" ++
-  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
+  -- The final `beq` is RELABELLED to the witness block rather than having a probe
+  -- spliced into the equal path: the branch already exists, so relabelling cannot
+  -- change which comparisons are made, and `bit_set = eq + ne` is the built-in
+  -- check that the relabel did not lose a path.
+  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_bal_eq\n" ++
   ".Laweb_balance_emit:\n" ++
+  -- Diagnostic cell: the compare found inequality, so the append is CALLED.
+  -- bit_set minus differs is exactly the "compare found equality" population
+  -- (cause 2); differs minus builder_count is an append that did not land.
+  "  la t0, bald_bal_differs; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bald_bal_ne_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
   "  mv a0, s4; mv a1, s7; addi a2, s4, 32; jal ra, bal_builder_append_balance\n" ++
+  -- Jump over the witness block; falling through would run it on the append path.
+  "  j .Laweb_nonce\n" ++
+  ".Laweb_bal_eq:\n" ++
+  "  la t0, bald_bal_eq_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s6); la t0, bald_bal_eq_val_lo; sd t1, 0(t0); ld t1, 24(s6); la t0, bald_bal_eq_val_hi; sd t1, 0(t0)\n" ++
   -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
   ".Laweb_nonce_have:\n" ++
+  -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here
+  -- and is reloaded by `.Laweb_nonce_cmp` below.
+  "  la t0, bald_non_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, account_builder_pre_account; ld t0, 0(t0)\n" ++
   ".Laweb_nonce_cmp:\n" ++
-  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  -- The nonce differs-cell must sit AFTER the skip-on-equal branch, so it counts
+  -- appends and not bit-set accounts.  t5/t6 rather than t0/t1: t0 carries the
+  -- resolver's pre-state nonce and t1 the post value passed as a2.
+  "  ld t1, 64(s4); beq t0, t1, .Laweb_non_eq; la t5, bald_non_differs; ld t6, 0(t5); addi t6, t6, 1; sd t6, 0(t5); la t5, bald_non_ne_bai_mask; ld t6, 0(t5); li t3, 1; sll t3, t3, s7; or t6, t6, t3; sd t6, 0(t5); mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  "  j .Laweb_code\n" ++
+  -- Witness block for the equal path.  t0 is the resolver's pre nonce and t1 the
+  -- post read from 64(s4); both are published even though they are equal here,
+  -- because the pair distinguishes "both zero, so the post was never staged" from
+  -- "the pre side already carries the post value".
+  ".Laweb_non_eq:\n" ++
+  "  la t2, bald_non_eq_bai_mask; ld t3, 0(t2); li t4, 1; sll t4, t4, s7; or t3, t3, t4; sd t3, 0(t2)\n" ++
+  "  la t2, bald_non_eq_val_pre; sd t0, 0(t2); la t2, bald_non_eq_val_post; sd t1, 0(t2)\n" ++
   -- Code compares hashes, never code pointer/length identity.  The header
   -- reader zeroes its output on authenticated absence, so select the canonical
   -- EMPTY_CODE_HASH in that one case.
