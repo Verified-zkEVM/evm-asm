@@ -91,25 +91,49 @@ fi
 # --------------------------------------------------------------------
 # 2. Ask the kernel: `#print axioms` for each witness.
 # --------------------------------------------------------------------
-SCRATCH="$(mktemp --suffix=.lean)"
 RAWOUT="$(mktemp)"
-cleanup() { rm -f "$SCRATCH" "$RAWOUT"; }
+REGEN="$(mktemp)"
+cleanup() { rm -f "$RAWOUT" "$REGEN"; }
 trap cleanup EXIT
 
-{
-  echo "import EvmAsm.Progress"
-  for n in "${NAMES[@]}"; do
-    echo "#print axioms $n"
-  done
-} > "$SCRATCH"
+WITNESS_MODULE="EvmAsm.Progress.AxiomWitnesses"
+WITNESS_FILE="EvmAsm/Progress/AxiomWitnesses.lean"
 
-# Capture both streams (do NOT suppress stderr — a real elaboration
-# error must surface). `#print axioms` writes its report to stdout.
-if ! lake env lean "$SCRATCH" > "$RAWOUT" 2>&1; then
-  echo "check-axioms: 'lake env lean' failed — output follows:" >&2
+# GH #10601: the axiom audit is a checked-in witness module built by
+# `lake build`, so it works when LAKE_ARTIFACT_CACHE satisfies the graph
+# without materializing oleans (where `lake env lean` cannot resolve
+# cache-satisfied modules — issue #10537).  The module carries one
+# `#print axioms` line per registry witness and is generated from
+# EvmAsm/Progress.lean by scripts/gen-axiom-witnesses.py; the registry is
+# the single source of truth, so the module must regenerate identically.
+if ! python3 scripts/gen-axiom-witnesses.py > "$REGEN"; then
+  echo "check-axioms: gen-axiom-witnesses.py failed — output follows:" >&2
+  cat "$REGEN" >&2
+  exit 1
+fi
+if ! diff -q "$REGEN" "$WITNESS_FILE" >/dev/null; then
+  echo "check-axioms: FAIL: $WITNESS_FILE is stale vs EvmAsm/Progress.lean" >&2
+  echo "check-axioms: regenerate with: python3 scripts/gen-axiom-witnesses.py --write" >&2
+  exit 1
+fi
+
+# Capture both streams (do NOT suppress stderr — a real build failure
+# must surface).  `#print axioms` reports ride lake's message channel;
+# lake replays recorded messages even when the module is satisfied from
+# the artifact cache (measured on this checkout), so the reports are
+# present on cached rebuilds too.
+if ! lake build "$WITNESS_MODULE" > "$RAWOUT" 2>&1; then
+  echo "check-axioms: 'lake build $WITNESS_MODULE' failed — output follows:" >&2
   cat "$RAWOUT" >&2
   exit 1
 fi
+
+# `lake build` prints each report as `info: <file>:<line>:<col>: <text>`;
+# strip the position prefix so the records match the classic
+# `#print axioms` shape the parser below consumes.
+STRIPPED="$(mktemp)"
+sed -E 's|^info: [^:]*:[0-9]+:[0-9]+: ||' "$RAWOUT" > "$STRIPPED"
+mv "$STRIPPED" "$RAWOUT"
 
 # --------------------------------------------------------------------
 # 3. Parse into THEOREM<TAB>AXIOM rows.

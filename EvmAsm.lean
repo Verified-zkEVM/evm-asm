@@ -37,6 +37,7 @@ import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
 import EvmAsm.Progress
+import EvmAsm.Progress.AxiomWitnesses
 import EvmAsm.Progress.Obligations
 import EvmAsm.Tests.ArithDiffCheck
 import EvmAsm.Tests.Div128V5RandomCheck
