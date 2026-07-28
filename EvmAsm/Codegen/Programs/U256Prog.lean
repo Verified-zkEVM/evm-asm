@@ -44,7 +44,7 @@ open EvmAsm.Rv64
     byte-by-byte loop reads `a[i]` and `b[i]` before writing
     `out[i]` at each step. Pure register arithmetic, no scratch
     memory, leaf-callable. -/
-def u256AddBe_prog_of (L : GuestLayout) : Program :=
+def u256AddBe_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (31 : Word),
     .LI .x6 (0 : Word),
     .ADD .x7 .x10 .x5,
@@ -115,7 +115,7 @@ theorem u256AddBeFunction_eq_prog :
       a2 (input)  : u64 out ptr (1 if a < b, 0 otherwise)
       ra (input)  : return
       a0 (output) : 0 (always succeeds). -/
-def u256LtBe_prog_of (L : GuestLayout) : Program :=
+def u256LtBe_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (32 : Word),
     .MV .x6 .x10,
     .MV .x7 .x11,
@@ -172,7 +172,7 @@ theorem u256LtBeFunction_eq_prog :
 
     Aliasing is safe: `out` may alias `a` or `b`. Pure register
     arithmetic, no scratch memory, leaf-callable. -/
-def u256SubBe_prog_of (L : GuestLayout) : Program :=
+def u256SubBe_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (31 : Word),
     .LI .x6 (0 : Word),
     .ADD .x7 .x10 .x5,
@@ -226,7 +226,7 @@ theorem u256SubBeFunction_eq_prog :
     byte-stores; no scratch memory; leaf-callable. Uses RV64 `sb`
     semantics (stores low 8 bits of rs2), so no `andi 0xff`
     masking is needed before each byte write. -/
-def u256FromU64Be_prog_of (L : GuestLayout) : Program :=
+def u256FromU64Be_prog_of (_L : GuestLayout) : Program :=
   [ .SD .x11 .x0 (0 : BitVec 12),
     .SD .x11 .x0 (8 : BitVec 12),
     .SD .x11 .x0 (16 : BitVec 12),
@@ -290,7 +290,7 @@ theorem u256FromU64BeFunction_eq_prog :
     short-circuit (we always read all 32 bytes), keeping
     timing data-independent for any future side-channel
     considerations. Leaf-callable. -/
-def u256IsZero_prog_of (L : GuestLayout) : Program :=
+def u256IsZero_prog_of (_L : GuestLayout) : Program :=
   [ .LD .x5 .x10 (0 : BitVec 12),
     .LD .x6 .x10 (8 : BitVec 12),
     .LD .x7 .x10 (16 : BitVec 12),
@@ -353,7 +353,7 @@ theorem u256IsZeroFunction_eq_prog :
     walk is read-only over both inputs, and the 4 × (ld + sd)
     copy reads each chunk from one of them and writes to `out`
     in the same step — fine since `ld` happens before `sd`. -/
-def u256Min_prog_of (L : GuestLayout) : Program :=
+def u256Min_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x31 (32 : Word),
     .BEQ .x5 .x31 (36 : BitVec 13),
@@ -421,7 +421,7 @@ theorem u256MinFunction_eq_prog :
     Short-circuits on the first differing byte. Pure register
     arithmetic + 4 × (ld + sd) chunk copy. Leaf-callable.
     Aliasing safe. -/
-def u256Max_prog_of (L : GuestLayout) : Program :=
+def u256Max_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x31 (32 : Word),
     .BEQ .x5 .x31 (36 : BitVec 13),
@@ -511,7 +511,7 @@ theorem u256MaxFunction_eq_prog :
 
     Aliasing safe: each iteration reads `src[i]` then writes
     `out[i]`; subsequent iterations advance to `src[i+1]`. -/
-def u256DivU64Be_prog_of (L : GuestLayout) : Program :=
+def u256DivU64Be_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x6 (0 : Word),
     .LI .x7 (32 : Word),
@@ -562,7 +562,7 @@ theorem u256DivU64BeFunction_eq_prog :
     Pure register arithmetic, no scratch memory, leaf-callable.
     Walks at most 32 bytes; short-circuits on the first
     differing byte. -/
-def u256Eq_prog_of (L : GuestLayout) : Program :=
+def u256Eq_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x31 (32 : Word),
     .BEQ .x5 .x31 (32 : BitVec 13),
@@ -770,7 +770,7 @@ theorem u256MulU64BeFunction_eq_prog :
     Always writes the low-64-bit value to `*out`, even on
     overflow (so callers don't need to branch on the flag to
     read a defined value). -/
-def u256ToU64Be_prog_of (L : GuestLayout) : Program :=
+def u256ToU64Be_prog_of (_L : GuestLayout) : Program :=
   [ .LD .x5 .x10 (0 : BitVec 12),
     .LD .x6 .x10 (8 : BitVec 12),
     .LD .x7 .x10 (16 : BitVec 12),
