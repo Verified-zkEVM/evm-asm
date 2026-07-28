@@ -289,6 +289,9 @@ def ziskBalAccountRecordArrayDataSection : String :=
   ziskBalAccountHasStateChangeDataSection ++ "\n" ++
   ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
   ".balign 8\n" ++
+  -- CONVERGENCE DEPENDENCY (#10765): paired with the skip in
+  -- bal_all_accounts_storage_consistent. This flag is load-bearing until a
+  -- rebuilt BAL has BAI-0 system rows; per-tx rows cannot replace explicit replay.
   "bara_skip_modeled_system:\n  .zero 8\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
