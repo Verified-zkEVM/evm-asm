@@ -74,6 +74,7 @@ CASES = [
     ("case 5  two-byte value",         32,  8,  "6 means multi-byte scalars measure as one byte"),
     ("measure_slot payload",           40,  5,  "the SlotChanges payload the emit pass reads"),
     ("measure_slot inner payload",     48,  3,  "the changes-list payload the emit pass reads"),
+    ("case 9  cross-tx read exclusion",160,  1,  "2 means a slot written in another tx was NOT excluded"),
 ]
 
 # Case 6 is the acceptance criterion in miniature: EMIT the bytes, hash them, compare the
@@ -82,6 +83,27 @@ CASES = [
 # pure-python implementation, validated on keccak256("") before use. Deriving it rather
 # than capturing it is what stops a golden file from enshrining a bug as correct.
 EXPECTED_RLP = bytes.fromhex('c501c3c20105')
+
+# Case 7: the whole AccountChanges for the same input. 0xe0 is 0xc0 + 32, the account
+# payload being 21 (address) + 7 (storage_changes) + four empty lists. The four trailing
+# 0xc0 are the point -- an empty field is an empty LIST, not an omitted one, and dropping
+# them still yields well-formed RLP for a different account.
+EXPECTED_ACCOUNT_RLP = bytes.fromhex(
+    'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0')
+
+# Case 8: the outer list over TWO accounts. 2 x 33 = 66 bytes of payload is past the
+# 55-byte boundary, so the header takes the LONG form f8 42. One account would stay in
+# short form and the long-form branch of the header emitter would never run.
+# Case 9: slot 7 is read AND written at block_access_index 3; slot 11 is read and never
+# written. EIP-7928 excludes a read whose slot is written anywhere in the BLOCK, so only
+# 11 survives and the emitted bytes are the single scalar 0x0b. No single-transaction
+# fixture can produce this -- read-in-one-tx/written-in-another only exists across txs.
+EXPECTED_READS_RLP = bytes.fromhex('0b')
+
+EXPECTED_OUTER_RLP = bytes.fromhex(
+    'f842'
+    'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0'
+    'e094bb00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0')
 
 if len(data) < 56:
     print(f"==> FAIL: probe output is {len(data)} bytes, need at least 56"); sys.exit(1)
@@ -147,6 +169,52 @@ else:
     bad += 1
     print(f"  FAIL  case 6  emitted digest {got[:16]}... != reference {want[:16]}...")
     print(f"        expected RLP was {EXPECTED_RLP.hex()}")
+
+want_acct = keccak256(EXPECTED_ACCOUNT_RLP).hex()
+got_acct  = data[96:128].hex()
+if got_acct == want_acct:
+    print(f"  ok    case 7  whole-account digest       = {got_acct[:16]}...")
+else:
+    bad += 1
+    print(f"  FAIL  case 7  account digest {got_acct[:16]}... != reference {want_acct[:16]}...")
+    print(f"        expected RLP was {EXPECTED_ACCOUNT_RLP.hex()}")
+
+want_outer = keccak256(EXPECTED_OUTER_RLP).hex()
+got_outer  = data[128:160].hex()
+if got_outer == want_outer:
+    print(f"  ok    case 8  outer-list digest (2 accts) = {got_outer[:16]}...")
+else:
+    bad += 1
+    print(f"  FAIL  case 8  outer digest {got_outer[:16]}... != reference {want_outer[:16]}...")
+    print(f"        expected RLP was {EXPECTED_OUTER_RLP.hex()}")
+
+want_reads = keccak256(EXPECTED_READS_RLP).hex()
+got_reads  = data[192:224].hex()
+if got_reads == want_reads:
+    print(f"  ok    case 9  emitted reads digest        = {got_reads[:16]}...")
+else:
+    bad += 1
+    print(f"  FAIL  case 9  reads digest {got_reads[:16]}... != reference {want_reads[:16]}...")
+    print(f"        expected only the unwritten slot: {EXPECTED_READS_RLP.hex()}")
+
+# Case 10: the accounts are seeded in DESCENDING address order and `rebuild_hash` sorts
+# before emitting, so the digest must equal case 8's ascending one. Seeding in order would
+# pass whether or not the sort ever ran -- an unsorted emission is a well-formed BAL where
+# every byte is right and only the sequence is wrong.
+sort_status = struct.unpack_from('<Q', data, 224)[0]
+rebuilt_w0  = struct.unpack_from('<Q', data, 232)[0]
+want_w0     = int.from_bytes(keccak256(EXPECTED_OUTER_RLP)[:8], 'little')
+if sort_status == 0xdead or rebuilt_w0 == 0xdead:
+    bad += 1
+    print("  FAIL  case 10 sort-then-rebuild          NEVER RAN (sentinel intact -- guest faulted)")
+elif sort_status != 0:
+    bad += 1
+    print(f"  FAIL  case 10 canonical sort returned {sort_status}")
+elif rebuilt_w0 != want_w0:
+    bad += 1
+    print(f"  FAIL  case 10 descending seed gave {rebuilt_w0:#018x}, want {want_w0:#018x} (sort did not run?)")
+else:
+    print(f"  ok    case 10 sort-then-rebuild digest    = {rebuilt_w0:#018x}")
 
 print()
 if bad:
