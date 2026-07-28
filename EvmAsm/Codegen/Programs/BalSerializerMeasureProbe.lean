@@ -253,6 +253,28 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  jal ra, bal_serializer_emit_account\n" ++
   "  la a0, bsmp_ctx; la a1, bsmp_rebuilt; jal ra, keccak_final\n" ++
   "  la t0, bsmp_rebuilt; ld t1, 0(t0); sd t1, 240(s0)\n" ++
+  -- Case 12: THE ORDERING FIXTURE. Two slots, and two changes on one of them, seeded
+  -- DESCENDING at BOTH levels: slot 7 before slot 3, and within slot 7 index 2 before
+  -- index 1. rebuild_hash sorts, so the digest must equal the ascending encoding.
+  --
+  -- This is the case the whole suite was missing. Every other case has ONE element at
+  -- every inner level, and a one-element list is sorted by definition -- which is how
+  -- six missing ordering rules produced five green digests. Two elements per level,
+  -- seeded backwards, is the only construction that can tell a sort from its absence.
+  --
+  -- Expected after sorting: slot 3 (index 1), then slot 7 (index 1, index 2).
+  "  li t0, 0xdead; sd t0, 248(s0)\n" ++
+  "  la t0, storage_reads_count; sd zero, 0(t0)\n" ++
+  probeRow 0 0xAA 2 7 6 ++
+  probeRow 1 0xAA 1 7 5 ++
+  probeRow 2 0xAA 1 3 7 ++
+  "  la t0, bal_builder_storage_change_count; li t1, 3; sd t1, 0(t0)\n" ++
+  "  la t0, bal_builder_accounts\n" ++
+  "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0)\n" ++
+  "  la t0, bal_builder_account_count; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la a0, bsmp_scratch; la a1, bsmp_rebuilt; jal ra, bal_serializer_rebuild_hash\n" ++
+  "  la t0, bsmp_rebuilt; ld t1, 0(t0); sd t1, 248(s0)\n" ++
   "  j .Lbsmp_done\n" ++
   balSerializerAddrMatchesBeFunction ++
   balSerializerSlotEqFunction ++
@@ -371,7 +393,10 @@ The probe is only worth anything if the discriminating cases are really present.
 -- Case 2 must use TWO DISTINCT `block_access_index` values on ONE slot. With equal
 -- indices the upsert semantics make them one change and the case stops discriminating
 -- the dedup, which is the single thing it exists to catch.
-#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 2
+-- THREE sites: case 2's dedup pair, case 9's cross-tx write, and case 12's descending
+-- index seed. Case 12 in particular must seed index 2 BEFORE index 1, or it cannot tell
+-- the per-slot index sort from its absence.
+#guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 3
 
 -- Case 5 must set a SECOND value byte. Without it the case duplicates case 1 and the
 -- multi-byte scalar path goes untested.
@@ -382,6 +407,7 @@ The probe is only worth anything if the discriminating cases are really present.
 -- expansions match -- the account seeds spell `0xBB` in raw asm rather than going
 -- through `toString`, so they read as 0xBB and not as 187.
 #guard (ziskBalSerializerMeasurePrologue.splitOn "li t1, 187; sb t1, 0(t0)").length == 4
+
 
 -- Case 6 must actually EMIT and finalise, or the digest slot holds whatever keccak_init
 -- left and a wrong digest reads as a wrong constant rather than as a missing call.

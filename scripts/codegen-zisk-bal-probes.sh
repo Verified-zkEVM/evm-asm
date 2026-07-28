@@ -271,6 +271,28 @@ elif e2e != want_e2e:
 else:
     print(f"  ok    case 11 producer-path digest        = {e2e:#018x}")
 
+# Case 12: the ordering fixture. Two slots, two changes on one, seeded DESCENDING at both
+# levels; rebuild_hash sorts, so the digest must equal the ascending encoding. This is the
+# first case in the suite that can tell a sort from its absence -- every other case has one
+# element at every inner level, and a one-element list is sorted by definition.
+#
+# Expectation derived and frozen BEFORE the case was written:
+EXPECTED_ORDER_RLP = bytes.fromhex(
+    'e994aa00000000000000000000000000000000000000cfc503c3c20107c807c6c20105c20206c0c0c0c0')
+order = struct.unpack_from('<Q', data, 248)[0]
+want_order = int.from_bytes(keccak256(EXPECTED_ORDER_RLP)[:8], 'little')
+if order == 0xdead:
+    bad += 1
+    print("  FAIL  case 12 ordering fixture           NEVER RAN (sentinel intact)")
+elif order != want_order:
+    bad += 1
+    print(f"  FAIL  case 12 ordering fixture {order:#018x} != {want_order:#018x}")
+    print("        KNOWN OPEN: the six ordering rules are implemented but this case")
+    print("        disagrees. Do NOT update the constant -- it was derived from the spec")
+    print("        before the case existed. Investigate the sorts or the derivation.")
+else:
+    print(f"  ok    case 12 ordering fixture            = {order:#018x}")
+
 print()
 if bad:
     print(f"==> FAIL: {bad} checks disagree with the RLP derivation")
