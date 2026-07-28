@@ -100,6 +100,48 @@ EXPECTED_ACCOUNT_RLP = bytes.fromhex(
 # fixture can produce this -- read-in-one-tx/written-in-another only exists across txs.
 EXPECTED_READS_RLP = bytes.fromhex('0b')
 
+# ---------------------------------------------------------------------------
+# PENDING: the end-to-end producer-path case (case 11), not yet built.
+#
+# Its expectation is DERIVED AND FROZEN HERE BEFORE THE CASE EXISTS, on purpose. Every
+# other case in this file derives its bytes from the RLP rules with the producer OUT of
+# the loop, so a mistake shows up as a mismatch. Case 11 puts `bal_emit_storage_changes`
+# IN the loop, and a digest captured from a run would certify the producer's behaviour by
+# definition -- it could not fail, and it would enshrine a reversal bug as correct. That
+# is the same trap a captured baseline would have set with the widener's 33-byte scalar.
+#
+# Scenario: one tx storage write. Address 0xAA.. , slot 7, value 5, block_access_index 1.
+# The tx row holds addr and slot as LE stack words; the producer reverses both to BE on
+# append (see the builder row field table). SLOT 7 IS NON-SYMMETRIC ON PURPOSE -- a
+# BE-vs-LE dword compare matches only byte-symmetric values, so slot 0 would pass under
+# the very defect this case exists to catch.
+#
+# Derivation, from the field table and the yellow paper:
+#   StorageChange   [bai=1, value=5]  -> c2 01 05                       3 bytes
+#   changes list    payload 3         -> c3 c2 01 05                    4
+#   SlotChanges     scalar(7) ++ above, payload 5 -> c5 07 c3 c2 01 05  6
+#   storage_changes payload 6         -> c6 c5 07 c3 c2 01 05           7
+#   account payload 21 addr + 7 + four empty lists = 32 -> header 0xe0
+#
+EXPECTED_E2E_ACCOUNT_RLP = bytes.fromhex(
+    'e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0')
+# was: e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0
+# EXPECTED_E2E_DIGEST      = 24f0ad8bc447e2a80bdc208c22a07d3a444bfaa952874d78fe7050df2598370d
+#
+# Construction (verified against the emitted code, not inferred):
+#   1. tx rows at 0xa21a0000, count in `tx_storage_writes_count`; addr LE word at 0..31,
+#      slot LE word at 32..63.
+#   2. block container: one entry whose FIRST 64 BYTES equal the tx row's, and
+#      `storage_writes_count` = 1. The scan is eight dword compares over 0..63 and a hit
+#      does `addi s5, t5, 64` then jumps to `.Lbesc_have` -- which SKIPS
+#      `slot_at_header_state_root`, so no witness globals are needed.
+#   3. the container value must DIFFER from 5, or the net-zero check emits nothing.
+#   4. call `bal_emit_storage_changes` with a0 = 1, then measure_account + emit_account.
+#
+# If the first run disagrees with the digest above, that is information about the
+# producer. Do not update the constant to match the run.
+# ---------------------------------------------------------------------------
+
 EXPECTED_OUTER_RLP = bytes.fromhex(
     'f842'
     'e094aa00000000000000000000000000000000000000c6c501c3c20105c0c0c0c0'
@@ -215,6 +257,52 @@ elif rebuilt_w0 != want_w0:
     print(f"  FAIL  case 10 descending seed gave {rebuilt_w0:#018x}, want {want_w0:#018x} (sort did not run?)")
 else:
     print(f"  ok    case 10 sort-then-rebuild digest    = {rebuilt_w0:#018x}")
+
+# Case 11: the producer path. Digest word 0 only -- the output buffer is full.
+e2e = struct.unpack_from('<Q', data, 240)[0]
+want_e2e = int.from_bytes(keccak256(EXPECTED_E2E_ACCOUNT_RLP)[:8], 'little')
+if e2e == 0xdead:
+    bad += 1
+    print("  FAIL  case 11 producer path              NEVER RAN (sentinel intact)")
+elif e2e != want_e2e:
+    bad += 1
+    print(f"  FAIL  case 11 producer path {e2e:#018x} != {want_e2e:#018x}")
+    print("        this is information about the PRODUCER; do not update the constant")
+else:
+    print(f"  ok    case 11 producer-path digest        = {e2e:#018x}")
+
+# Case 12: the ordering fixture. Two slots, two changes on one, seeded DESCENDING at both
+# levels; rebuild_hash sorts, so the digest must equal the ascending encoding. This is the
+# first case in the suite that can tell a sort from its absence -- every other case has one
+# element at every inner level, and a one-element list is sorted by definition.
+#
+# Expectation derived and frozen BEFORE the case was written:
+# CORRECTED. The first version of this constant omitted the OUTER LIST HEADER: case 12
+# goes through `rebuild_hash`, which emits the outer list, and I had derived a bare
+# account. The byte dump (zisk_bal_order_dump) showed the leading 0xea and exposed it.
+#
+# This is a DERIVATION fix, not a capture: the bytes below are still built from the spec
+# by hand -- 0xea is 0xc0 + 42, the encoded account being 42 bytes -- and the measured
+# emission was NOT used to produce them. The measured value remains wrong for an unrelated
+# reason (the slot ordering), so adopting it would have been adopting a known defect.
+EXPECTED_ORDER_RLP = bytes.fromhex(
+    'ea'
+    'e994aa00000000000000000000000000000000000000cfc503c3c20107c807c6c20105c20206c0c0c0c0')
+order = struct.unpack_from('<Q', data, 248)[0]
+want_order = int.from_bytes(keccak256(EXPECTED_ORDER_RLP)[:8], 'little')
+if order == 0xdead:
+    bad += 1
+    print("  FAIL  case 12 ordering fixture           NEVER RAN (sentinel intact)")
+elif order != want_order:
+    bad += 1
+    print(f"  FAIL  case 12 ordering fixture {order:#018x} != {want_order:#018x}")
+    print("        KNOWN OPEN, root cause identified: BalCanonicalSort.lean:153 masks the")
+    print("        segment width with 255, so a BE width byte 0x94 reads as 148 and the")
+    print("        walk never leaves segment 0 -- the slot key is never reached. The fix")
+    print("        exists as b09b58b95 on feat/bal-sort-segments-10680 and is UNMERGED.")
+    print("        Do NOT update the constant; it is derived from the spec.")
+else:
+    print(f"  ok    case 12 ordering fixture            = {order:#018x}")
 
 print()
 if bad:
