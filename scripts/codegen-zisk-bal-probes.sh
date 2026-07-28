@@ -277,7 +277,16 @@ else:
 # element at every inner level, and a one-element list is sorted by definition.
 #
 # Expectation derived and frozen BEFORE the case was written:
+# CORRECTED. The first version of this constant omitted the OUTER LIST HEADER: case 12
+# goes through `rebuild_hash`, which emits the outer list, and I had derived a bare
+# account. The byte dump (zisk_bal_order_dump) showed the leading 0xea and exposed it.
+#
+# This is a DERIVATION fix, not a capture: the bytes below are still built from the spec
+# by hand -- 0xea is 0xc0 + 42, the encoded account being 42 bytes -- and the measured
+# emission was NOT used to produce them. The measured value remains wrong for an unrelated
+# reason (the slot ordering), so adopting it would have been adopting a known defect.
 EXPECTED_ORDER_RLP = bytes.fromhex(
+    'ea'
     'e994aa00000000000000000000000000000000000000cfc503c3c20107c807c6c20105c20206c0c0c0c0')
 order = struct.unpack_from('<Q', data, 248)[0]
 want_order = int.from_bytes(keccak256(EXPECTED_ORDER_RLP)[:8], 'little')
@@ -287,9 +296,11 @@ if order == 0xdead:
 elif order != want_order:
     bad += 1
     print(f"  FAIL  case 12 ordering fixture {order:#018x} != {want_order:#018x}")
-    print("        KNOWN OPEN: the six ordering rules are implemented but this case")
-    print("        disagrees. Do NOT update the constant -- it was derived from the spec")
-    print("        before the case existed. Investigate the sorts or the derivation.")
+    print("        KNOWN OPEN, root cause identified: BalCanonicalSort.lean:153 masks the")
+    print("        segment width with 255, so a BE width byte 0x94 reads as 148 and the")
+    print("        walk never leaves segment 0 -- the slot key is never reached. The fix")
+    print("        exists as b09b58b95 on feat/bal-sort-segments-10680 and is UNMERGED.")
+    print("        Do NOT update the constant; it is derived from the spec.")
 else:
     print(f"  ok    case 12 ordering fixture            = {order:#018x}")
 
