@@ -239,6 +239,10 @@ def blockVerdictFunction : String :=
   "  la t2, bv_bal_len; ld a1, 0(t2)            # bal_len\n" ++
   "  jal ra, bal_gas_valid\n" ++
   "  bnez a0, .Lbv_bal_gas_fail          # BAL gas exceeded (or parse fail) -> invalid\n" ++
+  -- The decoded BAL slice now satisfies the same precondition consumed by the
+  -- downstream granular comparators.  The terminal shadow observer uses this
+  -- reach marker rather than guessing from a pointer value.
+  "  li t0, 1; la t2, bv_bal_shadow_ready; sd t0, 0(t2)\n" ++
   "  # Witness integrity: for every BAL account with non-empty pre-state code,\n" ++
   "  # witness.codes must contain that code hash, matching execution-specs'\n" ++
   "  # WitnessState.get_code behavior for missing non-empty code preimages.\n" ++
