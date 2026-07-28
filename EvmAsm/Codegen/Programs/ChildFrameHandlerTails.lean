@@ -333,11 +333,23 @@ def basicPrecompileCallTail
     -- second record of the same address is a no-op rather than a double count. That is
     -- what makes one insertion correct for all four variants instead of two.
     --
-    -- LIVENESS, checked before inserting: `account_read_record` touches NO s-register
-    -- and references only `a0`, twice, both reads -- verified over its disassembled
-    -- body -- so `s9`/`s10`/`s11`, which hold the saved `x13`/`x10`/`x12` needed after
-    -- this point, are safe. `ra` is not live here: the very next sequence does
-    -- `jal ra, runtime_access_account_charge`. `a0` is reloaded on the next line.
+    -- LIVENESS. `a0` IS `x10`, so `la a0, ...` clobbers `x10` -- the exact hazard that
+    -- broke an equivalent insert in `extcodehashWitnessTail`, where `x10` was live in
+    -- the register across the insertion point. IT IS NOT LIVE HERE, and the proof needs
+    -- no liveness analysis: the ORIGINAL, UNPATCHED code's first instruction at this
+    -- point is the very next line, `la a0, <the same scratch label>`. So the unmodified
+    -- guest already clobbers `x10` here, with the identical value. If `x10` had held
+    -- anything needed later, the original would already have destroyed it. The two
+    -- inserted instructions sit inside that same dead interval and nothing reads `x10`
+    -- between them.
+    --
+    -- The rest of the frame is safe too: `account_read_record` saves and restores
+    -- `t0`-`t6` across all four of its paths, reads `a0` without writing it, and
+    -- touches no s-register and no `a1`-`a7`, so `s9`/`s10`/`s11` are untouched. Its
+    -- 64-byte frame lies strictly BELOW `sp` and cannot reach a spill. `ra` is dead:
+    -- the next sequence does `jal ra, runtime_access_account_charge`, which itself
+    -- opens with `addi sp, sp, -64` -- an identically sized frame at this same point,
+    -- so the site already tolerates one.
     "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
     "  jal ra, account_read_record\n" ++
     "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
