@@ -140,6 +140,15 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  sd t0, 568(x20)
 " ++
+    -- x10 is the dispatch PC; preserve it while a0 names the read address.
+    "  addi sp, sp, -16; sd x10, 0(sp)
+" ++
+    "  la a0, ecc_address_scratch
+" ++
+    "  jal ra, account_read_record
+" ++
+    "  ld x10, 0(sp); addi sp, sp, 16
+" ++
     "  ld x14, 32(x12)
 " ++
 
