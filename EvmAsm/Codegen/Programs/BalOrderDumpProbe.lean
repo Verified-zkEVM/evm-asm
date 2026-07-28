@@ -74,7 +74,17 @@ def ziskBalOrderDumpPrologue : String :=
   balOrderDumpRow 2 1 3 7 ++
   "  la t0, bal_builder_storage_change_count; li t1, 3; sd t1, 0(t0)\n" ++
   "  la t0, storage_reads_count; sd zero, 0(t0)\n" ++
-  "  la t0, bal_builder_balance_count; sd zero, 0(t0)\n" ++
+  -- TWO balance changes, seeded DESCENDING by index (2 before 1), so the balance
+  -- ordering rule is exercised rather than trivially satisfied. Row is 64 bytes:
+  -- addr BE20 at 0, index at 24, post value LE at 32.
+  "  la t0, bal_builder_balance_changes\n" ++
+  "  sd zero, 0(t0);  sd zero, 8(t0);  sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
+  "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
+  "  sd zero, 96(t0); sd zero, 104(t0); sd zero, 112(t0); sd zero, 120(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 0(t0);  li t1, 2; sd t1, 24(t0); li t1, 4; sb t1, 32(t0)\n" ++
+  "  li t1, 0xAA; sb t1, 64(t0); li t1, 1; sd t1, 88(t0); li t1, 3; sb t1, 96(t0)\n" ++
+  "  la t0, bal_builder_balance_count; li t1, 2; sd t1, 0(t0)\n" ++
   "  la t0, bal_builder_nonce_count; sd zero, 0(t0)\n" ++
   "  la t0, bal_builder_code_count; sd zero, 0(t0)\n" ++
   "  la t0, bal_builder_accounts\n" ++
@@ -169,6 +179,8 @@ def ziskBalOrderDumpProbeUnit : BuildUnit := {
 #guard (ziskBalOrderDumpPrologue.splitOn "keccak_init:").length == 2
 
 -- Descending at BOTH levels, or the dump cannot distinguish a sort from its absence.
-#guard (ziskBalOrderDumpPrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 2
+-- Descending at BOTH storage levels AND in the balance list: index 2 seeded before
+-- index 1 in each. Two occurrences of the index-2 store, one per stream.
+#guard (ziskBalOrderDumpPrologue.splitOn "li t1, 2; sd t1, 24(t0)").length == 3
 
 end EvmAsm.Codegen
