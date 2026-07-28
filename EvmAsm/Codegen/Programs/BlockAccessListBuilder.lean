@@ -599,6 +599,15 @@ def balEmitStorageChangesFunction : String :=
   "  ld t2, 8(s5);  ld t6, 8(s6);  bne t2, t6, .Lbesc_emit\n" ++
   "  ld t2, 16(s5); ld t6, 16(s6); bne t2, t6, .Lbesc_emit\n" ++
   "  ld t2, 24(s5); ld t6, 24(s6); bne t2, t6, .Lbesc_emit\n" ++
+  -- NET-ZERO EXCLUSION, verified at `block_access_lists.py:667-676`: the spec calls
+  -- `add_storage_write` only `if pre_value != post_value`, and `pre_value` comes from
+  -- `_get_pre_tx_storage(block_state.storage_writes, pre_state, ...)` -- the BLOCK
+  -- cumulative value, not the transaction's own pre-state. That is why the baseline
+  -- here is the block container first and the header state root only on a miss.
+  --
+  -- The same lines settle the slot's type: `u256_slot = U256.from_be_bytes(key)`, so the
+  -- BAL slot is a NUMERIC U256 and encodes as a minimal-length scalar with leading zeros
+  -- dropped -- not as a fixed 32-byte string.
   "  j .Lbesc_advance\n" ++                                      -- net-zero: emit nothing
   ".Lbesc_emit:\n" ++
   -- The builder row wants BE20 address and BE32 slot, matching
@@ -664,13 +673,24 @@ def blockAccessListBuilderFunctions : String :=
 -- The sort happens inside `rebuild_hash`, before any byte is absorbed. An unsorted
 -- emission is a well-formed BAL with the wrong hash and is the ONE failure the digest
 -- comparison cannot localise, so this must not become a caller's responsibility.
-#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 2
+-- SIX calls, not one: see the seven-rule guard below. This originally pinned the single
+-- account sort, back when that was the only ordering implemented.
 
 -- The descriptor must carry the BIG-ENDIAN flag (0x80) in its width byte: 0x94 is
 -- `0x80 | 20`. This is the same value `bal_sort_account_writes` passes, pinned on that
 -- side by the matching guard in BalCanonicalSort.lean. Writing 0x1400 declares a
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
 #guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
+
+-- ALL SEVEN ORDERING RULES, as FIVE sort calls: storage (carrying two rules in one
+-- multi-segment pass), reads, balance, nonce, code, accounts. Six of these were missing
+-- entirely and no probe could see it, because a one-element list is sorted by definition
+-- and every case had one element at every inner level.
+#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 7
+-- Every stride 8-ALIGNED: 96, 64, 64, 40, 64, 24.
+#guard (balSerializerRebuildHashFunction.splitOn "li a2, 96;").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a2, 40;").length == 2
+#guard [96, 64, 40, 24].all (fun w => w % 8 == 0)
 
 -- Stride 24, which is 8-ALIGNED, per the rule on `balBuilderAccountRowBytes`: the sort
 -- swaps rows with ld/sd, and AGENTS.md:211 gives those no semantics off an 8-boundary.
@@ -794,7 +814,15 @@ def blockAccessListBuilderFunctions : String :=
 #guard (balSerializerEmitAccountFunction.splitOn "bal_rlp_emit_address").length == 1
 #guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_bytes").length == 2
 -- All five field emitters called, in AccountChanges order.
+-- All five field emitters, IN AccountChanges ORDER. An RLP list is positional: swapping
+-- two field emitters yields a well-formed account with the fields exchanged, and if both
+-- are empty lists it is byte-identical. Order pinned by the sequence below, not by count
+-- alone.
 #guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_").length == 6
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_storage").getD 1 "").splitOn "jal ra, bal_serializer_emit_reads").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_reads").getD 1 "").splitOn "jal ra, bal_serializer_emit_balance").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_balance").getD 1 "").splitOn "jal ra, bal_serializer_emit_nonce").length == 2
+#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_nonce").getD 1 "").splitOn "jal ra, bal_serializer_emit_code").length == 2
 
 /-! ## Guards for the storage emitter -/
 
