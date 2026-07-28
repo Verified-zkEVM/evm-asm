@@ -143,3 +143,51 @@ which checks the verifier performs. Re-pinning is therefore free to an
 attacker, and the bai1 and bai2 lies are equally exploitable and equally
 severe — the guest accepts an invalid block in both. The spectrum is how the
 structural claim above was discovered; the claim is what it means.
+
+## Variant coinbase: skip-listed priority-fee credit (GH #10791)
+
+Same generator (`--variant coinbase`), same fixture, same pristine ELFs.
+Unlike bai1/bai2, the coinbase fee **is** present in the nonstorage-effect
+log on pristine main (#10786's pristine dump: sender gas debit, sender
+refund, coinbase fee) — but the two nonstorage comparators
+(`bal_all_accounts_nonstorage_consistent`/`_covers`, BlockVerdictMtxTail
+294/300) skip the coinbase via `bv_mtx_skip_list`, so the declared row is
+never compared. The skip entry is a pure accommodation with nothing to
+accommodate.
+
+Mutation: the coinbase (`0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba`, the
+standard EEST miner) has a single balanceChanges row, BAI 1 -> `0x095da8`
+(613,800 wei, the priority-fee credit). Changed to `0x12bb50` (1,227,600 wei,
+exactly 2x) — an equal-length 4-byte RLP string `83 095da8` -> `83 12bb50`
+at blob offset 1010, occurring exactly once, context-anchored
+(`c0 c6 c5 01 83 095da8 c0 c0`). Being the account's only row it is a
+final-balance row, constrained by both the state root and the BAL hash —
+the two-re-pin shape of bai2.
+
+Results (pristine ELFs, spike, dd at named offsets):
+
+- **execution-specs**: **REJECTS** — succ byte = 0; bare re-run raises
+  `ethereum.exceptions.InvalidBlock` at `fork.py:379` inside
+  `execute_block` (computed post-state root vs header `state_root`, same
+  check as bai2).
+- **Guest**: **ACCEPTS** — succ byte = 1
+  (`dd if=coinbase-v3.guest.out bs=1 skip=32 count=1` -> `01`); pristine
+  probe verdict = 1, bv_fail = 0, header_status = 0, state_status = 0;
+  `sv_recomputed` @168 =
+  `0x52558cf1e7cc4a9ec5cefe265db8f39837de6100b515563db1468ba8b3f2c9d3`,
+  byte-equal to the re-pinned payload `state_root` @114.
+- Re-pins: `state_root` = `0x52558c...f2c9d3` (guest-derived, extraction
+  signature verdict=0/bv_fail=1 as for bai2), `block_hash` =
+  `0x3596892dd5f4dbdc696b59e1b04164bf1fde155291e3ae2059285e2ac9273549`
+  (payload `block_hash` @534, dd-verified).
+
+Compared pair (BAI-1 postBalance for the coinbase): declared 1,227,600 vs
+true 613,800 wei.
+
+The gas-derivation hazard did not materialize: the guest's own gas
+accounting runs off execution, not the declared BAL row, so the mutation
+did not propagate anywhere — the guest accepted cleanly (succ=1) rather
+than rejecting for a gas reason. This is the **third false accept of the
+class**, and the one with the fee already recorded in the log: the
+comparators would catch it if the coinbase were not skip-listed, so the
+#10791 skip entry is retirable with this witness.
