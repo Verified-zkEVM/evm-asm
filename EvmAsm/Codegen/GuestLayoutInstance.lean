@@ -29,6 +29,8 @@ def guestLayout : GuestLayout :=
     zkvm_sha256 := GuestAddrs.zkvm_sha256
     zk3_state := GuestAddrs.zk3_state
     zkvm_keccak256 := GuestAddrs.zkvm_keccak256
-    zkvm_keccak256_segments := GuestAddrs.zkvm_keccak256_segments }
+    zkvm_keccak256_segments := GuestAddrs.zkvm_keccak256_segments
+    bav_hash := GuestAddrs.bav_hash
+    bloom_add_value := GuestAddrs.bloom_add_value }
 
 end EvmAsm.Codegen
