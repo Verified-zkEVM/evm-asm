@@ -627,21 +627,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- across that call.  This is the same slice computed at snapshot_ready.
   "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
-  -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
-  -- storage, account, and code reads survive a failed transaction even when
-  -- its AccountState commit is bypassed.  This join is after the committed
-  -- SELFDESTRUCT-read producer and after rollback/effects, but before the
-  -- transaction's BAL builder emission, matching fork.py's boundary.
-  -- The joined paths prepared `a1/a2` as the exact storage slice for the
-  -- committed-chunk snapshot below.  The read-set helper uses caller-saved
-  -- argument registers, so preserve that slice across the independent call.
-  "  addi sp, sp, -32; sd ra, 0(sp); sd a1, 8(sp); sd a2, 16(sp); jal ra, read_sets_incorporate_tx; ld ra, 0(sp); ld a1, 8(sp); ld a2, 16(sp); addi sp, sp, 32\n" ++
-  -- The merge latches overflow through the a7 pointers it receives.  Consume
-  -- each latch immediately after the unconditional merge, before later code
-  -- can serialize a truncated block-level read set.
-  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
   "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
@@ -653,6 +638,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
+  -- storage, account, and code reads survive a failed transaction even when
+  -- its AccountState commit is bypassed.  This join follows the spec order:
+  -- sender refund, coinbase fee, then incorporation.  In particular the fee
+  -- helper's balance lookup records a coinbase account read even when its
+  -- priority-fee credit is zero; promote that final per-transaction read at
+  -- this transaction's incorporation boundary.
+  -- The committed-storage snapshot above is complete; retain the existing
+  -- caller-save wrapper because this function still needs its outer `ra`.
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a1, 8(sp); sd a2, 16(sp); jal ra, read_sets_incorporate_tx; ld ra, 0(sp); ld a1, 8(sp); ld a2, 16(sp); addi sp, sp, 32\n" ++
+  -- Consume the merge latches immediately after the merge that sets them.
+  "  la t0, storage_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  "  la t0, code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   -- `update_builder_from_tx` precedes `incorporate_tx_into_block` in the spec:
   -- the tx account-map reader must see the block-cumulative *pre-tx* baseline
   -- before incorporation overwrites it and clears the tx map.  The helper reads
