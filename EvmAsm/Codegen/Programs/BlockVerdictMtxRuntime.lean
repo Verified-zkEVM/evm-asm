@@ -659,6 +659,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- system/withdrawal boundary.  The producers already dual-record into the
   -- transaction AccountWrite map; make this N+1 boundary feed the same builder
   -- walk and block-level incorporate path before receipts consume the result.
+  -- EIP-4895 withdrawals are a block-level producer, not a transaction effect.
+  -- Run the existing recorder here so its 112-byte execution record and
+  -- transaction AccountWrite entry are present for the N+1 builder walk.
+  "  jal ra, block_verdict_withdrawal_nonstorage_effects; bnez a0, .Lbv_bal_nonstorage_fail\n" ++
   "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
