@@ -12,6 +12,7 @@
 
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
 import EvmAsm.Rv64.SailEquiv.MemReduce
+import EvmAsm.Rv64.SailEquiv.VmemWriteReduction
 
 open Sail
 open Out.Functions
@@ -102,20 +103,49 @@ theorem runSail_map {α β : Type} (f : α → β) (m : SailM α) (s : SailState
   simp only [runSail, Functor.map, EStateM.map]
   cases m s <;> rfl
 
-/-- `checked_mem_write` under the assumed bare-Machine platform context: the
-    access passes the PMP/PMA check (`phys_access_check = none`) and is plain RAM
-    (`within_mmio_writable = false`), so it performs the plain `write_ram` and
-    reports `Ok`. `h_wr` supplies `write_ram`'s reduced result (state `s'`). -/
+/-- `checked_mem_write` under the assumed bare-Machine platform context: the access
+    passes the PMA-with-PMP-priority check (`Ok alignedAccessInfo`, so the split loop
+    runs exactly once at full width), the per-access `pmpCheck` permits, and the address
+    is plain RAM (`within_mmio_writable = false`), so it performs the plain `write_ram`
+    and reports `Ok`. `h_wr` supplies `write_ram`'s reduced result (state `s'`). -/
 theorem runSail_checked_mem_write_bare (paddr : physaddr) (data : BitVec 64) (s s' : SailState)
-    (h_pac : runSail (phys_access_check (MemoryAccessType.Store mem_payload.Data)
-        page_based_mem_type.PBMT_PMA Privilege.Machine paddr 8 false) s = some (Option.none, s))
+    (h_pac : runSail (check_pma_with_pmp_priority (MemoryAccessType.Store mem_payload.Data)
+        page_based_mem_type.PBMT_PMA Privilege.Machine paddr 8 false) s
+        = some (Ok alignedAccessInfo, s))
+    (h_pmp : runSail (pmpCheck paddr 8 (MemoryAccessType.Store mem_payload.Data)
+        Privilege.Machine) s = some (Option.none, s))
     (h_mmio : runSail (within_mmio_writable paddr 8) s = some (false, s))
     (h_wr : runSail (write_ram write_kind.Write_plain paddr 8 data default_meta) s = some (true, s')) :
     runSail (checked_mem_write paddr 8 data (MemoryAccessType.Store mem_payload.Data)
         page_based_mem_type.PBMT_PMA Privilege.Machine default_meta false false false) s =
       some (Result.Ok true, s') := by
-  unfold checked_mem_write
-  simp [runSail_bind, h_pac, h_mmio, write_kind_of_flags, runSail_map, h_wr]
+  obtain ⟨addr⟩ := paddr
+  have hcheck := runSail_eq_ok h_pac
+  have hpmp := runSail_eq_ok h_pmp
+  have hmmio := runSail_eq_ok h_mmio
+  have hwr := runSail_eq_ok h_wr
+  have hsplit := split_misaligned_cannotsplit (physaddr.Physaddr addr) 8 0 s
+  have hmain : (checked_mem_write (physaddr.Physaddr addr) 8 data
+      (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
+      Privilege.Machine default_meta false false false) s = .ok (Result.Ok true) s' := by
+    unfold checked_mem_write
+    simp +decide only [SailME.run, PreSail.PreSailME.run,
+      hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
+      Int.toNat_one, Int.toNat_zero, untilFuelM_one,
+      Sail.assert, PreSail.assert, if_true,
+      BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
+      Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+      Int.toNat_natCast, bits_of_physaddr_mk,
+      hpmp, hmmio, Bool.false_eq_true, if_false, write_kind_of_flags,
+      EStateM.map, Bind.bind, bind, EStateM.bind, Pure.pure, pure, EStateM.pure,
+      ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+      MonadLift.monadLift, monadLift, liftM, Functor.map]
+    rw [show ((8 : Int) * ((0 : Int) + 1) * ((8 : Nat) : Int) - 1).toNat = 8 * 8 - 1
+          from by omega,
+        show ((8 : Int) * (0 : Int) * ((8 : Nat) : Int)).toNat = 0 from by omega]
+    simp only [extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.true_and, Bool.and_self,
+      ExceptT.bindCont, EStateM.bind, EStateM.pure, EStateM.map]
+  simp only [runSail, hmain]
 
 /-- **`mem_write_value` fully reduced** (bare-Machine, plain doubleword store): it
     succeeds (`Ok true`) and produces exactly the `writeBytes` state — the eight
@@ -126,8 +156,11 @@ theorem runSail_mem_write_value_bare (addr : physaddrbits) (data : BitVec 64)
     (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
     (h_mstatus : s.regs.get? Register.mstatus = some m)
     (h_mprv : _get_Mstatus_MPRV m = 0#1)
-    (h_pac : runSail (phys_access_check (MemoryAccessType.Store mem_payload.Data)
+    (h_pac : runSail (check_pma_with_pmp_priority (MemoryAccessType.Store mem_payload.Data)
         page_based_mem_type.PBMT_PMA Privilege.Machine (physaddr.Physaddr addr) 8 false) s
+        = some (Ok alignedAccessInfo, s))
+    (h_pmp : runSail (pmpCheck (physaddr.Physaddr addr) 8
+        (MemoryAccessType.Store mem_payload.Data) Privilege.Machine) s
         = some (Option.none, s))
     (h_mmio : runSail (within_mmio_writable (physaddr.Physaddr addr) 8) s = some (false, s)) :
     runSail (mem_write_value (physaddr.Physaddr addr) 8 data
@@ -140,7 +173,7 @@ theorem runSail_mem_write_value_bare (addr : physaddrbits) (data : BitVec 64)
             (addr.toNat + 4) (data.extractLsb' 32 8)).insert (addr.toNat + 5) (data.extractLsb' 40 8)).insert
             (addr.toNat + 6) (data.extractLsb' 48 8)).insert (addr.toNat + 7) (data.extractLsb' 56 8) }) := by
   rw [runSail_mem_write_value_to_checked _ _ _ _ h_priv h_mstatus h_mprv]
-  exact runSail_checked_mem_write_bare (physaddr.Physaddr addr) data s _ h_pac h_mmio
+  exact runSail_checked_mem_write_bare (physaddr.Physaddr addr) data s _ h_pac h_pmp h_mmio
     ((runSail_write_ram addr data s).trans (writeBytes_effect addr.toNat data s))
 
 end EvmAsm.Rv64.SailEquiv

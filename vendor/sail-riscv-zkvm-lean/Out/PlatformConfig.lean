@@ -1,5 +1,6 @@
 import Out.Flow
 import Out.Mapping
+import Out.Vector
 import Out.HexBits
 import Out.HexBitsSigned
 import Out.Prelude
@@ -139,6 +140,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -157,6 +159,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -164,6 +167,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -174,11 +178,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -207,6 +211,12 @@ def plat_mtvec_direct_base_alignment_exp : tvec_alignment := 2
 def plat_mtvec_vectored_base_alignment_exp : tvec_alignment := 2
 
 def plat_stvec_vectored_base_alignment_exp : tvec_alignment := 2
+
+def plat_medeleg_delegatable_bits : (BitVec 64) :=
+  0b0000000000000000000000000000000000000000000011001011001111111111#64
+
+def plat_mideleg_delegatable_bits : xlenbits :=
+  (sail_mask 64 0b0000000000000000000000000000000000000000000000000010001000100010#64)
 
 def plat_cache_block_size_exp : Nat := 6
 
@@ -502,6 +512,12 @@ def btype_mnemonic_forwards (arg_ : bop) : String :=
   | .BLTU => "bltu"
   | .BGEU => "bgeu"
 
+def csr_mnemonic_forwards (arg_ : csrop) : String :=
+  match arg_ with
+  | .CSRRW => "csrrw"
+  | .CSRRS => "csrrs"
+  | .CSRRC => "csrrc"
+
 def bit_maybe_i_forwards (arg_ : (BitVec 1)) : String :=
   match arg_ with
   | 1 => "i"
@@ -544,7 +560,7 @@ def itype_mnemonic_forwards (arg_ : iop) : String :=
   | .ORI => "ori"
   | .ANDI => "andi"
 
-/-- Type quantifiers: k_ex251093_ : Bool -/
+/-- Type quantifiers: k_ex477466_ : Bool -/
 def maybe_u_forwards (arg_ : Bool) : String :=
   match arg_ with
   | true => "u"
@@ -889,6 +905,22 @@ def assembly_forwards (arg_ : instruction) : SailM String := do
                   (String.append (← (reg_name_forwards rs1))
                     (String.append (sep_forwards ())
                       (String.append (← (reg_name_forwards rs2)) ""))))))))))
+  | .CSRImm (csr, imm, rd, op) =>
+    (pure (String.append (csr_mnemonic_forwards op)
+        (String.append "i"
+          (String.append (spc_forwards ())
+            (String.append (← (reg_name_forwards rd))
+              (String.append (sep_forwards ())
+                (String.append (← (csr_name_map_forwards csr))
+                  (String.append (sep_forwards ())
+                    (String.append (← (hex_bits_5_forwards imm)) "")))))))))
+  | .CSRReg (csr, rs1, rd, op) =>
+    (pure (String.append (csr_mnemonic_forwards op)
+        (String.append (spc_forwards ())
+          (String.append (← (reg_name_forwards rd))
+            (String.append (sep_forwards ())
+              (String.append (← (csr_name_map_forwards csr))
+                (String.append (sep_forwards ()) (String.append (← (reg_name_forwards rs1)) ""))))))))
   | .ILLEGAL s =>
     (pure (String.append "illegal"
         (String.append (spc_forwards ()) (String.append (← (hex_bits_32_forwards s)) ""))))
@@ -932,6 +964,8 @@ def assembly_forwards_matches (arg_ : instruction) : Bool :=
   | .MULW (rs2, rs1, rd) => true
   | .DIVW (rs2, rs1, rd, is_unsigned) => true
   | .REMW (rs2, rs1, rd, is_unsigned) => true
+  | .CSRImm (csr, imm, rd, op) => true
+  | .CSRReg (csr, rs1, rd, op) => true
   | .ILLEGAL s => true
   | .C_ILLEGAL s => true
   | _ => false
@@ -1007,6 +1041,7 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Zabha => true
   | .Ext_Zacas => true
   | .Ext_Zalrsc => false
+  | .Ext_Zama16b => true
   | .Ext_Zawrs => true
   | .Ext_Za64rs => ((plat_reservation_set_size_exp ≤b 6) && ((false : Bool) || (true : Bool)))
   | .Ext_Za128rs => ((plat_reservation_set_size_exp ≤b 7) && ((false : Bool) || (true : Bool)))
@@ -1427,6 +1462,7 @@ termination_by (let (_, _, _) := (priv, bit_idx, stateen_reg)
 def currentlyEnabled (merge_var : extension) : SailM Bool := do
   match merge_var with
   | .Ext_Zic64b => (pure (hartSupports Ext_Zic64b))
+  | .Ext_Zama16b => (pure (hartSupports Ext_Zama16b))
   | .Ext_Ziccif => (pure (hartSupports Ext_Ziccif))
   | .Ext_Zicclsm => (pure (hartSupports Ext_Zicclsm))
   | .Ext_Zkt => (pure (hartSupports Ext_Zkt))
@@ -1520,9 +1556,10 @@ def currentlyEnabled (merge_var : extension) : SailM Bool := do
     (pure ((hartSupports Ext_Zca) && ((← (currentlyEnabled Ext_C)) || (not (hartSupports Ext_C)))))
   | .Ext_M => (pure ((hartSupports Ext_M) && ((_get_Misa_M (← readReg misa)) == 1#1)))
   | .Ext_Zmmul => (pure ((hartSupports Ext_Zmmul) || (← (currentlyEnabled Ext_M))))
+  | .Ext_Zicsr => (pure (hartSupports Ext_Zicsr))
   | _ =>
     (do
-      assert false "Pattern match failure at extensions/M/mext_insts.sail:14.0-14.95"
+      assert false "Pattern match failure at extensions/Zicsr/zicsr_insts.sail:12.0-12.69"
       throw Error.Exit)
 termination_by (let ext := merge_var
 (currentlyEnabled_measure ext)).toNat
@@ -1707,6 +1744,12 @@ def encdec_bop_forwards (arg_ : bop) : (BitVec 3) :=
   | .BLTU => 0b110#3
   | .BGEU => 0b111#3
 
+def encdec_csrop_forwards (arg_ : csrop) : (BitVec 2) :=
+  match arg_ with
+  | .CSRRW => 0b01#2
+  | .CSRRS => 0b10#2
+  | .CSRRC => 0b11#2
+
 def encdec_iop_forwards (arg_ : iop) : (BitVec 3) :=
   match arg_ with
   | .ADDI => 0b000#3
@@ -1732,7 +1775,7 @@ def encdec_uop_forwards (arg_ : uop) : (BitVec 7) :=
   | .LUI => 0b0110111#7
   | .AUIPC => 0b0010111#7
 
-/-- Type quantifiers: k_ex252079_ : Bool, width : Nat, width ∈ {1, 2, 4, 8} -/
+/-- Type quantifiers: k_ex478456_ : Bool, width : Nat, width ∈ {1, 2, 4, 8} -/
 def valid_load_encdec (width : Nat) (is_unsigned : Bool) : Bool :=
   ((width <b xlen_bytes) || ((not is_unsigned) && (width ≤b xlen_bytes)))
 
@@ -1954,6 +1997,26 @@ noncomputable def encdec_forwards (arg_ : instruction) : SailM (BitVec 32) := do
         (do
           assert false "Pattern match failure at unknown location"
           throw Error.Exit))
+  | .CSRReg (csr, rs1, rd, op) =>
+    (do
+      if ((← (currentlyEnabled Ext_Zicsr)) : Bool)
+      then
+        (pure ((csr : (BitVec 12)) +++ ((encdec_reg_forwards rs1) +++ (0#1 +++ ((encdec_csrop_forwards
+                    op) +++ ((encdec_reg_forwards rd) +++ 0b1110011#7))))))
+      else
+        (do
+          assert false "Pattern match failure at unknown location"
+          throw Error.Exit))
+  | .CSRImm (csr, imm, rd, op) =>
+    (do
+      if ((← (currentlyEnabled Ext_Zicsr)) : Bool)
+      then
+        (pure ((csr : (BitVec 12)) +++ ((imm : (BitVec 5)) +++ (1#1 +++ ((encdec_csrop_forwards op) +++ ((encdec_reg_forwards
+                      rd) +++ 0b1110011#7))))))
+      else
+        (do
+          assert false "Pattern match failure at unknown location"
+          throw Error.Exit))
   | .ILLEGAL s => (pure s)
   | _ =>
     (do
@@ -2064,7 +2127,15 @@ def pma_attributes_to_str (attr : PMA) : String :=
                                   (HAppend.hAppend
                                     (if (attr.supports_pte_write : Bool)
                                     then " supports-pte-write"
-                                    else "") " ")))))))))))))))))
+                                    else "")
+                                    (HAppend.hAppend " misaligned_atomicity_granule_size_exp="
+                                      (HAppend.hAppend
+                                        (Int.repr attr.misaligned_atomicity_granule_size_exp)
+                                        (HAppend.hAppend
+                                          " vector_misaligned_atomicity_granule_size_exp="
+                                          (HAppend.hAppend
+                                            (Int.repr
+                                              attr.vector_misaligned_atomicity_granule_size_exp) " ")))))))))))))))))))))
 
 def pma_region_to_str (region : PMA_Region) : String :=
   (HAppend.hAppend "base: "
@@ -2133,8 +2204,8 @@ def misaligned_exception_is_access_fault (e : (Option misaligned_exception)) : B
 def plat_misaligned_access : GlobalMisalignedExceptions :=
   { load_store := none
     vector := none
-    lrsc := AccessFault
-    amo := AccessFault }
+    amo := none
+    lrsc := AccessFault }
 
 def undefined_ExtContextPolicy (_ : Unit) : SailM ExtContextPolicy := do
   (internal_pick [ExtContext_Off, ExtContext_TwoState, ExtContext_FourState])
@@ -2337,4 +2408,22 @@ def rv32zdinx_odd_register_reserved_behavior : RV32ZdinxOddRegisterReservedBehav
 def illegal_vtype_reserved_behavior : IllegalVtypeReservedBehavior := IllegalVtype_SetVill
 
 def vstart_reserved_behavior : OOBVstartReservedBehavior := Vstart_Illegal
+
+def undefined_FflagsDirtyPolicy (_ : Unit) : SailM FflagsDirtyPolicy := do
+  (internal_pick [Fflags_Dirty_Precise, Fflags_Dirty_Flag, Fflags_Dirty_Instruction])
+
+/-- Type quantifiers: arg_ : Nat, 0 ≤ arg_ ∧ arg_ ≤ 2 -/
+def FflagsDirtyPolicy_of_num (arg_ : Nat) : FflagsDirtyPolicy :=
+  match arg_ with
+  | 0 => Fflags_Dirty_Precise
+  | 1 => Fflags_Dirty_Flag
+  | _ => Fflags_Dirty_Instruction
+
+def num_of_FflagsDirtyPolicy (arg_ : FflagsDirtyPolicy) : Int :=
+  match arg_ with
+  | .Fflags_Dirty_Precise => 0
+  | .Fflags_Dirty_Flag => 1
+  | .Fflags_Dirty_Instruction => 2
+
+def fflags_dirty_policy : FflagsDirtyPolicy := Fflags_Dirty_Precise
 

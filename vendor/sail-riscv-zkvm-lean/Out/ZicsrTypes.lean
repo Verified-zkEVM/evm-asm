@@ -1,6 +1,8 @@
-import Out.Prelude
-import Out.CfiTypes
-import Out.SysControl
+import Sail
+import Out.Defs
+import Out.Specialization
+import Out.FakeReal
+import Out.RiscvExtras
 
 set_option maxHeartbeats 1_000_000_000
 set_option maxRecDepth 1_000_000
@@ -190,12 +192,19 @@ open AtomicSupport
 open Architecture
 open AmocasOddRegisterReservedBehavior
 
-def make_landing_pad_exception (_ : Unit) : sync_exception :=
-  (make_sync_exception (E_Software_Check ())
-    (zero_extend (m := 64) (software_check_cause_forwards SWC_LANDING_PAD_FAULT)))
+def undefined_csrop (_ : Unit) : SailM csrop := do
+  (internal_pick [CSRRW, CSRRS, CSRRC])
 
-def is_lpad_instruction (i : instruction) : Bool :=
-  match i with
-  | .LPAD _ => true
-  | _ => false
+/-- Type quantifiers: arg_ : Nat, 0 ≤ arg_ ∧ arg_ ≤ 2 -/
+def csrop_of_num (arg_ : Nat) : csrop :=
+  match arg_ with
+  | 0 => CSRRW
+  | 1 => CSRRS
+  | _ => CSRRC
+
+def num_of_csrop (arg_ : csrop) : Int :=
+  match arg_ with
+  | .CSRRW => 0
+  | .CSRRS => 1
+  | .CSRRC => 2
 

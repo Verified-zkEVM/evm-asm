@@ -1230,14 +1230,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     and (ii) memory is confined to a window inside the RAM zone
     `[0xa0000000, 0xc0000000)`. (ii) is forced: the toy legacy MEM zone
     `[0x20, 0x78000000]` is not inside any PMA region of `sailInitPmaRegions`
-    (main memory is `[0x80000000, 0x100000000)`). (i) is a **vendored-model
-    defect**, recorded as the kernel-checked `update_elp_state_error`: the
-    extracted `currentlyEnabled` has no `Ext_Zicsr` arm, so it falls through to
-    the generated `assert false; throw` catch-all; `Ext_Zicfilp` queries
-    `Ext_Zicsr` first, `execute_JALR` starts with `update_elp_state`, hence the
-    Sail side faults in *every* state and `instrSideCond (.JALR ..)` is
-    unsatisfiable. Same root cause family as the `sail_model_init` scoping defect
-    above (`docs/sail-init-scoping-defect.md`); both need a model regen.
+    (main memory is `[0x80000000, 0x100000000)`). (i) was a **vendored-model
+    defect** (the old extraction's `currentlyEnabled` had no `Ext_Zicsr` arm, so
+    `execute_JALR`'s leading `update_elp_state` faulted in every state; recorded
+    then as `update_elp_state_error`). The 2026-07-27-9901550 regen (module scope
+    widened by `Zicsr_insts`) fixed the arm; those error lemmas are deleted and
+    un-excluding `JALR` from `Instr.runSimulable` is the follow-up on
+    `fix/sail-zicsr-scope`.
     The vendored fetch (`run_hart_active`) is deliberately **not** reduced: it
     reads instruction bytes from Sail `mem` via `translateAddr`, whereas the toy
     `MachineState.code` is a separate unrelated field — that decode tie is

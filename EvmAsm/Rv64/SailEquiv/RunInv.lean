@@ -247,43 +247,14 @@ theorem RunInv.access_ok {lo hi : Nat} {sRv : MachineState} {sSail : SailState}
   · simp only [RAM_MEM_START] at hram; omega
   · simp only [RAM_MEM_END] at hhi; omega
 
--- ============================================================================
--- Why `JALR` is out of scope: the vendored `update_elp_state` always faults
--- ============================================================================
-
-/-- The vendored `currentlyEnabled` has **no arm for `Ext_Zicsr`**: the query
-    falls through to the generated catch-all, which asserts `false` and throws.
-    (This is a gap in the vendored Sail→Lean extraction, not a modelling choice
-    of ours.) -/
-theorem currentlyEnabled_Ext_Zicsr_error (s : SailState) :
-    ∃ e, currentlyEnabled extension.Ext_Zicsr s = .error e s := by
-  rw [currentlyEnabled.eq_def]
-  simp only []
-  exact ⟨_, rfl⟩
-
-/-- `Ext_Zicfilp`'s enable test begins by querying `Ext_Zicsr`, so it inherits
-    the fault. -/
-theorem currentlyEnabled_Ext_Zicfilp_error (s : SailState) :
-    ∃ e, currentlyEnabled extension.Ext_Zicfilp s = .error e s := by
-  obtain ⟨e, he⟩ := currentlyEnabled_Ext_Zicsr_error s
-  rw [currentlyEnabled.eq_def]
-  simp only []
-  simp only [bind, EStateM.bind, he]
-  exact ⟨e, rfl⟩
-
-/-- Consequently `update_elp_state` — the first action of the vendored
-    `execute_JALR` — **never** returns normally, in any state.  This is why
-    `JALR` is excluded from the run-level simulation theorem
-    (`Instr.runSimulable` in `StepRun.lean`): the `h_elp` premise of
-    `jalr_sail_equiv` / `instrSideCond (.JALR ..)` is unsatisfiable, so no
-    caller can supply it.  Fixing this needs a vendored-model update, not a
-    proof. -/
-theorem update_elp_state_error (rs1 : regidx) (s : SailState) :
-    ∃ e, update_elp_state rs1 s = .error e s := by
-  obtain ⟨e, he⟩ := currentlyEnabled_Ext_Zicfilp_error s
-  rw [update_elp_state.eq_def]
-  simp only [bind, EStateM.bind, he]
-  exact ⟨e, rfl⟩
+-- NOTE (vendored model 2026-07-27-9901550): the extraction now includes the
+-- `Zicsr_insts` module, so `currentlyEnabled` has a real `Ext_Zicsr` arm and
+-- `update_elp_state` (the first action of `execute_JALR`) no longer faults
+-- unconditionally.  The lemmas `currentlyEnabled_Ext_Zicsr_error` /
+-- `currentlyEnabled_Ext_Zicfilp_error` / `update_elp_state_error` that recorded
+-- the old always-fault behavior are gone — they are now false.  `JALR` remains
+-- excluded from `Instr.runSimulable` for the moment; un-excluding it (now that
+-- the model permits it) is tracked as a follow-up on this branch.
 
 -- ============================================================================
 -- Toy-side per-step side conditions

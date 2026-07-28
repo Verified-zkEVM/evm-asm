@@ -127,7 +127,8 @@ theorem pmpCheck_machine_off_store (addr : physaddr) (width : Nat) (s : SailStat
   rfl
 
 /-- **`pmaCheck` permits an aligned writable store.** Twin of `pmaCheck_load_ok` with the
-    `Store Data` arm selecting the region's `writable` attribute. -/
+    `Store Data` arm selecting the region's `writable` attribute; returns
+    `Ok alignedAccessInfo` (permitted, unsplittable), state untouched. -/
 theorem pmaCheck_store_ok (paddr : physaddr) (width : Nat) (s : SailState)
     (regions : List PMA_Region) (region : PMA_Region)
     (h_reg : s.regs.get? Register.pma_regions = some regions)
@@ -135,12 +136,32 @@ theorem pmaCheck_store_ok (paddr : physaddr) (width : Nat) (s : SailState)
     (h_write : region.attributes.writable = true)
     (h_align : is_aligned_paddr paddr width = true) :
     pmaCheck paddr width (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA false s
-      = .ok none s := by
-  unfold pmaCheck
-  simp +decide [PreSail.readReg, h_reg, h_match, override_PMA, h_align, h_write,
+      = .ok (Ok alignedAccessInfo) s := by
+  unfold pmaCheck mag_pma_check is_mag_applicable_access
+  simp +decide [alignedAccessInfo, SailME.run, PreSail.PreSailME.run,
+    PreSail.readReg, h_reg, h_match, override_PMA, h_align, h_write,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
+    ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
+    MonadLift.monadLift, monadLift, liftM, Functor.map, EStateM.map,
     Sail.assert, PreSail.assert]
+
+/-- **`check_pma_with_pmp_priority` permits an aligned writable store.** The PMA check
+    succeeds first, so the PMP fallback is never consulted (any privilege). Twin of
+    `check_pma_with_pmp_priority_load_ok`. -/
+theorem check_pma_with_pmp_priority_store_ok (paddr : physaddr) (width : Nat) (s : SailState)
+    (priv : Privilege) (regions : List PMA_Region) (region : PMA_Region)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions paddr width = some region)
+    (h_write : region.attributes.writable = true)
+    (h_align : is_aligned_paddr paddr width = true) :
+    check_pma_with_pmp_priority (MemoryAccessType.Store mem_payload.Data)
+      page_based_mem_type.PBMT_PMA priv paddr width false s
+      = .ok (Ok alignedAccessInfo) s := by
+  unfold check_pma_with_pmp_priority
+  simp only [bind, EStateM.bind,
+    pmaCheck_store_ok paddr width s regions region h_reg h_match h_write h_align,
+    pure, EStateM.pure]
 
 /-- **Leaf #10 — `within_mmio_writable` is `false` off the MMIO ranges.** Mirror of
     `within_mmio_readable_ram`: with RVFI off the check is
@@ -158,7 +179,7 @@ theorem within_mmio_writable_ram (addr : physaddr) (width : Nat) (s : SailState)
     pure, EStateM.pure, Bool.false_or, Bool.false_and]
 
 /-- **`phys_access_check` permits a bare-mode aligned writable store.** Composes the
-    store-side `pmpCheck` and `pmaCheck` `none` results. -/
+    store-side `pmpCheck` `none` result with the `pmaCheck` `Ok alignedAccessInfo`. -/
 theorem phys_access_check_store_ok (addr : BitVec 64) (width : Nat) (s : SailState)
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
     (regions : List PMA_Region) (region : PMA_Region)
@@ -171,7 +192,8 @@ theorem phys_access_check_store_ok (addr : BitVec 64) (width : Nat) (s : SailSta
     (h_write : region.attributes.writable = true)
     (h_align : is_aligned_paddr (physaddr.Physaddr addr) width = true) :
     phys_access_check (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
-      Privilege.Machine (physaddr.Physaddr addr) width false s = .ok none s := by
+      Privilege.Machine (physaddr.Physaddr addr) width false s
+      = .ok (Ok alignedAccessInfo) s := by
   unfold phys_access_check
   simp only [bind, EStateM.bind,
     pmpCheck_machine_off_store (physaddr.Physaddr addr) width s cfgs pmpaddrs h_cfg h_addr h_off,
@@ -212,101 +234,6 @@ theorem writeBytes1_raw (s : SailState) (a : Nat) (v : BitVec (8*1)) :
       = .ok true { s with mem := s.mem.insert a (v.extractLsb' 0 8) } := rfl
 
 -- ============================================================================
--- Width-generic write chain (post-write state abstracted)
--- ============================================================================
-
-/-- `write_ram` for a plain width-`w` store with the `writeBytes` result supplied: builds
-    the write request, `sail_mem_write` runs `writeBytes` (which succeeds with the given
-    post-state), the metadata write is a pure no-op, and `true` is returned. -/
-theorem write_ram_plain_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
-    (data : BitVec (8*w))
-    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
-    (Functions.write_ram write_kind.Write_plain (physaddr.Physaddr addr) w data ()) s
-      = .ok true s' := by
-  unfold Functions.write_ram Sail.ConcurrencyInterfaceV1.sail_mem_write
-    PreSail.ConcurrencyInterfaceV1.sail_mem_write
-  simp only [bind, EStateM.bind, pure, EStateM.pure]
-  erw [hwrite]
-  simp only [EStateM.pure]
-
-/-- `mem_write_ea` for a plain (non-release, non-conditional) store: the alignment throw
-    is bypassed, `write_kind_of_flags` is `Write_plain`, and `write_ram_ea` is a pure
-    no-op. State untouched. -/
-theorem mem_write_ea_plain (addr : physaddr) (width : Nat) (s : SailState) :
-    (mem_write_ea addr width (MemoryAccessType.Store mem_payload.Data) false false false) s
-      = .ok (Result.Ok ()) s := by
-  unfold mem_write_ea write_kind_of_flags
-  simp +decide only [Bool.or_self, Bool.false_and, Bool.false_eq_true, if_false,
-    bind, EStateM.bind, pure, EStateM.pure, write_ram_ea]
-
-/-- `checked_mem_write` for a bare-mode aligned writable width-`w` store: the access
-    check passes, the address is off the writable MMIO ranges (so `write_ram`, not
-    `mmio_write`), the write kind is `Write_plain`, and `write_ram` lands in the
-    post-write state returning `true`. -/
-theorem checked_mem_write_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
-    (data : BitVec (8*w))
-    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
-    (regions : List PMA_Region) (region : PMA_Region)
-    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
-    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
-    (h_off : ∀ i : Nat,
-      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
-    (h_reg : s.regs.get? Register.pma_regions = some regions)
-    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
-    (h_write : region.attributes.writable = true)
-    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
-    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
-    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
-    (hhtif : (within_htif_writable (physaddr.Physaddr addr) w) s = .ok false s)
-    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
-    checked_mem_write (physaddr.Physaddr addr) w data
-      (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
-      Privilege.Machine () false false false s
-      = .ok (Result.Ok true) s' := by
-  unfold checked_mem_write write_kind_of_flags
-  simp only [bind, EStateM.bind,
-    phys_access_check_store_ok addr w s cfgs pmpaddrs regions region
-      h_cfg h_addr h_off h_reg h_match h_write h_align,
-    within_mmio_writable_ram (physaddr.Physaddr addr) w s hclint hsig hhtif,
-    Bool.false_eq_true, if_false, pure, EStateM.pure,
-    write_ram_plain_store_N w addr s s' data hwrite]
-
-/-- `mem_write_value` for a bare-mode aligned writable width-`w` store (capstone of the
-    `mem_write` chain): effective privilege is Machine (`MPRV = 0`), the alignment guard
-    is bypassed (`rl = con = false`), `checked_mem_write` performs the write, and the
-    callback is a no-op. Returns `Ok true` in the post-write state. -/
-theorem mem_write_value_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
-    (mst : BitVec 64) (data : BitVec (8*w))
-    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
-    (regions : List PMA_Region) (region : PMA_Region)
-    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
-    (h_mst : s.regs.get? Register.mstatus = some mst)
-    (h_mprv : _get_Mstatus_MPRV mst = 0#1)
-    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
-    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
-    (h_off : ∀ i : Nat,
-      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
-    (h_reg : s.regs.get? Register.pma_regions = some regions)
-    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
-    (h_write : region.attributes.writable = true)
-    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
-    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
-    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
-    (hhtif : (within_htif_writable (physaddr.Physaddr addr) w) s = .ok false s)
-    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
-    (mem_write_value (physaddr.Physaddr addr) w data
-      (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
-      false false false) s
-      = .ok (Result.Ok true) s' := by
-  unfold mem_write_value mem_write_value_meta mem_write_value_priv_meta
-  simp only [PreSail.readReg, h_priv, h_mst, pure, EStateM.pure, bind, EStateM.bind,
-    get, MonadState.get, getThe, MonadStateOf.get, EStateM.get,
-    effectivePrivilege_machine s _ mst _ h_mprv,
-    Bool.or_self, Bool.false_and, Bool.false_eq_true, if_false,
-    checked_mem_write_store_N w addr s s' data cfgs pmpaddrs regions region
-      h_cfg h_addr h_off h_reg h_match h_write h_align hclint hsig hhtif hwrite]
-
--- ============================================================================
 -- Full-range `extractLsb` identities (per width; the store's data slice)
 -- ============================================================================
 
@@ -338,7 +265,7 @@ theorem extractLsb_full8 (x : BitVec 8) : Sail.BitVec.extractLsb x 7 0 = x := by
   simp [Sail.BitVec.extractLsb, BitVec.extractLsb,
     show i < 8 from by omega]
 
-/-- Loop-shape variants: the `vmem_write_addr` body slices the data as
+/-- Loop-shape variants: the `checked_mem_write` loop slices the data as
     `extractLsb data (8*w - 1) 0` with the width expression **inside the type index**,
     so the literal-index lemmas above cannot fire (rewriting `8*w-1` would change the
     type). Stated verbatim per width instead. -/
@@ -355,14 +282,168 @@ theorem extractLsb_full_w8 (x : BitVec (8*8)) : Sail.BitVec.extractLsb x (8*8 - 
   extractLsb_full64 x
 
 -- ============================================================================
--- `vmem_write_addr` (fuel-1 aligned loop) and `vmem_write`
+-- Width-generic write chain (post-write state abstracted)
 -- ============================================================================
 
-/-- **`vmem_write_addr` for a bare-mode aligned width-`w` store.** The single-access
-    loop runs once: `translateAddr` is the bare-mode identity, the reservation branch is
-    skipped (`res = false`), `mem_write_ea` is a no-op, the full-range data slice is the
-    data, and `mem_write_value` performs the physical write. Returns `Ok true` in the
-    post-write state `s'`. -/
+/-- `write_ram` for a plain width-`w` store with the `writeBytes` result supplied: builds
+    the write request, `sail_mem_write` runs `writeBytes` (which succeeds with the given
+    post-state), the metadata write is a pure no-op, and `true` is returned. -/
+theorem write_ram_plain_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
+    (data : BitVec (8*w))
+    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
+    (Functions.write_ram write_kind.Write_plain (physaddr.Physaddr addr) w data ()) s
+      = .ok true s' := by
+  unfold Functions.write_ram Sail.ConcurrencyInterfaceV1.sail_mem_write
+    PreSail.ConcurrencyInterfaceV1.sail_mem_write
+  simp only [bind, EStateM.bind, pure, EStateM.pure]
+  erw [hwrite]
+  simp only [EStateM.pure]
+
+/-- `mem_write_ea` for a bare-mode plain (non-release, non-conditional) aligned writable
+    store: the effective privilege is Machine, the PMA-with-PMP-priority check passes
+    (`Ok alignedAccessInfo`), the single-access loop's `pmpCheck` permits, and
+    `write_ram_ea` is a pure no-op. State untouched. (The new model runs the full
+    PMA/PMP checks here, so this needs the same bare-mode hypotheses as the write
+    itself.) -/
+theorem mem_write_ea_plain (addr : BitVec 64) (width : Nat) (s : SailState) (mst : BitVec 64)
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mst : s.regs.get? Register.mstatus = some mst)
+    (h_mprv : _get_Mstatus_MPRV mst = 0#1)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions (physaddr.Physaddr addr) width = some region)
+    (h_write : region.attributes.writable = true)
+    (h_align : is_aligned_paddr (physaddr.Physaddr addr) width = true) :
+    (mem_write_ea (physaddr.Physaddr addr) width (MemoryAccessType.Store mem_payload.Data)
+      page_based_mem_type.PBMT_PMA false false false) s
+      = .ok (Result.Ok ()) s := by
+  have hcheck := check_pma_with_pmp_priority_store_ok (physaddr.Physaddr addr) width s
+    Privilege.Machine regions region h_reg h_match h_write h_align
+  have hsplit := split_misaligned_cannotsplit (physaddr.Physaddr addr) width 0 s
+  have hpmp := pmpCheck_machine_off_store (physaddr.Physaddr addr) width s cfgs pmpaddrs
+    h_cfg h_addr h_off
+  unfold mem_write_ea
+  simp +decide only [SailME.run, PreSail.PreSailME.run,
+    PreSail.readReg, h_priv, h_mst,
+    effectivePrivilege_machine s _ mst _ h_mprv,
+    hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
+    Int.toNat_one, Int.toNat_zero, untilFuelM_one,
+    Sail.assert, PreSail.assert, if_true,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
+    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    Int.toNat_natCast, bits_of_physaddr_mk,
+    hpmp, write_kind_of_flags, write_ram_ea,
+    EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
+    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+    MonadLift.monadLift, monadLift, liftM, Functor.map]
+
+/-- `checked_mem_write` for a bare-mode aligned writable width-`w` store: the
+    PMA-with-PMP-priority check passes (`Ok alignedAccessInfo`), so the access loop runs
+    once (`untilFuelM` fuel 1); the per-access `pmpCheck` permits, the address is off the
+    writable MMIO ranges (so `write_ram`, not `mmio_write`), the write kind is
+    `Write_plain`, the full-width data slice is the data, and `write_ram` lands in the
+    post-write state returning `true`. -/
+theorem checked_mem_write_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
+    (data : BitVec (8*w))
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
+    (h_write : region.attributes.writable = true)
+    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
+    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
+    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
+    (hhtif : (within_htif_writable (physaddr.Physaddr addr) w) s = .ok false s)
+    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
+    checked_mem_write (physaddr.Physaddr addr) w data
+      (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
+      Privilege.Machine () false false false s
+      = .ok (Result.Ok true) s' := by
+  have hcheck := check_pma_with_pmp_priority_store_ok (physaddr.Physaddr addr) w s
+    Privilege.Machine regions region h_reg h_match h_write h_align
+  have hsplit := split_misaligned_cannotsplit (physaddr.Physaddr addr) w 0 s
+  have hpmp := pmpCheck_machine_off_store (physaddr.Physaddr addr) w s cfgs pmpaddrs
+    h_cfg h_addr h_off
+  have hmmio := within_mmio_writable_ram (physaddr.Physaddr addr) w s hclint hsig hhtif
+  have hwr := write_ram_plain_store_N w addr s s' data hwrite
+  unfold checked_mem_write
+  simp +decide only [SailME.run, PreSail.PreSailME.run,
+    hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
+    Int.toNat_one, Int.toNat_zero, untilFuelM_one,
+    Sail.assert, PreSail.assert, if_true,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
+    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    Int.toNat_natCast, bits_of_physaddr_mk,
+    hpmp, hmmio, Bool.false_eq_true, if_false, write_kind_of_flags,
+    EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  rw [show ((8 : Int) * ((0 : Int) + 1) * ((w : Nat) : Int) - 1).toNat = 8 * w - 1
+        from by omega,
+      show ((8 : Int) * (0 : Int) * ((w : Nat) : Int)).toNat = 0 from by omega]
+  rcases hwlit with rfl | rfl | rfl | rfl <;>
+    simp only [extractLsb_full_w1, extractLsb_full_w2, extractLsb_full_w4,
+      extractLsb_full_w8, BitVec.setWidth_eq, hwr, Bool.true_and, Bool.and_self,
+      ExceptT.bindCont, EStateM.bind, EStateM.pure, EStateM.map]
+
+/-- `mem_write_value` for a bare-mode aligned writable width-`w` store (capstone of the
+    `mem_write` chain): effective privilege is Machine (`MPRV = 0`), the alignment guard
+    is bypassed (`rl = con = false`), `checked_mem_write` performs the write, and the
+    callback is a no-op. Returns `Ok true` in the post-write state. -/
+theorem mem_write_value_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState)
+    (mst : BitVec 64) (data : BitVec (8*w))
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mst : s.regs.get? Register.mstatus = some mst)
+    (h_mprv : _get_Mstatus_MPRV mst = 0#1)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
+    (h_write : region.attributes.writable = true)
+    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
+    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
+    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
+    (hhtif : (within_htif_writable (physaddr.Physaddr addr) w) s = .ok false s)
+    (hwrite : (writeBytes addr.toNat data : SailM Bool) s = .ok true s') :
+    (mem_write_value (physaddr.Physaddr addr) w data
+      (MemoryAccessType.Store mem_payload.Data) page_based_mem_type.PBMT_PMA
+      false false false) s
+      = .ok (Result.Ok true) s' := by
+  unfold mem_write_value mem_write_value_meta mem_write_value_priv_meta
+  simp only [PreSail.readReg, h_priv, h_mst, pure, EStateM.pure, bind, EStateM.bind,
+    get, MonadState.get, getThe, MonadStateOf.get, EStateM.get,
+    effectivePrivilege_machine s _ mst _ h_mprv,
+    checked_mem_write_store_N w addr s s' data cfgs pmpaddrs regions region hwlit
+      h_cfg h_addr h_off h_reg h_match h_write h_align hclint hsig hhtif hwrite]
+
+-- ============================================================================
+-- `vmem_write_addr` and `vmem_write`
+-- ============================================================================
+
+/-- **`vmem_write_addr` for a bare-mode aligned width-`w` store.** The aligned access
+    stays inside its page (`split_on_page_boundary` → `(w, 0)`) and translation is
+    `Bare`, so no page-split happens and the access width is the full width:
+    `translateAddr` is the bare-mode identity, the reservation branch is skipped
+    (`res = false`), `mem_write_ea` passes its checks as a state-no-op, the full-range
+    data slice is the data, and `mem_write_value` performs the physical write (the
+    split-misaligned loop now lives inside `checked_mem_write`). Returns `Ok true` in
+    the post-write state `s'`. -/
 theorem vmem_write_addr_store_core (w : Nat) (vaddr : virtaddr) (s s' : SailState)
     (mst : BitVec 64) (data : BitVec (8*w))
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
@@ -388,33 +469,46 @@ theorem vmem_write_addr_store_core (w : Nat) (vaddr : virtaddr) (s s' : SailStat
     (hwrite : (writeBytes (bits_of_virtaddr vaddr).toNat data : SailM Bool) s = .ok true s') :
     (vmem_write_addr vaddr w data (MemoryAccessType.Store mem_payload.Data) false false false) s
       = .ok (Result.Ok true) s' := by
-  unfold vmem_write_addr
-  have hz : (↑(0 : Nat) * ↑w : Int) = 0 := by simp
-  have haddr : (bits_of_virtaddr vaddr + BitVec.ofInt 64 (↑(0 : Nat) * ↑w))
-      = bits_of_virtaddr vaddr := by
-    rw [hz, show BitVec.ofInt 64 0 = (0#64) from rfl, BitVec.add_zero]
-  have htrans := translateAddr_bare_store s (virtaddr.Virtaddr (bits_of_virtaddr vaddr)) mst
-    h_priv h_mst h_mprv
+  have halignN : (bits_of_virtaddr vaddr).toNat % w = 0 :=
+    toNat_mod_of_is_aligned_vaddr vaddr w hwlit h_valign
+  have hpage := split_on_page_boundary_aligned (bits_of_virtaddr vaddr) w s hwlit halignN
+  have htrans := translateAddr_bare_store s vaddr mst h_priv h_mst h_mprv
+  have hea := mem_write_ea_plain (bits_of_virtaddr vaddr) w s mst cfgs pmpaddrs
+    regions region h_priv h_mst h_mprv h_cfg h_pmpaddr h_off h_reg h_match h_write h_palign
   have hmwv := mem_write_value_store_N w (bits_of_virtaddr vaddr) s s' mst data
-    cfgs pmpaddrs regions region h_priv h_mst h_mprv h_cfg h_pmpaddr h_off h_reg
+    cfgs pmpaddrs regions region hwlit h_priv h_mst h_mprv h_cfg h_pmpaddr h_off h_reg
     h_match h_write h_palign hclint hsig hhtif hwrite
-  simp +decide only [h_valign, Functions.not, Bool.not_true, Bool.false_eq_true, if_false,
+  unfold vmem_write_addr
+  simp +decide only [h_valign, Functions.not, Bool.not_true, Bool.not_false,
+    Bool.false_eq_true, if_false,
     SailME.run, PreSail.PreSailME.run,
-    split_misaligned_aligned vaddr w s h_valign, misaligned_order_one,
-    Int.toNat_one, Int.toNat_zero, untilFuelM_one,
+    hpage, PreSail.readReg, h_priv, h_mst,
+    effectivePrivilege_machine s _ mst _ h_mprv, translationMode_machine,
+    sys_misaligned_order_decreasing, bne, is_store_conditional,
+    show (SATPMode.Bare == SATPMode.Bare) = true from rfl,
+    Bool.false_and, Bool.true_and, ite_self,
+    Int.toNat_natCast,
+    htrans, zero_extend64_id, bits_of_virtaddr_mk,
     Sail.assert, PreSail.assert, if_true,
-    BitVec.addInt, haddr, Int.toNat_natCast, bits_of_virtaddr_mk, zero_extend64_id,
-    htrans, Bool.false_and,
-    mem_write_ea_plain,
-    EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
     MonadLift.monadLift, monadLift, liftM, Functor.map]
-  rw [show ((8 : Int) * (((0 : Nat) : Int) + 1) * ((w : Nat) : Int) - 1).toNat
-        = 8 * w - 1 from by omega,
-      show ((8 : Int) * ((0 : Nat) : Int) * ((w : Nat) : Int)).toNat = 0 from by omega]
+  -- collapse the (degenerate) `access_width` selector sitting in type positions, land
+  -- the effective-address check up to defeq, then reduce the remaining plumbing
+  rw [show (if (false = true) then ((w : Nat) : Int) else ((w : Nat) : Int))
+        = ((w : Nat) : Int) from rfl]
+  erw [hea]
+  simp only [EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  rw [show ((8 : Int) * ((w : Nat) : Int) - 1).toNat = 8 * w - 1 from by omega]
   rcases hwlit with rfl | rfl | rfl | rfl <;>
-    simp only [extractLsb_full_w1, extractLsb_full_w2, extractLsb_full_w4, extractLsb_full_w8,
-      BitVec.setWidth_eq, hmwv, Bool.true_and, ExceptT.bindCont, EStateM.bind, EStateM.pure]
+  · simp only [extractLsb_full_w1, extractLsb_full_w2, extractLsb_full_w4,
+      extractLsb_full_w8, BitVec.setWidth_eq]
+    erw [hmwv]
+    simp only [Bool.true_and, Bool.and_self, ExceptT.bindCont, EStateM.bind, EStateM.pure,
+      EStateM.map]
 
 /-- **`vmem_write` for a bare-mode aligned width-`w` store.** The effective-address
     pipeline (`ext_data_get_addr` reads `rs_addr`; `transform_effective_address` is the

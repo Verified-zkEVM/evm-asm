@@ -2,6 +2,7 @@ import Out.Flow
 import Out.Prelude
 import Out.Errors
 import Out.Xlen
+import Out.MemAddrtype
 import Out.PlatformConfig
 import Out.SysRegs
 
@@ -135,6 +136,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -153,6 +155,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -160,6 +163,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -170,11 +174,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -330,11 +334,11 @@ def pmpWriteCfgReg (n : Nat) (v : (BitVec 64)) : SailM Unit := do
       else (pure ())
   (pure loop_vars)
 
-/-- Type quantifiers: k_ex252864_ : Bool, k_ex252863_ : Bool -/
+/-- Type quantifiers: k_ex479254_ : Bool, k_ex479253_ : Bool -/
 def pmpWriteAddr (locked : Bool) (tor_locked : Bool) (reg : (BitVec 64)) (v : (BitVec 64)) : (BitVec 64) :=
   if ((locked || tor_locked) : Bool)
   then reg
-  else (zero_extend (m := 64) (Sail.BitVec.extractLsb v 53 0))
+  else (zero_extend (m := 64) (Sail.BitVec.extractLsb v (Min.min (physaddr_bits -i 3) 53) 0))
 
 /-- Type quantifiers: n : Nat, 0 ≤ n ∧ n ≤ 63 -/
 def pmpWriteAddrReg (n : Nat) (v : (BitVec 64)) : SailM Unit := do

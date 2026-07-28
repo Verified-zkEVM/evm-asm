@@ -18,6 +18,7 @@ import Out.VmemUtils
 import Out.ZicfilpInsts
 import Out.BaseInsts
 import Out.MextInsts
+import Out.ZicsrInsts
 
 set_option maxHeartbeats 1_000_000_000
 set_option maxRecDepth 1_000_000
@@ -149,6 +150,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -167,6 +169,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -174,6 +177,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -184,11 +188,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -207,23 +211,23 @@ open AmocasOddRegisterReservedBehavior
 noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := do
   let head_exp_ := arg_
   match (← do
-    let v__186 := head_exp_
-    if (((← (currentlyEnabled Ext_Zicfilp)) && ((Sail.BitVec.extractLsb v__186 11 0) == (0x017#12 : (BitVec 12)))) : Bool)
+    let v__192 := head_exp_
+    if (((← (currentlyEnabled Ext_Zicfilp)) && ((Sail.BitVec.extractLsb v__192 11 0) == (0x017#12 : (BitVec 12)))) : Bool)
     then
-      (let lpl : (BitVec 20) := (Sail.BitVec.extractLsb v__186 31 12)
-      let lpl : (BitVec 20) := (Sail.BitVec.extractLsb v__186 31 12)
+      (let lpl : (BitVec 20) := (Sail.BitVec.extractLsb v__192 31 12)
+      let lpl : (BitVec 20) := (Sail.BitVec.extractLsb v__192 31 12)
       (pure (some (LPAD lpl))))
     else
       (do
-        if ((let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__186 6 0)
-           let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__186 11 7)
+        if ((let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__192 6 0)
+           let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__192 11 7)
            ((encdec_reg_backwards_matches mapping0_) && (encdec_uop_backwards_matches mapping1_))) : Bool)
         then
           (do
-            let imm : (BitVec 20) := (Sail.BitVec.extractLsb v__186 31 12)
-            let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__186 6 0)
-            let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__186 11 7)
-            let imm : (BitVec 20) := (Sail.BitVec.extractLsb v__186 31 12)
+            let imm : (BitVec 20) := (Sail.BitVec.extractLsb v__192 31 12)
+            let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__192 6 0)
+            let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__192 11 7)
+            let imm : (BitVec 20) := (Sail.BitVec.extractLsb v__192 31 12)
             match ((← (encdec_reg_backwards mapping0_)), (← (encdec_uop_backwards mapping1_))) with
             | (rd, op) => (pure (some (UTYPE (imm, rd, op)))))
         else (pure none))) with
@@ -231,17 +235,17 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
   | none =>
     (do
       match (← do
-        let v__184 := head_exp_
-        if (((let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__184 11 7)
-             (encdec_reg_backwards_matches mapping2_)) && ((Sail.BitVec.extractLsb v__184 6 0) == (0b1101111#7 : (BitVec 7)))) : Bool)
+        let v__190 := head_exp_
+        if (((let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__190 11 7)
+             (encdec_reg_backwards_matches mapping2_)) && ((Sail.BitVec.extractLsb v__190 6 0) == (0b1101111#7 : (BitVec 7)))) : Bool)
         then
           (do
-            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__184 31 31)
-            let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__184 11 7)
-            let imm_9_0_ : (BitVec 10) := (Sail.BitVec.extractLsb v__184 30 21)
-            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__184 31 31)
-            let imm_18_11_ : (BitVec 8) := (Sail.BitVec.extractLsb v__184 19 12)
-            let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__184 20 20)
+            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__190 31 31)
+            let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__190 11 7)
+            let imm_9_0_ : (BitVec 10) := (Sail.BitVec.extractLsb v__190 30 21)
+            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__190 31 31)
+            let imm_18_11_ : (BitVec 8) := (Sail.BitVec.extractLsb v__190 19 12)
+            let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__190 20 20)
             match (← (encdec_reg_backwards mapping2_)) with
             | rd =>
               (pure (some
@@ -252,18 +256,18 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
       | none =>
         (do
           match (← do
-            let v__181 := head_exp_
-            if (((let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__181 11 7)
-                 let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__181 19 15)
+            let v__187 := head_exp_
+            if (((let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__187 11 7)
+                 let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__187 19 15)
                  ((encdec_reg_backwards_matches mapping3_) && (encdec_reg_backwards_matches
-                     mapping4_))) && (((Sail.BitVec.extractLsb v__181 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                       v__181 6 0) == (0b1100111#7 : (BitVec 7))))) : Bool)
+                     mapping4_))) && (((Sail.BitVec.extractLsb v__187 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                       v__187 6 0) == (0b1100111#7 : (BitVec 7))))) : Bool)
             then
               (do
-                let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__181 31 20)
-                let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__181 11 7)
-                let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__181 19 15)
-                let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__181 31 20)
+                let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__187 31 20)
+                let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__187 11 7)
+                let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__187 19 15)
+                let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__187 31 20)
                 match ((← (encdec_reg_backwards mapping3_)), (← (encdec_reg_backwards mapping4_))) with
                 | (rs1, rd) => (pure (some (JALR (imm, rs1, rd)))))
             else (pure none)) with
@@ -271,23 +275,23 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
           | none =>
             (do
               match (← do
-                let v__179 := head_exp_
-                if (((let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__179 14 12)
-                     let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 19 15)
-                     let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 24 20)
+                let v__185 := head_exp_
+                if (((let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__185 14 12)
+                     let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__185 19 15)
+                     let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__185 24 20)
                      ((encdec_reg_backwards_matches mapping5_) && ((encdec_reg_backwards_matches
                            mapping6_) && (encdec_bop_backwards_matches mapping7_)))) && ((Sail.BitVec.extractLsb
-                         v__179 6 0) == (0b1100011#7 : (BitVec 7)))) : Bool)
+                         v__185 6 0) == (0b1100011#7 : (BitVec 7)))) : Bool)
                 then
                   (do
-                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__179 31 31)
-                    let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__179 14 12)
-                    let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 19 15)
-                    let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 24 20)
-                    let imm_9_4_ : (BitVec 6) := (Sail.BitVec.extractLsb v__179 30 25)
-                    let imm_3_0_ : (BitVec 4) := (Sail.BitVec.extractLsb v__179 11 8)
-                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__179 31 31)
-                    let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__179 7 7)
+                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__185 31 31)
+                    let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__185 14 12)
+                    let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__185 19 15)
+                    let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__185 24 20)
+                    let imm_9_4_ : (BitVec 6) := (Sail.BitVec.extractLsb v__185 30 25)
+                    let imm_3_0_ : (BitVec 4) := (Sail.BitVec.extractLsb v__185 11 8)
+                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__185 31 31)
+                    let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__185 7 7)
                     match ((← (encdec_reg_backwards mapping5_)), (← (encdec_reg_backwards
                         mapping6_)), (← (encdec_bop_backwards mapping7_))) with
                     | (rs2, rs1, op) =>
@@ -299,20 +303,20 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
               | none =>
                 (do
                   match (← do
-                    let v__177 := head_exp_
-                    if (((let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__177 14 12)
-                         let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__177 19 15)
-                         let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__177 11 7)
+                    let v__183 := head_exp_
+                    if (((let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__183 14 12)
+                         let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__183 19 15)
+                         let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__183 11 7)
                          ((encdec_reg_backwards_matches mapping8_) && ((encdec_iop_backwards_matches
                                mapping9_) && (encdec_reg_backwards_matches mapping10_)))) && ((Sail.BitVec.extractLsb
-                             v__177 6 0) == (0b0010011#7 : (BitVec 7)))) : Bool)
+                             v__183 6 0) == (0b0010011#7 : (BitVec 7)))) : Bool)
                     then
                       (do
-                        let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__177 31 20)
-                        let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__177 14 12)
-                        let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__177 19 15)
-                        let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__177 11 7)
-                        let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__177 31 20)
+                        let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__183 31 20)
+                        let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__183 14 12)
+                        let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__183 19 15)
+                        let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__183 11 7)
+                        let imm : (BitVec 12) := (Sail.BitVec.extractLsb v__183 31 20)
                         match ((← (encdec_reg_backwards mapping8_)), (← (encdec_iop_backwards
                             mapping9_)), (← (encdec_reg_backwards mapping10_))) with
                         | (rs1, op, rd) => (pure (some (ITYPE (imm, rs1, rd, op)))))
@@ -321,18 +325,18 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                   | none =>
                     (do
                       match (← do
-                        let v__173 := head_exp_
-                        if (((let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__173 11 7)
-                             let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__173 19 15)
+                        let v__179 := head_exp_
+                        if (((let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 11 7)
+                             let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 19 15)
                              ((encdec_reg_backwards_matches mapping11_) && (encdec_reg_backwards_matches
-                                 mapping12_))) && (((Sail.BitVec.extractLsb v__173 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                     v__173 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                     v__173 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                 mapping12_))) && (((Sail.BitVec.extractLsb v__179 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                     v__179 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                     v__179 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                         then
                           (do
-                            let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__173 25 20)
-                            let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__173 11 7)
-                            let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__173 19 15)
+                            let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__179 25 20)
+                            let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 11 7)
+                            let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__179 19 15)
                             match ((← (encdec_reg_backwards mapping11_)), (← (encdec_reg_backwards
                                 mapping12_))) with
                             | (rs1, rd) =>
@@ -344,20 +348,20 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                       | none =>
                         (do
                           match (← do
-                            let v__169 := head_exp_
+                            let v__175 := head_exp_
                             if (((let mapping14_ : (BitVec 5) :=
-                                   (Sail.BitVec.extractLsb v__169 11 7)
+                                   (Sail.BitVec.extractLsb v__175 11 7)
                                  let mapping13_ : (BitVec 5) :=
-                                   (Sail.BitVec.extractLsb v__169 19 15)
+                                   (Sail.BitVec.extractLsb v__175 19 15)
                                  ((encdec_reg_backwards_matches mapping13_) && (encdec_reg_backwards_matches
-                                     mapping14_))) && (((Sail.BitVec.extractLsb v__169 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                         v__169 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                         v__169 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                     mapping14_))) && (((Sail.BitVec.extractLsb v__175 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                         v__175 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                         v__175 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                             then
                               (do
-                                let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__169 25 20)
-                                let mapping14_ : (BitVec 5) := (Sail.BitVec.extractLsb v__169 11 7)
-                                let mapping13_ : (BitVec 5) := (Sail.BitVec.extractLsb v__169 19 15)
+                                let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__175 25 20)
+                                let mapping14_ : (BitVec 5) := (Sail.BitVec.extractLsb v__175 11 7)
+                                let mapping13_ : (BitVec 5) := (Sail.BitVec.extractLsb v__175 19 15)
                                 match ((← (encdec_reg_backwards mapping13_)), (← (encdec_reg_backwards
                                     mapping14_))) with
                                 | (rs1, rd) =>
@@ -369,22 +373,22 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                           | none =>
                             (do
                               match (← do
-                                let v__165 := head_exp_
+                                let v__171 := head_exp_
                                 if (((let mapping16_ : (BitVec 5) :=
-                                       (Sail.BitVec.extractLsb v__165 11 7)
+                                       (Sail.BitVec.extractLsb v__171 11 7)
                                      let mapping15_ : (BitVec 5) :=
-                                       (Sail.BitVec.extractLsb v__165 19 15)
+                                       (Sail.BitVec.extractLsb v__171 19 15)
                                      ((encdec_reg_backwards_matches mapping15_) && (encdec_reg_backwards_matches
-                                         mapping16_))) && (((Sail.BitVec.extractLsb v__165 31 26) == (0b010000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                             v__165 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                             v__165 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                         mapping16_))) && (((Sail.BitVec.extractLsb v__171 31 26) == (0b010000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                             v__171 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                             v__171 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                                 then
                                   (do
-                                    let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__165 25 20)
+                                    let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__171 25 20)
                                     let mapping16_ : (BitVec 5) :=
-                                      (Sail.BitVec.extractLsb v__165 11 7)
+                                      (Sail.BitVec.extractLsb v__171 11 7)
                                     let mapping15_ : (BitVec 5) :=
-                                      (Sail.BitVec.extractLsb v__165 19 15)
+                                      (Sail.BitVec.extractLsb v__171 19 15)
                                     match ((← (encdec_reg_backwards mapping15_)), (← (encdec_reg_backwards
                                         mapping16_))) with
                                     | (rs1, rd) =>
@@ -396,27 +400,27 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                               | none =>
                                 (do
                                   match (← do
-                                    let v__161 := head_exp_
+                                    let v__167 := head_exp_
                                     if (((let mapping19_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__161 11 7)
+                                           (Sail.BitVec.extractLsb v__167 11 7)
                                          let mapping18_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__161 19 15)
+                                           (Sail.BitVec.extractLsb v__167 19 15)
                                          let mapping17_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__161 24 20)
+                                           (Sail.BitVec.extractLsb v__167 24 20)
                                          ((encdec_reg_backwards_matches mapping17_) && ((encdec_reg_backwards_matches
                                                mapping18_) && (encdec_reg_backwards_matches
-                                               mapping19_)))) && (((Sail.BitVec.extractLsb v__161 31
+                                               mapping19_)))) && (((Sail.BitVec.extractLsb v__167 31
                                                25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                 v__161 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                 v__161 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                 v__167 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                 v__167 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                     then
                                       (do
                                         let mapping19_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__161 11 7)
+                                          (Sail.BitVec.extractLsb v__167 11 7)
                                         let mapping18_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__161 19 15)
+                                          (Sail.BitVec.extractLsb v__167 19 15)
                                         let mapping17_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__161 24 20)
+                                          (Sail.BitVec.extractLsb v__167 24 20)
                                         match ((← (encdec_reg_backwards mapping17_)), (← (encdec_reg_backwards
                                             mapping18_)), (← (encdec_reg_backwards mapping19_))) with
                                         | (rs2, rs1, rd) =>
@@ -426,27 +430,27 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                   | none =>
                                     (do
                                       match (← do
-                                        let v__157 := head_exp_
+                                        let v__163 := head_exp_
                                         if (((let mapping22_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__157 11 7)
+                                               (Sail.BitVec.extractLsb v__163 11 7)
                                              let mapping21_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__157 19 15)
+                                               (Sail.BitVec.extractLsb v__163 19 15)
                                              let mapping20_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__157 24 20)
+                                               (Sail.BitVec.extractLsb v__163 24 20)
                                              ((encdec_reg_backwards_matches mapping20_) && ((encdec_reg_backwards_matches
                                                    mapping21_) && (encdec_reg_backwards_matches
                                                    mapping22_)))) && (((Sail.BitVec.extractLsb
-                                                   v__157 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                     v__157 14 12) == (0b010#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                     v__157 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                   v__163 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                     v__163 14 12) == (0b010#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                     v__163 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                         then
                                           (do
                                             let mapping22_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__157 11 7)
+                                              (Sail.BitVec.extractLsb v__163 11 7)
                                             let mapping21_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__157 19 15)
+                                              (Sail.BitVec.extractLsb v__163 19 15)
                                             let mapping20_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__157 24 20)
+                                              (Sail.BitVec.extractLsb v__163 24 20)
                                             match ((← (encdec_reg_backwards mapping20_)), (← (encdec_reg_backwards
                                                 mapping21_)), (← (encdec_reg_backwards mapping22_))) with
                                             | (rs2, rs1, rd) =>
@@ -456,27 +460,27 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                       | none =>
                                         (do
                                           match (← do
-                                            let v__153 := head_exp_
+                                            let v__159 := head_exp_
                                             if (((let mapping25_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__153 11 7)
+                                                   (Sail.BitVec.extractLsb v__159 11 7)
                                                  let mapping24_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__153 19 15)
+                                                   (Sail.BitVec.extractLsb v__159 19 15)
                                                  let mapping23_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__153 24 20)
+                                                   (Sail.BitVec.extractLsb v__159 24 20)
                                                  ((encdec_reg_backwards_matches mapping23_) && ((encdec_reg_backwards_matches
                                                        mapping24_) && (encdec_reg_backwards_matches
                                                        mapping25_)))) && (((Sail.BitVec.extractLsb
-                                                       v__153 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                         v__153 14 12) == (0b011#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                         v__153 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                       v__159 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                         v__159 14 12) == (0b011#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                         v__159 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                             then
                                               (do
                                                 let mapping25_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__153 11 7)
+                                                  (Sail.BitVec.extractLsb v__159 11 7)
                                                 let mapping24_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__153 19 15)
+                                                  (Sail.BitVec.extractLsb v__159 19 15)
                                                 let mapping23_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__153 24 20)
+                                                  (Sail.BitVec.extractLsb v__159 24 20)
                                                 match ((← (encdec_reg_backwards mapping23_)), (← (encdec_reg_backwards
                                                     mapping24_)), (← (encdec_reg_backwards
                                                     mapping25_))) with
@@ -487,27 +491,27 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                           | none =>
                                             (do
                                               match (← do
-                                                let v__149 := head_exp_
+                                                let v__155 := head_exp_
                                                 if (((let mapping28_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__149 11 7)
+                                                       (Sail.BitVec.extractLsb v__155 11 7)
                                                      let mapping27_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__149 19 15)
+                                                       (Sail.BitVec.extractLsb v__155 19 15)
                                                      let mapping26_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__149 24 20)
+                                                       (Sail.BitVec.extractLsb v__155 24 20)
                                                      ((encdec_reg_backwards_matches mapping26_) && ((encdec_reg_backwards_matches
                                                            mapping27_) && (encdec_reg_backwards_matches
                                                            mapping28_)))) && (((Sail.BitVec.extractLsb
-                                                           v__149 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                             v__149 14 12) == (0b111#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                             v__149 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                           v__155 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                             v__155 14 12) == (0b111#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                             v__155 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                 then
                                                   (do
                                                     let mapping28_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__149 11 7)
+                                                      (Sail.BitVec.extractLsb v__155 11 7)
                                                     let mapping27_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__149 19 15)
+                                                      (Sail.BitVec.extractLsb v__155 19 15)
                                                     let mapping26_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__149 24 20)
+                                                      (Sail.BitVec.extractLsb v__155 24 20)
                                                     match ((← (encdec_reg_backwards mapping26_)), (← (encdec_reg_backwards
                                                         mapping27_)), (← (encdec_reg_backwards
                                                         mapping28_))) with
@@ -518,27 +522,27 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                               | none =>
                                                 (do
                                                   match (← do
-                                                    let v__145 := head_exp_
+                                                    let v__151 := head_exp_
                                                     if (((let mapping31_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__145 11 7)
+                                                           (Sail.BitVec.extractLsb v__151 11 7)
                                                          let mapping30_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__145 19 15)
+                                                           (Sail.BitVec.extractLsb v__151 19 15)
                                                          let mapping29_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__145 24 20)
+                                                           (Sail.BitVec.extractLsb v__151 24 20)
                                                          ((encdec_reg_backwards_matches mapping29_) && ((encdec_reg_backwards_matches
                                                                mapping30_) && (encdec_reg_backwards_matches
                                                                mapping31_)))) && (((Sail.BitVec.extractLsb
-                                                               v__145 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                 v__145 14 12) == (0b110#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                 v__145 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                               v__151 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                 v__151 14 12) == (0b110#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                 v__151 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                     then
                                                       (do
                                                         let mapping31_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__145 11 7)
+                                                          (Sail.BitVec.extractLsb v__151 11 7)
                                                         let mapping30_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__145 19 15)
+                                                          (Sail.BitVec.extractLsb v__151 19 15)
                                                         let mapping29_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__145 24 20)
+                                                          (Sail.BitVec.extractLsb v__151 24 20)
                                                         match ((← (encdec_reg_backwards mapping29_)), (← (encdec_reg_backwards
                                                             mapping30_)), (← (encdec_reg_backwards
                                                             mapping31_))) with
@@ -549,28 +553,28 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                   | none =>
                                                     (do
                                                       match (← do
-                                                        let v__141 := head_exp_
+                                                        let v__147 := head_exp_
                                                         if (((let mapping34_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__141 11 7)
+                                                               (Sail.BitVec.extractLsb v__147 11 7)
                                                              let mapping33_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__141 19 15)
+                                                               (Sail.BitVec.extractLsb v__147 19 15)
                                                              let mapping32_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__141 24 20)
+                                                               (Sail.BitVec.extractLsb v__147 24 20)
                                                              ((encdec_reg_backwards_matches
                                                                  mapping32_) && ((encdec_reg_backwards_matches
                                                                    mapping33_) && (encdec_reg_backwards_matches
                                                                    mapping34_)))) && (((Sail.BitVec.extractLsb
-                                                                   v__141 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                     v__141 14 12) == (0b100#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                     v__141 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                   v__147 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                     v__147 14 12) == (0b100#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                     v__147 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                         then
                                                           (do
                                                             let mapping34_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__141 11 7)
+                                                              (Sail.BitVec.extractLsb v__147 11 7)
                                                             let mapping33_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__141 19 15)
+                                                              (Sail.BitVec.extractLsb v__147 19 15)
                                                             let mapping32_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__141 24 20)
+                                                              (Sail.BitVec.extractLsb v__147 24 20)
                                                             match ((← (encdec_reg_backwards
                                                                 mapping32_)), (← (encdec_reg_backwards
                                                                 mapping33_)), (← (encdec_reg_backwards
@@ -583,33 +587,33 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                       | none =>
                                                         (do
                                                           match (← do
-                                                            let v__137 := head_exp_
+                                                            let v__143 := head_exp_
                                                             if (((let mapping37_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__137 11
+                                                                   (Sail.BitVec.extractLsb v__143 11
                                                                      7)
                                                                  let mapping36_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__137 19
+                                                                   (Sail.BitVec.extractLsb v__143 19
                                                                      15)
                                                                  let mapping35_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__137 24
+                                                                   (Sail.BitVec.extractLsb v__143 24
                                                                      20)
                                                                  ((encdec_reg_backwards_matches
                                                                      mapping35_) && ((encdec_reg_backwards_matches
                                                                        mapping36_) && (encdec_reg_backwards_matches
                                                                        mapping37_)))) && (((Sail.BitVec.extractLsb
-                                                                       v__137 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                         v__137 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                         v__137 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                       v__143 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                         v__143 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                         v__143 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                             then
                                                               (do
                                                                 let mapping37_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__137 11
+                                                                  (Sail.BitVec.extractLsb v__143 11
                                                                     7)
                                                                 let mapping36_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__137 19
+                                                                  (Sail.BitVec.extractLsb v__143 19
                                                                     15)
                                                                 let mapping35_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__137 24
+                                                                  (Sail.BitVec.extractLsb v__143 24
                                                                     20)
                                                                 match ((← (encdec_reg_backwards
                                                                     mapping35_)), (← (encdec_reg_backwards
@@ -623,33 +627,33 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                           | none =>
                                                             (do
                                                               match (← do
-                                                                let v__133 := head_exp_
+                                                                let v__139 := head_exp_
                                                                 if (((let mapping40_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__133 11 7)
+                                                                         v__139 11 7)
                                                                      let mapping39_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__133 19 15)
+                                                                         v__139 19 15)
                                                                      let mapping38_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__133 24 20)
+                                                                         v__139 24 20)
                                                                      ((encdec_reg_backwards_matches
                                                                          mapping38_) && ((encdec_reg_backwards_matches
                                                                            mapping39_) && (encdec_reg_backwards_matches
                                                                            mapping40_)))) && (((Sail.BitVec.extractLsb
-                                                                           v__133 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                             v__133 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                             v__133 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                           v__139 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                             v__139 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                             v__139 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                 then
                                                                   (do
                                                                     let mapping40_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__133
+                                                                      (Sail.BitVec.extractLsb v__139
                                                                         11 7)
                                                                     let mapping39_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__133
+                                                                      (Sail.BitVec.extractLsb v__139
                                                                         19 15)
                                                                     let mapping38_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__133
+                                                                      (Sail.BitVec.extractLsb v__139
                                                                         24 20)
                                                                     match ((← (encdec_reg_backwards
                                                                         mapping38_)), (← (encdec_reg_backwards
@@ -663,34 +667,34 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                               | none =>
                                                                 (do
                                                                   match (← do
-                                                                    let v__129 := head_exp_
+                                                                    let v__135 := head_exp_
                                                                     if (((let mapping43_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__129 11 7)
+                                                                             v__135 11 7)
                                                                          let mapping42_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__129 19 15)
+                                                                             v__135 19 15)
                                                                          let mapping41_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__129 24 20)
+                                                                             v__135 24 20)
                                                                          ((encdec_reg_backwards_matches
                                                                              mapping41_) && ((encdec_reg_backwards_matches
                                                                                mapping42_) && (encdec_reg_backwards_matches
                                                                                mapping43_)))) && (((Sail.BitVec.extractLsb
-                                                                               v__129 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                 v__129 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                 v__129 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                               v__135 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                                 v__135 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                                 v__135 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                     then
                                                                       (do
                                                                         let mapping43_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__129 11 7)
+                                                                            v__135 11 7)
                                                                         let mapping42_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__129 19 15)
+                                                                            v__135 19 15)
                                                                         let mapping41_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__129 24 20)
+                                                                            v__135 24 20)
                                                                         match ((← (encdec_reg_backwards
                                                                             mapping41_)), (← (encdec_reg_backwards
                                                                             mapping42_)), (← (encdec_reg_backwards
@@ -704,34 +708,34 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                   | none =>
                                                                     (do
                                                                       match (← do
-                                                                        let v__125 := head_exp_
+                                                                        let v__131 := head_exp_
                                                                         if (((let mapping46_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__125 11 7)
+                                                                                 v__131 11 7)
                                                                              let mapping45_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__125 19 15)
+                                                                                 v__131 19 15)
                                                                              let mapping44_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__125 24 20)
+                                                                                 v__131 24 20)
                                                                              ((encdec_reg_backwards_matches
                                                                                  mapping44_) && ((encdec_reg_backwards_matches
                                                                                    mapping45_) && (encdec_reg_backwards_matches
                                                                                    mapping46_)))) && (((Sail.BitVec.extractLsb
-                                                                                   v__125 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                     v__125 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                     v__125 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                                   v__131 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                                     v__131 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                                     v__131 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                         then
                                                                           (do
                                                                             let mapping46_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__125 11 7)
+                                                                                v__131 11 7)
                                                                             let mapping45_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__125 19 15)
+                                                                                v__131 19 15)
                                                                             let mapping44_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__125 24 20)
+                                                                                v__131 24 20)
                                                                             match ((← (encdec_reg_backwards
                                                                                 mapping44_)), (← (encdec_reg_backwards
                                                                                 mapping45_)), (← (encdec_reg_backwards
@@ -746,45 +750,45 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                       | none =>
                                                                         (do
                                                                           match (← do
-                                                                            let v__123 := head_exp_
+                                                                            let v__129 := head_exp_
                                                                             if (((let mapping50_ : (BitVec 5) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__123 11 7)
+                                                                                     v__129 11 7)
                                                                                  let mapping49_ : (BitVec 2) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__123 13 12)
+                                                                                     v__129 13 12)
                                                                                  let mapping48_ : (BitVec 1) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__123 14 14)
+                                                                                     v__129 14 14)
                                                                                  let mapping47_ : (BitVec 5) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__123 19 15)
+                                                                                     v__129 19 15)
                                                                                  ((encdec_reg_backwards_matches
                                                                                      mapping47_) && ((bool_bit_backwards_matches
                                                                                        mapping48_) && ((width_enc_backwards_matches
                                                                                          mapping49_) && (encdec_reg_backwards_matches
                                                                                          mapping50_))))) && ((Sail.BitVec.extractLsb
-                                                                                     v__123 6 0) == (0b0000011#7 : (BitVec 7)))) : Bool)
+                                                                                     v__129 6 0) == (0b0000011#7 : (BitVec 7)))) : Bool)
                                                                             then
                                                                               (do
                                                                                 let imm : (BitVec 12) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 31 20)
+                                                                                    v__129 31 20)
                                                                                 let mapping50_ : (BitVec 5) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 11 7)
+                                                                                    v__129 11 7)
                                                                                 let mapping49_ : (BitVec 2) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 13 12)
+                                                                                    v__129 13 12)
                                                                                 let mapping48_ : (BitVec 1) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 14 14)
+                                                                                    v__129 14 14)
                                                                                 let mapping47_ : (BitVec 5) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 19 15)
+                                                                                    v__129 19 15)
                                                                                 let imm : (BitVec 12) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__123 31 20)
+                                                                                    v__129 31 20)
                                                                                 match ((← (encdec_reg_backwards
                                                                                     mapping47_)), (bool_bit_backwards
                                                                                   mapping48_), (width_enc_backwards
@@ -805,48 +809,48 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                           | none =>
                                                                             (do
                                                                               match (← do
-                                                                                let v__120 :=
+                                                                                let v__126 :=
                                                                                   head_exp_
                                                                                 if (((let mapping53_ : (BitVec 2) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__120 13
+                                                                                         v__126 13
                                                                                          12)
                                                                                      let mapping52_ : (BitVec 5) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__120 19
+                                                                                         v__126 19
                                                                                          15)
                                                                                      let mapping51_ : (BitVec 5) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__120 24
+                                                                                         v__126 24
                                                                                          20)
                                                                                      ((encdec_reg_backwards_matches
                                                                                          mapping51_) && ((encdec_reg_backwards_matches
                                                                                            mapping52_) && (width_enc_backwards_matches
                                                                                            mapping53_)))) && (((Sail.BitVec.extractLsb
-                                                                                           v__120 14
+                                                                                           v__126 14
                                                                                            14) == (0#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
-                                                                                           v__120 6
+                                                                                           v__126 6
                                                                                            0) == (0b0100011#7 : (BitVec 7))))) : Bool)
                                                                                 then
                                                                                   (do
                                                                                     let imm_11_5_ : (BitVec 7) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 31 25)
+                                                                                        v__126 31 25)
                                                                                     let mapping53_ : (BitVec 2) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 13 12)
+                                                                                        v__126 13 12)
                                                                                     let mapping52_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 19 15)
+                                                                                        v__126 19 15)
                                                                                     let mapping51_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 24 20)
+                                                                                        v__126 24 20)
                                                                                     let imm_4_0_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 11 7)
+                                                                                        v__126 11 7)
                                                                                     let imm_11_5_ : (BitVec 7) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__120 31 25)
+                                                                                        v__126 31 25)
                                                                                     match ((← (encdec_reg_backwards
                                                                                         mapping51_)), (← (encdec_reg_backwards
                                                                                         mapping52_)), (width_enc_backwards
@@ -869,40 +873,40 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                               | none =>
                                                                                 (do
                                                                                   match (← do
-                                                                                    let v__117 :=
+                                                                                    let v__123 :=
                                                                                       head_exp_
                                                                                     if (((let mapping55_ : (BitVec 5) :=
                                                                                            (Sail.BitVec.extractLsb
-                                                                                             v__117
+                                                                                             v__123
                                                                                              11 7)
                                                                                          let mapping54_ : (BitVec 5) :=
                                                                                            (Sail.BitVec.extractLsb
-                                                                                             v__117
+                                                                                             v__123
                                                                                              19 15)
                                                                                          ((encdec_reg_backwards_matches
                                                                                              mapping54_) && (encdec_reg_backwards_matches
                                                                                              mapping55_))) && (((Sail.BitVec.extractLsb
-                                                                                               v__117
+                                                                                               v__123
                                                                                                14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                               v__117
+                                                                                               v__123
                                                                                                6 0) == (0b0011011#7 : (BitVec 7))))) : Bool)
                                                                                     then
                                                                                       (do
                                                                                         let imm : (BitVec 12) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__117
+                                                                                            v__123
                                                                                             31 20)
                                                                                         let mapping55_ : (BitVec 5) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__117
+                                                                                            v__123
                                                                                             11 7)
                                                                                         let mapping54_ : (BitVec 5) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__117
+                                                                                            v__123
                                                                                             19 15)
                                                                                         let imm : (BitVec 12) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__117
+                                                                                            v__123
                                                                                             31 20)
                                                                                         match ((← (encdec_reg_backwards
                                                                                             mapping54_)), (← (encdec_reg_backwards
@@ -921,50 +925,50 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                   | none =>
                                                                                     (do
                                                                                       match (← do
-                                                                                        let v__113 :=
+                                                                                        let v__119 :=
                                                                                           head_exp_
                                                                                         if (((let mapping58_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__113
+                                                                                                 v__119
                                                                                                  11
                                                                                                  7)
                                                                                              let mapping57_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__113
+                                                                                                 v__119
                                                                                                  19
                                                                                                  15)
                                                                                              let mapping56_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__113
+                                                                                                 v__119
                                                                                                  24
                                                                                                  20)
                                                                                              ((encdec_reg_backwards_matches
                                                                                                  mapping56_) && ((encdec_reg_backwards_matches
                                                                                                    mapping57_) && (encdec_reg_backwards_matches
                                                                                                    mapping58_)))) && (((Sail.BitVec.extractLsb
-                                                                                                   v__113
+                                                                                                   v__119
                                                                                                    31
                                                                                                    25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                     v__113
+                                                                                                     v__119
                                                                                                      14
                                                                                                      12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                     v__113
+                                                                                                     v__119
                                                                                                      6
                                                                                                      0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                         then
                                                                                           (do
                                                                                             let mapping58_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__113
+                                                                                                v__119
                                                                                                 11 7)
                                                                                             let mapping57_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__113
+                                                                                                v__119
                                                                                                 19
                                                                                                 15)
                                                                                             let mapping56_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__113
+                                                                                                v__119
                                                                                                 24
                                                                                                 20)
                                                                                             match ((← (encdec_reg_backwards
@@ -986,51 +990,51 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                       | none =>
                                                                                         (do
                                                                                           match (← do
-                                                                                            let v__109 :=
+                                                                                            let v__115 :=
                                                                                               head_exp_
                                                                                             if (((let mapping61_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__109
+                                                                                                     v__115
                                                                                                      11
                                                                                                      7)
                                                                                                  let mapping60_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__109
+                                                                                                     v__115
                                                                                                      19
                                                                                                      15)
                                                                                                  let mapping59_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__109
+                                                                                                     v__115
                                                                                                      24
                                                                                                      20)
                                                                                                  ((encdec_reg_backwards_matches
                                                                                                      mapping59_) && ((encdec_reg_backwards_matches
                                                                                                        mapping60_) && (encdec_reg_backwards_matches
                                                                                                        mapping61_)))) && (((Sail.BitVec.extractLsb
-                                                                                                       v__109
+                                                                                                       v__115
                                                                                                        31
                                                                                                        25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                         v__109
+                                                                                                         v__115
                                                                                                          14
                                                                                                          12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                         v__109
+                                                                                                         v__115
                                                                                                          6
                                                                                                          0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                             then
                                                                                               (do
                                                                                                 let mapping61_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__109
+                                                                                                    v__115
                                                                                                     11
                                                                                                     7)
                                                                                                 let mapping60_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__109
+                                                                                                    v__115
                                                                                                     19
                                                                                                     15)
                                                                                                 let mapping59_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__109
+                                                                                                    v__115
                                                                                                     24
                                                                                                     20)
                                                                                                 match ((← (encdec_reg_backwards
@@ -1052,51 +1056,51 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                           | none =>
                                                                                             (do
                                                                                               match (← do
-                                                                                                let v__105 :=
+                                                                                                let v__111 :=
                                                                                                   head_exp_
                                                                                                 if (((let mapping64_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__105
+                                                                                                         v__111
                                                                                                          11
                                                                                                          7)
                                                                                                      let mapping63_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__105
+                                                                                                         v__111
                                                                                                          19
                                                                                                          15)
                                                                                                      let mapping62_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__105
+                                                                                                         v__111
                                                                                                          24
                                                                                                          20)
                                                                                                      ((encdec_reg_backwards_matches
                                                                                                          mapping62_) && ((encdec_reg_backwards_matches
                                                                                                            mapping63_) && (encdec_reg_backwards_matches
                                                                                                            mapping64_)))) && (((Sail.BitVec.extractLsb
-                                                                                                           v__105
+                                                                                                           v__111
                                                                                                            31
                                                                                                            25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                             v__105
+                                                                                                             v__111
                                                                                                              14
                                                                                                              12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                             v__105
+                                                                                                             v__111
                                                                                                              6
                                                                                                              0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                 then
                                                                                                   (do
                                                                                                     let mapping64_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__105
+                                                                                                        v__111
                                                                                                         11
                                                                                                         7)
                                                                                                     let mapping63_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__105
+                                                                                                        v__111
                                                                                                         19
                                                                                                         15)
                                                                                                     let mapping62_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__105
+                                                                                                        v__111
                                                                                                         24
                                                                                                         20)
                                                                                                     match ((← (encdec_reg_backwards
@@ -1118,51 +1122,51 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                               | none =>
                                                                                                 (do
                                                                                                   match (← do
-                                                                                                    let v__101 :=
+                                                                                                    let v__107 :=
                                                                                                       head_exp_
                                                                                                     if (((let mapping67_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__101
+                                                                                                             v__107
                                                                                                              11
                                                                                                              7)
                                                                                                          let mapping66_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__101
+                                                                                                             v__107
                                                                                                              19
                                                                                                              15)
                                                                                                          let mapping65_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__101
+                                                                                                             v__107
                                                                                                              24
                                                                                                              20)
                                                                                                          ((encdec_reg_backwards_matches
                                                                                                              mapping65_) && ((encdec_reg_backwards_matches
                                                                                                                mapping66_) && (encdec_reg_backwards_matches
                                                                                                                mapping67_)))) && (((Sail.BitVec.extractLsb
-                                                                                                               v__101
+                                                                                                               v__107
                                                                                                                31
                                                                                                                25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                 v__101
+                                                                                                                 v__107
                                                                                                                  14
                                                                                                                  12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                 v__101
+                                                                                                                 v__107
                                                                                                                  6
                                                                                                                  0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                     then
                                                                                                       (do
                                                                                                         let mapping67_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__101
+                                                                                                            v__107
                                                                                                             11
                                                                                                             7)
                                                                                                         let mapping66_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__101
+                                                                                                            v__107
                                                                                                             19
                                                                                                             15)
                                                                                                         let mapping65_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__101
+                                                                                                            v__107
                                                                                                             24
                                                                                                             20)
                                                                                                         match ((← (encdec_reg_backwards
@@ -1184,51 +1188,51 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                   | none =>
                                                                                                     (do
                                                                                                       match (← do
-                                                                                                        let v__97 :=
+                                                                                                        let v__103 :=
                                                                                                           head_exp_
                                                                                                         if (((let mapping70_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__97
+                                                                                                                 v__103
                                                                                                                  11
                                                                                                                  7)
                                                                                                              let mapping69_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__97
+                                                                                                                 v__103
                                                                                                                  19
                                                                                                                  15)
                                                                                                              let mapping68_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__97
+                                                                                                                 v__103
                                                                                                                  24
                                                                                                                  20)
                                                                                                              ((encdec_reg_backwards_matches
                                                                                                                  mapping68_) && ((encdec_reg_backwards_matches
                                                                                                                    mapping69_) && (encdec_reg_backwards_matches
                                                                                                                    mapping70_)))) && (((Sail.BitVec.extractLsb
-                                                                                                                   v__97
+                                                                                                                   v__103
                                                                                                                    31
                                                                                                                    25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                     v__97
+                                                                                                                     v__103
                                                                                                                      14
                                                                                                                      12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                     v__97
+                                                                                                                     v__103
                                                                                                                      6
                                                                                                                      0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                         then
                                                                                                           (do
                                                                                                             let mapping70_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__97
+                                                                                                                v__103
                                                                                                                 11
                                                                                                                 7)
                                                                                                             let mapping69_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__97
+                                                                                                                v__103
                                                                                                                 19
                                                                                                                 15)
                                                                                                             let mapping68_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__97
+                                                                                                                v__103
                                                                                                                 24
                                                                                                                 20)
                                                                                                             match ((← (encdec_reg_backwards
@@ -1250,45 +1254,45 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                       | none =>
                                                                                                         (do
                                                                                                           match (← do
-                                                                                                            let v__93 :=
+                                                                                                            let v__99 :=
                                                                                                               head_exp_
                                                                                                             if (((let mapping72_ : (BitVec 5) :=
                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                     v__93
+                                                                                                                     v__99
                                                                                                                      11
                                                                                                                      7)
                                                                                                                  let mapping71_ : (BitVec 5) :=
                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                     v__93
+                                                                                                                     v__99
                                                                                                                      19
                                                                                                                      15)
                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                      mapping71_) && (encdec_reg_backwards_matches
                                                                                                                      mapping72_))) && (((Sail.BitVec.extractLsb
-                                                                                                                       v__93
+                                                                                                                       v__99
                                                                                                                        31
                                                                                                                        25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                         v__93
+                                                                                                                         v__99
                                                                                                                          14
                                                                                                                          12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                         v__93
+                                                                                                                         v__99
                                                                                                                          6
                                                                                                                          0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                             then
                                                                                                               (do
                                                                                                                 let shamt : (BitVec 5) :=
                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                    v__93
+                                                                                                                    v__99
                                                                                                                     24
                                                                                                                     20)
                                                                                                                 let mapping72_ : (BitVec 5) :=
                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                    v__93
+                                                                                                                    v__99
                                                                                                                     11
                                                                                                                     7)
                                                                                                                 let mapping71_ : (BitVec 5) :=
                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                    v__93
+                                                                                                                    v__99
                                                                                                                     19
                                                                                                                     15)
                                                                                                                 match ((← (encdec_reg_backwards
@@ -1309,45 +1313,45 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                           | none =>
                                                                                                             (do
                                                                                                               match (← do
-                                                                                                                let v__89 :=
+                                                                                                                let v__95 :=
                                                                                                                   head_exp_
                                                                                                                 if (((let mapping74_ : (BitVec 5) :=
                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                         v__89
+                                                                                                                         v__95
                                                                                                                          11
                                                                                                                          7)
                                                                                                                      let mapping73_ : (BitVec 5) :=
                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                         v__89
+                                                                                                                         v__95
                                                                                                                          19
                                                                                                                          15)
                                                                                                                      ((encdec_reg_backwards_matches
                                                                                                                          mapping73_) && (encdec_reg_backwards_matches
                                                                                                                          mapping74_))) && (((Sail.BitVec.extractLsb
-                                                                                                                           v__89
+                                                                                                                           v__95
                                                                                                                            31
                                                                                                                            25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                             v__89
+                                                                                                                             v__95
                                                                                                                              14
                                                                                                                              12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                             v__89
+                                                                                                                             v__95
                                                                                                                              6
                                                                                                                              0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                                 then
                                                                                                                   (do
                                                                                                                     let shamt : (BitVec 5) :=
                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                        v__89
+                                                                                                                        v__95
                                                                                                                         24
                                                                                                                         20)
                                                                                                                     let mapping74_ : (BitVec 5) :=
                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                        v__89
+                                                                                                                        v__95
                                                                                                                         11
                                                                                                                         7)
                                                                                                                     let mapping73_ : (BitVec 5) :=
                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                        v__89
+                                                                                                                        v__95
                                                                                                                         19
                                                                                                                         15)
                                                                                                                     match ((← (encdec_reg_backwards
@@ -1368,45 +1372,45 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                               | none =>
                                                                                                                 (do
                                                                                                                   match (← do
-                                                                                                                    let v__85 :=
+                                                                                                                    let v__91 :=
                                                                                                                       head_exp_
                                                                                                                     if (((let mapping76_ : (BitVec 5) :=
                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                             v__85
+                                                                                                                             v__91
                                                                                                                              11
                                                                                                                              7)
                                                                                                                          let mapping75_ : (BitVec 5) :=
                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                             v__85
+                                                                                                                             v__91
                                                                                                                              19
                                                                                                                              15)
                                                                                                                          ((encdec_reg_backwards_matches
                                                                                                                              mapping75_) && (encdec_reg_backwards_matches
                                                                                                                              mapping76_))) && (((Sail.BitVec.extractLsb
-                                                                                                                               v__85
+                                                                                                                               v__91
                                                                                                                                31
                                                                                                                                25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                 v__85
+                                                                                                                                 v__91
                                                                                                                                  14
                                                                                                                                  12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                 v__85
+                                                                                                                                 v__91
                                                                                                                                  6
                                                                                                                                  0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                                     then
                                                                                                                       (do
                                                                                                                         let shamt : (BitVec 5) :=
                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                            v__85
+                                                                                                                            v__91
                                                                                                                             24
                                                                                                                             20)
                                                                                                                         let mapping76_ : (BitVec 5) :=
                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                            v__85
+                                                                                                                            v__91
                                                                                                                             11
                                                                                                                             7)
                                                                                                                         let mapping75_ : (BitVec 5) :=
                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                            v__85
+                                                                                                                            v__91
                                                                                                                             19
                                                                                                                             15)
                                                                                                                         match ((← (encdec_reg_backwards
@@ -1427,9 +1431,9 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                   | none =>
                                                                                                                     (do
                                                                                                                       match (← do
-                                                                                                                        let v__74 :=
+                                                                                                                        let v__80 :=
                                                                                                                           head_exp_
-                                                                                                                        if ((v__74 == (0x8330000F#32 : (BitVec 32))) : Bool)
+                                                                                                                        if ((v__80 == (0x8330000F#32 : (BitVec 32))) : Bool)
                                                                                                                         then
                                                                                                                           (pure (some
                                                                                                                               (FENCE_TSO
@@ -1438,53 +1442,53 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                           (do
                                                                                                                             if (((let mapping78_ : (BitVec 5) :=
                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                     v__74
+                                                                                                                                     v__80
                                                                                                                                      11
                                                                                                                                      7)
                                                                                                                                  let mapping77_ : (BitVec 5) :=
                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                     v__74
+                                                                                                                                     v__80
                                                                                                                                      19
                                                                                                                                      15)
                                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                                      mapping77_) && (encdec_reg_backwards_matches
                                                                                                                                      mapping78_))) && (((Sail.BitVec.extractLsb
-                                                                                                                                       v__74
+                                                                                                                                       v__80
                                                                                                                                        14
                                                                                                                                        12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                       v__74
+                                                                                                                                       v__80
                                                                                                                                        6
                                                                                                                                        0) == (0b0001111#7 : (BitVec 7))))) : Bool)
                                                                                                                             then
                                                                                                                               (do
                                                                                                                                 let fm : (BitVec 4) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     31
                                                                                                                                     28)
                                                                                                                                 let succ : (BitVec 4) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     23
                                                                                                                                     20)
                                                                                                                                 let pred : (BitVec 4) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     27
                                                                                                                                     24)
                                                                                                                                 let mapping78_ : (BitVec 5) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     11
                                                                                                                                     7)
                                                                                                                                 let mapping77_ : (BitVec 5) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     19
                                                                                                                                     15)
                                                                                                                                 let fm : (BitVec 4) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__74
+                                                                                                                                    v__80
                                                                                                                                     31
                                                                                                                                     28)
                                                                                                                                 match ((← (encdec_reg_backwards
@@ -1501,37 +1505,37 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                       | none =>
                                                                                                                         (do
                                                                                                                           match (← do
-                                                                                                                            let v__37 :=
+                                                                                                                            let v__43 :=
                                                                                                                               head_exp_
-                                                                                                                            if ((v__37 == (0x00000073#32 : (BitVec 32))) : Bool)
+                                                                                                                            if ((v__43 == (0x00000073#32 : (BitVec 32))) : Bool)
                                                                                                                             then
                                                                                                                               (pure (some
                                                                                                                                   (ECALL
                                                                                                                                     ())))
                                                                                                                             else
                                                                                                                               (do
-                                                                                                                                if ((v__37 == (0x30200073#32 : (BitVec 32))) : Bool)
+                                                                                                                                if ((v__43 == (0x30200073#32 : (BitVec 32))) : Bool)
                                                                                                                                 then
                                                                                                                                   (pure (some
                                                                                                                                       (MRET
                                                                                                                                         ())))
                                                                                                                                 else
                                                                                                                                   (do
-                                                                                                                                    if ((v__37 == (0x10200073#32 : (BitVec 32))) : Bool)
+                                                                                                                                    if ((v__43 == (0x10200073#32 : (BitVec 32))) : Bool)
                                                                                                                                     then
                                                                                                                                       (pure (some
                                                                                                                                           (SRET
                                                                                                                                             ())))
                                                                                                                                     else
                                                                                                                                       (do
-                                                                                                                                        if ((v__37 == (0x00100073#32 : (BitVec 32))) : Bool)
+                                                                                                                                        if ((v__43 == (0x00100073#32 : (BitVec 32))) : Bool)
                                                                                                                                         then
                                                                                                                                           (pure (some
                                                                                                                                               (EBREAK
                                                                                                                                                 ())))
                                                                                                                                         else
                                                                                                                                           (do
-                                                                                                                                            if ((v__37 == (0x10500073#32 : (BitVec 32))) : Bool)
+                                                                                                                                            if ((v__43 == (0x10500073#32 : (BitVec 32))) : Bool)
                                                                                                                                             then
                                                                                                                                               (pure (some
                                                                                                                                                   (WFI
@@ -1540,33 +1544,33 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                               (do
                                                                                                                                                 if (((let mapping80_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__37
+                                                                                                                                                         v__43
                                                                                                                                                          19
                                                                                                                                                          15)
                                                                                                                                                      let mapping79_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__37
+                                                                                                                                                         v__43
                                                                                                                                                          24
                                                                                                                                                          20)
                                                                                                                                                      ((encdec_reg_backwards_matches
                                                                                                                                                          mapping79_) && (encdec_reg_backwards_matches
                                                                                                                                                          mapping80_))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                           v__37
+                                                                                                                                                           v__43
                                                                                                                                                            31
                                                                                                                                                            25) == (0b0001001#7 : (BitVec 7))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                           v__37
+                                                                                                                                                           v__43
                                                                                                                                                            14
                                                                                                                                                            0) == (0b000000001110011#15 : (BitVec 15))))) : Bool)
                                                                                                                                                 then
                                                                                                                                                   (do
                                                                                                                                                     let mapping80_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__37
+                                                                                                                                                        v__43
                                                                                                                                                         19
                                                                                                                                                         15)
                                                                                                                                                     let mapping79_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__37
+                                                                                                                                                        v__43
                                                                                                                                                         24
                                                                                                                                                         20)
                                                                                                                                                     match ((← (encdec_reg_backwards
@@ -1590,26 +1594,26 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                           | none =>
                                                                                                                             (do
                                                                                                                               match (← do
-                                                                                                                                let v__34 :=
+                                                                                                                                let v__40 :=
                                                                                                                                   head_exp_
                                                                                                                                 if (((let mapping84_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__34
+                                                                                                                                         v__40
                                                                                                                                          11
                                                                                                                                          7)
                                                                                                                                      let mapping83_ : (BitVec 3) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__34
+                                                                                                                                         v__40
                                                                                                                                          14
                                                                                                                                          12)
                                                                                                                                      let mapping82_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__34
+                                                                                                                                         v__40
                                                                                                                                          19
                                                                                                                                          15)
                                                                                                                                      let mapping81_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__34
+                                                                                                                                         v__40
                                                                                                                                          24
                                                                                                                                          20)
                                                                                                                                      ((encdec_reg_backwards_matches
@@ -1617,32 +1621,32 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                            mapping82_) && ((encdec_mul_op_backwards_matches
                                                                                                                                              mapping83_) && (encdec_reg_backwards_matches
                                                                                                                                              mapping84_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                           v__34
+                                                                                                                                           v__40
                                                                                                                                            31
                                                                                                                                            25) == (0b0000001#7 : (BitVec 7))) && ((Sail.BitVec.extractLsb
-                                                                                                                                           v__34
+                                                                                                                                           v__40
                                                                                                                                            6
                                                                                                                                            0) == (0b0110011#7 : (BitVec 7))))) : Bool)
                                                                                                                                 then
                                                                                                                                   (do
                                                                                                                                     let mapping84_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__34
+                                                                                                                                        v__40
                                                                                                                                         11
                                                                                                                                         7)
                                                                                                                                     let mapping83_ : (BitVec 3) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__34
+                                                                                                                                        v__40
                                                                                                                                         14
                                                                                                                                         12)
                                                                                                                                     let mapping82_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__34
+                                                                                                                                        v__40
                                                                                                                                         19
                                                                                                                                         15)
                                                                                                                                     let mapping81_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__34
+                                                                                                                                        v__40
                                                                                                                                         24
                                                                                                                                         20)
                                                                                                                                     match ((← (encdec_reg_backwards
@@ -1668,26 +1672,26 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                               | none =>
                                                                                                                                 (do
                                                                                                                                   match (← do
-                                                                                                                                    let v__30 :=
+                                                                                                                                    let v__36 :=
                                                                                                                                       head_exp_
                                                                                                                                     if (((let mapping88_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__30
+                                                                                                                                             v__36
                                                                                                                                              11
                                                                                                                                              7)
                                                                                                                                          let mapping87_ : (BitVec 1) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__30
+                                                                                                                                             v__36
                                                                                                                                              12
                                                                                                                                              12)
                                                                                                                                          let mapping86_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__30
+                                                                                                                                             v__36
                                                                                                                                              19
                                                                                                                                              15)
                                                                                                                                          let mapping85_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__30
+                                                                                                                                             v__36
                                                                                                                                              24
                                                                                                                                              20)
                                                                                                                                          ((encdec_reg_backwards_matches
@@ -1695,35 +1699,35 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                                mapping86_) && ((bool_bit_backwards_matches
                                                                                                                                                  mapping87_) && (encdec_reg_backwards_matches
                                                                                                                                                  mapping88_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                               v__30
+                                                                                                                                               v__36
                                                                                                                                                31
                                                                                                                                                25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                 v__30
+                                                                                                                                                 v__36
                                                                                                                                                  14
                                                                                                                                                  13) == (0b10#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                 v__30
+                                                                                                                                                 v__36
                                                                                                                                                  6
                                                                                                                                                  0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                     then
                                                                                                                                       (do
                                                                                                                                         let mapping88_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__30
+                                                                                                                                            v__36
                                                                                                                                             11
                                                                                                                                             7)
                                                                                                                                         let mapping87_ : (BitVec 1) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__30
+                                                                                                                                            v__36
                                                                                                                                             12
                                                                                                                                             12)
                                                                                                                                         let mapping86_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__30
+                                                                                                                                            v__36
                                                                                                                                             19
                                                                                                                                             15)
                                                                                                                                         let mapping85_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__30
+                                                                                                                                            v__36
                                                                                                                                             24
                                                                                                                                             20)
                                                                                                                                         match ((← (encdec_reg_backwards
@@ -1748,26 +1752,26 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                   | none =>
                                                                                                                                     (do
                                                                                                                                       match (← do
-                                                                                                                                        let v__26 :=
+                                                                                                                                        let v__32 :=
                                                                                                                                           head_exp_
                                                                                                                                         if (((let mapping92_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__26
+                                                                                                                                                 v__32
                                                                                                                                                  11
                                                                                                                                                  7)
                                                                                                                                              let mapping91_ : (BitVec 1) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__26
+                                                                                                                                                 v__32
                                                                                                                                                  12
                                                                                                                                                  12)
                                                                                                                                              let mapping90_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__26
+                                                                                                                                                 v__32
                                                                                                                                                  19
                                                                                                                                                  15)
                                                                                                                                              let mapping89_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__26
+                                                                                                                                                 v__32
                                                                                                                                                  24
                                                                                                                                                  20)
                                                                                                                                              ((encdec_reg_backwards_matches
@@ -1775,35 +1779,35 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                                    mapping90_) && ((bool_bit_backwards_matches
                                                                                                                                                      mapping91_) && (encdec_reg_backwards_matches
                                                                                                                                                      mapping92_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                   v__26
+                                                                                                                                                   v__32
                                                                                                                                                    31
                                                                                                                                                    25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                     v__26
+                                                                                                                                                     v__32
                                                                                                                                                      14
                                                                                                                                                      13) == (0b11#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                     v__26
+                                                                                                                                                     v__32
                                                                                                                                                      6
                                                                                                                                                      0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                         then
                                                                                                                                           (do
                                                                                                                                             let mapping92_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__26
+                                                                                                                                                v__32
                                                                                                                                                 11
                                                                                                                                                 7)
                                                                                                                                             let mapping91_ : (BitVec 1) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__26
+                                                                                                                                                v__32
                                                                                                                                                 12
                                                                                                                                                 12)
                                                                                                                                             let mapping90_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__26
+                                                                                                                                                v__32
                                                                                                                                                 19
                                                                                                                                                 15)
                                                                                                                                             let mapping89_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__26
+                                                                                                                                                v__32
                                                                                                                                                 24
                                                                                                                                                 20)
                                                                                                                                             match ((← (encdec_reg_backwards
@@ -1828,51 +1832,51 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                       | none =>
                                                                                                                                         (do
                                                                                                                                           match (← do
-                                                                                                                                            let v__22 :=
+                                                                                                                                            let v__28 :=
                                                                                                                                               head_exp_
                                                                                                                                             if (((let mapping95_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__22
+                                                                                                                                                     v__28
                                                                                                                                                      11
                                                                                                                                                      7)
                                                                                                                                                  let mapping94_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__22
+                                                                                                                                                     v__28
                                                                                                                                                      19
                                                                                                                                                      15)
                                                                                                                                                  let mapping93_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__22
+                                                                                                                                                     v__28
                                                                                                                                                      24
                                                                                                                                                      20)
                                                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                                                      mapping93_) && ((encdec_reg_backwards_matches
                                                                                                                                                        mapping94_) && (encdec_reg_backwards_matches
                                                                                                                                                        mapping95_)))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                       v__22
+                                                                                                                                                       v__28
                                                                                                                                                        31
                                                                                                                                                        25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                         v__22
+                                                                                                                                                         v__28
                                                                                                                                                          14
                                                                                                                                                          12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                         v__22
+                                                                                                                                                         v__28
                                                                                                                                                          6
                                                                                                                                                          0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                             then
                                                                                                                                               (do
                                                                                                                                                 let mapping95_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__22
+                                                                                                                                                    v__28
                                                                                                                                                     11
                                                                                                                                                     7)
                                                                                                                                                 let mapping94_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__22
+                                                                                                                                                    v__28
                                                                                                                                                     19
                                                                                                                                                     15)
                                                                                                                                                 let mapping93_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__22
+                                                                                                                                                    v__28
                                                                                                                                                     24
                                                                                                                                                     20)
                                                                                                                                                 match ((← (encdec_reg_backwards
@@ -1897,26 +1901,26 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                           | none =>
                                                                                                                                             (do
                                                                                                                                               match (← do
-                                                                                                                                                let v__18 :=
+                                                                                                                                                let v__24 :=
                                                                                                                                                   head_exp_
                                                                                                                                                 if (((let mapping99_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__18
+                                                                                                                                                         v__24
                                                                                                                                                          11
                                                                                                                                                          7)
                                                                                                                                                      let mapping98_ : (BitVec 1) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__18
+                                                                                                                                                         v__24
                                                                                                                                                          12
                                                                                                                                                          12)
                                                                                                                                                      let mapping97_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__18
+                                                                                                                                                         v__24
                                                                                                                                                          19
                                                                                                                                                          15)
                                                                                                                                                      let mapping96_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__18
+                                                                                                                                                         v__24
                                                                                                                                                          24
                                                                                                                                                          20)
                                                                                                                                                      ((encdec_reg_backwards_matches
@@ -1924,35 +1928,35 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                                            mapping97_) && ((bool_bit_backwards_matches
                                                                                                                                                              mapping98_) && (encdec_reg_backwards_matches
                                                                                                                                                              mapping99_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                           v__18
+                                                                                                                                                           v__24
                                                                                                                                                            31
                                                                                                                                                            25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                             v__18
+                                                                                                                                                             v__24
                                                                                                                                                              14
                                                                                                                                                              13) == (0b10#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                             v__18
+                                                                                                                                                             v__24
                                                                                                                                                              6
                                                                                                                                                              0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                                 then
                                                                                                                                                   (do
                                                                                                                                                     let mapping99_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__18
+                                                                                                                                                        v__24
                                                                                                                                                         11
                                                                                                                                                         7)
                                                                                                                                                     let mapping98_ : (BitVec 1) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__18
+                                                                                                                                                        v__24
                                                                                                                                                         12
                                                                                                                                                         12)
                                                                                                                                                     let mapping97_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__18
+                                                                                                                                                        v__24
                                                                                                                                                         19
                                                                                                                                                         15)
                                                                                                                                                     let mapping96_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__18
+                                                                                                                                                        v__24
                                                                                                                                                         24
                                                                                                                                                         20)
                                                                                                                                                     match ((← (encdec_reg_backwards
@@ -1977,26 +1981,26 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                               | none =>
                                                                                                                                                 (do
                                                                                                                                                   match (← do
-                                                                                                                                                    let v__14 :=
+                                                                                                                                                    let v__20 :=
                                                                                                                                                       head_exp_
                                                                                                                                                     if (((let mapping103_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__14
+                                                                                                                                                             v__20
                                                                                                                                                              11
                                                                                                                                                              7)
                                                                                                                                                          let mapping102_ : (BitVec 1) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__14
+                                                                                                                                                             v__20
                                                                                                                                                              12
                                                                                                                                                              12)
                                                                                                                                                          let mapping101_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__14
+                                                                                                                                                             v__20
                                                                                                                                                              19
                                                                                                                                                              15)
                                                                                                                                                          let mapping100_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__14
+                                                                                                                                                             v__20
                                                                                                                                                              24
                                                                                                                                                              20)
                                                                                                                                                          ((encdec_reg_backwards_matches
@@ -2004,35 +2008,35 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                                                mapping101_) && ((bool_bit_backwards_matches
                                                                                                                                                                  mapping102_) && (encdec_reg_backwards_matches
                                                                                                                                                                  mapping103_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                               v__14
+                                                                                                                                                               v__20
                                                                                                                                                                31
                                                                                                                                                                25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                                 v__14
+                                                                                                                                                                 v__20
                                                                                                                                                                  14
                                                                                                                                                                  13) == (0b11#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                                 v__14
+                                                                                                                                                                 v__20
                                                                                                                                                                  6
                                                                                                                                                                  0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                                     then
                                                                                                                                                       (do
                                                                                                                                                         let mapping103_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__14
+                                                                                                                                                            v__20
                                                                                                                                                             11
                                                                                                                                                             7)
                                                                                                                                                         let mapping102_ : (BitVec 1) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__14
+                                                                                                                                                            v__20
                                                                                                                                                             12
                                                                                                                                                             12)
                                                                                                                                                         let mapping101_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__14
+                                                                                                                                                            v__20
                                                                                                                                                             19
                                                                                                                                                             15)
                                                                                                                                                         let mapping100_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__14
+                                                                                                                                                            v__20
                                                                                                                                                             24
                                                                                                                                                             20)
                                                                                                                                                         match ((← (encdec_reg_backwards
@@ -2055,10 +2059,153 @@ noncomputable def encdec_backwards (arg_ : (BitVec 32)) : SailM instruction := d
                                                                                                                                                   | .some result =>
                                                                                                                                                     (pure result)
                                                                                                                                                   | none =>
-                                                                                                                                                    (match head_exp_ with
-                                                                                                                                                    | s =>
-                                                                                                                                                      (pure (ILLEGAL
-                                                                                                                                                          s)))))))))))))))))))))))))))))))))))))))
+                                                                                                                                                    (do
+                                                                                                                                                      match (← do
+                                                                                                                                                        let v__17 :=
+                                                                                                                                                          head_exp_
+                                                                                                                                                        if (((let mapping106_ : (BitVec 5) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__17
+                                                                                                                                                                 11
+                                                                                                                                                                 7)
+                                                                                                                                                             let mapping105_ : (BitVec 2) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__17
+                                                                                                                                                                 13
+                                                                                                                                                                 12)
+                                                                                                                                                             let mapping104_ : (BitVec 5) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__17
+                                                                                                                                                                 19
+                                                                                                                                                                 15)
+                                                                                                                                                             ((encdec_reg_backwards_matches
+                                                                                                                                                                 mapping104_) && ((encdec_csrop_backwards_matches
+                                                                                                                                                                   mapping105_) && (encdec_reg_backwards_matches
+                                                                                                                                                                   mapping106_)))) && (((Sail.BitVec.extractLsb
+                                                                                                                                                                   v__17
+                                                                                                                                                                   14
+                                                                                                                                                                   14) == (0#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
+                                                                                                                                                                   v__17
+                                                                                                                                                                   6
+                                                                                                                                                                   0) == (0b1110011#7 : (BitVec 7))))) : Bool)
+                                                                                                                                                        then
+                                                                                                                                                          (do
+                                                                                                                                                            let csr : (BitVec 12) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__17
+                                                                                                                                                                31
+                                                                                                                                                                20)
+                                                                                                                                                            let mapping106_ : (BitVec 5) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__17
+                                                                                                                                                                11
+                                                                                                                                                                7)
+                                                                                                                                                            let mapping105_ : (BitVec 2) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__17
+                                                                                                                                                                13
+                                                                                                                                                                12)
+                                                                                                                                                            let mapping104_ : (BitVec 5) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__17
+                                                                                                                                                                19
+                                                                                                                                                                15)
+                                                                                                                                                            let csr : (BitVec 12) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__17
+                                                                                                                                                                31
+                                                                                                                                                                20)
+                                                                                                                                                            match ((← (encdec_reg_backwards
+                                                                                                                                                                mapping104_)), (← (encdec_csrop_backwards
+                                                                                                                                                                mapping105_)), (← (encdec_reg_backwards
+                                                                                                                                                                mapping106_))) with
+                                                                                                                                                            | (rs1, op, rd) =>
+                                                                                                                                                              (do
+                                                                                                                                                                if ((← (currentlyEnabled
+                                                                                                                                                                       Ext_Zicsr)) : Bool)
+                                                                                                                                                                then
+                                                                                                                                                                  (pure (some
+                                                                                                                                                                      (CSRReg
+                                                                                                                                                                        (csr, rs1, rd, op))))
+                                                                                                                                                                else
+                                                                                                                                                                  (pure none)))
+                                                                                                                                                        else
+                                                                                                                                                          (pure none)) with
+                                                                                                                                                      | .some result =>
+                                                                                                                                                        (pure result)
+                                                                                                                                                      | none =>
+                                                                                                                                                        (do
+                                                                                                                                                          match (← do
+                                                                                                                                                            let v__14 :=
+                                                                                                                                                              head_exp_
+                                                                                                                                                            if (((let mapping108_ : (BitVec 5) :=
+                                                                                                                                                                   (Sail.BitVec.extractLsb
+                                                                                                                                                                     v__14
+                                                                                                                                                                     11
+                                                                                                                                                                     7)
+                                                                                                                                                                 let mapping107_ : (BitVec 2) :=
+                                                                                                                                                                   (Sail.BitVec.extractLsb
+                                                                                                                                                                     v__14
+                                                                                                                                                                     13
+                                                                                                                                                                     12)
+                                                                                                                                                                 ((encdec_csrop_backwards_matches
+                                                                                                                                                                     mapping107_) && (encdec_reg_backwards_matches
+                                                                                                                                                                     mapping108_))) && (((Sail.BitVec.extractLsb
+                                                                                                                                                                       v__14
+                                                                                                                                                                       14
+                                                                                                                                                                       14) == (1#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
+                                                                                                                                                                       v__14
+                                                                                                                                                                       6
+                                                                                                                                                                       0) == (0b1110011#7 : (BitVec 7))))) : Bool)
+                                                                                                                                                            then
+                                                                                                                                                              (do
+                                                                                                                                                                let csr : (BitVec 12) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__14
+                                                                                                                                                                    31
+                                                                                                                                                                    20)
+                                                                                                                                                                let mapping108_ : (BitVec 5) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__14
+                                                                                                                                                                    11
+                                                                                                                                                                    7)
+                                                                                                                                                                let mapping107_ : (BitVec 2) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__14
+                                                                                                                                                                    13
+                                                                                                                                                                    12)
+                                                                                                                                                                let imm : (BitVec 5) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__14
+                                                                                                                                                                    19
+                                                                                                                                                                    15)
+                                                                                                                                                                let csr : (BitVec 12) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__14
+                                                                                                                                                                    31
+                                                                                                                                                                    20)
+                                                                                                                                                                match ((← (encdec_csrop_backwards
+                                                                                                                                                                    mapping107_)), (← (encdec_reg_backwards
+                                                                                                                                                                    mapping108_))) with
+                                                                                                                                                                | (op, rd) =>
+                                                                                                                                                                  (do
+                                                                                                                                                                    if ((← (currentlyEnabled
+                                                                                                                                                                           Ext_Zicsr)) : Bool)
+                                                                                                                                                                    then
+                                                                                                                                                                      (pure (some
+                                                                                                                                                                          (CSRImm
+                                                                                                                                                                            (csr, imm, rd, op))))
+                                                                                                                                                                    else
+                                                                                                                                                                      (pure none)))
+                                                                                                                                                            else
+                                                                                                                                                              (pure none)) with
+                                                                                                                                                          | .some result =>
+                                                                                                                                                            (pure result)
+                                                                                                                                                          | none =>
+                                                                                                                                                            (match head_exp_ with
+                                                                                                                                                            | s =>
+                                                                                                                                                              (pure (ILLEGAL
+                                                                                                                                                                  s)))))))))))))))))))))))))))))))))))))))))
 
 noncomputable def encdec_forwards_matches (arg_ : instruction) : SailM Bool := do
   match arg_ with
@@ -2068,13 +2215,13 @@ noncomputable def encdec_forwards_matches (arg_ : instruction) : SailM Bool := d
       then (pure true)
       else (pure false))
   | .UTYPE (imm, rd, op) => (pure true)
-  | .JAL (v__190, rd) =>
-    (if (((Sail.BitVec.extractLsb v__190 0 0) == (0#1 : (BitVec 1))) : Bool)
+  | .JAL (v__196, rd) =>
+    (if (((Sail.BitVec.extractLsb v__196 0 0) == (0#1 : (BitVec 1))) : Bool)
     then (pure true)
     else (pure false))
   | .JALR (imm, rs1, rd) => (pure true)
-  | .BTYPE (v__192, rs2, rs1, op) =>
-    (if (((Sail.BitVec.extractLsb v__192 0 0) == (0#1 : (BitVec 1))) : Bool)
+  | .BTYPE (v__198, rs2, rs1, op) =>
+    (if (((Sail.BitVec.extractLsb v__198 0 0) == (0#1 : (BitVec 1))) : Bool)
     then (pure true)
     else (pure false))
   | .ITYPE (imm, rs1, rd, op) => (pure true)
@@ -2147,24 +2294,34 @@ noncomputable def encdec_forwards_matches (arg_ : instruction) : SailM Bool := d
       if (((xlen == 64) && (← (currentlyEnabled Ext_M))) : Bool)
       then (pure true)
       else (pure false))
+  | .CSRReg (csr, rs1, rd, op) =>
+    (do
+      if ((← (currentlyEnabled Ext_Zicsr)) : Bool)
+      then (pure true)
+      else (pure false))
+  | .CSRImm (csr, imm, rd, op) =>
+    (do
+      if ((← (currentlyEnabled Ext_Zicsr)) : Bool)
+      then (pure true)
+      else (pure false))
   | .ILLEGAL s => (pure true)
   | _ => (pure false)
 
 noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := do
   let head_exp_ := arg_
   match (← do
-    let v__366 := head_exp_
-    if (((← (currentlyEnabled Ext_Zicfilp)) && ((Sail.BitVec.extractLsb v__366 11 0) == (0x017#12 : (BitVec 12)))) : Bool)
+    let v__378 := head_exp_
+    if (((← (currentlyEnabled Ext_Zicfilp)) && ((Sail.BitVec.extractLsb v__378 11 0) == (0x017#12 : (BitVec 12)))) : Bool)
     then (pure (some true))
     else
       (do
-        if ((let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__366 6 0)
-           let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__366 11 7)
+        if ((let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__378 6 0)
+           let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__378 11 7)
            ((encdec_reg_backwards_matches mapping0_) && (encdec_uop_backwards_matches mapping1_))) : Bool)
         then
           (do
-            let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__366 6 0)
-            let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__366 11 7)
+            let mapping1_ : (BitVec 7) := (Sail.BitVec.extractLsb v__378 6 0)
+            let mapping0_ : (BitVec 5) := (Sail.BitVec.extractLsb v__378 11 7)
             match ((← (encdec_reg_backwards mapping0_)), (← (encdec_uop_backwards mapping1_))) with
             | (rd, op) => (pure (some true)))
         else (pure none))) with
@@ -2172,17 +2329,17 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
   | none =>
     (do
       match (← do
-        let v__364 := head_exp_
-        if (((let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__364 11 7)
-             (encdec_reg_backwards_matches mapping2_)) && ((Sail.BitVec.extractLsb v__364 6 0) == (0b1101111#7 : (BitVec 7)))) : Bool)
+        let v__376 := head_exp_
+        if (((let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__376 11 7)
+             (encdec_reg_backwards_matches mapping2_)) && ((Sail.BitVec.extractLsb v__376 6 0) == (0b1101111#7 : (BitVec 7)))) : Bool)
         then
           (do
-            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__364 31 31)
-            let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__364 11 7)
-            let imm_9_0_ : (BitVec 10) := (Sail.BitVec.extractLsb v__364 30 21)
-            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__364 31 31)
-            let imm_18_11_ : (BitVec 8) := (Sail.BitVec.extractLsb v__364 19 12)
-            let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__364 20 20)
+            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__376 31 31)
+            let mapping2_ : (BitVec 5) := (Sail.BitVec.extractLsb v__376 11 7)
+            let imm_9_0_ : (BitVec 10) := (Sail.BitVec.extractLsb v__376 30 21)
+            let imm_19_19_ : (BitVec 1) := (Sail.BitVec.extractLsb v__376 31 31)
+            let imm_18_11_ : (BitVec 8) := (Sail.BitVec.extractLsb v__376 19 12)
+            let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__376 20 20)
             match (← (encdec_reg_backwards mapping2_)) with
             | rd =>
               (pure (some
@@ -2193,16 +2350,16 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
       | none =>
         (do
           match (← do
-            let v__361 := head_exp_
-            if (((let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 11 7)
-                 let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 19 15)
+            let v__373 := head_exp_
+            if (((let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__373 11 7)
+                 let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__373 19 15)
                  ((encdec_reg_backwards_matches mapping3_) && (encdec_reg_backwards_matches
-                     mapping4_))) && (((Sail.BitVec.extractLsb v__361 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                       v__361 6 0) == (0b1100111#7 : (BitVec 7))))) : Bool)
+                     mapping4_))) && (((Sail.BitVec.extractLsb v__373 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                       v__373 6 0) == (0b1100111#7 : (BitVec 7))))) : Bool)
             then
               (do
-                let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 11 7)
-                let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 19 15)
+                let mapping4_ : (BitVec 5) := (Sail.BitVec.extractLsb v__373 11 7)
+                let mapping3_ : (BitVec 5) := (Sail.BitVec.extractLsb v__373 19 15)
                 match ((← (encdec_reg_backwards mapping3_)), (← (encdec_reg_backwards mapping4_))) with
                 | (rs1, rd) => (pure (some true)))
             else (pure none)) with
@@ -2210,23 +2367,23 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
           | none =>
             (do
               match (← do
-                let v__359 := head_exp_
-                if (((let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__359 14 12)
-                     let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__359 19 15)
-                     let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__359 24 20)
+                let v__371 := head_exp_
+                if (((let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__371 14 12)
+                     let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__371 19 15)
+                     let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__371 24 20)
                      ((encdec_reg_backwards_matches mapping5_) && ((encdec_reg_backwards_matches
                            mapping6_) && (encdec_bop_backwards_matches mapping7_)))) && ((Sail.BitVec.extractLsb
-                         v__359 6 0) == (0b1100011#7 : (BitVec 7)))) : Bool)
+                         v__371 6 0) == (0b1100011#7 : (BitVec 7)))) : Bool)
                 then
                   (do
-                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__359 31 31)
-                    let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__359 14 12)
-                    let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__359 19 15)
-                    let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__359 24 20)
-                    let imm_9_4_ : (BitVec 6) := (Sail.BitVec.extractLsb v__359 30 25)
-                    let imm_3_0_ : (BitVec 4) := (Sail.BitVec.extractLsb v__359 11 8)
-                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__359 31 31)
-                    let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__359 7 7)
+                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__371 31 31)
+                    let mapping7_ : (BitVec 3) := (Sail.BitVec.extractLsb v__371 14 12)
+                    let mapping6_ : (BitVec 5) := (Sail.BitVec.extractLsb v__371 19 15)
+                    let mapping5_ : (BitVec 5) := (Sail.BitVec.extractLsb v__371 24 20)
+                    let imm_9_4_ : (BitVec 6) := (Sail.BitVec.extractLsb v__371 30 25)
+                    let imm_3_0_ : (BitVec 4) := (Sail.BitVec.extractLsb v__371 11 8)
+                    let imm_11_11_ : (BitVec 1) := (Sail.BitVec.extractLsb v__371 31 31)
+                    let imm_10_10_ : (BitVec 1) := (Sail.BitVec.extractLsb v__371 7 7)
                     match ((← (encdec_reg_backwards mapping5_)), (← (encdec_reg_backwards
                         mapping6_)), (← (encdec_bop_backwards mapping7_))) with
                     | (rs2, rs1, op) =>
@@ -2238,18 +2395,18 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
               | none =>
                 (do
                   match (← do
-                    let v__357 := head_exp_
-                    if (((let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__357 14 12)
-                         let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__357 19 15)
-                         let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__357 11 7)
+                    let v__369 := head_exp_
+                    if (((let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__369 14 12)
+                         let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__369 19 15)
+                         let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__369 11 7)
                          ((encdec_reg_backwards_matches mapping8_) && ((encdec_iop_backwards_matches
                                mapping9_) && (encdec_reg_backwards_matches mapping10_)))) && ((Sail.BitVec.extractLsb
-                             v__357 6 0) == (0b0010011#7 : (BitVec 7)))) : Bool)
+                             v__369 6 0) == (0b0010011#7 : (BitVec 7)))) : Bool)
                     then
                       (do
-                        let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__357 14 12)
-                        let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__357 19 15)
-                        let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__357 11 7)
+                        let mapping9_ : (BitVec 3) := (Sail.BitVec.extractLsb v__369 14 12)
+                        let mapping8_ : (BitVec 5) := (Sail.BitVec.extractLsb v__369 19 15)
+                        let mapping10_ : (BitVec 5) := (Sail.BitVec.extractLsb v__369 11 7)
                         match ((← (encdec_reg_backwards mapping8_)), (← (encdec_iop_backwards
                             mapping9_)), (← (encdec_reg_backwards mapping10_))) with
                         | (rs1, op, rd) => (pure (some true)))
@@ -2258,18 +2415,18 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                   | none =>
                     (do
                       match (← do
-                        let v__353 := head_exp_
-                        if (((let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__353 11 7)
-                             let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__353 19 15)
+                        let v__365 := head_exp_
+                        if (((let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__365 11 7)
+                             let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__365 19 15)
                              ((encdec_reg_backwards_matches mapping11_) && (encdec_reg_backwards_matches
-                                 mapping12_))) && (((Sail.BitVec.extractLsb v__353 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                     v__353 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                     v__353 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                 mapping12_))) && (((Sail.BitVec.extractLsb v__365 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                     v__365 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                     v__365 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                         then
                           (do
-                            let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__353 25 20)
-                            let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__353 11 7)
-                            let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__353 19 15)
+                            let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__365 25 20)
+                            let mapping12_ : (BitVec 5) := (Sail.BitVec.extractLsb v__365 11 7)
+                            let mapping11_ : (BitVec 5) := (Sail.BitVec.extractLsb v__365 19 15)
                             match ((← (encdec_reg_backwards mapping11_)), (← (encdec_reg_backwards
                                 mapping12_))) with
                             | (rs1, rd) =>
@@ -2281,20 +2438,20 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                       | none =>
                         (do
                           match (← do
-                            let v__349 := head_exp_
+                            let v__361 := head_exp_
                             if (((let mapping14_ : (BitVec 5) :=
-                                   (Sail.BitVec.extractLsb v__349 11 7)
+                                   (Sail.BitVec.extractLsb v__361 11 7)
                                  let mapping13_ : (BitVec 5) :=
-                                   (Sail.BitVec.extractLsb v__349 19 15)
+                                   (Sail.BitVec.extractLsb v__361 19 15)
                                  ((encdec_reg_backwards_matches mapping13_) && (encdec_reg_backwards_matches
-                                     mapping14_))) && (((Sail.BitVec.extractLsb v__349 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                         v__349 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                         v__349 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                     mapping14_))) && (((Sail.BitVec.extractLsb v__361 31 26) == (0b000000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                         v__361 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                         v__361 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                             then
                               (do
-                                let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__349 25 20)
-                                let mapping14_ : (BitVec 5) := (Sail.BitVec.extractLsb v__349 11 7)
-                                let mapping13_ : (BitVec 5) := (Sail.BitVec.extractLsb v__349 19 15)
+                                let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__361 25 20)
+                                let mapping14_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 11 7)
+                                let mapping13_ : (BitVec 5) := (Sail.BitVec.extractLsb v__361 19 15)
                                 match ((← (encdec_reg_backwards mapping13_)), (← (encdec_reg_backwards
                                     mapping14_))) with
                                 | (rs1, rd) =>
@@ -2306,22 +2463,22 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                           | none =>
                             (do
                               match (← do
-                                let v__345 := head_exp_
+                                let v__357 := head_exp_
                                 if (((let mapping16_ : (BitVec 5) :=
-                                       (Sail.BitVec.extractLsb v__345 11 7)
+                                       (Sail.BitVec.extractLsb v__357 11 7)
                                      let mapping15_ : (BitVec 5) :=
-                                       (Sail.BitVec.extractLsb v__345 19 15)
+                                       (Sail.BitVec.extractLsb v__357 19 15)
                                      ((encdec_reg_backwards_matches mapping15_) && (encdec_reg_backwards_matches
-                                         mapping16_))) && (((Sail.BitVec.extractLsb v__345 31 26) == (0b010000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
-                                             v__345 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                             v__345 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
+                                         mapping16_))) && (((Sail.BitVec.extractLsb v__357 31 26) == (0b010000#6 : (BitVec 6))) && (((Sail.BitVec.extractLsb
+                                             v__357 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                             v__357 6 0) == (0b0010011#7 : (BitVec 7)))))) : Bool)
                                 then
                                   (do
-                                    let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__345 25 20)
+                                    let shamt : (BitVec 6) := (Sail.BitVec.extractLsb v__357 25 20)
                                     let mapping16_ : (BitVec 5) :=
-                                      (Sail.BitVec.extractLsb v__345 11 7)
+                                      (Sail.BitVec.extractLsb v__357 11 7)
                                     let mapping15_ : (BitVec 5) :=
-                                      (Sail.BitVec.extractLsb v__345 19 15)
+                                      (Sail.BitVec.extractLsb v__357 19 15)
                                     match ((← (encdec_reg_backwards mapping15_)), (← (encdec_reg_backwards
                                         mapping16_))) with
                                     | (rs1, rd) =>
@@ -2333,27 +2490,27 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                               | none =>
                                 (do
                                   match (← do
-                                    let v__341 := head_exp_
+                                    let v__353 := head_exp_
                                     if (((let mapping19_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__341 11 7)
+                                           (Sail.BitVec.extractLsb v__353 11 7)
                                          let mapping18_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__341 19 15)
+                                           (Sail.BitVec.extractLsb v__353 19 15)
                                          let mapping17_ : (BitVec 5) :=
-                                           (Sail.BitVec.extractLsb v__341 24 20)
+                                           (Sail.BitVec.extractLsb v__353 24 20)
                                          ((encdec_reg_backwards_matches mapping17_) && ((encdec_reg_backwards_matches
                                                mapping18_) && (encdec_reg_backwards_matches
-                                               mapping19_)))) && (((Sail.BitVec.extractLsb v__341 31
+                                               mapping19_)))) && (((Sail.BitVec.extractLsb v__353 31
                                                25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                 v__341 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                 v__341 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                 v__353 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                 v__353 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                     then
                                       (do
                                         let mapping19_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__341 11 7)
+                                          (Sail.BitVec.extractLsb v__353 11 7)
                                         let mapping18_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__341 19 15)
+                                          (Sail.BitVec.extractLsb v__353 19 15)
                                         let mapping17_ : (BitVec 5) :=
-                                          (Sail.BitVec.extractLsb v__341 24 20)
+                                          (Sail.BitVec.extractLsb v__353 24 20)
                                         match ((← (encdec_reg_backwards mapping17_)), (← (encdec_reg_backwards
                                             mapping18_)), (← (encdec_reg_backwards mapping19_))) with
                                         | (rs2, rs1, rd) => (pure (some true)))
@@ -2362,27 +2519,27 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                   | none =>
                                     (do
                                       match (← do
-                                        let v__337 := head_exp_
+                                        let v__349 := head_exp_
                                         if (((let mapping22_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__337 11 7)
+                                               (Sail.BitVec.extractLsb v__349 11 7)
                                              let mapping21_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__337 19 15)
+                                               (Sail.BitVec.extractLsb v__349 19 15)
                                              let mapping20_ : (BitVec 5) :=
-                                               (Sail.BitVec.extractLsb v__337 24 20)
+                                               (Sail.BitVec.extractLsb v__349 24 20)
                                              ((encdec_reg_backwards_matches mapping20_) && ((encdec_reg_backwards_matches
                                                    mapping21_) && (encdec_reg_backwards_matches
                                                    mapping22_)))) && (((Sail.BitVec.extractLsb
-                                                   v__337 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                     v__337 14 12) == (0b010#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                     v__337 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                   v__349 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                     v__349 14 12) == (0b010#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                     v__349 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                         then
                                           (do
                                             let mapping22_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__337 11 7)
+                                              (Sail.BitVec.extractLsb v__349 11 7)
                                             let mapping21_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__337 19 15)
+                                              (Sail.BitVec.extractLsb v__349 19 15)
                                             let mapping20_ : (BitVec 5) :=
-                                              (Sail.BitVec.extractLsb v__337 24 20)
+                                              (Sail.BitVec.extractLsb v__349 24 20)
                                             match ((← (encdec_reg_backwards mapping20_)), (← (encdec_reg_backwards
                                                 mapping21_)), (← (encdec_reg_backwards mapping22_))) with
                                             | (rs2, rs1, rd) => (pure (some true)))
@@ -2391,27 +2548,27 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                       | none =>
                                         (do
                                           match (← do
-                                            let v__333 := head_exp_
+                                            let v__345 := head_exp_
                                             if (((let mapping25_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__333 11 7)
+                                                   (Sail.BitVec.extractLsb v__345 11 7)
                                                  let mapping24_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__333 19 15)
+                                                   (Sail.BitVec.extractLsb v__345 19 15)
                                                  let mapping23_ : (BitVec 5) :=
-                                                   (Sail.BitVec.extractLsb v__333 24 20)
+                                                   (Sail.BitVec.extractLsb v__345 24 20)
                                                  ((encdec_reg_backwards_matches mapping23_) && ((encdec_reg_backwards_matches
                                                        mapping24_) && (encdec_reg_backwards_matches
                                                        mapping25_)))) && (((Sail.BitVec.extractLsb
-                                                       v__333 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                         v__333 14 12) == (0b011#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                         v__333 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                       v__345 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                         v__345 14 12) == (0b011#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                         v__345 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                             then
                                               (do
                                                 let mapping25_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__333 11 7)
+                                                  (Sail.BitVec.extractLsb v__345 11 7)
                                                 let mapping24_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__333 19 15)
+                                                  (Sail.BitVec.extractLsb v__345 19 15)
                                                 let mapping23_ : (BitVec 5) :=
-                                                  (Sail.BitVec.extractLsb v__333 24 20)
+                                                  (Sail.BitVec.extractLsb v__345 24 20)
                                                 match ((← (encdec_reg_backwards mapping23_)), (← (encdec_reg_backwards
                                                     mapping24_)), (← (encdec_reg_backwards
                                                     mapping25_))) with
@@ -2421,27 +2578,27 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                           | none =>
                                             (do
                                               match (← do
-                                                let v__329 := head_exp_
+                                                let v__341 := head_exp_
                                                 if (((let mapping28_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__329 11 7)
+                                                       (Sail.BitVec.extractLsb v__341 11 7)
                                                      let mapping27_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__329 19 15)
+                                                       (Sail.BitVec.extractLsb v__341 19 15)
                                                      let mapping26_ : (BitVec 5) :=
-                                                       (Sail.BitVec.extractLsb v__329 24 20)
+                                                       (Sail.BitVec.extractLsb v__341 24 20)
                                                      ((encdec_reg_backwards_matches mapping26_) && ((encdec_reg_backwards_matches
                                                            mapping27_) && (encdec_reg_backwards_matches
                                                            mapping28_)))) && (((Sail.BitVec.extractLsb
-                                                           v__329 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                             v__329 14 12) == (0b111#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                             v__329 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                           v__341 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                             v__341 14 12) == (0b111#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                             v__341 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                 then
                                                   (do
                                                     let mapping28_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__329 11 7)
+                                                      (Sail.BitVec.extractLsb v__341 11 7)
                                                     let mapping27_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__329 19 15)
+                                                      (Sail.BitVec.extractLsb v__341 19 15)
                                                     let mapping26_ : (BitVec 5) :=
-                                                      (Sail.BitVec.extractLsb v__329 24 20)
+                                                      (Sail.BitVec.extractLsb v__341 24 20)
                                                     match ((← (encdec_reg_backwards mapping26_)), (← (encdec_reg_backwards
                                                         mapping27_)), (← (encdec_reg_backwards
                                                         mapping28_))) with
@@ -2451,27 +2608,27 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                               | none =>
                                                 (do
                                                   match (← do
-                                                    let v__325 := head_exp_
+                                                    let v__337 := head_exp_
                                                     if (((let mapping31_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__325 11 7)
+                                                           (Sail.BitVec.extractLsb v__337 11 7)
                                                          let mapping30_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__325 19 15)
+                                                           (Sail.BitVec.extractLsb v__337 19 15)
                                                          let mapping29_ : (BitVec 5) :=
-                                                           (Sail.BitVec.extractLsb v__325 24 20)
+                                                           (Sail.BitVec.extractLsb v__337 24 20)
                                                          ((encdec_reg_backwards_matches mapping29_) && ((encdec_reg_backwards_matches
                                                                mapping30_) && (encdec_reg_backwards_matches
                                                                mapping31_)))) && (((Sail.BitVec.extractLsb
-                                                               v__325 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                 v__325 14 12) == (0b110#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                 v__325 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                               v__337 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                 v__337 14 12) == (0b110#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                 v__337 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                     then
                                                       (do
                                                         let mapping31_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__325 11 7)
+                                                          (Sail.BitVec.extractLsb v__337 11 7)
                                                         let mapping30_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__325 19 15)
+                                                          (Sail.BitVec.extractLsb v__337 19 15)
                                                         let mapping29_ : (BitVec 5) :=
-                                                          (Sail.BitVec.extractLsb v__325 24 20)
+                                                          (Sail.BitVec.extractLsb v__337 24 20)
                                                         match ((← (encdec_reg_backwards mapping29_)), (← (encdec_reg_backwards
                                                             mapping30_)), (← (encdec_reg_backwards
                                                             mapping31_))) with
@@ -2481,28 +2638,28 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                   | none =>
                                                     (do
                                                       match (← do
-                                                        let v__321 := head_exp_
+                                                        let v__333 := head_exp_
                                                         if (((let mapping34_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__321 11 7)
+                                                               (Sail.BitVec.extractLsb v__333 11 7)
                                                              let mapping33_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__321 19 15)
+                                                               (Sail.BitVec.extractLsb v__333 19 15)
                                                              let mapping32_ : (BitVec 5) :=
-                                                               (Sail.BitVec.extractLsb v__321 24 20)
+                                                               (Sail.BitVec.extractLsb v__333 24 20)
                                                              ((encdec_reg_backwards_matches
                                                                  mapping32_) && ((encdec_reg_backwards_matches
                                                                    mapping33_) && (encdec_reg_backwards_matches
                                                                    mapping34_)))) && (((Sail.BitVec.extractLsb
-                                                                   v__321 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                     v__321 14 12) == (0b100#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                     v__321 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                   v__333 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                     v__333 14 12) == (0b100#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                     v__333 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                         then
                                                           (do
                                                             let mapping34_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__321 11 7)
+                                                              (Sail.BitVec.extractLsb v__333 11 7)
                                                             let mapping33_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__321 19 15)
+                                                              (Sail.BitVec.extractLsb v__333 19 15)
                                                             let mapping32_ : (BitVec 5) :=
-                                                              (Sail.BitVec.extractLsb v__321 24 20)
+                                                              (Sail.BitVec.extractLsb v__333 24 20)
                                                             match ((← (encdec_reg_backwards
                                                                 mapping32_)), (← (encdec_reg_backwards
                                                                 mapping33_)), (← (encdec_reg_backwards
@@ -2513,33 +2670,33 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                       | none =>
                                                         (do
                                                           match (← do
-                                                            let v__317 := head_exp_
+                                                            let v__329 := head_exp_
                                                             if (((let mapping37_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__317 11
+                                                                   (Sail.BitVec.extractLsb v__329 11
                                                                      7)
                                                                  let mapping36_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__317 19
+                                                                   (Sail.BitVec.extractLsb v__329 19
                                                                      15)
                                                                  let mapping35_ : (BitVec 5) :=
-                                                                   (Sail.BitVec.extractLsb v__317 24
+                                                                   (Sail.BitVec.extractLsb v__329 24
                                                                      20)
                                                                  ((encdec_reg_backwards_matches
                                                                      mapping35_) && ((encdec_reg_backwards_matches
                                                                        mapping36_) && (encdec_reg_backwards_matches
                                                                        mapping37_)))) && (((Sail.BitVec.extractLsb
-                                                                       v__317 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                         v__317 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                         v__317 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                       v__329 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                         v__329 14 12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                         v__329 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                             then
                                                               (do
                                                                 let mapping37_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__317 11
+                                                                  (Sail.BitVec.extractLsb v__329 11
                                                                     7)
                                                                 let mapping36_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__317 19
+                                                                  (Sail.BitVec.extractLsb v__329 19
                                                                     15)
                                                                 let mapping35_ : (BitVec 5) :=
-                                                                  (Sail.BitVec.extractLsb v__317 24
+                                                                  (Sail.BitVec.extractLsb v__329 24
                                                                     20)
                                                                 match ((← (encdec_reg_backwards
                                                                     mapping35_)), (← (encdec_reg_backwards
@@ -2552,33 +2709,33 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                           | none =>
                                                             (do
                                                               match (← do
-                                                                let v__313 := head_exp_
+                                                                let v__325 := head_exp_
                                                                 if (((let mapping40_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__313 11 7)
+                                                                         v__325 11 7)
                                                                      let mapping39_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__313 19 15)
+                                                                         v__325 19 15)
                                                                      let mapping38_ : (BitVec 5) :=
                                                                        (Sail.BitVec.extractLsb
-                                                                         v__313 24 20)
+                                                                         v__325 24 20)
                                                                      ((encdec_reg_backwards_matches
                                                                          mapping38_) && ((encdec_reg_backwards_matches
                                                                            mapping39_) && (encdec_reg_backwards_matches
                                                                            mapping40_)))) && (((Sail.BitVec.extractLsb
-                                                                           v__313 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                             v__313 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                             v__313 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                           v__325 31 25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                             v__325 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                             v__325 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                 then
                                                                   (do
                                                                     let mapping40_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__313
+                                                                      (Sail.BitVec.extractLsb v__325
                                                                         11 7)
                                                                     let mapping39_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__313
+                                                                      (Sail.BitVec.extractLsb v__325
                                                                         19 15)
                                                                     let mapping38_ : (BitVec 5) :=
-                                                                      (Sail.BitVec.extractLsb v__313
+                                                                      (Sail.BitVec.extractLsb v__325
                                                                         24 20)
                                                                     match ((← (encdec_reg_backwards
                                                                         mapping38_)), (← (encdec_reg_backwards
@@ -2591,34 +2748,34 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                               | none =>
                                                                 (do
                                                                   match (← do
-                                                                    let v__309 := head_exp_
+                                                                    let v__321 := head_exp_
                                                                     if (((let mapping43_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__309 11 7)
+                                                                             v__321 11 7)
                                                                          let mapping42_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__309 19 15)
+                                                                             v__321 19 15)
                                                                          let mapping41_ : (BitVec 5) :=
                                                                            (Sail.BitVec.extractLsb
-                                                                             v__309 24 20)
+                                                                             v__321 24 20)
                                                                          ((encdec_reg_backwards_matches
                                                                              mapping41_) && ((encdec_reg_backwards_matches
                                                                                mapping42_) && (encdec_reg_backwards_matches
                                                                                mapping43_)))) && (((Sail.BitVec.extractLsb
-                                                                               v__309 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                 v__309 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                 v__309 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                               v__321 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                                 v__321 14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                                 v__321 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                     then
                                                                       (do
                                                                         let mapping43_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__309 11 7)
+                                                                            v__321 11 7)
                                                                         let mapping42_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__309 19 15)
+                                                                            v__321 19 15)
                                                                         let mapping41_ : (BitVec 5) :=
                                                                           (Sail.BitVec.extractLsb
-                                                                            v__309 24 20)
+                                                                            v__321 24 20)
                                                                         match ((← (encdec_reg_backwards
                                                                             mapping41_)), (← (encdec_reg_backwards
                                                                             mapping42_)), (← (encdec_reg_backwards
@@ -2630,34 +2787,34 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                   | none =>
                                                                     (do
                                                                       match (← do
-                                                                        let v__305 := head_exp_
+                                                                        let v__317 := head_exp_
                                                                         if (((let mapping46_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__305 11 7)
+                                                                                 v__317 11 7)
                                                                              let mapping45_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__305 19 15)
+                                                                                 v__317 19 15)
                                                                              let mapping44_ : (BitVec 5) :=
                                                                                (Sail.BitVec.extractLsb
-                                                                                 v__305 24 20)
+                                                                                 v__317 24 20)
                                                                              ((encdec_reg_backwards_matches
                                                                                  mapping44_) && ((encdec_reg_backwards_matches
                                                                                    mapping45_) && (encdec_reg_backwards_matches
                                                                                    mapping46_)))) && (((Sail.BitVec.extractLsb
-                                                                                   v__305 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                     v__305 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                     v__305 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
+                                                                                   v__317 31 25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
+                                                                                     v__317 14 12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
+                                                                                     v__317 6 0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                         then
                                                                           (do
                                                                             let mapping46_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__305 11 7)
+                                                                                v__317 11 7)
                                                                             let mapping45_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__305 19 15)
+                                                                                v__317 19 15)
                                                                             let mapping44_ : (BitVec 5) :=
                                                                               (Sail.BitVec.extractLsb
-                                                                                v__305 24 20)
+                                                                                v__317 24 20)
                                                                             match ((← (encdec_reg_backwards
                                                                                 mapping44_)), (← (encdec_reg_backwards
                                                                                 mapping45_)), (← (encdec_reg_backwards
@@ -2670,39 +2827,39 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                       | none =>
                                                                         (do
                                                                           match (← do
-                                                                            let v__303 := head_exp_
+                                                                            let v__315 := head_exp_
                                                                             if (((let mapping50_ : (BitVec 5) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__303 11 7)
+                                                                                     v__315 11 7)
                                                                                  let mapping49_ : (BitVec 2) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__303 13 12)
+                                                                                     v__315 13 12)
                                                                                  let mapping48_ : (BitVec 1) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__303 14 14)
+                                                                                     v__315 14 14)
                                                                                  let mapping47_ : (BitVec 5) :=
                                                                                    (Sail.BitVec.extractLsb
-                                                                                     v__303 19 15)
+                                                                                     v__315 19 15)
                                                                                  ((encdec_reg_backwards_matches
                                                                                      mapping47_) && ((bool_bit_backwards_matches
                                                                                        mapping48_) && ((width_enc_backwards_matches
                                                                                          mapping49_) && (encdec_reg_backwards_matches
                                                                                          mapping50_))))) && ((Sail.BitVec.extractLsb
-                                                                                     v__303 6 0) == (0b0000011#7 : (BitVec 7)))) : Bool)
+                                                                                     v__315 6 0) == (0b0000011#7 : (BitVec 7)))) : Bool)
                                                                             then
                                                                               (do
                                                                                 let mapping50_ : (BitVec 5) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__303 11 7)
+                                                                                    v__315 11 7)
                                                                                 let mapping49_ : (BitVec 2) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__303 13 12)
+                                                                                    v__315 13 12)
                                                                                 let mapping48_ : (BitVec 1) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__303 14 14)
+                                                                                    v__315 14 14)
                                                                                 let mapping47_ : (BitVec 5) :=
                                                                                   (Sail.BitVec.extractLsb
-                                                                                    v__303 19 15)
+                                                                                    v__315 19 15)
                                                                                 match ((← (encdec_reg_backwards
                                                                                     mapping47_)), (bool_bit_backwards
                                                                                   mapping48_), (width_enc_backwards
@@ -2721,48 +2878,48 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                           | none =>
                                                                             (do
                                                                               match (← do
-                                                                                let v__300 :=
+                                                                                let v__312 :=
                                                                                   head_exp_
                                                                                 if (((let mapping53_ : (BitVec 2) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__300 13
+                                                                                         v__312 13
                                                                                          12)
                                                                                      let mapping52_ : (BitVec 5) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__300 19
+                                                                                         v__312 19
                                                                                          15)
                                                                                      let mapping51_ : (BitVec 5) :=
                                                                                        (Sail.BitVec.extractLsb
-                                                                                         v__300 24
+                                                                                         v__312 24
                                                                                          20)
                                                                                      ((encdec_reg_backwards_matches
                                                                                          mapping51_) && ((encdec_reg_backwards_matches
                                                                                            mapping52_) && (width_enc_backwards_matches
                                                                                            mapping53_)))) && (((Sail.BitVec.extractLsb
-                                                                                           v__300 14
+                                                                                           v__312 14
                                                                                            14) == (0#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
-                                                                                           v__300 6
+                                                                                           v__312 6
                                                                                            0) == (0b0100011#7 : (BitVec 7))))) : Bool)
                                                                                 then
                                                                                   (do
                                                                                     let imm_11_5_ : (BitVec 7) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 31 25)
+                                                                                        v__312 31 25)
                                                                                     let mapping53_ : (BitVec 2) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 13 12)
+                                                                                        v__312 13 12)
                                                                                     let mapping52_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 19 15)
+                                                                                        v__312 19 15)
                                                                                     let mapping51_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 24 20)
+                                                                                        v__312 24 20)
                                                                                     let imm_4_0_ : (BitVec 5) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 11 7)
+                                                                                        v__312 11 7)
                                                                                     let imm_11_5_ : (BitVec 7) :=
                                                                                       (Sail.BitVec.extractLsb
-                                                                                        v__300 31 25)
+                                                                                        v__312 31 25)
                                                                                     match ((← (encdec_reg_backwards
                                                                                         mapping51_)), (← (encdec_reg_backwards
                                                                                         mapping52_)), (width_enc_backwards
@@ -2784,32 +2941,32 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                               | none =>
                                                                                 (do
                                                                                   match (← do
-                                                                                    let v__297 :=
+                                                                                    let v__309 :=
                                                                                       head_exp_
                                                                                     if (((let mapping55_ : (BitVec 5) :=
                                                                                            (Sail.BitVec.extractLsb
-                                                                                             v__297
+                                                                                             v__309
                                                                                              11 7)
                                                                                          let mapping54_ : (BitVec 5) :=
                                                                                            (Sail.BitVec.extractLsb
-                                                                                             v__297
+                                                                                             v__309
                                                                                              19 15)
                                                                                          ((encdec_reg_backwards_matches
                                                                                              mapping54_) && (encdec_reg_backwards_matches
                                                                                              mapping55_))) && (((Sail.BitVec.extractLsb
-                                                                                               v__297
+                                                                                               v__309
                                                                                                14 12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                               v__297
+                                                                                               v__309
                                                                                                6 0) == (0b0011011#7 : (BitVec 7))))) : Bool)
                                                                                     then
                                                                                       (do
                                                                                         let mapping55_ : (BitVec 5) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__297
+                                                                                            v__309
                                                                                             11 7)
                                                                                         let mapping54_ : (BitVec 5) :=
                                                                                           (Sail.BitVec.extractLsb
-                                                                                            v__297
+                                                                                            v__309
                                                                                             19 15)
                                                                                         match ((← (encdec_reg_backwards
                                                                                             mapping54_)), (← (encdec_reg_backwards
@@ -2827,50 +2984,50 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                   | none =>
                                                                                     (do
                                                                                       match (← do
-                                                                                        let v__293 :=
+                                                                                        let v__305 :=
                                                                                           head_exp_
                                                                                         if (((let mapping58_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__293
+                                                                                                 v__305
                                                                                                  11
                                                                                                  7)
                                                                                              let mapping57_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__293
+                                                                                                 v__305
                                                                                                  19
                                                                                                  15)
                                                                                              let mapping56_ : (BitVec 5) :=
                                                                                                (Sail.BitVec.extractLsb
-                                                                                                 v__293
+                                                                                                 v__305
                                                                                                  24
                                                                                                  20)
                                                                                              ((encdec_reg_backwards_matches
                                                                                                  mapping56_) && ((encdec_reg_backwards_matches
                                                                                                    mapping57_) && (encdec_reg_backwards_matches
                                                                                                    mapping58_)))) && (((Sail.BitVec.extractLsb
-                                                                                                   v__293
+                                                                                                   v__305
                                                                                                    31
                                                                                                    25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                     v__293
+                                                                                                     v__305
                                                                                                      14
                                                                                                      12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                     v__293
+                                                                                                     v__305
                                                                                                      6
                                                                                                      0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                         then
                                                                                           (do
                                                                                             let mapping58_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__293
+                                                                                                v__305
                                                                                                 11 7)
                                                                                             let mapping57_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__293
+                                                                                                v__305
                                                                                                 19
                                                                                                 15)
                                                                                             let mapping56_ : (BitVec 5) :=
                                                                                               (Sail.BitVec.extractLsb
-                                                                                                v__293
+                                                                                                v__305
                                                                                                 24
                                                                                                 20)
                                                                                             match ((← (encdec_reg_backwards
@@ -2891,51 +3048,51 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                       | none =>
                                                                                         (do
                                                                                           match (← do
-                                                                                            let v__289 :=
+                                                                                            let v__301 :=
                                                                                               head_exp_
                                                                                             if (((let mapping61_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__289
+                                                                                                     v__301
                                                                                                      11
                                                                                                      7)
                                                                                                  let mapping60_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__289
+                                                                                                     v__301
                                                                                                      19
                                                                                                      15)
                                                                                                  let mapping59_ : (BitVec 5) :=
                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                     v__289
+                                                                                                     v__301
                                                                                                      24
                                                                                                      20)
                                                                                                  ((encdec_reg_backwards_matches
                                                                                                      mapping59_) && ((encdec_reg_backwards_matches
                                                                                                        mapping60_) && (encdec_reg_backwards_matches
                                                                                                        mapping61_)))) && (((Sail.BitVec.extractLsb
-                                                                                                       v__289
+                                                                                                       v__301
                                                                                                        31
                                                                                                        25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                         v__289
+                                                                                                         v__301
                                                                                                          14
                                                                                                          12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                         v__289
+                                                                                                         v__301
                                                                                                          6
                                                                                                          0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                             then
                                                                                               (do
                                                                                                 let mapping61_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__289
+                                                                                                    v__301
                                                                                                     11
                                                                                                     7)
                                                                                                 let mapping60_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__289
+                                                                                                    v__301
                                                                                                     19
                                                                                                     15)
                                                                                                 let mapping59_ : (BitVec 5) :=
                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                    v__289
+                                                                                                    v__301
                                                                                                     24
                                                                                                     20)
                                                                                                 match ((← (encdec_reg_backwards
@@ -2956,51 +3113,51 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                           | none =>
                                                                                             (do
                                                                                               match (← do
-                                                                                                let v__285 :=
+                                                                                                let v__297 :=
                                                                                                   head_exp_
                                                                                                 if (((let mapping64_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__285
+                                                                                                         v__297
                                                                                                          11
                                                                                                          7)
                                                                                                      let mapping63_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__285
+                                                                                                         v__297
                                                                                                          19
                                                                                                          15)
                                                                                                      let mapping62_ : (BitVec 5) :=
                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                         v__285
+                                                                                                         v__297
                                                                                                          24
                                                                                                          20)
                                                                                                      ((encdec_reg_backwards_matches
                                                                                                          mapping62_) && ((encdec_reg_backwards_matches
                                                                                                            mapping63_) && (encdec_reg_backwards_matches
                                                                                                            mapping64_)))) && (((Sail.BitVec.extractLsb
-                                                                                                           v__285
+                                                                                                           v__297
                                                                                                            31
                                                                                                            25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                             v__285
+                                                                                                             v__297
                                                                                                              14
                                                                                                              12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                             v__285
+                                                                                                             v__297
                                                                                                              6
                                                                                                              0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                 then
                                                                                                   (do
                                                                                                     let mapping64_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__285
+                                                                                                        v__297
                                                                                                         11
                                                                                                         7)
                                                                                                     let mapping63_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__285
+                                                                                                        v__297
                                                                                                         19
                                                                                                         15)
                                                                                                     let mapping62_ : (BitVec 5) :=
                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                        v__285
+                                                                                                        v__297
                                                                                                         24
                                                                                                         20)
                                                                                                     match ((← (encdec_reg_backwards
@@ -3021,51 +3178,51 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                               | none =>
                                                                                                 (do
                                                                                                   match (← do
-                                                                                                    let v__281 :=
+                                                                                                    let v__293 :=
                                                                                                       head_exp_
                                                                                                     if (((let mapping67_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__281
+                                                                                                             v__293
                                                                                                              11
                                                                                                              7)
                                                                                                          let mapping66_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__281
+                                                                                                             v__293
                                                                                                              19
                                                                                                              15)
                                                                                                          let mapping65_ : (BitVec 5) :=
                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                             v__281
+                                                                                                             v__293
                                                                                                              24
                                                                                                              20)
                                                                                                          ((encdec_reg_backwards_matches
                                                                                                              mapping65_) && ((encdec_reg_backwards_matches
                                                                                                                mapping66_) && (encdec_reg_backwards_matches
                                                                                                                mapping67_)))) && (((Sail.BitVec.extractLsb
-                                                                                                               v__281
+                                                                                                               v__293
                                                                                                                31
                                                                                                                25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                 v__281
+                                                                                                                 v__293
                                                                                                                  14
                                                                                                                  12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                 v__281
+                                                                                                                 v__293
                                                                                                                  6
                                                                                                                  0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                     then
                                                                                                       (do
                                                                                                         let mapping67_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__281
+                                                                                                            v__293
                                                                                                             11
                                                                                                             7)
                                                                                                         let mapping66_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__281
+                                                                                                            v__293
                                                                                                             19
                                                                                                             15)
                                                                                                         let mapping65_ : (BitVec 5) :=
                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                            v__281
+                                                                                                            v__293
                                                                                                             24
                                                                                                             20)
                                                                                                         match ((← (encdec_reg_backwards
@@ -3086,51 +3243,51 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                   | none =>
                                                                                                     (do
                                                                                                       match (← do
-                                                                                                        let v__277 :=
+                                                                                                        let v__289 :=
                                                                                                           head_exp_
                                                                                                         if (((let mapping70_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__277
+                                                                                                                 v__289
                                                                                                                  11
                                                                                                                  7)
                                                                                                              let mapping69_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__277
+                                                                                                                 v__289
                                                                                                                  19
                                                                                                                  15)
                                                                                                              let mapping68_ : (BitVec 5) :=
                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                 v__277
+                                                                                                                 v__289
                                                                                                                  24
                                                                                                                  20)
                                                                                                              ((encdec_reg_backwards_matches
                                                                                                                  mapping68_) && ((encdec_reg_backwards_matches
                                                                                                                    mapping69_) && (encdec_reg_backwards_matches
                                                                                                                    mapping70_)))) && (((Sail.BitVec.extractLsb
-                                                                                                                   v__277
+                                                                                                                   v__289
                                                                                                                    31
                                                                                                                    25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                     v__277
+                                                                                                                     v__289
                                                                                                                      14
                                                                                                                      12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                     v__277
+                                                                                                                     v__289
                                                                                                                      6
                                                                                                                      0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                         then
                                                                                                           (do
                                                                                                             let mapping70_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__277
+                                                                                                                v__289
                                                                                                                 11
                                                                                                                 7)
                                                                                                             let mapping69_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__277
+                                                                                                                v__289
                                                                                                                 19
                                                                                                                 15)
                                                                                                             let mapping68_ : (BitVec 5) :=
                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                v__277
+                                                                                                                v__289
                                                                                                                 24
                                                                                                                 20)
                                                                                                             match ((← (encdec_reg_backwards
@@ -3151,40 +3308,40 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                       | none =>
                                                                                                         (do
                                                                                                           match (← do
-                                                                                                            let v__273 :=
+                                                                                                            let v__285 :=
                                                                                                               head_exp_
                                                                                                             if (((let mapping72_ : (BitVec 5) :=
                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                     v__273
+                                                                                                                     v__285
                                                                                                                      11
                                                                                                                      7)
                                                                                                                  let mapping71_ : (BitVec 5) :=
                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                     v__273
+                                                                                                                     v__285
                                                                                                                      19
                                                                                                                      15)
                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                      mapping71_) && (encdec_reg_backwards_matches
                                                                                                                      mapping72_))) && (((Sail.BitVec.extractLsb
-                                                                                                                       v__273
+                                                                                                                       v__285
                                                                                                                        31
                                                                                                                        25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                         v__273
+                                                                                                                         v__285
                                                                                                                          14
                                                                                                                          12) == (0b001#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                         v__273
+                                                                                                                         v__285
                                                                                                                          6
                                                                                                                          0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                             then
                                                                                                               (do
                                                                                                                 let mapping72_ : (BitVec 5) :=
                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                    v__273
+                                                                                                                    v__285
                                                                                                                     11
                                                                                                                     7)
                                                                                                                 let mapping71_ : (BitVec 5) :=
                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                    v__273
+                                                                                                                    v__285
                                                                                                                     19
                                                                                                                     15)
                                                                                                                 match ((← (encdec_reg_backwards
@@ -3204,40 +3361,40 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                           | none =>
                                                                                                             (do
                                                                                                               match (← do
-                                                                                                                let v__269 :=
+                                                                                                                let v__281 :=
                                                                                                                   head_exp_
                                                                                                                 if (((let mapping74_ : (BitVec 5) :=
                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                         v__269
+                                                                                                                         v__281
                                                                                                                          11
                                                                                                                          7)
                                                                                                                      let mapping73_ : (BitVec 5) :=
                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                         v__269
+                                                                                                                         v__281
                                                                                                                          19
                                                                                                                          15)
                                                                                                                      ((encdec_reg_backwards_matches
                                                                                                                          mapping73_) && (encdec_reg_backwards_matches
                                                                                                                          mapping74_))) && (((Sail.BitVec.extractLsb
-                                                                                                                           v__269
+                                                                                                                           v__281
                                                                                                                            31
                                                                                                                            25) == (0b0000000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                             v__269
+                                                                                                                             v__281
                                                                                                                              14
                                                                                                                              12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                             v__269
+                                                                                                                             v__281
                                                                                                                              6
                                                                                                                              0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                                 then
                                                                                                                   (do
                                                                                                                     let mapping74_ : (BitVec 5) :=
                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                        v__269
+                                                                                                                        v__281
                                                                                                                         11
                                                                                                                         7)
                                                                                                                     let mapping73_ : (BitVec 5) :=
                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                        v__269
+                                                                                                                        v__281
                                                                                                                         19
                                                                                                                         15)
                                                                                                                     match ((← (encdec_reg_backwards
@@ -3257,40 +3414,40 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                               | none =>
                                                                                                                 (do
                                                                                                                   match (← do
-                                                                                                                    let v__265 :=
+                                                                                                                    let v__277 :=
                                                                                                                       head_exp_
                                                                                                                     if (((let mapping76_ : (BitVec 5) :=
                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                             v__265
+                                                                                                                             v__277
                                                                                                                              11
                                                                                                                              7)
                                                                                                                          let mapping75_ : (BitVec 5) :=
                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                             v__265
+                                                                                                                             v__277
                                                                                                                              19
                                                                                                                              15)
                                                                                                                          ((encdec_reg_backwards_matches
                                                                                                                              mapping75_) && (encdec_reg_backwards_matches
                                                                                                                              mapping76_))) && (((Sail.BitVec.extractLsb
-                                                                                                                               v__265
+                                                                                                                               v__277
                                                                                                                                31
                                                                                                                                25) == (0b0100000#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                 v__265
+                                                                                                                                 v__277
                                                                                                                                  14
                                                                                                                                  12) == (0b101#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                 v__265
+                                                                                                                                 v__277
                                                                                                                                  6
                                                                                                                                  0) == (0b0011011#7 : (BitVec 7)))))) : Bool)
                                                                                                                     then
                                                                                                                       (do
                                                                                                                         let mapping76_ : (BitVec 5) :=
                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                            v__265
+                                                                                                                            v__277
                                                                                                                             11
                                                                                                                             7)
                                                                                                                         let mapping75_ : (BitVec 5) :=
                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                            v__265
+                                                                                                                            v__277
                                                                                                                             19
                                                                                                                             15)
                                                                                                                         match ((← (encdec_reg_backwards
@@ -3310,9 +3467,9 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                   | none =>
                                                                                                                     (do
                                                                                                                       match (← do
-                                                                                                                        let v__254 :=
+                                                                                                                        let v__266 :=
                                                                                                                           head_exp_
-                                                                                                                        if ((v__254 == (0x8330000F#32 : (BitVec 32))) : Bool)
+                                                                                                                        if ((v__266 == (0x8330000F#32 : (BitVec 32))) : Bool)
                                                                                                                         then
                                                                                                                           (pure (some
                                                                                                                               true))
@@ -3320,33 +3477,33 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                           (do
                                                                                                                             if (((let mapping78_ : (BitVec 5) :=
                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                     v__254
+                                                                                                                                     v__266
                                                                                                                                      11
                                                                                                                                      7)
                                                                                                                                  let mapping77_ : (BitVec 5) :=
                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                     v__254
+                                                                                                                                     v__266
                                                                                                                                      19
                                                                                                                                      15)
                                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                                      mapping77_) && (encdec_reg_backwards_matches
                                                                                                                                      mapping78_))) && (((Sail.BitVec.extractLsb
-                                                                                                                                       v__254
+                                                                                                                                       v__266
                                                                                                                                        14
                                                                                                                                        12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                       v__254
+                                                                                                                                       v__266
                                                                                                                                        6
                                                                                                                                        0) == (0b0001111#7 : (BitVec 7))))) : Bool)
                                                                                                                             then
                                                                                                                               (do
                                                                                                                                 let mapping78_ : (BitVec 5) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__254
+                                                                                                                                    v__266
                                                                                                                                     11
                                                                                                                                     7)
                                                                                                                                 let mapping77_ : (BitVec 5) :=
                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                    v__254
+                                                                                                                                    v__266
                                                                                                                                     19
                                                                                                                                     15)
                                                                                                                                 match ((← (encdec_reg_backwards
@@ -3362,33 +3519,33 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                       | none =>
                                                                                                                         (do
                                                                                                                           match (← do
-                                                                                                                            let v__217 :=
+                                                                                                                            let v__229 :=
                                                                                                                               head_exp_
-                                                                                                                            if ((v__217 == (0x00000073#32 : (BitVec 32))) : Bool)
+                                                                                                                            if ((v__229 == (0x00000073#32 : (BitVec 32))) : Bool)
                                                                                                                             then
                                                                                                                               (pure (some
                                                                                                                                   true))
                                                                                                                             else
                                                                                                                               (do
-                                                                                                                                if ((v__217 == (0x30200073#32 : (BitVec 32))) : Bool)
+                                                                                                                                if ((v__229 == (0x30200073#32 : (BitVec 32))) : Bool)
                                                                                                                                 then
                                                                                                                                   (pure (some
                                                                                                                                       true))
                                                                                                                                 else
                                                                                                                                   (do
-                                                                                                                                    if ((v__217 == (0x10200073#32 : (BitVec 32))) : Bool)
+                                                                                                                                    if ((v__229 == (0x10200073#32 : (BitVec 32))) : Bool)
                                                                                                                                     then
                                                                                                                                       (pure (some
                                                                                                                                           true))
                                                                                                                                     else
                                                                                                                                       (do
-                                                                                                                                        if ((v__217 == (0x00100073#32 : (BitVec 32))) : Bool)
+                                                                                                                                        if ((v__229 == (0x00100073#32 : (BitVec 32))) : Bool)
                                                                                                                                         then
                                                                                                                                           (pure (some
                                                                                                                                               true))
                                                                                                                                         else
                                                                                                                                           (do
-                                                                                                                                            if ((v__217 == (0x10500073#32 : (BitVec 32))) : Bool)
+                                                                                                                                            if ((v__229 == (0x10500073#32 : (BitVec 32))) : Bool)
                                                                                                                                             then
                                                                                                                                               (pure (some
                                                                                                                                                   true))
@@ -3396,33 +3553,33 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                               (do
                                                                                                                                                 if (((let mapping80_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__217
+                                                                                                                                                         v__229
                                                                                                                                                          19
                                                                                                                                                          15)
                                                                                                                                                      let mapping79_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__217
+                                                                                                                                                         v__229
                                                                                                                                                          24
                                                                                                                                                          20)
                                                                                                                                                      ((encdec_reg_backwards_matches
                                                                                                                                                          mapping79_) && (encdec_reg_backwards_matches
                                                                                                                                                          mapping80_))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                           v__217
+                                                                                                                                                           v__229
                                                                                                                                                            31
                                                                                                                                                            25) == (0b0001001#7 : (BitVec 7))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                           v__217
+                                                                                                                                                           v__229
                                                                                                                                                            14
                                                                                                                                                            0) == (0b000000001110011#15 : (BitVec 15))))) : Bool)
                                                                                                                                                 then
                                                                                                                                                   (do
                                                                                                                                                     let mapping80_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__217
+                                                                                                                                                        v__229
                                                                                                                                                         19
                                                                                                                                                         15)
                                                                                                                                                     let mapping79_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__217
+                                                                                                                                                        v__229
                                                                                                                                                         24
                                                                                                                                                         20)
                                                                                                                                                     match ((← (encdec_reg_backwards
@@ -3445,26 +3602,26 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                           | none =>
                                                                                                                             (do
                                                                                                                               match (← do
-                                                                                                                                let v__214 :=
+                                                                                                                                let v__226 :=
                                                                                                                                   head_exp_
                                                                                                                                 if (((let mapping84_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__214
+                                                                                                                                         v__226
                                                                                                                                          11
                                                                                                                                          7)
                                                                                                                                      let mapping83_ : (BitVec 3) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__214
+                                                                                                                                         v__226
                                                                                                                                          14
                                                                                                                                          12)
                                                                                                                                      let mapping82_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__214
+                                                                                                                                         v__226
                                                                                                                                          19
                                                                                                                                          15)
                                                                                                                                      let mapping81_ : (BitVec 5) :=
                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                         v__214
+                                                                                                                                         v__226
                                                                                                                                          24
                                                                                                                                          20)
                                                                                                                                      ((encdec_reg_backwards_matches
@@ -3472,32 +3629,32 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                            mapping82_) && ((encdec_mul_op_backwards_matches
                                                                                                                                              mapping83_) && (encdec_reg_backwards_matches
                                                                                                                                              mapping84_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                           v__214
+                                                                                                                                           v__226
                                                                                                                                            31
                                                                                                                                            25) == (0b0000001#7 : (BitVec 7))) && ((Sail.BitVec.extractLsb
-                                                                                                                                           v__214
+                                                                                                                                           v__226
                                                                                                                                            6
                                                                                                                                            0) == (0b0110011#7 : (BitVec 7))))) : Bool)
                                                                                                                                 then
                                                                                                                                   (do
                                                                                                                                     let mapping84_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__214
+                                                                                                                                        v__226
                                                                                                                                         11
                                                                                                                                         7)
                                                                                                                                     let mapping83_ : (BitVec 3) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__214
+                                                                                                                                        v__226
                                                                                                                                         14
                                                                                                                                         12)
                                                                                                                                     let mapping82_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__214
+                                                                                                                                        v__226
                                                                                                                                         19
                                                                                                                                         15)
                                                                                                                                     let mapping81_ : (BitVec 5) :=
                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                        v__214
+                                                                                                                                        v__226
                                                                                                                                         24
                                                                                                                                         20)
                                                                                                                                     match ((← (encdec_reg_backwards
@@ -3522,26 +3679,26 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                               | none =>
                                                                                                                                 (do
                                                                                                                                   match (← do
-                                                                                                                                    let v__210 :=
+                                                                                                                                    let v__222 :=
                                                                                                                                       head_exp_
                                                                                                                                     if (((let mapping88_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__210
+                                                                                                                                             v__222
                                                                                                                                              11
                                                                                                                                              7)
                                                                                                                                          let mapping87_ : (BitVec 1) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__210
+                                                                                                                                             v__222
                                                                                                                                              12
                                                                                                                                              12)
                                                                                                                                          let mapping86_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__210
+                                                                                                                                             v__222
                                                                                                                                              19
                                                                                                                                              15)
                                                                                                                                          let mapping85_ : (BitVec 5) :=
                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                             v__210
+                                                                                                                                             v__222
                                                                                                                                              24
                                                                                                                                              20)
                                                                                                                                          ((encdec_reg_backwards_matches
@@ -3549,35 +3706,35 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                                mapping86_) && ((bool_bit_backwards_matches
                                                                                                                                                  mapping87_) && (encdec_reg_backwards_matches
                                                                                                                                                  mapping88_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                               v__210
+                                                                                                                                               v__222
                                                                                                                                                31
                                                                                                                                                25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                 v__210
+                                                                                                                                                 v__222
                                                                                                                                                  14
                                                                                                                                                  13) == (0b10#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                 v__210
+                                                                                                                                                 v__222
                                                                                                                                                  6
                                                                                                                                                  0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                     then
                                                                                                                                       (do
                                                                                                                                         let mapping88_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__210
+                                                                                                                                            v__222
                                                                                                                                             11
                                                                                                                                             7)
                                                                                                                                         let mapping87_ : (BitVec 1) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__210
+                                                                                                                                            v__222
                                                                                                                                             12
                                                                                                                                             12)
                                                                                                                                         let mapping86_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__210
+                                                                                                                                            v__222
                                                                                                                                             19
                                                                                                                                             15)
                                                                                                                                         let mapping85_ : (BitVec 5) :=
                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                            v__210
+                                                                                                                                            v__222
                                                                                                                                             24
                                                                                                                                             20)
                                                                                                                                         match ((← (encdec_reg_backwards
@@ -3601,26 +3758,26 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                   | none =>
                                                                                                                                     (do
                                                                                                                                       match (← do
-                                                                                                                                        let v__206 :=
+                                                                                                                                        let v__218 :=
                                                                                                                                           head_exp_
                                                                                                                                         if (((let mapping92_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__206
+                                                                                                                                                 v__218
                                                                                                                                                  11
                                                                                                                                                  7)
                                                                                                                                              let mapping91_ : (BitVec 1) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__206
+                                                                                                                                                 v__218
                                                                                                                                                  12
                                                                                                                                                  12)
                                                                                                                                              let mapping90_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__206
+                                                                                                                                                 v__218
                                                                                                                                                  19
                                                                                                                                                  15)
                                                                                                                                              let mapping89_ : (BitVec 5) :=
                                                                                                                                                (Sail.BitVec.extractLsb
-                                                                                                                                                 v__206
+                                                                                                                                                 v__218
                                                                                                                                                  24
                                                                                                                                                  20)
                                                                                                                                              ((encdec_reg_backwards_matches
@@ -3628,35 +3785,35 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                                    mapping90_) && ((bool_bit_backwards_matches
                                                                                                                                                      mapping91_) && (encdec_reg_backwards_matches
                                                                                                                                                      mapping92_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                   v__206
+                                                                                                                                                   v__218
                                                                                                                                                    31
                                                                                                                                                    25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                     v__206
+                                                                                                                                                     v__218
                                                                                                                                                      14
                                                                                                                                                      13) == (0b11#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                     v__206
+                                                                                                                                                     v__218
                                                                                                                                                      6
                                                                                                                                                      0) == (0b0110011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                         then
                                                                                                                                           (do
                                                                                                                                             let mapping92_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__206
+                                                                                                                                                v__218
                                                                                                                                                 11
                                                                                                                                                 7)
                                                                                                                                             let mapping91_ : (BitVec 1) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__206
+                                                                                                                                                v__218
                                                                                                                                                 12
                                                                                                                                                 12)
                                                                                                                                             let mapping90_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__206
+                                                                                                                                                v__218
                                                                                                                                                 19
                                                                                                                                                 15)
                                                                                                                                             let mapping89_ : (BitVec 5) :=
                                                                                                                                               (Sail.BitVec.extractLsb
-                                                                                                                                                v__206
+                                                                                                                                                v__218
                                                                                                                                                 24
                                                                                                                                                 20)
                                                                                                                                             match ((← (encdec_reg_backwards
@@ -3680,51 +3837,51 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                       | none =>
                                                                                                                                         (do
                                                                                                                                           match (← do
-                                                                                                                                            let v__202 :=
+                                                                                                                                            let v__214 :=
                                                                                                                                               head_exp_
                                                                                                                                             if (((let mapping95_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__202
+                                                                                                                                                     v__214
                                                                                                                                                      11
                                                                                                                                                      7)
                                                                                                                                                  let mapping94_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__202
+                                                                                                                                                     v__214
                                                                                                                                                      19
                                                                                                                                                      15)
                                                                                                                                                  let mapping93_ : (BitVec 5) :=
                                                                                                                                                    (Sail.BitVec.extractLsb
-                                                                                                                                                     v__202
+                                                                                                                                                     v__214
                                                                                                                                                      24
                                                                                                                                                      20)
                                                                                                                                                  ((encdec_reg_backwards_matches
                                                                                                                                                      mapping93_) && ((encdec_reg_backwards_matches
                                                                                                                                                        mapping94_) && (encdec_reg_backwards_matches
                                                                                                                                                        mapping95_)))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                       v__202
+                                                                                                                                                       v__214
                                                                                                                                                        31
                                                                                                                                                        25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                         v__202
+                                                                                                                                                         v__214
                                                                                                                                                          14
                                                                                                                                                          12) == (0b000#3 : (BitVec 3))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                         v__202
+                                                                                                                                                         v__214
                                                                                                                                                          6
                                                                                                                                                          0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                             then
                                                                                                                                               (do
                                                                                                                                                 let mapping95_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__202
+                                                                                                                                                    v__214
                                                                                                                                                     11
                                                                                                                                                     7)
                                                                                                                                                 let mapping94_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__202
+                                                                                                                                                    v__214
                                                                                                                                                     19
                                                                                                                                                     15)
                                                                                                                                                 let mapping93_ : (BitVec 5) :=
                                                                                                                                                   (Sail.BitVec.extractLsb
-                                                                                                                                                    v__202
+                                                                                                                                                    v__214
                                                                                                                                                     24
                                                                                                                                                     20)
                                                                                                                                                 match ((← (encdec_reg_backwards
@@ -3748,26 +3905,26 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                           | none =>
                                                                                                                                             (do
                                                                                                                                               match (← do
-                                                                                                                                                let v__198 :=
+                                                                                                                                                let v__210 :=
                                                                                                                                                   head_exp_
                                                                                                                                                 if (((let mapping99_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__198
+                                                                                                                                                         v__210
                                                                                                                                                          11
                                                                                                                                                          7)
                                                                                                                                                      let mapping98_ : (BitVec 1) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__198
+                                                                                                                                                         v__210
                                                                                                                                                          12
                                                                                                                                                          12)
                                                                                                                                                      let mapping97_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__198
+                                                                                                                                                         v__210
                                                                                                                                                          19
                                                                                                                                                          15)
                                                                                                                                                      let mapping96_ : (BitVec 5) :=
                                                                                                                                                        (Sail.BitVec.extractLsb
-                                                                                                                                                         v__198
+                                                                                                                                                         v__210
                                                                                                                                                          24
                                                                                                                                                          20)
                                                                                                                                                      ((encdec_reg_backwards_matches
@@ -3775,35 +3932,35 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                                            mapping97_) && ((bool_bit_backwards_matches
                                                                                                                                                              mapping98_) && (encdec_reg_backwards_matches
                                                                                                                                                              mapping99_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                           v__198
+                                                                                                                                                           v__210
                                                                                                                                                            31
                                                                                                                                                            25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                             v__198
+                                                                                                                                                             v__210
                                                                                                                                                              14
                                                                                                                                                              13) == (0b10#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                             v__198
+                                                                                                                                                             v__210
                                                                                                                                                              6
                                                                                                                                                              0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                                 then
                                                                                                                                                   (do
                                                                                                                                                     let mapping99_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__198
+                                                                                                                                                        v__210
                                                                                                                                                         11
                                                                                                                                                         7)
                                                                                                                                                     let mapping98_ : (BitVec 1) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__198
+                                                                                                                                                        v__210
                                                                                                                                                         12
                                                                                                                                                         12)
                                                                                                                                                     let mapping97_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__198
+                                                                                                                                                        v__210
                                                                                                                                                         19
                                                                                                                                                         15)
                                                                                                                                                     let mapping96_ : (BitVec 5) :=
                                                                                                                                                       (Sail.BitVec.extractLsb
-                                                                                                                                                        v__198
+                                                                                                                                                        v__210
                                                                                                                                                         24
                                                                                                                                                         20)
                                                                                                                                                     match ((← (encdec_reg_backwards
@@ -3827,26 +3984,26 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                               | none =>
                                                                                                                                                 (do
                                                                                                                                                   match (← do
-                                                                                                                                                    let v__194 :=
+                                                                                                                                                    let v__206 :=
                                                                                                                                                       head_exp_
                                                                                                                                                     if (((let mapping103_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__194
+                                                                                                                                                             v__206
                                                                                                                                                              11
                                                                                                                                                              7)
                                                                                                                                                          let mapping102_ : (BitVec 1) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__194
+                                                                                                                                                             v__206
                                                                                                                                                              12
                                                                                                                                                              12)
                                                                                                                                                          let mapping101_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__194
+                                                                                                                                                             v__206
                                                                                                                                                              19
                                                                                                                                                              15)
                                                                                                                                                          let mapping100_ : (BitVec 5) :=
                                                                                                                                                            (Sail.BitVec.extractLsb
-                                                                                                                                                             v__194
+                                                                                                                                                             v__206
                                                                                                                                                              24
                                                                                                                                                              20)
                                                                                                                                                          ((encdec_reg_backwards_matches
@@ -3854,35 +4011,35 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                                                mapping101_) && ((bool_bit_backwards_matches
                                                                                                                                                                  mapping102_) && (encdec_reg_backwards_matches
                                                                                                                                                                  mapping103_))))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                               v__194
+                                                                                                                                                               v__206
                                                                                                                                                                31
                                                                                                                                                                25) == (0b0000001#7 : (BitVec 7))) && (((Sail.BitVec.extractLsb
-                                                                                                                                                                 v__194
+                                                                                                                                                                 v__206
                                                                                                                                                                  14
                                                                                                                                                                  13) == (0b11#2 : (BitVec 2))) && ((Sail.BitVec.extractLsb
-                                                                                                                                                                 v__194
+                                                                                                                                                                 v__206
                                                                                                                                                                  6
                                                                                                                                                                  0) == (0b0111011#7 : (BitVec 7)))))) : Bool)
                                                                                                                                                     then
                                                                                                                                                       (do
                                                                                                                                                         let mapping103_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__194
+                                                                                                                                                            v__206
                                                                                                                                                             11
                                                                                                                                                             7)
                                                                                                                                                         let mapping102_ : (BitVec 1) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__194
+                                                                                                                                                            v__206
                                                                                                                                                             12
                                                                                                                                                             12)
                                                                                                                                                         let mapping101_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__194
+                                                                                                                                                            v__206
                                                                                                                                                             19
                                                                                                                                                             15)
                                                                                                                                                         let mapping100_ : (BitVec 5) :=
                                                                                                                                                           (Sail.BitVec.extractLsb
-                                                                                                                                                            v__194
+                                                                                                                                                            v__206
                                                                                                                                                             24
                                                                                                                                                             20)
                                                                                                                                                         match ((← (encdec_reg_backwards
@@ -3904,9 +4061,125 @@ noncomputable def encdec_backwards_matches (arg_ : (BitVec 32)) : SailM Bool := 
                                                                                                                                                   | .some result =>
                                                                                                                                                     (pure result)
                                                                                                                                                   | none =>
-                                                                                                                                                    (match head_exp_ with
-                                                                                                                                                    | s =>
-                                                                                                                                                      (pure true))))))))))))))))))))))))))))))))))))))
+                                                                                                                                                    (do
+                                                                                                                                                      match (← do
+                                                                                                                                                        let v__203 :=
+                                                                                                                                                          head_exp_
+                                                                                                                                                        if (((let mapping106_ : (BitVec 5) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__203
+                                                                                                                                                                 11
+                                                                                                                                                                 7)
+                                                                                                                                                             let mapping105_ : (BitVec 2) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__203
+                                                                                                                                                                 13
+                                                                                                                                                                 12)
+                                                                                                                                                             let mapping104_ : (BitVec 5) :=
+                                                                                                                                                               (Sail.BitVec.extractLsb
+                                                                                                                                                                 v__203
+                                                                                                                                                                 19
+                                                                                                                                                                 15)
+                                                                                                                                                             ((encdec_reg_backwards_matches
+                                                                                                                                                                 mapping104_) && ((encdec_csrop_backwards_matches
+                                                                                                                                                                   mapping105_) && (encdec_reg_backwards_matches
+                                                                                                                                                                   mapping106_)))) && (((Sail.BitVec.extractLsb
+                                                                                                                                                                   v__203
+                                                                                                                                                                   14
+                                                                                                                                                                   14) == (0#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
+                                                                                                                                                                   v__203
+                                                                                                                                                                   6
+                                                                                                                                                                   0) == (0b1110011#7 : (BitVec 7))))) : Bool)
+                                                                                                                                                        then
+                                                                                                                                                          (do
+                                                                                                                                                            let mapping106_ : (BitVec 5) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__203
+                                                                                                                                                                11
+                                                                                                                                                                7)
+                                                                                                                                                            let mapping105_ : (BitVec 2) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__203
+                                                                                                                                                                13
+                                                                                                                                                                12)
+                                                                                                                                                            let mapping104_ : (BitVec 5) :=
+                                                                                                                                                              (Sail.BitVec.extractLsb
+                                                                                                                                                                v__203
+                                                                                                                                                                19
+                                                                                                                                                                15)
+                                                                                                                                                            match ((← (encdec_reg_backwards
+                                                                                                                                                                mapping104_)), (← (encdec_csrop_backwards
+                                                                                                                                                                mapping105_)), (← (encdec_reg_backwards
+                                                                                                                                                                mapping106_))) with
+                                                                                                                                                            | (rs1, op, rd) =>
+                                                                                                                                                              (do
+                                                                                                                                                                if ((← (currentlyEnabled
+                                                                                                                                                                       Ext_Zicsr)) : Bool)
+                                                                                                                                                                then
+                                                                                                                                                                  (pure (some
+                                                                                                                                                                      true))
+                                                                                                                                                                else
+                                                                                                                                                                  (pure none)))
+                                                                                                                                                        else
+                                                                                                                                                          (pure none)) with
+                                                                                                                                                      | .some result =>
+                                                                                                                                                        (pure result)
+                                                                                                                                                      | none =>
+                                                                                                                                                        (do
+                                                                                                                                                          match (← do
+                                                                                                                                                            let v__200 :=
+                                                                                                                                                              head_exp_
+                                                                                                                                                            if (((let mapping108_ : (BitVec 5) :=
+                                                                                                                                                                   (Sail.BitVec.extractLsb
+                                                                                                                                                                     v__200
+                                                                                                                                                                     11
+                                                                                                                                                                     7)
+                                                                                                                                                                 let mapping107_ : (BitVec 2) :=
+                                                                                                                                                                   (Sail.BitVec.extractLsb
+                                                                                                                                                                     v__200
+                                                                                                                                                                     13
+                                                                                                                                                                     12)
+                                                                                                                                                                 ((encdec_csrop_backwards_matches
+                                                                                                                                                                     mapping107_) && (encdec_reg_backwards_matches
+                                                                                                                                                                     mapping108_))) && (((Sail.BitVec.extractLsb
+                                                                                                                                                                       v__200
+                                                                                                                                                                       14
+                                                                                                                                                                       14) == (1#1 : (BitVec 1))) && ((Sail.BitVec.extractLsb
+                                                                                                                                                                       v__200
+                                                                                                                                                                       6
+                                                                                                                                                                       0) == (0b1110011#7 : (BitVec 7))))) : Bool)
+                                                                                                                                                            then
+                                                                                                                                                              (do
+                                                                                                                                                                let mapping108_ : (BitVec 5) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__200
+                                                                                                                                                                    11
+                                                                                                                                                                    7)
+                                                                                                                                                                let mapping107_ : (BitVec 2) :=
+                                                                                                                                                                  (Sail.BitVec.extractLsb
+                                                                                                                                                                    v__200
+                                                                                                                                                                    13
+                                                                                                                                                                    12)
+                                                                                                                                                                match ((← (encdec_csrop_backwards
+                                                                                                                                                                    mapping107_)), (← (encdec_reg_backwards
+                                                                                                                                                                    mapping108_))) with
+                                                                                                                                                                | (op, rd) =>
+                                                                                                                                                                  (do
+                                                                                                                                                                    if ((← (currentlyEnabled
+                                                                                                                                                                           Ext_Zicsr)) : Bool)
+                                                                                                                                                                    then
+                                                                                                                                                                      (pure (some
+                                                                                                                                                                          true))
+                                                                                                                                                                    else
+                                                                                                                                                                      (pure none)))
+                                                                                                                                                            else
+                                                                                                                                                              (pure none)) with
+                                                                                                                                                          | .some result =>
+                                                                                                                                                            (pure result)
+                                                                                                                                                          | none =>
+                                                                                                                                                            (match head_exp_ with
+                                                                                                                                                            | s =>
+                                                                                                                                                              (pure true))))))))))))))))))))))))))))))))))))))))
 
 noncomputable def encdec_compressed_forwards (arg_ : instruction) : SailM (BitVec 16) := do
   match arg_ with
@@ -3938,9 +4211,9 @@ def execute_WFI (_ : Unit) : SailM ExecutionResult := do
     then (pure (Enter_Wait WAIT_WFI))
     else (pure (Illegal_Instruction ())))
   | .VirtualUser =>
-    (internal_error "extensions/I/base_insts.sail" 661 "Hypervisor extension not supported")
+    (internal_error "extensions/I/base_insts.sail" 665 "Hypervisor extension not supported")
   | .VirtualSupervisor =>
-    (internal_error "extensions/I/base_insts.sail" 662 "Hypervisor extension not supported")
+    (internal_error "extensions/I/base_insts.sail" 666 "Hypervisor extension not supported")
 
 def execute_UTYPE (imm : (BitVec 20)) (rd : regidx) (op : uop) : SailM ExecutionResult := do
   let off : xlenbits := (sign_extend (m := 64) (imm +++ 0x000#12))
@@ -3968,9 +4241,9 @@ def execute_SRET (_ : Unit) : SailM ExecutionResult := do
       (pure ((not (← (currentlyEnabled Ext_S))) || ((_get_Mstatus_TSR (← readReg mstatus)) == 1#1)))
     | .Machine => (pure (not (← (currentlyEnabled Ext_S))))
     | .VirtualUser =>
-      (internal_error "extensions/I/base_insts.sail" 603 "Hypervisor extension not supported")
+      (internal_error "extensions/I/base_insts.sail" 607 "Hypervisor extension not supported")
     | .VirtualSupervisor =>
-      (internal_error "extensions/I/base_insts.sail" 604 "Hypervisor extension not supported") ) :
+      (internal_error "extensions/I/base_insts.sail" 608 "Hypervisor extension not supported") ) :
     SailM Bool )
   if (sret_illegal : Bool)
   then (pure (Illegal_Instruction ()))
@@ -4052,7 +4325,7 @@ def execute_SFENCE_VMA (rs1 : regidx) (rs2 : regidx) : SailM ExecutionResult := 
       (pure RETIRE_SUCCESS))
   | .VirtualUser => (pure (Virtual_Instruction ()))
   | .VirtualSupervisor =>
-    (internal_error "extensions/I/base_insts.sail" 688 "Hypervisor extension not supported")
+    (internal_error "extensions/I/base_insts.sail" 692 "Hypervisor extension not supported")
 
 def execute_RTYPEW (rs2 : regidx) (rs1 : regidx) (rd : regidx) (op : ropw) : SailM ExecutionResult := do
   let rs1_val ← do (pure (Sail.BitVec.extractLsb (← (rX_bits rs1)) 31 0))
@@ -4093,7 +4366,7 @@ def execute_RTYPE (rs2 : regidx) (rs1 : regidx) (rd : regidx) (op : rop) : SailM
             (Sail.BitVec.extractLsb (← (rX_bits rs2)) (log2_xlen -i 1) 0)))))
   (pure RETIRE_SUCCESS)
 
-/-- Type quantifiers: k_ex262644_ : Bool -/
+/-- Type quantifiers: k_ex503612_ : Bool -/
 def execute_REMW (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool) : SailM ExecutionResult := do
   let rs1_bits ← do (pure (Sail.BitVec.extractLsb (← (rX_bits rs1)) 31 0))
   let rs2_bits ← do (pure (Sail.BitVec.extractLsb (← (rX_bits rs2)) 31 0))
@@ -4112,7 +4385,7 @@ def execute_REMW (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool
   (wX_bits rd (sign_extend (m := 64) (to_bits_truncate (l := 32) remainder)))
   (pure RETIRE_SUCCESS)
 
-/-- Type quantifiers: k_ex262653_ : Bool -/
+/-- Type quantifiers: k_ex503621_ : Bool -/
 def execute_REM (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool) : SailM ExecutionResult := do
   let rs1_bits ← do (rX_bits rs1)
   let rs2_bits ← do (rX_bits rs2)
@@ -4203,7 +4476,7 @@ def execute_LPAD (lpl : (BitVec 20)) : SailM ExecutionResult := do
           (pure RETIRE_SUCCESS)))
   else (pure RETIRE_SUCCESS)
 
-/-- Type quantifiers: width : Nat, k_ex262687_ : Bool, width ∈ {1, 2, 4, 8} -/
+/-- Type quantifiers: width : Nat, k_ex503655_ : Bool, width ∈ {1, 2, 4, 8} -/
 def execute_LOAD (imm : (BitVec 12)) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool) (width : Nat) : SailM ExecutionResult := do
   let offset : xlenbits := (sign_extend (m := 64) imm)
   assert (width ≤b xlen_bytes) "extensions/I/base_insts.sail:289.28-289.29"
@@ -4280,9 +4553,9 @@ def execute_ECALL (_ : Unit) : SailM ExecutionResult := do
     | .Supervisor => (pure (E_S_EnvCall ()))
     | .Machine => (pure (E_M_EnvCall ()))
     | .VirtualUser =>
-      (internal_error "extensions/I/base_insts.sail" 542 "Hypervisor extension not supported")
+      (internal_error "extensions/I/base_insts.sail" 546 "Hypervisor extension not supported")
     | .VirtualSupervisor =>
-      (internal_error "extensions/I/base_insts.sail" 543 "Hypervisor extension not supported") ) :
+      (internal_error "extensions/I/base_insts.sail" 547 "Hypervisor extension not supported") ) :
     SailM ExceptionType )
   let t : sync_exception :=
     { trap := exc_type
@@ -4293,7 +4566,7 @@ def execute_ECALL (_ : Unit) : SailM ExecutionResult := do
 def execute_EBREAK (_ : Unit) : SailM ExecutionResult := do
   (trap (make_sync_exception (E_Breakpoint Brk_Software) (← readReg PC)))
 
-/-- Type quantifiers: k_ex262694_ : Bool -/
+/-- Type quantifiers: k_ex503662_ : Bool -/
 def execute_DIVW (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool) : SailM ExecutionResult := do
   let rs1_bits ← do (pure (Sail.BitVec.extractLsb (← (rX_bits rs1)) 31 0))
   let rs2_bits ← do (pure (Sail.BitVec.extractLsb (← (rX_bits rs2)) 31 0))
@@ -4316,7 +4589,7 @@ def execute_DIVW (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool
   (wX_bits rd (sign_extend (m := 64) (to_bits_truncate (l := 32) quotient)))
   (pure RETIRE_SUCCESS)
 
-/-- Type quantifiers: k_ex262703_ : Bool -/
+/-- Type quantifiers: k_ex503671_ : Bool -/
 def execute_DIV (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool) : SailM ExecutionResult := do
   let rs1_bits ← do (rX_bits rs1)
   let rs2_bits ← do (rX_bits rs2)
@@ -4341,6 +4614,14 @@ def execute_DIV (rs2 : regidx) (rs1 : regidx) (rd : regidx) (is_unsigned : Bool)
 
 def execute_C_ILLEGAL (_s : (BitVec 16)) : ExecutionResult :=
   (Illegal_Instruction ())
+
+def execute_CSRReg (csr : (BitVec 12)) (rs1 : regidx) (rd : regidx) (op : csrop) : SailM ExecutionResult := do
+  let access_type := (csr_access_type op (rd == zreg) (rs1 == zreg))
+  (doCSR csr (← (rX_bits rs1)) rd op access_type)
+
+def execute_CSRImm (csr : (BitVec 12)) (imm : (BitVec 5)) (rd : regidx) (op : csrop) : SailM ExecutionResult := do
+  let access_type := (csr_access_type op (rd == zreg) (imm == (zeros (n := 5))))
+  (doCSR csr (zero_extend (m := 64) imm) rd op access_type)
 
 def execute_BTYPE (imm : (BitVec 13)) (rs2 : regidx) (rs1 : regidx) (op : bop) : SailM ExecutionResult := do
   let taken ← (( do
@@ -4389,6 +4670,8 @@ def execute (merge_var : instruction) : SailM ExecutionResult := do
   | .MULW (rs2, rs1, rd) => (execute_MULW rs2 rs1 rd)
   | .DIVW (rs2, rs1, rd, is_unsigned) => (execute_DIVW rs2 rs1 rd is_unsigned)
   | .REMW (rs2, rs1, rd, is_unsigned) => (execute_REMW rs2 rs1 rd is_unsigned)
+  | .CSRReg (csr, rs1, rd, op) => (execute_CSRReg csr rs1 rd op)
+  | .CSRImm (csr, imm, rd, op) => (execute_CSRImm csr imm rd op)
   | .ILLEGAL _s => (pure (execute_ILLEGAL _s))
   | .C_ILLEGAL _s => (pure (execute_C_ILLEGAL _s))
 

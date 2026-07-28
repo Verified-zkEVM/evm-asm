@@ -260,11 +260,18 @@ theorem untilFuelM_one_pure {m : Type → Type} [Monad m] [LawfulMonad m] {α}
   rw [untilFuelM_one]
   simp only [pure_bind, bind_pure]
 
+/-- The `Phys_Mem_Access_Info` witness every **aligned** access produces: the PMA
+    misaligned-atomicity-granule check (`mag_pma_check`) short-circuits on
+    `is_aligned_paddr`, returning `CannotSplit` with granule exponent `0`. -/
+def alignedAccessInfo : Phys_Mem_Access_Info :=
+  { splittable := Splittability.CannotSplit, granule_size_exp := 0 }
+
 /-- **Lemma #7 — `pmaCheck` permits an aligned readable Load.** If `paddr` lies in a PMA
     region (`matching_pma_region` finds it) that is `readable` and the access is aligned,
-    a `Load Data` PMA check (with `PBMT_PMA`, non-reservation) returns `none` (permitted),
-    leaving the state untouched. Region membership/readability are taken abstractly so
-    this is independent of the concrete `sail_model_init` region list. -/
+    a `Load Data` PMA check (with `PBMT_PMA`, non-reservation) returns
+    `Ok alignedAccessInfo` (permitted, unsplittable), leaving the state untouched. Region
+    membership/readability are taken abstractly so this is independent of the concrete
+    `sail_model_init` region list. -/
 theorem pmaCheck_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
     (regions : List PMA_Region) (region : PMA_Region)
     (h_reg : s.regs.get? Register.pma_regions = some regions)
@@ -272,12 +279,33 @@ theorem pmaCheck_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
     (h_read : region.attributes.readable = true)
     (h_align : is_aligned_paddr paddr width = true) :
     pmaCheck paddr width (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA false s
-      = .ok none s := by
-  unfold pmaCheck
-  simp +decide [PreSail.readReg, h_reg, h_match, override_PMA, h_align, h_read,
+      = .ok (Ok alignedAccessInfo) s := by
+  unfold pmaCheck mag_pma_check is_mag_applicable_access
+  simp +decide [alignedAccessInfo, SailME.run, PreSail.PreSailME.run,
+    PreSail.readReg, h_reg, h_match, override_PMA, h_align, h_read,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
+    ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
+    MonadLift.monadLift, monadLift, liftM, Functor.map, EStateM.map,
     Sail.assert, PreSail.assert]
+
+/-- **`check_pma_with_pmp_priority` permits an aligned readable Load.** The PMA check
+    succeeds first, so the (fault-attribution) PMP fallback is never consulted — the
+    privilege argument is arbitrary. This is the access check `checked_mem_read` /
+    `checked_mem_write` now run up front. -/
+theorem check_pma_with_pmp_priority_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
+    (priv : Privilege) (regions : List PMA_Region) (region : PMA_Region)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions paddr width = some region)
+    (h_read : region.attributes.readable = true)
+    (h_align : is_aligned_paddr paddr width = true) :
+    check_pma_with_pmp_priority (MemoryAccessType.Load mem_payload.Data)
+      page_based_mem_type.PBMT_PMA priv paddr width false s
+      = .ok (Ok alignedAccessInfo) s := by
+  unfold check_pma_with_pmp_priority
+  simp only [bind, EStateM.bind,
+    pmaCheck_load_ok paddr width s regions region h_reg h_match h_read h_align,
+    pure, EStateM.pure]
 
 /-- `pmpReadAddrReg` is read-only: it reads `pmpcfg_n`/`pmpaddr_n` and returns the stored
     address (the grain-`0` mask branches are trivial), leaving the state untouched. -/
@@ -459,7 +487,7 @@ theorem read_ram_plain_load (sSail : SailState) (addr : BitVec 64)
   simp only [EStateM.pure]
 
 /-- **`phys_access_check` permits a bare-mode aligned readable load.** Composes the
-    `pmpCheck` (#8) and `pmaCheck` (#7) `none` results into a combined `none`. -/
+    `pmpCheck` (#8) `none` result with the `pmaCheck` (#7) `Ok alignedAccessInfo`. -/
 theorem phys_access_check_load_ok (addr : BitVec 64) (width : Nat) (s : SailState)
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
     (regions : List PMA_Region) (region : PMA_Region)
@@ -472,17 +500,153 @@ theorem phys_access_check_load_ok (addr : BitVec 64) (width : Nat) (s : SailStat
     (h_read : region.attributes.readable = true)
     (h_align : is_aligned_paddr (physaddr.Physaddr addr) width = true) :
     phys_access_check (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
-      Privilege.Machine (physaddr.Physaddr addr) width false s = .ok none s := by
+      Privilege.Machine (physaddr.Physaddr addr) width false s
+      = .ok (Ok alignedAccessInfo) s := by
   unfold phys_access_check
   simp only [bind, EStateM.bind,
     pmpCheck_machine_off (physaddr.Physaddr addr) width s cfgs pmpaddrs h_cfg h_addr h_off,
     pmaCheck_load_ok (physaddr.Physaddr addr) width s regions region h_reg h_match h_read h_align,
     pure, EStateM.pure]
 
-/-- **`checked_mem_read` for a bare-mode aligned readable doubleword load.** The access
-    check passes (`none`), the address is off the MMIO ranges (so `read_ram`, not
-    `mmio_read`), the read kind is `Read_plain`, and `read_ram` returns `reconstructDword`.
-    Returns `Ok (reconstructDword, ())`, state untouched. -/
+/-- A full-width `updateSubrange` (bits 63..0 of a 64-bit word) is just the written value:
+    the mask `~~~(allOnes <<< 0)` is `0`, so `(0 &&& x) ||| y = y`. Used to collapse the
+    single-access doubleword writeback in `checked_mem_read` / `vmem_read_addr`. -/
+theorem updateSubrange_full (x y : BitVec 64) :
+    Sail.BitVec.updateSubrange x 63 0 y = y := by
+  simp only [Sail.BitVec.updateSubrange, Sail.BitVec.updateSubrange']
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_or, BitVec.getLsbD_and, BitVec.getLsbD_not,
+    BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth, BitVec.getLsbD_allOnes,
+    Nat.sub_zero]
+  simp [hi, Bool.and_comm]
+
+/-- A full-width `updateSubrange'` (start 0, length = width) is just the written value:
+    the mask `~~~(allOnes <<< 0)` is `0`, so `(0 &&& x) ||| y = y`.  Width-generic — the
+    width-8 `updateSubrange_full` above is the `w = 64` instance. -/
+theorem updateSubrange'_full {w : Nat} (x y : BitVec w) :
+    Sail.BitVec.updateSubrange' x 0 w y = y := by
+  simp only [Sail.BitVec.updateSubrange']
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi
+  simp only [BitVec.getLsbD_or, BitVec.getLsbD_and, BitVec.getLsbD_not,
+    BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth, BitVec.getLsbD_allOnes,
+    Nat.sub_zero]
+  simp [hi, Bool.and_comm]
+
+/-- `split_misaligned` never splits an unsplittable access: with
+    `splittable = CannotSplit` (the `alignedAccessInfo` witness) it returns `(1, width)`
+    (one access of full width), state untouched, for any granule exponent. -/
+theorem split_misaligned_cannotsplit (paddr : physaddr) (width : Nat) (exp : Nat)
+    (s : SailState) :
+    (split_misaligned paddr width exp Splittability.CannotSplit) s
+      = .ok (1, (width : Int)) s := by
+  obtain ⟨addr⟩ := paddr
+  unfold split_misaligned
+  simp only [show (Splittability.CannotSplit == Splittability.CannotSplit) = true from rfl,
+    Bool.true_or, if_true]
+  rfl
+
+/-- `misaligned_order 1 = (0, 0, 1)` (a single forward iteration). -/
+theorem misaligned_order_one : misaligned_order 1 = (0, 0, 1) := by
+  unfold misaligned_order
+  simp only [sys_misaligned_order_decreasing, Bool.false_eq_true, if_false]
+  rfl
+
+/-- `bits_of_virtaddr` is the projection out of `Virtaddr`. Tagged `sail_step`-only (not a
+    global `@[simp]`) — it is a niche helper for the bare-mode reductions. -/
+@[sail_step] theorem bits_of_virtaddr_mk (x : BitVec 64) :
+    bits_of_virtaddr (virtaddr.Virtaddr x) = x := rfl
+
+/-- `bits_of_physaddr` is the projection out of `Physaddr`. -/
+@[sail_step] theorem bits_of_physaddr_mk (x : physaddrbits) :
+    bits_of_physaddr (physaddr.Physaddr x) = x := rfl
+
+/-- A 64→64 `zero_extend` is the identity. -/
+theorem zero_extend64_id (x : BitVec 64) : (zero_extend (m := 64) x) = x := by
+  simp only [zero_extend, Sail.BitVec.zeroExtend, BitVec.setWidth_eq]
+
+/-- `BitVec.ofInt` of `0` is `0#n` — width-generic, so it also fires at the
+    `physaddrbits` width `(if 64 = 32 then 34 else 64)`, which is not syntactically
+    `64` (lemmas stated at literal width 64 silently fail to rewrite there). -/
+theorem ofInt_zero_bv (n : Nat) : BitVec.ofInt n 0 = 0#n := rfl
+
+/-- Adding the zero of the `physaddrbits` width (an `if`-expression that is only
+    *definitionally* `64`) is the identity. Stated verbatim at that width so it fires
+    where `BitVec.add_zero` (whose addition lives at syntactic width `64`) fails to
+    match. -/
+theorem add_zero_physaddrbits (x : BitVec (if decide ((64 : Nat) = 32) = true then 34 else 64)) :
+    x + 0#(if decide ((64 : Nat) = 32) = true then 34 else 64) = x :=
+  BitVec.add_zero x
+
+/-- `read_ram` for a plain width-`w` load with the read value supplied. -/
+theorem read_ram_load_N (w : Nat) (addr : BitVec 64) (s : SailState) (v : BitVec (8*w))
+    (hread : (readBytes w addr.toNat : SailM ((BitVec (8*w)) × Option Bool)) s
+      = .ok (v, none) s) :
+    (Functions.read_ram read_kind.Read_plain (physaddr.Physaddr addr) w false) s
+      = .ok (v, ()) s := by
+  unfold Functions.read_ram Sail.ConcurrencyInterfaceV1.sail_mem_read
+    PreSail.ConcurrencyInterfaceV1.sail_mem_read
+  simp only [bind, EStateM.bind, pure, EStateM.pure]
+  erw [hread]
+  simp only [EStateM.pure]
+
+/-- **`checked_mem_read` for a bare-mode aligned readable width-`w` load.** The
+    PMA-with-PMP-priority check passes (`Ok alignedAccessInfo`), so `split_misaligned`
+    yields a single access of full width and the access loop runs once (`untilFuelM`
+    fuel 1): the per-access `pmpCheck` permits (Machine, all entries OFF), the address is
+    off the MMIO ranges (so `read_ram`, not `mmio_read`), the read kind is `Read_plain`,
+    and the full-width writeback keeps the read value. Returns `Ok (v, ())`, state
+    untouched. -/
+theorem checked_mem_read_load_w (w : Nat) (addr : BitVec 64) (s : SailState) (v : BitVec (8*w))
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
+    (h_read : region.attributes.readable = true)
+    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
+    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
+    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
+    (hhtif : (within_htif_readable (physaddr.Physaddr addr) w) s = .ok false s)
+    (hread : (readBytes w addr.toNat : SailM ((BitVec (8*w)) × Option Bool)) s
+      = .ok (v, none) s) :
+    checked_mem_read (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
+      Privilege.Machine (physaddr.Physaddr addr) w false false false false s
+      = .ok (Result.Ok (v, ())) s := by
+  have hcheck := check_pma_with_pmp_priority_load_ok (physaddr.Physaddr addr) w s
+    Privilege.Machine regions region h_reg h_match h_read h_align
+  have hsplit := split_misaligned_cannotsplit (physaddr.Physaddr addr) w 0 s
+  have hpmp := pmpCheck_machine_off (physaddr.Physaddr addr) w s cfgs pmpaddrs
+    h_cfg h_addr h_off
+  have hmmio := within_mmio_readable_ram (physaddr.Physaddr addr) w s hclint hsig hhtif
+  have hram := read_ram_load_N w addr s v hread
+  unfold checked_mem_read
+  simp +decide only [SailME.run, PreSail.PreSailME.run,
+    hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
+    Int.toNat_one, Int.toNat_zero, untilFuelM_one,
+    Sail.assert, PreSail.assert, if_true,
+    BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.mul_zero, Int.zero_add,
+    Int.mul_one, ofInt_zero_bv, BitVec.add_zero, add_zero_physaddrbits,
+    Int.toNat_natCast, bits_of_physaddr_mk,
+    hpmp, hmmio, Bool.false_eq_true, if_false, read_kind_of_flags, hram, default_meta,
+    EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  rw [show ((8 : Int) * ((0 : Int) + 1) * ((w : Nat) : Int) - 1).toNat = 8 * w - 1
+        from by omega,
+      show ((8 : Int) * (0 : Int) * ((w : Nat) : Int)).toNat = 0 from by omega,
+      show ((8 : Int) * 1 * ((w : Nat) : Int)).toNat = 8 * w from by omega]
+  rcases hwlit with rfl | rfl | rfl | rfl <;>
+    simp only [Sail.BitVec.updateSubrange, updateSubrange'_full, BitVec.setWidth_eq]
+
+/-- **`checked_mem_read` for a bare-mode aligned readable doubleword load.** Width-8
+    instance of `checked_mem_read_load_w` with the eight present bytes reassembled:
+    returns `Ok (reconstructDword, ())`, state untouched. -/
 theorem checked_mem_read_load (addr : BitVec 64) (s : SailState)
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
     (regions : List PMA_Region) (region : PMA_Region)
@@ -504,21 +668,50 @@ theorem checked_mem_read_load (addr : BitVec 64) (s : SailState)
     (hm6 : s.mem.get? (addr.toNat+6) = some b6) (hm7 : s.mem.get? (addr.toNat+7) = some b7) :
     checked_mem_read (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
       Privilege.Machine (physaddr.Physaddr addr) 8 false false false false s
-      = .ok (Result.Ok (reconstructDword s.mem addr.toNat, ())) s := by
-  unfold checked_mem_read
-  simp only [bind, EStateM.bind,
-    phys_access_check_load_ok addr 8 s cfgs pmpaddrs regions region
-      h_cfg h_addr h_off h_reg h_match h_read h_align,
-    within_mmio_readable_ram (physaddr.Physaddr addr) 8 s hclint hsig hhtif,
-    Bool.false_eq_true, if_false, read_kind_of_flags, pure, EStateM.pure,
-    read_ram_plain_load s addr b0 b1 b2 b3 b4 b5 b6 b7
-      hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7]
+      = .ok (Result.Ok (reconstructDword s.mem addr.toNat, ())) s :=
+  checked_mem_read_load_w 8 addr s _ cfgs pmpaddrs regions region
+    (by right; right; right; rfl) h_cfg h_addr h_off h_reg h_match h_read h_align
+    hclint hsig hhtif
+    (readBytes8_raw s addr.toNat b0 b1 b2 b3 b4 b5 b6 b7 hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7)
 
-/-- **`mem_read` for a bare-mode aligned readable doubleword load (capstone of the
-    `mem_read` chain).** Effective privilege is Machine (`MPRV=0`), the alignment guard is
-    bypassed (`aq=res=false`), the `(false,false,false)` arm dispatches to
-    `checked_mem_read`, the callback is a no-op, and `drop_meta` strips the unit metadata.
-    Returns `Ok (reconstructDword)`, state untouched. -/
+/-- **`mem_read` for a bare-mode aligned readable width-`w` load (capstone of the
+    `mem_read` chain).** Effective privilege is Machine (`MPRV=0`), the
+    `(false,false,false)` flag arm dispatches to `checked_mem_read`, the callback is a
+    no-op, and `drop_meta` strips the unit metadata. Returns `Ok v`, state untouched. -/
+theorem mem_read_load_w (w : Nat) (addr : BitVec 64) (s : SailState) (mst : BitVec 64)
+    (v : BitVec (8*w))
+    (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
+    (regions : List PMA_Region) (region : PMA_Region)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mst : s.regs.get? Register.mstatus = some mst)
+    (h_mprv : _get_Mstatus_MPRV mst = 0#1)
+    (h_cfg : s.regs.get? Register.pmpcfg_n = some cfgs)
+    (h_addr : s.regs.get? Register.pmpaddr_n = some pmpaddrs)
+    (h_off : ∀ i : Nat,
+      pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A (cfgs[i]!)) = PmpAddrMatchType.OFF)
+    (h_reg : s.regs.get? Register.pma_regions = some regions)
+    (h_match : matching_pma_region regions (physaddr.Physaddr addr) w = some region)
+    (h_read : region.attributes.readable = true)
+    (h_align : is_aligned_paddr (physaddr.Physaddr addr) w = true)
+    (hclint : (within_clint (physaddr.Physaddr addr) w) s = .ok false s)
+    (hsig : (within_sig (physaddr.Physaddr addr) w) s = .ok false s)
+    (hhtif : (within_htif_readable (physaddr.Physaddr addr) w) s = .ok false s)
+    (hread : (readBytes w addr.toNat : SailM ((BitVec (8*w)) × Option Bool)) s
+      = .ok (v, none) s) :
+    (mem_read (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
+      (physaddr.Physaddr addr) w false false false) s
+      = .ok (Result.Ok v) s := by
+  unfold mem_read mem_read_priv mem_read_priv_meta
+  simp only [PreSail.readReg, h_priv, h_mst, pure, EStateM.pure, bind, EStateM.bind,
+    get, MonadState.get, getThe, MonadStateOf.get, EStateM.get,
+    effectivePrivilege_machine s _ mst _ h_mprv,
+    checked_mem_read_load_w w addr s v cfgs pmpaddrs regions region hwlit
+      h_cfg h_addr h_off h_reg h_match h_read h_align hclint hsig hhtif hread,
+    MemoryOpResult_drop_meta]
+
+/-- **`mem_read` for a bare-mode aligned readable doubleword load.** Width-8 instance of
+    `mem_read_load_w`: returns `Ok (reconstructDword)`, state untouched. -/
 theorem mem_read_load_bare (addr : BitVec 64) (s : SailState) (mst : BitVec 64)
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
     (regions : List PMA_Region) (region : PMA_Region)
@@ -543,58 +736,137 @@ theorem mem_read_load_bare (addr : BitVec 64) (s : SailState) (mst : BitVec 64)
     (hm6 : s.mem.get? (addr.toNat+6) = some b6) (hm7 : s.mem.get? (addr.toNat+7) = some b7) :
     (mem_read (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
       (physaddr.Physaddr addr) 8 false false false) s
-      = .ok (Result.Ok (reconstructDword s.mem addr.toNat)) s := by
-  unfold mem_read mem_read_priv mem_read_priv_meta
-  simp only [PreSail.readReg, h_priv, h_mst, pure, EStateM.pure, bind, EStateM.bind,
-    get, MonadState.get, getThe, MonadStateOf.get, EStateM.get,
-    effectivePrivilege_machine s _ mst _ h_mprv,
-    Bool.or_self, Bool.false_and, Bool.false_eq_true, if_false,
-    checked_mem_read_load addr s cfgs pmpaddrs regions region b0 b1 b2 b3 b4 b5 b6 b7
-      h_cfg h_addr h_off h_reg h_match h_read h_align hclint hsig hhtif
-      hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7,
-    MemoryOpResult_drop_meta]
+      = .ok (Result.Ok (reconstructDword s.mem addr.toNat)) s :=
+  mem_read_load_w 8 addr s mst _ cfgs pmpaddrs regions region
+    (by right; right; right; rfl) h_priv h_mst h_mprv h_cfg h_addr h_off h_reg h_match
+    h_read h_align hclint hsig hhtif
+    (readBytes8_raw s addr.toNat b0 b1 b2 b3 b4 b5 b6 b7 hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7)
 
-/-- A full-width `updateSubrange` (bits 63..0 of a 64-bit word) is just the written value:
-    the mask `~~~(allOnes <<< 0)` is `0`, so `(0 &&& x) ||| y = y`. Used to collapse the
-    single-access doubleword write in `vmem_read_addr`. -/
-theorem updateSubrange_full (x y : BitVec 64) :
-    Sail.BitVec.updateSubrange x 63 0 y = y := by
-  simp only [Sail.BitVec.updateSubrange, Sail.BitVec.updateSubrange']
-  apply BitVec.eq_of_getLsbD_eq
-  intro i hi
-  simp only [BitVec.getLsbD_or, BitVec.getLsbD_and, BitVec.getLsbD_not,
-    BitVec.getLsbD_shiftLeft, BitVec.getLsbD_setWidth, BitVec.getLsbD_allOnes,
-    Nat.sub_zero]
-  simp [hi, Bool.and_comm]
+-- ============================================================================
+-- Page-boundary split: an aligned power-of-two access never crosses a page
+-- ============================================================================
 
-/-- `split_misaligned` on an aligned access returns `(1, width)` (one access of full
-    width), state untouched. -/
-theorem split_misaligned_aligned (vaddr : virtaddr) (width : Nat) (s : SailState)
-    (h : is_aligned_vaddr vaddr width = true) :
-    (split_misaligned vaddr width) s = .ok (1, (width : Int)) s := by
-  unfold split_misaligned
-  simp only [h, Bool.true_or, if_true, pure, EStateM.pure, bind]
+/-- Adding `r < 2 ^ k` to a `2 ^ k`-aligned `Nat` does not change the quotient by any
+    `2 ^ n` with `k ≤ n` (the addition cannot carry past bit `k`). -/
+theorem add_small_div_pow_eq (a r k n : Nat) (hk : k ≤ n) (hr : r < 2 ^ k)
+    (ha : a % 2 ^ k = 0) : (a + r) / 2 ^ n = a / 2 ^ n := by
+  have hpow : (2:Nat) ^ k ∣ 2 ^ n := Nat.pow_dvd_pow 2 hk
+  have hnpos : 0 < (2:Nat) ^ n := Nat.two_pow_pos n
+  have hmdvd : (2:Nat) ^ k ∣ a % 2 ^ n := by
+    refine Nat.dvd_of_mod_eq_zero ?_
+    rw [Nat.mod_mod_of_dvd a hpow]
+    exact ha
+  have hmlt : a % 2 ^ n < 2 ^ n := Nat.mod_lt _ hnpos
+  have hsum : a % 2 ^ n + r < 2 ^ n := by
+    have hdvd : (2:Nat) ^ k ∣ (2 ^ n - a % 2 ^ n) := Nat.dvd_sub hpow hmdvd
+    have hpos : 0 < 2 ^ n - a % 2 ^ n := by omega
+    have := Nat.le_of_dvd hpos hdvd
+    omega
+  have hdecomp : a + r = 2 ^ n * (a / 2 ^ n) + (a % 2 ^ n + r) := by
+    have := Nat.div_add_mod a (2 ^ n)
+    omega
+  rw [hdecomp, Nat.mul_add_div hnpos, Nat.div_eq_of_lt hsum, Nat.add_zero]
 
-/-- `misaligned_order 1 = (0, 0, 1)` (a single forward iteration). -/
-theorem misaligned_order_one : misaligned_order 1 = (0, 0, 1) := by
-  unfold misaligned_order
-  simp only [sys_misaligned_order_decreasing, Bool.false_eq_true, if_false]
-  rfl
+/-- Bit-level form of `add_small_div_pow_eq`: adding `r < 2 ^ k` to a `2 ^ k`-aligned
+    `Nat` leaves every bit at position `≥ k` unchanged. -/
+theorem testBit_add_small (a r k n : Nat) (hk : k ≤ n) (hr : r < 2 ^ k)
+    (ha : a % 2 ^ k = 0) : (a + r).testBit n = a.testBit n := by
+  simp only [Nat.testBit, Nat.shiftRight_eq_div_pow,
+    add_small_div_pow_eq a r k n hk hr ha]
 
-/-- `bits_of_virtaddr` is the projection out of `Virtaddr`. Tagged `sail_step`-only (not a
-    global `@[simp]`) — it is a niche helper for the bare-mode reductions. -/
-@[sail_step] theorem bits_of_virtaddr_mk (x : BitVec 64) :
-    bits_of_virtaddr (virtaddr.Virtaddr x) = x := rfl
+/-- **`split_on_page_boundary` on an aligned power-of-two access.** A `w`-aligned access
+    of width `w ∈ {1,2,4,8}` stays inside its 4 KiB page (`addr` and `addr + w - 1` agree
+    on all bits ≥ 12), so the split is `(w, 0)` — no next-page tail — and the state is
+    untouched. In bare mode the tail is dead anyway (`do_split_access` is `false`), but
+    the reduction still has to run this computation to completion. -/
+theorem split_on_page_boundary_aligned (addr : BitVec 64) (w : Nat) (s : SailState)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h_align : addr.toNat % w = 0) :
+    (split_on_page_boundary addr w) s = .ok ((w : Int), (0 : Int)) s := by
+  have hlt : addr.toNat < 2 ^ 64 := addr.isLt
+  -- the incremented end address, in `Nat` form (no wraparound: `addr` is `w`-aligned)
+  have hqval : (BitVec.subInt (BitVec.addInt addr (w : Int)) 1).toNat
+      = addr.toNat + (w - 1) := by
+    rcases hwlit with rfl | rfl | rfl | rfl <;>
+    · simp only [BitVec.addInt, BitVec.subInt, BitVec.toNat_sub, BitVec.toNat_add,
+        BitVec.toNat_ofInt]
+      omega
+  -- bits ≥ 12 agree between `addr` and `addr + (w-1)`
+  have hbits : addr &&& (BitVec.allOnes 64 <<< 12)
+      = (BitVec.subInt (BitVec.addInt addr (w : Int)) 1) &&& (BitVec.allOnes 64 <<< 12) := by
+    apply BitVec.eq_of_getLsbD_eq
+    intro i hi
+    simp only [BitVec.getLsbD_and, BitVec.getLsbD_shiftLeft, BitVec.getLsbD_allOnes]
+    rcases Nat.lt_or_ge i 12 with h12 | h12
+    · simp [h12]
+    · have hk : ∃ k, k ≤ 3 ∧ w = 2 ^ k := by
+        rcases hwlit with rfl | rfl | rfl | rfl
+        · exact ⟨0, by decide, rfl⟩
+        · exact ⟨1, by decide, rfl⟩
+        · exact ⟨2, by decide, rfl⟩
+        · exact ⟨3, by decide, rfl⟩
+      obtain ⟨k, hk3, rfl⟩ := hk
+      have htb : (addr.toNat + (2 ^ k - 1)).testBit i = addr.toNat.testBit i :=
+        testBit_add_small addr.toNat (2 ^ k - 1) k i (by omega)
+          (by have := Nat.two_pow_pos k; omega) h_align
+      rw [← BitVec.testBit_toNat, ← BitVec.testBit_toNat, hqval, htb]
+  unfold split_on_page_boundary
+  split
+  · rfl
+  · -- the intra-page test cannot fail on an aligned power-of-two access: the page mask
+    -- (a closed term, definitionally `0xFFFFFFFFFFFFF000#64 = allOnes <<< 12`) sees the
+    -- same bits on both endpoints (`hbits`)
+    rename_i hcond
+    exfalso
+    apply hcond
+    rw [beq_iff_eq]
+    -- unify the goal's (closed) page-mask term with `M`, then evaluate it by kernel
+    -- computation — the mask's elaborated form need never be spelled out
+    have hM : ∀ M : BitVec 64, M = BitVec.allOnes 64 <<< 12 →
+        addr &&& M = BitVec.subInt (BitVec.addInt addr (w : Int)) 1 &&& M := by
+      rintro M rfl
+      exact hbits
+    apply hM
+    simp only [Sail.BitVec.length]
+    decide
 
-/-- A 64→64 `zero_extend` is the identity. -/
-theorem zero_extend64_id (x : BitVec 64) : (zero_extend (m := 64) x) = x := by
-  simp only [zero_extend, Sail.BitVec.zeroExtend, BitVec.setWidth_eq]
+/-- The `Nat`-divisibility form of a Sail virtual-address alignment fact (the inverse
+    of `RunInv.is_aligned_vaddr_of_toNat_mod`), for the power-of-two widths the
+    reductions use. -/
+theorem toNat_mod_of_is_aligned_vaddr (vaddr : virtaddr) (w : Nat)
+    (hwlit : w = 1 ∨ w = 2 ∨ w = 4 ∨ w = 8)
+    (h : is_aligned_vaddr vaddr w = true) :
+    (bits_of_virtaddr vaddr).toNat % w = 0 := by
+  obtain ⟨a⟩ := vaddr
+  unfold is_aligned_vaddr Sail.BitVec.toNatInt at h
+  rw [beq_iff_eq] at h
+  show a.toNat % w = 0
+  rcases hwlit with rfl | rfl | rfl | rfl <;> exact Int.ofNat_inj.mp h
 
-/-- **`vmem_read_addr` for a bare-mode aligned doubleword load.** The single-access loop
-    (`untilFuelM` fuel 1, `split_misaligned` → `(1,8)`, `misaligned_order 1` → `(0,0,1)`)
-    runs once: `translateAddr` is the bare-mode identity, `mem_read` returns
-    `reconstructDword` (capstone), the full-width `updateSubrange` keeps it, and the result
-    is `Ok (reconstructDword)` at the (untranslated) effective address. State untouched. -/
+/-- **`translateAddr` + `mem_read`, fused.** In bare mode `translate_and_read_value`
+    returns the (untranslated) physical address paired with the value the supplied
+    `mem_read` reduction produces, state untouched. -/
+theorem translate_and_read_value_load_bare (vaddr : virtaddr) (w : Nat) (s : SailState)
+    (mst : BitVec 64) (v : BitVec (8*w))
+    (h_priv : s.regs.get? Register.cur_privilege = some Privilege.Machine)
+    (h_mst : s.regs.get? Register.mstatus = some mst)
+    (h_mprv : _get_Mstatus_MPRV mst = 0#1)
+    (hmem : (mem_read (MemoryAccessType.Load mem_payload.Data) page_based_mem_type.PBMT_PMA
+        (physaddr.Physaddr (bits_of_virtaddr vaddr)) w false false false) s
+      = .ok (Result.Ok v) s) :
+    (translate_and_read_value vaddr w (MemoryAccessType.Load mem_payload.Data)
+        false false false) s
+      = .ok (Result.Ok (physaddr.Physaddr (bits_of_virtaddr vaddr), v)) s := by
+  have htrans := translateAddr_bare s vaddr mst h_priv h_mst h_mprv
+  unfold translate_and_read_value
+  simp only [bind, EStateM.bind, htrans, zero_extend64_id, hmem, pure, EStateM.pure]
+
+/-- **`vmem_read_addr` for a bare-mode aligned doubleword load.** The aligned access
+    stays inside its page (`split_on_page_boundary` → `(8, 0)`) and translation is
+    `Bare`, so no page-split happens and the access width is the full width;
+    `translate_and_read_value` returns `reconstructDword` at the untranslated address
+    (the split loop now lives inside `checked_mem_read`), and the full-width writeback
+    keeps it. State untouched. -/
 theorem vmem_read_addr_load_bare (vaddr : virtaddr) (s : SailState) (mst : BitVec 64)
     (cfgs : Vector (BitVec 8) 64) (pmpaddrs : Vector (BitVec 64) 64)
     (regions : List PMA_Region) (region : PMA_Region)
@@ -625,33 +897,41 @@ theorem vmem_read_addr_load_bare (vaddr : virtaddr) (s : SailState) (mst : BitVe
     (hm7 : s.mem.get? ((bits_of_virtaddr vaddr).toNat+7) = some b7) :
     (vmem_read_addr vaddr 8 (MemoryAccessType.Load mem_payload.Data) false false false) s
       = .ok (Result.Ok (reconstructDword s.mem (bits_of_virtaddr vaddr).toNat)) s := by
-  unfold vmem_read_addr
-  -- The loop runs once (fuel 1); the body's effective address is the untranslated base.
-  have haddr : (bits_of_virtaddr vaddr + BitVec.ofInt 64 (↑(0 : Nat) * ↑(8 : Nat)))
-      = bits_of_virtaddr vaddr := by
-    rw [show BitVec.ofInt 64 (↑(0 : Nat) * ↑(8 : Nat)) = (0#64) from by decide, BitVec.add_zero]
-  -- The two semantic leaves, instantiated at the (untranslated) effective address.
-  have htrans := translateAddr_bare s (virtaddr.Virtaddr (bits_of_virtaddr vaddr)) mst
-    h_priv h_mst h_mprv
+  have halignN : (bits_of_virtaddr vaddr).toNat % 8 = 0 :=
+    toNat_mod_of_is_aligned_vaddr vaddr 8 (by right; right; right; rfl) h_valign
+  have hpage := split_on_page_boundary_aligned (bits_of_virtaddr vaddr) 8 s
+    (by right; right; right; rfl) halignN
   have hmem := mem_read_load_bare (bits_of_virtaddr vaddr) s mst cfgs pmpaddrs regions region
     b0 b1 b2 b3 b4 b5 b6 b7 h_priv h_mst h_mprv h_cfg h_pmpaddr h_off h_reg h_match h_read
     h_palign hclint hsig hhtif hm0 hm1 hm2 hm3 hm4 hm5 hm6 hm7
-  simp +decide only [h_valign, Functions.not, Bool.not_true, Bool.false_eq_true, if_false,
+  have htrv := translate_and_read_value_load_bare vaddr 8 s mst _ h_priv h_mst h_mprv hmem
+  unfold vmem_read_addr
+  simp +decide only [h_valign, Functions.not, Bool.not_true, Bool.not_false,
+    Bool.false_eq_true, if_false,
     SailME.run, PreSail.PreSailME.run,
-    split_misaligned_aligned vaddr 8 s h_valign, misaligned_order_one,
-    Int.toNat_one, Int.toNat_zero, untilFuelM_one,
-    Sail.assert, PreSail.assert, if_true,
-    BitVec.addInt, haddr, Int.toNat_natCast, bits_of_virtaddr_mk, zero_extend64_id,
-    htrans, hmem,
-    EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    hpage, PreSail.readReg, h_priv, h_mst,
+    effectivePrivilege_machine s _ mst _ h_mprv, translationMode_machine,
+    sys_misaligned_order_decreasing, bne,
+    show (SATPMode.Bare == SATPMode.Bare) = true from rfl,
+    Bool.false_and, Bool.and_false, Bool.true_and, if_true, ite_self,
+    Int.toNat_natCast,
+    EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
+    get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
     MonadLift.monadLift, monadLift, liftM, Functor.map]
-  -- Collapse the single-access writeback: indices are `63`/`0`, widths `64`, so the
-  -- `updateSubrange` over zeros is the value and the `setWidth`s are identities.
-  rw [show ((8 : Int) * (((0 : Nat) : Int) + 1) * ((8 : Nat) : Int) - 1).toNat = 63 from by omega,
-      show ((8 : Int) * ((0 : Nat) : Int) * ((8 : Nat) : Int)).toNat = 0 from by omega,
-      show ((8 : Int) * 1 * ((8 : Nat) : Int)).toNat = 64 from by omega]
+  -- collapse the (degenerate, both-branches-equal) `access_width` selector, which sits
+  -- in type-determining positions simp's congruence cannot rewrite; `rw` can. Then land
+  -- the fused translate+read leaf up to defeq (its width is `(↑8).toNat`, only
+  -- definitionally `8`), and reduce the remaining plumbing.
+  rw [show (if (false = true) then ((8 : Nat) : Int) else ((8 : Nat) : Int))
+        = ((8 : Nat) : Int) from rfl]
+  erw [htrv]
+  simp only [EStateM.map, bind, EStateM.bind, pure, EStateM.pure,
+    ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,
+    MonadLift.monadLift, monadLift, liftM, Functor.map]
+  rw [show ((8 : Int) * ((8 : Nat) : Int) - 1).toNat = 63 from by omega]
   simp only [BitVec.setWidth_eq, updateSubrange_full]
+  erw [BitVec.setWidth_eq]
 
 /-- `pm_transform_PA` with `pmlen = 0` is the identity: it extracts bits `63..0` of the
     64-bit address and zero-extends back to 64, both no-ops. -/

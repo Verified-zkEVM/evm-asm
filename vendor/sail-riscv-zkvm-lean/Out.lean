@@ -142,6 +142,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -160,6 +161,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -167,6 +169,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -177,11 +180,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -258,7 +261,9 @@ def sail_model_init (x_0 : Unit) : SailM Unit := do
                                           reservability := RsrvNone
                                           supports_cbo_zero := false
                                           supports_pte_read := false
-                                          supports_pte_write := false }
+                                          supports_pte_write := false
+                                          misaligned_atomicity_granule_size_exp := 0
+                                          vector_misaligned_atomicity_granule_size_exp := 0 }
                           include_in_device_tree := false }, { base := 0b0000000000000000000000000000000000000010000000000000000000000000#64
                                                                size := 0b0000000000000000000000000000000000010000000000000000000000000000#64
                                                                attributes := { mem_type := IOMemory
@@ -276,7 +281,9 @@ def sail_model_init (x_0 : Unit) : SailM Unit := do
                                                                                reservability := RsrvNone
                                                                                supports_cbo_zero := false
                                                                                supports_pte_read := false
-                                                                               supports_pte_write := false }
+                                                                               supports_pte_write := false
+                                                                               misaligned_atomicity_granule_size_exp := 0
+                                                                               vector_misaligned_atomicity_granule_size_exp := 0 }
                                                                include_in_device_tree := false }, { base := 0b0000000000000000000000000000000010000000000000000000000000000000#64
                                                                                                     size := 0b0000000000000000000000000000000010000000000000000000000000000000#64
                                                                                                     attributes := { mem_type := MainMemory
@@ -294,7 +301,9 @@ def sail_model_init (x_0 : Unit) : SailM Unit := do
                                                                                                                     reservability := RsrvEventual
                                                                                                                     supports_cbo_zero := true
                                                                                                                     supports_pte_read := true
-                                                                                                                    supports_pte_write := true }
+                                                                                                                    supports_pte_write := true
+                                                                                                                    misaligned_atomicity_granule_size_exp := 4
+                                                                                                                    vector_misaligned_atomicity_granule_size_exp := 4 }
                                                                                                     include_in_device_tree := true }]
   writeReg tlb (vectorInit none)
   writeReg hart_state (HART_ACTIVE ())

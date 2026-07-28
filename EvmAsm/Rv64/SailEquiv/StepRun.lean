@@ -23,14 +23,11 @@ namespace EvmAsm.Rv64
 
 /-- Instructions covered by the **run-level** simulation theorem.
 
-    This is `Instr.simulable` minus `JALR`.  `JALR` drops out for a reason that
-    is not ours to fix: the vendored `execute_JALR` begins with
-    `update_elp_state`, whose `currentlyEnabled Ext_Zicfilp` query cascades into
-    `currentlyEnabled Ext_Zicsr`, for which the extracted `currentlyEnabled` has
-    **no arm** — it falls through to the generated `assert false; throw` catch-all.
-    See `SailEquiv.update_elp_state_error`: the Sail side faults in every state,
-    so the `h_elp` premise of `jalr_sail_equiv` (and hence
-    `instrSideCond (.JALR ..)`) is unsatisfiable. -/
+    This is `Instr.simulable` minus `JALR`.  `JALR` was originally excluded
+    because the extracted `currentlyEnabled` had no `Ext_Zicsr` arm, so
+    `execute_JALR`'s leading `update_elp_state` faulted in every state.  The
+    vendored model (tag 2026-07-27-9901550, `Zicsr_insts` in scope) has fixed
+    that; un-excluding `JALR` is a follow-up on this branch. -/
 def Instr.runSimulable : Instr → Bool
   | .JALR .. => false
   | i => i.simulable
@@ -289,8 +286,8 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
       pseudo-instructions `MV`/`LI`/`NOP` are excluded (`toSailInstr?` maps them
       to `none`); the Sail model intentionally diverges from the toy model on
       syscalls and on the ZisK accelerator call.  `JALR` is excluded on top of
-      that, because the vendored `update_elp_state` faults unconditionally — see
-      `Instr.runSimulable` and `SailEquiv.update_elp_state_error`.
+      that — see `Instr.runSimulable` (a historical exclusion; the regenerated
+      vendored model now supports it, and un-excluding is a follow-up).
     * **RAM-zone memory only.** Accesses are confined to a caller-chosen window
       `[lo, hi) ⊆ [RAM_MEM_START, RAM_MEM_END) = [0xa0000000, 0xc0000000)`.  This
       is not laziness: the toy model's legacy MEM zone `[0x20, 0x78000000]` is

@@ -1,6 +1,7 @@
 import Out.Flow
 import Out.Prelude
 import Out.Errors
+import Out.IsaVersion
 import Out.PlatformConfig
 import Out.Types
 import Out.VmemTypes
@@ -137,6 +138,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -155,6 +157,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -162,6 +165,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -172,11 +176,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -247,32 +251,34 @@ def pte_is_invalid (pte_flags : (BitVec 8)) (pte_ext : (BitVec 10)) : SailM Bool
   (pure (((_get_PTE_Flags_V pte_flags) == 0#1) || ((((_get_PTE_Flags_R pte_flags) == 0#1) && (((_get_PTE_Flags_W
                 pte_flags) == 1#1) && (((_get_PTE_Flags_X pte_flags) == 0#1) && ((_get_MEnvcfg_SSE
                   (← readReg menvcfg)) == 0#1)))) || ((((_get_PTE_Flags_R pte_flags) == 0#1) && (((_get_PTE_Flags_W
-                  pte_flags) == 1#1) && ((_get_PTE_Flags_X pte_flags) == 1#1))) || (((pte_is_non_leaf
-                pte_flags) && (((_get_PTE_Flags_A pte_flags) == 1#1) || (((_get_PTE_Flags_D
-                      pte_flags) == 1#1) || (((_get_PTE_Flags_U pte_flags) == 1#1) || (pte_ext != (zeros
-                        (n := 10))))))) || ((((_get_PTE_Ext_N pte_ext) != 0#1) && (not
-                  (← (currentlyEnabled Ext_Svnapot)))) || ((((_get_PTE_Ext_PBMT pte_ext) != (zeros
-                      (n := 2))) && (((_get_MEnvcfg_PBMTE (← readReg menvcfg)) == 0#1) || (not
-                      (page_based_mem_type_forwards_matches (_get_PTE_Ext_PBMT pte_ext))))) || ((((_get_PTE_Ext_RSW_60t59b
-                        pte_ext) != (zeros (n := 2))) && (not
-                      (← (currentlyEnabled Ext_Svrsw60t59b)))) || ((_get_PTE_Ext_reserved pte_ext) != (zeros
-                      (n := 5)))))))))))
+                  pte_flags) == 1#1) && ((_get_PTE_Flags_X pte_flags) == 1#1))) || (((not
+                (page_based_mem_type_forwards_matches (_get_PTE_Ext_PBMT pte_ext))) && (← (currentlyEnabled
+                  Ext_Svpbmt))) || (pte_reserved_bits_must_be_zero && (((pte_is_non_leaf pte_flags) && (((_get_PTE_Flags_A
+                        pte_flags) == 1#1) || (((_get_PTE_Flags_D pte_flags) == 1#1) || (((_get_PTE_Flags_U
+                            pte_flags) == 1#1) || (pte_ext != (zeros (n := 10))))))) || ((((_get_PTE_Ext_N
+                        pte_ext) != (zeros (n := 1))) && (not (← (currentlyEnabled Ext_Svnapot)))) || ((((_get_PTE_Ext_PBMT
+                          pte_ext) != (zeros (n := 2))) && (((_get_MEnvcfg_PBMTE
+                            (← readReg menvcfg)) == 0#1) || (not
+                          (page_based_mem_type_forwards_matches (_get_PTE_Ext_PBMT pte_ext))))) || ((((_get_PTE_Ext_RSW_60t59b
+                            pte_ext) != (zeros (n := 2))) && (not
+                          (← (currentlyEnabled Ext_Svrsw60t59b)))) || ((_get_PTE_Ext_reserved
+                          pte_ext) != (zeros (n := 5)))))))))))))
 
-/-- Type quantifiers: k_ex259621_ : Bool, k_ex259620_ : Bool -/
+/-- Type quantifiers: k_ex499648_ : Bool, k_ex499647_ : Bool -/
 def check_PTE_permission (access : (MemoryAccessType mem_payload)) (priv : Privilege) (mxr : Bool) (do_sum : Bool) (pte_flags : (BitVec 8)) (_ext : (BitVec 10)) (_ext_ptw : Unit) : SailM PTE_Check := SailME.run do
   let pte_U := (bit_to_bool (_get_PTE_Flags_U pte_flags))
   let pte_R := (bit_to_bool (_get_PTE_Flags_R pte_flags))
   let pte_W := (bit_to_bool (_get_PTE_Flags_W pte_flags))
   let pte_X := (bit_to_bool (_get_PTE_Flags_X pte_flags))
-  assert (zopz0zJzJzK pte_W pte_R) "sys/vmem_pte.sail:143.24-143.25"
+  assert (zopz0zJzJzK pte_W pte_R) "sys/vmem_pte.sail:148.24-148.25"
   let priv_ok ← (( do
     match priv with
     | .User => (pure pte_U)
     | .Supervisor => (pure ((not pte_U) || (do_sum && (is_load_store access))))
-    | .Machine => (internal_error "sys/vmem_pte.sail" 151 "m-mode mem perm check")
-    | .VirtualUser => (internal_error "sys/vmem_pte.sail" 152 "Hypervisor extension not supported")
+    | .Machine => (internal_error "sys/vmem_pte.sail" 156 "m-mode mem perm check")
+    | .VirtualUser => (internal_error "sys/vmem_pte.sail" 157 "Hypervisor extension not supported")
     | .VirtualSupervisor =>
-      (internal_error "sys/vmem_pte.sail" 153 "Hypervisor extension not supported") ) : SailME
+      (internal_error "sys/vmem_pte.sail" 158 "Hypervisor extension not supported") ) : SailME
     PTE_Check Bool )
   if ((not priv_ok) : Bool)
   then (pure (PTE_Check_Failure ((), (PTE_No_Permission ()))))
@@ -281,7 +287,7 @@ def check_PTE_permission (access : (MemoryAccessType mem_payload)) (priv : Privi
       if (((not pte_R) && (pte_W && (not pte_X))) : Bool)
       then
         (do
-          assert (bool_bit_backwards (_get_MEnvcfg_SSE (← readReg menvcfg))) "sys/vmem_pte.sail:162.33-162.34"
+          assert (bool_bit_backwards (_get_MEnvcfg_SSE (← readReg menvcfg))) "sys/vmem_pte.sail:167.33-167.34"
           let shadow_stack_ok ← (( do
             match access with
             | .InstructionFetch () => (pure false)
@@ -299,15 +305,15 @@ def check_PTE_permission (access : (MemoryAccessType mem_payload)) (priv : Privi
             | .Atomic (_, _, _, .ShadowStack, .ShadowStack) => (pure true)
             | .CacheAccess _ => (pure false)
             | .LoadReserved (_, _, p) =>
-              (internal_error "sys/vmem_pte.sail" 191
+              (internal_error "sys/vmem_pte.sail" 196
                 (HAppend.hAppend "Invalid payload ("
                   (HAppend.hAppend (mem_payload_name_forwards p) ") for LoadReserved.")))
             | .StoreConditional (_, _, p) =>
-              (internal_error "sys/vmem_pte.sail" 192
+              (internal_error "sys/vmem_pte.sail" 197
                 (HAppend.hAppend "Invalid payload ("
                   (HAppend.hAppend (mem_payload_name_forwards p) ") for StoreConditional.")))
             | .Atomic (_, _, _, rp, wp) =>
-              (internal_error "sys/vmem_pte.sail" 193
+              (internal_error "sys/vmem_pte.sail" 198
                 (HAppend.hAppend "Invalid payloads ("
                   (HAppend.hAppend (mem_payload_name_forwards rp)
                     (HAppend.hAppend ", "

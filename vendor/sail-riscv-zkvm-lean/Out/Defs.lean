@@ -18,13 +18,13 @@ inductive option (k_a : Type) where
 
 abbrev bit := (BitVec 1)
 
-inductive IsaVersion where | Isa_20191213 | Isa_Draft_20211102 | Isa_20211203 | Isa_20240411 | Isa_Latest
-  deriving BEq, Inhabited, Repr
-  open IsaVersion
-
 inductive AtomicSupport where | AMONone | AMOSwap | AMOLogical | AMOArithmetic | AMOCASW | AMOCASD | AMOCASQ
   deriving BEq, Inhabited, Repr
   open AtomicSupport
+
+inductive Privileged_ISA_Version where | Privileged_ISA_1_11 | Privileged_ISA_1_12 | Privileged_ISA_1_13
+  deriving BEq, Inhabited, Repr
+  open Privileged_ISA_Version
 
 inductive vector_support where | Disabled | Integer | Float_single | Float_double | Full
   deriving BEq, Inhabited, Repr
@@ -118,6 +118,8 @@ inductive PointerMaskingMode where | PMM_Disabled | PMM_Reserved | PMM_PMLEN_7 |
   open PointerMaskingMode
 
 abbrev xlen : Int := 64
+
+abbrev physaddr_bits : Int := 56
 
 abbrev log2_xlen : Int := (if ( xlen = 32  : Bool) then 5 else 6)
 
@@ -254,6 +256,10 @@ inductive bop where | BEQ | BNE | BLT | BGE | BLTU | BGEU
   deriving BEq, Inhabited, Repr
   open bop
 
+inductive csrop where | CSRRW | CSRRS | CSRRC
+  deriving BEq, Inhabited, Repr
+  open csrop
+
 inductive iop where | ADDI | SLTI | SLTIU | XORI | ORI | ANDI
   deriving BEq, Inhabited, Repr
   open iop
@@ -322,6 +328,8 @@ inductive instruction where
   | MULW (_ : (regidx × regidx × regidx))
   | DIVW (_ : (regidx × regidx × regidx × Bool))
   | REMW (_ : (regidx × regidx × regidx × Bool))
+  | CSRReg (_ : (csreg × regidx × regidx × csrop))
+  | CSRImm (_ : (csreg × (BitVec 5) × regidx × csrop))
   deriving Inhabited, Repr
   open instruction
 
@@ -335,7 +343,7 @@ inductive Architecture where | RV32 | RV64 | RV128
 
 abbrev Misa := (BitVec 64)
 
-inductive extension where | Ext_M | Ext_A | Ext_F | Ext_D | Ext_B | Ext_V | Ext_S | Ext_U | Ext_H | Ext_Zibi | Ext_Zic64b | Ext_Zicbom | Ext_Zicbop | Ext_Zicboz | Ext_Zicfilp | Ext_Zicfiss | Ext_Zicntr | Ext_Zicond | Ext_Zicsr | Ext_Zifencei | Ext_Zihintntl | Ext_Zihintpause | Ext_Zihpm | Ext_Zimop | Ext_Zmmul | Ext_Zaamo | Ext_Zabha | Ext_Zacas | Ext_Zalrsc | Ext_Zawrs | Ext_Za64rs | Ext_Za128rs | Ext_Zfa | Ext_Zfbfmin | Ext_Zfh | Ext_Zfhmin | Ext_Zfinx | Ext_Zdinx | Ext_Zca | Ext_Zcb | Ext_Zcd | Ext_Zcf | Ext_Zcmop | Ext_C | Ext_Zba | Ext_Zbb | Ext_Zbc | Ext_Zbkb | Ext_Zbkc | Ext_Zbkx | Ext_Zbs | Ext_Ziccamoa | Ext_Ziccamoc | Ext_Ziccif | Ext_Zicclsm | Ext_Ziccrse | Ext_Zknd | Ext_Zkne | Ext_Zknh | Ext_Zkr | Ext_Zksed | Ext_Zksh | Ext_Zkt | Ext_Zhinx | Ext_Zhinxmin | Ext_Zvl32b | Ext_Zvl64b | Ext_Zvl128b | Ext_Zvl256b | Ext_Zvl512b | Ext_Zvl1024b | Ext_Zve32f | Ext_Zve32x | Ext_Zve64d | Ext_Zve64f | Ext_Zve64x | Ext_Zvabd | Ext_Zvfbfmin | Ext_Zvfbfwma | Ext_Zvfh | Ext_Zvfhmin | Ext_Zvbb | Ext_Zvbc | Ext_Zvkb | Ext_Zvkg | Ext_Zvkned | Ext_Zvknha | Ext_Zvknhb | Ext_Zvksed | Ext_Zvksh | Ext_Zvkt | Ext_Zvkn | Ext_Zvknc | Ext_Zvkng | Ext_Zvks | Ext_Zvksc | Ext_Zvksg | Ext_Ssccptr | Ext_Sscofpmf | Ext_Sscounterenw | Ext_Ssnpm | Ext_Ssstateen | Ext_Sstc | Ext_Sstvala | Ext_Sstvecd | Ext_Ssu64xl | Ext_Svbare | Ext_Sv32 | Ext_Sv39 | Ext_Sv48 | Ext_Sv57 | Ext_Svade | Ext_Svadu | Ext_Svinval | Ext_Svnapot | Ext_Svpbmt | Ext_Svrsw60t59b | Ext_Svvptc | Ext_Smcntrpmf | Ext_Smmpm | Ext_Smnpm | Ext_Smstateen | Ext_Ssqosid | Ext_Sspm | Ext_Supm
+inductive extension where | Ext_M | Ext_A | Ext_F | Ext_D | Ext_B | Ext_V | Ext_S | Ext_U | Ext_H | Ext_Zibi | Ext_Zic64b | Ext_Zicbom | Ext_Zicbop | Ext_Zicboz | Ext_Zicfilp | Ext_Zicfiss | Ext_Zicntr | Ext_Zicond | Ext_Zicsr | Ext_Zifencei | Ext_Zihintntl | Ext_Zihintpause | Ext_Zihpm | Ext_Zimop | Ext_Zmmul | Ext_Zaamo | Ext_Zabha | Ext_Zacas | Ext_Zalrsc | Ext_Zama16b | Ext_Zawrs | Ext_Za64rs | Ext_Za128rs | Ext_Zfa | Ext_Zfbfmin | Ext_Zfh | Ext_Zfhmin | Ext_Zfinx | Ext_Zdinx | Ext_Zca | Ext_Zcb | Ext_Zcd | Ext_Zcf | Ext_Zcmop | Ext_C | Ext_Zba | Ext_Zbb | Ext_Zbc | Ext_Zbkb | Ext_Zbkc | Ext_Zbkx | Ext_Zbs | Ext_Ziccamoa | Ext_Ziccamoc | Ext_Ziccif | Ext_Zicclsm | Ext_Ziccrse | Ext_Zknd | Ext_Zkne | Ext_Zknh | Ext_Zkr | Ext_Zksed | Ext_Zksh | Ext_Zkt | Ext_Zhinx | Ext_Zhinxmin | Ext_Zvl32b | Ext_Zvl64b | Ext_Zvl128b | Ext_Zvl256b | Ext_Zvl512b | Ext_Zvl1024b | Ext_Zve32f | Ext_Zve32x | Ext_Zve64d | Ext_Zve64f | Ext_Zve64x | Ext_Zvabd | Ext_Zvfbfmin | Ext_Zvfbfwma | Ext_Zvfh | Ext_Zvfhmin | Ext_Zvbb | Ext_Zvbc | Ext_Zvkb | Ext_Zvkg | Ext_Zvkned | Ext_Zvknha | Ext_Zvknhb | Ext_Zvksed | Ext_Zvksh | Ext_Zvkt | Ext_Zvkn | Ext_Zvknc | Ext_Zvkng | Ext_Zvks | Ext_Zvksc | Ext_Zvksg | Ext_Ssccptr | Ext_Sscofpmf | Ext_Sscounterenw | Ext_Ssnpm | Ext_Ssstateen | Ext_Sstc | Ext_Sstvala | Ext_Sstvecd | Ext_Ssu64xl | Ext_Svbare | Ext_Sv32 | Ext_Sv39 | Ext_Sv48 | Ext_Sv57 | Ext_Svade | Ext_Svadu | Ext_Svinval | Ext_Svnapot | Ext_Svpbmt | Ext_Svrsw60t59b | Ext_Svvptc | Ext_Smcntrpmf | Ext_Smmpm | Ext_Smnpm | Ext_Smstateen | Ext_Ssqosid | Ext_Sspm | Ext_Supm
   deriving BEq, Inhabited, Repr
   open extension
 
@@ -397,6 +405,8 @@ inductive Reservability where | RsrvNone | RsrvNonEventual | RsrvEventual
   deriving BEq, Inhabited, Repr
   open Reservability
 
+abbrev mag_size_exp := Nat
+
 structure PMA where
   mem_type : MemoryRegionType
   cacheable : Bool
@@ -412,6 +422,8 @@ structure PMA where
   supports_cbo_zero : Bool
   supports_pte_read : Bool
   supports_pte_write : Bool
+  misaligned_atomicity_granule_size_exp : mag_size_exp
+  vector_misaligned_atomicity_granule_size_exp : mag_size_exp
   deriving BEq, Inhabited, Repr
 
 structure PMA_Region where
@@ -447,8 +459,8 @@ inductive WaitReason where | WAIT_WFI | WAIT_WRS_STO | WAIT_WRS_NTO
 structure GlobalMisalignedExceptions where
   load_store : (Option misaligned_exception)
   vector : (Option misaligned_exception)
+  amo : (Option misaligned_exception)
   lrsc : misaligned_exception
-  amo : misaligned_exception
   deriving BEq, Inhabited, Repr
 
 inductive ExtContextPolicy where | ExtContext_Off | ExtContext_TwoState | ExtContext_FourState
@@ -483,6 +495,10 @@ inductive OOBVstartReservedBehavior where | Vstart_Illegal | Vstart_Ignore
   deriving BEq, Inhabited, Repr
   open OOBVstartReservedBehavior
 
+inductive FflagsDirtyPolicy where | Fflags_Dirty_Precise | Fflags_Dirty_Flag | Fflags_Dirty_Instruction
+  deriving BEq, Inhabited, Repr
+  open FflagsDirtyPolicy
+
 abbrev exc_code := (BitVec 6)
 
 abbrev ext_ptw := Unit
@@ -514,6 +530,10 @@ inductive CSRAccessType where | CSRRead | CSRWrite | CSRReadWrite
   open CSRAccessType
 
 
+
+abbrev max_mem_width_bytes_exp : Int := 3
+
+abbrev max_mem_width_bytes : Int := (2 ^ 3)
 
 inductive SWCheckCodes where | LANDING_PAD_FAULT
   deriving BEq, Inhabited, Repr
@@ -1051,9 +1071,20 @@ inductive CSRCheckResult where
   deriving Inhabited, BEq, Repr
   open CSRCheckResult
 
-abbrev MemoryOpResult k_a := (Result k_a ExceptionType)
+abbrev MemoryOpResult k_a := (Result k_a (physaddr × ExceptionType))
 
 abbrev htif_cmd := (BitVec 64)
+
+inductive Splittability where | CanSplit | CannotSplit
+  deriving BEq, Inhabited, Repr
+  open Splittability
+
+
+
+structure Phys_Mem_Access_Info where
+  splittable : Splittability
+  granule_size_exp : mag_size_exp
+  deriving BEq, Inhabited, Repr
 
 abbrev pte_flags_bits := (BitVec 8)
 
@@ -1125,8 +1156,6 @@ inductive ExecutionResult where
   deriving Inhabited, Repr
   open ExecutionResult
 
-
-
 inductive HartState where
   | HART_ACTIVE (_ : Unit)
   | HART_WAITING (_ : (WaitReason × instbits))
@@ -1159,6 +1188,7 @@ inductive Step where
   open Step
 
 structure pma_check_opts where
+  zama16b : Bool
   ziccamoa : Bool
   ziccamoc : Bool
   ziccif : Bool

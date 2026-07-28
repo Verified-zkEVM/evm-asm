@@ -1,6 +1,7 @@
 import Out.Flow
 import Out.Prelude
 import Out.Errors
+import Out.MemAddrtype
 import Out.PlatformConfig
 import Out.Types
 import Out.Regs
@@ -135,6 +136,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -153,6 +155,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -160,6 +163,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -170,11 +174,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -1235,7 +1239,7 @@ def _set_Satp64_Mode (r_ref : (RegisterRef (BitVec 64))) (v : (BitVec 4)) : Sail
   let r ← do (reg_deref r_ref)
   writeRegRef r_ref (_update_Satp64_Mode r v)
 
-/-- Type quantifiers: vectored_alignment_exp : Nat, k_ex252642_ : Bool, direct_alignment_exp : Nat, k_ex252640_
+/-- Type quantifiers: vectored_alignment_exp : Nat, k_ex479027_ : Bool, direct_alignment_exp : Nat, k_ex479025_
   : Bool, 2 ≤ direct_alignment_exp ∧ direct_alignment_exp ≤ 24, 2 ≤ vectored_alignment_exp
   ∧ vectored_alignment_exp ≤ 24 -/
 def legalize_tvec (o : (BitVec 64)) (v : (BitVec 64)) (direct_supported : Bool) (direct_alignment_exp : Nat) (vectored_supported : Bool) (vectored_alignment_exp : Nat) : SailM (BitVec 64) := do
@@ -1511,6 +1515,11 @@ def Mk_Satp32 (v : (BitVec 32)) : (BitVec 32) :=
 
 def legalize_satp (arch : Architecture) (prev_value : (BitVec 64)) (written_value : (BitVec 64)) : SailM (BitVec 64) := do
   let s := (Mk_Satp64 written_value)
+  let s :=
+    (_update_Satp64_PPN s
+      (zero_extend (m := 44)
+        (Sail.BitVec.extractLsb (_get_Satp64_PPN s)
+          ((Min.min (physaddr_bits -i pagesize_bits) 44) -i 1) 0)))
   match (satpMode_of_bits arch (_get_Satp64_Mode s)) with
   | none => (pure prev_value)
   | .some Sv_mode =>

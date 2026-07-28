@@ -40,7 +40,9 @@ def sailInitReadOnlyIoRegion : PMA_Region :=
         reservability := Reservability.RsrvNone
         supports_cbo_zero := false
         supports_pte_read := false
-        supports_pte_write := false }
+        supports_pte_write := false
+        misaligned_atomicity_granule_size_exp := 0
+        vector_misaligned_atomicity_granule_size_exp := 0 }
     include_in_device_tree := false }
 
 /-- Second PMA region installed by `sail_model_init`: CLINT/signature I/O window. -/
@@ -64,7 +66,9 @@ def sailInitIoRegion : PMA_Region :=
         reservability := Reservability.RsrvNone
         supports_cbo_zero := false
         supports_pte_read := false
-        supports_pte_write := false }
+        supports_pte_write := false
+        misaligned_atomicity_granule_size_exp := 0
+        vector_misaligned_atomicity_granule_size_exp := 0 }
     include_in_device_tree := false }
 
 /-- Main-memory PMA region installed by `sail_model_init`. -/
@@ -88,7 +92,9 @@ def sailInitMainMemoryRegion : PMA_Region :=
         reservability := Reservability.RsrvEventual
         supports_cbo_zero := true
         supports_pte_read := true
-        supports_pte_write := true }
+        supports_pte_write := true
+        misaligned_atomicity_granule_size_exp := 4
+        vector_misaligned_atomicity_granule_size_exp := 4 }
     include_in_device_tree := true }
 
 /-- The concrete PMA region list written by `sail_model_init`. -/
