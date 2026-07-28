@@ -123,7 +123,9 @@ EXPECTED_READS_RLP = bytes.fromhex('0b')
 #   storage_changes payload 6         -> c6 c5 07 c3 c2 01 05           7
 #   account payload 21 addr + 7 + four empty lists = 32 -> header 0xe0
 #
-# EXPECTED_E2E_ACCOUNT_RLP = e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0
+EXPECTED_E2E_ACCOUNT_RLP = bytes.fromhex(
+    'e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0')
+# was: e094aa00000000000000000000000000000000000000c6c507c3c20105c0c0c0c0
 # EXPECTED_E2E_DIGEST      = 24f0ad8bc447e2a80bdc208c22a07d3a444bfaa952874d78fe7050df2598370d
 #
 # Construction (verified against the emitted code, not inferred):
@@ -255,6 +257,19 @@ elif rebuilt_w0 != want_w0:
     print(f"  FAIL  case 10 descending seed gave {rebuilt_w0:#018x}, want {want_w0:#018x} (sort did not run?)")
 else:
     print(f"  ok    case 10 sort-then-rebuild digest    = {rebuilt_w0:#018x}")
+
+# Case 11: the producer path. Digest word 0 only -- the output buffer is full.
+e2e = struct.unpack_from('<Q', data, 240)[0]
+want_e2e = int.from_bytes(keccak256(EXPECTED_E2E_ACCOUNT_RLP)[:8], 'little')
+if e2e == 0xdead:
+    bad += 1
+    print("  FAIL  case 11 producer path              NEVER RAN (sentinel intact)")
+elif e2e != want_e2e:
+    bad += 1
+    print(f"  FAIL  case 11 producer path {e2e:#018x} != {want_e2e:#018x}")
+    print("        this is information about the PRODUCER; do not update the constant")
+else:
+    print(f"  ok    case 11 producer-path digest        = {e2e:#018x}")
 
 print()
 if bad:
