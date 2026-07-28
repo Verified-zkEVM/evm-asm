@@ -51,10 +51,6 @@ theorem u256_is_zero_deployed_spec (base ptr ra v5 v6 v7 v28 w0 w1 w2 w3 : Word)
   have SL := sltiu_spec_gen_within .x10 .x5 ptr (w0 ||| w1 ||| w2 ||| w3) 1 (base + 28) (by nofun)
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at SL
   have R := EvmAsm.Evm64.ret_spec_within' (base + 32) ra
-  -- runBlock can't extend singleton specs to `CodeReq.ofProg <list-literal def>`
-  -- directly (leaves unsynthesized frame placeholders); unfold to the union
-  -- chain first. Recorded in docs/agents/port-playbook.md pitfalls.
-  simp only [u256IsZero_prog, CodeReq.ofProg_cons, CodeReq.ofProg_nil]
   runBlock L0 L1 L2 L3 O1 O2 O3 SL R
 
 /-- The result register is the is-zero indicator: `ult orAll 1` is

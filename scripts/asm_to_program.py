@@ -688,7 +688,8 @@ def gen_lean_layout(entry, renders, func_name, prog_name, relocs=None):
 
     Leaf block (`Programs/<Name>Prog.lean`, imports GuestLayout, NOT
     GuestAddrs): `def {prog}_of (L : GuestLayout) : Program` with every
-    `GuestAddrs.X` in the renders rewritten to `L.X`; the emission view
+    `GuestAddrs.X` in the renders rewritten to `L.X` (or `_L` when the
+    generated body has no layout references); the emission view
     (`{func_name}`, `_eq_prog`, `#guard`s) is applied at `.zero`, which is
     sound because `emitProgramR` keeps `la`/`jal` symbolic via the reloc
     side-table, so the emitted string and the length facts are independent
@@ -701,11 +702,15 @@ def gen_lean_layout(entry, renders, func_name, prog_name, relocs=None):
     bridge's applied program.
     """
     lrenders=[r.replace('GuestAddrs.','L.') for r in renders]
+    # Lean's conventional unused binder spelling keeps layout-independent
+    # leaves warning-free.  Keep the source-drift generator canonical for
+    # both shapes: only a body with linked-address references needs `L`.
+    layout_binder='L' if any('L.' in r for r in lrenders) else '_L'
     body=",\n    ".join(lrenders)
     n=len(renders)
     bridge=f"def {prog_name} : Program := {prog_name}_of guestLayout\n"
     if not relocs:
-        leaf=f'''def {prog_name}_of (L : GuestLayout) : Program :=
+        leaf=f'''def {prog_name}_of ({layout_binder} : GuestLayout) : Program :=
   [ {body} ]
 
 def {func_name} : String :=
@@ -726,7 +731,7 @@ theorem {func_name}_eq_prog :
     rel_body=",\n    ".join(
         f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
     reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
-    leaf=f'''def {prog_name}_of (L : GuestLayout) : Program :=
+    leaf=f'''def {prog_name}_of ({layout_binder} : GuestLayout) : Program :=
   [ {body} ]
 
 /-- Reloc side-table for `{prog_name}_of`: the `la`/cross-`jal` instruction
@@ -1115,8 +1120,8 @@ def check_file(path, funcs, rendered=None):
     # the manifest file; the render gates above are unchanged (the bridge
     # re-exposes every name, so `lean_render` over the manifest modules sees
     # both the symbolic `{fn}` and the concrete `{fn}#c` views).
-    leaf_path=path[:-5]+'Prog.lean' if path.endswith('.lean') else None
-    layout_mode=leaf_path is not None and os.path.exists(leaf_path)
+    leaf_path=layout_leaf_path(path)
+    layout_mode=leaf_path is not None
     leaf_text=open(leaf_path).read() if layout_mode else None
     if rendered is None:
         rendered=lean_render({fn:os.path.relpath(os.path.abspath(path),
