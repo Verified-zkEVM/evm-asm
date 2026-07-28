@@ -949,7 +949,12 @@ def balSerializerEmitOuterFunction : String :=
 
 /-- Sort the accounts into canonical order and hash the rebuilt BAL.
     a0 = scratch (>= 33 bytes), a1 = 32-byte output pointer.
-    a0 (out) = 0, or the canonical sort's own nonzero status.
+    `bal_serializer_rebuild_hash` returns 0, or the canonical sort's OWN nonzero status
+    (1, 2 or 3). It deliberately does NOT normalise: `bal_serializer_verify` is the
+    routine that maps any nonzero to its own code 2, and the specific sort code stays in
+    `bal_serializer_sort_status`. Naming the routine in this sentence is deliberate --
+    the two contracts sit twelve lines apart and both describe an a0-out with small
+    integer codes, which is enough for proximity to substitute for attribution.
 
     Split out from `bal_serializer_verify` so it can be executed on its own: the probe
     seeds the accounts OUT of order and checks the digest still matches the in-order one,
@@ -992,8 +997,10 @@ def balSerializerRebuildHashFunction : String :=
 
 /-- Rebuild the block access list and compare its hash against the supplied one.
     a0 = SSZ_BASE, a1 = scratch (>= 33 bytes).
-    a0 (out) = 0 the rebuilt BAL hashes to the supplied BAL's hash, 1 it does not,
-               2 the canonical sort failed (its code is in `bal_serializer_sort_status`).
+    `bal_serializer_verify` returns 0 if the rebuilt BAL hashes to the supplied BAL's
+    hash, 1 if it does not, and 2 if the canonical sort failed -- normalising ANY nonzero
+    from `bal_serializer_rebuild_hash` (which may be 1, 2 or 3) to 2, and leaving the
+    specific code in `bal_serializer_sort_status`.
 
     This is the spec's own check rather than an approximation of it: EIP-7928 commits the
     BAL through a hash, so agreeing on the hash is agreeing on every byte. Nothing weaker
@@ -1035,5 +1042,23 @@ def balSerializerVerifyFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret\n"
+
+/-! ## Guards on the RETURN CODES against their documented contracts
+
+    A guard class this file did not have. Every other guard here pins emitted text or
+    field selection; none pinned what a routine RETURNS against what its docstring says
+    it returns. That gap is not hypothetical: a reviewer read `verify`'s 0/1/2 contract
+    as applying to `rebuild_hash`'s bail path and reported a defect that was not there,
+    because nothing in the code said which routine owned which contract. -/
+
+-- `verify` NORMALISES. Without this the conversion looks redundant -- rebuild_hash
+-- already returns nonzero -- and deleting it would silently widen verify's contract to
+-- leak sort codes 1 and 3, where 1 collides with "hash does not match".
+#guard (balSerializerVerifyFunction.splitOn "li a0, 2; j .Lbsv_ret").length == 2
+
+-- `rebuild_hash` does NOT normalise: it propagates the sort's own code, as its contract
+-- says. Stated as the ABSENCE of the conversion, because absence is site-independent
+-- while presence could be satisfied by any `li a0, 2` elsewhere in the def.
+#guard (balSerializerRebuildHashFunction.splitOn "li a0, 2").length == 1
 
 end EvmAsm.Codegen
