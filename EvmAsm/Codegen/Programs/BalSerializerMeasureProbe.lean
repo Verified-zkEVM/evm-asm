@@ -290,6 +290,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   balBuilderEnsureAccountFunction ++
   balBuilderRecordStorageChangeFunction ++
   balSerializerSlotToLeFunction ++
+  balSerializerBalanceToLeFunction ++
   balSerializerMeasureSlotFunction ++
   balSerializerMeasureStorageFunction ++
   balRlpScalarLenFunction ++
@@ -331,6 +332,7 @@ def ziskBalSerializerMeasureDataSection : String :=
   "bal_serializer_len_table:\n  .zero 48\n" ++
   "bal_serializer_u64_field:\n  .zero 32\n" ++
   "bal_serializer_slot_le:\n  .zero 32\n" ++
+  "bal_serializer_balance_le:\n  .zero 32\n" ++
   "tx_storage_writes_count:\n  .zero 8\n" ++
   "storage_writes_count:\n  .zero 8\n" ++
   -- bal_emit_storage_changes scratch and its miss-path globals. The container hit
