@@ -375,6 +375,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Route here rather than at context extraction, where ctx+24 is deliberately
   -- still null and the generalized runner would hash a null sender pointer.
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
+  -- The recipient classifier must see the accumulating execution state before
+  -- it asks the immutable parent witness.  A successful tx1 CREATE publishes
+  -- its code to AccountState, so tx2 must enter the contract lane even though
+  -- the target is absent from the pre-block header.  This mirrors the layered
+  -- resolver already used by child CALL-family handlers and by the dispatcher
+  -- itself; only a genuine overlay miss may fall through to the header lookup.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_state_lookup_current\n" ++
+  "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_eoa\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- A status-2 recipient lookup stays a hard failure after preparation.  It is
