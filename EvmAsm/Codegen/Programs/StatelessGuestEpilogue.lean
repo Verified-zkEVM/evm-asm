@@ -891,6 +891,28 @@ def statelessGuestEpilogue : String :=
   "  la t5, bald_non_eq_val_post; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 320(t0)\n" ++
   "  la t5, bald_bal_eq_addr_a; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 328(t0)\n" ++
   "  la t5, bald_bal_eq_addr_b; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 336(t0)\n" ++
+  -- #10680 step, not transitory state: publish the 32 bytes of the REBUILT BAL hash that
+  -- `bal_serializer_verify` already computes (`BalSerializer` `.Lbsv_*`: rebuild into
+  -- `bal_serializer_rebuilt_hash`, hash the supplied into `bal_serializer_supplied_hash`,
+  -- compare four dwords, return 0/1/2). This is the same value the wired comparator consumes.
+  --
+  -- Why publish it when the 0/1/2 verdict is already published: that verdict compares the
+  -- guest against the SUPPLIED BAL, which is known to mismatch. Comparing the guest's hash
+  -- against keccak of an INDEPENDENT MODEL's expected bytes separates a WRONG GUEST from a
+  -- WRONG MODEL -- an ambiguity the byte-length agreement cannot resolve, because equal
+  -- lengths with different content is exactly the coincidence that produced the retracted
+  -- 383/383 reading.
+  --
+  -- The rebuilt bytes themselves are NOT observable: the rebuild streams into a keccak
+  -- context (`keccak_init` / `emit_outer` / `keccak_final`) and is never materialised, so a
+  -- byte-offset dump would need a tee across eleven `keccak_absorb` sites. The hash is the
+  -- cheapest faithful window onto the stream.
+  "  la t5, bal_serializer_rebuilt_hash; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 344(t0)\n" ++
+  "  la t5, bal_serializer_rebuilt_hash; ld t5, 8(t5); li t0, 0xa0010000; sd t5, 352(t0)\n" ++
+  "  la t5, bal_serializer_rebuilt_hash; ld t5, 16(t5); li t0, 0xa0010000; sd t5, 360(t0)\n" ++
+  "  la t5, bal_serializer_rebuilt_hash; ld t5, 24(t5); li t0, 0xa0010000; sd t5, 368(t0)\n" ++
+  "  la t5, bal_serializer_supplied_hash; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 376(t0)\n" ++
+  "  la t5, bal_serializer_supplied_hash; ld t5, 8(t5); li t0, 0xa0010000; sd t5, 384(t0)\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
