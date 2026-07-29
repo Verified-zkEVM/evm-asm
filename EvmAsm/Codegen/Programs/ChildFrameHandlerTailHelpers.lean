@@ -59,6 +59,12 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  addi a0, t3, 3\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  -- `calculate_delegation_cost` selected this `code_address`; its successful
+  -- resolution is the spec's `get_account(code_address)` touch.  Record that
+  -- resolved delegate, not the original CALL target.
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
