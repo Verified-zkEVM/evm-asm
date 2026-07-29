@@ -39,7 +39,9 @@ block_verdict_withdrawal_nonstorage_effects:
   la t0, bv_wdne_acct; ld a3, 0(t0); mv a4, a3; la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; la a2, bv_wdne_post; jal ra, record_nonstorage_effect; bnez a0, .Lbv_wdne_fail
   j .Lbv_wdne_next
 .Lbv_wdne_zero_amount:
-  la a0, bv_wdne_addr; jal ra, account_read_record; bnez a0, .Lbv_wdne_fail
+  # `account_read_record` is a void recorder: it preserves a0 rather than
+  # returning a status.  The tracked access itself cannot make this helper fail.
+  la a0, bv_wdne_addr; jal ra, account_read_record
 .Lbv_wdne_next:
   addi s2, s2, 1; j .Lbv_wdne_loop
 .Lbv_wdne_ok:
