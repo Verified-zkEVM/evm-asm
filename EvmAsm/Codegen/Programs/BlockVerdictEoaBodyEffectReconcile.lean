@@ -32,6 +32,28 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_fail\n"
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  -- EIP-7928: the post-transaction boundary runs at `block_access_index =
+  -- ulen(transactions) + 1` (`fork.py:917-919`), and `process_withdrawals`
+  -- incorporates there like any other producer (`fork.py:921` → `:1226`).
+  -- `BlockVerdictMtxRuntime` already does exactly this after `.Lbv_mtx_done`;
+  -- THIS call site did not, so on a block with **no transactions** the
+  -- withdrawal credit was recorded into the nonstorage effect log by
+  -- `record_nonstorage_effect` and then nothing ever walked it into the
+  -- builder.  Same recorder, two callers, one contract silently different.
+  --
+  -- Measured by PC on one guest ELF (sha d191c0e4e299): the two call sites are
+  -- MUTUALLY EXCLUSIVE — exactly one fires per block across 0, 1 and 5
+  -- transactions (00566 takes this one and emitted ZERO balance rows; 00565 and
+  -- 23725 take the MtxRuntime one and emitted 4 and 15).  So feeding the
+  -- builder here cannot double-feed the `ntx >= 1` path; 00565 staying at 350
+  -- is the canary for that.
+  --
+  -- With zero transactions `bv_tx_count + 1` is 1, which is the index the
+  -- declared BALs of these blocks actually carry.
+  "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"
 
 end EvmAsm.Codegen
