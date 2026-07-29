@@ -252,8 +252,17 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   pre-snapshot key cannot be undone by truncation, which is sound only for
   append-only structures. Its representation is an open forcing-constraint decision
   (see #10619).
-  Status: the containers are linked but **not consulted** — both public entry points
-  have zero callers in the emitted guest, so no verdict can move yet. Wiring the
+  Status (**updated 2026-07-29, measured**): the containers are now **live and
+  verdict-visible**, superseding the earlier "linked but not consulted / zero callers"
+  note. Counted from a spike commit trace on `23725_test_valid_multi_type_requests…`:
+  `storage_write_record` 42 entries (2 hit + 40 append), `write_sets_incorporate_tx`
+  5 (once per transaction, from `BlockVerdictMtxRuntime`), and
+  `bal_emit_storage_changes` 5 — called from *inside* `write_sets_incorporate_tx`
+  before the merge, mirroring `state_tracker.py:853`. Every BAL `storage_changes`
+  row the guest emits flows through this pair, and a change to it moves
+  `rebuilt_len` (GH #10875). What is still missing is the **post-execution
+  (`block_access_index = ulen(txs)+1`) storage feed** — 23100 loses 3 rows and
+  23725 loses 8, byte-exactly — tracked on #10701. Wiring the
   forward and reverse comparators over, and retiring the truncation at
   `BlockVerdictMtxRuntime:399`, are later slices. This bead is the forced-order
   prerequisite for #10651 (compute the state root from operations, not from the BAL).
