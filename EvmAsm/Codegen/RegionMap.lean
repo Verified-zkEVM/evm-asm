@@ -429,7 +429,7 @@ def schemeAAnchors : List GuestRegion :=
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x0672d4
+def textSizeBytes : Nat := 0x0672d0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -456,7 +456,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b85cae0
+def bssSizeBytes : Nat := 0x1c139580
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -492,10 +492,15 @@ def committedStorageRegion : GuestRegion :=
     size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
     evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
 
-/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
+/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa3110000`). The
+    base moved down from `0xa4000000` into the `.data` slack (`.data` uses
+    only 21,360 B of its 16 MiB reservation) to make room for the GH #10836
+    BAL-arena resize; the `.data`/`.bss` sum budget proved at
+    `CallFrameLayout.lean` (`≤ sszScratchBase - dataBase = 0x1c980000`) is
+    unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
-  { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b20b120-byte NOBITS extent" }
+  { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.bss=0xa3110000; 0x1b20b120-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
