@@ -66,10 +66,13 @@ def writeAsmFile (asmPath : System.FilePath) (text : String) : IO Unit := do
     Returns the produced `(objPath, elfPath)`.
 
     Memory layout: `.text` at `0x80000000` (Zisk's default entry point),
-    `.data` at `0xa3000000` and zero-initialized `.bss` at `0xa4000000`
+    `.data` at `0xa3000000` and zero-initialized `.bss` at `bssStart`
     (high RAM, clear of fixed stateless working-memory anchors and
-    `OUTPUT_ADDR = 0xa0010000`). -/
-def assembleAndLink (asmPath : System.FilePath) :
+    `OUTPUT_ADDR = 0xa0010000`). The `.bss` start is PER UNIT (GH #10836):
+    the guest uses `0xa3110000`, while probe/test units with large `.data`
+    sections (e.g. `zisk_stateless_verdict_v2`, 12.03 MiB) need more room
+    and use `0xa3d10000`. -/
+def assembleAndLink (asmPath : System.FilePath) (bssStart : String := "0xa3110000") :
     IO (System.FilePath × System.FilePath) := do
   let asProgram ← resolveTool "RISCV_AS" asCandidates
   let ldProgram ← resolveTool "RISCV_LD" ldCandidates
@@ -82,7 +85,7 @@ def assembleAndLink (asmPath : System.FilePath) :
     -- region. Keep it above `.data`; GNU ld only relocates the section when
     -- present, so the flag is harmless for programs that do not emit it.
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
-      "--section-start=.bss=0xa3110000",
+      s!"--section-start=.bss={bssStart}",
       "--section-start=.committed_storage=0xa2000000",
       -- CodeState's fixed 1.5 MiB block-lifetime tables extend `.bss` through
       -- 0xbf910fdf.  Keep the 6.5 MiB SSZ work region below the 0xc0000000
