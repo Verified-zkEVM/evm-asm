@@ -45,12 +45,16 @@
   The four verified helper bodies sit at their linked guest addresses
   (`EvmAsm/Codegen/GuestAddrs.lean`), pinned here as `Word` constants with
   `rfl` guards. The layout is contiguous:
-    rlp_walk_init  0x800049fc (53 instrs) … ends at 0x80004ad0
-    rlp_walk_next  0x80004ad0 (103)       … ends at 0x80004c64
-    rlp_content_to_u64  0x80004c64 (22)   … ends at 0x80004cc4
-    rlp_content_to_u256_be 0x80004cc4 (26)… ends at 0x80004d2c
-    account_extract_balance 0x8001c5c8 (35) … ends at 0x8001c654
-    account_extract_nonce   0x8001c654 (23) … ends at 0x8001c6b0
+    rlp_walk_init  (53 instrs)
+    rlp_walk_next  (103)
+    rlp_content_to_u64  (22)
+    rlp_content_to_u256_be (26)
+    account_extract_balance (35)
+    account_extract_nonce   (23)
+
+  Address ranges are deliberately not restated here: they regenerate from
+  `GuestAddrs`, and restating literals recreates the drift condition
+  (GH #10790).
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
