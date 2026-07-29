@@ -439,8 +439,8 @@ def schemeAAnchors : List GuestRegion :=
     hand-computed one gets reflected back by the next relink and looks confirmed --
     an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
 -- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
--- change and #10911's guarded post-static-check CALL target account-read
--- restoration.
+-- change, #10911's guarded post-static-check CALL target account-read
+-- restoration, and #10913's creation-stage running creator nonce fix.
 def textSizeBytes : Nat := 0x067514
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
