@@ -883,6 +883,25 @@ def createRecordCodeEffectFunction : String :=
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld ra, 32(sp); addi sp, sp, 40\n" ++
   "  ret"
 
+-- The two guards below sit HERE, beside the routine they constrain, and NOT after
+-- `findCodeEffectByAddressFunction` where I first put them: that def, its
+-- correspondence theorem and its own guards are ONE GENERATED BLOCK that
+-- `scripts/asm_to_program.py` matches VERBATIM, so inserting anything between them
+-- is source drift.  `lake build` passes either way -- the drift check is a separate
+-- CI gate -- which is exactly why the placement has to be deliberate.
+--
+-- GH #10887: NEGATIVE guard.  The code pointer handed to `account_write_record`
+-- must NOT be `s1` -- that is the reusable create-child scratch in
+-- `evm_memory_pool`, and the BAL's `code_changes` value is this pointer.  Pinned
+-- negatively because `mv a3, s1` is well-formed, produces a correct LENGTH, and
+-- fails only in the bytes, 590k commits later, at equal serialized length.
+#guard (createRecordCodeEffectFunction.splitOn "mv a3, s1").length == 1
+-- And positively that it is the retained heap copy, pinned WITH the offset: the
+-- record's bytes start at +48, so a pointer to the record base would serialize the
+-- 20-byte address and the length fields as if they were code.
+#guard (createRecordCodeEffectFunction.splitOn
+  "la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48").length == 2
+
 /-! ## find_code_effect_by_address
 
     Locate the code-effect record for an account by its 20-byte BE address.
@@ -930,18 +949,6 @@ def findCodeEffectByAddressFunction : String :=
     byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem findCodeEffectByAddressFunction_eq_prog :
     findCodeEffectByAddressFunction = "find_code_effect_by_address:\n" ++ emitProgram findCodeEffectByAddress_prog := rfl
-
--- GH #10887: NEGATIVE guard.  The code pointer handed to `account_write_record`
--- must NOT be `s1` -- that is the reusable create-child scratch in
--- `evm_memory_pool`, and the BAL's `code_changes` value is this pointer.  Pinned
--- negatively because `mv a3, s1` is well-formed, produces a correct LENGTH, and
--- fails only in the bytes, 590k commits later, at equal serialized length.
-#guard (createRecordCodeEffectFunction.splitOn "mv a3, s1").length == 1
--- And positively that it is the retained heap copy, pinned WITH the offset: the
--- record's bytes start at +48, so a pointer to the record base would serialize the
--- 20-byte address and the length fields as if they were code.
-#guard (createRecordCodeEffectFunction.splitOn
-  "la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48").length == 2
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
 #guard findCodeEffectByAddress_prog.length = 24
