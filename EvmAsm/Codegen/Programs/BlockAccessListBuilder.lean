@@ -580,7 +580,17 @@ def balBuilderAppendCodeFunction : String :=
 
     a0 = block_access_index for this transaction.
 
-    INERT: nothing calls this yet. -/
+    TWO CALLERS, and the docstring said "INERT: nothing calls this yet" long after
+    the first arrived -- corrected here rather than deleted, because which callers
+    exist is the fact a reader most needs:
+    * `write_sets_incorporate_tx` (`StorageWriteMap.lean`), per transaction, with
+      `current_block_access_index`;
+    * the end-of-block system-call phase (`BlockVerdictStateRoot.lean`), once, with
+      `svf_tx_count + 1` -- `fork.py:917-919`.  That caller EMITS AND DISCARDS
+      rather than incorporating, so this routine's block-container baseline scan
+      sees an empty container there: correct for those predeploy queue slots, which
+      no transaction writes, and the reason the net-zero filter falls back to
+      pre-state (GH #10866). -/
 def balEmitStorageChangesFunction : String :=
   "bal_emit_storage_changes:\n" ++
   "  addi sp, sp, -96\n" ++

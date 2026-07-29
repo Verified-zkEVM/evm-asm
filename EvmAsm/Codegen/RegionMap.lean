@@ -428,8 +428,16 @@ def schemeAAnchors : List GuestRegion :=
     `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
-    it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x06730c
+    it was pointed at; enumerating the pattern found the other one.
+
+    Grew by `0xd0` -- 208 bytes -- to `0x0673dc` for GH #10866: the N+1 storage
+    phase.  `replay_system_storage_writes_at_bai` plus its call and incorporate at
+    BOTH post-exec sites (they are mutually exclusive at run time, so both must
+    carry it).  ELF-MEASURED, not derived: this value is an INPUT to emission, so a
+    hand-computed one would be reflected back by the next relink and look
+    confirmed -- and an earlier draft of this same change measured `0x14`, which
+    would now be a confident wrong literal. -/
+def textSizeBytes : Nat := 0x0673dc
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
