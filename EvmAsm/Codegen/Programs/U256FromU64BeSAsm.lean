@@ -12,7 +12,8 @@
   `u256FromU64BeBody.flatten 0 ++ [ret] = u256FromU64Be_prog`.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 
@@ -108,8 +109,12 @@ def u256FromU64Be_verified : Program :=
 #guard u256FromU64BeBody.flatten 0 = u256FromU64BeInstrs
 #guard (u256FromU64Be_verified : List Instr).length = 18
 #guard u256FromU64BeBody.flatten 0 = u256FromU64BeBody.flatten 0x80000000
-#guard u256FromU64BeBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
-  = u256FromU64Be_prog
+/-- Layout-independence interlock: the body flattens to `u256FromU64Be_prog_of
+    L` for an ARBITRARY layout `L`, so the body cannot reference the layout.
+    (`rfl` closes it; a future layout reference would make it fail.) -/
+theorem u256FromU64BeBody_flatten (L : GuestLayout) :
+    u256FromU64BeBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = u256FromU64Be_prog_of L := rfl
 
 
 
