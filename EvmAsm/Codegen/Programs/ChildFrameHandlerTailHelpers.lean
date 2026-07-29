@@ -53,11 +53,13 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
   "  li t4, 1; bne t6, t4, .Lcdac_done_" ++ tag ++ "\n" ++
-  -- delegation marker: target = code[3..22] (20-byte canonical BE) at t3+3.
-  -- runtime_access_account_charge reads 20 bytes from a0 (read-only), so pass it
-  -- the in-place marker bytes; it debits 2500 + inserts on cold, 0 on warm.
+  -- The resolver selected the transaction-state delegation marker and exported
+  -- its target to `bsbd_deleg_target`.  Do not reuse t3+3: t3 points at the
+  -- header-state marker and may name a stale delegate when same-block code
+  -- changed.  Both the BAL record and warm/cold access charge must use the
+  -- selected `code_address`.
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  addi a0, t3, 3\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  la a0, bsbd_deleg_target\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   -- `calculate_delegation_cost` selected this `code_address`; its successful
   -- resolution is the spec's `get_account(code_address)` touch.  Record that
