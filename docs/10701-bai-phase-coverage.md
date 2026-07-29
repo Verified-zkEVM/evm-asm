@@ -34,7 +34,11 @@ system transaction (`:923`) at `:858-859`.
   calls `account_writes_emit_builder_tx` + `account_writes_incorporate_tx`. The zero-transaction path reaches
   the *other* call site of `block_verdict_withdrawal_nonstorage_effects`, which lacked that feed until
   GH #10880.
-- **BAI N+1 storage** — was the one hole; **closed by GH #10866 / PR #10886**.
+- **BAI N+1 storage** — was the one hole; **closed by GH #10866 / PR #10886**. *Measured 2026-07-29 on the
+  merged artifact — stripped ELF sha `e5c325119235`, `.text` `0x0673e8`, branch head `c65057af2` = main
+  `5f86a5b11` (GH #10885) + PR #10886 — where 23725 reads `rebuilt_len` 843 = `supplied_len` 843 with
+  `fail_code` 0.* Dated and sha-stamped like every other cell: a closure claim is a measurement too, and this
+  document exists because an undated status line decays.
   `replay_system_storage_writes_at_bai` re-presents the end-of-block system calls' writes from
   `bv_system_storage_log` (which already held them stamped N+1) into the tx-level map, then
   `write_sets_incorporate_tx` emits and merges. **All five acceptance fixtures below now land exactly on
