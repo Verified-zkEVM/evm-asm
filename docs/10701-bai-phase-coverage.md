@@ -72,8 +72,32 @@ bytes before every model.
 | 23260 | 0 | 252 | **264** | drop 2 → 250, residual +2 |
 | 04460 | 0 | 228 | **233** | drop 1 → 227, residual +1 |
 
-Do-not-move: 00565 at 350, 11658 at 662, 11659 at 710, and 00566 / 00346 / 00578 at their post-#10880
-264 / 263 / 264.
+### Do-not-move pins, and which of them are CONDITIONAL
+
+**A pin at the *declared* length is robust; a pin at a *defective* length is conditional on the defect staying
+open.** Stated per pin so a later reader cannot mistake a legitimate other fix for this one overreaching:
+
+| pin | robust? | why |
+|---|---|---|
+| 00566 / 00346 / 00578 at **264 / 263 / 264** | ✅ robust | pinned at **declared**; those blocks pass (`fail_code` 0) so any correct change keeps them equal to declared |
+| 00565 at **350** | ✅ robust | 350 **is** declared. Its known open defect — the sender's post-balance high by exactly `value + gas_limit × gas_price` — is an **equal-length** content mismatch, so fixing it cannot move the length |
+| **11658 at 662, 11659 at 710** | ⚠️ **CONDITIONAL on GH #10645** | both are **over** declared (630 / 648) *because of* that defect — see below |
+
+**11658 and 11659 are the #10645 fixtures.** Modelled (drop the fabricated `code_changes` entry, convert the
+destroyed account's `storage_change` into a `storage_read`), with a re-encode identity control on the rebuilt
+bytes first:
+
+| fixture | now | after #10645 | delta | vs declared |
+|---|---|---|---|---|
+| 11658 | 662 | **603** | **−59** | still **27 under** 630 |
+| 11659 | 710 | **651** | **−59** | **3 over** 648 |
+
+⇒ **If #10645 lands before the N+1 storage feed, expect −59 on each** — that is correct, not a regression.
+Neither closes on #10645 alone, and in opposite directions: 11658's residual is the unlocalised missing account
+entry (it emits 13 account entries against declared 14); 11659 ends 3 bytes over.
+
+*A pinned number whose validity depends on an unstated precondition is a status line with a hidden date* — the
+same decay this document exists to prevent.
 
 **The residual is read-exclusion coupling** (`block_access_lists.py:549-552` — a slot is excluded from
 `storage_reads` iff it has a `storage_change`). With no change to exclude against, the guest emits the slot as
