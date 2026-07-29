@@ -166,7 +166,15 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_block_rlp_limit_fail:\n" ++
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
+  -- This tail encodes only the documented eip8037_tx_gas_gate statuses 1..3
+  -- as codes 8..10.  Two MTx creation-prefix callers currently arrive with
+  -- raw header.gas_limit in a0; retain their reject but make that contract
+  -- violation explicit as sentinel 63 rather than aliasing a normal gas code.
+  "  li t2, 1; bltu a0, t2, .Lbv_eip8037_gas_invalid_status\n" ++
+  "  li t2, 3; bgtu a0, t2, .Lbv_eip8037_gas_invalid_status\n" ++
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eip8037_gas_invalid_status:\n" ++
+  "  li t0, 63; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip7702_nonce_reuse_fail:\n" ++
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blockhash_headers_fail:\n" ++
@@ -328,6 +336,12 @@ def blockVerdictReceiptsTail : String :=
 #guard (blockVerdictReceiptsTail.splitOn "la t0, bv_bal_shadow_ready; ld t0, 0(t0); beqz t0, .Lbv_bal_digest_bound").length == 2
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 60; la t1, bv_fail_code").length == 2
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 61; la t1, bv_fail_code").length == 2
+-- GH #10848: this tail is a status encoder, not a raw-value sink.  The two
+-- guards pin both sides of its documented 1..3 domain; the sentinel makes an
+-- out-of-contract caller observable without changing its reject verdict.
+#guard (blockVerdictReceiptsTail.splitOn "li t2, 1; bltu a0, t2, .Lbv_eip8037_gas_invalid_status").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t2, 3; bgtu a0, t2, .Lbv_eip8037_gas_invalid_status").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 63; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
 -- Each code must also DROP THE VERDICT in the same breath as recording itself: a
 -- fail code stored without `li a0, 0` would report a mismatch while still accepting
 -- the block, which is the one failure mode of this change that no test would catch.
