@@ -74,14 +74,14 @@ theorem accCursor1_succ (i k : Nat) (_h : i + k < 40) :
   congr 1
   bv_omega
 
-theorem accBase_toNat : accBase.toNat = 0xa557f860 := by decide
+theorem accBase_toNat : accBase.toNat = 0xa468f860 := by decide
 
 theorem accBase_valid_byte (j : Nat) (hj : j < 40) :
     isValidByteAccess (accBase + BitVec.ofNat 64 j) = true := by
   have hj64 : j % 2 ^ 64 = j := Nat.mod_eq_of_lt (by omega)
-  have hto : (accBase + BitVec.ofNat 64 j).toNat = 0xa557f860 + j := by
+  have hto : (accBase + BitVec.ofNat 64 j).toNat = 0xa468f860 + j := by
     rw [BitVec.toNat_add, BitVec.toNat_ofNat, hj64, accBase_toNat,
-      Nat.mod_eq_of_lt (by omega : 0xa557f860 + j < 2 ^ 64)]
+      Nat.mod_eq_of_lt (by omega : 0xa468f860 + j < 2 ^ 64)]
   show isValidMemAddr _ = true
   unfold isValidMemAddr
   rw [hto]
@@ -92,9 +92,9 @@ theorem accBase_valid_byte (j : Nat) (hj : j < 40) :
   have e5 : Rv64.RAM_MEM_START = 0xa0000000 := rfl
   have e6 : Rv64.RAM_MEM_END = 0xc0000000 := rfl
   rw [e1, e2, e3, e4, e5, e6,
-    show decide (0xa0000000 ≤ 0xa557f860 + j) = true from by
+    show decide (0xa0000000 ≤ 0xa468f860 + j) = true from by
       rw [decide_eq_true_eq]; omega,
-    show decide (0xa557f860 + j ≤ 0xc0000000) = true from by
+    show decide (0xa468f860 + j ≤ 0xc0000000) = true from by
       rw [decide_eq_true_eq]; omega]
   simp
 
