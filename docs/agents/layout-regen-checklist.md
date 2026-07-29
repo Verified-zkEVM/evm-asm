@@ -53,3 +53,32 @@ strong checks are artifact-vs-independent-expectation:
 `check-region-map.sh` against the relinked ELF and `check-guest-addrs`
 regenerate-and-diff, plus a positive content check that every `.bss`
 symbol in the TSV lies inside the intended window.
+
+## The thing you ran is not the thing CI runs
+
+Three entries, ONE lesson — a green result from the wrong instrument is
+not evidence:
+
+1. `lake build codegen` ≠ `lake build` (see above: the codegen target
+   builds only the executable's import closure; proof modules outside
+   it are never type-checked — casualty enumeration needs a full build).
+2. A local pass under the artifact cache ≠ a CI pass (CI builds without
+   it; "I deleted the olean and rebuilt" is not evidence a module
+   type-checked — the cache re-materialises it. Evidence is a named
+   `Built <module>` line from a cache-DISABLED build:
+   `LAKE_ARTIFACT_CACHE=false lake build <module>`).
+3. **A handpicked gate subset ≠ the driver.** The repo has ~25
+   `scripts/check-*.sh` scripts; `scripts/check-build-parallel.sh` is
+   THE GATE TO RUN BEFORE PUSHING (it invokes at least
+   check-asm-to-program, check-axioms, check-build-units-link,
+   check-drift, check-guarded-handler-bytes,
+   check-memorylayout-region-coverage, check-progress,
+   check-region-map). A green `lake build` says NOTHING about any of
+   them; running four of the gates and inferring the rest is how a red
+   CI follows a green local day. An ungated check is indistinguishable
+   from a passing one.
+
+Related, same discipline in the other direction: ANY source insertion
+inside a generated verbatim block span is drift — a comment, a
+`#guard`, a blank line. The drift gate matches the whole span verbatim,
+so place guards and notes BESIDE the generated block, never inside it.
