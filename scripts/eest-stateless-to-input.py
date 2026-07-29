@@ -23,7 +23,12 @@ Manifest fields derived below are for launch/reporting only and must not become
 a second authoritative guest input schema.
 
 Manifest columns (tab-separated, one row per guest invocation):
-  label  input_file  expected_hex  succ_bit  input_len  block_gas_limit  fixture_relpath
+  label input_file expected_hex succ_bit input_len block_gas_limit fixture_relpath case_id
+
+``case_id`` is a SHA-256 identity for the fixture-relative path, complete EEST
+test name, block index, and input bytes. It preserves scenario identity when
+the display label and input filename must be truncated to fit the host
+filesystem name limit.
 
 Usage:
   eest-stateless-to-input.py --fixtures-dir DIR --out-dir DIR
@@ -53,6 +58,7 @@ generated from the same execution-specs checkout.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import struct
@@ -133,8 +139,8 @@ def selection_span_error(picked: list[int], corpus_len: int) -> str | None:
     return None
 
 
-def iter_blocks(fixture_path: Path):
-    """Yield (label, input_bytes, expected_bytes, block_gas_limit) for each stateless block."""
+def iter_blocks(fixture_path: Path, fixture_relpath: str):
+    """Yield (label, case_id, input_bytes, expected_bytes, gas_limit) per block."""
     try:
         doc = json.loads(fixture_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:  # corrupt / unreadable
@@ -166,7 +172,17 @@ def iter_blocks(fixture_path: Path):
                 # `run_stateless_guest` returns a failed sentinel for them.
                 gas_limit = 0
             label = sanitize(f"{short}#b{bi}")
-            yield label, ib, ob, gas_limit
+            identity = (
+                fixture_relpath.encode("utf-8")
+                + b"\0"
+                + test_name.encode("utf-8")
+                + b"\0"
+                + str(bi).encode("ascii")
+                + b"\0"
+                + ib
+            )
+            case_id = hashlib.sha256(identity).hexdigest()
+            yield label, case_id, ib, ob, gas_limit
 
 
 def load_execution_specs_input_decoder():
@@ -280,6 +296,7 @@ def main() -> int:
     with manifest_path.open("w") as mf:
         def write_block(
             label: str,
+            case_id: str,
             ib: bytes,
             ob: bytes,
             gas_limit: int,
@@ -349,6 +366,7 @@ def main() -> int:
                         str(len(ib)),
                         str(gas_limit),
                         relpath,
+                        case_id,
                     ]
                 )
                 + "\n"
@@ -364,10 +382,10 @@ def main() -> int:
             candidates = []
             for fp in json_files:
                 relpath = str(fp.relative_to(fixtures_dir))
-                for label, ib, ob, gas_limit in iter_blocks(fp):
+                for label, case_id, ib, ob, gas_limit in iter_blocks(fp, relpath):
                     if args.filter and args.filter not in relpath and args.filter not in label:
                         continue
-                    candidates.append((label, ib, ob, gas_limit, relpath))
+                    candidates.append((label, case_id, ib, ob, gas_limit, relpath))
 
             if args.limit == 0 and args.skip == 0:
                 # `--all --random` selects every row already; avoid creating a
@@ -390,8 +408,8 @@ def main() -> int:
                     print(f"error: {span_err}", file=sys.stderr)
                     return 1
                 sampled = [candidates[i] for i in picked]
-            for label, ib, ob, gas_limit, relpath in sampled[args.skip:]:
-                if not write_block(label, ib, ob, gas_limit, relpath):
+            for label, case_id, ib, ob, gas_limit, relpath in sampled[args.skip:]:
+                if not write_block(label, case_id, ib, ob, gas_limit, relpath):
                     return 1
             if args.limit and len(candidates) > args.skip + args.limit:
                 print(
@@ -404,7 +422,7 @@ def main() -> int:
 
         for fp in json_files:
             relpath = str(fp.relative_to(fixtures_dir))
-            for label, ib, ob, gas_limit in iter_blocks(fp):
+            for label, case_id, ib, ob, gas_limit in iter_blocks(fp, relpath):
                 if args.filter and args.filter not in relpath and args.filter not in label:
                     continue
                 if selected < args.skip:
@@ -420,7 +438,7 @@ def main() -> int:
                     mf.flush()
                     print(f"wrote {n} input(s) + manifest {manifest_path}")
                     return 0
-                if not write_block(label, ib, ob, gas_limit, relpath):
+                if not write_block(label, case_id, ib, ob, gas_limit, relpath):
                     return 1
 
     print(f"wrote {n} input(s) + manifest {manifest_path}")

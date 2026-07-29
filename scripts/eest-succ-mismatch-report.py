@@ -260,7 +260,7 @@ def main() -> int:
             fields = line.rstrip("\n").split("\t")
             if len(fields) == 6:
                 label, input_file, expected_hex, _succ_bit, _input_len, relpath = fields
-            elif len(fields) == 7:
+            elif len(fields) >= 7:
                 (
                     label,
                     input_file,
@@ -269,7 +269,7 @@ def main() -> int:
                     _input_len,
                     _gas_limit,
                     relpath,
-                ) = fields
+                ) = fields[:7]
             else:
                 raise ValueError(f"unexpected manifest column count: {len(fields)}")
             input_path = Path(input_file)
