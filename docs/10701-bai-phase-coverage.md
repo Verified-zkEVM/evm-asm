@@ -15,7 +15,7 @@ system transaction (`:923`) at `:858-859`.
 |---|---|---|---|---|
 | **BAI 0** — pre-block system | ✅ direct builder append | n/a | n/a | n/a |
 | **BAI 1..N** — per transaction | ✅ | ✅ | ✅ | ✅ |
-| **BAI N+1** — post-execution | ❌ **the only hole** | ✅ | ✅ | ✅ |
+| **BAI N+1** — post-execution | ✅ **closed by GH #10866 / PR #10886** | ✅ | ✅ | ✅ |
 
 ### How each cell was established
 
@@ -34,8 +34,24 @@ system transaction (`:923`) at `:858-859`.
   calls `account_writes_emit_builder_tx` + `account_writes_incorporate_tx`. The zero-transaction path reaches
   the *other* call site of `block_verdict_withdrawal_nonstorage_effects`, which lacked that feed until
   GH #10880.
-- **BAI N+1 storage** — no counterpart exists at either site: no `write_sets_incorporate_tx`, no
-  `bal_emit_storage_changes`.
+- **BAI N+1 storage** — was the one hole; **closed by GH #10866 / PR #10886**.
+  `replay_system_storage_writes_at_bai` re-presents the end-of-block system calls' writes from
+  `bv_system_storage_log` (which already held them stamped N+1) into the tx-level map, then
+  `write_sets_incorporate_tx` emits and merges. **All five acceptance fixtures below now land exactly on
+  declared and pass.**
+
+  **The defect was the PLACEMENT, not the index**, and that is the reusable part. Emitting where those writes
+  are actually *made* — the requests phase, rows still in the tx map — yields **1 of 3** declared N+1 rows on
+  23100 and **0 of 8** on 23725: every declared N+1 row in both fixtures is `pre=0 → post=0` **with a
+  transaction writing 1 to the same slot first**, so against the block pre-state all are net-zero and filtered.
+  The one row that appeared was the only N+1 slot with no transaction partner. ⇒ **the net-zero baseline at N+1
+  is the post-transaction value**, so the phase must run after the loop. A correct BAI stamp on a row computed
+  against the wrong baseline is not a correct row. The rejected placement is pinned shut by a negative `#guard`
+  in `BlockVerdictStateRoot.lean`.
+
+  It is emitted at **both** post-exec sites, which are mutually exclusive at run time — **23100 reaches one,
+  23725 the other** — so a single-site fix would have passed on one of the two headline fixtures. Third
+  instance of the one-recorder-two-sites shape after GH #10875 and GH #10880.
 
 ## Why the unit is phase × field, and not call site
 
@@ -58,9 +74,30 @@ Checks that came back clean, recorded so they are not repeated:
   (5 tx) 20 records with the last at commit 17,208,954 against 6 emits ending 17,254,746; on 11658 (2 tx)
   13 against 3; on 00566 (0 tx) 1 against 1. **Emits = ntx + 1 in every case**, the `+1` being the N+1 emit.
 
-## Acceptance set for closing the remaining hole
+## Acceptance set — pre-registered, then MET
 
-Pre-registered so the post-fix measurement is a yes/no rather than an interpretation. Each shortfall is fully
+Pre-registered so the post-fix measurement is a yes/no rather than an interpretation. **Outcome: all five landed
+exactly on declared and all five now pass** (`fail_code` 0), measured on the merged artifact carrying both
+PR #10886 and GH #10885.
+
+| fixture | before | after | declared |
+|---|---|---|---|
+| 23100 | 554 | **566** | 566 |
+| 23725 | 818 | **843** | 843 |
+| 23200 | 236 | **246** | 246 |
+| 23260 | 252 | **264** | 264 |
+| 04460 | 228 | **233** | 233 |
+
+23725 needed **both** fixes and neither closed it alone — it was failing for two independent reasons (its N+1
+storage rows, and GH #10870's coinbase cumulative-vs-increment defect). That was registered as a joint prediction
+*before* the run and confirmed: 843 and `fail_code` 0.
+
+⚠️ **A fixture failing for two independent reasons cannot discriminate a fix for one of them** — it reads as a
+clean unchanged control while carrying no information. The cheap screen is the pair of lengths this document
+already quotes: **if `rebuilt_len` ≠ `supplied_len` the fixture is failing on a LENGTH, so a CONTENT fix cannot
+flip it.** Two u64 reads (`OUTPUT+128`, `+136`) from an output any run already produces.
+
+### The original per-fixture models, kept for the record Each shortfall is fully
 accounted as **(missing N+1 changes) − (spurious reads)**; a re-encode identity control passed on the declared
 bytes before every model.
 
