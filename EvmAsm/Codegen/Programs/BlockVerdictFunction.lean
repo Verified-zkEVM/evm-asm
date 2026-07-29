@@ -762,10 +762,14 @@ def blockVerdictFunction : String :=
   -- not the (larger) worst-case terms the sufficiency CHECK above uses. The
   -- CHECK (@761-786) correctly uses max_fee_per_gas / max_fee_per_blob_gas per
   -- execution-specs check_transaction (amsterdam/fork.py:630,657,677), but the
-  -- DEBIT (amsterdam/fork.py:1065,1069,1080-1083) charges:
-  --   effective_gas_price * gas_limit + blob_gas_price * BLOB_GAS * nblobs + value
-  -- where blob_gas_price = calculate_blob_gas_price(excess_blob_gas) and value is
-  -- moved out of the sender before the recipient code runs. Staging the
+  -- DEBIT is `process_transaction` (amsterdam/fork.py:1105-1108) and charges:
+  --   effective_gas_price * gas_limit + blob_gas_price * BLOB_GAS * nblobs
+  -- and NOTHING ELSE.  GH #10892: this comment previously listed `+ value` and
+  -- attributed the debit to `check_transaction`, which VALIDATES AND NEVER STORES --
+  -- `check_transaction:666` adds `tx.value` at the comparison only.  The value is
+  -- moved by `process_message_call`, where a failed transfer REVERTS it, so it must
+  -- not appear in a pre-execution debit.  Intent was right and the term was left
+  -- in; the mis-attribution is the likeliest origin.  Staging the
   -- max-fee-based cost over-charges whenever max_fee > base_fee (gas term) or
   -- max_fee_per_blob_gas > blob_gas_price (blob term), so BALANCE(ORIGIN)
   -- returns a balance that is too low, producing SSTORE values that disagree
@@ -782,9 +786,19 @@ def blockVerdictFunction : String :=
   "  la a2, bv_upfront_cost\n" ++
   "  jal ra, u256_mul_u64_be\n" ++
   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  "  la a0, bv_upfront_cost; la t0, bv_simple_transfer_tx; addi a1, t0, 96; la a2, bv_upfront_cost\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
+  -- GH #10892: NO `tx.value` TERM HERE.  The value add that used to sit on this
+  -- line (`addi a1, t0, 96`) was the CHECK's term, not the DEBIT's.
+  -- `process_transaction` debits `effective_gas_fee + blob_gas_fee` and NOTHING
+  -- ELSE (`fork.py:1105-1108`); `check_transaction` adds `tx.value` AT THE
+  -- COMPARISON (`:666`) and never stores it.  Keeping it here debited a value the
+  -- spec moves inside `process_message_call`, where a failed transfer reverts it --
+  -- so the sender's recorded balance came out low by exactly `tx.value` on every
+  -- fixture whose transfer did not take effect (measured 10/10, values spanning
+  -- 2 wei to 32 ETH).
+  --
+  -- The sufficiency CHECK above is untouched and still uses the full worst-case sum
+  -- INCLUDING the value; it consumes `bv_upfront_cost` at `:758-759`, before this
+  -- block overwrites it -- verified in EMITTED ASM, not from source order.
   "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_stx_restage_blob_done\n" ++
   "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
   "  jal ra, tx_eip4844_decode\n" ++

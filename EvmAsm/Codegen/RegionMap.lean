@@ -441,7 +441,7 @@ def schemeAAnchors : List GuestRegion :=
 -- Grew by `0xc` -- 12 bytes -- to `0x0673f4` for GH #10887: the `code_changes`
 -- pointer now names the retained code-effect heap copy (`la`+`add`+`addi`) instead
 -- of the reusable create-child scratch (`mv`).  ELF-MEASURED after the relink.
-def textSizeBytes : Nat := 0x06748c
+def textSizeBytes : Nat := 0x0674e4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -468,7 +468,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1c139580
+def bssSizeBytes : Nat := 0x1c1395a0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
