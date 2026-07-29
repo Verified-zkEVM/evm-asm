@@ -13,18 +13,21 @@ block_verdict_withdrawal_nonstorage_effects:
 .Lbv_wdne_loop:
   beq s2, s0, .Lbv_wdne_ok
   li t0, 44; mul t0, s2, t0; add s3, s1, t0
-  addi t0, s3, 36; li t1, 8; li t2, 0
-.Lbv_wdne_amount_or:
-  beqz t1, .Lbv_wdne_amount_done
-  lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lbv_wdne_amount_or
-.Lbv_wdne_amount_done:
-  beqz t2, .Lbv_wdne_next
+  # `process_withdrawals` calls create_ether for every descriptor, including a
+  # zero amount.  Copy and record the recipient before the zero-delta branch:
+  # zero suppresses the balance mutation, not the tracked get_account access.
   la s4, bv_wdne_addr; sd zero, 0(s4); sd zero, 8(s4); sd zero, 16(s4); sd zero, 24(s4)
   addi t0, s3, 16; mv t1, s4; li t2, 20
 .Lbv_wdne_addr_copy:
   beqz t2, .Lbv_wdne_addr_done
   lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_wdne_addr_copy
 .Lbv_wdne_addr_done:
+  addi t0, s3, 36; li t1, 8; li t2, 0
+.Lbv_wdne_amount_or:
+  beqz t1, .Lbv_wdne_amount_done
+  lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lbv_wdne_amount_or
+.Lbv_wdne_amount_done:
+  beqz t2, .Lbv_wdne_zero_amount
   la a0, bv_wdne_addr; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0)
   la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state
   bnez a0, .Lbv_wdne_fail
@@ -34,6 +37,11 @@ block_verdict_withdrawal_nonstorage_effects:
   la a0, bsw_amount; li a1, 1000000000; la a2, bsw_wei; jal ra, u256_mul_u64_be; bnez a0, .Lbv_wdne_fail
   la a0, bv_wdne_acct; addi a0, a0, 8; la a1, bsw_wei; la a2, bv_wdne_post; jal ra, u256_add_be; bnez a0, .Lbv_wdne_fail
   la t0, bv_wdne_acct; ld a3, 0(t0); mv a4, a3; la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; la a2, bv_wdne_post; jal ra, record_nonstorage_effect; bnez a0, .Lbv_wdne_fail
+  j .Lbv_wdne_next
+.Lbv_wdne_zero_amount:
+  # `account_read_record` is a void recorder: it preserves a0 rather than
+  # returning a status.  The tracked access itself cannot make this helper fail.
+  la a0, bv_wdne_addr; jal ra, account_read_record
 .Lbv_wdne_next:
   addi s2, s2, 1; j .Lbv_wdne_loop
 .Lbv_wdne_ok:

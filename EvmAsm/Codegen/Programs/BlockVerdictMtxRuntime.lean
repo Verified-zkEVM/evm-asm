@@ -738,6 +738,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Run the existing recorder here so its 112-byte execution record and
   -- transaction AccountWrite entry are present for the N+1 builder walk.
   "  jal ra, block_verdict_withdrawal_nonstorage_effects; bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
   "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
