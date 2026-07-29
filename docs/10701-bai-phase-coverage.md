@@ -72,6 +72,15 @@ bytes before every model.
 | 23260 | 0 | 252 | **264** | drop 2 → 250, residual +2 |
 | 04460 | 0 | 228 | **233** | drop 1 → 227, residual +1 |
 
+**The residual is read-exclusion coupling** (`block_access_lists.py:549-552` — a slot is excluded from
+`storage_reads` iff it has a `storage_change`). With no change to exclude against, the guest emits the slot as
+a read. On 23200 the predeploy's `storage_changes` is `c0` — an empty list — while its `storage_reads` carries
+13 slots *including* slot 0 and slot 2, against declared's 11 *without* them. **The residual is per-fixture,
+not a formula**: 23100 is +1 for three dropped rows because only one of its dropped slots was also read.
+
+⚠️ **This makes over-long a distinguishable failure mode.** A fix that emits the N+1 changes but fails to
+re-exclude the reads lands **2 bytes over** declared on 23200, not short.
+
 ### Do-not-move pins, and which of them are CONDITIONAL
 
 **A pin at the *declared* length is robust; a pin at a *defective* length is conditional on the defect staying
@@ -98,15 +107,6 @@ entry (it emits 13 account entries against declared 14); 11659 ends 3 bytes over
 
 *A pinned number whose validity depends on an unstated precondition is a status line with a hidden date* — the
 same decay this document exists to prevent.
-
-**The residual is read-exclusion coupling** (`block_access_lists.py:549-552` — a slot is excluded from
-`storage_reads` iff it has a `storage_change`). With no change to exclude against, the guest emits the slot as
-a read. On 23200 the predeploy's `storage_changes` is `c0` — an empty list — while its `storage_reads` carries
-13 slots *including* slot 0 and slot 2, against declared's 11 *without* them. **The residual is per-fixture,
-not a formula**: 23100 is +1 for three dropped rows because only one of its dropped slots was also read.
-
-⚠️ **This makes over-long a distinguishable failure mode.** A fix that emits the N+1 changes but fails to
-re-exclude the reads lands **2 bytes over** declared on 23200, not short.
 
 ## Reading a trace against this document
 
