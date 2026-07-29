@@ -29,12 +29,52 @@
 
   ## Domain: `len ≤ 55`
 
-  `reubEncodes` requires `xs.length ≤ 55`.  This is a real restriction, not
-  bookkeeping: instructions [21]-[23] write the header as `0x80 + n`
-  unconditionally, whereas RLP requires the `0xb7 + lenlen` long form once the
-  payload reaches 56 bytes, so the routine is only correct below that boundary.
-  Every live caller passes 8 or 32 (`State.lean`, `AccountBalance.lean`), so the
-  side condition discharges at every call site.
+  `reubOut_short_form` requires the stripped payload to be at most 55 bytes, and
+  the eventual machine triple will require `xs.length ≤ 55`.  This is a real
+  restriction, not bookkeeping: instructions [21]-[23] write the header as
+  `0x80 + n` unconditionally, whereas RLP requires the `0xb7 + lenlen` long form
+  once the payload reaches 56 bytes, so the routine is only correct below that
+  boundary.
+
+  ### Call sites as of this commit: 21 across 7 files, 20 of which are in domain
+
+  Enumerated rather than sampled, because a future caller is what this note
+  exists to protect against.  Regenerate with **both** greps — form 1 alone
+  misses three of the seven files:
+
+      grep -rn 'jal ra, rlp_encode_uint_be' EvmAsm/
+      grep -rn 'GuestAddrs.rlp_encode_uint_be' EvmAsm/ | grep -v GuestAddrs.lean
+
+  (Form 2 also matches this module and `Proofs/GuestImageEntries.lean`, a layout
+  table; neither is a caller.)
+
+  | file | form | sites | `a1` |
+  |---|---|---|---|
+  | `BlockHeaderSszToRlp` | string | 9 | `li a1, 8` ×8, `li a1, 32` ×1 |
+  | `Withdrawal` | string | 3 | `li a1, 8` |
+  | `State` (`account_encode`) | string | 2 | `li a1, 8`, `li a1, 32` |
+  | `StorageRoot` | string | 1 | `li a1, 32` |
+  | `SszWithdrawal` | `.JAL` | 3 | `.LI .x11 8` |
+  | `TxSigningHash` | `.JAL` | 1 | `.LI .x11 8` |
+  | `AccountBalance` | `.JAL` | 1 | `.MV .x11 .x20`, guarded — see below |
+
+  `AccountBalance`'s site passes a register, not a literal, and is in domain for
+  a stronger reason than the others: `account_set_uint_field` guards it two
+  instructions before the call (`.LI .x5 32; .BLTU .x5 .x20 → value-too-long
+  exit`), so `a1 ≤ 32` holds dynamically, matching that routine's ABI docstring.
+
+  ### The one exception: the probe caller is unbounded
+
+  `zisk_rlp_encode_uint_be` (`ziskRlpEncodeUintBePrologue`, `State.lean`) does
+  `ld a1, 8(a3)` with `a3 = 0x40000000` — the source length comes straight from
+  host input with no bound check.  So the precondition does **not** discharge
+  there, and the probe can drive the routine past 56 bytes, where it emits a
+  short header for a long payload.
+
+  Not a consensus-path defect (it is a probe BuildUnit, not production guest
+  code), but the probe is **not a sound oracle above 55 bytes**: a mismatch
+  against a reference encoder at `src_len ≥ 56` is this domain restriction, not
+  a defect in whatever is under test.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
@@ -186,8 +226,14 @@ theorem reubOut_single_large (xs : List Byte) (b : Byte)
     reubOut xs = [BitVec.ofNat 8 0x81, b] := by
   rw [reubOut, hstrip, encodeBytes_single_large b hb]
 
-/-- **No leading zero byte is ever written.**  Stated on the payload, since the
-    header byte of the short form is `0x80 + n ≠ 0` for `n < 56` anyway. -/
+/-- **The model's payload never begins with a zero byte.**  A statement about
+    `reubStrip`, i.e. about the model — nothing is claimed here about what the
+    machine writes, since no triple covers the payload yet.
+
+    `headD 1` makes the empty case hold trivially (`reubStrip` is `[]` when the
+    input is all zeros, and the default is nonzero), so this must not be read as
+    "the payload is nonempty" — for the all-zeros input the payload *is* empty
+    and `reubOut_of_all_zero` is the statement that applies. -/
 theorem reubOut_no_leading_zero (xs : List Byte) :
     (reubStrip xs).headD 1 ≠ 0 :=
   reubStrip_headD_ne_zero xs
