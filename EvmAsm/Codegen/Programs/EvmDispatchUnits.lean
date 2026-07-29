@@ -8,6 +8,10 @@
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.StorageReadLog
+import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
@@ -421,6 +425,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     "  lbu t2, 0(a0); sd t2, 24(t0)                   # returndata[0]\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- tinyInterpRegistry's CREATE handler descends via create_frame_descend, which pulls
@@ -453,6 +458,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -518,6 +524,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
@@ -548,6 +555,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -611,6 +619,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
@@ -641,6 +650,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -723,6 +733,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
@@ -760,6 +771,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -833,6 +845,10 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
+    readSetsMergeOneFunction ++ "\n" ++
+    readSetsIncorporateTxFunction ++ "\n" ++
+    readSetsDiscardTxFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
@@ -862,6 +878,10 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
+    storageReadLogDataSection ++
+    codeReadLogDataSection ++
+    readSetsBlockDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
