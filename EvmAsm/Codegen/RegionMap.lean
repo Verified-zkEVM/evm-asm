@@ -438,9 +438,10 @@ def schemeAAnchors : List GuestRegion :=
     is NOT how this literal was set.  The value is an INPUT to emission, so a
     hand-computed one gets reflected back by the next relink and looks confirmed --
     an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
--- ELF-MEASURED after the relink.  The current image includes the guarded
--- post-static-check CALL target account-read restoration.
-def textSizeBytes : Nat := 0x06753c
+-- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
+-- change and #10911's guarded post-static-check CALL target account-read
+-- restoration.
+def textSizeBytes : Nat := 0x067514
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -467,7 +468,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1c139580
+def bssSizeBytes : Nat := 0x1c1395a0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

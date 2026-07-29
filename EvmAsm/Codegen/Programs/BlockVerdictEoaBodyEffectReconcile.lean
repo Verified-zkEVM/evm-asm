@@ -33,6 +33,7 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
   "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
   -- EIP-7928: the post-transaction boundary runs at `block_access_index =
   -- ulen(transactions) + 1` (`fork.py:917-919`), and `process_withdrawals`
   -- incorporates there like any other producer (`fork.py:921` → `:1226`).

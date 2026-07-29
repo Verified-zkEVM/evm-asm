@@ -296,7 +296,13 @@ def eip7708SyntheticLogTopicData : String :=
   "bv_pending_upfront_sender_post:\n  .zero 32\n" ++
   "bv_pending_recipient_addr:\n  .zero 32\n" ++
   "bv_pending_recipient_pre:\n  .zero 32\n" ++
-  "bv_pending_recipient_post:\n  .zero 32\n"
+  "bv_pending_recipient_post:\n  .zero 32\n" ++
+  -- GH #10892: the sender's post-transfer balance (`staged_balance - tx.value`), the
+  -- `post` operand of the transfer-site `record_nonstorage_effect` that supplies the
+  -- missing half of `move_ether`.  A separate cell because `u256_sub_be` clobbers its
+  -- destination before returning the borrow, so subtracting into the staged balance
+  -- would corrupt it on the borrow path that must leave it untouched.
+  "bv_xfer_sender_bal:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++

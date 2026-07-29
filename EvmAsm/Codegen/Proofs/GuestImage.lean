@@ -200,9 +200,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0xa3000000 0xa3005370 :=
     satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
       (by omega) (by omega)
-  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  `0x1b85cae0` is that
-  -- constant spelled as a literal (once, here) and `0xbf85cae0` is `0xa4000000`
-  -- plus it (TWICE -- here and in `t7'` below).  A `.bss` size change is
+  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  Two constants, and the
+  -- hex is deliberately NOT quoted in this comment -- it was quoted, went stale, and
+  -- then described neither literal.  They are: `bssSizeBytes` spelled as a literal
+  -- (ONCE, in `t7`'s `satWithin_ramRegion` argument), and the `.bss` base
+  -- `0xa3110000` plus it (TWICE -- `t7`'s end bound and `t7'`'s below).  A `.bss` size change is
   -- routine -- any new data object moves it -- and the four-step layout regen
   -- (`gen-symbol-addresses.py --build`) does NOT touch this file, so the repin is
   -- manual.
@@ -215,11 +217,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- recognised; if you are staring at a type mismatch here after adding a data
   -- object, this is why.
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3110000 0xbf249580 :=
-    satWithin_ramRegion 0xa3110000 0x1c139580 (by omega) (by omega)
+      0xa3110000 0xbf2495a0 :=
+    satWithin_ramRegion 0xa3110000 0x1c1395a0 (by omega) (by omega)
       (by omega) (by omega)
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3005370 0xbf249580 :=
+      0xa3005370 0xbf2495a0 :=
     t7.mono (by omega) (le_refl _)
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=
