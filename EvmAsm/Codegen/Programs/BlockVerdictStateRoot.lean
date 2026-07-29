@@ -728,6 +728,36 @@ def statelessVerdictV2Function : String :=
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
+  -- The four end-of-block system calls above run the predeploys through the
+  -- dispatcher, so their SSTOREs go through the ordinary `storage_write_record`
+  -- and are sitting in the TRANSACTION-level write map right now.  In the spec
+  -- these calls run LAST -- `process_withdrawals` (`fork.py:921`, incorporating
+  -- at `:1226`) and `process_general_purpose_requests` (`:923`, incorporating at
+  -- `:858-859`) both follow the transaction loop, at
+  -- `block_access_index = ulen(transactions) + 1` (`:917-919`).  Here they run
+  -- FIRST, against a `stage_predeploy_storage_preload` snapshot instead of
+  -- sequentially-evolved state, and nothing clears the map before the loop
+  -- starts -- so transaction 1's `write_sets_incorporate_tx` sweeps them up and
+  -- stamps them with ITS index.
+  --
+  -- Measured on 23100 (`test_withdrawal_requests`, 1 tx): 16 system writes then
+  -- 20 transaction writes, ONE incorporate, and all 36 promoted at BAI 1 -- the
+  -- withdrawal queue-pointer row is declared at BAI 2 and emitted at BAI 1.  On
+  -- 00578 (0 tx) there is no incorporate at all and the 16 are stranded.
+  --
+  -- Dropping them here is the SPEC-FAITHFUL state, not merely a safe one: in
+  -- spec order the block-level map must not contain these slots while the
+  -- transactions run.  Their BAL contribution at N+1 is a separate, missing
+  -- phase; this only stops them being attributed to a transaction.  Every
+  -- reader of the tx map is accounted for -- `storage_write_record`,
+  -- `write_sets_incorporate_tx`, `write_sets_restore_frame` and
+  -- `bal_emit_storage_changes` -- and no consistency check reads it (the
+  -- exec-row side capture above keeps its own `bv_system_storage_log`).
+  --
+  -- Register safety: `write_sets_discard_tx` touches only `t0` and `ra`, and
+  -- both are DEAD across this call -- the next line opens `la t0, aer_bd_ptr`
+  -- (a write) and `ra` is next written by the `jal` at the `bgv_u32le` call.
+  "  jal ra, write_sets_discard_tx\n" ++
   "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
   -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
