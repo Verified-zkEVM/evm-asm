@@ -228,8 +228,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- Execution CodeState is block-lived in the sequential lane. The callable
   -- dispatcher resets transaction-local pending overlays, including
   -- `account_state_pending_count`; it does not preserve that AccountState
-  -- journal across dispatches. Durable state and retained comparator bytes
-  -- survive until this loop finishes.
+  -- journal across dispatches. This reset is the live durability boundary in
+  -- GH #10876: sender effects needed after dispatch must be materialized in
+  -- durable state rather than left in the pending journal. Durable state and
+  -- retained comparator bytes survive until this loop finishes.
   -- CodeState is the sole execution code/existence model for every block,
   -- including the one-transaction case.  The immutable witness is consulted
   -- only after its pending and durable overlays miss.
