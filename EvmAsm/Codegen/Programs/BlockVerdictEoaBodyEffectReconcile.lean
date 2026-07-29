@@ -54,6 +54,24 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
-  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10866 / GH #10701: the STORAGE half of the N+1 boundary, and it must be at
+  -- BOTH post-exec sites.  This one and the `.Lbv_mtx_done` block in
+  -- `BlockVerdictMtxRuntime` are MUTUALLY EXCLUSIVE -- the paragraph above measured
+  -- exactly one firing per block -- so a single site would cover only one arm.
+  -- That is the same one-recorder-two-sites shape as GH #10875 and GH #10880, which
+  -- is why it is written here at the same time rather than after a fixture shows the
+  -- gap: 23100 reaches THIS site, 23725 reaches the other one.
+  --
+  -- See the sibling comment for why the baseline forces this position rather than
+  -- the requests phase where the writes are actually made.
+  "  jal ra, replay_system_storage_writes_at_bai\n" ++
+  "  jal ra, write_sets_incorporate_tx\n" ++
+  "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"
+
+-- Both post-exec sites carry the storage half; a bare count of the pair across the
+-- two modules cannot be written here, so each module pins its own occurrence.
+#guard (blockVerdictEoaBodyEffectReconcile.splitOn
+  "  jal ra, replay_system_storage_writes_at_bai\n  jal ra, write_sets_incorporate_tx\n").length == 2
 
 end EvmAsm.Codegen
