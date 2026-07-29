@@ -51,6 +51,11 @@ structure GuestLayout where
   -- U256 (u256_mul_u64_be: accumulator window and entry).
   u256m_acc : Nat
   u256_mul_u64_be : Nat
+  -- U256GasPricing (priority_fee_per_gas_eip1559: own entry and the two
+  -- helpers it calls).
+  priority_fee_per_gas_eip1559 : Nat
+  u256_sub_be : Nat
+  u256_min : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -65,6 +70,9 @@ def GuestLayout.zero : GuestLayout :=
     bav_hash := 0
     bloom_add_value := 0
     u256m_acc := 0
-    u256_mul_u64_be := 0 }
+    u256_mul_u64_be := 0
+    priority_fee_per_gas_eip1559 := 0
+    u256_sub_be := 0
+    u256_min := 0 }
 
 end EvmAsm.Codegen

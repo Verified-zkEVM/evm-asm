@@ -46,10 +46,15 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
   (`scripts/codegen-eest-stateless-check.sh:491`):
   - `.text`      @ `0x80000000`
   - `.data`      @ `0xa3000000`
-  - `.sszscratch`@ `0xbf500000`
-  - ⇒ usable `.data` span before `.sszscratch` = `0xbf500000 − 0xa3000000`
-    = `0x1c500000` = `475,004,928` B = **453 MiB** (≈ 475 MB decimal).
-    (Pinned + proved in `EvmAsm/Codegen/CallFrameLayout.lean` `data_gap_bytes`.)
+  - `.sszscratch`@ `0xbf980000`
+  - ⇒ usable `.data` span before `.sszscratch` = `0xbf980000 − 0xa3000000`
+    = `0x1c980000` = `479,723,520` B = **457.5 MiB** (≈ 480 MB decimal).
+    (Pinned + proved in `EvmAsm/Codegen/CallFrameLayout.lean:244`
+    `data_gap_bytes` by `decide`. The total reserved NOBITS footprint of the
+    emitted guest ELF, per `readelf -SW`, is `.bss` `0x1b85cae0` +
+    `.committed_storage` `0xcdd800` + `.sszscratch` `0x680000` ≈ **482 MB**;
+    the ziskemu RAM region is 512 MiB (`0xa0000000..0xc0000000`,
+    CODEGEN.md:149) — the relevant ceiling for any new reserved arena.)
 - Amsterdam caps: `MAX_CODE_SIZE = 0x10000` (64 KiB), `MAX_INIT_CODE_SIZE =
   0x20000` (128 KiB).
 - This project **avoids misaligned load/store** — every per-frame sub-region is
@@ -217,7 +222,7 @@ Total frame array = `1025 * 0x39000` = `0xE439000` ≈ **228.2 MiB** (depths
 > §5's union design is kept below as the historical record.
 
 > **CORRECTION (empirically validated 2026-06-08).** An earlier draft of this
-> section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf500000` window is
+> section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf980000` window is
 > free, "proving" a 164 MiB arena fits. **That is wrong.** ziskemu's RAM region
 > is only **512 MiB** (`0xa0000000..0xc0000000`; CODEGEN.md:149,
 > `docs/agents/eest-static-layout.md`). The current guest `.data` already spans
@@ -280,7 +285,7 @@ the frame arena to *alias* the `basr_values` base (same base symbol / a
             │  │  phase 2 (execution, :626+):   call_frame_arena (164MiB)│
             │  └──────────────────────────────────────────────────────┘
 0xbdb2e067  .data end (unchanged)
-0xbf500000  .sszscratch (NOBITS)
+0xbf980000  .sszscratch (NOBITS)
 0xc0000000  RAM end
 ```
 
