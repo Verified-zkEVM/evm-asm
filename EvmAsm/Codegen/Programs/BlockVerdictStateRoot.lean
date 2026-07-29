@@ -757,6 +757,22 @@ def statelessVerdictV2Function : String :=
   -- Register safety: `write_sets_discard_tx` touches only `t0` and `ra`, and
   -- both are DEAD across this call -- the next line opens `la t0, aer_bd_ptr`
   -- (a write) and `ra` is next written by the `jal` at the `bgv_u32le` call.
+  --
+  -- ⛔ DO NOT EMIT THE N+1 STORAGE CHANGES HERE.  GH #10866's phase belongs after
+  -- the transaction loop, and this looks like the obvious home because the writes
+  -- are in the tx map at exactly this point.  MEASURED, both directions:
+  -- `bal_emit_storage_changes` with N+1 in `a0` on this line adds 1 of 3 declared
+  -- N+1 rows on 23100 and 0 of 8 on 23725.  The reason is the NET-ZERO BASELINE,
+  -- not the index: the emit compares each write against the BLOCK container, which
+  -- is empty here because the requests phase runs BEFORE the transactions.  Every
+  -- N+1 row in both fixtures is `pre=0 -> post=0` WITH A TRANSACTION PARTNER
+  -- writing 1 to the same slot first, so against a pre-state baseline they are all
+  -- net-zero and all filtered; the single row that did appear (23100 slot 0) is the
+  -- only N+1 slot with no transaction partner.  A correct BAI stamp on a row
+  -- computed against the wrong baseline is not a correct row.  The phase is
+  -- therefore in `blockVerdictEoaBodyEffectReconcile`, which runs after the loop
+  -- (measured by commit order, not by label position: post-exec at 5,785,396
+  -- against the loop's incorporate at 5,469,302 on 23100).
   "  jal ra, write_sets_discard_tx\n" ++
   "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
@@ -878,5 +894,11 @@ def statelessVerdictV2Function : String :=
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret"
+
+-- GH #10866: NEGATIVE guard -- this phase must NOT emit storage changes here.  The
+-- placement was tried, measured at 1-of-3 and 0-of-8, and reverted; see the
+-- comment at the discard.  Pinned so the obvious-looking home cannot be reoccupied
+-- silently.
+#guard (statelessVerdictV2Function.splitOn "jal ra, bal_emit_storage_changes").length == 1
 
 end EvmAsm.Codegen
