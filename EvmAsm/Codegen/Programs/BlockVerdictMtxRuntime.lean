@@ -638,6 +638,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
+  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:

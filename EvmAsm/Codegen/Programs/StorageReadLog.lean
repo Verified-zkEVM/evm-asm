@@ -249,9 +249,13 @@ def storageReadRecordBlockFunction : String :=
     constructor that self-destructs is the depth-0/top-frame exception and can
     leave the address in canonical big-endian form, so both forms are checked.
     This routine is called before `read_sets_incorporate_tx`, while the
-    transaction read set is still live.  Its caller is the successful
-    `account_state_commit_pending` boundary; reverted transactions never reach
-    it and therefore cannot contribute reads.
+    transaction read set is still live.  The ordinary call is the successful
+    `account_state_commit_pending` boundary.  MTx also calls that helper after
+    recording the transaction's non-revertible coinbase fee, including its
+    preparation-halt arm.  That arm explicitly clears `account_state_delete_count`
+    before the shared tail, so this loop exits immediately with a zero bound and
+    cannot promote a reverted transaction's deletion reads.  This safety relies
+    on that explicit clear, not on the helper being unreachable after a revert.
 -/
 def accountStatePromoteDeleteReadsFunction : String :=
   "account_state_promote_delete_reads:\n" ++

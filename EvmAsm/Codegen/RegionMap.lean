@@ -430,14 +430,15 @@ def schemeAAnchors : List GuestRegion :=
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one.
 
-    Grew by `0xd0` -- 208 bytes -- to `0x0673dc` for GH #10866: the N+1 storage
-    phase.  `replay_system_storage_writes_at_bai` plus its call and incorporate at
-    BOTH post-exec sites (they are mutually exclusive at run time, so both must
-    carry it).  ELF-MEASURED, not derived: this value is an INPUT to emission, so a
-    hand-computed one would be reflected back by the next relink and look
-    confirmed -- and an earlier draft of this same change measured `0x14`, which
-    would now be a confident wrong literal. -/
-def textSizeBytes : Nat := 0x0673dc
+    Grew by `0xc` on main (GH #10870's coinbase accumulator) and by `0xd0` -- 208
+    bytes -- here for GH #10866: the N+1 storage phase,
+    `replay_system_storage_writes_at_bai` plus its call and incorporate at BOTH
+    post-exec sites (they are mutually exclusive at run time, so both must carry
+    it).  ELF-MEASURED, not summed: `0x067318 + 0xd0` is the obvious arithmetic and
+    is NOT how this literal was set.  The value is an INPUT to emission, so a
+    hand-computed one gets reflected back by the next relink and looks confirmed --
+    an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
+def textSizeBytes : Nat := 0x0673e8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
