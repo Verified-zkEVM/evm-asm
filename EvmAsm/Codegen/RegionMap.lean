@@ -438,7 +438,10 @@ def schemeAAnchors : List GuestRegion :=
     is NOT how this literal was set.  The value is an INPUT to emission, so a
     hand-computed one gets reflected back by the next relink and looks confirmed --
     an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
-def textSizeBytes : Nat := 0x0673e8
+-- Grew by `0xc` -- 12 bytes -- to `0x0673f4` for GH #10887: the `code_changes`
+-- pointer now names the retained code-effect heap copy (`la`+`add`+`addi`) instead
+-- of the reusable create-child scratch (`mv`).  ELF-MEASURED after the relink.
+def textSizeBytes : Nat := 0x0673f4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)

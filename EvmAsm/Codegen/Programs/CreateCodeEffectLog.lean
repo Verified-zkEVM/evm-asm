@@ -851,7 +851,29 @@ def createRecordCodeEffectFunction : String :=
   "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
   -- Balance remains absent here: value flow owns its own nonstorage record.
-  "  mv a0, s0; li a1, 0; li a2, 1; mv a3, s1; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
+  --
+  -- GH #10887: THE CODE POINTER IS THE RETAINED HEAP COPY, NOT `s1`.  `s1` is
+  -- `create_child_code` — the reusable create-child scratch, which lives in
+  -- `evm_memory_pool` — and the `account_state_record_code` call above already says
+  -- in as many words to publish "from the retained heap copy, never from the
+  -- reusable create-child scratch".  This call did not, and the account-write row
+  -- carries its `a3` straight through to `bal_builder_append_code`
+  -- (`AccountWriteMap.lean` `+80`/`+88`), so the BAL's `code_changes` value was a
+  -- pointer into EVM memory.
+  --
+  -- MEASURED, on 12925: the bytes ARE written there (`extcodecopy_at_header_state_root`
+  -- stores `30 60 00 52 60 20 60 00 f3`), then `h_STATICCALL` zeroes the window when
+  -- the next call frame clears its memory — correct EVM behaviour — and the
+  -- serializer reads nine zeros 590k commits later.  The length was always right
+  -- because the length is copied by value; only the bytes were aliased.
+  --
+  -- The heap copy is the one the module's header requires: "the BAL's
+  -- `CodeChange.new_code` must copy those bytes unchanged", and `AccountState`
+  -- already retains pointers into it, which is why it may not be reused or deleted.
+  -- Same expression as the sibling call, recomputed rather than carried because
+  -- `account_state_record_code` and the two set helpers between them may clobber
+  -- `t0`; `s3` is the entry offset and survives (callees preserve `s`).
+  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   ".Lcrce_overflow:\n" ++
@@ -908,6 +930,18 @@ def findCodeEffectByAddressFunction : String :=
     byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem findCodeEffectByAddressFunction_eq_prog :
     findCodeEffectByAddressFunction = "find_code_effect_by_address:\n" ++ emitProgram findCodeEffectByAddress_prog := rfl
+
+-- GH #10887: NEGATIVE guard.  The code pointer handed to `account_write_record`
+-- must NOT be `s1` -- that is the reusable create-child scratch in
+-- `evm_memory_pool`, and the BAL's `code_changes` value is this pointer.  Pinned
+-- negatively because `mv a3, s1` is well-formed, produces a correct LENGTH, and
+-- fails only in the bytes, 590k commits later, at equal serialized length.
+#guard (createRecordCodeEffectFunction.splitOn "mv a3, s1").length == 1
+-- And positively that it is the retained heap copy, pinned WITH the offset: the
+-- record's bytes start at +48, so a pointer to the record base would serialize the
+-- 20-byte address and the length fields as if they were code.
+#guard (createRecordCodeEffectFunction.splitOn
+  "la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48").length == 2
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
 #guard findCodeEffectByAddress_prog.length = 24
