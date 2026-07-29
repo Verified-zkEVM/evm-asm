@@ -3,6 +3,7 @@ namespace EvmAsm.Codegen
 
 def blockVerdictWithdrawalNonstorageEffectsFunction : String := r#"
 block_verdict_withdrawal_nonstorage_effects:
+  li t0, 0xa0010000; li t1, 0x7764; sd t1, 520(t0)
   addi sp, sp, -72
   sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
   la t0, svf_wds_count; ld s0, 0(t0); la t0, svf_wds_ptr; ld s1, 0(t0); li s2, 0

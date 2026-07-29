@@ -248,6 +248,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
   ".Lbv_mtx_bf_rev_done:\n" ++
   ".Lbv_mtx_loop:\n" ++
+  "  li t0, 0xa0010000; li t1, 0x6d7478; sd t1, 528(t0)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   -- The dispatcher resets this marker only when it is reached.  Every MTx
   -- iteration must begin phase-zero as well: a pre-dispatch rejection or an

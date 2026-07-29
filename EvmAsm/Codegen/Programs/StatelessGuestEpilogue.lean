@@ -827,6 +827,18 @@ def statelessGuestEpilogue : String :=
   -- result prefix) for multi-tx census/debug probes.  This is diagnostic-only
   -- and does not participate in the SSZ validation result.
   "  la t5, bv_fail_code; ld t5, 0(t5); li t0, 0xa0010000; sd t5, 112(t0)\n" ++
+  -- Diagnostic-only builder-row export for #10764.  Four complete 64-byte
+  -- balance rows at OUTPUT+128 preserve the BE20 address, native BAI, and
+  -- 256-bit post balance together; a prefix-only trace cannot distinguish a
+  -- stale BAI from a correct BAI paired with a wrong post value.
+  "  li t0, 0xa0010080; la t1, bal_builder_balance_changes; li t2, 32\n" ++
+  ".Lsg_bai_nplus1_balance_rows:\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0); addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1; bnez t2, .Lsg_bai_nplus1_balance_rows\n" ++
+  -- Diagnostic-only #10764 FA-witness aid: export the state-root recomputed
+  -- from the declared BAL.  It is intentionally outside the production ABI.
+  "  li t0, 0xa0010240; la t1, sv_recomputed; li t2, 4\n" ++
+  ".Lsg_bai_nplus1_recomputed_root:\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0); addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1; bnez t2, .Lsg_bai_nplus1_recomputed_root\n" ++
   "  li t0, 0xa0010000; la t1, npr_saved_output; li t2, 0\n" ++
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++

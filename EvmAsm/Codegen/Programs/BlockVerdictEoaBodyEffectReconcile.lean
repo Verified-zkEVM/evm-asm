@@ -13,6 +13,7 @@ open EvmAsm.Rv64
 /-- Prefix which seeds the EOA skip list and publishes block-level effects. -/
 def blockVerdictEoaBodyEffectReconcile : String :=
   ".Lbv_eoa_body_effect_reconcile:\n" ++
+  "  li t0, 0xa0010000; li t1, 0xe0a; sd t1, 512(t0)\n" ++
   "  la t0, i3djw_skip_list\n  la t1, bv_simple_transfer_tx; addi t1, t1, 72\n  li t2, 20\n" ++
   ".Lbv_i3sk0:\n  beqz t2, .Lbv_i3sk0d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk0\n.Lbv_i3sk0d:\n" ++
   -- A zero-transaction block has a valid empty public-key section.  There is
