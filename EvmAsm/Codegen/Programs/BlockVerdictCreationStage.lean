@@ -538,11 +538,14 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- the transaction value as balance and nonce 1. Record that execution-derived
   -- effect before BAL all-account non-storage comparisons run.
   "  beqz s3, .Lbvcr_created_effect_done\n" ++
+  -- The initcode may have performed CREATE/CREATE2 attempts.  Its creator
+  -- nonce is therefore the running table value, not always EIP-161's initial
+  -- nonce 1; use the same lookup as the ordinary top-level creation deposit.
+  "  la a0, bv_create_addr\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
   "  la a0, bv_create_addr\n" ++
   "  la a1, nse_zero_bal\n" ++
   "  la a2, bv_creation_ctx_ptr; ld a2, 0(a2); addi a2, a2, 96\n" ++
   "  li a3, 0\n" ++
-  "  li a4, 1\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   ".Lbvcr_created_effect_done:\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
