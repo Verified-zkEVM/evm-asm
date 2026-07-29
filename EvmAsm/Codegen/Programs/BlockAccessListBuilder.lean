@@ -60,9 +60,9 @@ namespace EvmAsm.Codegen
     runtime, so the 20-byte layout would likely have PASSED under it -- a green test
     certifying a layout the verified semantics reject.
 
-    24 rather than 32: the arena is capacity 76923, so 24 costs 307,692 bytes and fits
-    below `.sszscratch`, while a separate 32-byte staging copy needed 2,461,536 and did
-    not. -/
+    24 rather than 32: the arena is capacity 140000, so the 4 padding bytes per
+    row cost 560,000 bytes and fit below `.sszscratch`, while a separate
+    32-byte staging copy needed 4,480,000 and did not. -/
 def balBuilderAccountRowBytes : Nat := 24
 /-- `{address[20], pad[4], u64 BAI, slot[32], post value[32]}`. -/
 def balBuilderStorageChangeRowBytes : Nat := 96
@@ -74,27 +74,40 @@ def balBuilderNonceRowBytes : Nat := 40
 def balBuilderCodeRowBytes : Nat := 64
 
 /-- Separate resource bounds. They are intentionally not added as if one block
-    could maximize every list simultaneously. The joint 200M-gas enumeration
-    behind the persistent 7,281,964-byte reservation is:
+    could maximize every list simultaneously. The enumeration behind the
+    persistent 16,882,112-byte reservation (row strides: account 24,
+    storage-change 96, balance 64, nonce 40, code 64) is, per field:
 
-    * blob-sidecar / transaction-sidecar work, the densest currently reachable
-      route, at about 0.0190 emitted bytes per gas (about 3.80MB);
-    * storage and ordinary balance/nonce/code producer routes, each below that
-      density once their intrinsic or state-gas charges are included; and
-    * EIP-6780 SELFDESTRUCT deletion: Amsterdam only deletes an originator in
-      `tx_state.created_accounts`, so it is same-transaction-created and pays
-      CREATE state gas plus the 5000 SELFDESTRUCT base (about 0.0037 B/gas even
-      under its three-component 136-byte expansion). Its pre-state is absent,
-      so the boundary comparison normally emits no deletion-only component.
+    * account: 240M/3000 user + 6×⌊30M/3000⌋ system = 140000 (cold account
+      cost 3000, `execution-specs` `amsterdam/vm/gas.py:69-71`);
+    * storage-change: user leg ⌊1.5L/10100⌋ = 29702 — NOT a gas cost: a
+      persistent entry costs WARM_ACCESS 100 + STORAGE_WRITE 10000 = 10100
+      gross, and the refund cap (F ≤ (R+S)/5, S ≤ L, regular use R−F ≤ L)
+      gives 0.8R − 0.2S ≤ L, i.e. R ≤ 1.5L — plus the system leg
+      6×⌊30M/10100⌋ = 17820, total 47522;
+    * balance: 240M/4000 + 6×⌊30M/4000⌋ = 105000;
+    * nonce: 240M/12000 + 6×⌊30M/12000⌋ = 35000 (the old 16666 was exactly
+      200M/TX_BASE with no system headroom);
+    * code: six INDEPENDENT floors 6×⌊30M/32000⌋ = 5622 (pooling first would
+      give ⌊180M/32000⌋ = 5625 — wrong leg structure), i.e. 13122, rounded UP
+      to 13125 for slack and a rounder checkable number.
 
-The enumeration reflects the Amsterdam spec areas read to date and must be
-revisited when a new producer route is understood. The reservation is therefore
-a joint upper bound with material slack, not a sum of independent maxima. -/
-def balBuilderAccountCapacity : Nat := 76923
-def balBuilderStorageChangeCapacity : Nat := 15384
-def balBuilderBalanceCapacity : Nat := 50000
-def balBuilderNonceCapacity : Nat := 16666
-def balBuilderCodeCapacity : Nat := 6250
+    Here 240M = 200M × 1.2 is the refund-effective allowance over the block
+    gas limit, and the 6×30M system leg is the new producer route that forced
+    this resize: SIX SYSTEM CALLS (2 unchecked + 4 checked request calls in
+    `apply_body`, each at the 30M system-call gas allowance, each incorporated
+    into the BAL) bypass the block gas counters and the user refund logic
+    entirely, so no derivation from the block gas limit can see them.
+
+    The enumeration reflects the Amsterdam spec areas read to date and must be
+    revisited when a new producer route is understood. The reservation is
+    therefore a joint upper bound with material slack, not a sum of
+    independent maxima. -/
+def balBuilderAccountCapacity : Nat := 140000
+def balBuilderStorageChangeCapacity : Nat := 47522
+def balBuilderBalanceCapacity : Nat := 105000
+def balBuilderNonceCapacity : Nat := 35000
+def balBuilderCodeCapacity : Nat := 13125
 
 /-! ## The serializer's length table
 
@@ -131,9 +144,11 @@ def balBuilderCodeCapacity : Nat := 6250
     ## IT IS PER ACCOUNT, NOT BLOCK-SCOPE, AND THAT IS A MEMORY CEILING NOT A CHOICE
 
     One entry per account across the block would be `balBuilderAccountCapacity * 48` =
-    3.52 MiB. **`.bss` has 1.14 MiB of headroom**: it ends at `0xbf85b4a0` and
-    `.sszscratch` begins at `0xbf980000`, and the linker rejects the overlap outright
-    (`section .sszscratch VMA ... overlaps section .bss VMA ...`).
+    6.41 MiB. **`.bss` has about 7.2 MiB of headroom**: after the GH #10836 arena
+    resize its base moved down to `0xa3110000` (into the `.data` slack), it ends at
+    about `0xbf249580` — about 7.2 MiB of headroom to `.sszscratch` at `0xbf980000`;
+    the linker rejects
+    an overlap outright (`section .sszscratch VMA ... overlaps section .bss VMA ...`).
 
     So the walk is: one pass over all accounts accumulating the outer list's payload
     length into a single dword, then a second pass which, per account, measures into
@@ -1118,14 +1133,14 @@ private def balStorageMeasurePair : String :=
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_read_scratch:").length == 1
 #guard (balSerializerFilterReadsFunction.splitOn "bal_serializer_read_scratch;").length == 1
 
--- 76923 * 24. Was 1538460 at a 20-byte row; the row is now 8-ALIGNED so
--- `bal_canonical_sort` can swap it with 8-byte loads. +307,692 bytes.
-#guard balBuilderAccountBytes = 1846152
-#guard balBuilderStorageChangeBytes = 1476864
-#guard balBuilderBalanceBytes = 3200000
-#guard balBuilderNonceBytes = 666640
-#guard balBuilderCodeBytes = 400000
-#guard balBuilderPersistentBytes = 7589656
+-- 140000 * 24. Was 1846152 at capacity 76923; +1,513,848 bytes with the
+-- GH #10836 resize (six system calls bypass the block gas counters).
+#guard balBuilderAccountBytes = 3360000
+#guard balBuilderStorageChangeBytes = 4562112
+#guard balBuilderBalanceBytes = 6720000
+#guard balBuilderNonceBytes = 1400000
+#guard balBuilderCodeBytes = 840000
+#guard balBuilderPersistentBytes = 16882112
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_ensure_account:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_balance:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_builder_append_nonce:").length == 2

@@ -36,7 +36,7 @@ abbrev mulBase : Word := (GuestAddrs.u256_mul_u64_be : Nat)
 abbrev mulCR : CodeReq := CodeReq.ofProg mulBase mulProg
 
 /-- The 40-byte little-endian multiply accumulator in `.bss`
-    (`0xa557f860`). -/
+    (`0xa468f860`). -/
 abbrev accBase : Word := (GuestAddrs.u256m_acc : Nat)
 
 theorem accBase_align : accBase.toNat % 8 = 0 := by decide
