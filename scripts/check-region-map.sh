@@ -4,6 +4,11 @@
 # Cross-checks EvmAsm/Codegen/RegionMap.lean (and the .9.3 linker-facts TSV)
 # against the linked stateless_guest ELF -- the final arbiter. Two tiers:
 #
+#   SCOPE: this guard validates the stateless_guest ELF ONLY. Since GH #10836
+#     the `.bss` section-start is PER UNIT (guest 0xa3110000, probe/test units
+#     0xa3d10000, see Driver.assembleAndLink / Cli.emitAndLink); probe ELFs are
+#     deliberately NOT checked here and RegionMap describes the guest's layout.
+#
 #   STRUCTURAL (hard fail): facts that must NEVER drift silently --
 #     * section bases (.text/.data/.bss/.sszscratch) == the -Ttext/-Tdata/
 #       --section-start flags and RegionMap constants;
