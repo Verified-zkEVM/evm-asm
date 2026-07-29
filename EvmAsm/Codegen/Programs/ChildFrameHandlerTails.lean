@@ -284,6 +284,74 @@ def basicPrecompileCallTail
     "  addi t0, x12, 32\n" ++
     "  la t1, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
     runtimeAccessWordToBe20Asm tag "t0" "t1" "t2" "t3" ++
+    -- Record the CALL TARGET as an account read, for every call variant.
+    --
+    -- ALIGNS TO execution-specs at the pinned commit `e5a8caf1b`, verified against the
+    -- committed objects rather than the working tree. The aligning sites are the FOUR
+    -- call opcodes in `vm/instructions/system.py`, each of which touches its target:
+    --   `:460` (`call`), `:583` (`callcode`), `:757` (`delegatecall`), `:856`
+    --   (`staticcall`) -- all four textually identical:
+    --       `code_hash = get_account(tx_state, code_address).code_hash`
+    --   and in all four `code_address = to_address_masked(pop(evm.stack))`, i.e. the
+    --   POPPED CALL TARGET -- notably including CALLCODE and DELEGATECALL, where it is
+    --   NOT the executing account.
+    --   `state_tracker.py:199` -- `tx_state.account_reads.add(address)`, the FIRST
+    --     statement of `get_account`, so the touch is recorded unconditionally and even
+    --     for an absent account.
+    -- The guest was missing a touch the spec always performs; this is an alignment fix,
+    -- not a heuristic, and it moves the implementation toward the spec rather than
+    -- being merely neutral.
+    --
+    -- NOT `vm/interpreter.py:291`. That `get_account(tx_state, recipient)` sits in
+    -- `prepare_dispatch` (defined `:246`), whose only call site, `:365`, is guarded by
+    -- `if message.depth == Uint(0)` and whose docstring says "Runs at the top frame
+    -- (depth 0)". It therefore justifies the TOP-LEVEL recipient-resolution fix, not
+    -- this child-frame site, and citing it here would be wrong.
+    --
+    -- WHY ONE SHARED SITE RATHER THAN FOUR PER-HANDLER INSERTS -- on EQUIVALENCE, not on
+    -- structural mirroring. The spec does have four separate per-opcode touch sites, so
+    -- a claim that it "records the recipient once for every variant alike" is false; if
+    -- anything, four inserts would mirror the text more literally. The shared site is
+    -- justified instead because those four spec sites are textually identical and take
+    -- the same operand, so one emission is behaviourally equivalent to four -- and the
+    -- guest already funnels all four variants through this one tail, which has already
+    -- materialised that exact operand for the access charge. Being two lines instead of
+    -- eight is a consequence, not the reason.
+    --
+    -- WHY HERE, AND NOT AT `call_frame_descend`'s PRESTATE FALLBACK: that fallback
+    -- resolves `env+696`, which `CallFrameDescend:408`/`:438` store as the CHILD
+    -- FRAME'S ADDRESS. For CALLCODE and DELEGATECALL the child address is the PARENT
+    -- -- foreign code runs in the caller's storage context, so `:404-406` says
+    -- "ADDRESS = parent's" -- hence that site can never record the target, and adding
+    -- a record there would attribute the parent. Here the BE-20 target is already in
+    -- `runtimeAccessSeedScratchLabel`, produced by the line above for the access
+    -- charge, so the operand is the right one and costs nothing to obtain.
+    --
+    -- Idempotent for CALL and STATICCALL, whose target IS the child address and is
+    -- therefore already recorded whenever that fallback fires: `account_read_record`
+    -- DEDUPLICATES (`.Larr_scan` compares 20 bytes and appends only on a miss), so a
+    -- second record of the same address is a no-op rather than a double count. That is
+    -- what makes one insertion correct for all four variants instead of two.
+    --
+    -- LIVENESS. `a0` IS `x10`, so `la a0, ...` clobbers `x10` -- the exact hazard that
+    -- broke an equivalent insert in `extcodehashWitnessTail`, where `x10` was live in
+    -- the register across the insertion point. IT IS NOT LIVE HERE, and the proof needs
+    -- no liveness analysis: the ORIGINAL, UNPATCHED code's first instruction at this
+    -- point is the very next line, `la a0, <the same scratch label>`. So the unmodified
+    -- guest already clobbers `x10` here, with the identical value. If `x10` had held
+    -- anything needed later, the original would already have destroyed it. The two
+    -- inserted instructions sit inside that same dead interval and nothing reads `x10`
+    -- between them.
+    --
+    -- The rest of the frame is safe too: `account_read_record` saves and restores
+    -- `t0`-`t6` across all four of its paths, reads `a0` without writing it, and
+    -- touches no s-register and no `a1`-`a7`, so `s9`/`s10`/`s11` are untouched. Its
+    -- 64-byte frame lies strictly BELOW `sp` and cannot reach a spill. `ra` is dead:
+    -- the next sequence does `jal ra, runtime_access_account_charge`, which itself
+    -- opens with `addi sp, sp, -64` -- an identically sized frame at this same point,
+    -- so the site already tolerates one.
+    "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    "  jal ra, account_read_record\n" ++
     "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
     "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
