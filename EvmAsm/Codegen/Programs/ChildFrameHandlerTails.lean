@@ -40,9 +40,9 @@ def basicPrecompileCallTail
     -- handler enters this common tail before reaching them.
     --
     -- Delegation resolution must remain after the initial access/transfer/memory gas
-    -- check. `callDelegationAccessChargeAsm` below therefore records only a resolved
-    -- `0xef0100 || address` delegate after the marker and resolver checks succeed;
-    -- it does not record this original target unconditionally.
+    -- check. The original target is nevertheless always read by the spec's
+    -- `get_account(tx_state, code_address)` once that check has passed; the helper
+    -- below records a second read only for a resolved `0xef0100 || address` delegate.
     --
     "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -55,9 +55,16 @@ def basicPrecompileCallTail
     callMemoryExpansionGasAsm
       ("precompile_" ++ tag)
       inOffsetOff inSizeOff outOffsetOff outSizeOff sparseWindows ++
-    -- The initial access/transfer/memory gas check has succeeded.  Only now enter
-    -- the delegation-resolution phase: a delegated marker records its resolved
-    -- code address; a non-delegated target records nothing on this OOG path.
+    -- State access begins only after the initial access/transfer/memory gas check.
+    -- `system.py` then unconditionally reads `code_address`, and
+    -- `state_tracker.get_account_optional` first adds it to `account_reads`.
+    -- Preserve x10/x12/x13: x10 is the dispatch PC and the tail still consumes all
+    -- three after this recorder returns.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    "  jal ra, account_read_record\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    -- A delegated marker additionally records its resolved code address.
     callDelegationAccessChargeAsm tag ++
     (if tag == "call_target" || tag == "staticcall_target" then (
     -- EIP-4788 beacon-roots system contract fast path for the current block's

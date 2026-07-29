@@ -61,17 +61,18 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  la a0, bsbd_deleg_target\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  -- `calculate_delegation_cost` selected this `code_address`; its successful
-  -- resolution is the spec's `get_account(code_address)` touch.  Record that
-  -- resolved delegate, not the original CALL target.
-  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  jal ra, account_read_record\n" ++
-  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
   s!"  ld t0, 568(x20)\n  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
+  -- `calculate_delegation_cost` selected this `code_address`; the spec records
+  -- it only after the delegation-specific gas check succeeds.  Record the
+  -- resolved delegate here, not the original CALL target (which the caller
+  -- records separately after the initial static check).
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
 def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : String :=
