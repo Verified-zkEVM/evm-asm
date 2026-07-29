@@ -1,9 +1,29 @@
 # BAL producer coverage by `block_access_index` phase (GH #10701)
 
-**Measured 2026-07-29** against one guest ELF (sha `91353ef2f8ce`, `.text` `0x06730c`). Every cell below is a
-counted trace observation, not a source reading — spike commit traces via `SPIKE_COMMITLOG`, counting entries
-to the named producer. Numbers describe the state of the world at that date; trust the Lean sources and the
-drift-guard scripts over any figure here.
+**Measured 2026-07-29.** Every cell below is a counted trace observation, not a source reading — spike commit
+traces via `SPIKE_COMMITLOG`, counting entries to the named producer. Numbers describe the state of the world at
+that date; trust the Lean sources and the drift-guard scripts over any figure here.
+
+## ⚠️ What a ✅ means, and what it does not
+
+**A ✅ means the producer RUNS AND EMITS an entry for that phase and field. It does NOT mean the values are
+correct.** The two are independent, and the distinction is load-bearing rather than pedantic:
+**`bal_builder_append_code` fires, so the BAI 1..N `code_changes` cell below is honestly ticked — and every value
+it emits is all zeros**, because the producer stores a pointer into EVM scratch memory that the next call frame
+wipes (GH #10887). A reader who takes that ✅ as "code changes are produced correctly" concludes the opposite of
+the truth. **This matrix is a coverage map, not a correctness one.**
+
+## Provenance, per cell
+
+**The header sha is the BASELINE, and any cell measured later carries its own sha inline.** Baseline: guest ELF
+sha `91353ef2f8ce`, `.text` `0x06730c` (the GH #10875 artifact) — the artifact against which the original sweep
+was run. The N+1 storage cell was re-measured after GH #10886 and is stamped with its own artifact
+(`e5c325119235`, `.text` `0x0673e8`) at the point it is claimed.
+
+Stated this way rather than by re-measuring every cell against the newest artifact, because it is honest at no
+cost and it makes per-cell stamping **the rule instead of an exception**. A single global provenance line on a
+document that accumulates measurements over time goes stale about itself — which is the exact failure this file
+exists to prevent.
 
 EIP-7928 has three producer phases. `fork.py:917-919` sets `block_access_index = ulen(transactions) + 1` for
 the post-execution operations; `process_withdrawals` (`:921`) incorporates at `:1226`, and every checked
