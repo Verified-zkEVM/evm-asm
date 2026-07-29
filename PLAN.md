@@ -260,9 +260,19 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bal_emit_storage_changes` 5 — called from *inside* `write_sets_incorporate_tx`
   before the merge, mirroring `state_tracker.py:853`. Every BAL `storage_changes`
   row the guest emits flows through this pair, and a change to it moves
-  `rebuilt_len` (GH #10875). What is still missing is the **post-execution
-  (`block_access_index = ulen(txs)+1`) storage feed** — 23100 loses 3 rows and
-  23725 loses 8, byte-exactly — tracked on #10701. Wiring the
+  `rebuilt_len` (GH #10875). The **post-execution
+  (`block_access_index = ulen(txs)+1`) storage feed** — 23100 losing 3 rows and
+  23725 losing 8, byte-exactly — is **DONE** (GH #10866 / #10701, PR #10886):
+  `replay_system_storage_writes_at_bai` re-presents the end-of-block system calls'
+  writes from `bv_system_storage_log` and incorporates at N+1, at **both**
+  mutually-exclusive post-exec sites. All five acceptance fixtures land exactly on
+  declared (23100 566, 23725 843, 23200 246, 23260 264, 04460 233) and four pass
+  outright. **The placement, not the index, was the defect**: emitting where the
+  writes are made yields 1 of 3 and 0 of 8, because the net-zero baseline at N+1 is
+  the POST-TRANSACTION value — pinned shut by a negative `#guard` in
+  `BlockVerdictStateRoot.lean`. Residual: 23725 is now length-exact and still
+  `fail_code` 60, an equal-length **content** mismatch the length gap was hiding.
+  Wiring the
   forward and reverse comparators over, and retiring the truncation at
   `BlockVerdictMtxRuntime:399`, are later slices. This bead is the forced-order
   prerequisite for #10651 (compute the state root from operations, not from the BAL).

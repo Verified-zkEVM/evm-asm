@@ -675,6 +675,29 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
   "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10866 / GH #10701: the STORAGE half of this same N+1 boundary.  The four
+  -- lines above have carried the non-storage half since GH #10875; storage was the
+  -- one open cell of the phase-by-field matrix (GH #10701).
+  --
+  -- The end-of-block system calls' writes were made much earlier, in the requests
+  -- phase, and discarded there so transaction 1 could not claim them.
+  -- `replay_system_storage_writes_at_bai` re-presents them from the side arena that
+  -- kept them, and HERE is the only place that works: the emit inside
+  -- `write_sets_incorporate_tx` filters net-zero against the BLOCK container, and
+  -- only after the loop does that container hold the transactions' writes.  Every
+  -- declared N+1 row measured on 23100 and 23725 is `pre=0 -> post=0` with a
+  -- transaction writing 1 to the same slot first, so the baseline is the whole
+  -- question -- emitting in the requests phase produced 1 of 3 and 0 of 8.
+  --
+  -- `write_sets_incorporate_tx` rather than a bare emit: past the transactions,
+  -- merging is what the spec does (`fork.py:858-859`, `:1226`) and one call already
+  -- emits, merges and clears in that order.
+  --
+  -- It reads `current_block_access_index`, set to N+1 three lines above, so the
+  -- storage and non-storage halves cannot disagree about the index.
+  "  jal ra, replay_system_storage_writes_at_bai\n" ++
+  "  jal ra, write_sets_incorporate_tx\n" ++
+  "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
   "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
   -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
@@ -840,5 +863,13 @@ def blockVerdictEip7702AuthorityReplayMaterializeFunction : String :=
   "  li a0, 1\n" ++
   ".Leasr_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 64; ret\n"
+
+-- GH #10866: the N+1 storage replay is pinned WITH the incorporate that consumes it
+-- and must appear exactly once -- inside the loop it would re-present the system
+-- writes on every transaction.  The sibling occurrence is guarded in
+-- `BlockVerdictEoaBodyEffectReconcile`; the two sites are mutually exclusive at run
+-- time, so both must exist and neither may be doubled.
+#guard (blockVerdictMtxRuntimeLoop.splitOn
+  "  jal ra, replay_system_storage_writes_at_bai\n  jal ra, write_sets_incorporate_tx\n").length == 2
 
 end EvmAsm.Codegen

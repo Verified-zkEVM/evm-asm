@@ -190,6 +190,73 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "jal ra, .Lamsr_append_one").length == 4
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "la a0, bsr_addr_4788").length == 3
 
+/-! ## replay_system_storage_writes_at_bai
+
+    GH #10866 / GH #10701: give the post-execution phase its `storage_changes`.
+
+    THE PROBLEM THIS SOLVES IS AN ORDERING ONE, and the shape of the routine is a
+    consequence of it. `fork.py:917-919` runs the end-of-block system calls at
+    `block_access_index = ulen(transactions) + 1`; this guest runs them EARLY, in
+    the requests phase, and discards their tx-map rows there so they are not
+    attributed to transaction 1 (GH #10875). Emitting at that point instead does
+    NOT work, and the failure is quiet: `bal_emit_storage_changes` filters
+    net-zero writes against the BLOCK container, which is still empty before the
+    loop, so every N+1 write whose slot a transaction also writes is compared
+    against the block PRE-STATE and dropped. Measured: 1 of 3 declared N+1 rows on
+    23100, 0 of 8 on 23725 -- and the rows that did survive were exactly the slots
+    with no transaction writing them.
+
+    So the writes have to be re-presented AFTER the loop. `bv_system_storage_log`
+    already holds them, stamped with N+1 by `capture_system_storage_exec_rows` --
+    that side arena's whole purpose is to be the durable record, since the caller
+    restores the live log count. This replays the rows carrying the CURRENT
+    `block_access_index` back into the tx-level map, at a point where the block
+    container holds the transactions' writes and the net-zero comparison is
+    therefore against the right baseline.
+
+    a0..: none. Reads `current_block_access_index`, so the caller sets N+1 once and
+    both the replay and the following emit agree by construction rather than by two
+    copies of the same arithmetic.
+
+    THE ROWS NEED NO CONVERSION. The side arena uses the runtime exec-log layout
+    (address LE32 at +0, slot LE32 at +32, current LE32 at +96) and
+    `storage_write_record` keys on exactly that form -- the same keying
+    `storage_read_record` uses. The pointers are passed straight into the row.
+
+    `a6 = 0` (no captured baseline). That is not a shortcut: +96 of a tx row is read
+    by nothing today, and the emit this feeds derives its baseline from the block
+    container, which is the whole point of running here. Passing a fabricated
+    baseline would put a second, disagreeing answer into the row. -/
+def replaySystemStorageWritesAtBaiFunction : String :=
+  "replay_system_storage_writes_at_bai:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, current_block_access_index; ld s3, 0(t0)\n" ++        -- s3 = target BAI
+  "  la t0, bv_system_storage_log_count; ld s1, 0(t0)\n" ++       -- s1 = side row count
+  "  li s0, 0\n" ++                                              -- s0 = i
+  ".Lrsswb_loop:\n" ++
+  "  bgeu s0, s1, .Lrsswb_done\n" ++
+  "  la t0, bv_system_storage_txindex; slli t1, s0, 3; add t0, t0, t1; ld t0, 0(t0)\n" ++
+  "  bne t0, s3, .Lrsswb_next\n" ++
+  "  la t0, bv_system_storage_log; slli t1, s0, 7; add s2, t0, t1\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; li a6, 0\n" ++
+  "  jal ra, storage_write_record\n" ++
+  ".Lrsswb_next:\n" ++
+  "  addi s0, s0, 1; j .Lrsswb_loop\n" ++
+  ".Lrsswb_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+-- The BAI comes from the global, never from a second `+1` -- two copies of that
+-- arithmetic is how a row gets a correct-looking index that disagrees with the
+-- emit's.  Pinned WITH its load so a later edit cannot swap in a recomputation.
+#guard (replaySystemStorageWritesAtBaiFunction.splitOn
+  "  la t0, current_block_access_index; ld s3, 0(t0)\n").length == 2
+-- The filter is the point of the routine: without the txindex compare it would
+-- replay the BAI-0 modelled rows too, and those are already in the builder.
+#guard (replaySystemStorageWritesAtBaiFunction.splitOn "bne t0, s3, .Lrsswb_next").length == 2
+
 /-! ## record_modeled_eip4788_storage_reads
 
     The EIP-4788 system transaction is a real `TransactionState` in

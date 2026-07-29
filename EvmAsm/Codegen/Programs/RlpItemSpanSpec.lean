@@ -157,8 +157,9 @@ theorem rlpItemSpan_prog_length : rlpItemSpan_prog.length = 53 := by decide
 theorem rlpItemSize_prog_length : rlpItemSize_prog.length = 35 := by decide
 
 /-- Full deployed layout: `rlp_item_span` plus its callee `rlp_item_size`
-    at their linked guest addresses (contiguous: size `0x80004a30..0x80004abc`,
-    span `0x80004abc..0x80004b90`). -/
+    at their linked guest addresses (contiguous).  Address ranges are
+    deliberately not restated here: they regenerate from `GuestAddrs`, and
+    restating literals recreates the drift condition (GH #10790). -/
 abbrev rlpItemSpanFullCode : CodeReq :=
   rlpItemSpanCode.union rlpItemSizeCode
 

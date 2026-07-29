@@ -428,8 +428,20 @@ def schemeAAnchors : List GuestRegion :=
     `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
-    it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x067378
+    it was pointed at; enumerating the pattern found the other one.
+
+    Grew by `0xc` on main (GH #10870's coinbase accumulator) and by `0xd0` -- 208
+    bytes -- here for GH #10866: the N+1 storage phase,
+    `replay_system_storage_writes_at_bai` plus its call and incorporate at BOTH
+    post-exec sites (they are mutually exclusive at run time, so both must carry
+    it).  ELF-MEASURED, not summed: `0x067318 + 0xd0` is the obvious arithmetic and
+    is NOT how this literal was set.  The value is an INPUT to emission, so a
+    hand-computed one gets reflected back by the next relink and looks confirmed --
+    an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
+-- Grew by `0xc` -- 12 bytes -- to `0x0673f4` for GH #10887: the `code_changes`
+-- pointer now names the retained code-effect heap copy (`la`+`add`+`addi`) instead
+-- of the reusable create-child scratch (`mv`).  ELF-MEASURED after the relink.
+def textSizeBytes : Nat := 0x0673f4
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
