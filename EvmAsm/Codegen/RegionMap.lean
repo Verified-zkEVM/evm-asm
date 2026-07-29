@@ -438,10 +438,10 @@ def schemeAAnchors : List GuestRegion :=
     is NOT how this literal was set.  The value is an INPUT to emission, so a
     hand-computed one gets reflected back by the next relink and looks confirmed --
     an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
--- Grew by `0xc` -- 12 bytes -- to `0x0673f4` for GH #10887: the `code_changes`
--- pointer now names the retained code-effect heap copy (`la`+`add`+`addi`) instead
--- of the reusable create-child scratch (`mv`).  ELF-MEASURED after the relink.
-def textSizeBytes : Nat := 0x067514
+-- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
+-- change, #10911's guarded post-static-check CALL target account-read
+-- restoration, and #10913's creation-stage running creator nonce fix.
+def textSizeBytes : Nat := 0x0675d0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -512,7 +512,7 @@ def committedStorageRegion : GuestRegion :=
     unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa3110000; 0x1b20b120-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa3110000; 0x1c1395a0-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/

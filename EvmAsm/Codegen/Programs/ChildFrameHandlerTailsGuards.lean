@@ -34,11 +34,12 @@ private def guardedCallTail : String :=
      "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
      "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n")).length = 1
 
--- The tail contains exactly one producer read: the successful delegation-resolution
--- path. The helper performs it only after its 23-byte `ef0100||address` check and
--- successful same-block resolution.
+-- The tail contains exactly two producer reads: its original target after the
+-- initial static check, plus the successful delegation-resolution path. The helper
+-- performs the second only after its 23-byte `ef0100||address` check and successful
+-- same-block resolution.
 #guard
   (guardedCallTail.splitOn
-    "  jal ra, account_read_record\n").length = 2
+    "  jal ra, account_read_record\n").length = 3
 
 end EvmAsm.Codegen
