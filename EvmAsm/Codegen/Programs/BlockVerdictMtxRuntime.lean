@@ -225,9 +225,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  -- Execution CodeState is block-lived in the sequential lane.  The callable
-  -- dispatcher resets only its pending overlay; durable state and retained
-  -- comparator bytes survive until this loop finishes.
+  -- Execution CodeState is block-lived in the sequential lane. The callable
+  -- dispatcher resets transaction-local pending overlays, including
+  -- `account_state_pending_count`; it does not preserve that AccountState
+  -- journal across dispatches. This reset is the live durability boundary in
+  -- GH #10876: sender effects needed after dispatch must be materialized in
+  -- durable state rather than left in the pending journal. Durable state and
+  -- retained comparator bytes survive until this loop finishes.
   -- CodeState is the sole execution code/existence model for every block,
   -- including the one-transaction case.  The immutable witness is consulted
   -- only after its pending and durable overlays miss.
