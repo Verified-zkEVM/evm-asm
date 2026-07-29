@@ -246,6 +246,42 @@ def eip7708SyntheticLogFunctions : String :=
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
+  -- GH #10914: THE SENDER'S VALUE DEBIT, RELOCATED HERE FROM POST-EXECUTION.
+  -- `vm/interpreter.py:385` (`move_ether`) moves the value at message entry, BEFORE the
+  -- recipient's code runs, so a contract calling `BALANCE`/`SELFBALANCE` mid-execution must
+  -- observe the POST-transfer sender balance.
+  --
+  -- WHY IT MOVED.  GH #10908 removed `tx.value` from the staged upfront debit -- correct for
+  -- what `process_transaction` (`fork.py:1105-1108`) CHARGES -- and recorded the sender's half
+  -- of the transfer post-execution instead.  That left the MID-EXECUTION balance HIGH BY THE
+  -- VALUE, which is EVM-observable.  MEASURED against the spec's own declared BAL on the
+  -- `blob_gas_subtraction_tx … 100_wei_mid_execution` family: slot `0x01` of `db6f2c51…`
+  -- should become 100; #10908 produced 101, high by exactly `tx.value`, plus an undeclared
+  -- storage change.  It then propagated into gas -- the changed stored value flips EIP-2200
+  -- net metering to charge `STORAGE_SET` (`h_SSTORE+0x534`), doubling the state-gas total and
+  -- tripping `fail_code` 62.
+  --
+  -- WHY THIS SITE.  This routine is the guest's `move_ether` analogue: it already publishes the
+  -- recipient's credit three lines below, and it runs during dispatcher setup, BEFORE the
+  -- recipient's code executes -- which is what the post-execution placement could not offer.
+  -- It also runs AFTER the sender's upfront record above, so it is not clobbered by it
+  -- (MEASURED: a debit recorded at the transfer site is wiped when that record re-asserts the
+  -- undebited staged balance).
+  --
+  -- RELOCATED, NOT ADDED: there is exactly one value debit, here.  The post-execution record
+  -- this replaces has been removed rather than left alongside.
+  --
+  -- Guarded on the recipient-credit flag, which is set only by a staged transfer and is still
+  -- live at this point (the block below consumes and clears it).  `tx.value` is recovered as
+  -- `recipient_post - recipient_pre`, since the credit staged `post = pre + value`.
+  "  la t0, bv_pending_recipient_credit_flag; ld t0, 0(t0); beqz t0, .Ldpub_recipient\n" ++
+  "  la a0, bv_pending_recipient_post; la a1, bv_pending_recipient_pre; la a2, bv_xfer_sender_val; jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Ldpub_recipient\n" ++
+  "  la a0, bv_pending_upfront_sender_post; la a1, bv_xfer_sender_val; la a2, bv_xfer_sender_bal; jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Ldpub_recipient\n" ++
+  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
+  "  la a0, bv_pending_upfront_sender_addr; la a1, bv_pending_upfront_sender_post; la a2, bv_xfer_sender_bal\n" ++
+  "  jal ra, record_nonstorage_effect\n" ++
   ".Ldpub_recipient:\n" ++
   "  la t0, bv_pending_recipient_credit_flag; ld t0, 0(t0); beqz t0, .Ldpub_done\n" ++
   "  la a0, bv_pending_recipient_addr\n" ++
@@ -302,6 +338,10 @@ def eip7708SyntheticLogTopicData : String :=
   -- missing half of `move_ether`.  A separate cell because `u256_sub_be` clobbers its
   -- destination before returning the borrow, so subtracting into the staged balance
   -- would corrupt it on the borrow path that must leave it untouched.
+  -- GH #10914: `_val` holds `tx.value`, recovered as `recipient_post - recipient_pre`; `_bal`
+  -- holds the debited sender balance.  Two cells because `u256_sub_be` clobbers its destination
+  -- before returning the borrow, so neither subtraction may run in place.
+  "bv_xfer_sender_val:\n  .zero 32\n" ++
   "bv_xfer_sender_bal:\n  .zero 32\n"
 
 def eip7708SyntheticLogDataSection : String :=
