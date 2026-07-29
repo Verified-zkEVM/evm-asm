@@ -100,6 +100,10 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_2935; li a1, 20\n" ++
   "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
   "  la a5, bsr_sys_acct\n" ++
+  -- `process_unchecked_system_transaction` obtains the target account even when
+  -- it is absent or has empty code.  Mirror that unconditional `get_account`
+  -- in the BAL read set before deciding whether the modeled EIP-2935 call writes.
+  "  jal ra, account_read_record\n" ++
   "  jal ra, account_at_address\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_2935_absent\n" ++
   "  bnez a0, .Lbsr_cons_sys2935\n" ++
@@ -114,6 +118,10 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_4788; li a1, 20\n" ++
   "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
   "  la a5, bsr_sys_acct\n" ++
+  -- The EIP-4788 branch has the same unchecked-system contract read.  It is
+  -- recorded even for `bal_4788_absent_contract`: the spec reads the absent
+  -- account, observes no code, and emits a touched-only account entry.
+  "  jal ra, account_read_record\n" ++
   "  jal ra, account_at_address\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_4788_absent\n" ++
   "  bnez a0, .Lbsr_cons_sys4788\n" ++
@@ -126,6 +134,10 @@ def blockStateRootFunction : String :=
   "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
   "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
   ".Lbsr_4788_gated:\n" ++
+  -- The two startup calls each have their own transaction read set in the
+  -- spec.  They precede user transactions, so merge-and-clear their reads here
+  -- before the BAL builder consumes the block-level container.
+  "  jal ra, read_sets_incorporate_tx\n" ++
   -- Live across the BAI-0 tuple/builder helper and modeled-system changes:
   -- s3 = withdrawal descriptors, s4 = descriptor count, s5 = output root,
   -- s1 = state-change counter after its initialization below.  The helper's
