@@ -33,6 +33,9 @@ def guestLayout : GuestLayout :=
     bav_hash := GuestAddrs.bav_hash
     bloom_add_value := GuestAddrs.bloom_add_value
     u256m_acc := GuestAddrs.u256m_acc
-    u256_mul_u64_be := GuestAddrs.u256_mul_u64_be }
+    u256_mul_u64_be := GuestAddrs.u256_mul_u64_be
+    priority_fee_per_gas_eip1559 := GuestAddrs.priority_fee_per_gas_eip1559
+    u256_sub_be := GuestAddrs.u256_sub_be
+    u256_min := GuestAddrs.u256_min }
 
 end EvmAsm.Codegen
