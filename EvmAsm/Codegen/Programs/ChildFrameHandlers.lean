@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.PrecompileRuntime
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.ChildFrameHandlerTails
+import EvmAsm.Codegen.Programs.ChildFrameHandlerTailsGuards
 import EvmAsm.Codegen.Programs.ChildFrameCreateTail
 
 namespace EvmAsm.Codegen

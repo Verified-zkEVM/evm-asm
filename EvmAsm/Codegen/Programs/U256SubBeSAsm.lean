@@ -10,7 +10,8 @@
   writable window, so this theorem covers the non-overlapping ownership shape.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -146,8 +147,12 @@ def u256SubBeFn (aPtr bPtr outPtr : Word)
   post := u256SubBePost aPtr bPtr outPtr aBytes bBytes orig
   body := u256SubBeBody aPtr bPtr outPtr aBytes bBytes orig
 
-#guard (u256SubBeBody 0 0 0 [] [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
-  = u256SubBe_prog
+/-- Layout-independence interlock: the body flattens to `u256SubBe_prog_of L`
+    for an ARBITRARY layout `L`, so the body cannot reference the layout.
+    (`rfl` closes it; a future layout reference would make it fail.) -/
+theorem u256SubBeBody_flatten (L : GuestLayout) :
+    (u256SubBeBody 0 0 0 [] [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = u256SubBe_prog_of L := rfl
 
 #guard (u256SubBeBody 0 0 0 [] [] []).flatten 0 =
   (u256SubBeBody 0 0 0 [] [] []).flatten 0x80000000
