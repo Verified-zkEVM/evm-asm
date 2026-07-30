@@ -505,13 +505,6 @@ def callFrameDescendFunction : String :=
   -- exactly like storage/log cursors above; otherwise the block-verdict reverse
   -- BAL covers checks see stale created-account effects and false-reject valid
   -- reverted-create blocks.
-  -- drj99.1 (failed-inner rollback): the CALL value-transfer non-storage effects (caller-debit +
-  -- callee-credit) are appended by callDescendFallThrough BEFORE this descent, so the LIVE count
-  -- here is already PAST them. On a child OOG/REVERT the spec discards the value transfer, so those
-  -- records must be rolled back too -- snapshot the PRE-recording count (cd_nse_presnap_*) the CALL
-  -- path armed, not the live count. CREATE / other descenders leave cd_nse_presnap_armed=0 and use
-  -- the live count (their effects are recorded inside the child, after this snapshot). Consume the
-  -- one-shot flag so a later non-arming descent does not reuse a stale pre-snap.
   -- Canonical body snapshot for this child at record `evm_call_depth`.
   -- Record width is 13 * 8 = 104 bytes: d*104 = d*64 + d*32 + d*8.
   -- Slot +88 (`account_state_overflow`) is root-only: no child restore existed
@@ -519,16 +512,8 @@ def callFrameDescendFunction : String :=
   -- deliberate rather than an omitted shared restore.
   "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
   bodyStateCaptureCursorsAsm "  " "s3" "t1" "t0" ++
-  "  la t4, cd_nse_presnap_armed; ld t2, 0(t4)\n" ++
-  "  beqz t2, .Lcfd_nse_live\n" ++
-  "  sd x0, 0(t4)                              # consume the one-shot armed flag\n" ++
-  "  la t4, cd_nse_presnap_count; ld t0, 0(t4); sd t0, 0(t1)\n" ++
-  "  la t4, cd_nse_presnap_overflow; ld t0, 0(t4); sd t0, 8(t1)\n" ++
-  "  j .Lcfd_nse_snap_done\n" ++
-  ".Lcfd_nse_live:\n" ++
   "  la t4, exec_nonstorage_effect_count; ld t0, 0(t4); sd t0, 0(t1)  # nonstorage effect count snapshot\n" ++
   "  la t4, exec_nonstorage_effect_overflow; ld t0, 0(t4); sd t0, 8(t1)  # nonstorage overflow snapshot\n" ++
-  ".Lcfd_nse_snap_done:\n" ++
   -- Every child frame owns a journal high-water mark captured at ITS entry.
   -- In particular, a CREATE's creator-nonce advance is already committed before
   -- its child descends, so a child REVERT must retain that parent mutation and

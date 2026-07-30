@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -246,7 +247,7 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_loop\n" ++
   ".Lascp_clear:\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateCreatedCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_delete_loop:\n" ++
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
   -- EIP-161 preserves an empty account whose final balance is nonzero.  The
@@ -848,7 +849,7 @@ def createRecordCodeEffectFunction : String :=
   ".Lcrce_account_created_ok:\n" ++
   -- A successful later CREATE at the same address is the latest transaction
   -- state and cancels an earlier same-transaction EIP-6780 delete request.
-  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
+  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
   -- Balance remains absent here: value flow owns its own nonstorage record.
   --
