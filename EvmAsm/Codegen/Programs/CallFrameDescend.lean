@@ -510,7 +510,7 @@ def callFrameDescendFunction : String :=
   -- Slot +88 (`account_state_overflow`) is root-only: no child restore existed
   -- before this representation migration, so retaining that child behavior is
   -- deliberate rather than an omitted shared restore.
-  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
+  "  la t1, body_state_snapshot_by_depth; " ++ bodyStateSlabStrideOps "s8" "t2" "t3" ++ "; add t1, t1, t2\n" ++
   bodyStateCaptureCursorsAsm "  " "s3" "t1" "t0" ++
   "  la t4, exec_nonstorage_effect_count; ld t0, 0(t4); sd t0, 0(t1)  # nonstorage effect count snapshot\n" ++
   "  la t4, exec_nonstorage_effect_overflow; ld t0, 0(t4); sd t0, 8(t1)  # nonstorage overflow snapshot\n" ++
@@ -524,7 +524,7 @@ def callFrameDescendFunction : String :=
   -- made inside the child, leaving the parent's earlier writes standing.
   "  la t1, storage_writes_undo_count; ld t0, 0(t1)\n" ++
   "  la t1, storage_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
+  "  la t1, body_state_snapshot_by_depth; " ++ bodyStateSlabStrideOps "s8" "t2" "t3" ++ "; add t1, t1, t2\n" ++
   -- Account writes have the same transaction-state rollback rule as storage
   -- writes (but unlike storage reads, which remain evidence of an access).
   bodyStateCaptureScalarAsm "account_writes_undo_count" "t1" 64 "t4" "t0" ++
