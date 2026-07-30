@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.ChildFrameHandlerTailHelpers
 
 namespace EvmAsm.Codegen
 
@@ -64,6 +65,49 @@ def callDepthLimitUnit : BuildUnit := {
   body        := NOP
   prologueAsm := callDepthLimitPrologue
   dataAsm     := callDepthLimitData
+}
+
+/-- Exercise the exact shared precompile depth-failure tail.  Unlike
+    `callDepthLimitPrologue`, which preserves the historical generic-tail
+    mirror, this probe invokes `precompileDepthGateAsm` itself and returns to
+    the dispatcher-resume label that the production tail targets. -/
+def precompileDepthLimitPrologue (labelStem : String) (target : Nat) : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, evm_call_depth; li t1, 1024; sd t1, 0(t0)\n" ++
+  "  la x12, cdl_stack\n" ++
+  "  mv s1, x12\n" ++
+  "  mv t1, x12\n  li t2, 28\n" ++
+  ".Lcdl_pre_zero_" ++ labelStem ++ ":\n" ++
+  "  sd x0, 0(t1)\n  addi t1, t1, 8\n  addi t2, t2, -1\n  bnez t2, .Lcdl_pre_zero_" ++ labelStem ++ "\n" ++
+  "  li t0, 50000\n  sd t0, 0(x12)\n" ++
+  "  li t0, " ++ toString target ++ "\n  sd t0, 32(x12)\n" ++
+  "  li x10, 0x500\n" ++
+  "  la x13, cdl_mem\n" ++
+  "  la x20, cdl_env\n" ++
+  -- At depth 1024 this takes the shared gate; its `dispatchContinueRet`
+  -- returns here, exactly as it returns to the production dispatcher resume.
+  precompileDepthGateAsm labelStem 192 ++
+  "  li t0, 0xee\n  sd t0, 8(s0)\n" ++
+  ".Ldispatch_resume:\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 0(s0)\n" ++
+  "  ld t1, 0(x12); sd t1, 8(s0)\n" ++
+  "  sub t1, x12, s1; sd t1, 16(s0)\n" ++
+  "  sd x10, 24(s0)\n"
+
+/-- Ordinary supported-precompile placement: target 0x01 (ECRECOVER). -/
+def callDepthPrecompileLimitUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := precompileDepthLimitPrologue "cdl_precompile" 1
+  dataAsm     := callDepthLimitData ++ ".balign 8\nevm_precompile_frame:\n  .zero 16\n"
+}
+
+/-- EIP-4788 placement: target is the beacon-roots system contract's low word.
+    The shared gate runs before its current/stale split. -/
+def callDepthEip4788LimitUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm := precompileDepthLimitPrologue "cdl_eip4788" 0x0000000000004788
+  dataAsm     := callDepthLimitData ++ ".balign 8\nevm_precompile_frame:\n  .zero 16\n"
 }
 
 end EvmAsm.Codegen

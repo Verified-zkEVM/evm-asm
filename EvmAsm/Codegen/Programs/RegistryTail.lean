@@ -77,6 +77,8 @@ import EvmAsm.Codegen.Programs.SparseEpochProbe
 namespace EvmAsm.Codegen
 
 def lookupProgramTail : String → Option BuildUnit
+  | "zisk_call_depth_precompile_limit" => some callDepthPrecompileLimitUnit
+  | "zisk_call_depth_eip4788_limit" => some callDepthEip4788LimitUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
   | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
