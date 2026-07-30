@@ -29,7 +29,6 @@ import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs
-import EvmAsm.Codegen.Proofs.JumpdestBitmap
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec

@@ -227,34 +227,56 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
   "  ret\n" ++
-  -- EIP-4844 blob-fee subtraction tests require BALANCE(ORIGIN) during recipient
-  -- execution to observe the sender after the upfront gas/blob/value debit but
-  -- before the post-execution gas refund. The dispatcher setup resets per-call
-  -- runtime state, so the full dispatcher stages this one-shot record and the
-  -- setup emits it after those resets.  The MTx EOA shortcut instead crosses
-  -- the callable dispatch reset, so it publishes its upfront debit directly
-  -- to the durable AccountState overlay. Preserves every caller register: setup still
-  -- has a live input cursor in t0/t1/t2 and env in x20.
-  "dispatcher_seed_pending_upfront_balance:\n" ++
+  -- `process_message` debits the sender before its body snapshot, but credits
+  -- the recipient after it.  Keep the two one-shot producers separate: putting
+  -- them behind one helper makes one of those ordering constraints impossible.
+  -- Both helpers preserve every caller register because dispatcher setup has a
+  -- live input cursor in t0/t1/t2 and env in x20.
+  "dispatcher_seed_pending_upfront_sender_balance:\n" ++
   "  addi sp, sp, -144\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
   "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
   "  sd x20, 128(sp)\n" ++
-  "  la t0, bv_pending_upfront_balance_flag; ld t0, 0(t0); beqz t0, .Ldpub_recipient\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; ld t0, 0(t0); beqz t0, .Ldpub_sender_done\n" ++
   "  la a0, bv_pending_upfront_sender_addr\n" ++
   "  la a1, bv_pending_upfront_sender_pre\n" ++
   "  la a2, bv_pending_upfront_sender_post\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
-  ".Ldpub_recipient:\n" ++
-  "  la t0, bv_pending_recipient_credit_flag; ld t0, 0(t0); beqz t0, .Ldpub_done\n" ++
-  "  la a0, bv_pending_recipient_addr\n" ++
-  "  la a1, bv_pending_recipient_pre\n" ++
-  "  la a2, bv_pending_recipient_post\n" ++
-  "  la t0, bv_pending_recipient_nonce; ld a3, 0(t0); mv a4, a3\n" ++
-  "  jal ra, record_nonstorage_effect\n" ++
+  ".Ldpub_sender_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld t0, 8(sp); ld t1, 16(sp); ld t2, 24(sp); ld t3, 32(sp); ld t4, 40(sp); ld t5, 48(sp); ld t6, 56(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
+  "  ld x20, 128(sp)\n" ++
+  "  addi sp, sp, 144\n" ++
+  "  ret\n" ++
+  -- This is the top-level CALL site of `move_ether`: both records are after
+  -- the body mark, so body failure removes both together.  The generic
+  -- producer receives the site-resolved balances below; it must not choose an
+  -- overlay itself.  Top-level CREATE deliberately remains outside this helper
+  -- pending #10944's authenticated created-address pre-balance lookup.
+  "dispatcher_seed_pending_value_transfer:\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
+  "  sd x20, 128(sp)\n" ++
+  -- The sender gas debit was materialised before the mark.  Read that live
+  -- balance and pass it, together with the already-resolved recipient balance,
+  -- to the shared move_ether producer.  Do not use recipient_credit_flag as a
+  -- gate: it was a non-self log/credit staging flag, while `move_ether` also
+  -- executes for self-transfers.
+  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
+  "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; bnez a0, .Ldpub_done\n" ++
+  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0)\n" ++
+  "  la a1, bv_pending_recipient_addr\n" ++
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi a2, t0, 96\n" ++
+  "  li a3, 1\n" ++
+  "  la a4, bv_pending_value_sender_pre\n" ++
+  "  la a5, bv_pending_recipient_pre\n" ++
+  "  jal ra, record_message_value_transfer\n" ++
   "  la t0, bv_pending_recipient_credit_flag; sd x0, 0(t0)\n" ++
   ".Ldpub_done:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -263,6 +285,57 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
   "  ret\n"
+
+/-- Frame-generic `move_ether` recorder.
+
+    The caller supplies the two authenticated/live pre-balances because the guest
+    has several state overlays whose authoritative value is site-specific.  This
+    helper intentionally performs no state lookup:
+
+      a0 sender address (20-byte BE), a1 recipient address (20-byte BE),
+      a2 value (32-byte BE), a3 should_transfer_value,
+      a4 sender pre-balance (32-byte BE), a5 recipient pre-balance (32-byte BE).
+
+    It is structurally faithful to `process_message`: a self-transfer still
+    materialises the two balance effects; only the separate transfer-log path
+    suppresses self transfers. -/
+def messageValueTransferFunction : String :=
+  "record_message_value_transfer:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5\n" ++
+  "  beqz s3, .Lrmvt_done\n" ++
+  "  ld t0, 0(s2); ld t1, 8(s2); or t0, t0, t1; ld t1, 16(s2); or t0, t0, t1; ld t1, 24(s2); or t0, t0, t1; beqz t0, .Lrmvt_done\n" ++
+  "  mv a0, s4; mv a1, s2; la a2, message_value_transfer_sender_post; jal ra, u256_sub_be; bnez a0, .Lrmvt_done\n" ++
+  -- `move_ether` performs its credit after its debit.  For a self-transfer the
+  -- recipient's live pre-balance is consequently the debit post-balance, not
+  -- the caller-provided pre-balance; preserving that order keeps the paired
+  -- raw records net-zero under the effect-log collapse.
+  "  mv t0, s0; mv t1, s1; li t2, 20\n" ++
+  ".Lrmvt_self_cmp:\n" ++
+  "  beqz t2, .Lrmvt_self\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lrmvt_recipient_pre\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmvt_self_cmp\n" ++
+  ".Lrmvt_self:\n" ++
+  "  la s5, message_value_transfer_sender_post\n" ++
+  ".Lrmvt_recipient_pre:\n" ++
+  "  mv a0, s5; mv a1, s2; la a2, message_value_transfer_recipient_post; jal ra, u256_add_be; bnez a0, .Lrmvt_done\n" ++
+  -- Equal nonce inputs make `record_nonstorage_effect` derive an honest
+  -- balance-only AccountWrite mask rather than asserting a nonce component.
+  "  mv a0, s0; mv a1, s4; la a2, message_value_transfer_sender_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
+  "  mv a0, s1; mv a1, s5; la a2, message_value_transfer_recipient_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
+  ".Lrmvt_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64\n" ++
+  "  ret"
+
+/-- Runtime scratch for `record_message_value_transfer`; kept in NOBITS so it
+    cannot move `.data` address-pinned proof anchors. -/
+def messageValueTransferScratchData : String :=
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 32\n" ++
+  "message_value_transfer_sender_pre:\n  .zero 32\n" ++
+  "message_value_transfer_sender_post:\n  .zero 32\n" ++
+  "message_value_transfer_recipient_post:\n  .zero 32\n"
 
 def eip7708SyntheticLogTopicData : String :=
   ".balign 8\n" ++
@@ -287,7 +360,9 @@ def eip7708SyntheticLogTopicData : String :=
   -- bmvmx.5.5.2.2.ln9ly: 1 = a single-tx contract-path top-level transfer log is staged for the
   -- next dispatch to re-emit post-reset (see dispatcher_reemit_pending_tl). Cleared by the dispatcher.
   "bv_pending_tl_flag:\n  .zero 8\n" ++
-  -- One-shot sender upfront-balance and recipient-credit seeds, consumed by dispatcher_seed_pending_upfront_balance.
+  -- One-shot sender upfront-balance and recipient-credit seeds.  The dispatcher
+  -- consumes them through separate gas-before-snapshot and value-after-snapshot
+  -- helpers so a revert cannot split the value transfer across the rollback.
   "bv_pending_upfront_balance_flag:\n  .zero 8\n" ++
   "bv_pending_upfront_sender_nonce:\n  .zero 8\n" ++
   "bv_pending_recipient_credit_flag:\n  .zero 8\n" ++
@@ -299,12 +374,12 @@ def eip7708SyntheticLogTopicData : String :=
   "bv_pending_recipient_addr:\n  .zero 32\n" ++
   "bv_pending_recipient_pre:\n  .zero 32\n" ++
   "bv_pending_recipient_post:\n  .zero 32\n" ++
-  -- GH #10892: the sender's post-transfer balance (`staged_balance - tx.value`), the
-  -- `post` operand of the transfer-site `record_nonstorage_effect` that supplies the
-  -- missing half of `move_ether`.  A separate cell because `u256_sub_be` clobbers its
-  -- destination before returning the borrow, so subtracting into the staged balance
-  -- would corrupt it on the borrow path that must leave it untouched.
-  "bv_xfer_sender_bal:\n  .zero 32\n"
+  -- Sender operands for the post-mark half of top-level move_ether.  Kept
+  -- separate from the gas-debit tuple because the former must be restored on
+  -- a failed body while the latter must survive it.
+  "bv_pending_value_sender_pre:\n  .zero 32\n" ++
+  "bv_pending_value_sender_post:\n  .zero 32\n" ++
+  "\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++

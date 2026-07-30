@@ -17,7 +17,7 @@ import EvmAsm.Codegen.Programs.AccountWriteMap
 namespace EvmAsm.Codegen
 
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
-    The tuple is consumed by `dispatcher_seed_pending_upfront_balance`; it is
+    The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
     deliberately not a B2.3 reconstruction.  `account_state_latest_balance`
     supplies the prior transaction's durable balance when present, otherwise
     the already-authenticated header lookup supplies the first transaction's
@@ -501,20 +501,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   "  la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_tl7708_skip:\n" ++
-  -- bbow4.8: snapshot per-tx exec effect logs before the multi-tx runtime
-  -- dispatch. A top-level tx that reverts/aborts discards its value-transfer /
-  -- CREATE effects; child frames roll themselves back via frame_return, but the
-  -- depth-0 tx exit path needs the same truncation as the single-tx path.
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
-  -- Use the account-write undo cursor as the authoritative body rollback mark.
-  -- It is taken after pre-body effects and before runtime dispatch, exactly like
-  -- the nonstorage/code snapshots above; status-zero restores to this mark.
-  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
+  -- The shared dispatcher owns the complete post-preparation body checkpoint.
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_mtx_sender_addr; sd t1, 0(t0); la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
@@ -560,78 +547,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
-  "  bnez a4, .Lbv_mtx_effects_kept\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  -- OOG/exceptional depth-0 exits do not pass through frame_return's REVERT
-  -- truncation. Restore the persistent SSTORE log to the exact pre-dispatch
-  -- count before publishing committed storage for the next transaction.
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   ".Lbv_mtx_effects_kept:\n" ++
-  -- GH #10892: THE SENDER'S HALF OF `move_ether`, RECORDED HERE AND NOWHERE EARLIER.
-  -- `state_tracker.py:646` moves both sides; the guest recorded only the credit and folded
-  -- the sender's side into the pre-execution debit, which `process_transaction`
-  -- (`fork.py:1105-1108`) charges as `effective_gas_fee + blob_gas_fee` and nothing else.
-  -- `vm/interpreter.py:385` moves the value separately, on the transfer, only when it
-  -- happens.
-  --
-  -- WHY THIS POINT AND NOT ONE OF THE NINE TRIED BEFORE IT.  Three conditions have to hold
-  -- at once and only here do they:
-  --   * AFTER `dispatcher_seed_pending_upfront_balance`.  MEASURED on 23725: a debit
-  --     recorded at the transfer site (commit 11,918,820) is WIPED by that publisher at
-  --     12,242,835, which re-asserts the undebited staged balance; the refund record then
-  --     re-reads the clobbered value and, since the aggregate keeps first-pre / LAST-post
-  --     (`BlockVerdictMtxTail:279-283`), it wins.
-  --   * PAST the `bv_tx_effect_snap_ns_count` restore above.  MEASURED on 00225: the
-  --     publisher IS inside that window and IS truncated -- count 3 -> 0 at commit
-  --     3,100,170 -- so anything recorded before the restore disappears on a revert.
-  --   * BEFORE the sender-refund record (`blockVerdictMtxRecordSenderRefund`, called
-  --     below), whose `account_state_latest_balance` re-read therefore SEES this debit and
-  --     carries it into the final per-transaction balance.
-  --
-  -- GUARDED ON THE RECEIPT STATUS, because this label is a JOIN, not the success branch:
-  -- the failure path falls through the restore above and arrives here too.  A reverted
-  -- transaction must not be debited (`vm/interpreter.py:385` reverts the transfer), so the
-  -- status is re-read from `bv_tx_status_arr` exactly as the postlude below does.
-  --
-  -- A RECORD, NOT A BUFFER EDIT.  Two earlier attempts subtracted into
-  -- `bv_pending_upfront_sender_post` and passed 23725 while sending eight passing fixtures
-  -- back to code 60: truncation removes a RECORD, but a buffer mutation is not a record and
-  -- cannot be truncated, so a post-restore record re-published the debited balance on
-  -- transactions that had reverted.
-  --
-  -- One `record_nonstorage_effect` because it writes all three arenas that matter
-  -- (`NonstorageEffectLog:107-120`): the effect log, `account_state_record_nonstorage`
-  -- (AccountState, what the re-read consults), and `account_write_record` (the tx-local map
-  -- the BAL builder compares).  Every earlier attempt wrote exactly one of the three --
-  -- notably, account-write rows keep their flags at +112 while AccountState entries use
-  -- +88, so an account-write-only debit is invisible to the re-read.
-  --
-  -- `pre = post + value` per the `drj99.1 part 5b` precedent at
-  -- `ChildFrameHandlers:422-432`, which added this same record for the CALL *caller* against
-  -- the identical symptom.  The nonce is passed UNCHANGED IN BOTH SLOTS and is the sender's
-  -- actual nonce, never 0: the aggregate keeps first-pre / LAST-post nonce, so a trailing
-  -- record with `post_nonce = 0` would clobber it.
-  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); beqz t2, .Lbv_mtx_xfer_debit_done\n" ++
-  "  la t0, bv_mtx_ctx; ld t1, 96(t0); ld t2, 104(t0); or t1, t1, t2; ld t2, 112(t0); or t1, t1, t2; ld t2, 120(t0); or t1, t1, t2; beqz t1, .Lbv_mtx_xfer_debit_done\n" ++
-  -- The transfer follows the recipient credit in `move_ether`; use the
-  -- transaction-current AccountState value when that credit has been recorded.
-  -- Non-self transfers have no sender entry yet and retain the staged upfront
-  -- post as their fallback.
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
-  "  bnez a0, .Lbv_mtx_xfer_debit_have_pre\n" ++
-  "  la t0, bv_pending_upfront_sender_post; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  ".Lbv_mtx_xfer_debit_have_pre:\n" ++
-  "  la a0, bv_pending_upfront_sender_pre; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_xfer_sender_bal; jal ra, u256_sub_be\n" ++
-  "  bnez a0, .Lbv_mtx_xfer_debit_done\n" ++
-  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_xfer_sender_bal\n" ++
-  "  jal ra, record_nonstorage_effect\n" ++
-  ".Lbv_mtx_xfer_debit_done:\n" ++
+  -- `move_ether` is now the shared dispatcher's one post-body-mark producer:
+  -- it records sender debit and recipient credit together, with rollback rather
+  -- than this former receipt-status guard deciding failed-body behaviour.
   -- Contract/EOA contexts retain their raw recipient here; the creation route
   -- above has re-keyed ctx+72 to bv_create_addr before joining this postlude.
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 5; la t2, bv_mtx_effective_recipient_table; add t2, t2, t1; la t0, bv_mtx_ctx; addi t0, t0, 72; li t3, 20\n" ++
@@ -810,6 +729,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- caller contract needs a real CREATE frame first: sender/public-key and
   -- nonce have already been established by the common mtx prelude above.
   "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
+  -- `sttc_nonce` is this transaction's pre-inclusion nonce, exactly the
+  -- CREATE input. Do not copy the spec's explicit minus-one: it compensates
+  -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
   -- A durable CodeState entry is a prior-tx live account and collides; a
@@ -846,14 +768,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1; la t1, bsg_access_len; ld a1, 0(t1); la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count; jal ra, access_list_count; bnez a0, .Lbv_mtx_creation_unsupported\n" ++
   "  la t0, bv_mtx_ctx; ld t0, 176(t0); la t1, bsg_access_off; ld t1, 0(t1); add t2, t0, t1; la t0, runtime_tx_access_list_ptr; sd t2, 0(t0); la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0); la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_creation_access_done:\n" ++
-  -- Match the normal mtx dispatch transaction boundary: effects and storage
-  -- begin with a rollback checkpoint, and the dispatcher sees the block-pre
-  -- header while resolving nested accounts.
+  -- The shared processor owns the post-preparation body checkpoint; creation
+  -- keeps only its routing/header setup here.
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0); li t0, 1; la t1, dtrc_use_pre_header; sd t0, 0(t1)\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0); la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0); la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0); la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
-  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
   "  la t0, bv_creation_output_mode; li t1, 1; sd t1, 0(t0); la t0, bv_mtx_i; ld t1, 0(t0); la t0, bv_creation_output_index; sd t1, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  la t0, bv_creation_output_mode; sd zero, 0(t0); la t0, dtrc_use_pre_header; sd zero, 0(t0)\n" ++
@@ -865,19 +782,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_creation_key_copy:\n  beqz t2, .Lbv_mtx_creation_post; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_key_copy\n" ++
   ".Lbv_mtx_creation_post:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3; la t3, bv_tx_status_arr; add t3, t3, t0; ld a4, 0(t3)\n" ++
-  "  bnez a4, .Lbv_mtx_effects_kept\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame; j .Lbv_mtx_effects_kept\n" ++
+  -- The shared creation runner has populated this transaction's indexed
+  -- gas/status/log result.  Rejoin the same finalization path as a completed
+  -- CALL: it consumes those indexed results, incorporates the transaction, and
+  -- advances `bv_mtx_i` before the block-level receipt materializer runs.
+  "  j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_mtx_creation_unsupported:\n" ++
-  -- A creation transaction is not yet dispatched by this loop, but every
-  -- preceding transaction has an exact settled runtime result in the strided
-  -- arrays.  Do not discard that information: execution-specs checks the next
-  -- transaction's declared regular reservation against the regular gas already
-  -- consumed by the settled prefix.  This catches an invalid transaction after
-  -- an otherwise supported prefix without guessing the creation transaction's
-  -- execution result.  Any parse/result failure remains the conservative bail.
+  -- A failed/unsupported creation leaves only the preceding exact prefix in
+  -- the strided arrays.  Preserve that prefix for the remaining gas check;
+  -- successful creations rejoin `.Lbv_mtx_effects_kept` above instead.
   "  la t0, bv_mtx_i; ld a5, 0(t0); beqz a5, .Lbv_mtx_creation_prefix_done\n" ++
   "  la t0, bv_exec_p; ld a0, 0(t0); la a1, bvgr_tx_gas_limits; li a2, " ++ toString bvMtxFullTxCap ++ "; jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++

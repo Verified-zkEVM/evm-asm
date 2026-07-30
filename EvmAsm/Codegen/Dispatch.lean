@@ -109,127 +109,6 @@ def runtimeMemoryBytes : Nat := 0x400000
     its dedicated fixed RegionMap arena. -/
 def runtimeMemoryLayoutPadBytes : Nat := 0x50000
 
-/-- Maximum bytecode length (in bytes) covered by the precomputed
-    valid-JUMPDEST bitmap. Must be ≥ the target fork's largest
-    executable-code size (`MAX_INIT_CODE_SIZE` — initcode executes).
-
-    Set to `0x20000 = 131,072`, the `MAX_INIT_CODE_SIZE` of the *live*
-    EIP-7954 draft (https://eips.ethereum.org/EIPS/eip-7954, which
-    doubles `MAX_CODE_SIZE` to `0x10000`). Fork context:
-    - Spurious Dragon..Osaka: code 24,576 (EIP-170), initcode 49,152
-      (EIP-3860).
-    - Vendored-specs Amsterdam (this repo's conformance target) pins an
-      earlier EIP-7954 revision: `MAX_CODE_SIZE = 0x8000`,
-      `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`
-      (`execution-specs/src/ethereum/forks/amsterdam/vm/interpreter.py`).
-    So this constant carries 2× headroom over the vendored target and
-    already covers a future specs sync to the current draft. The 16 KiB
-    bitmap costs nothing per jump — capacity only sizes the loader-zeroed
-    region and bounds the prologue's build scan (which still stops at the
-    actual `codeSize`). The root `evm_memory` arena also has 320 KiB capacity for large
-    runtime memory ranges; initcode staging remains separately capped by
-    protocol limits.
-
-    The prologue clamps its bitmap-build scan to this many code bytes
-    and the JUMP/JUMPI validity tail rejects any destination at or
-    beyond it, so oversized (non-protocol) test bytecode stays
-    memory-safe. -/
-def jumpdestBitmapCodeCapacity : Nat := 131072
-
-/-- Byte size of the valid-JUMPDEST bitmap region (1 bit per code byte). -/
-def jumpdestBitmapBytes : Nat := jumpdestBitmapCodeCapacity / 8
-
-/-- `.data` region for the valid-JUMPDEST bitmap. Loader-zeroed; the
-    dispatcher prologue sets one bit per JUMPDEST byte outside PUSH data. -/
-def emitJumpdestBitmapData : String :=
-  ".balign 8\n" ++
-  "evm_jumpdest_bitmap:\n" ++
-  s!"  .zero {jumpdestBitmapBytes}\n"
-
-/-- Prologue fragment that precomputes the valid-JUMPDEST bitmap
-    (M15.6). One pushdata-aware pass over the bytecode: for each opcode
-    byte equal to `0x5b` (JUMPDEST), set bit `idx` of
-    `evm_jumpdest_bitmap`; PUSH1..PUSH32 (`0x60..0x7f`) skip their 1..32
-    immediate bytes so a literal `0x5b` inside PUSH data gets no bit.
-    This mirrors execution-specs `get_valid_jump_destinations`, computed
-    once per execution instead of per jump — the JUMP/JUMPI validity
-    tail (`jumpBitmapCheckAsm`) is then an O(1) bit test rather than the
-    former O(dest) scan.
-
-    Runs after both prologues have seeded `x21` (code base) and
-    `env.codeSize` (env+496); emitted immediately before
-    `.dispatch_loop:`. The scan is clamped to
-    `jumpdestBitmapCodeCapacity` code bytes. Clobbers only the
-    per-iteration scratch registers `x5`–`x9`/`x11` (the dispatch loop
-    re-derives `x5`–`x7` every iteration; `x8`/`x9`/`x11` carry no
-    dispatcher state). The bitmap region is loader-zeroed, so no
-    explicit clear pass is needed. -/
-def emitJumpdestBitmapBuild : String :=
-  "  mv x5, x21\n" ++                       -- x5 = scan ptr (code base)
-  "  ld x6, 496(x20)\n" ++                  -- x6 = env.codeSize
-  s!"  li x7, {jumpdestBitmapCodeCapacity}\n" ++
-  "  bleu x6, x7, .jdbm_len_ok\n" ++        -- clamp scan to bitmap capacity
-  "  mv x6, x7\n" ++
-  ".jdbm_len_ok:\n" ++
-  "  add x6, x5, x6\n" ++                   -- x6 = end-of-scan ptr
-  "  la x7, evm_jumpdest_bitmap\n" ++
-  ".jdbm_scan:\n" ++
-  "  bgeu x5, x6, .jdbm_done\n" ++
-  "  lbu x8, 0(x5)\n" ++                    -- x8 = code byte
-  "  li x9, 0x5b\n" ++
-  "  bne x8, x9, .jdbm_not_jumpdest\n" ++
-  "  sub x8, x5, x21\n" ++                  -- x8 = byte index of this JUMPDEST
-  "  andi x9, x8, 7\n" ++                   -- x9 = bit position
-  "  srli x8, x8, 3\n" ++
-  "  add x8, x7, x8\n" ++                   -- x8 = &bitmap[idx >> 3]
-  "  li x11, 1\n" ++
-  "  sll x11, x11, x9\n" ++                 -- x11 = bit mask
-  "  lbu x9, 0(x8)\n" ++
-  "  or x9, x9, x11\n" ++
-  "  sb x9, 0(x8)\n" ++                     -- bitmap[idx >> 3] |= 1 << (idx & 7)
-  "  addi x5, x5, 1\n" ++
-  "  j .jdbm_scan\n" ++
-  ".jdbm_not_jumpdest:\n" ++
-  "  li x9, 0x60\n" ++
-  "  bltu x8, x9, .jdbm_plain\n" ++         -- below PUSH1 → 1-byte opcode
-  "  li x9, 0x80\n" ++
-  "  bltu x8, x9, .jdbm_push\n" ++
-  "  li x9, 0xe6\n" ++
-  "  beq x8, x9, .jdbm_dupn_swapn\n" ++
-  "  li x9, 0xe7\n" ++
-  "  beq x8, x9, .jdbm_dupn_swapn\n" ++
-  "  li x9, 0xe8\n" ++
-  "  beq x8, x9, .jdbm_exchange\n" ++
-  "  j .jdbm_plain\n" ++
-  ".jdbm_push:\n" ++
-  "  addi x8, x8, -94\n" ++                 -- PUSHn: skip opcode + n immediates
-  "  add x5, x5, x8\n" ++                   --   (0x60 - 94 = 2 … 0x7f - 94 = 33)
-  "  j .jdbm_scan\n" ++
-  ".jdbm_dupn_swapn:\n" ++
-  "  addi x9, x5, 1\n" ++
-  "  bgeu x9, x6, .jdbm_skip_eip8024_imm\n" ++
-  "  lbu x9, 1(x5)\n" ++
-  "  li x11, 0x5b\n" ++
-  "  bltu x9, x11, .jdbm_skip_eip8024_imm\n" ++
-  "  li x11, 0x80\n" ++
-  "  bltu x9, x11, .jdbm_plain\n" ++        -- invalid immediate remains an instruction boundary
-  "  j .jdbm_skip_eip8024_imm\n" ++
-  ".jdbm_exchange:\n" ++
-  "  addi x9, x5, 1\n" ++
-  "  bgeu x9, x6, .jdbm_skip_eip8024_imm\n" ++
-  "  lbu x9, 1(x5)\n" ++
-  "  li x11, 0x52\n" ++
-  "  bltu x9, x11, .jdbm_skip_eip8024_imm\n" ++
-  "  li x11, 0x80\n" ++
-  "  bltu x9, x11, .jdbm_plain\n" ++        -- invalid immediate remains an instruction boundary
-  ".jdbm_skip_eip8024_imm:\n" ++
-  "  addi x5, x5, 2\n" ++
-  "  j .jdbm_scan\n" ++
-  ".jdbm_plain:\n" ++
-  "  addi x5, x5, 1\n" ++
-  "  j .jdbm_scan\n" ++
-  ".jdbm_done:\n"
-
 /-- Shared CALL/STATICCALL precompile-frame status word offset. -/
 def precompileFrameStatusOff : Nat := 0
 
@@ -1311,9 +1190,6 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 632(x20)\n" ++
   "  sd x0, 640(x20)\n" ++
   "  sd x0, 648(x20)\n" ++
-  -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
-  -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
-  emitJumpdestBitmapBuild ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -2393,7 +2269,6 @@ def emitDispatcherDataSection
                           -- region — see EvmSelfCallingHandlers.lean.)
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
-  emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry ++ "\n" ++
   ".balign 32\n" ++
@@ -2437,6 +2312,108 @@ def emitTxAccessListSeedLoop : String :=
     initialised — pointed at the input region instead of an
     in-`.data` label. The hex literal `0x40000010` matches
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
+private def emitTopLevelMessageD0Preparation : String :=
+  -- Cut A gathers the top-level preparation portion around `process_message`
+  -- without changing its emitted order. Cut B will guard this exact fragment
+  -- with `evm_call_depth == 0` before a later entry seam allows child frames
+  -- here. Access seeding below is caller-scoped, rather than depth-guarded in
+  -- the spec: nested messages inherit their parent's accessed-address set.
+  -- Do not move individual instructions across this boundary: state-gas and
+  -- early-exit ordering is part of the transaction semantics.
+  -- 1. authorization traversal / set_delegation callback
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
+  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
+  "  jalr ra, x9, 0; mv x9, x10\n" ++
+  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
+  "  bnez x9, .exit_outofgas\n" ++
+  ".runtime_tx_auth_exec_done:\n" ++
+  -- 2. authorization state-gas fold
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_auth_state_refund_done\n" ++
+  ".runtime_tx_auth_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  ".runtime_tx_auth_state_used_done:\n" ++
+  -- 3. prepare_dispatch's staged creation state-gas charge
+  "  la x11, runtime_tx_create_state_charge\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  mv x7, x9\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_create_state_used\n" ++
+  ".runtime_tx_create_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  la x11, evm_state_gas_spilled\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_used:\n" ++
+  "  la x11, evm_state_gas_used\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x7\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_done:\n" ++
+  -- 4. top-level-only preparation halt, then top-frame gas and context
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
+  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  ".runtime_tx_prepare_prefix_continue:\n" ++
+  ".runtime_tx_gas_done:\n" ++
+  "  sd x6, 568(x20)\n" ++
+  "  la x11, runtime_tx_top_frame_regular_gas\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  sd x6, 568(x20)\n" ++
+  ".runtime_tx_top_frame_regular_done:\n" ++
+  "  ld x6, 0(x5)\n" ++
+  "  sd x6, 584(x20)\n" ++
+  "  ld x7, 8(x5)\n" ++
+  "  sd x7, 600(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 616(x20)\n" ++
+  "  addi x5, x5, 24\n" ++
+  "  sd x5, 576(x20)\n" ++
+  "  add x5, x5, x6\n" ++
+  "  sd x5, 592(x20)\n" ++
+  "  add x5, x5, x7\n" ++
+  "  sd x5, 608(x20)\n" ++
+  -- 5. caller-scoped access seeding and the full deferred prepare_dispatch callback
+  "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  emitTxAccessListSeedLoop ++ "\n" ++
+  "  la x5, runtime_tx_post_top_frame_fn\n" ++
+  "  ld x28, 0(x5)\n" ++
+  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  ".runtime_tx_post_top_frame_done:\n" ++
+  -- 6. the depth-zero preparation marker.  The spec returns directly on a
+  -- preparation halt, so reaching the shared body is its own marker; the
+  -- guest records that distinction explicitly for the later reconciliation.
+  "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n"
+
 def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
@@ -2508,7 +2485,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- otherwise) and preserves all caller regs (x5 cursor / x20 env live here); save ra around it.
   "  addi sp, sp, -16\n  sd ra, 0(sp)\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
-  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 16\n" ++
   -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
   -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
@@ -2869,132 +2845,21 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
-  -- EIP-7702 execution seam: run the authorization traversal once, after the
-  -- state-gas reservoir exists and before its staged charge is consumed.
-  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
-  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
-  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
-  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
-  "  jalr ra, x9, 0; mv x9, x10\n" ++
-  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
-  "  bnez x9, .exit_outofgas\n" ++
-  ".runtime_tx_auth_exec_done:\n" ++
-  -- v0.6.0 (EIP-7702 rework): set_delegation CHARGES its exact
-  -- state-dependent costs at the top frame -- reservoir first, spilling
-  -- the remainder into regular gas (OOG halts the frame without
-  -- dispatching, mirroring the spec's prep rollback). The execution callback
-  -- stages the exact charge in runtime_tx_auth_state_refund (cell name kept)
-  -- immediately before this setup. Fold the charge into the per-tx intrinsic
-  -- state cell so prep charges survive body rollback without being counted as
-  -- body execution state.
-  "  la x11, runtime_tx_auth_state_refund\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
-  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
-  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
-  "  la x11, evm_state_gas_left\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
-  "  sub x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  "  j .runtime_tx_auth_state_refund_done\n" ++
-  ".runtime_tx_auth_state_spill:\n" ++
-  "  sub x9, x9, x8\n" ++
-  "  sd x0, 0(x11)\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  ".runtime_tx_auth_state_refund_done:\n" ++
-  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
-  ".runtime_tx_auth_state_used_done:\n" ++
-  -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
-  -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
-  -- reservoir first, spilling the remainder into regular gas; an unaffordable
-  -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
-  -- burned, the charge rolled back -- OOG-checked before the counters are
-  -- touched). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
-  -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
-  -- target is never charged); probes/non-creation paths leave it zero.
-  -- 0w05f.17.2: mirror charge_state_gas COMPLETELY -- the charge counts into
-  -- evm_state_gas_used (and its spill into evm_state_gas_spilled), because the
-  -- v0.6 settlement identity reports it as EXECUTED state gas
-  -- (tx_state = intrinsic + executed, fork.py:1174; spec intrinsic_state_gas
-  -- is 0 for creation). x7 carries the full staged charge across the spill
-  -- split; it is dead here and reloaded from the input header below.
-  "  la x11, runtime_tx_create_state_charge\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_create_state_done\n" ++
-  "  mv x7, x9\n" ++
-  "  la x11, evm_state_gas_left\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
-  "  sub x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  "  j .runtime_tx_create_state_used\n" ++
-  ".runtime_tx_create_state_spill:\n" ++
-  "  sub x9, x9, x8\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sd x0, 0(x11)\n" ++
-  "  sub x6, x6, x9\n" ++
-  "  la x11, evm_state_gas_spilled\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  add x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  ".runtime_tx_create_state_used:\n" ++
-  "  la x11, evm_state_gas_used\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  add x8, x8, x7\n" ++
-  "  sd x8, 0(x11)\n" ++
-  ".runtime_tx_create_state_done:\n" ++
-  -- The callable `prepare_only` entry is used only by the block verdict's
-  -- status-2 recipient path.  It must stop after the authorization/state
-  -- prefix has completed but before `prepare_dispatch` reads recipient code.
-  -- `runtime_tx_prepare_prefix_status` is deliberately tri-state: 0 is
-  -- unset, 1 means the prefix was entered (and an OOG may have exited it),
-  -- and 2 means the prefix completed.  The caller treats 2 as an unresolved
-  -- witness failure; only 1 may retain the ExceptionalHalt settlement.
-  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
-  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
-  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
-  ".runtime_tx_prepare_prefix_continue:\n" ++
-  ".runtime_tx_gas_done:\n" ++
-  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
-  -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
-  -- dispatch. Transaction-aware callers stage 3000 here when tx.to is an
-  -- EIP-7702 delegation; standalone/probe inputs leave it zero.
-  "  la x11, runtime_tx_top_frame_regular_gas\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  "  sd x6, 568(x20)\n" ++
-  ".runtime_tx_top_frame_regular_done:\n" ++
-  "  ld x6, 0(x5)\n" ++            -- x6 = header_len
-  "  sd x6, 584(x20)\n" ++
-  "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
-  "  sd x7, 600(x20)\n" ++
-  "  ld x8, 16(x5)\n" ++           -- x8 = witness_codes_len
-  "  sd x8, 616(x20)\n" ++
-  "  addi x5, x5, 24\n" ++         -- x5 = header ptr
-  "  sd x5, 576(x20)\n" ++
-  "  add x5, x5, x6\n" ++          -- x5 = witness.state ptr
-  "  sd x5, 592(x20)\n" ++
-  "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
-  "  sd x5, 608(x20)\n" ++
-  "  jal ra, runtime_access_seed_initial_accounts\n" ++
-  -- execution-specs applies the transaction access list before prepare_dispatch
-  -- tests the delegated address against accessed_addresses (interpreter.py:295-300).
-  -- This runs after the per-tx storage-warm reset above, so it establishes both
-  -- access-list account and storage warmth before the deferred callback charges.
-  emitTxAccessListSeedLoop ++ "\n" ++
-  "  la x5, runtime_tx_post_top_frame_fn\n" ++
-  "  ld x28, 0(x5)\n" ++
-  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
-  "  jalr ra, x28, 0\n" ++
-  ".runtime_tx_post_top_frame_done:\n" ++
-  -- All preparation charges, including a deferred delegated-code access, have
-  -- now passed.  Only this point commits the auth phase; callback OOG above is
-  -- still a preparation ExceptionalHalt and must roll its auths back.
-  "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n" ++
+  -- `interpreter.py:356` runs this preparation region only at depth zero.
+  -- Cut C will route child frames through this entry; until then every live
+  -- caller has depth zero, so this guard is intentionally a no-op. On the
+  -- depth-zero path x28 is redefined by the deferred preparation callback;
+  -- on the skip path it retains the depth, but the shared bootstrap has no
+  -- x28 read before dispatch begins. There is no canonical x28 contract here:
+  -- the depth-zero path already leaves either zero or that callback pointer.
+  "  la x28, evm_call_depth\n" ++
+  "  ld x28, 0(x28)\n" ++
+  "  bnez x28, .runtime_tx_top_level_message_d0_done\n" ++
+  emitTopLevelMessageD0Preparation ++
+  ".runtime_tx_top_level_message_d0_done:\n" ++
+  -- Snapshot and pending-value staging are the shared post-preparation body:
+  -- every frame needs its rollback boundary and eligible value transfer.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -3049,9 +2914,6 @@ def emitRuntimeDispatcherCallableSetup : String :=
 /-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
     runtime dispatcher and the callable wrapper. -/
 def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
-  -- M15.6: precompute the valid-JUMPDEST bitmap (one pushdata-aware
-  -- pass; JUMP/JUMPI validity checks become O(1) bit tests).
-  emitJumpdestBitmapBuild ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -3150,22 +3012,13 @@ def emitTxAuthListWarmLoop : String :=
     runtime data section and restored by the callable exit join. -/
 def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : String :=
   -- `runtime_dispatcher_prepare_only` shares the ordinary callable setup and
-  -- exits at the post-preparation seam above.  Its caller later supplies the
-  -- authenticated code pointer to `runtime_dispatcher_resume`, which enters
-  -- below that seam and therefore cannot replay EIP-7702 authorization writes.
+  -- exits at the post-preparation seam above.
   "runtime_dispatcher_prepare_only:\n" ++
   -- Mark entered before setup.  A prefix OOG takes the ordinary exceptional
   -- exit and leaves this at 1; only the explicit prefix-return writes 2.
   "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
   "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
   "  j runtime_dispatcher_call\n" ++
-  "runtime_dispatcher_resume:\n" ++
-  "  la x5, runtime_dispatcher_caller_ra; sd ra, 0(x5)\n" ++
-  "  la x5, runtime_dispatcher_caller_sp; sd sp, 0(x5)\n" ++
-  "  la x20, evm_env\n" ++
-  "  la x5, runtime_tx_resume_code_ptr; ld x21, 0(x5)\n" ++
-  "  beqz x21, runtime_dispatcher_prepare_only_return\n" ++
-  "  j .runtime_tx_post_top_frame_done\n" ++
   "runtime_dispatcher_prepare_only_return:\n" ++
   "  la x5, runtime_dispatcher_caller_sp; ld sp, 0(x5)\n" ++
   "  la x5, runtime_dispatcher_caller_ra; ld ra, 0(x5)\n" ++
@@ -3258,6 +3111,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   runtimeAccessAccountChargeFunction ++ "\n" ++
   selfdestructBalanceTransferFunction ++ "\n" ++
   eip7708SyntheticLogFunctions ++ "\n" ++
+  messageValueTransferFunction ++ "\n" ++
   -- Real BLS12-381 G1 ADD/MSM kernels (see the shared-helpers branch note).
   bls12G1PrecompileFunctions ++ "\n" ++
   -- Real BN254 ecAdd/ecMul/ecPairing kernels (0x06/0x07/0x08); see the
@@ -3671,8 +3525,6 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_prepare_prefix_status:\n" ++
   "  .zero 8\n" ++
-  "runtime_tx_resume_code_ptr:\n" ++
-  "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
   -- and standalone runtime inputs.
@@ -3890,7 +3742,6 @@ def emitRuntimeDispatcherDataSectionCore
                           -- region — see EvmSelfCallingHandlers.lean.)
   emitBls12G1MsmDiscountTable ++
   emitBls12G2MsmDiscountTable ++
-  emitJumpdestBitmapData ++
   emitGasCostTable ++ "\n" ++
   emitJumpTable registry ++ "\n" ++
   ".balign 32\n" ++

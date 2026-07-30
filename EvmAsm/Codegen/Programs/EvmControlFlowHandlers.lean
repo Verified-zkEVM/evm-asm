@@ -12,10 +12,9 @@ namespace EvmAsm.Codegen
 
 /-- Validity check shared by JUMP / taken-JUMPI: require `code[dest]`
     to be JUMPDEST in the *current frame* and reject literal `0x5b` bytes
-    embedded in PUSH data. The top-level dispatcher still builds a bitmap for
-    standalone probes, but nested CALL/STATICCALL frames can switch `x21` to
-    different code, so this checker scans from the current code base up to the
-    destination using PUSH-width skips and the current frame `env.codeSize`. -/
+    embedded in PUSH data. This checker scans from the current code base up to
+    the destination using PUSH-width skips and the current frame `env.codeSize`,
+    so it works equally for top-level and nested CALL/STATICCALL frames. -/
 private def jumpBitmapCheckAsm : String :=
   "  li x18, 0x5b\n" ++
   "  bne x17, x18, .exit_invalid\n" ++
@@ -70,13 +69,11 @@ private def jumpiValidityTail : HandlerTail :=
     registers `x14`/`x15`/`x16` are caller-saved per the existing
     convention.
 
-    **M15.5/M15.6 JUMPDEST-validity**: JUMP / taken-JUMPI test the
-    target's bit in the valid-JUMPDEST bitmap that the dispatcher
-    prologue precomputes with one pushdata-aware pass over the bytecode
-    (M15.6; formerly an O(dest) per-jump scan). Targets at or beyond
-    `env.codeSize` are rejected before the body reads `code[dest]`. A
-    literal `0x5b` inside PUSH data is rejected even though the target
-    byte equals JUMPDEST. Not-taken JUMPI still skips validation,
+    **M15.5/M15.6 JUMPDEST-validity**: JUMP / taken-JUMPI directly scan from
+    the current frame's code base to the destination with PUSH-width skips.
+    Targets at or beyond `env.codeSize` are rejected before the body reads
+    `code[dest]`. A literal `0x5b` inside PUSH data is rejected even though the
+    target byte equals JUMPDEST. Not-taken JUMPI still skips validation,
     matching execution-specs. -/
 def controlFlowHandlers : List OpcodeHandlerSpec :=
   [ { label := "h_JUMPDEST"
