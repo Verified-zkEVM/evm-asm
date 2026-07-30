@@ -405,6 +405,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
   ".Lbvcr_create_address_copy_done:\n" ++
   "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  -- `utils/message.py:56-71` derives a top-level creation target and adds it
+  -- to `accessed_addresses` before any execution.  Record the same derived
+  -- CREATE(sender, nonce) target after it exists and before the dispatcher
+  -- begins the corresponding create frame; it remains a read even when
+  -- initcode later halts or reverts.
+  "  la a0, bv_create_addr; jal ra, account_read_record\n" ++
   "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
   -- Retain only the depth-zero RETURN in a distinct EIP-170-sized fixed
   -- buffer.  Its status distinguishes STOP (0), captured RETURN (1), and an
