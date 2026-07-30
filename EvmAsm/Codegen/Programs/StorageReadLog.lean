@@ -61,6 +61,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -260,7 +261,7 @@ def storageReadRecordBlockFunction : String :=
 def accountStatePromoteDeleteReadsFunction : String :=
   "account_state_promote_delete_reads:\n" ++
   "  addi sp, sp, -224; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, 8192; bgtu s0, t0, .Laspdr_over\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Laspdr_over\n" ++
   "  la t0, evm_env; ld s2, 448(t0); li t0, 16384; bgtu s2, t0, .Laspdr_over\n" ++
   "  li s1, 0\n" ++
   ".Laspdr_delete:\n" ++
