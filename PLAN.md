@@ -4700,6 +4700,50 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     also un-rotted — stale link stubs/expectations predating this change). EEST `stReturnDataTest`
     271/271 full, `random_statetest` window A/B identical vs main. Unblocks PR #10053.
 
+- ✅ **Codegen structural measurements (2026-07-30)**:
+  - **#10963** merged at `ae998d91d` (2026-07-30): canonical body-state
+    snapshots are a 1025×13 `.bss` slab with the root at index zero, retiring
+    the legacy `bv_tx_effect_snap` globals. Measured layout delta:
+    `106600 - 104 = 0x1a000`, exactly the slab minus the retired record.
+  - **#10967** merged at `b9b68757b` (2026-07-30): the depth-1024 gate is
+    present on all six no-descent paths, including the EIP-4788 address-match
+    arm. Three tail-ABI probes agreed on `(1024, 0, 192, 0x501)`, establishing
+    a callee-kind-independent failure ABI; emitted-order traces put each gate
+    after charges the spec keeps and before the returned allotment.
+  - **#10969** merged at `1d78ef6c3` (2026-07-30): child-entry routing seam
+    plus source-level body-state snapshot-emitter factoring. Its measurement
+    was `+4` bytes and one source hunk, independently base-invariant across
+    three bases; the extraction touched no generated file.
+  - **#10972** is labelled `merge!` (measured 2026-07-30, head
+    `6470c3799`): names the delete-arena capacity at all six bounds while
+    retaining its one legitimate created-arena *layout* use. It is
+    byte-identical by measured assembler and ELF SHA-256 against clean
+    `0320615e2`, so it deliberately regenerates no layout artifact.
+  - **#10974** is labelled `merge!` (measured 2026-07-30, head
+    `b4879ad2b`): moves value-CALL BAL records after the child snapshot and
+    retires the presnapshot protocol. `.text` decreased `0x66d28 → 0x66c34`
+    (244 bytes), and the three retired cells `beabf798`, `beabf7a0`, and
+    `beabf7a8` had zero writes in the 00212 commit log. The record's static
+    descriptors are valid only in the post-descend, pre-child-dispatch window:
+    nested calls reuse that scratch.
+  - **#10938 depth-parity gate** completed 23/23 entries (2026-07-30), each
+    with either a cited consumer or a written reachability argument. This does
+    **not** mean the audit found nothing: four candidate defects were raised
+    and refuted, while the gate's own frame-obligation question found the real
+    defect #10965, now fixed. Item 4's behavioural correspondence also does
+    **not** make #10957's snapshot unification unnecessary; the gate measures
+    behaviour, whereas #10957 was structural convergence.
+
+  **Open acceptance work, measured 2026-07-30:** #10966 needs the two-axis
+  append-versus-in-place / restore-versus-undo grid retained, with
+  `accounts_to_delete` in the unsound cell; #10973 needs the one remaining
+  reachability read for an existing delete row cleared then re-flagged by a
+  reverted child; #10968 needs a placement-faithful depth-1024 production
+  precompile probe (EIP-4788 plus ordinary precompile); #10971 is being
+  landed as #10972's named-capacity replacement; and #10619 remains the
+  deferred sibling in #10973's same in-place/high-water-mark cell, requiring
+  separate read/write lifetimes rather than a truncation patch.
+
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
   dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`
