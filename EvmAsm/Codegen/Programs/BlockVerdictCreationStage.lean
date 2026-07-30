@@ -9,6 +9,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.ArenaCapacities
+import EvmAsm.Codegen.GasConstants
 
 namespace EvmAsm.Codegen
 
@@ -469,12 +470,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_deposit_validate:\n" ++
   "  la a0, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a1, 0(t0); jal ra, create_deployed_code_valid; bnez a0, .Lbvcr_deposit_exception\n" ++
   -- Hash gas = 6 * ceil32(code_len)/32, charged against the top-level frame.
-  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, 6; mul t0, t0, t1\n" ++
+  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, " ++ toString amsterdamKeccak256PerWord ++ "; mul t0, t0, t1\n" ++
   "  la t1, evm_env; ld t2, 568(t1); bltu t2, t0, .Lbvcr_ret; sub t2, t2, t0; sd t2, 568(t1)\n" ++
   -- Code-deposit state gas = 1530 * code_len.  This is the same reservoir /
   -- spill fold used by the nested CREATE RETURN tail, with the top-level env
   -- as the regular-gas source.
-  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, 1530; mul t0, t0, t1\n" ++
+  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, " ++ toString amsterdamCostPerStateByte ++ "; mul t0, t0, t1\n" ++
   "  la t1, evm_state_gas_left; ld t2, 0(t1); bgeu t2, t0, .Lbvcr_csg_res\n" ++
   "  sub t3, t0, t2; la t4, evm_env; ld t5, 568(t4); bltu t5, t3, .Lbvcr_ret\n" ++
   "  sd zero, 0(t1); sub t5, t5, t3; sd t5, 568(t4); la t1, evm_state_gas_spilled; ld t2, 0(t1); add t2, t2, t3; sd t2, 0(t1); j .Lbvcr_csg_used\n" ++

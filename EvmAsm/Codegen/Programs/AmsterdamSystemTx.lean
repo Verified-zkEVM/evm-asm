@@ -8,17 +8,23 @@
   16 storage-set writes.  The concrete system-contract children (EIP-4788,
   EIP-2935, EIP-7002, EIP-7251) should import this module instead of
   open-coding these numbers.
+
+  `COST_PER_STATE_BYTE` itself moved **down** to the import-free
+  `EvmAsm.Codegen.GasConstants` (GH #10980) so the two code-deposit sites, which need
+  the multiplier as a runtime operand rather than a folded product, can name it without
+  importing this module.  Every user of `amsterdamCostPerStateByte` still resolves it
+  through the import below.
 -/
+
+import EvmAsm.Codegen.GasConstants
 
 namespace EvmAsm.Codegen
 
 /-- execution-specs Amsterdam `SYSTEM_TRANSACTION_GAS`. -/
 def amsterdamSystemTransactionGas : Nat := 30000000
 
-/-- execution-specs Amsterdam `COST_PER_STATE_BYTE` — the v0.4.0 conformance target uses a CONSTANT 1530
-    (vm/gas.py:29). (A later eip-8037 draft scales it with the block gas limit; the v0.4.0 fixtures do NOT —
-    header.gas_used is independent of gas_limit. See memory project_v04_state_gas_constant_not_scaling.) -/
-def amsterdamCostPerStateByte : Nat := 1530
+/- `amsterdamCostPerStateByte` now lives in `EvmAsm.Codegen.GasConstants` (imported above);
+   it is unchanged at 1530 and is still referenced by name throughout this module. -/
 
 /-- `STATE_BYTES_PER_NEW_ACCOUNT` for the v0.4.0 conformance target = 120 (vm/gas.py:31). -/
 def amsterdamStateBytesPerNewAccountV2 : Nat := 120
