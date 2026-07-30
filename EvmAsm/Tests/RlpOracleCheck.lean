@@ -186,6 +186,55 @@ def loadRecords (path : System.FilePath) : IO (List Record) := do
   let contents ← IO.FS.readFile path
   return contents.splitOn "\n" |>.filterMap parseLine
 
+/-! ## Staleness guard
+
+A committed corpus can silently keep describing a reference version the repo no
+longer uses: every leg of the check would keep passing while measuring the wrong
+thing — this checker's own failure mode, one level up. The generator stamps the
+`ethereum-rlp` version and the `execution-specs` gitlink SHA into the header;
+here we verify the SHA still matches the superproject.
+
+Why the SHA and not `uv.lock`: the gitlink is readable from the superproject
+tree **without the submodule checked out**, which is the situation in CI. Since
+the `ethereum-rlp` pin lives in `execution-specs/uv.lock`, any change to it
+necessarily moves this SHA — so an unchanged SHA is sufficient evidence that the
+pinned reference has not moved under the corpus. -/
+
+private def headerValue (lines : List String) (key : String) : Option String :=
+  lines.findSome? fun l =>
+    let pfx := "# " ++ key ++ ": "
+    if l.startsWith pfx then some ((l.drop pfx.length).trimAscii.toString) else none
+
+/-- The `execution-specs` gitlink SHA recorded in the superproject tree. -/
+def recordedSpecsSha : IO (Option String) := do
+  let out ← IO.Process.output { cmd := "git", args := #["ls-tree", "HEAD", "execution-specs"] }
+  if out.exitCode != 0 then return none
+  -- Format: "160000 commit <sha>\texecution-specs"
+  match (out.stdout.splitOn " ").getLast? with
+  | none => return none
+  | some tl => return some ((tl.splitOn "\t").headD "" |>.trimAscii.toString)
+
+/-- Verify the corpus still describes the pinned reference. Returns an error
+message, or `none` when the pins agree (or cannot be read here). -/
+def checkPins (path : System.FilePath) : IO (Option String) := do
+  let contents ← IO.FS.readFile path
+  let lines := contents.splitOn "\n" |>.take 12
+  let some oracleVer := headerValue lines "oracle-version"
+    | return some "corpus header has no `# oracle-version:` stamp — regenerate it"
+  let some stampedSha := headerValue lines "execution-specs"
+    | return some "corpus header has no `# execution-specs:` stamp — regenerate it"
+  IO.println s!"  pinned reference {oracleVer}, execution-specs {stampedSha.take 12}"
+  match ← recordedSpecsSha with
+  | none =>
+      IO.println "  note: could not read the execution-specs gitlink; pin not verified here"
+      return none
+  | some actual =>
+      if actual == stampedSha then return none
+      else return some s!"execution-specs moved: corpus was generated at {stampedSha.take 12}, \
+repo now pins {actual.take 12}. The `ethereum-rlp` pin lives in that submodule's uv.lock, so the \
+committed corpus may describe a reference this repo no longer uses. Regenerate it \
+(scripts/rlp-python-oracle.py) and re-check."
+
 /-- Planted-violation self-check. A gate that cannot demonstrate catching a
 violation is itself unaudited (same discipline as
 `scripts/check_spec_refs.py --self-test`). -/
@@ -202,12 +251,38 @@ def selfTest : IO UInt32 := do
     ]
   let (t, msgs) := runRecords planted
   for m in msgs do IO.println m
-  if t.stricter == 1 && t.looser == 1 && t.valueMismatch == 1
-      && t.encodeMismatch == 1 && t.agree == 1 then
-    IO.println "self-test: OK — planted stricter/looser/value/encode findings all detected"
+  let comparisonOk :=
+    t.stricter == 1 && t.looser == 1 && t.valueMismatch == 1
+      && t.encodeMismatch == 1 && t.agree == 1
+  unless comparisonOk do
+    IO.println s!"self-test: FAILED (comparison) — {repr (t.agree, t.stricter, t.looser, t.valueMismatch, t.encodeMismatch)}"
+    return 1
+  -- The staleness guard gets the same treatment: plant a moved gitlink SHA and
+  -- a missing stamp, and require both to be caught. A guard that silently
+  -- passes on a stale corpus would let every other leg keep reporting
+  -- agreement while measuring the wrong reference.
+  let tmp ← IO.FS.createTempDir
+  let good := "# oracle-version: ethereum-rlp==0.1.6\n\
+               # execution-specs: " ++ (← recordedSpecsSha).getD "unknown" ++ "\n\
+               820102\taccept\t\"0102\"\tsame\n"
+  let stale := "# oracle-version: ethereum-rlp==0.1.6\n\
+                # execution-specs: 0000000000000000000000000000000000000000\n\
+                820102\taccept\t\"0102\"\tsame\n"
+  let noStamp := "# execution-specs: deadbeef\n820102\taccept\t\"0102\"\tsame\n"
+  let write (name content : String) : IO System.FilePath := do
+    let p := tmp / name; IO.FS.writeFile p content; return p
+  let goodOk := (← checkPins (← write "good.tsv" good)).isNone
+  let staleCaught := (← checkPins (← write "stale.tsv" stale)).isSome
+  let noStampCaught := (← checkPins (← write "nostamp.tsv" noStamp)).isSome
+  IO.FS.removeDirAll tmp
+  if goodOk && staleCaught && noStampCaught then
+    IO.println "self-test: OK — planted stricter/looser/value/encode findings all detected, \
+and the staleness guard catches a moved execution-specs pin and a missing stamp \
+without flagging a current corpus"
     return 0
   else
-    IO.println s!"self-test: FAILED — {repr (t.agree, t.stricter, t.looser, t.valueMismatch, t.encodeMismatch)}"
+    IO.println s!"self-test: FAILED (pin guard) — \
+{repr (goodOk, staleCaught, noStampCaught)} (expected (true, true, true))"
     return 1
 
 def defaultOraclePath : System.FilePath := "tests/rlp-vectors/python-oracle.tsv"
@@ -228,8 +303,16 @@ def main (args : List String) : IO UInt32 := do
   if rs.isEmpty then
     IO.eprintln s!"error: no records parsed from {path}"
     return 2
+  IO.println s!"rlp-oracle-check: {rs.length} records from {path}"
+  -- Staleness guard runs before the comparison: a corpus that describes the
+  -- wrong reference makes the agreement figure meaningless, so a green
+  -- comparison must not be reported alongside a stale pin.
+  match ← checkPins path with
+  | some err =>
+      IO.eprintln s!"error: {err}"
+      return 1
+  | none => pure ()
   let (t, msgs) := runRecords rs
-  IO.println s!"rlp-oracle-check: {t.total} records from {path}"
   IO.println s!"  agree          {t.agree}"
   IO.println s!"  stricter       {t.stricter}   (reference accepts, EL.RLP rejects)"
   IO.println s!"  looser         {t.looser}   (reference rejects, EL.RLP accepts)"

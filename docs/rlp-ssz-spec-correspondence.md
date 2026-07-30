@@ -76,7 +76,7 @@ same model (`EvmAsm/Rv64/RLP.lean:6`). One shared definition serves both towers:
 
 ```
 ethereum_rlp 0.1.6            (reference; external package, not vendored)
-      │  §3 executable differential  ── 3752 records, 0 divergences
+      │  §3 executable differential  ── 3757 records, 0 divergences
       ▼
 EvmAsm.EL.RLP  (encode / decode / decodeFully)   ← shared model
       ▲                              ▲
@@ -92,12 +92,12 @@ the consensus-specs `simple-serialize.md` prose rather than from `remerkleable`.
 
 ## 3. RLP model-layer differential result
 
-`lake exe rlp-oracle-check` replays a committed corpus of **3752 records**
+`lake exe rlp-oracle-check` replays a committed corpus of **3757 records**
 generated from the pinned reference by `scripts/rlp-python-oracle.py`:
 
 | Class | Count |
 |---|---:|
-| agree | **3752** |
+| agree | **3757** |
 | stricter (reference accepts, we reject) | **0** |
 | looser (reference rejects, we accept) | **0** |
 | value mismatch | **0** |
@@ -136,14 +136,14 @@ emitting module — the #10779/#10782 lesson.
 |---|---|---|---|---|---|---|
 | `rlp_walk_init` | `rlp_walk_init_spec_within` — `Rv64/RLP/WalkInit.lean:1590` | proven (9 paths) | `rlpWalkNextOk`, bridged via `Rv64/RLP/WalkDecodeBridge.lean` | `decode_to_sequence` entry | `match` | bridged |
 | `rlp_walk_next` | `rlp_walk_next_spec_within` — `Rv64/RLP/WalkNext.lean:3924` | proven (18 paths → 6 statuses) | `rlpItemDecode` (`WalkNext.lean:3649`) + `WalkDecodeBridge` | `decode_item_length` + the `decode_joined_encodings` loop | `match` | bridged |
-| `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` — `Rv64/RLP/ContentToU64.lean:865` | proven (4 paths) | `EL.RLP` (3 direct refs) | `_deserialize_to_uint` (`rlp.py:265`) | `match` | bridged |
-| `rlp_content_to_u256_be` | `rlp_content_to_u256_be_spec_within` — `Rv64/RLP/ContentToU256Be.lean:998` | proven (4 paths) | local predicates only | `_deserialize_to_uint` | `match` | machine-only |
+| `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` — `Rv64/RLP/ContentToU64.lean:865` | proven (4 paths) | canonical-strict: status 2 `len > 8`, status 3 leading zero | `_deserialize_to_uint` at **`U64`** (`rlp.py:265`) | `match` (U64 fields only — see §4c) | insp |
+| `rlp_content_to_u256_be` | `rlp_content_to_u256_be_spec_within` — `Rv64/RLP/ContentToU256Be.lean:998` | proven (4 paths) | local predicates only | `_deserialize_to_uint` at **`U256`** | `match` (U256 fields only — see §4c) | machine-only + insp |
 | `rlp_item_size` | `rlp_item_size_spec_within` — `Codegen/Programs/RlpSpliceHelperSpec.lean:703` | **partly** — short forms only (`SpanForm`, `:599`); long string `0xb8–0xbf` and long list `0xf8–0xff` NOT covered | ties to `(encode item).length` via `risSpan_eq_encode_length:610` | `decode_item_length` (`rlp.py:479`) | `domain-restricted` | bridged |
 | `rlp_item_span` | — (`RlpItemSpanSpec.lean` is cursor algebra + `CodeReq` plumbing only) | **no machine triple** | `itemOffset_*`, `encodeItems_drop_itemOffset:102` | `decode_item_length` | `n/a — unproven` | — |
 | `rlp_list_count_items` | `rlp_list_count_items_spec_within` — `Codegen/Programs/RlpListCountItemsSAsm.lean:131` | proven | local predicates only | `decode_joined_encodings` (`rlp.py:456`) | `match` | machine-only |
 | `rlp_list_nth_item` | `rlpListNthItem_spec_within` — `Codegen/Programs/RlpListNthItemSAsm.lean:733` | proven (success/reject/OOB) | `rlpItemDecode` + `EL.RLP` refs | `decode_to_sequence` + index | `match` | bridged |
-| `rlp_field_to_u64` | `rlpFieldToU64_spec_within` — `Codegen/Programs/RlpFieldToU64WholeSAsm.lean:181` | proven | `rlpItemDecode` + `EL.RLP` refs | `_deserialize_to_uint` ∘ walk | `match` | bridged |
-| `rlp_field_to_u256_be` | `rlpFieldToU256Be_spec_within` — `Codegen/Programs/RlpFieldToU256BeWholeSAsm.lean:166` | proven | as above | `_deserialize_to_uint` ∘ walk | `match` | bridged |
+| `rlp_field_to_u64` | `rlpFieldToU64_spec_within` — `Codegen/Programs/RlpFieldToU64WholeSAsm.lean:181` | proven | `rlpItemDecode` + `EL.RLP` refs | `_deserialize_to_uint` at **`U64`** ∘ walk | `match` (U64 fields only — see §4c) | bridged (walk) + insp (scalar) |
+| `rlp_field_to_u256_be` | `rlpFieldToU256Be_spec_within` — `Codegen/Programs/RlpFieldToU256BeWholeSAsm.lean:166` | proven | as above | `_deserialize_to_uint` at **`U256`** ∘ walk | `match` (U256 fields only — see §4c) | bridged (walk) + insp (scalar) |
 | `rlp_bytes_encoded_size` | `rlpBytesEncodedSize_spec` — `Codegen/Programs/RlpBytesEncodedSizeSAsm.lean:539` | proven | `rbesSize` (`:89`) — standalone arithmetic | `len(encode_bytes(...))` (`rlp.py:92`) | `match` | machine-only |
 | `rlp_list_encoded_size` | `rlpListEncodedSize_spec` — `Codegen/Programs/RlpListEncodedSizeSAsm.lean:364` | proven | standalone arithmetic | `len(encode_sequence(...))` (`rlp.py:112`) | `match` | machine-only |
 | `rlp_encode_uint_be` | — (model layer complete: `reubOut_eq_encode_toBytesBE:205`, `reubOut_short_form:251`; **no whole-routine triple**) | **partly** — 33/35 instrs on PR #10943; documented `≤ 55` domain | `reubOut`, tied to `encode ∘ toBytesBE` | `encode(Uint)` → `encode_bytes(to_be_bytes())` — **unbounded** | `domain-restricted` | insp |
@@ -176,6 +176,42 @@ Not `rlp_*`-prefixed, but they decode/encode RLP and belong in the audit.
 > 60-instruction `withdrawalDecode_prog`; and a schema-driven **WP facade**
 > (`Rv64/RLP/WithdrawalDecode*.lean`, `WithdrawalSchemaWP.lean:247`) with no
 > concrete program. Only the first discharges the guest obligation.
+
+### 4c. Number strictness varies by field type
+
+> Raised by @pirapira on #10949: *"different places in execution-specs have
+> different strictness requirements about numbers."* Confirmed, and it changes
+> how the scalar rows must be read.
+
+Integers are **not** validated by the RLP codec. `rlp.decode` treats an
+integer-shaped payload as an ordinary byte string and accepts it — the corpus
+pins this: `820001` (leading-zero content), `89·ff×9` (9 bytes) and `a1·ff×33`
+(33 bytes) are all `accept` at the decode layer. The integer rules live one
+layer up, in `_deserialize_to_uint` (`rlp.py:265`), which applies:
+
+1. **leading-zero rejection** — `decoded[0] == 0` ⇒ `DecodingError("non-canonical
+   integer")`. **Uniform across every field type.**
+2. **width rejection** — via `class_.from_be_bytes`, and this is where the
+   strictness **differs**, because the target type is chosen per field:
+
+| Target | Width cap | Example fields (`forks/amsterdam/blocks.py`) |
+|---|---|---|
+| `Uint` | **none** — arbitrary precision | `difficulty:152`, `number:157`, `gas_limit:162`, `gas_used:178`, `base_fee_per_gas:203`, `cumulative_gas_used:373` |
+| `U64` | 8 bytes | `blob_gas_used:218`, `excess_blob_gas:226`, `slot_number:263`, `Withdrawal.index:46`, `Withdrawal.validator_index:52` |
+| `U256` | 32 bytes | `timestamp:183`, `Withdrawal.amount:62` |
+
+So `rlp_content_to_u64` — which returns status 2 on `len > 8` — corresponds
+**exactly** to `_deserialize_to_uint` at `U64`, and is **stricter than the
+reference** if applied to a `Uint` field, where a 9-byte value is legitimate.
+That is a per-call-site obligation, not a property of the routine: the routine
+is correct, and the caller must have picked the right one for the field's type.
+
+**Consequences for this table.** The differential does not reach the typed
+layer, so the scalar rows are `insp`, not `diff`/`bridged` — an earlier revision
+of this page overstated them. Two follow-ups in [§8](#8-follow-ups-filed): a typed-layer
+oracle covering all three widths, and an audit that every guest call site pairs
+the field's actual Python type with the matching routine (a `Uint` field decoded
+with a `_to_u64` routine is a latent false-reject).
 
 ## 5. The inheritance gap
 
@@ -260,6 +296,26 @@ lake exe rlp-oracle-check --self-test
 lake exe rlp-oracle-check
 ```
 
+### Staleness guard
+
+A committed corpus can silently keep describing a reference the repo no longer
+uses — every leg would keep passing while measuring the wrong thing, which is
+this page's own failure mode one level up (raised by @pirapira on #10949). Two
+halves close it:
+
+- **Generation refuses to produce a wrong-version corpus.** `rlp-python-oracle.py`
+  reads `ethereum-rlp`'s pin out of `execution-specs/uv.lock` and exits non-zero
+  unless the *installed* version matches it.
+- **Replay detects the pin moving underneath the corpus.** The generator stamps
+  `# oracle-version:` and `# execution-specs: <gitlink SHA>` into the header;
+  `rlp-oracle-check` re-reads the gitlink from the superproject tree and fails
+  if it has moved. The gitlink is readable **without the submodule checked
+  out** — which is the situation in CI — and since the `ethereum-rlp` pin lives
+  in that submodule's `uv.lock`, any change to it necessarily moves the SHA.
+
+Both are covered by `--self-test`, which plants a moved SHA and a missing stamp
+and requires each to be caught while a current corpus is not flagged.
+
 The Lean checker imports only `EvmAsm.EL.RLP.FullDecode` (transitive closure:
 `Decode`, `Basic` — no Mathlib), so it builds in seconds; CI runs it on the
 committed TSV and never needs Python. The self-test plants one finding of each
@@ -272,6 +328,11 @@ unaudited.
 Divergences: **none found.** The follow-ups are coverage and hygiene:
 
 1. **Inheritance bridges** for the five `machine-only` rows ([§5](#5-the-inheritance-gap)).
+1b. **Typed-layer oracle** covering `_deserialize_to_uint` at `Uint`/`U64`/`U256`,
+   so the scalar rows move from `insp` to `diff` ([§4c](#4c-number-strictness-varies-by-field-type)).
+1c. **Call-site type audit**: every guest site that decodes a header/withdrawal
+   field must pair the field's Python type with the matching routine; a `Uint`
+   field decoded by a `_to_u64` routine is a latent false-reject ([§4c](#4c-number-strictness-varies-by-field-type)).
 2. **SSZ merkleization tower** — 11 unspecified routines ([§6](#6-ssz-routines)).
 3. `rlp_prefix_to_buffer` has **no drift guard**, unlike every other emitted
    RLP routine — the string↔`Program` tie is missing entirely.
