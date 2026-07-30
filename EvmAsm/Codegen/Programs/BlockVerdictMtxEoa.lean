@@ -68,6 +68,20 @@ def blockVerdictMtxEoaSettlement : String :=
   "  li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
+  -- The shared code stager owns recipient-derived words but intentionally has
+  -- no sender argument.  Populate the top-level CALLER and ORIGIN words here,
+  -- as the contract route does: runtime intrinsic gas compares ADDRESS against
+  -- CALLER to recognise a self-transfer, and the spec suppresses its recipient
+  -- and value charges in that case.
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  la t1, bv_mtx_sender_addr; addi t2, t0, 64; li t3, 0\n" ++
+  ".Lbv_mtx_eoa_stage_caller:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbv_mtx_eoa_stage_origin; li t4, 19; sub t4, t4, t3; add t4, t1, t4; lbu t5, 0(t4); add t4, t2, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbv_mtx_eoa_stage_caller\n" ++
+  ".Lbv_mtx_eoa_stage_origin:\n" ++
+  "  addi t2, t0, 128; li t3, 0\n" ++
+  ".Lbv_mtx_eoa_stage_origin_loop:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbv_mtx_eoa_stage_sender_done; li t4, 19; sub t4, t4, t3; add t4, t1, t4; lbu t5, 0(t4); add t4, t2, t3; sb t5, 0(t4); addi t3, t3, 1; j .Lbv_mtx_eoa_stage_origin_loop\n" ++
+  ".Lbv_mtx_eoa_stage_sender_done:\n" ++
   "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
   "  la t6, bv_mtx_ctx; ld t0, 160(t6); beqz t0, .Lbv_mtx_eoa_access_ready\n" ++
