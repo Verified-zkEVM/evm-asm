@@ -18,10 +18,21 @@ private def blockVerdictMtxEoaRecipientCredit : String :=
   -- which is an existence change handled by a separate producer.
   "  beqz a2, .Lbv_mtx_eoa_credit_done\n" ++
   "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; beqz t1, .Lbv_mtx_eoa_credit_done\n" ++
-  "  la t0, bv_mtx_sender_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
-  ".Lbv_mtx_eoa_credit_selfcmp:\n" ++
-  "  beqz t2, .Lbv_mtx_eoa_credit_done; lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_eoa_credit_distinct; addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_eoa_credit_selfcmp\n" ++
-  ".Lbv_mtx_eoa_credit_distinct:\n" ++
+  -- GH #10919: NO SELF-TRANSFER GUARD ON THE CREDIT PATH.  `vm/interpreter.py:384-396`
+  -- (pinned `e5a8caf1b`) calls `move_ether` UNGUARDED whenever the value is nonzero; ONLY
+  -- `emit_transfer_log` sits behind `if message.caller != message.current_target`.  So the
+  -- spec moves both sides of a self-transfer and suppresses only the log.
+  --
+  -- A 20-byte sender/recipient compare used to skip this credit, and that is wrong because
+  -- THE DEBIT IS TAKEN ELSEWHERE REGARDLESS.  A self-transfer is a balance no-op only if BOTH
+  -- sides are skipped; skipping just the credit leaves the account short by exactly `tx.value`.
+  -- MEASURED on `test_bal_self_transfer`: the declared `postBalance` for the self-transferring
+  -- account is `0x0d6d80` = 880,000 and the guest produced `0x0d6d1c` = 879,900 -- low by
+  -- exactly 100, which is that fixture's `tx.value`.  One field, one byte, at otherwise
+  -- byte-identical length.
+  --
+  -- The value-nonzero guard above IS the spec's own condition and stays.  The log path keeps
+  -- its own self-compare, which the spec does have.
   "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   "  la a0, bv_wdne_acct; addi a0, a0, 8; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_pending_recipient_post; jal ra, u256_add_be\n" ++
