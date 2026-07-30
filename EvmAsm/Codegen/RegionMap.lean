@@ -442,7 +442,7 @@ def schemeAAnchors : List GuestRegion :=
 -- change, #10911's guarded post-static-check CALL target account-read
 -- restoration, #10913's creation-stage running creator nonce fix, and
 -- #10930's top-level creation-target account-read (`utils/message.py:71`).
-def textSizeBytes : Nat := 0x067794
+def textSizeBytes : Nat := 0x0677a0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
