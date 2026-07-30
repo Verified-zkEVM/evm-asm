@@ -440,7 +440,36 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- deployable pre-existing account may hold ether.  Keep the existing path
   -- unchanged while the shared producer serves the four callers that can name
   -- both pre-balances.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- GH #10784 cut 2: `mark_account_created` is a PRE-BODY event.  execution-specs
+  -- `process_create_message` marks the target at `vm/interpreter.py:208` — after
+  -- `destroy_storage` (:202), before `increment_nonce` (:210) and before
+  -- `process_message` (:212) runs the initcode.  The nested CREATE route already
+  -- honours that: `create_frame_descend` inserts at descent.  The top-level creation
+  -- route enters the callable dispatcher directly (see the seam comment above), so it
+  -- had no descent to mark at and was left marking only inside
+  -- `create_record_code_effect`, i.e. AFTER the initcode and only on a successful
+  -- deposit.  `bv_create_addr` is fully staged by this point (the copy above, and the
+  -- `account_read_record` call already consumes it).
+  --
+  -- Placed AFTER `dispatcher_capture_body_state` while the spec marks BEFORE its
+  -- snapshot, and the two are equivalent here for a checkable reason rather than by
+  -- assumption: `account_state_created_count` is NOT one of the thirteen fields of
+  -- `body_state_snapshot_by_depth` (`BlockVerdictDispatchTx.lean:492-505`, offsets
+  -- 0..96), so the restore cannot roll the mark back.  GH #10979 is what made that
+  -- true — it removed `account_state_created_checkpoint` — and it matches the spec,
+  -- where `copy_tx_state` leaves `created_accounts` shared and `restore_tx_state`
+  -- (`state_tracker.py:823-826`) restores only four other fields.
+  --
+  -- a0-a3 are dead across the two lines below (they set up t4/t5 and the dispatcher
+  -- takes its input through `runtime_dispatcher_input_ptr`), and
+  -- `code_state_address_set_insert` preserves every s-register, so s0 survives.
+  -- Overflow is fail-closed exactly as at the descent site: set
+  -- `account_state_overflow`, which both consumers turn into `bv_fail_code = 58`.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state\n" ++
+  "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbvcr_created_marked:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has

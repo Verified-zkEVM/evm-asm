@@ -57,4 +57,23 @@ namespace EvmAsm.Codegen
     `bv_fail_code = 58` (GH #10964). -/
 def accountStateDeleteCapacity : Nat := 8192
 
+/-- Capacity of the `account_state_created` arena, in 32-byte address-set entries —
+    execution-specs' transaction-local `created_accounts`.
+
+    It lived in `Programs.CreateCodeEffectLog` beside the AccountState table constants,
+    which is where it belongs semantically but not where it was *reachable*: the two
+    sites that actually mark an account created are `Programs.CreateFrameDescend` (the
+    nested CREATE descent) and `Programs.BlockVerdictCreationStage` (the top-level
+    creation, GH #10784 cut 2), and neither imports `CreateCodeEffectLog`.  The descent
+    site consequently carried a **bare `8192`** — the same shape as the four bare delete
+    bounds that motivated this module in GH #10971.  Moving the definition down costs
+    nothing: `CreateCodeEffectLog` already imports this module, so its own uses are
+    unaffected.
+
+    ⚠️ Equal to `accountStateDeleteCapacity` and **not the same quantity** — see that
+    declaration.  Note also that `NonstorageEffectLog`'s `.set account_state_delete`
+    offset legitimately uses *this* constant, because the created arena is what the
+    delete arena sits after. -/
+def accountStateCreatedCapacity : Nat := 8192
+
 end EvmAsm.Codegen
