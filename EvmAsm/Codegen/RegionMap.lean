@@ -441,7 +441,7 @@ def schemeAAnchors : List GuestRegion :=
 -- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
 -- change, #10911's guarded post-static-check CALL target account-read
 -- restoration, and #10913's creation-stage running creator nonce fix.
-def textSizeBytes : Nat := 0x0676d8
+def textSizeBytes : Nat := 0x067744
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -468,7 +468,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1c1395a0
+def bssSizeBytes : Nat := 0x1c1395c0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

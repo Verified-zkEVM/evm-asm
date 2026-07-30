@@ -15,10 +15,10 @@ open EvmAsm.Rv64
 
 /-! ## stage_creation_runtime_payload
 
-    Stage the first conservative top-level creation runtime payload shape.
-    The transaction initcode is executable bytecode, not calldata, so this is
-    intentionally separate from `stage_runtime_payload_code`, which copies the
-    context data section into the calldata segment for normal message calls.
+    Legacy one-byte-STOP creation staging.  The live arbitrary-initcode route
+    below uses `stage_runtime_payload_code`; it must explicitly split the
+    creation frame's empty calldata from the transaction's initcode, which is
+    charged as transaction data but executed as frame code.
 
     This slice supports only one-byte STOP initcode. That is the narrow shape
     whose execution does not observe ADDRESS/CALLER/ORIGIN/CALLVALUE, so the
@@ -292,31 +292,38 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
 -/
 def blockVerdictCreationRuntimeFunction : String :=
   "block_verdict_creation_runtime:\n" ++
-  "  addi sp, sp, -40\n" ++
+  "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0\n" ++
   "  la t0, bv_creation_ctx_ptr; sd s0, 0(t0)  # stable across runtime dispatcher\n" ++
   "  mv s1, a1\n" ++
-  -- A top-level CREATE runs its transaction data as initcode.  Use the common
-  -- arbitrary-code payload stager rather than the old one-byte STOP-only
-  -- layout so the callable runtime receives the real initcode bytes both as
-  -- code and as transaction calldata for intrinsic-gas accounting.
+  -- A top-level CREATE runs transaction data as initcode, but its EVM frame
+  -- has empty calldata.  The common stager models normal message calls, where
+  -- ctx.data is both transaction data and frame calldata, so temporarily hide
+  -- the context length while it builds the frame and restore it immediately.
+  -- The dispatcher receives the restored ptr/len separately for transaction
+  -- intrinsic gas; this keeps CALLDATALOAD/CALLDATACOPY empty while CODECOPY
+  -- still sees initcode (execution-specs: vm/instructions/system.py:134-143).
   -- The callable runtime may resolve code for nested CALL/STATICCALL targets.
   -- Reserve room for its authenticated M31 context before the common stager
-  -- writes the code/calldata prefix: two padded initcode copies plus the
+  -- writes the code/calldata prefix: one padded initcode copy plus the
   -- pre-header, state witness, codes witness, and fixed trailer must fit the
   -- same bounded payload buffer as the normal contract path.
-  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8; slli t1, t1, 1\n" ++
+  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8\n" ++
   "  la t0, sv_pre_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  la t0, bv_witness_state_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Lbvcr_payload_unsupported\n" ++
+  "  ld t0, 64(s0); sd t0, 40(sp); sd zero, 64(s0)\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
-  "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
+  "  ld a3, 56(s0); ld a4, 40(sp)\n" ++
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
+  "  ld t0, 40(sp); sd t0, 64(s0)\n" ++
+  "  la t1, runtime_tx_intrinsic_data_ptr; ld t2, 56(s0); sd t2, 0(t1)\n" ++
+  "  la t1, runtime_tx_intrinsic_data_len; ld t2, 64(s0); sd t2, 0(t1)\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
   -- Match the normal contract-dispatch M31 trailer.  The common stager only
   -- constructs code, calldata, and env words; nested account/code lookups
@@ -614,9 +621,13 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_payload_unsupported:\n" ++
   "  li a0, 5\n" ++
   ".Lbvcr_ret:\n" ++
+  -- The intrinsic-data override is creation-local.  Clear it on every return
+  -- path, including an unsupported staging result before dispatch.
+  "  la t0, runtime_tx_intrinsic_data_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_intrinsic_data_len; sd zero, 0(t0)\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
+  "  addi sp, sp, 48\n" ++
   "  ret"
 
 end EvmAsm.Codegen
