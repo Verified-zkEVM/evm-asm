@@ -444,7 +444,7 @@ def schemeAAnchors : List GuestRegion :=
 -- #10930's top-level creation-target account-read
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal.
-def textSizeBytes : Nat := 0x066d6c
+def textSizeBytes : Nat := 0x066c8c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -471,7 +471,7 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1c0eefa0
+def bssSizeBytes : Nat := 0x1c0eafa0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
