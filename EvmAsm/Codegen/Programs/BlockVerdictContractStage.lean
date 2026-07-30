@@ -232,7 +232,8 @@ def stageRuntimePayloadCodeFunction : String :=
     Calling convention:
       a0 = payload, a1/a2 = header ptr/len, a3/a4 = state ptr/len,
       a5/a6 = codes ptr/len.
-    Clobbers t0-t6; it has no result. -/
+    Clobbers t0-t6 conservatively (the current body writes t0-t3); it has no
+    result. -/
 def stageRuntimePayloadWitnessContextFunction : String :=
   "stage_runtime_payload_witness_context:\n" ++
   "  la t0, srpc_env_base; ld t1, 0(t0); add t0, a0, t1\n" ++
