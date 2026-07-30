@@ -227,29 +227,47 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
   "  ret\n" ++
-  -- EIP-4844 blob-fee subtraction tests require BALANCE(ORIGIN) during recipient
-  -- execution to observe the sender after the upfront gas/blob/value debit but
-  -- before the post-execution gas refund. The dispatcher setup resets per-call
-  -- runtime state, so the full dispatcher stages this one-shot record and the
-  -- setup emits it after those resets.  The MTx EOA shortcut instead crosses
-  -- the callable dispatch reset, so it publishes its upfront debit directly
-  -- to the durable AccountState overlay. Preserves every caller register: setup still
-  -- has a live input cursor in t0/t1/t2 and env in x20.
-  "dispatcher_seed_pending_upfront_balance:\n" ++
+  -- `process_message` debits the sender before its body snapshot, but credits
+  -- the recipient after it.  Keep the two one-shot producers separate: putting
+  -- them behind one helper makes one of those ordering constraints impossible.
+  -- Both helpers preserve every caller register because dispatcher setup has a
+  -- live input cursor in t0/t1/t2 and env in x20.
+  "dispatcher_seed_pending_upfront_sender_balance:\n" ++
   "  addi sp, sp, -144\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
   "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
   "  sd x20, 128(sp)\n" ++
-  "  la t0, bv_pending_upfront_balance_flag; ld t0, 0(t0); beqz t0, .Ldpub_recipient\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; ld t0, 0(t0); beqz t0, .Ldpub_sender_done\n" ++
   "  la a0, bv_pending_upfront_sender_addr\n" ++
   "  la a1, bv_pending_upfront_sender_pre\n" ++
   "  la a2, bv_pending_upfront_sender_post\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
-  ".Ldpub_recipient:\n" ++
+  ".Ldpub_sender_done:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  ld t0, 8(sp); ld t1, 16(sp); ld t2, 24(sp); ld t3, 32(sp); ld t4, 40(sp); ld t5, 48(sp); ld t6, 56(sp)\n" ++
+  "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
+  "  ld x20, 128(sp)\n" ++
+  "  addi sp, sp, 144\n" ++
+  "  ret\n" ++
+  -- This is one producer for the two halves of `move_ether`: both records are
+  -- after the body mark, so body failure removes both together.  Do not split
+  -- them back into independently placed calls.
+  "dispatcher_seed_pending_value_transfer:\n" ++
+  "  addi sp, sp, -144\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
+  "  sd x20, 128(sp)\n" ++
   "  la t0, bv_pending_recipient_credit_flag; ld t0, 0(t0); beqz t0, .Ldpub_done\n" ++
+  -- The sender gas debit was materialised before the mark.  Read that live
+  -- balance, subtract CALLVALUE, then publish the two move_ether halves.
+  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
+  "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; bnez a0, .Ldpub_done\n" ++
+  "  la a0, bv_pending_value_sender_pre; la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi a1, t0, 96; la a2, bv_pending_value_sender_post; jal ra, u256_sub_be; bnez a0, .Ldpub_done\n" ++
+  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); la a1, bv_pending_value_sender_pre; la a2, bv_pending_value_sender_post; la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3; jal ra, record_nonstorage_effect\n" ++
   "  la a0, bv_pending_recipient_addr\n" ++
   "  la a1, bv_pending_recipient_pre\n" ++
   "  la a2, bv_pending_recipient_post\n" ++
@@ -287,7 +305,9 @@ def eip7708SyntheticLogTopicData : String :=
   -- bmvmx.5.5.2.2.ln9ly: 1 = a single-tx contract-path top-level transfer log is staged for the
   -- next dispatch to re-emit post-reset (see dispatcher_reemit_pending_tl). Cleared by the dispatcher.
   "bv_pending_tl_flag:\n  .zero 8\n" ++
-  -- One-shot sender upfront-balance and recipient-credit seeds, consumed by dispatcher_seed_pending_upfront_balance.
+  -- One-shot sender upfront-balance and recipient-credit seeds.  The dispatcher
+  -- consumes them through separate gas-before-snapshot and value-after-snapshot
+  -- helpers so a revert cannot split the value transfer across the rollback.
   "bv_pending_upfront_balance_flag:\n  .zero 8\n" ++
   "bv_pending_upfront_sender_nonce:\n  .zero 8\n" ++
   "bv_pending_recipient_credit_flag:\n  .zero 8\n" ++
@@ -299,12 +319,12 @@ def eip7708SyntheticLogTopicData : String :=
   "bv_pending_recipient_addr:\n  .zero 32\n" ++
   "bv_pending_recipient_pre:\n  .zero 32\n" ++
   "bv_pending_recipient_post:\n  .zero 32\n" ++
-  -- GH #10892: the sender's post-transfer balance (`staged_balance - tx.value`), the
-  -- `post` operand of the transfer-site `record_nonstorage_effect` that supplies the
-  -- missing half of `move_ether`.  A separate cell because `u256_sub_be` clobbers its
-  -- destination before returning the borrow, so subtracting into the staged balance
-  -- would corrupt it on the borrow path that must leave it untouched.
-  "bv_xfer_sender_bal:\n  .zero 32\n"
+  -- Sender operands for the post-mark half of top-level move_ether.  Kept
+  -- separate from the gas-debit tuple because the former must be restored on
+  -- a failed body while the latter must survive it.
+  "bv_pending_value_sender_pre:\n  .zero 32\n" ++
+  "bv_pending_value_sender_post:\n  .zero 32\n" ++
+  "\n"
 
 def eip7708SyntheticLogDataSection : String :=
   ".section .data\n" ++
