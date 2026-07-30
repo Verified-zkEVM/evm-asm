@@ -438,10 +438,9 @@ def schemeAAnchors : List GuestRegion :=
     is NOT how this literal was set.  The value is an INPUT to emission, so a
     hand-computed one gets reflected back by the next relink and looks confirmed --
     an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
--- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
--- change, #10911's guarded post-static-check CALL target account-read
--- restoration, and #10913's creation-stage running creator nonce fix.
-def textSizeBytes : Nat := 0x067744
+-- ELF-MEASURED after the relink, including the top-level creation-target
+-- account-read that mirrors `utils/message.py:71`.
+def textSizeBytes : Nat := 0x067750
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
