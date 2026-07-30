@@ -642,20 +642,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode         := "0x60, 0x00, 0x60, 0x06, 0x57, 0x60, 0x5b, 0x00"
       expectedOutHex   := "5b00000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
-    -- ## M15.6 precomputed valid-JUMPDEST bitmap regressions.
+    -- ## M15.6 pushdata-aware valid-JUMPDEST regressions.
   , -- Countdown loop: PUSH1 0x03; JUMPDEST; PUSH1 0x01; SWAP1; SUB;
     -- DUP1; PUSH1 0x02; JUMPI; PUSH1 0x42; STOP. Layout: 0=PUSH1 1=0x03
     -- 2=JUMPDEST 3=PUSH1 4=0x01 5=SWAP1 6=SUB 7=DUP1 8=PUSH1 9=0x02
     -- 10=JUMPI 11=PUSH1 12=0x42 13=STOP. The backward jump to byte 2 is
     -- validated on every taken iteration (3 → 2 → 1, then cond 0 falls
-    -- through), exercising repeated bitmap lookups of one destination.
+    -- through), exercising repeated direct scans of one destination.
     { name             := "jumpi_loop_backward"
       bytecode         := "0x60, 0x03, 0x5b, 0x60, 0x01, 0x90, 0x03, 0x80, 0x60, 0x02, 0x57, 0x60, 0x42, 0x00"
       expectedOutHex   := "4200000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0000000000000000" }
   , -- PUSH1 0x09; JUMP; INVALID×6; JUMPDEST; PUSH1 0x33; STOP. The
-    -- JUMPDEST at byte 9 lands in the bitmap's second byte (idx >> 3 = 1,
-    -- bit 1), exercising the lookup's byte indexing beyond bitmap[0].
+    -- JUMPDEST at byte 9 exercises a direct scan beyond the first eight code
+    -- bytes, so the pushdata-aware boundary walk is not byte-zero special-cased.
     { name             := "jump_forward_second_bitmap_byte"
       bytecode         := "0x60, 0x09, 0x56, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0x5b, 0x60, 0x33, 0x00"
       expectedOutHex   := "3300000000000000000000000000000000000000000000000000000000000000"
