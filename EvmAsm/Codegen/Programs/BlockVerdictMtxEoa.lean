@@ -18,12 +18,27 @@ private def blockVerdictMtxEoaRecipientCredit : String :=
   -- which is an existence change handled by a separate producer.
   "  beqz a2, .Lbv_mtx_eoa_credit_done\n" ++
   "  la t0, bv_mtx_ctx; addi t0, t0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; beqz t1, .Lbv_mtx_eoa_credit_done\n" ++
-  "  la t0, bv_mtx_sender_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
-  ".Lbv_mtx_eoa_credit_selfcmp:\n" ++
-  "  beqz t2, .Lbv_mtx_eoa_credit_done; lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_eoa_credit_distinct; addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_eoa_credit_selfcmp\n" ++
-  ".Lbv_mtx_eoa_credit_distinct:\n" ++
+  -- GH #10919: NO SELF-TRANSFER GUARD ON THE CREDIT PATH.  `vm/interpreter.py:384-396`
+  -- (pinned `e5a8caf1b`) calls `move_ether` UNGUARDED whenever the value is nonzero; ONLY
+  -- `emit_transfer_log` sits behind `if message.caller != message.current_target`.  So the
+  -- spec moves both sides of a self-transfer and suppresses only the log.
+  --
+  -- A 20-byte sender/recipient compare used to skip this credit, and that is wrong because
+  -- THE DEBIT IS TAKEN ELSEWHERE REGARDLESS.  A self-transfer is a balance no-op only if BOTH
+  -- sides are skipped; skipping just the credit leaves the account short by exactly `tx.value`.
+  -- MEASURED on `test_bal_self_transfer`: the declared `postBalance` for the self-transferring
+  -- account is `0x0d6d80` = 880,000 and the guest produced `0x0d6d1c` = 879,900 -- low by
+  -- exactly 100, which is that fixture's `tx.value`.  One field, one byte, at otherwise
+  -- byte-identical length.
+  --
+  -- The value-nonzero guard above IS the spec's own condition and stays.  The log path keeps
+  -- its own self-compare, which the spec does have.
   "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
+  -- `move_ether` obtains the second update's base through `get_account`.
+  -- Preserve the authenticated header account on a miss, but let the durable
+  -- upfront publication provide the current self-transfer balance on a hit.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; addi a1, a1, 8; jal ra, account_state_latest_balance\n" ++
   "  la a0, bv_wdne_acct; addi a0, a0, 8; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_pending_recipient_post; jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   "  la a0, bv_mtx_ctx; addi a0, a0, 72; la a1, bv_wdne_acct; addi a1, a1, 8; la a2, bv_pending_recipient_post; la t0, bv_wdne_acct; ld a3, 0(t0); mv a4, a3; jal ra, record_nonstorage_effect\n" ++
@@ -123,10 +138,12 @@ def blockVerdictMtxEoaSettlement : String :=
   "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
-  -- Unlike the contract path this shortcut bypasses dispatch_tx_runtime_code.
-  -- Consume the same one-shot sender-upfront tuple after its local reset so an
-  -- EOA transaction materializes the debit and clears the flag too.
-  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
+  -- Unlike the full dispatch setup, this shortcut enters the callable
+  -- dispatcher after this point; its setup clears the pending journal.  The
+  -- upfront debit is pre-execution and survives a REVERT, so publish it to the
+  -- durable AccountState overlay rather than a rollback-scoped pending entry.
+  "  la a0, bv_pending_upfront_sender_addr; la a1, bv_pending_upfront_sender_post; la t0, bv_pending_upfront_sender_nonce; ld a2, 0(t0); jal ra, account_state_publish_sender_upfront; bnez a0, .Lbv_mtx_bail\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
   -- An unresolved recipient must not be staged as STOP.  Run only the shared
