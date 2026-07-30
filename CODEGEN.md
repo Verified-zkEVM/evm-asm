@@ -37,7 +37,7 @@ Single source of truth for the headline numbers. Lower sections are kept in
 | Axis | State | Source of truth |
 |---|---|---|
 | **Opcode coverage** | **154 / 256 bytes wired** through `tinyInterpRegistry`; 102 → `h_invalid`. Covers 100% of the live EVM opcode space plus EIP-8024 stack ops (DUPN/SWAPN/EXCHANGE), CLZ, and blob/code handler bytes. | `EvmAsm/Codegen/Proofs/RegistryInvariants.lean` (`tinyInterpRegistry_wired_opcode_count = 154`, kernel-checked) |
-| **Latest milestone** | M15.6 (precomputed valid-JUMPDEST bitmap, 2026-06-07). Most recent *feature* milestones: M33 + M31 (2026-06-04). | this file (§Milestones) |
+| **Latest milestone** | M15.6 (pushdata-aware JUMPDEST validation, 2026-06-07). Most recent *feature* milestones: M33 + M31 (2026-06-04). | this file (§Milestones) |
 | **Codegen-proofs frontier** | Phase 1 (6 registry invariants) ✅; Phase 4 partial — **13 of ~87** handler-level `cpsTripleWithin` specs. Phases 2 (parser round-trip), 3 (dispatch-loop spec), 5 (end-to-end refinement) **not started**. | `Proofs/RegistryInvariants.lean`, `Proofs/HandlerSpecs.lean` |
 | **EEST conformance** | Stateless harness live (`scripts/codegen-eest-stateless-check.sh`); correctly rejects all 894 invalid-witness blocks but **0 full-output matches** (guest emits pre-`zkevm@v0.4.0` encoding). | PLAN.md Axis F |
 | **CI** | Link-time only (`scripts/codegen-stateless-link-check.sh` in `build.yml`). A round-trip / EEST smoke-subset CI job is **still TODO**. | `.github/workflows/build.yml` |
@@ -985,8 +985,7 @@ handler tail.
   assertion confirming the sentinel path doesn't spuriously halt. Existing
   `jump_forward` / `jumpi_taken` (which jump to real JUMPDEST bytes) still pass.
 
-**Known limitations:** ~~validation uses a per-jump pushdata-aware scan instead
-of a precomputed valid-JUMPDEST bitmap~~ (resolved by M15.6 below).
+**Known limitations:** validation uses the current-frame pushdata-aware scan.
 `RegistryInvariants` counts unchanged (149 — JUMP/JUMPI stay in
 `controlFlowHandlers`).
 
@@ -996,47 +995,25 @@ full opcode registry (355 cases at this update, including the out-of-bounds
 runtime-trailer regressions). `scripts/check-progress.sh` exits 0. `lake build
 EvmAsm.Codegen` clean.
 
-### M15.6 — precomputed valid-JUMPDEST bitmap — **DONE (2026-06-07)**
+### M15.6 — pushdata-aware JUMPDEST validation — **DONE (2026-06-07; dead bitmap writer retired)**
 
-Closes M15.5's known limitation. The per-jump pushdata-aware scan made each
-JUMP / taken-JUMPI cost O(dest) guest instructions (~10 per scanned opcode),
-so a K-iteration EVM loop jumping back to offset `d` cost `K·d` — quadratic
-guest work for O(1) EVM gas (JUMP = 8, JUMPI = 10), a prover-cost hazard.
-M15.6 matches execution-specs' `get_valid_jump_destinations` shape: one
-pushdata-aware pass at startup, then O(1) per jump.
+M15.6 added pushdata-aware JUMPDEST validation. The emitted JUMP/JUMPI
+handlers retain the current-frame direct scan; the attempted precomputed bitmap
+was never read and is retired rather than described as an active mechanism.
 
 **Delivered:**
-- **`EvmAsm/Codegen/Dispatch.lean`** — `emitJumpdestBitmapBuild`, emitted by
-  *both* dispatcher prologues immediately before `.dispatch_loop:`: one
-  pushdata-aware pass over the bytecode setting bit `idx` of
-  `evm_jumpdest_bitmap` for every JUMPDEST byte outside PUSH1..PUSH32
-  immediates. The scan is clamped to `jumpdestBitmapCodeCapacity` (128 KiB of
-  code = `0x20000` = the live EIP-7954 draft's `MAX_INIT_CODE_SIZE`, giving
-  2× headroom over the vendored-specs **Amsterdam** maximum of
-  `MAX_INIT_CODE_SIZE = 0x10000 = 65,536`, so a future specs sync needs no
-  bitmap change — see the constant's docstring). `emitJumpdestBitmapData`
-  reserves the 16 KiB loader-zeroed bitmap region in both `.data` sections. Build-pass scratch is
-  `x5`–`x9`/`x11`, all dead at the insertion point.
 - **`EvmAsm/Codegen/Programs/EvmControlFlowHandlers.lean`** — the JUMP /
-  taken-JUMPI validity tail (`jumpBitmapCheckAsm`, formerly
-  `jumpPushdataAwareScanAsm`) keeps the `validityReg == 0x5b` compare (still
-  the routing for the body's non-canonical / out-of-bounds sentinel and the
-  not-taken JUMPI fall-through) and replaces the O(dest) scan with a 12-
-  instruction bit test: `dest = x10 - x21`, reject `dest ≥` bitmap capacity
-  (memory-safety backstop for oversized non-protocol test bytecode; protocol
-  code can't reach it), load `bitmap[dest >> 3]`, test bit `dest & 7`,
-  mismatch → `.exit_invalid`. Verified `evm_jump` / `evm_jumpi` bodies are
-  untouched.
-- **`EvmAsm/Codegen/Tests/Cases.lean`** — `jumpi_loop_backward` (countdown
-  loop validating the same backward destination on every taken iteration) and
-  `jump_forward_second_bitmap_byte` (JUMPDEST at byte 9 exercises bitmap byte
-  indexing past `bitmap[0]`). All M15/M15.5 jump regressions (pushdata,
-  out-of-bounds, high-limb, not-taken sentinel) pin the unchanged semantics.
+  taken-JUMPI tail validates `validityReg == 0x5b`, bounds the destination by
+  the current frame's code size, and performs a PUSH-aware direct scan from
+  the current `x21` code base. It works at every frame depth without a global
+  code-derived cache. Verified `evm_jump` / `evm_jumpi` bodies are untouched.
+- **`EvmAsm/Codegen/Tests/Cases.lean`** — the existing pushdata,
+  out-of-bounds, high-limb, and not-taken JUMPI regressions pin the unchanged
+  semantics.
 
-**Complexity:** per execution O(codeSize) prologue + O(1) per jump, replacing
-O(jumps × dest). Worst-case adversarial cost drops from ~10¹¹ guest
-instructions per 30M-gas frame to the one-time ~10-instruction-per-opcode
-build pass.
+**Complexity:** JUMP / taken-JUMPI validation is O(dest) under the current
+PUSH-aware direct scan. The unconsumed precomputation was retired: it had no
+runtime benefit and did not implement a spec-observable mechanism.
 
 ### M16 — KECCAK256 via ECALL bridge (first precompile pattern) — **DONE (2026-05-27)**
 

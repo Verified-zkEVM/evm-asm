@@ -4,9 +4,9 @@
   Lean functional *reference port* of `execution-specs @ tests-zkevm@v0.4.0`
   `src/ethereum/forks/amsterdam/vm/runtime.py` — the runtime helpers used
   while executing EVM code.  Feeder for bead `evm-asm-4ch8f.49.2`: it is the
-  mathematical spec anchor for the dispatcher's jumpdest-bitmap prologue
-  (`EvmAsm/Codegen/Dispatch.lean` `emitJumpdestBitmapBuild`) and for the
-  JUMP/JUMPI validity tail (`.55`).  Reference model only — no theorems about
+  mathematical spec anchor for the JUMP/JUMPI validity tail (`.55`). The
+  emitted handlers scan the current frame's code directly; this module supplies
+  the matching pushdata-aware boundary model. Reference model only — no theorems about
   the RV64 guest live here.
 
   Currently ports the single function `get_valid_jump_destinations`.

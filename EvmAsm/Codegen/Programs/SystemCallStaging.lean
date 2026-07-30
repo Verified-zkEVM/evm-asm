@@ -402,6 +402,7 @@ def ziskStageSystemCallPayloadPrologue : String :=
   "  j .Lsccp_done\n" ++
   stageSystemCallPayloadFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsccp_done:"
 
 def ziskStageSystemCallPayloadDataSection : String :=

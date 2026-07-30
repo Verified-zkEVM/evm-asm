@@ -35,10 +35,9 @@
   only after OR-reducing the upper destination limbs to zero and checking
   `dest.low64 < env.codeSize`. If the destination is non-canonical or out
   of bounds, the body writes a non-`0x5b` sentinel into `validityReg`. The
-  codegen handler tail then compares `validityReg` to `0x5b`, tests the
-  destination's bit in the valid-JUMPDEST bitmap precomputed by the
-  dispatcher prologue (one pushdata-aware pass over the bytecode, M15.6),
-  and routes any mismatch or PUSH-data target to `.exit_invalid`.
+  codegen handler tail then compares `validityReg` to `0x5b`, performs its
+  own PUSH-aware direct scan from the current frame's code base to reject
+  PUSH-data targets, and routes any mismatch to `.exit_invalid`.
 -/
 
 import EvmAsm.Evm64.Code.Basic
@@ -141,7 +140,7 @@ def evm_jumpi (codeBaseReg envBaseReg destReg condReg tmpReg validityReg : Reg) 
   LD tmpReg envBaseReg (BitVec.ofNat 12 EvmAsm.Evm64.Code.codeSizeOff) ;;
   BGEU destReg tmpReg (BitVec.ofNat 13 28) ;;
   -- Valid taken jump: point x10 at code[dest.low64] and load that byte for
-  -- the codegen tail's JUMPDEST / PUSH-data bitmap validity check.
+  -- the codegen tail's JUMPDEST / PUSH-data direct-scan validity check.
   ADD .x10 codeBaseReg destReg ;;
   LBU validityReg .x10 0 ;;
   JAL .x0 (BitVec.ofNat 21 20) ;;

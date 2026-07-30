@@ -99,6 +99,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     balRecipientStorageKeysFunction ++ "\n" ++
     balRecipientStorageReadsKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
@@ -513,6 +514,7 @@ def statelessVerdictV2GuestClosure : String :=
   balRecipientStorageKeysFunction ++ "\n" ++
   balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.

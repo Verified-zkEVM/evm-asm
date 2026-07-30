@@ -325,29 +325,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la t1, runtime_tx_intrinsic_data_ptr; ld t2, 56(s0); sd t2, 0(t1)\n" ++
   "  la t1, runtime_tx_intrinsic_data_len; ld t2, 64(s0); sd t2, 0(t1)\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
-  -- Match the normal contract-dispatch M31 trailer.  The common stager only
+  -- Match the normal contract-dispatch witness trailer.  The common stager
   -- constructs code, calldata, and env words; nested account/code lookups
-  -- require this authenticated pre-transaction header/witness context.
-  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, sv_pre_rlp_len; ld t2, 0(t1); sd t2, 472(t0)\n" ++
-  "  la t1, bv_witness_state_len; ld t3, 0(t1); sd t3, 480(t0)\n" ++
-  "  la t1, svf_codes_len; ld t4, 0(t1); sd t4, 488(t0)\n" ++
-  "  addi t5, t0, 496\n" ++
-  "  la t1, sv_pre_rlp_ptr; ld t1, 0(t1); mv t6, t2\n" ++
-  ".Lbvcr_ctx_hdr_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_state_copy_start\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_hdr_copy\n" ++
-  ".Lbvcr_ctx_state_copy_start:\n" ++
-  "  la t1, bv_witness_state_ptr; ld t1, 0(t1); mv t6, t3\n" ++
-  ".Lbvcr_ctx_state_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_codes_copy_start\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_state_copy\n" ++
-  ".Lbvcr_ctx_codes_copy_start:\n" ++
-  "  la t1, svf_codes_ptr; ld t1, 0(t1); mv t6, t4\n" ++
-  ".Lbvcr_ctx_codes_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_done\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_codes_copy\n" ++
-  ".Lbvcr_ctx_done:\n" ++
+  -- additionally require authenticated pre-transaction header/state/code.
+  "  la a0, bv_runtime_payload; la a1, sv_pre_rlp_ptr; ld a1, 0(a1); la a2, sv_pre_rlp_len; ld a2, 0(a2); la a3, bv_witness_state_ptr; ld a3, 0(a3); la a4, bv_witness_state_len; ld a4, 0(a4); la a5, svf_codes_ptr; ld a5, 0(a5); la a6, svf_codes_len; ld a6, 0(a6); jal ra, stage_runtime_payload_witness_context\n" ++
   -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
   -- transaction recipient).  A top-level CREATE has no recipient: its frame
   -- address is the CREATE(sender, nonce) address already derived by the
@@ -445,10 +426,19 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- materialize gas/blob first, capture the body state, then publish the two
   -- value-transfer halves.  The transfer helper is harmless when this route
   -- has no staged recipient credit, but keeping the call makes the ordering
-  -- contract explicit for every top-level message route.
+  -- contract explicit for every top-level message route.  This capture is
+  -- paired with the failure restore below in this routine; the ordinary route
+  -- pairs its capture in `Dispatch.lean` with the caller-side restore in
+  -- `BlockVerdictDispatchTx.lean`.
   -- Save `ra`: the dispatcher uses its caller return address to resume after
   -- initcode, while both helpers and the mark are calls.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- Top-level CREATE is intentionally not wired to record_message_value_transfer
+  -- yet: #10944 must first authenticate bv_create_addr's pre-balance.  The
+  -- current nse_zero_bal records below are not a valid substitute because a
+  -- deployable pre-existing account may hold ether.  Keep the existing path
+  -- unchanged while the shared producer serves the four callers that can name
+  -- both pre-balances.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has

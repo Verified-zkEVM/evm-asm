@@ -22,7 +22,6 @@ import EvmAsm.Codegen.Programs.Registry
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.HandlerSpecs
--- BOOTSTRAP import EvmAsm.Codegen.Proofs.JumpdestBitmap
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.OpcodeTables
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.RegistryInvariants
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.U256IsZeroSpec

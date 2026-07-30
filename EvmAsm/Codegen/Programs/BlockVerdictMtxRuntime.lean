@@ -729,6 +729,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- caller contract needs a real CREATE frame first: sender/public-key and
   -- nonce have already been established by the common mtx prelude above.
   "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
+  -- `sttc_nonce` is this transaction's pre-inclusion nonce, exactly the
+  -- CREATE input. Do not copy the spec's explicit minus-one: it compensates
+  -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
   -- A durable CodeState entry is a prior-tx live account and collides; a
@@ -779,14 +782,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_creation_key_copy:\n  beqz t2, .Lbv_mtx_creation_post; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_key_copy\n" ++
   ".Lbv_mtx_creation_post:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3; la t3, bv_tx_status_arr; add t3, t3, t0; ld a4, 0(t3)\n" ++
+  -- The shared creation runner has populated this transaction's indexed
+  -- gas/status/log result.  Rejoin the same finalization path as a completed
+  -- CALL: it consumes those indexed results, incorporates the transaction, and
+  -- advances `bv_mtx_i` before the block-level receipt materializer runs.
+  "  j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_mtx_creation_unsupported:\n" ++
-  -- A creation transaction is not yet dispatched by this loop, but every
-  -- preceding transaction has an exact settled runtime result in the strided
-  -- arrays.  Do not discard that information: execution-specs checks the next
-  -- transaction's declared regular reservation against the regular gas already
-  -- consumed by the settled prefix.  This catches an invalid transaction after
-  -- an otherwise supported prefix without guessing the creation transaction's
-  -- execution result.  Any parse/result failure remains the conservative bail.
+  -- A failed/unsupported creation leaves only the preceding exact prefix in
+  -- the strided arrays.  Preserve that prefix for the remaining gas check;
+  -- successful creations rejoin `.Lbv_mtx_effects_kept` above instead.
   "  la t0, bv_mtx_i; ld a5, 0(t0); beqz a5, .Lbv_mtx_creation_prefix_done\n" ++
   "  la t0, bv_exec_p; ld a0, 0(t0); la a1, bvgr_tx_gas_limits; li a2, " ++ toString bvMtxFullTxCap ++ "; jal ra, block_verdict_tx_gas_limits\n" ++
   "  bnez a0, .Lbv_mtx_creation_prefix_done\n" ++
