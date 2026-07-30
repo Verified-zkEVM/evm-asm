@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -696,6 +697,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- `nea_sort_a`; later gas replays use that set as their order-insensitive
   -- input and may reuse both sort buffers without a second large arena.
   ".balign 8\n" ++
-  "bv_eip7702_authority_counts:\n  .zero 2048\n"
+  "bv_eip7702_authority_counts:\n  .zero 2048\n" ++
+  messageValueTransferScratchData
 
 end EvmAsm.Codegen

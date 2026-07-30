@@ -3111,6 +3111,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   runtimeAccessAccountChargeFunction ++ "\n" ++
   selfdestructBalanceTransferFunction ++ "\n" ++
   eip7708SyntheticLogFunctions ++ "\n" ++
+  messageValueTransferFunction ++ "\n" ++
   -- Real BLS12-381 G1 ADD/MSM kernels (see the shared-helpers branch note).
   bls12G1PrecompileFunctions ++ "\n" ++
   -- Real BN254 ecAdd/ecMul/ecPairing kernels (0x06/0x07/0x08); see the
