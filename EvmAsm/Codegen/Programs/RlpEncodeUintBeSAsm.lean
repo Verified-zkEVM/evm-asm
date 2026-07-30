@@ -76,6 +76,27 @@
   against a reference encoder at `src_len ≥ 56` is this domain restriction, not
   a defect in whatever is under test.
 
+  ## Machine coverage as of this commit — the strip loop, NOT the whole routine
+
+  Proven: the pure layer (§1, §1b), the guest layout (§2), the all-zeros tail
+  [8]-[11] (§3), and the leading-zero strip loop [2]-[7] end to end (§4) —
+  `reubStripRound` (one round), `reubStripExh` (the exhaustion exit) and
+  `reubStripLoop`, which folds them with `twoExitRetLoop_spec` into a single
+  `cpsBranchWithin (n * 6 + 1)` from the loop header to *either* `reubBase+48`
+  (a nonzero byte, count pinned) *or* `reubBase+32` (all bytes zero).
+
+  NOT yet proven, so there is **no whole-routine triple in this file yet**:
+
+    * the prologue [0]-[1] (`MV`/`MV`) that establishes `reubInv … 0`;
+    * the single-byte dispatch and tail [12]-[20] (`BNE len≠1`, `BGEU b≥0x80`);
+    * the header write and payload copy loop [21]-[34];
+    * hence also the composed triple tying `a0` and the output region to
+      `reubOut`, which is what `reubOut_short_form` and the `≤ 55` domain note
+      below are ultimately for.
+
+  Nothing in §1 depends on §4, so the model-side corollaries stand on their own;
+  but no claim is made here about what the routine as a whole computes.
+
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
 
@@ -472,36 +493,82 @@ theorem pcFree_reubAmb (srcPtr outPtr raVal : Word) (oldOut : List Byte) :
     (reubAmb srcPtr outPtr raVal oldOut).pcFree := by
   unfold reubAmb; pcFree
 
-/-- Strip-loop invariant after `j` rounds: cursor at `src+j`, counter `n-j`, and
-    `j` bounded by the true leading-zero count. -/
-def reubInv (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n j : Nat) :
+/-- The strip loop's stable half after `j` rounds: cursor at `src+j`, counter
+    `n-j`, the source region, and the ambient registers.
+
+    Split out from `reubInvCore` so that `regOwn .x28` is the whole right factor
+    of the invariant: the round proof has to name the scratch byte register's
+    incoming value, and `cpsBranchWithin_of_forall_regIs_to_regOwn` only reaches
+    a **trailing** `regOwn`.  Likewise `reubInv` keeps its pure bound as the
+    outermost right factor so `cpsBranchWithin_pure_pre_right` can peel it
+    without an intervening `xperm` reshape. -/
+def reubStable (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n j : Nat) :
     Assertion :=
   ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 j)) **
   ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - j)) **
-  regOwn .x28 ** bytesRegion srcPtr xs **
-  reubAmb srcPtr outPtr raVal oldOut **
-  ⌜j ≤ reubZeros xs 0 n⌝
+  bytesRegion srcPtr xs **
+  reubAmb srcPtr outPtr raVal oldOut
+
+/-- `reubStable` plus ownership of the scratch byte register. -/
+def reubInvCore (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n j : Nat) :
+    Assertion :=
+  reubStable srcPtr outPtr raVal xs oldOut n j ** regOwn .x28
+
+/-- Strip-loop invariant after `j` rounds: `reubInvCore`, plus `j` bounded by the
+    true leading-zero count. -/
+def reubInv (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n j : Nat) :
+    Assertion :=
+  reubInvCore srcPtr outPtr raVal xs oldOut n j ** ⌜j ≤ reubZeros xs 0 n⌝
 
 /-- The break post: the loop stopped at the first nonzero byte, whose offset is
-    exactly the leading-zero count. -/
+    exactly the leading-zero count.  The stopped-on byte itself is not exposed —
+    it is recoverable from `d < n` by `reubZeros_stop_ne`, and `[21]` overwrites
+    `x28` immediately. -/
 def reubBreakPost (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n : Nat) :
     Assertion :=
   fun h => ∃ d,
-    (((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 d)) **
-     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
-     regOwn .x28 ** bytesRegion srcPtr xs **
-     reubAmb srcPtr outPtr raVal oldOut **
+    (reubInvCore srcPtr outPtr raVal xs oldOut n d **
      ⌜d = reubZeros xs 0 n ∧ d < n⌝) h
 
 /-- The exhaustion post: every byte was zero, so the stripped payload is empty
     and §3's tail is correct to write `0x80`. -/
 def reubExhPost (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n : Nat) :
     Assertion :=
-  ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
-  ((.x6 : Reg) ↦ᵣ (0 : Word)) **
-  regOwn .x28 ** bytesRegion srcPtr xs **
-  reubAmb srcPtr outPtr raVal oldOut **
-  ⌜reubZeros xs 0 n = n⌝
+  reubInvCore srcPtr outPtr raVal xs oldOut n n ** ⌜reubZeros xs 0 n = n⌝
+
+/-! ### Local arithmetic for the loop edges -/
+
+/-- A nonzero remaining count is a nonzero counter register. -/
+private theorem reub_cnt_ne_zero (m : Nat) (h : m + 1 < 2 ^ 64) :
+    BitVec.ofNat 64 (m + 1) ≠ (0 : Word) := by
+  intro heq
+  have h2 := congrArg BitVec.toNat heq
+  rw [show (0 : Word).toNat = 0 from by decide] at h2
+  simp only [BitVec.toNat_ofNat] at h2
+  omega
+
+/-- Successor of a counter value, as a register increment. -/
+private theorem reub_ofNat_succ (m : Nat) :
+    BitVec.ofNat 64 (m + 1) = BitVec.ofNat 64 m + (1 : Word) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+      show (1 : Word).toNat = 1 from by decide]
+  omega
+
+/-- `ADDI x6, x6, -1` decrements the counter.  Needs no range side condition:
+    the decrement is exact in `BitVec 64` whatever `m` is. -/
+private theorem reub_cnt_down (m : Nat) :
+    BitVec.ofNat 64 (m + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 m := by
+  rw [reub_ofNat_succ m,
+      show signExtend12 (-1 : BitVec 12) = -(1 : Word) from by decide]
+  bv_omega
+
+/-- `ADDI x5, x5, 1` advances the source cursor. -/
+private theorem reub_cur_up (srcPtr : Word) (j : Nat) :
+    (srcPtr + BitVec.ofNat 64 j) + signExtend12 (1 : BitVec 12)
+      = srcPtr + BitVec.ofNat 64 (j + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  bv_omega
 
 /-- A byte's zero-extension is zero exactly when the byte is. -/
 theorem zeroExtend_eq_zero_iff (b : BitVec 8) :
@@ -516,6 +583,228 @@ theorem zeroExtend_eq_zero_iff (b : BitVec 8) :
     rw [show (0 : BitVec 8).toNat = 0 from by decide]
     omega
   · intro h; subst h; decide
+
+/-! ### The round
+
+    The round's control flow is decided by data the caller already fixed (`j`,
+    `xs`), so the proof splits on `xs[j] = 0` FIRST and each arm is then a
+    straight-line `runBlock` chain — rather than composing a branch and
+    threading the `BNE`'s pure outcome through a `hperm` that would discard it.
+    Instructions, all six: `BEQ` (falls through, counter nonzero), `LBU`,
+    `BNE` (breaks iff the byte is nonzero), `ADDI`/`ADDI`/`JAL`. -/
+
+set_option maxRecDepth 8000 in
+/-- **One strip-loop round**, `j < n`: either BREAK to `reubBase+48` with the
+    leading-zero count pinned at `j`, or advance to `reubBase+8` with the
+    invariant at `j+1`. -/
+theorem reubStripRound (srcPtr outPtr raVal : Word) (xs oldOut : List Byte)
+    (n j : Nat) (hjn : j < n) (hnlen : n ≤ xs.length) (hn64 : n < 2 ^ 64)
+    (hsalign : srcPtr.toNat % 8 = 0) (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true) :
+    cpsBranchWithin 6 (reubBase + 8) reubCode
+      (reubInv srcPtr outPtr raVal xs oldOut n j)
+      (reubBase + 48) (reubBreakPost srcPtr outPtr raVal xs oldOut n)
+      (reubBase + 8) (reubInv srcPtr outPtr raVal xs oldOut n (j + 1)) := by
+  have hjlen : j < xs.length := by omega
+  have hget : getByteAt xs j = xs[j]'hjlen := by simp [getByteAt, hjlen]
+  unfold reubInv reubInvCore
+  refine cpsBranchWithin_pure_pre_right (fun hj => ?_)
+  refine cpsBranchWithin_of_forall_regIs_to_regOwn (fun v28 => ?_)
+  -- [2] `BEQ x6, x0, +24` — the counter is `n - j > 0`, so it falls through.
+  have hcntne : BitVec.ofNat 64 (n - j) ≠ (0 : Word) := by
+    obtain ⟨m, hm⟩ : ∃ m, n - j = m + 1 := ⟨n - j - 1, by omega⟩
+    rw [hm]; exact reub_cnt_ne_zero m (by omega)
+  have hbeq0 := beq_spec_gen_within .x6 .x0 (24 : BitVec 13)
+    (BitVec.ofNat 64 (n - j)) (0 : Word) (reubBase + 8)
+  rw [show reubBase + 8 + 4 = reubBase + 12 from by bv_omega] at hbeq0
+  have hbeq := cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+    (cpsBranchWithin_ntakenPath hbeq0 (fun _ hQt => by
+      obtain ⟨_, _, _, _, _, hpure⟩ := hQt
+      exact absurd ((sepConj_pure_right _).1 hpure).2 hcntne))
+  -- [3] `LBU x28, 0(x5)` — reads `xs[j]`.
+  have hlbu := bytesRegion_lbu_within .x28 .x5 srcPtr v28 (reubBase + 12) xs j
+    (by decide) hsalign hjlen (by omega) (hsvalid j (by omega))
+  rw [show reubBase + 12 + 4 = reubBase + 16 from by bv_omega] at hlbu
+  -- [4] `BNE x28, x0, +32`.
+  have hbne0 := bne_spec_gen_within .x28 .x0 (32 : BitVec 13)
+    ((xs[j]'hjlen).zeroExtend 64) (0 : Word) (reubBase + 16)
+  rw [show reubBase + 16 + signExtend13 (32 : BitVec 13) = reubBase + 48 from by
+        rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by decide]; bv_omega,
+      show reubBase + 16 + 4 = reubBase + 20 from by bv_omega] at hbne0
+  by_cases hz : (xs[j]'hjlen) = 0
+  · -- ===== zero byte: the round continues =====
+    have hbzero : ((xs[j]'hjlen).zeroExtend 64) = (0 : Word) :=
+      (zeroExtend_eq_zero_iff _).2 hz
+    have hbne := cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+      (cpsBranchWithin_ntakenPath hbne0 (fun _ hQt => by
+        obtain ⟨_, _, _, _, _, hpure⟩ := hQt
+        exact absurd hbzero ((sepConj_pure_right _).1 hpure).2))
+    -- [5] `ADDI x5, x5, 1`; [6] `ADDI x6, x6, -1`; [7] `JAL x0, -20`.
+    have haddi5 := addi_spec_gen_same_within .x5 (srcPtr + BitVec.ofNat 64 j)
+      (1 : BitVec 12) (reubBase + 20) (by decide)
+    rw [reub_cur_up srcPtr j,
+        show reubBase + 20 + 4 = reubBase + 24 from by bv_omega] at haddi5
+    have haddi6 := addi_spec_gen_same_within .x6 (BitVec.ofNat 64 (n - j))
+      (-1 : BitVec 12) (reubBase + 24) (by decide)
+    rw [show BitVec.ofNat 64 (n - j) + signExtend12 (-1 : BitVec 12)
+          = BitVec.ofNat 64 (n - (j + 1)) from by
+          rw [show n - j = (n - (j + 1)) + 1 from by omega]
+          exact reub_cnt_down (n - (j + 1)),
+        show reubBase + 24 + 4 = reubBase + 28 from by bv_omega] at haddi6
+    have hjal := jal_x0_spec_gen_within (-20 : BitVec 21) (reubBase + 28)
+    rw [show reubBase + 28 + signExtend21 (-20 : BitVec 21) = reubBase + 8 from by
+          rw [show signExtend21 (-20 : BitVec 21) = -(20 : Word) from by decide]
+          bv_omega] at hjal
+    have hround : cpsTripleWithin 6 (reubBase + 8) (reubBase + 8) reubCode
+        (((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 j)) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - j)) **
+         ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+         ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr oldOut)
+        (((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 (j + 1))) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - (j + 1))) **
+         ((.x28 : Reg) ↦ᵣ ((xs[j]'hjlen).zeroExtend 64)) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+         ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr oldOut) := by
+      runBlock hbeq hlbu hbne haddi5 haddi6 hjal
+    have hlt : j < reubZeros xs 0 n :=
+      reubZeros_gt_of_zero xs 0 n j (by simpa using hj) hjn
+        (by rw [Nat.zero_add, hget]; exact hz)
+    refine cpsBranchWithin_weaken (fun h hp => ?_) (fun _ hp => hp) (fun h hp => ?_)
+      (cpsTripleWithin_as_cpsBranchWithin_right (reubBase + 48)
+        (reubBreakPost srcPtr outPtr raVal xs oldOut n) hround)
+    · unfold reubStable reubAmb at hp; xperm_hyp hp
+    · refine (sepConj_pure_right h).2 ⟨?_, by omega⟩
+      unfold reubStable reubAmb
+      have hp2 : ((((.x28 : Reg) ↦ᵣ ((xs[j]'hjlen).zeroExtend 64)) **
+          ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 (j + 1))) **
+          ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - (j + 1))) **
+          bytesRegion srcPtr xs **
+          ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion outPtr oldOut)) h := by xperm_hyp hp
+      have hp3 := sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x) h hp2
+      xperm_hyp hp3
+  · -- ===== nonzero byte: the round breaks =====
+    have hbne := cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun h hp => sepConj_mono_right
+        (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+      (cpsBranchWithin_takenPath hbne0 (fun _ hQf => by
+        obtain ⟨_, _, _, _, _, hpure⟩ := hQf
+        exact absurd ((zeroExtend_eq_zero_iff _).1
+          ((sepConj_pure_right _).1 hpure).2) hz))
+    have hbreak : cpsTripleWithin 3 (reubBase + 8) (reubBase + 48) reubCode
+        (((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 j)) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - j)) **
+         ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+         ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr oldOut)
+        (((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 j)) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - j)) **
+         ((.x28 : Reg) ↦ᵣ ((xs[j]'hjlen).zeroExtend 64)) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+         ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr oldOut) := by
+      runBlock hbeq hlbu hbne
+    have heq : reubZeros xs 0 n = j :=
+      reubZeros_eq_of_ne xs 0 n j (by simpa using hj)
+        (by rw [Nat.zero_add, hget]; exact hz)
+    refine cpsBranchWithin_mono_nSteps (by omega)
+      (cpsBranchWithin_weaken (fun h hp => ?_) (fun h hp => ?_) (fun _ hp => hp)
+        (cpsTripleWithin_as_cpsBranchWithin_left (reubBase + 8)
+          (reubInv srcPtr outPtr raVal xs oldOut n (j + 1)) hbreak))
+    · unfold reubStable reubAmb at hp; xperm_hyp hp
+    · refine ⟨j, (sepConj_pure_right h).2 ⟨?_, heq.symm, hjn⟩⟩
+      unfold reubInvCore reubStable reubAmb
+      have hp2 : ((((.x28 : Reg) ↦ᵣ ((xs[j]'hjlen).zeroExtend 64)) **
+          ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 j)) **
+          ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - j)) **
+          bytesRegion srcPtr xs **
+          ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion outPtr oldOut)) h := by xperm_hyp hp
+      have hp3 := sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x) h hp2
+      xperm_hyp hp3
+
+set_option maxRecDepth 8000 in
+/-- **Strip-loop exhaustion** ([2] with the counter at zero, `j = n`): the window
+    is used up, so every byte was zero and the count is pinned at `n`.
+
+    The invariant's `n ≤ reubZeros xs 0 n` is upgraded to equality here rather
+    than in §5, since `reubZeros_eq_self` is exactly the missing half. -/
+theorem reubStripExh (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n : Nat) :
+    cpsTripleWithin 1 (reubBase + 8) (reubBase + 32) reubCode
+      (reubInv srcPtr outPtr raVal xs oldOut n n)
+      (reubExhPost srcPtr outPtr raVal xs oldOut n) := by
+  have hzero : BitVec.ofNat 64 (n - n) = (0 : Word) := by rw [Nat.sub_self]; decide
+  have hbeq0 := beq_spec_gen_within .x6 .x0 (24 : BitVec 13)
+    (BitVec.ofNat 64 (n - n)) (0 : Word) (reubBase + 8)
+  rw [show reubBase + 8 + signExtend13 (24 : BitVec 13) = reubBase + 32 from by
+        rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]
+        bv_omega] at hbeq0
+  have hbeq := cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hp => sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
+    (cpsBranchWithin_takenPath hbeq0 (fun _ hQf => by
+      obtain ⟨_, _, _, _, _, hpure⟩ := hQf
+      exact absurd hzero ((sepConj_pure_right _).1 hpure).2))
+  unfold reubInv reubExhPost reubInvCore
+  -- No `cpsTripleWithin_pure_pre_right` exists (only the branch twin), so the
+  -- trailing pure factor is commuted to the front and peeled on the left.
+  refine cpsTripleWithin_weaken (fun h hp => (sepConj_comm h).1 hp) (fun _ hp => hp) ?_
+  refine cpsTripleWithin_pure_pre (fun hj => ?_)
+  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v28 => ?_)
+  have hcore : cpsTripleWithin 1 (reubBase + 8) (reubBase + 32) reubCode
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - n)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+       ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr oldOut)
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - n)) **
+       ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+       ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+       ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr oldOut) := by
+    (runBlock hbeq)
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) hcore
+  · unfold reubStable reubAmb at hp; xperm_hyp hp
+  · refine (sepConj_pure_right h).2 ⟨?_, reubZeros_eq_self xs 0 n hj⟩
+    unfold reubStable reubAmb
+    have hp2 : ((((.x28 : Reg) ↦ᵣ v28) **
+        ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+        ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - n)) **
+        bytesRegion srcPtr xs **
+        ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion outPtr oldOut)) h := by xperm_hyp hp
+    have hp3 := sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x) h hp2
+    xperm_hyp hp3
+
+/-- **The strip loop, folded** ([2]-[7]): from the header, either BREAK to
+    `reubBase+48` with the leading-zero count pinned, or exhaust the window to
+    `reubBase+32` (the all-zeros tail of §3).  `n * 6 + 1` steps: `n` rounds of
+    six instructions plus the final `BEQ`. -/
+theorem reubStripLoop (srcPtr outPtr raVal : Word) (xs oldOut : List Byte)
+    (n : Nat) (hnlen : n ≤ xs.length) (hn64 : n < 2 ^ 64)
+    (hsalign : srcPtr.toNat % 8 = 0) (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true) :
+    cpsBranchWithin (n * 6 + 1) (reubBase + 8) reubCode
+      (reubInv srcPtr outPtr raVal xs oldOut n 0)
+      (reubBase + 48) (reubBreakPost srcPtr outPtr raVal xs oldOut n)
+      (reubBase + 32) (reubExhPost srcPtr outPtr raVal xs oldOut n) :=
+  twoExitRetLoop_spec n 6 1 (reubInv srcPtr outPtr raVal xs oldOut n)
+    (fun j hj => reubStripRound srcPtr outPtr raVal xs oldOut n j hj hnlen hn64
+      hsalign hsover hsvalid)
+    (reubStripExh srcPtr outPtr raVal xs oldOut n)
 
 end RlpEncodeUintBeSAsm
 
