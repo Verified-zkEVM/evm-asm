@@ -179,9 +179,22 @@ def frameReturnFunction : String :=
   -- back accessed_storage_keys). The keys array beyond the count is stale but a
   -- future cold access overwrites slot[count]. Success leaves it (warmth
   -- propagates up per incorporate_child_on_success).
+  --
+  -- EQUIVALENCE CONDITION, and it is latent: the spec rolls warmth back by
+  -- DISCARDING A COPY (`system.py:367-368` hands the child
+  -- `accessed_storage_keys.copy()`; `incorporate_child_on_error`,
+  -- `vm/__init__.py:302-304`, reabsorbs only the gas fields), while this restores
+  -- a COUNT.  A count is a high-water mark: it undoes APPENDS but cannot undo an
+  -- in-place edit of an entry below the mark.  The two agree only while this table
+  -- is APPEND-ONLY -- true for a membership set with no mutable per-entry payload.
+  -- Giving warmth entries a mutable field would break the equivalence with no
+  -- assertion anywhere to catch it.
   "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
   -- EIP-2929 accessed_addresses has the same rollback rule as accessed_storage_keys:
   -- a reverted child does not propagate accounts it warmed to the parent.
+  -- The append-only equivalence condition stated at the storage-warmth restore
+  -- above applies identically here (`system.py:149-150` / `:367-368` copy this set
+  -- per child; the error path does not merge it back).
   "  ld t0, 720(x20); la t1, evm_access_account_count; sd t0, 0(t1)\n" ++
   -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
   -- pre-child snapshots captured by call_frame_descend. Successful child frames
