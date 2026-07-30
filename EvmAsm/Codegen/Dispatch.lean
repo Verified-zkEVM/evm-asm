@@ -3012,22 +3012,13 @@ def emitTxAuthListWarmLoop : String :=
     runtime data section and restored by the callable exit join. -/
 def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : String :=
   -- `runtime_dispatcher_prepare_only` shares the ordinary callable setup and
-  -- exits at the post-preparation seam above.  Its caller later supplies the
-  -- authenticated code pointer to `runtime_dispatcher_resume`, which enters
-  -- below that seam and therefore cannot replay EIP-7702 authorization writes.
+  -- exits at the post-preparation seam above.
   "runtime_dispatcher_prepare_only:\n" ++
   -- Mark entered before setup.  A prefix OOG takes the ordinary exceptional
   -- exit and leaves this at 1; only the explicit prefix-return writes 2.
   "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
   "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
   "  j runtime_dispatcher_call\n" ++
-  "runtime_dispatcher_resume:\n" ++
-  "  la x5, runtime_dispatcher_caller_ra; sd ra, 0(x5)\n" ++
-  "  la x5, runtime_dispatcher_caller_sp; sd sp, 0(x5)\n" ++
-  "  la x20, evm_env\n" ++
-  "  la x5, runtime_tx_resume_code_ptr; ld x21, 0(x5)\n" ++
-  "  beqz x21, runtime_dispatcher_prepare_only_return\n" ++
-  "  j .runtime_tx_post_top_frame_done\n" ++
   "runtime_dispatcher_prepare_only_return:\n" ++
   "  la x5, runtime_dispatcher_caller_sp; ld sp, 0(x5)\n" ++
   "  la x5, runtime_dispatcher_caller_ra; ld ra, 0(x5)\n" ++
@@ -3532,8 +3523,6 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_prepare_only:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_prepare_prefix_status:\n" ++
-  "  .zero 8\n" ++
-  "runtime_tx_resume_code_ptr:\n" ++
   "  .zero 8\n" ++
   -- Access-list cardinalities for tx-gas validation. Transaction-aware callers
   -- write these before `runtime_dispatcher_call`; zero defaults preserve legacy
