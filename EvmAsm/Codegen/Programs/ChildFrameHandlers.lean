@@ -210,22 +210,13 @@ def callDescendFallThrough
     -- build from_sw/to_sw/val_sw on the stack from the canonical-BE globals (mirrors the
     -- CREATE-endowment emit in ChildFrameHandlerTails): a stack word holds the address in
     -- the LOW 20 bytes (the synthetic-log materializer reverses the WHOLE 32B slot to BE).
-    "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
-    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-    "  la t0, cd_caller_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
-    ".Lcd_xlog_from_" ++ site ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_from_" ++ site ++ tag ++ "\n" ++
-    "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
-    "  la t0, cd_callee_be; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
-    ".Lcd_xlog_to_" ++ site ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_to_" ++ site ++ tag ++ "\n" ++
-    "  la t0, cd_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
-    ".Lcd_xlog_val_" ++ site ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcd_xlog_val_" ++ site ++ tag ++ "\n" ++
-    "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++
-    "  jal ra, eip7708_append_transfer_log\n" ++
-    ".Lcd_xlog_restore_" ++ site ++ tag ++ ":\n" ++
-    "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
+    -- GH #10938 cut 4: the operand staging is now the shared
+    -- `eip7708TransferLogStageAsm`, which the CREATE-endowment site also uses.  Only the
+    -- one-shot pending-flag guard above and below is CALL-specific.
+    eip7708TransferLogStageAsm "cd_caller_be" "cd_callee_be" "cd_value_be"
+      (".Lcd_xlog_from_" ++ site ++ tag) (".Lcd_xlog_to_" ++ site ++ tag)
+      (".Lcd_xlog_val_" ++ site ++ tag)
+      (restoreLabel := ".Lcd_xlog_restore_" ++ site ++ tag) ++
     ".Lcd_xlog_skip_" ++ site ++ tag ++ ":\n"
   let refundNewAccountStateGas : String → String := fun site =>
     -- execution-specs `credit_state_gas_refund(NEW_ACCOUNT)`: refund in LIFO
