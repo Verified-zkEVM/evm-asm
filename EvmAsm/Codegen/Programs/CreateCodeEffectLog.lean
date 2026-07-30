@@ -418,6 +418,36 @@ def accountStatePublishSenderInclusionFunction : String :=
   ".Laspsn_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 40; ret"
 
+/-! ## account_state_publish_sender_upfront
+
+    Publish the sender's execution-start balance and nonce directly into the
+    durable overlay.  Unlike ordinary execution effects, the upfront debit is
+    incurred before message execution and therefore survives a top-level
+    REVERT/exceptional halt.  The MTx EOA route must publish it before entering
+    the callable dispatcher, whose pending journal reset is intentionally
+    transaction-local.
+
+    a0 = canonical sender address, a1 = post-upfront 32-byte balance,
+    a2 = post-increment nonce. -/
+def accountStatePublishSenderUpfrontFunction : String :=
+  "account_state_publish_sender_upfront:\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Laspsu_clone\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Laspsu_zero:\n" ++
+  "  li t2, 128; beq t1, t2, .Laspsu_addr; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Laspsu_zero\n" ++
+  ".Laspsu_clone:\n" ++
+  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
+  ".Laspsu_addr:\n" ++
+  "  la t0, account_state_scratch; li t1, 0\n" ++
+  ".Laspsu_addr_loop:\n" ++
+  "  li t2, 20; beq t1, t2, .Laspsu_fields; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Laspsu_addr_loop\n" ++
+  ".Laspsu_fields:\n" ++
+  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); sd s2, 64(t0); ld t1, 88(t0); ori t1, t1, 35; sd t1, 88(t0)\n" ++
+  "  la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; beqz a0, .Laspsu_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Laspsu_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 56; ret"
+
 def accountStateAuthCurrentFunction : String :=
   "account_state_auth_current:\n" ++
   -- GH #10619 (review gate 2): a third EXECUTION account read, missed by the

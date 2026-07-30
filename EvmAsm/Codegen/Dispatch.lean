@@ -2011,6 +2011,7 @@ def emitDispatcherEpilogueCore
     accountStateRecordCodeFunction ++ "\n" ++
     accountStateRecordAuthFunction ++ "\n" ++
     accountStatePublishSenderInclusionFunction ++ "\n" ++
+    accountStatePublishSenderUpfrontFunction ++ "\n" ++
     accountStateAuthCurrentFunction ++ "\n" ++
     accountStateLatestBalanceFunction ++ "\n" ++
     accountStateLatestNonceFunction ++ "\n" ++
@@ -3226,6 +3227,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   accountStateRecordCodeFunction ++ "\n" ++
   accountStateRecordAuthFunction ++ "\n" ++
   accountStatePublishSenderInclusionFunction ++ "\n" ++
+  accountStatePublishSenderUpfrontFunction ++ "\n" ++
   accountStateAuthCurrentFunction ++ "\n" ++
   accountStateLatestBalanceFunction ++ "\n" ++
   accountStateLatestNonceFunction ++ "\n" ++

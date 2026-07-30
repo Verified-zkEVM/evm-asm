@@ -230,8 +230,10 @@ def eip7708SyntheticLogFunctions : String :=
   -- EIP-4844 blob-fee subtraction tests require BALANCE(ORIGIN) during recipient
   -- execution to observe the sender after the upfront gas/blob/value debit but
   -- before the post-execution gas refund. The dispatcher setup resets per-call
-  -- runtime state, so block_verdict stages this one-shot record and the setup
-  -- emits it after those resets. Preserves every caller register: setup still
+  -- runtime state, so the full dispatcher stages this one-shot record and the
+  -- setup emits it after those resets.  The MTx EOA shortcut instead crosses
+  -- the callable dispatch reset, so it publishes its upfront debit directly
+  -- to the durable AccountState overlay. Preserves every caller register: setup still
   -- has a live input cursor in t0/t1/t2 and env in x20.
   "dispatcher_seed_pending_upfront_balance:\n" ++
   "  addi sp, sp, -144\n" ++

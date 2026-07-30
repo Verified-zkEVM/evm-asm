@@ -610,10 +610,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- record with `post_nonce = 0` would clobber it.
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); beqz t2, .Lbv_mtx_xfer_debit_done\n" ++
   "  la t0, bv_mtx_ctx; ld t1, 96(t0); ld t2, 104(t0); or t1, t1, t2; ld t2, 112(t0); or t1, t1, t2; ld t2, 120(t0); or t1, t1, t2; beqz t1, .Lbv_mtx_xfer_debit_done\n" ++
-  "  la a0, bv_pending_upfront_sender_post; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_xfer_sender_bal; jal ra, u256_sub_be\n" ++
+  -- The transfer follows the recipient credit in `move_ether`; use the
+  -- transaction-current AccountState value when that credit has been recorded.
+  -- Non-self transfers have no sender entry yet and retain the staged upfront
+  -- post as their fallback.
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  bnez a0, .Lbv_mtx_xfer_debit_have_pre\n" ++
+  "  la t0, bv_pending_upfront_sender_post; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  ".Lbv_mtx_xfer_debit_have_pre:\n" ++
+  "  la a0, bv_pending_upfront_sender_pre; la t0, bv_mtx_ctx; addi a1, t0, 96; la a2, bv_xfer_sender_bal; jal ra, u256_sub_be\n" ++
   "  bnez a0, .Lbv_mtx_xfer_debit_done\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; la a2, bv_xfer_sender_bal\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_xfer_sender_bal\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   ".Lbv_mtx_xfer_debit_done:\n" ++
   -- Contract/EOA contexts retain their raw recipient here; the creation route
