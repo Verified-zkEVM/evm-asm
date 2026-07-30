@@ -2312,6 +2312,108 @@ def emitTxAccessListSeedLoop : String :=
     initialised — pointed at the input region instead of an
     in-`.data` label. The hex literal `0x40000010` matches
     `INPUT_ADDR + INPUT_DATA_OFFSET` in `Programs.lean`. -/
+private def emitTopLevelMessageD0Preparation : String :=
+  -- Cut A gathers the top-level preparation portion around `process_message`
+  -- without changing its emitted order. Cut B will guard this exact fragment
+  -- with `evm_call_depth == 0` before a later entry seam allows child frames
+  -- here. Access seeding below is caller-scoped, rather than depth-guarded in
+  -- the spec: nested messages inherit their parent's accessed-address set.
+  -- Do not move individual instructions across this boundary: state-gas and
+  -- early-exit ordering is part of the transaction semantics.
+  -- 1. authorization traversal / set_delegation callback
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
+  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
+  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
+  "  jalr ra, x9, 0; mv x9, x10\n" ++
+  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
+  "  bnez x9, .exit_outofgas\n" ++
+  ".runtime_tx_auth_exec_done:\n" ++
+  -- 2. authorization state-gas fold
+  "  la x11, runtime_tx_auth_state_refund\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_auth_state_refund_done\n" ++
+  ".runtime_tx_auth_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  ".runtime_tx_auth_state_refund_done:\n" ++
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  ".runtime_tx_auth_state_used_done:\n" ++
+  -- 3. prepare_dispatch's staged creation state-gas charge
+  "  la x11, runtime_tx_create_state_charge\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_create_state_done\n" ++
+  "  mv x7, x9\n" ++
+  "  la x11, evm_state_gas_left\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
+  "  sub x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  "  j .runtime_tx_create_state_used\n" ++
+  ".runtime_tx_create_state_spill:\n" ++
+  "  sub x9, x9, x8\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sd x0, 0(x11)\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  la x11, evm_state_gas_spilled\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x9\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_used:\n" ++
+  "  la x11, evm_state_gas_used\n" ++
+  "  ld x8, 0(x11)\n" ++
+  "  add x8, x8, x7\n" ++
+  "  sd x8, 0(x11)\n" ++
+  ".runtime_tx_create_state_done:\n" ++
+  -- 4. top-level-only preparation halt, then top-frame gas and context
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
+  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  ".runtime_tx_prepare_prefix_continue:\n" ++
+  ".runtime_tx_gas_done:\n" ++
+  "  sd x6, 568(x20)\n" ++
+  "  la x11, runtime_tx_top_frame_regular_gas\n" ++
+  "  ld x9, 0(x11)\n" ++
+  "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
+  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  sub x6, x6, x9\n" ++
+  "  sd x6, 568(x20)\n" ++
+  ".runtime_tx_top_frame_regular_done:\n" ++
+  "  ld x6, 0(x5)\n" ++
+  "  sd x6, 584(x20)\n" ++
+  "  ld x7, 8(x5)\n" ++
+  "  sd x7, 600(x20)\n" ++
+  "  ld x8, 16(x5)\n" ++
+  "  sd x8, 616(x20)\n" ++
+  "  addi x5, x5, 24\n" ++
+  "  sd x5, 576(x20)\n" ++
+  "  add x5, x5, x6\n" ++
+  "  sd x5, 592(x20)\n" ++
+  "  add x5, x5, x7\n" ++
+  "  sd x5, 608(x20)\n" ++
+  -- 5. caller-scoped access seeding and the full deferred prepare_dispatch callback
+  "  jal ra, runtime_access_seed_initial_accounts\n" ++
+  emitTxAccessListSeedLoop ++ "\n" ++
+  "  la x5, runtime_tx_post_top_frame_fn\n" ++
+  "  ld x28, 0(x5)\n" ++
+  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
+  "  jalr ra, x28, 0\n" ++
+  ".runtime_tx_post_top_frame_done:\n" ++
+  -- 6. the depth-zero preparation marker.  The spec returns directly on a
+  -- preparation halt, so reaching the shared body is its own marker; the
+  -- guest records that distinction explicitly for the later reconciliation.
+  "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n"
+
 def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)
@@ -2743,139 +2845,9 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
-  -- EIP-7702 execution seam: run the authorization traversal once, after the
-  -- state-gas reservoir exists and before its staged charge is consumed.
-  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
-  "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
-  "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
-  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
-  "  jalr ra, x9, 0; mv x9, x10\n" ++
-  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
-  "  bnez x9, .exit_outofgas\n" ++
-  ".runtime_tx_auth_exec_done:\n" ++
-  -- v0.6.0 (EIP-7702 rework): set_delegation CHARGES its exact
-  -- state-dependent costs at the top frame -- reservoir first, spilling
-  -- the remainder into regular gas (OOG halts the frame without
-  -- dispatching, mirroring the spec's prep rollback). The execution callback
-  -- stages the exact charge in runtime_tx_auth_state_refund (cell name kept)
-  -- immediately before this setup. Fold the charge into the per-tx intrinsic
-  -- state cell so prep charges survive body rollback without being counted as
-  -- body execution state.
-  "  la x11, runtime_tx_auth_state_refund\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
-  "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
-  "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
-  "  la x11, evm_state_gas_left\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
-  "  sub x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  "  j .runtime_tx_auth_state_refund_done\n" ++
-  ".runtime_tx_auth_state_spill:\n" ++
-  "  sub x9, x9, x8\n" ++
-  "  sd x0, 0(x11)\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  ".runtime_tx_auth_state_refund_done:\n" ++
-  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
-  ".runtime_tx_auth_state_used_done:\n" ++
-  -- v0.6.0 prepare_dispatch (interpreter.py): a contract creation whose target
-  -- leaf is EMPTY charges StateGasCosts.NEW_ACCOUNT at the top frame -- state
-  -- reservoir first, spilling the remainder into regular gas; an unaffordable
-  -- charge is an ExceptionalHalt BEFORE dispatch (status 0, all regular gas
-  -- burned, the charge rolled back -- OOG-checked before the counters are
-  -- touched). Transaction-aware creation callers stage NEW_ACCOUNT (183600) in
-  -- runtime_tx_create_state_charge iff the pre-state target is EMPTY (an alive
-  -- target is never charged); probes/non-creation paths leave it zero.
-  -- 0w05f.17.2: mirror charge_state_gas COMPLETELY -- the charge counts into
-  -- evm_state_gas_used (and its spill into evm_state_gas_spilled), because the
-  -- v0.6 settlement identity reports it as EXECUTED state gas
-  -- (tx_state = intrinsic + executed, fork.py:1174; spec intrinsic_state_gas
-  -- is 0 for creation). x7 carries the full staged charge across the spill
-  -- split; it is dead here and reloaded from the input header below.
-  "  la x11, runtime_tx_create_state_charge\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_create_state_done\n" ++
-  "  mv x7, x9\n" ++
-  "  la x11, evm_state_gas_left\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  bltu x8, x9, .runtime_tx_create_state_spill\n" ++
-  "  sub x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  "  j .runtime_tx_create_state_used\n" ++
-  ".runtime_tx_create_state_spill:\n" ++
-  "  sub x9, x9, x8\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sd x0, 0(x11)\n" ++
-  "  sub x6, x6, x9\n" ++
-  "  la x11, evm_state_gas_spilled\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  add x8, x8, x9\n" ++
-  "  sd x8, 0(x11)\n" ++
-  ".runtime_tx_create_state_used:\n" ++
-  "  la x11, evm_state_gas_used\n" ++
-  "  ld x8, 0(x11)\n" ++
-  "  add x8, x8, x7\n" ++
-  "  sd x8, 0(x11)\n" ++
-  ".runtime_tx_create_state_done:\n" ++
-  -- The callable `prepare_only` entry is used only by the block verdict's
-  -- status-2 recipient path.  It must stop after the authorization/state
-  -- prefix has completed but before `prepare_dispatch` reads recipient code.
-  -- `runtime_tx_prepare_prefix_status` is deliberately tri-state: 0 is
-  -- unset, 1 means the prefix was entered (and an OOG may have exited it),
-  -- and 2 means the prefix completed.  The caller treats 2 as an unresolved
-  -- witness failure; only 1 may retain the ExceptionalHalt settlement.
-  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
-  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
-  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
-  ".runtime_tx_prepare_prefix_continue:\n" ++
-  ".runtime_tx_gas_done:\n" ++
-  "  sd x6, 568(x20)\n" ++          -- env.gasRemaining = execution gas
-  -- EIP-2780 top-frame regular gas is charged after intrinsic gas and before
-  -- dispatch. Transaction-aware callers stage 3000 here when tx.to is an
-  -- EIP-7702 delegation; standalone/probe inputs leave it zero.
-  "  la x11, runtime_tx_top_frame_regular_gas\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
-  "  sub x6, x6, x9\n" ++
-  "  sd x6, 568(x20)\n" ++
-  ".runtime_tx_top_frame_regular_done:\n" ++
-  "  ld x6, 0(x5)\n" ++            -- x6 = header_len
-  "  sd x6, 584(x20)\n" ++
-  "  ld x7, 8(x5)\n" ++            -- x7 = witness_state_len
-  "  sd x7, 600(x20)\n" ++
-  "  ld x8, 16(x5)\n" ++           -- x8 = witness_codes_len
-  "  sd x8, 616(x20)\n" ++
-  "  addi x5, x5, 24\n" ++         -- x5 = header ptr
-  "  sd x5, 576(x20)\n" ++
-  "  add x5, x5, x6\n" ++          -- x5 = witness.state ptr
-  "  sd x5, 592(x20)\n" ++
-  "  add x5, x5, x7\n" ++          -- x5 = witness.codes ptr
-  "  sd x5, 608(x20)\n" ++
-  "  jal ra, runtime_access_seed_initial_accounts\n" ++
-  -- execution-specs applies the transaction access list before prepare_dispatch
-  -- tests the delegated address against accessed_addresses (interpreter.py:295-300).
-  -- This runs after the per-tx storage-warm reset above, so it establishes both
-  -- access-list account and storage warmth before the deferred callback charges.
-  emitTxAccessListSeedLoop ++ "\n" ++
-  "  la x5, runtime_tx_post_top_frame_fn\n" ++
-  "  ld x28, 0(x5)\n" ++
-  "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
-  "  jalr ra, x28, 0\n" ++
-  ".runtime_tx_post_top_frame_done:\n" ++
-  -- All preparation charges, including a deferred delegated-code access, have
-  -- now passed.  Only this point commits the auth phase; callback OOG above is
-  -- still a preparation ExceptionalHalt and must roll its auths back.
-  "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n" ++
-  -- Cross-routine pairing: this callee captures the body mark immediately
-  -- before interpreter entry; `dispatch_tx_runtime_code` in
-  -- `BlockVerdictDispatchTx.lean` restores it only after this callable returns
-  -- and settlement classifies a failed body.
-  -- `process_message` debits gas before its body snapshot, then moves value
-  -- inside the rollback window.  The two pending producers are deliberately
-  -- split so a failed body keeps the gas debit but restores the recipient credit.
+  emitTopLevelMessageD0Preparation ++
+  -- Snapshot and pending-value staging are the shared post-preparation body:
+  -- every frame needs its rollback boundary and eligible value transfer.
   "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
