@@ -508,6 +508,7 @@ import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogLink
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsSpec
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop
