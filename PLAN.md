@@ -4744,6 +4744,33 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   deferred sibling in #10973's same in-place/high-water-mark cell, requiring
   separate read/write lifetimes rather than a truncation patch.
 
+  **Creation-route unification, measured 2026-07-31.** #10784 cut 2 (PR #10985)
+  moves `mark_account_created` for the **top-level** creation route to the
+  spec's pre-body position (`vm/interpreter.py:208`, before `process_message`
+  at `:212`), matching what `create_frame_descend` already did for nested
+  CREATE, and removes the post-deposit insert from
+  `create_record_code_effect`. It is a **unification, not a fix**: the
+  emitted stream has exactly two readers of `account_state_created`, both
+  `account_state_created_contains`, and neither can observe the top-level
+  address being marked earlier. In particular
+  `BlockVerdictCreationStage.lean:382` sets `create_frame_flag[0] = 1` for the
+  top-level route even though it never descends, so a top-level constructor
+  SELFDESTRUCT takes the flag branch (`NoopHalt.lean:555-558`) and never
+  consults the created set — the tempting "no descent, therefore no flag"
+  divergence does not exist. The change is monotone (marked earlier, never
+  later), so membership over time is a superset.
+  - `.text` changed shape but not size (`0x066be8` both sides), so `RegionMap`
+    needed no edit; the TSV (289 rows) and `GuestAddrs` (114 symbols) were
+    regenerated to a fixed point and `GuestImageEntries` came out unchanged.
+  - #10980's substantive item landed as PR #10984, byte-identity measured: the
+    two code-deposit sites cannot use `liStateGasRuntime` (their byte count is
+    runtime-only), so they emitted the multipliers `1530` and `6` as bare
+    literals with no `#guard`. Both now come from the import-free
+    `Codegen/GasConstants.lean`, and `accountStateCreatedCapacity` moved into
+    `Codegen/ArenaCapacities.lean` for the same reason — neither marking site
+    imports `CreateCodeEffectLog`, which is why the descent site carried a
+    bare `8192`.
+
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
   dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`
