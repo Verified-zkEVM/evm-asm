@@ -535,10 +535,6 @@ def callFrameDescendFunction : String :=
   -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
   -- the checkpoints depth-indexed rather than extending the packed env ABI.
   bodyStateCaptureScalarAsm "account_state_pending_count" "t1" 72 "t4" "t0" ++
-  -- `created_count` deliberately keeps its existing per-depth checkpoint:
-  -- #10940 owns its rollback semantics and this representation-only migration
-  -- must not fold that behavioral change into the body-state slab.
-  "  la t4, account_state_created_count; ld t0, 0(t4); la t4, account_state_created_checkpoint; slli t2, s8, 3; add t4, t4, t2; sd t0, 0(t4)\n" ++
   bodyStateCaptureScalarAsm "account_state_delete_count" "t1" 80 "t4" "t0" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++

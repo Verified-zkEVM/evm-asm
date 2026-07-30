@@ -785,7 +785,6 @@ def codeStateData : String :=
   -- The depth is capped at 1024 by the EVM frame gate, hence 1025 slots
   -- including depth zero.  These are counts, not input-sized allocations.
   "account_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_created_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   "account_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
