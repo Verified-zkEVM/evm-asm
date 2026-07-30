@@ -433,7 +433,13 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- `BlockVerdictDispatchTx.lean`.
   -- Save `ra`: the dispatcher uses its caller return address to resume after
   -- initcode, while both helpers and the mark are calls.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- Top-level CREATE is intentionally not wired to record_message_value_transfer
+  -- yet: #10944 must first authenticate bv_create_addr's pre-balance.  The
+  -- current nse_zero_bal records below are not a valid substitute because a
+  -- deployable pre-existing account may hold ether.  Keep the existing path
+  -- unchanged while the shared producer serves the four callers that can name
+  -- both pre-balances.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has

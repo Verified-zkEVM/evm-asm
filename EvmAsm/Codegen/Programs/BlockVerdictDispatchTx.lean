@@ -22,6 +22,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Stateless.SpecRef.Gas
 
@@ -489,24 +490,28 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- dispatcher has finished preparation and before it can execute a precompile
   -- or bytecode; both MTx and the one-tx verdict caller therefore share it.
   "dispatcher_capture_body_state:\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); la t2, bv_tx_effect_snap_storage_count; sd t1, 0(t2); ld t1, 464(t0); la t2, bv_tx_effect_snap_transient_count; sd t1, 0(t2); ld t1, 472(t0); la t2, bv_tx_effect_snap_event_count; sd t1, 0(t2)\n" ++
-  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
-  "  la t0, account_state_pending_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_pending; sd t1, 0(t0); la t0, account_state_delete_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_delete; sd t1, 0(t0); la t0, account_state_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, create_nonce_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_create_nonce_undo; sd t1, 0(t0)\n" ++
+  "  la t2, body_state_snapshot_by_depth\n" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_count" "t2" 0 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_overflow" "t2" 8 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_count" "t2" 16 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_next" "t2" 24 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t2" 32 "t0" "t1" ++
+  bodyStateCaptureCursorsAsm "  la t0, evm_env; " "t0" "t2" "t1" ++
+  bodyStateCaptureScalarAsm "account_writes_undo_count" "t2" 64 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_pending_count" "t2" 72 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_delete_count" "t2" 80 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_overflow" "t2" 88 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "create_nonce_undo_count" "t2" 96 "t0" "t1" ++
   "  ret\n" ++
   "dispatcher_restore_body_state:\n" ++
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, evm_env; la t2, bv_tx_effect_snap_storage_count; ld t1, 0(t2); sd t1, 448(t0); la t2, bv_tx_effect_snap_transient_count; ld t1, 0(t2); sd t1, 464(t0); la t2, bv_tx_effect_snap_event_count; ld t1, 0(t2); sd t1, 472(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
-  "  la t0, bv_tx_effect_snap_account_state_pending; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_account_state_delete; ld t1, 0(t0); la t0, account_state_delete_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_account_state_overflow; ld t1, 0(t0); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_create_nonce_undo; ld a0, 0(t0); jal ra, create_creator_nonce_undo_to\n" ++
+  "  la t2, body_state_snapshot_by_depth\n" ++
+  "  ld t1, 0(t2); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); ld t1, 8(t2); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  ld t1, 16(t2); la t0, exec_code_effect_count; sd t1, 0(t0); ld t1, 24(t2); la t0, exec_code_effect_next; sd t1, 0(t0); ld t1, 32(t2); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 40(t2); sd t1, 448(t0); ld t1, 48(t2); sd t1, 464(t0); ld t1, 56(t2); sd t1, 472(t0)\n" ++
+  "  ld a0, 64(t2); jal ra, account_writes_restore_frame\n" ++
+  "  la t2, body_state_snapshot_by_depth; ld t1, 72(t2); la t0, account_state_pending_count; sd t1, 0(t0); ld t1, 80(t2); la t0, account_state_delete_count; sd t1, 0(t0); ld t1, 88(t2); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
+  "  ld a0, 96(t2); jal ra, create_creator_nonce_undo_to\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "dispatch_tx_runtime_code:\n" ++
@@ -1143,8 +1148,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- The shared body-state restore is deliberately placed after this pure
   -- settlement fold: Python restores at interpreter.py:429, but this guest
   -- obtains the status bit here.  This ordering is sound only while
-  -- `dispatcher_tx_gas_settle` writes no captured arena; today its only
-  -- stores zero `evm_state_gas_used` and `evm_state_gas_spilled` on error.
+  -- `dispatcher_tx_gas_settle` writes no captured arena.  The root slab holds
+  -- nonstorage/code counts and overflow flags, persistent/transient/event-log
+  -- cursors, account-write/state undo checkpoints, state overflow, and the
+  -- create-nonce checkpoint; settlement's only error stores zero the separate
+  -- `evm_state_gas_used` and `evm_state_gas_spilled` counters.
   "  bnez s2, .Ldtrc_body_state_kept; jal ra, dispatcher_restore_body_state\n" ++
   ".Ldtrc_body_state_kept:\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena

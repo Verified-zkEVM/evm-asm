@@ -419,50 +419,14 @@ def callDescendFallThrough
       "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lcd_sbwb_" ++ tag ++ ":\n" ++
       "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
-      -- drj99.1 part 5b: record the CALLER's value-CALL debit (balance -= value) so the all-accounts
-      -- non-storage reconciliation matches. The transfer above debited env+32 but never recorded the
-      -- caller's nonstorage effect -> the BAL declares the caller's balance change with no matching exec
-      -- effect -> bv_fail=44 for the caller (call_to_self / call_with_value_to_coinbase etc.). We are on the
-      -- committing path here (value!=0, ctx present, not self-call, no underflow), so the debit really
-      -- happened. pre = post + value (cd_caller_newbal + cd_value_be -> nse_post_bal); post = cd_caller_newbal.
-      -- The caller is a CONTRACT (the gas/value-coupled sender/recipient/coinbase are SKIPPED by the
-      -- all-accounts wrapper) doing a CALL, so its nonce is UNCHANGED. The record must carry the caller's
-      -- ACTUAL nonce, NOT 0: when this same account is ALSO a value-CALL CALLEE (credit record, which
-      -- records its real nonce from account_at_header_state_root), the aggregate keeps first-pre / LAST-post
-      -- nonce. A debit record recorded LAST with post_nonce=0 would clobber the aggregate's last-post nonce
-      -- to 0, falsely signalling a nonce change (real_nonce -> 0) -> the reverse-nonce check in
-      -- bal_account_nonstorage_consistent fires (BAL declares no nonce change) -> bv_fail=44
-      -- (frontier/scenarios MCOPY b12: dd36afb2 is credited then debits, nonce 1; the debit's post_nonce=0
-      -- made the agg see 1->0). Look up the caller's pre-state nonce (= its current nonce; a plain CALL
-      -- does not bump the caller nonce, only CREATE does) and record pre_nonce=post_nonce=that nonce, so
-      -- the debit and credit records agree and the aggregate's last-post nonce stays the real nonce.
-      -- The aggregate keeps first-pre/last-post, so multiple caller value-CALLs collapse to (start,final).
-      -- a0..a6 alias x10/x12/x13 etc. -> save/restore around the helpers; nse_acct is free here (the
-      -- callee-credit below reloads it); nse_post_bal is free here too.
-      -- caller's pre-state account -> nse_acct (nonce@0). On any lookup error use nonce 0 (conservative:
-      -- a wrong-low nonce can only false-REJECT, never false-accept).
-      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-      "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, cd_caller_be\n  li a3, 20\n  ld a4, 592(x20)\n  ld a5, 600(x20)\n  la a6, nse_acct\n" ++
-      "  jal ra, account_at_header_state_root_tracked\n" ++
-      "  mv t0, a0\n" ++                                    -- status
-      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-      "  beqz t0, .Lcd_deb_have_nonce_" ++ tag ++ "\n" ++   -- status 0 = found -> nse_acct.nonce valid
-      "  la t0, nse_acct\n  sd zero, 0(t0)\n" ++            -- not found / error -> nonce 0
-      ".Lcd_deb_have_nonce_" ++ tag ++ ":\n" ++
-      -- A value CALL leaves its caller nonce unchanged, but its append can follow
-      -- a same-transaction CREATE by that caller. Preserve that running nonce
-      -- instead of overwriting it with the header snapshot.
-      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-      "  la a0, cd_caller_be\n  la a1, nse_acct\n" ++
-      "  jal ra, account_state_latest_nonce\n" ++
-      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-      "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++   -- nse_post_bal = post + value = pre
-      "  jal ra, u256_add_be\n" ++
-      "  la t0, nse_acct\n  ld a3, 0(t0)\n  mv a4, a3\n" ++   -- pre_nonce = post_nonce = caller's real nonce
-      "  la a0, cd_caller_be\n  la a1, nse_post_bal\n  la a2, cd_caller_newbal\n" ++
-      "  jal ra, record_nonstorage_effect\n" ++
-      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+      -- The committing child must still update its live env balance here.  The
+      -- paired balance-effect records are published below by the shared
+      -- `record_message_value_transfer` producer, using this site-resolved
+      -- caller pre-balance and the callee's resolved pre-balance.
+      -- The shared producer below publishes the paired debit/credit from the
+      -- caller's site-resolved `cd_balance_be` and callee pre-balance.  The
+      -- former caller-only nonce/post calculation was solely for the retired
+      -- local record and must not remain as a second transfer implementation.
       ".Lcd_deb_done_" ++ tag ++ ":\n") ++
     -- fva3w.BAL: the callee-credit non-storage effect + the EIP-7708 pending transfer log
     -- below are CALL (mode 0) ONLY. CALLCODE (mode 2) runs the code at `code_address` but
@@ -538,23 +502,13 @@ def callDescendFallThrough
     "  beqz t1, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, cd_callee_alive_before_value; li t1, 1; sd t1, 0(t0)\n" ++
     ".Lcd_nse_prior_alive_done_" ++ tag ++ ":\n" ++
-    -- A value transfer does not change a nonce, but its row is appended after
-    -- same-transaction effects. Keep the latest recorded nonce so it cannot
-    -- overwrite a created account's EIP-161 nonce=1 with header nonce=0.
+    -- The call site has now resolved both live pre-balances: `cd_balance_be`
+    -- was captured from the parent env before the debit, and `nse_acct+8` is
+    -- the callee header/live-overlay value.  Keep log scheduling below at the
+    -- caller; `record_message_value_transfer` has no log policy.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, nse_callee_be\n  la a1, nse_acct\n" ++
-    "  jal ra, account_state_latest_nonce\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    -- post_balance = live/header pre_balance (nse_acct+8) + value (cd_value_be, populated above)
-    "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
-    "  la a0, nse_acct\n  addi a0, a0, 8\n  la a1, cd_value_be\n  la a2, nse_post_bal\n" ++
-    "  jal ra, u256_add_be\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
-    -- append (addr, pre_balance, post_balance, pre_nonce, post_nonce)
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la t0, nse_acct\n  ld a3, 0(t0)\n  mv a4, a3\n" ++   -- pre_nonce == post_nonce (unchanged by value transfer)
-    "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n  la a2, nse_post_bal\n" ++
-    "  jal ra, record_nonstorage_effect\n" ++
+    "  la a0, cd_caller_be\n  la a1, nse_callee_be\n  la a2, cd_value_be\n  li a3, 1\n  la a4, cd_balance_be\n  la a5, nse_acct\n  addi a5, a5, 8\n" ++
+    "  jal ra, record_message_value_transfer\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- Pinned execution-specs v0.5.0 clears a same-tx SELFDESTRUCTed account while
     -- preserving its balance. A later value CALL therefore leaves the credit above

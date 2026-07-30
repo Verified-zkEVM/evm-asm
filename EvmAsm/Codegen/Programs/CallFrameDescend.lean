@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 
@@ -360,6 +361,9 @@ def callFrameDescendFunction : String :=
   -- logs from the parent's current length (so child writes append and a child REVERT
   -- rolls back to here), and reset the child's memory size to 0 (fresh 128 KiB).
   "  ld t0, 448(s3); sd t0, 448(s9)   # persistentLogLength (continue global log)\n" ++
+  -- env+456/+480 remain live REVERT-tail checkpoints (NoopHalt reads them).
+  -- They deliberately duplicate the canonical depth-indexed body snapshot below;
+  -- a future NoopHalt retarget can retire them as its own behavioral change.
   "  sd t0, 456(s9)                    # persistentLogCheckpoint = current (REVERT point)\n" ++
   "  ld t0, 464(s3); sd t0, 464(s9)   # transientLogLength\n" ++
   "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
@@ -508,40 +512,49 @@ def callFrameDescendFunction : String :=
   -- path armed, not the live count. CREATE / other descenders leave cd_nse_presnap_armed=0 and use
   -- the live count (their effects are recorded inside the child, after this snapshot). Consume the
   -- one-shot flag so a later non-arming descent does not reuse a stale pre-snap.
-  "  la t1, cd_nse_presnap_armed; ld t2, 0(t1)\n" ++
+  -- Canonical body snapshot for this child at record `evm_call_depth`.
+  -- Record width is 13 * 8 = 104 bytes: d*104 = d*64 + d*32 + d*8.
+  -- Slot +88 (`account_state_overflow`) is root-only: no child restore existed
+  -- before this representation migration, so retaining that child behavior is
+  -- deliberate rather than an omitted shared restore.
+  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
+  bodyStateCaptureCursorsAsm "  " "s3" "t1" "t0" ++
+  "  la t4, cd_nse_presnap_armed; ld t2, 0(t4)\n" ++
   "  beqz t2, .Lcfd_nse_live\n" ++
-  "  sd x0, 0(t1)                              # consume the one-shot armed flag\n" ++
-  "  la t1, cd_nse_presnap_count; ld t0, 0(t1); sd t0, 656(s9)\n" ++
-  "  la t1, cd_nse_presnap_overflow; ld t0, 0(t1); sd t0, 664(s9)\n" ++
+  "  sd x0, 0(t4)                              # consume the one-shot armed flag\n" ++
+  "  la t4, cd_nse_presnap_count; ld t0, 0(t4); sd t0, 0(t1)\n" ++
+  "  la t4, cd_nse_presnap_overflow; ld t0, 0(t4); sd t0, 8(t1)\n" ++
   "  j .Lcfd_nse_snap_done\n" ++
   ".Lcfd_nse_live:\n" ++
-  "  la t1, exec_nonstorage_effect_count; ld t0, 0(t1); sd t0, 656(s9)  # nonstorage effect count snapshot\n" ++
-  "  la t1, exec_nonstorage_effect_overflow; ld t0, 0(t1); sd t0, 664(s9)  # nonstorage overflow snapshot\n" ++
+  "  la t4, exec_nonstorage_effect_count; ld t0, 0(t4); sd t0, 0(t1)  # nonstorage effect count snapshot\n" ++
+  "  la t4, exec_nonstorage_effect_overflow; ld t0, 0(t4); sd t0, 8(t1)  # nonstorage overflow snapshot\n" ++
   ".Lcfd_nse_snap_done:\n" ++
   -- Every child frame owns a journal high-water mark captured at ITS entry.
   -- In particular, a CREATE's creator-nonce advance is already committed before
   -- its child descends, so a child REVERT must retain that parent mutation and
   -- roll back only mutations made inside the child (its seed/nested CREATEs).
-  "  la t1, create_nonce_undo_count; ld t0, 0(t1)\n" ++
-  "  la t1, create_nonce_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  bodyStateCaptureScalarAsm "create_nonce_undo_count" "t1" 96 "t4" "t0" ++
   -- r59nm S5a: the storage write-map undo journal takes its mark the same way
   -- and for the same reason -- a child REVERT must roll back only the writes
   -- made inside the child, leaving the parent's earlier writes standing.
   "  la t1, storage_writes_undo_count; ld t0, 0(t1)\n" ++
   "  la t1, storage_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
   -- Account writes have the same transaction-state rollback rule as storage
   -- writes (but unlike storage reads, which remain evidence of an access).
-  "  la t1, account_writes_undo_count; ld t0, 0(t1)\n" ++
-  "  la t1, account_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, exec_code_effect_count; ld t0, 0(t1); sd t0, 672(s9)  # code effect count snapshot\n" ++
-  "  la t1, exec_code_effect_next; ld t0, 0(t1); sd t0, 680(s9)  # code effect heap cursor snapshot\n" ++
-  "  la t1, exec_code_effect_overflow; ld t0, 0(t1); sd t0, 688(s9)  # code effect overflow snapshot\n" ++
+  bodyStateCaptureScalarAsm "account_writes_undo_count" "t1" 64 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_count" "t1" 16 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_next" "t1" 24 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t1" 32 "t4" "t0" ++
   -- The mutable CodeState is a transaction overlay, so it needs the same
   -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
   -- the checkpoints depth-indexed rather than extending the packed env ABI.
-  "  la t1, account_state_pending_count; ld t0, 0(t1); la t1, account_state_pending_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, account_state_created_count; ld t0, 0(t1); la t1, account_state_created_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, account_state_delete_count; ld t0, 0(t1); la t1, account_state_delete_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
+  bodyStateCaptureScalarAsm "account_state_pending_count" "t1" 72 "t4" "t0" ++
+  -- `created_count` deliberately keeps its existing per-depth checkpoint:
+  -- #10940 owns its rollback semantics and this representation-only migration
+  -- must not fold that behavioral change into the body-state slab.
+  "  la t4, account_state_created_count; ld t0, 0(t4); la t4, account_state_created_checkpoint; slli t2, s8, 3; add t4, t4, t2; sd t0, 0(t4)\n" ++
+  bodyStateCaptureScalarAsm "account_state_delete_count" "t1" 80 "t4" "t0" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++
