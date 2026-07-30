@@ -534,10 +534,28 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl7708_snapshot:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
 
-  -- Successful top-level STOP creation makes the created account alive with
-  -- the transaction value as balance and nonce 1. Record that execution-derived
-  -- effect before BAL all-account non-storage comparisons run.
+  -- A successful top-level creation normally leaves the new account alive with
+  -- the transaction value and its running creator nonce. EIP-6780 is the
+  -- exception: a constructor can SELFDESTRUCT its own just-created account,
+  -- and the dispatcher records that deferred deletion in `account_state_delete`
+  -- before returning here. execution-specs clears that account before
+  -- `incorporate_tx_into_block` derives the BAL, so publishing the nonce after
+  -- the dispatcher would resurrect an account whose final fields are all zero.
+  --
+  -- Do not use `evm_selfdestruct_created_in_tx` here: it is reset only at the
+  -- next SELFDESTRUCT and is not a transaction-final membership query. The
+  -- active +24 flag in the address-keyed delete set is the durable deferred-
+  -- delete fact. A malformed count deliberately falls through to the
+  -- established publication path rather than suppressing an effect.
   "  beqz s3, .Lbvcr_created_effect_done\n" ++
+  "  la t0, account_state_delete_count; ld t1, 0(t0); li t2, 8192; bgtu t1, t2, .Lbvcr_created_effect_live; li t2, 0; la t3, account_state_delete\n" ++
+  ".Lbvcr_created_effect_delete_scan:\n" ++
+  "  bgeu t2, t1, .Lbvcr_created_effect_live; ld t4, 24(t3); beqz t4, .Lbvcr_created_effect_delete_next; li t4, 0\n" ++
+  ".Lbvcr_created_effect_delete_cmp:\n" ++
+  "  li t5, 20; beq t4, t5, .Lbvcr_created_effect_done; la t5, bv_create_addr; add t5, t5, t4; lbu t6, 0(t5); add t5, t3, t4; lbu t5, 0(t5); bne t6, t5, .Lbvcr_created_effect_delete_next; addi t4, t4, 1; j .Lbvcr_created_effect_delete_cmp\n" ++
+  ".Lbvcr_created_effect_delete_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lbvcr_created_effect_delete_scan\n" ++
+  ".Lbvcr_created_effect_live:\n" ++
   -- The initcode may have performed CREATE/CREATE2 attempts.  Its creator
   -- nonce is therefore the running table value, not always EIP-161's initial
   -- nonce 1; use the same lookup as the ordinary top-level creation deposit.

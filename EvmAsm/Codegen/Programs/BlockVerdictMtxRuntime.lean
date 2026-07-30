@@ -91,9 +91,11 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_sr_done:\n"
 
-/-- Gated multi-transaction runtime-gas loop fragment.  On `bv_tx_count == 0` it
-    branches straight to `.Lbv_recipient_nc_done`; the former `.Lbv_singletx`
-    hop was removed as a duplicate test of the same condition. -/
+/-- Gated multi-transaction runtime-gas loop fragment.  Every block falls
+    through to the MTx loop, which iterates zero times on an empty block;
+    the former `bv_tx_count == 0` branch to `.Lbv_recipient_nc_done` and the
+    `.Lbv_singletx` hop before it were duplicate tests of the same condition,
+    both now removed. -/
 def blockVerdictMtxRuntimeLoop : String :=
   -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
   -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
@@ -109,10 +111,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- tx shape / EOA recipient / dispatch miss bails to the conservative path
   -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
   -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
-  -- Production MTx selector: the empty block keeps the existing single-tx/empty
-  -- path, while every non-empty block enters MTx.  The now-unrouted legacy
-  -- count==1 implementation is deleted separately after this baseline is
-  -- measured independently.
+  -- Production MTx selector: every block enters MTx, including the empty
+  -- block; the loop iterates zero times there (matches execution-specs
+  -- fork.py:913-914, which has no empty-block special case).  The former
+  -- `bv_tx_count == 0` early branch to `.Lbv_recipient_nc_done` (an early
+  -- exit, not a separate implementation) is removed.
   -- r59nm cleanup: retargeted from `.Lbv_singletx`, which re-tested this same
   -- unchanged `bv_tx_count` and so always fell through to here.  The label and
   -- its duplicate test are gone; this is the one-hop form of the path that was
@@ -134,7 +137,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   --  * the 38 labels that closure does NOT reach are the recipient-exactness
   --    check and the skip-list construction.  Their removal is deferred to
   --    GH #10680, which retires the matching apparatus they belong to.
-  "  la t0, bv_tx_count; ld t0, 0(t0); beqz t0, .Lbv_recipient_nc_done\n" ++
+  -- #10591 routing: every block (including zero-tx) goes through the MTx
+  -- loop; the loop iterates zero times on an empty block (matches
+  -- execution-specs fork.py:913-914, which has no empty-block special case).
+  "  la t0, bv_tx_count; ld t0, 0(t0)\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
