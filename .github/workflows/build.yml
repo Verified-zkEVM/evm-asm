@@ -88,7 +88,18 @@ jobs:
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check
+        run: lake build codegen progress-report arith-diff-check rlp-oracle-check
+
+      # Replays the committed Python-oracle corpus against EvmAsm.EL.RLP, which
+      # is what backs the RLP verdicts in docs/rlp-ssz-spec-correspondence.md.
+      # No Python needed here: the oracle TSV is generated locally and checked
+      # in (ethereum_rlp is an external PyPI package, not vendored). The
+      # self-test runs first so a checker that cannot catch a planted violation
+      # fails loudly rather than passing vacuously.
+      - name: RLP ↔ execution-specs correspondence (oracle replay)
+        run: |
+          lake exe rlp-oracle-check --self-test
+          lake exe rlp-oracle-check
 
       - name: Install RISC-V binutils for codegen link checks
         run: |

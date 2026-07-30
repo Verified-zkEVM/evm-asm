@@ -48,6 +48,11 @@ root = "MainRlpDiffCheck"
 supportInterpreter = true
 
 [[lean_exe]]
+name = "rlp-oracle-check"
+root = "MainRlpOracleCheck"
+supportInterpreter = true
+
+[[lean_exe]]
 name = "specref-eest-check"
 root = "MainSpecRefEestCheck"
 supportInterpreter = true
