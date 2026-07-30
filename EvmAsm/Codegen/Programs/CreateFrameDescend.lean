@@ -47,11 +47,6 @@ def createFrameDescendFunction : String :=
   "create_frame_descend:\n" ++
   "  addi sp, sp, -16\n" ++
   "  sd ra, 0(sp)\n" ++
-  -- drj99.1 (failed-inner rollback): disarm the value-CALL non-storage pre-snapshot so this CREATE
-  -- descent uses the LIVE effect count for the child env snapshot (its endowment/creator effects are
-  -- recorded INSIDE the child at the RETURN deposit, after the snapshot). Clears a stale arm left by
-  -- a prior value-CALL that armed then routed to .Lcd_empty/.Lcd_fail without descending.
-  "  la t0, cd_nse_presnap_armed; sd x0, 0(t0)\n" ++
   -- NB: do NOT take the endowment ptr in a0 -- a0 == x10 (the dispatcher PC), and
   -- call_frame_descend below saves x10 as the parent return PC (#8608/#8629 lesson).
   -- The CREATE value operand is the stack top (x12+0), so read it from x12 directly.
