@@ -76,11 +76,13 @@
   against a reference encoder at `src_len ≥ 56` is this domain restriction, not
   a defect in whatever is under test.
 
-  ## Machine coverage as of this commit — 33 of 35 instructions
+  ## Machine coverage as of this commit — every instruction, in blocks
 
-  Every block of the routine except the two-instruction prologue is proven:
+  All 35 instructions are covered by a block theorem.  What is missing is the
+  *composition* of those blocks, not any block:
 
     * §1, §1b — the pure layer;  §2 — the guest layout
+    * §8 — the prologue [0]-[1] (`reubPrologue`), establishing `reubInv … 0`
     * §3 — the all-zeros tail [8]-[11]
     * §4 — the leading-zero strip loop [2]-[7], `reubStripRound` and
       `reubStripExh` folded by `twoExitRetLoop_spec` into one
@@ -94,21 +96,22 @@
     * §7 — the header write [21]-[25] (`reubHeaderWrite`) and the return tail
       [33]-[34] (`reubRetTail`)
 
-  **NOT proven, so there is still no whole-routine triple:**
+  **NOT proven — the one remaining gap is the composition:**
 
-    * the prologue [0]-[1] (`MV x5, a0`; `MV x6, a1`), which establishes
-      `reubInv … 0` from the ABI registers;
-    * the composition of §3-§7 into one triple for `reubBase → ra &&& ~~~1`,
-      and with it the tie from the written region to `reubOut` — which is where
-      `reubOut_short_form`, `reubZeros_sub_length` and the `≤ 55` domain note
-      below finally do their work.
+  There is **no whole-routine triple in this file**.  Chaining §8 → §4 → (§3 |
+  §5 | §7) into one triple for `reubBase → ra &&& ~~~1`, and with it the tie
+  from the written region to `reubOut`, is where `reubOut_short_form`,
+  `reubZeros_sub_length` and the `≤ 55` domain note below finally do their work.
 
-  The composition is what makes `≤ 55` load-bearing; none of the block lemmas
-  above need it (see `truncate_header_byte`, deliberately unconditional). It
-  goes in a sibling module: this file is near the 1500-line cap.
+  The composition is what makes `≤ 55` load-bearing; **no block lemma here needs
+  it** (see `truncate_header_byte`, deliberately unconditional).  It goes in a
+  sibling module — this file is at ~1472 of the hard 1500-line cap, which will
+  not hold a composition over twelve block theorems plus its framing.  The
+  precedent is `WithdrawalDecodeClose` → `Close2..5`.
 
-  Nothing in §1 depends on §3-§7, so the model-side corollaries stand on their
-  own; but no claim is made here about what the routine as a whole computes.
+  So: every instruction has a proof, and the routine as a whole still has none.
+  Block coverage is not the same claim as `rlp_encode_uint_be` computing RLP, and
+  nothing here should be read as the latter.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
@@ -1406,6 +1409,66 @@ theorem reubRetTail (raVal v10 : Word) (L : Nat) :
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
         bv_omega] at hRet
   runBlock hADDI hRet
+
+/-! ## §8  The prologue ([0]-[1])
+
+    `MV x5, a0` and `MV x6, a1` copy the ABI arguments into the strip loop's
+    cursor and counter, which is exactly `reubInv … 0`: the cursor sits at
+    offset zero and no leading zeros have been counted yet, so the invariant's
+    bound is `0 ≤ reubZeros xs 0 n` — vacuous, and discharged by `Nat.zero_le`.
+
+    `a1` stays live in `x11` afterwards (nothing reads or writes it again), so it
+    is carried alongside the invariant rather than inside it. -/
+
+set_option maxRecDepth 8000 in
+/-- **The prologue** ([0]-[1]), `reubBase → reubBase+8`. -/
+theorem reubPrologue (srcPtr outPtr raVal v5 v6 v28 : Word) (xs oldOut : List Byte)
+    (n : Nat) :
+    cpsTripleWithin 2 reubBase (reubBase + 8) reubCode
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x28 : Reg) ↦ᵣ v28) **
+       bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ outPtr) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr oldOut)
+      (reubInv srcPtr outPtr raVal xs oldOut n 0 **
+       ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n)) := by
+  have hMV5 := mv_spec_gen_within .x5 .x10 srcPtr v5 reubBase (by decide)
+  have hMV6 := mv_spec_gen_within .x6 .x11 (BitVec.ofNat 64 n) v6
+    (reubBase + 4) (by decide)
+  rw [show reubBase + 4 + 4 = reubBase + 8 from by bv_omega] at hMV6
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_)
+    (show cpsTripleWithin 2 reubBase (reubBase + 8) reubCode
+        (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x6 : Reg) ↦ᵣ v6) **
+         ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+         ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion outPtr oldOut)
+        (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+         ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+         ((.x28 : Reg) ↦ᵣ v28) ** bytesRegion srcPtr xs **
+         ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion outPtr oldOut) from by
+      (runBlock hMV5 hMV6))
+  · xperm_hyp hp
+  · -- `reubInv … 0` plus the still-live `a1`.  The pure bound is vacuous, but it
+    -- cannot be introduced by `xperm` (adding a pure factor is not a heap
+    -- permutation), so the `**` is split by hand and the left factor wrapped.
+    unfold reubInv
+    have hp3 := sepConj_mono (regIs_implies_regOwn .x28) (fun _ x => x) h
+      (show (((.x28 : Reg) ↦ᵣ v28) **
+          ((.x5 : Reg) ↦ᵣ srcPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+          bytesRegion srcPtr xs ** ((.x10 : Reg) ↦ᵣ srcPtr) **
+          ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion outPtr oldOut **
+          ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n)) h from by xperm_hyp hp)
+    have hsplit : (reubInvCore srcPtr outPtr raVal xs oldOut n 0 **
+        ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n)) h := by
+      unfold reubInvCore reubStable reubAmb
+      rw [show srcPtr + BitVec.ofNat 64 0 = srcPtr from by bv_omega, Nat.sub_zero]
+      xperm_hyp hp3
+    obtain ⟨h1, h2, hd, hu, hA, hB⟩ := hsplit
+    exact ⟨h1, h2, hd, hu, (sepConj_pure_right h1).2 ⟨hA, Nat.zero_le _⟩, hB⟩
 
 end RlpEncodeUintBeSAsm
 
