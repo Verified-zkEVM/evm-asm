@@ -269,6 +269,11 @@ def dispatchHaltRet (kind : Nat) : String :=
     the halt flag is `0` (the overwhelmingly common case) this is a single
     load + `beqz` fall-through into `.dispatch_loop`. -/
 def emitDispatchResume : String :=
+  -- Child frames enter at the same resume sequence their former
+  -- `dispatchContinueRet` used.  It is deliberately below the root-only
+  -- setup: a descended frame already owns its registers, stack, memory, and
+  -- rollback snapshot.
+  ".runtime_tx_child_message_entry:\n" ++
   s!"{dispatchResumeLabel}:\n" ++
   s!"  la x5, {haltFlagLabel}\n" ++
   "  ld x6, 0(x5)\n" ++
@@ -2862,12 +2867,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- up-front sender gas debit.  Keep it above the child entry so a future
   -- child frame cannot charge the transaction's gas a second time.
   "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
-  -- The root arm takes an explicit jump rather than falling through the child
-  -- entry.  No child reaches that entry in this extraction: it is the routing
-  -- seam for a later semantic migration, which must first move the child
-  -- snapshot and value-transfer work out of `call_frame_descend`.
+  -- The root arm takes an explicit jump rather than falling through its own
+  -- body setup.  Child frames enter at `runtime_tx_child_message_entry`, below
+  -- this root-only capture/value seed and stack/memory bootstrap.
   "  j .runtime_tx_shared_message_body\n" ++
-  ".runtime_tx_child_message_entry:\n" ++
   ".runtime_tx_shared_message_body:\n" ++
   -- Snapshot and pending-value staging remain the existing root path.  The
   -- child uses its current frame-local setup until the later migration.

@@ -1005,6 +1005,14 @@ def callDescendFallThrough
   -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
   -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
   emitPendingXferLog "desc_" ++
-  dispatchContinueRet
+  -- Ordinary non-precompile CALL reaches the existing dispatcher resume
+  -- sequence through the child entry.  The entry is after all root-only setup
+  -- and begins with the dispatcher-resume sequence that
+  -- `dispatchContinueRet` previously entered after its return; other call
+  -- kinds retain their current route.
+  (if mode == 0 then
+    "  j .runtime_tx_child_message_entry"
+   else
+    dispatchContinueRet)
 
 end EvmAsm.Codegen
