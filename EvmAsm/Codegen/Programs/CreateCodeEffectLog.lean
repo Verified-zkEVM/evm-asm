@@ -118,7 +118,8 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 def accountStateEntryBytes : Nat := 128
 def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
-def accountStateCreatedCapacity : Nat := 8192
+-- `accountStateCreatedCapacity` moved to `EvmAsm.Codegen.ArenaCapacities` (imported
+-- above) so the two sites that mark `created_accounts` can both name it; unchanged at 8192.
 
 /-! AccountState entry layout (all fields are fixed-width and 8-byte aligned):
 
@@ -841,11 +842,15 @@ def createRecordCodeEffectFunction : String :=
   "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
   ".Lcrce_account_state_ok:\n" ++
-  -- This successful deposit is also a transaction-local `created_accounts`
-  -- event for AccountState.  Empty deployed code still reaches this path.
-  "  mv a0, s0; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcrce_account_created_ok\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_account_created_ok:\n" ++
+  -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
+  -- pre-body position the spec uses (`vm/interpreter.py:208`, before `process_message`
+  -- at :212).  Both live callers now mark before the initcode runs — the nested route
+  -- in `create_frame_descend`, the top-level route in `BlockVerdictCreationStage` —
+  -- so an insert here was redundant on one path and too late on the other.  The
+  -- population is two: `jal ra, create_record_code_effect` occurs exactly twice in
+  -- `gen-out/regionmap/stateless_guest.s` (the self-test call sites at the bottom of
+  -- this file are not emitted).  A successful deposit is still an AccountState code
+  -- event, which is the `account_state_record_code` call above and is unchanged.
   -- A successful later CREATE at the same address is the latest transaction
   -- state and cancels an earlier same-transaction EIP-6780 delete request.
   "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++

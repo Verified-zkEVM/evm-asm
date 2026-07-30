@@ -32,6 +32,7 @@
   returns; the caller then `j .dispatch_loop` to run the init code. Clobbers t0-t4, a0-a7.
 -/
 
+import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Layout
 import EvmAsm.Rv64.Program
 
@@ -131,7 +132,7 @@ def createFrameDescendFunction : String :=
   -- aliases include the live child PC/stack/memory registers x10/x12/x13;
   -- preserve all three across the created_accounts insert before dispatching
   -- the child's initcode.
-  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, 8192; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lcfd_account_created_ok:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
   -- The new account's nonce is 1 before its initcode runs. Register it now
