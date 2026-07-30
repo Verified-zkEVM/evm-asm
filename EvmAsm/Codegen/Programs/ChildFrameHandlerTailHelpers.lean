@@ -130,6 +130,28 @@ def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : 
   dispatchContinueRet ++ "\n" ++
   ".L" ++ tag ++ "_precompile_dispatch:\n"
 
+/-- Reject a precompile call at the EVM child-depth limit.  The guard belongs
+    after the initial access and memory-expansion charges, which the spec keeps,
+    and before precompile-specific child allotment and state-gas paths, which a
+    depth failure never reaches.  It is self-contained because probe registries
+    do not define the shipped guest's `.Lcd_fail_*` labels. -/
+def precompileDepthGateAsm (labelStem : String) (netPopBytes : Nat) : String :=
+  "  la t0, evm_call_depth\n" ++
+  "  ld t0, 0(t0)\n" ++
+  "  li t1, 1024\n" ++
+  "  bltu t0, t1, .L" ++ labelStem ++ "_ok\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x0, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
+  "  sd x0, 0(x12)\n" ++
+  "  sd x0, 8(x12)\n" ++
+  "  sd x0, 16(x12)\n" ++
+  "  sd x0, 24(x12)\n" ++
+  "  addi x10, x10, 1\n" ++
+  dispatchContinueRet ++ "\n" ++
+  ".L" ++ labelStem ++ "_ok:\n"
+
 def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) : String :=
   if tag != "call_target" then "" else
   match valueOff? with
