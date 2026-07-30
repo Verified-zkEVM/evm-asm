@@ -2857,9 +2857,21 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bnez x28, .runtime_tx_top_level_message_d0_done\n" ++
   emitTopLevelMessageD0Preparation ++
   ".runtime_tx_top_level_message_d0_done:\n" ++
-  -- Snapshot and pending-value staging are the shared post-preparation body:
-  -- every frame needs its rollback boundary and eligible value transfer.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- This is the last depth-zero-only operation before `process_message`:
+  -- process_transaction, not process_message, materializes the transaction's
+  -- up-front sender gas debit.  Keep it above the child entry so a future
+  -- child frame cannot charge the transaction's gas a second time.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
+  -- The root arm takes an explicit jump rather than falling through the child
+  -- entry.  No child reaches that entry in this extraction: it is the routing
+  -- seam for a later semantic migration, which must first move the child
+  -- snapshot and value-transfer work out of `call_frame_descend`.
+  "  j .runtime_tx_shared_message_body\n" ++
+  ".runtime_tx_child_message_entry:\n" ++
+  ".runtime_tx_shared_message_body:\n" ++
+  -- Snapshot and pending-value staging remain the existing root path.  The
+  -- child uses its current frame-local setup until the later migration.
+  "  jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
