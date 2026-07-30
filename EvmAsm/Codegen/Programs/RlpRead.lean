@@ -453,7 +453,7 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
 
       value == 0       → 0x80 (1 byte; RLP empty bytes)
       value < 0x80     → single byte = value
-      else (1..32 B)   → 0x80 + len  +  stripped BE bytes
+      else (1..55 B)   → 0x80 + len  +  stripped BE bytes
 
     Building block for `account_encode` (PR-K31+), which calls
     this for the nonce / balance fields, and for state-root
@@ -461,11 +461,22 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
 
     Calling convention:
       a0 (input)  : src bytes ptr (BE, possibly with leading zeros)
-      a1 (input)  : src byte length (any; typical: 8 for u64,
-                    32 for u256)
+      a1 (input)  : src byte length, **≤ 55** — see the domain
+                    note below (typical: 8 for u64, 32 for u256)
       a2 (input)  : output buffer ptr (≥ a1 + 1 bytes capacity)
       ra (input)  : return
       a0 (output) : number of bytes written
+
+    **Domain: `a1 ≤ 55`.**  Instructions [21]-[23] write the header
+    as `0x80 + len` unconditionally, whereas RLP requires the
+    `0xb7 + lenlen` long form once the stripped payload reaches 56
+    bytes.  So this routine is a *short-form* encoder and callers
+    must bound `a1`; it is not "any length".  Every production
+    caller passes 8 or 32, or guards dynamically — the call-site
+    enumeration and its one unbounded exception (the `zisk_` probe,
+    which is therefore not a sound oracle above 55 bytes) are in
+    `RlpEncodeUintBeSAsm.lean`'s module docstring, together with the
+    two greps that regenerate it.  Verified there, not here.
 
     Pure register arithmetic, no scratch, leaf-callable. -/
 def rlpEncodeUintBe_prog : Program :=
