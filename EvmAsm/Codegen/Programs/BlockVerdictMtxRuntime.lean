@@ -729,6 +729,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- caller contract needs a real CREATE frame first: sender/public-key and
   -- nonce have already been established by the common mtx prelude above.
   "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
+  -- `sttc_nonce` is this transaction's pre-inclusion nonce, exactly the
+  -- CREATE input. Do not copy the spec's explicit minus-one: it compensates
+  -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
   -- A durable CodeState entry is a prior-tx live account and collides; a

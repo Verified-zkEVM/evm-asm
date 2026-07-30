@@ -428,6 +428,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- tinyInterpRegistry's CREATE handler descends via create_frame_descend, which pulls
     -- in the full frame-helper chain (none defined by the plain-STOP callable epilogue for
     -- this registry). Bundle them for a standalone emit (mirrors createRoundtripUnit).
@@ -527,6 +528,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
@@ -622,6 +624,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
@@ -736,6 +739,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
     requestsHashVerifyFunction ++ "\n" ++
     assembleExecutionRequestsFunction ++ "\n" ++
@@ -851,6 +855,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     readSetsDiscardTxFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
     frameDepthPopFunction ++ "\n" ++
@@ -982,6 +987,7 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     ".Lscgp_done:\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
     frameDepthPopFunction ++ "\n" ++
