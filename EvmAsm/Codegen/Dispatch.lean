@@ -2845,7 +2845,18 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- `interpreter.py:356` runs this preparation region only at depth zero.
+  -- Cut C will route child frames through this entry; until then every live
+  -- caller has depth zero, so this guard is intentionally a no-op. On the
+  -- depth-zero path x28 is redefined by the deferred preparation callback;
+  -- on the skip path it retains the depth, but the shared bootstrap has no
+  -- x28 read before dispatch begins. There is no canonical x28 contract here:
+  -- the depth-zero path already leaves either zero or that callback pointer.
+  "  la x28, evm_call_depth\n" ++
+  "  ld x28, 0(x28)\n" ++
+  "  bnez x28, .runtime_tx_top_level_message_d0_done\n" ++
   emitTopLevelMessageD0Preparation ++
+  ".runtime_tx_top_level_message_d0_done:\n" ++
   -- Snapshot and pending-value staging are the shared post-preparation body:
   -- every frame needs its rollback boundary and eligible value transfer.
   "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
