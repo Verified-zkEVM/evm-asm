@@ -611,18 +611,10 @@ def accountWriteMapDataSection : String :=
   "tx_account_writes_overflow:\n  .zero 8\n" ++
   "account_writes_undo_count:\n  .zero 8\n"
 
-/-- The per-frame undo marks are runtime-zeroed NOBITS, not ordinary `.data`.
-    Keeping this array out of the address-pinned PROGBITS section is essential:
-    it is an execution journal, while fixed Bn254 proof anchors live later in
-    `.data`. -/
+/-- Runtime-zeroed NOBITS storage used by the account-write map. -/
 def accountWriteMapBssSection : String :=
   ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
-  -- Per-depth transaction-map undo mark.  A child REVERT restores account
-  -- writes, unlike storage reads: reverted balance, nonce, and code mutations
-  -- are not BAL events at all.  Kept alongside the storage-write checkpoint
-  -- rather than in the packed frame ABI.
-  "account_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   -- EIP-7702 authorization code is represented by a 23-byte delegation
   -- designator.  Transaction/account-write rows retain a pointer to those
   -- bytes until the later BAL builder pass, so this must be a block-lifetime

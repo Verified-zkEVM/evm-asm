@@ -780,13 +780,6 @@ def codeStateData : String :=
   "code_state_bal_bytes:\n  .zero 32\n" ++
   "code_state_bal_nonce:\n  .zero 32\n" ++
   "code_state_pre_acct:\n  .zero 48\n" ++
-  -- Frame-local high-water marks for the transaction overlay.  The execution
-  -- journal is nested: a reverted child must discard only changes made below
-  -- its own entry, never its parent's pending CREATE or SELFDESTRUCT work.
-  -- The depth is capped at 1024 by the EVM frame gate, hence 1025 slots
-  -- including depth zero.  These are counts, not input-sized allocations.
-  "account_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
