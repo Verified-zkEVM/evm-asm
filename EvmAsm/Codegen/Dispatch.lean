@@ -2994,6 +2994,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- now passed.  Only this point commits the auth phase; callback OOG above is
   -- still a preparation ExceptionalHalt and must roll its auths back.
   "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n" ++
+  -- Cross-routine pairing: this callee captures the body mark immediately
+  -- before interpreter entry; `dispatch_tx_runtime_code` in
+  -- `BlockVerdictDispatchTx.lean` restores it only after this callable returns
+  -- and settlement classifies a failed body.
   -- `process_message` debits gas before its body snapshot, then moves value
   -- inside the rollback window.  The two pending producers are deliberately
   -- split so a failed body keeps the gas debit but restores the recipient credit.

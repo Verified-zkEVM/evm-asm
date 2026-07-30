@@ -23,6 +23,9 @@ def blockVerdictCreateCollisionBranch : String :=
   ".Lbv_creation_dispatch:\n" ++
   "  la t0, bvgr_tx_state_refund; sd zero, 0(t0)\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  -- CREATE addresses consume the creator nonce immediately before this
+  -- creation's increment. `sttc_nonce` already stores that pre-increment tx
+  -- nonce; unlike execution-specs' stored-post-nonce route, do not subtract 1.
   "  la t0, sttc_nonce; ld a1, 0(t0); la a0, bmvmx_sender_addr; la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0)\n" ++
   "  jal ra, has_code_or_nonce_at_header_state_root\n" ++
