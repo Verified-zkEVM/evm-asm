@@ -408,7 +408,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- resolver already used by child CALL-family handlers and by the dispatcher
   -- itself; only a genuine overlay miss may fall through to the header lookup.
   "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_state_lookup_current\n" ++
-  "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_eoa\n" ++
+  "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_contract\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
   -- A status-2 recipient lookup stays a hard failure after preparation.  It is
@@ -417,7 +417,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- recipient code, while a completed prefix returns to the same status-2
   -- failure without executing a body.
   "  li t1, 2; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
-  "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_eoa\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_contract\n" ++
   ".Lbv_mtx_recipient_lookup_resolved:\n" ++
   "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
@@ -431,7 +431,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  beqz a0, .Lbv_mtx_is_contract\n" ++
   blockVerdictMtxPrecompileSettlement ++
-  blockVerdictMtxEoaSettlement ++
+  -- An inactive precompile is ordinary zero-byte code.  Rejoin the one
+  -- top-level message processor instead of falling through to a second EOA
+  -- settlement route.
+  ".Lbv_mtx_precompile_not_active:\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0); j .Lbv_mtx_is_contract\n" ++
   ".Lbv_mtx_is_contract:\n" ++
   -- #10695 INVARIANT: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
   -- TRANSACTION'S block_access_index (i+1; EIP-7928: 0 for system, i+1 for the i-th user tx,
@@ -535,6 +539,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, tx_account_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, tx_code_reads_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, bv_dispatch_runtime_status; sd a0, 0(t0)\n  la t1, dtrc_use_pre_header; sd zero, 0(t1)\n" ++
+  -- The shared dispatcher returns 8 only after a status-2 recipient lookup
+  -- completed its common preparation prefix.  This is a verifier failure, not
+  -- an executable body or a second settlement path.
+  "  li t1, 8; beq a0, t1, .Lbv_mtx_recipient_unresolvable_fail\n" ++
   "  bnez a0, .Lbv_mtx_dispatch_unsupported                         # structured dispatch bail reason\n" ++
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
   -- (i = bv_mtx_i; evm_state_gas_used is fresh per-tx). Clobbers only a0/t0-t2, preserves the dispatch
