@@ -185,7 +185,7 @@ def mptIndexedStreamLeafHashFunction : String :=
   "mpt_indexed_stream_leaf_hash:\n" ++
   "  addi sp, sp, -176\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp)\n" ++
-  "  mv s1, a0; mv s2, a1; mv s3, a2; mv s4, a3; mv s5, a4; li t0, 6; bgtu s2, t0, .Lmislh_fail; li t0, 27; bltu s4, t0, .Lmislh_fail\n" ++
+  "  mv s1, a0; mv s2, a1; mv s3, a2; mv s4, a3; mv s5, a4; li t0, 6; bgtu s2, t0, .Lmislh_fail; li t0, 32; bltu s4, t0, .Lmislh_fail\n" ++
   "  mv a0, s1; mv a1, s2; li a2, 1; addi a3, sp, 88; jal ra, hp_encode_nibbles; mv s7, a0\n" ++
   "  addi a0, sp, 88; mv a1, s7; addi a2, sp, 96; addi a3, sp, 144; jal ra, rlp_encode_bytes; ld s7, 144(sp)\n" ++
   "  li t0, 1; bne s4, t0, .Lmislh_value_prefix; lbu t1, 0(s3); li t2, 128; bgeu t1, t2, .Lmislh_value_prefix; li s8, 0; j .Lmislh_value_ready\n" ++
@@ -259,13 +259,18 @@ def mptIndexedSortChangesFunction : String :=
 
 /-! Construct one canonical raw child reference for an indexed-trie leaf.
     Small values use the regular encoder into a fixed 1 KiB structural scratch;
-    every value at least 27 bytes uses the streaming helper, so no transaction
-    or receipt payload is copied into an MPT buffer. -/
+    every value at least 32 bytes uses the streaming helper, so no transaction
+    or receipt payload is copied into an MPT buffer.  The threshold is 32, not
+    27: the MPT embeds any leaf node whose serialization is under 32 bytes
+    (execution-specs merkle_patricia_trie.py:223-225), and a 27-31 byte value
+    can still encode to a <32 node, so routing it to the direct-hash stream
+    was wrong (GH #10924).  The inline path below re-checks the encoded node
+    length and hashes at >=32, so only values guaranteed >=32 go to stream. -/
 def mptIndexedLeafRefFunction : String :=
   "mpt_indexed_leaf_ref:\n" ++
   "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd zero, 0(s5); li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu s1, t0, .Lmilr_fail; li t0, 27; bgeu s3, t0, .Lmilr_stream\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd zero, 0(s5); li t0, " ++ toString itrIndexedKeyMaxNibbles ++ "; bgtu s1, t0, .Lmilr_fail; li t0, 32; bgeu s3, t0, .Lmilr_stream\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; la a4, itr_builder_node; la a5, itr_builder_node_len; jal ra, mpt_leaf_node_encode_from_nibbles; bnez a0, .Lmilr_fail; la t0, itr_builder_node_len; ld t1, 0(t0); li t2, 32; bgeu t1, t2, .Lmilr_small_hash; la t0, itr_builder_node; mv t2, s4\n" ++
   ".Lmilr_copy:\n" ++
   "  beqz t1, .Lmilr_inline_ok; lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lmilr_copy\n" ++
