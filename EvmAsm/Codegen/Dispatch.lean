@@ -2760,9 +2760,17 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  add x7, x7, x8\n" ++
   "  add x10, x10, x8\n" ++        -- v0.6.0: floor anchors on base_regular_gas
   ".runtime_tx_gas_recipient_done:\n" ++
-  "  ld x8, 424(x20)\n" ++         -- x8 = calldata length
-  "  ld x9, 416(x20)\n" ++         -- x9 = calldata ptr
-  "  ld x12, 424(x20)\n" ++        -- x12 = calldata length for initcode words
+  -- Message calldata drives EVM data opcodes, but a top-level CREATE has
+  -- empty message.data while its transaction initcode still pays transaction
+  -- data and initcode-word intrinsic gas.  Creation supplies that distinct
+  -- transaction-data span through these one-shot globals; ordinary calls use
+  -- the staged frame span as before.
+  "  ld x8, 424(x20)\n" ++         -- x8 = frame calldata length
+  "  ld x9, 416(x20)\n" ++         -- x9 = frame calldata ptr
+  "  ld x12, 424(x20)\n" ++        -- x12 = transaction-data len for initcode words
+  "  la x13, runtime_tx_intrinsic_data_len; ld x13, 0(x13); beqz x13, .runtime_tx_gas_data_span_ready\n" ++
+  "  la x9, runtime_tx_intrinsic_data_ptr; ld x9, 0(x9); mv x8, x13; mv x12, x13\n" ++
+  ".runtime_tx_gas_data_span_ready:\n" ++
   ".runtime_tx_gas_data_loop:\n" ++
   "  beqz x8, .runtime_tx_gas_create_words\n" ++
   "  lbu x11, 0(x9)\n" ++
@@ -3641,6 +3649,12 @@ def emitRuntimeDispatcherDataSectionCore
   -- caller can read the exact `calldata_floor_gas_cost` the transaction
   -- was validated against (0 when --validate-tx-gas was not requested).
   "runtime_tx_calldata_floor:\n" ++
+  "  .zero 8\n" ++
+  -- Nonzero only while a top-level CREATE is being dispatched: its transaction
+  -- data is initcode, whereas its EVM frame calldata is empty.
+  "runtime_tx_intrinsic_data_ptr:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_intrinsic_data_len:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++
