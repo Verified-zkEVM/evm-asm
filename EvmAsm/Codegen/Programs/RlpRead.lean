@@ -478,6 +478,19 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
     `RlpEncodeUintBeSAsm.lean`'s module docstring, together with the
     two greps that regenerate it.  Verified there, not here.
 
+    **Verified in** `EvmAsm.Codegen.RlpEncodeUintBeSAsm`, against the
+    independent RLP model `reubOut`: all 35 instructions are covered
+    by block theorems — `reubPrologue`, `reubStripLoop`,
+    `reubEmptyTail`, the three `reubDisp*`, `reubSingleTail`,
+    `reubHeaderWrite`, `reubCopyLoop`, `reubRetTail`.  The composed
+    whole-routine triple is **not yet proven**, so there is as yet no
+    theorem saying this routine computes RLP.
+
+    That pointer is here deliberately: a per-file theorem count of
+    *this* module sees only the drift guard below and reads as
+    "unspecified", which is how #10779 and #10782 came to be filed
+    against finished work.  Grep the routine symbol tree-wide.
+
     Pure register arithmetic, no scratch, leaf-callable. -/
 def rlpEncodeUintBe_prog : Program :=
   [ .MV .x5 .x10,
