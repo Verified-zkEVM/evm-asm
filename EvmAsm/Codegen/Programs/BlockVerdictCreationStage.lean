@@ -563,13 +563,22 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_created_effect_delete_next:\n" ++
   "  addi t3, t3, 32; addi t2, t2, 1; j .Lbvcr_created_effect_delete_scan\n" ++
   ".Lbvcr_created_effect_live:\n" ++
+  -- `update_builder_from_tx` compares the final transaction account state,
+  -- not the original endowment.  The dispatcher has returned to the live
+  -- depth-zero environment, whose LE balance word at +32 was updated by every
+  -- constructor value movement.  Reverse it into the BE nonstorage ABI here;
+  -- do not read either post-dispatch overlay, because both have been reset by
+  -- this boundary.
+  "  la t0, evm_env; addi t0, t0, 63; la t1, nse_create_post_bal; li t2, 32\n" ++
+  ".Lbvcr_created_final_balance:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_created_final_balance\n" ++
   -- The initcode may have performed CREATE/CREATE2 attempts.  Its creator
   -- nonce is therefore the running table value, not always EIP-161's initial
   -- nonce 1; use the same lookup as the ordinary top-level creation deposit.
   "  la a0, bv_create_addr\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
   "  la a0, bv_create_addr\n" ++
   "  la a1, nse_zero_bal\n" ++
-  "  la a2, bv_creation_ctx_ptr; ld a2, 0(a2); addi a2, a2, 96\n" ++
+  "  la a2, nse_create_post_bal\n" ++
   "  li a3, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   ".Lbvcr_created_effect_done:\n" ++
