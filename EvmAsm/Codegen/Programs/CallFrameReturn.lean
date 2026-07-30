@@ -207,8 +207,6 @@ def frameReturnFunction : String :=
   -- return.  The current depth still names the child at this point.
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t1, t2, 6; slli t3, t2, 5; add t1, t1, t3; slli t3, t2, 3; add t1, t1, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
   "  ld t3, 72(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
-  -- `created_count` deliberately remains on #10940's dedicated checkpoint.
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3; la t0, account_state_created_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_created_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t1, t2, 6; slli t3, t2, 5; add t1, t1, t3; slli t3, t2, 3; add t1, t1, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t1; ld t3, 80(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
   "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
