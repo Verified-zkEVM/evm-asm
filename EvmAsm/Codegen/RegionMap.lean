@@ -441,7 +441,7 @@ def schemeAAnchors : List GuestRegion :=
 -- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
 -- change, #10911's guarded post-static-check CALL target account-read
 -- restoration, and #10913's creation-stage running creator nonce fix.
-def textSizeBytes : Nat := 0x0675d0
+def textSizeBytes : Nat := 0x067638
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
