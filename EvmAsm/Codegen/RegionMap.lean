@@ -441,7 +441,7 @@ def schemeAAnchors : List GuestRegion :=
 -- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
 -- change, #10911's guarded post-static-check CALL target account-read
 -- restoration, and #10913's creation-stage running creator nonce fix.
-def textSizeBytes : Nat := 0x067744
+def textSizeBytes : Nat := 0x067794
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -512,7 +512,7 @@ def committedStorageRegion : GuestRegion :=
     unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa3110000; 0x1c1395a0-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa3110000; 0x1c1395c0-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
