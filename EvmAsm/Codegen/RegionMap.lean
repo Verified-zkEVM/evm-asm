@@ -445,7 +445,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x066c34
+def textSizeBytes : Nat := 0x066be8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -473,7 +473,7 @@ def dataSizeBytes : Nat := 0x5370
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). Grew by
     `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab. -/
-def bssSizeBytes : Nat := 0x1c105000
+def bssSizeBytes : Nat := 0x1c103000
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
