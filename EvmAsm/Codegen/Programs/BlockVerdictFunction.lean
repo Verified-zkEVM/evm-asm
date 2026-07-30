@@ -850,27 +850,12 @@ def blockVerdictFunction : String :=
   -- an initialiser that a reader has to go find.
   "  li t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  jal ra, bv_emit_single_tx_tl7708\n" ++
-  -- fva3w: snapshot the exec effect logs before the contract runtime dispatch. A top-level
-  -- tx that reverts/aborts (INVALID/REVERT/OOG at depth 0) discards its state changes; its
-  -- value-transfer / CREATE effects must be rolled back too (child frames roll back via
-  -- frame_return; the depth-0 .exit_*_top path does not). Truncated after dispatch when the tx
-  -- errored (status 0), exactly as frame_return truncates a reverted child.
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
-  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  -- The shared dispatcher owns the complete post-preparation body checkpoint.
   -- Runtime child CALLs to the EIP-4788 beacon-roots contract need the current
   -- begin-of-block system write before block_state_root runs. The final state-root
   -- path recomputes these descriptors independently; this early derivation only
   -- fills the shared swd_* buffers for runtime replay.
   "  mv a0, s3; jal ra, system_write_descriptors\n" ++
-  -- bbow4.2: snapshot the STORAGE exec-log count (evm_env+448 = persistentLogLength) too, to
-  -- mark where this tx's storage rows begin. A top-level tx that REVERTs/OOG-HALTs at depth 0
-  -- discards its SSTORE writes; on error (below) we net-zero its rows so the all-accounts
-  -- storage comparators see no change for a touched-but-aborted account (EIP-7928 records the
-  -- access in the BAL but the write is rolled back) while the rows stay for the reads check.
-  "  la t0, evm_env; ld t1, 448(t0); la t0, bv_tx_effect_snap_storage_count; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_stx_sender_addr; sd t1, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
@@ -900,12 +885,6 @@ def blockVerdictFunction : String :=
   -- the all-accounts non-storage/code comparators see net-zero for a touched-but-aborted account
   -- (EIP-7928 records the access in the BAL but the state change is rolled back). Mirrors
   -- frame_return's reverted-child truncation. a4 != 0 (success) leaves the effects committed.
-  "  bnez a4, .Lbv_tx0_effects_kept\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
   -- GH #10619: TRUNCATE the aborted tx's storage exec-log rows to the pre-tx count,
   -- replacing the net-zero-and-keep loop that stood here.
   --
@@ -928,7 +907,6 @@ def blockVerdictFunction : String :=
   -- truncates a reverted child the same way. The value-derived read-vs-write
   -- distinction in the 128-byte row therefore stops being load-bearing here, which is
   -- the collapse #10619 exists to remove rather than to preserve as a no-op.
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
   ".Lbv_tx0_effects_kept:\n" ++
   "  la t4, bv_tx_is_creation_arr; la t5, bv_simple_transfer_tx; ld t5, 48(t5); sd t5, 0(t4)\n" ++
   -- dispatch_tx_runtime_code already snapshots recipient runtime logs, including the dispatcher-reemitted top-level EIP-7708 transfer log.

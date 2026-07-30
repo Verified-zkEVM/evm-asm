@@ -2508,7 +2508,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- otherwise) and preserves all caller regs (x5 cursor / x20 env live here); save ra around it.
   "  addi sp, sp, -16\n  sd ra, 0(sp)\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
-  "  jal ra, dispatcher_seed_pending_upfront_balance\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 16\n" ++
   -- nxio8: per-TRANSACTION dispatch state that previously leaked across calls in a
   -- multi-tx block (the callable dispatcher is invoked once per tx in one guest run):
@@ -2995,6 +2994,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- now passed.  Only this point commits the auth phase; callback OOG above is
   -- still a preparation ExceptionalHalt and must roll its auths back.
   "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n" ++
+  -- `process_message` debits gas before its body snapshot, then moves value
+  -- inside the rollback window.  The two pending producers are deliberately
+  -- split so a failed body keeps the gas debit but restores the recipient credit.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++

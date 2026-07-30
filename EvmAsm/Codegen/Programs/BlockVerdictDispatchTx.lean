@@ -484,6 +484,30 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "\n" ++
+  -- Shared `process_message` body checkpoint.  It is entered only after the
+  -- dispatcher has finished preparation and before it can execute a precompile
+  -- or bytecode; both MTx and the one-tx verdict caller therefore share it.
+  "dispatcher_capture_body_state:\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_count; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_next; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_next; sd t1, 0(t0)\n" ++
+  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 448(t0); la t2, bv_tx_effect_snap_storage_count; sd t1, 0(t2); ld t1, 464(t0); la t2, bv_tx_effect_snap_transient_count; sd t1, 0(t2); ld t1, 472(t0); la t2, bv_tx_effect_snap_event_count; sd t1, 0(t2)\n" ++
+  "  la t0, account_writes_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_writes_undo; sd t1, 0(t0)\n" ++
+  "  la t0, account_state_pending_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_pending; sd t1, 0(t0); la t0, account_state_delete_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_delete; sd t1, 0(t0); la t0, account_state_overflow; ld t1, 0(t0); la t0, bv_tx_effect_snap_account_state_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, create_nonce_undo_count; ld t1, 0(t0); la t0, bv_tx_effect_snap_create_nonce_undo; sd t1, 0(t0)\n" ++
+  "  ret\n" ++
+  "dispatcher_restore_body_state:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0); la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; la t2, bv_tx_effect_snap_storage_count; ld t1, 0(t2); sd t1, 448(t0); la t2, bv_tx_effect_snap_transient_count; ld t1, 0(t2); sd t1, 464(t0); la t2, bv_tx_effect_snap_event_count; ld t1, 0(t2); sd t1, 472(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_account_writes_undo; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
+  "  la t0, bv_tx_effect_snap_account_state_pending; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_account_state_delete; ld t1, 0(t0); la t0, account_state_delete_count; sd t1, 0(t0); la t0, bv_tx_effect_snap_account_state_overflow; ld t1, 0(t0); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, bv_tx_effect_snap_create_nonce_undo; ld a0, 0(t0); jal ra, create_creator_nonce_undo_to\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  ret\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -1131,6 +1155,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s1, a1                    # effective refund_counter (v0.6.0: no auth regular-refund credit)\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
+  -- The shared body-state restore is deliberately placed after this pure
+  -- settlement fold: Python restores at interpreter.py:429, but this guest
+  -- obtains the status bit here.  This ordering is sound only while
+  -- `dispatcher_tx_gas_settle` writes no captured arena; today its only
+  -- stores zero `evm_state_gas_used` and `evm_state_gas_spilled` on error.
+  "  bnez s2, .Ldtrc_body_state_kept; jal ra, dispatcher_restore_body_state\n" ++
+  ".Ldtrc_body_state_kept:\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
   -- after settlement has classified the top-level tx status. A failed top-level
   -- transaction rolls back all LOGs, even logs committed by successful child calls.

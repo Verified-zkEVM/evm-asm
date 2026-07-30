@@ -440,6 +440,15 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl_val_d:\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0); la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbvcr_tl7708_staged:\n" ++
+  -- The creation path enters the callable dispatcher directly, rather than
+  -- through the ordinary post-preparation seam.  Preserve that seam's order:
+  -- materialize gas/blob first, capture the body state, then publish the two
+  -- value-transfer halves.  The transfer helper is harmless when this route
+  -- has no staged recipient credit, but keeping the call makes the ordering
+  -- contract explicit for every top-level message route.
+  -- Save `ra`: the dispatcher uses its caller return address to resume after
+  -- initcode, while both helpers and the mark are calls.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has
@@ -504,26 +513,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_deposit_exception:\n" ++
   "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0); sd zero, 480(t0)\n" ++
   "  la t0, evm_log_data_used; sd zero, 0(t0); la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  -- GH #10654: TRUNCATE the aborted deposit's storage exec-log rows, completing the
-  -- net-zero deletion #10641 made on the depth-zero abort path this mirrors.
-  --
-  -- The loop that stood here set `current := original` per row and KEPT the rows, for
-  -- two reasons. The rows were net-zeroed so the change comparators see no change for a
-  -- touched-but-aborted account -- STILL LIVE, and why this is a truncation rather than
-  -- a bare deletion. And they were kept rather than truncated so the slots stayed
-  -- "accessed" for the recipient `storage_reads` check -- DEAD as of #10641, which
-  -- re-pointed `bal_storage_reads_in_exec_log` at the `storage_reads` container that
-  -- rollback does not touch.
-  --
-  -- Truncation discharges the surviving reason more directly (no rows, no changes) and
-  -- mirrors `restore_tx_state` (state_tracker.py:809-826), which restores only the WRITE
-  -- structures and leaves the read sets alone.
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  -- Roll back every body-written arena to the shared pre-dispatch mark.  In
+  -- particular this deliberately leaves the read sets intact: the spec's
+  -- `restore_tx_state` restores writes but preserves reads.
+  "  jal ra, dispatcher_restore_body_state\n" ++
   ".Lbvcr_deposit_exception_settle:\n" ++
   "  li t0, 0xa0010000; li t1, 6; sd t1, 32(t0)\n" ++
   ".Lbvcr_deposit_done:\n" ++
