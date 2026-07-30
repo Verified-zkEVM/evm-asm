@@ -21,10 +21,10 @@ open EvmAsm.Rv64
     charged as transaction data but executed as frame code.
 
     This slice supports only one-byte STOP initcode. That is the narrow shape
-    whose execution does not observe ADDRESS/CALLER/ORIGIN/CALLVALUE, so the
-    later integration can run it before the created-address/creator-env
-    substrate exists. Broader constructors must stay gated until those fields
-    are staged soundly.
+    whose execution does not observe ADDRESS/CALLER/ORIGIN/CALLVALUE. These
+    constraints apply only to this legacy probe: they do not gate production
+    creation. `blockVerdictCreationRuntimeFunction` below stages the created
+    address and creator environment before dispatching arbitrary initcode.
 
     Calling convention:
       a0 = context record ptr (192-byte simple_transfer/multi_tx_nth_context
