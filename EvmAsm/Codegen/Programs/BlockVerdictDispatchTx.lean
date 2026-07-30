@@ -530,6 +530,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- Keep the runtime code lookup's status contract aligned with
+  -- `TxIntrinsicStateGas`: status 1 is an absent account and status 5 is an
+  -- empty-code witness miss.  Both execute the same zero-byte body.  Other
+  -- nonzero statuses remain unsupported; in particular status 2 still names
+  -- a malformed/unresolvable code lookup rather than an empty recipient.
+  "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  "  li t0, 5; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  -- The MTx wrapper reserves status 2 for the top-level deferred-witness
+  -- continuation.  It still needs this common setup so `prepare_only` can
+  -- distinguish prefix OOG from a completed prefix whose code witness is
+  -- missing.  Other callers keep the ordinary unsupported status-2 result.
+  "  li t0, 2; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_same_block_empty_code\n" ++
+  ".Ldtrc_code_lookup_status_done:\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
   -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
   -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
@@ -1077,10 +1091,26 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t4, 64(s2); bne t3, t4, .Ldtrc_stage_unsupported\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
-  "  jal ra, runtime_dispatcher_call\n" ++
+  -- Status-2 MTx lookup deferral shares all setup above, but stops at the
+  -- dispatcher preparation seam.  The wrapper consumes the tri-state below:
+  -- completed preparation is a missing-witness verdict failure; prefix OOG
+  -- continues through the ordinary transaction settlement.
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_dispatch_prepare_only\n" ++
+  "  jal ra, runtime_dispatcher_call; j .Ldtrc_dispatch_returned\n" ++
+  ".Ldtrc_dispatch_prepare_only:\n" ++
+  "  jal ra, runtime_dispatcher_prepare_only\n" ++
+  ".Ldtrc_dispatch_returned:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  "  la t4, bv_mtx_recipient_lookup_deferred; ld t5, 0(t4); beqz t5, .Ldtrc_deferred_lookup_done\n" ++
+  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 2; beq t5, t6, .Ldtrc_deferred_lookup_unresolvable\n" ++
+  "  li t6, 1; bne t5, t6, .Ldtrc_code_lookup_unsupported\n" ++
+  "  la t4, bv_mtx_recipient_lookup_deferred; sd zero, 0(t4)\n" ++
+  "  j .Ldtrc_deferred_lookup_done\n" ++
+  ".Ldtrc_deferred_lookup_unresolvable:\n" ++
+  "  li a0, 8; j .Ldtrc_ret\n" ++
+  ".Ldtrc_deferred_lookup_done:\n" ++
   -- A CREATE child whose authenticated pre-balance lookup parse/decode failed
   -- cannot safely execute with zero.  This sticky flag is set by
   -- create_frame_descend and is consumed here into the ordinary nonzero

@@ -454,15 +454,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
-  -- EIP-8037 current-state aliveness for the multi-tx EOA shortcut.
-  -- top-level value transfers pay NEW_ACCOUNT state gas only when the recipient
-  -- is not alive in the transaction's current state. The header-state lookup is
-  -- not enough after an earlier tx in the same block creates/funds that recipient,
-  -- so the shortcut records recipients whose NEW_ACCOUNT charge has already been
-  -- paid and suppresses repeats. 32-byte stride, 20-byte BE address prefix.
-  ".balign 8\n" ++
-  "bv_mtx_created_recipient_count:\n  .zero 8\n" ++
-  "bv_mtx_created_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
   -- Effective recipient for each settled MTx item. Unlike the raw context
   -- recipient, this holds the derived CREATE address for a creation tx.
   ".balign 8\n" ++
