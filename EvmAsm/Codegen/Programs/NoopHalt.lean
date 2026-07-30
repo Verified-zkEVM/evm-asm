@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -572,8 +573,8 @@ private def selfdestructTailAsm : String :=
   -- in AccountState; the current entry stays executable for later same-tx
   -- CALLs.  Keep the live runtime cursors intact across the set helpers.
   "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
-  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24; beqz t3, .L_selfdestruct_created_legacy_clear\n" ++
   ".L_selfdestruct_created_delete_restore_overflow:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++

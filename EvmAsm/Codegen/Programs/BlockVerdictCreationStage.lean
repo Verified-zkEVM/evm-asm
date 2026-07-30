@@ -8,6 +8,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -538,7 +539,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- delete fact. A malformed count deliberately falls through to the
   -- established publication path rather than suppressing an effect.
   "  beqz s3, .Lbvcr_created_effect_done\n" ++
-  "  la t0, account_state_delete_count; ld t1, 0(t0); li t2, 8192; bgtu t1, t2, .Lbvcr_created_effect_live; li t2, 0; la t3, account_state_delete\n" ++
+  "  la t0, account_state_delete_count; ld t1, 0(t0); li t2, " ++ toString accountStateDeleteCapacity ++ "; bgtu t1, t2, .Lbvcr_created_effect_live; li t2, 0; la t3, account_state_delete\n" ++
   ".Lbvcr_created_effect_delete_scan:\n" ++
   "  bgeu t2, t1, .Lbvcr_created_effect_live; ld t4, 24(t3); beqz t4, .Lbvcr_created_effect_delete_next; li t4, 0\n" ++
   ".Lbvcr_created_effect_delete_cmp:\n" ++
