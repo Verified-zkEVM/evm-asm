@@ -4814,6 +4814,69 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     stack-word pointers and does no staging, so it is not a copy but the site that does
     not need the helper. Each caller keeps its own guard.
 
+  **CALL-route convergence status, all figures measured at base `3cd551e21` unless
+  marked otherwise.** ⚠️ Every number here is a measurement with a base commit; a figure
+  without its commit has misled readers of this file before.
+
+  - **Executor tail unification is 4-of-4 once the CALLCODE cut lands.** PR #10992 routed
+    ordinary CALL (mode 0) through the shared child entry and PR #10997 added DELEGATECALL
+    (mode 3) and STATICCALL (mode 1); the CALLCODE cut (mode 2) is in flight and is
+    therefore **not** measured at this base. All four modes already shared
+    `jal call_frame_descend` before any of these cuts — **what the cuts unified is the
+    POST-DESCENT TAIL**, not the descent. The ingress census bounded this at exactly four
+    routes, so this **closes** rather than merely advances.
+  - **The CALL-route caller adapters are classified on #10938** with the same three-way
+    scheme used for the creation route: **18 items — 8 spec-caller-side (staying), 4
+    spec-processor-side (all four movable), 3 guest-only-necessary, 3
+    needs-justification.** The four movable items are the caller-side value debit, the
+    callee pre-balance staging, `record_message_value_transfer` and the EIP-7708 transfer
+    log — i.e. half of `move_ether`, its other operand, its BAL record, and
+    `emit_transfer_log`, all inside `process_message` in the spec
+    (`interpreter.py:384-397`).
+  - ⭐ **The number that scopes the next phase: `.Lcd_*` label counts per mode are CALL
+    67, CALLCODE 29, DELEGATECALL 19, STATICCALL 19.** The residual duplication is **not**
+    four copies of one thing — it is one big adapter and three small ones, and the entire
+    delta is the **value machinery** (CALLCODE sits between because it gates on value
+    without transferring). That reframes the remaining work from *unify four things* to
+    **move the value payload inward**.
+  - ⛔ **So the routing cut is NOT near the end of the alignment work.** That answers the
+    planning question in the negative, which is more useful than a yes: there is a
+    coherent bounded next step rather than a finished phase.
+  - **`.Lcd_empty` (the empty-target short-circuit) is equivalent on two tested axes and
+    remains classified needs-justification, not necessary.** The depth gate dominates it
+    on all four modes (gate `.s:60359` before the earliest edge `.s:60711` for CALL, and
+    likewise `63817/63905`, `66785/66803`, `70482/70500`), and the target's access record
+    — `account_read_record` on `evm_access_seed_addr`, straight-line immediately after
+    `.Lcallmem_precompile_<mode>_target_done` — also dominates it. Both were established
+    by enumerating **every** edge plus a bypass test, not by source order. Two cleared
+    axes are **not** a general equivalence claim: the short-circuit still skips whatever
+    else `process_message` does for an empty-code target, and that is unenumerated.
+  - **Computation-level dedup was already essentially done**; the caller-adapter
+    classification above is the refinement of that earlier finding, and both converge with
+    the boundary analysis from the opposite direction — payload and frame adapters there,
+    the **value** payload here.
+
+  **#10698 is diagnosed three layers deep, and the repair order is forced.** The BAL
+  sender row's value-correctness depends on: (1) `dispatcher_seed_pending_value_transfer`,
+  the only top-level `move_ether` recorder, having **one** call site (`.s:36120`) against
+  the upfront publisher's **two** (`.s:22353`, `.s:36117`); (2) that one site being doubly
+  gated, with the `account_state_latest_balance` miss traced as the live bail; and (3)
+  `blockVerdictMtxRecordSenderRefund` reconstructing the row as `pre + refund` with **no
+  value operand**, as the **later** writer, while `balance_changes` is last-write per
+  address and BAI.
+  - ⛔ **Layer 3 masks layers 1 and 2**, so making the reconstruction value-aware or
+    fail-closed must come **first**; only then do the bailing guard (#10698) and the
+    structurally absent call site (#10944) become verifiable. **Anyone who fixes the guard,
+    measures no change, and concludes the guard was innocent will be wrong.**
+  - ⚠️ **1 wei does not discriminate value-blind from off-by-one.** A `+1` patch would pass
+    the witnessing fixture and be wrong; the structural argument (no value operand in the
+    producer) is the evidence, and it does not depend on the magnitude.
+  - **#10996** records a three-route `-3` BAL shortfall, evidence-only at this base.
+  - **#10998** files `cd_xfer_log_pending` as a deferred one-shot flag with **eight**
+    consumer sites across the four modes against **one** `emit_transfer_log` in the spec,
+    where the one-shot discipline rests on a *stated* per-CALL reset rather than a
+    fail-closed mechanism — the #10925 single-buffer shape. Not a demonstrated defect.
+
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
   dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`
