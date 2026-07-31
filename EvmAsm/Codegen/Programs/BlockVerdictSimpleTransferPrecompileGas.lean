@@ -96,6 +96,14 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
   "  j .Lbv_tx_gas_precharge_not_precompile\n" ++
   ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
+  -- At depth zero the precompile's returndata is intentionally not materialized:
+  -- execution-specs stores it only in `evm.output`/`MessageCallOutput.return_data`,
+  -- while the transaction path consumes gas, refund, logs, error, and deletions
+  -- to make the receipt and state transition.  There is no caller memory window
+  -- or return-data consumer for a top-level transaction.  Keep ECRECOVER's
+  -- recovery/output kernel on the child path, where CALL-family code consumes it.
+  -- This selector is not the checked-system-call path: that path stages a runtime
+  -- payload and enters `runtime_dispatcher_call` with `system_call_mode` enabled.
   precompileFixedGasCostAsm 3000 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_sha256:\n" ++
@@ -111,6 +119,10 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileWordGasCostAsm ".Lbv_simple_transfer_precompile_fail" 15 3 "t5" "t6" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_modexp:\n" ++
+  -- As with ECRECOVER above, direct top-level MODEXP has no observable output
+  -- consumer.  The child processor owns the shared computation because it must
+  -- copy returndata to the CALL-family caller; this root route only needs the
+  -- formula and exceptional-halt behavior that affect the transaction result.
   -- Match execution-specs' MODEXP decoder and EIP-2565/Amsterdam gas formula.
   -- Header bytes absent from calldata are zero; any length above 1024 is an
   -- exceptional halt and therefore consumes all remaining transaction gas.
