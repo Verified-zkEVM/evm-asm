@@ -37,10 +37,13 @@ import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
 import EvmAsm.Progress
 import EvmAsm.Progress.AxiomWitnesses
+import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
 import EvmAsm.Tests.ArithDiffCheck
 import EvmAsm.Tests.Div128V5RandomCheck
 import EvmAsm.Tests.RlpDiffCheck
-import EvmAsm.Tests.RlpOracleCheck
+import EvmAsm.Tests.Correspondence.Harness
+import EvmAsm.Tests.Correspondence.Registry
+import EvmAsm.Tests.Correspondence.Rlp
 import EvmAsm.Tests.SpecRefEestCheck
 import EvmAsm.Tests.RunBlockLayoutBridge

@@ -48,8 +48,8 @@ root = "MainRlpDiffCheck"
 supportInterpreter = true
 
 [[lean_exe]]
-name = "rlp-oracle-check"
-root = "MainRlpOracleCheck"
+name = "correspondence-check"
+root = "MainCorrespondenceCheck"
 supportInterpreter = true
 
 [[lean_exe]]

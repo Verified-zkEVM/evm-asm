@@ -5,7 +5,7 @@ Three kinds of documents, with different retention rules:
 1. **Live authority** — pages that answer current questions and are kept
    correct: the `4ch8f-*` strategy/coverage/audit/correspondence set,
    `sasm-design.md`/`sasm-howto.md`, `notable-specs.md`,
-   `rlp-ssz-spec-correspondence.md`, `zkvm-*-interface.md`, the `eest-*`
+   the `*-spec-correspondence.md` instance set, `zkvm-*-interface.md`, the `eest-*`
    testing/frontier set, and everything under [`docs/agents/`](agents/)
    (routed from `AGENTS.md` "Deep references"). If one of these is wrong,
    fix it — agents act on them.
