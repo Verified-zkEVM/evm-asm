@@ -8,8 +8,9 @@
 # project (the render runs the real Lean elaborator).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1; then
-  echo "check-guarded-handler-bytes: riscv64-unknown-elf-as not found; skipping (install to enable)"
+if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
+   && ! command -v riscv64-elf-as >/dev/null 2>&1; then
+  echo "check-guarded-handler-bytes: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
   exit 0
 fi
 if [[ ! -f gen-out/regionmap/stateless_guest.elf ]]; then

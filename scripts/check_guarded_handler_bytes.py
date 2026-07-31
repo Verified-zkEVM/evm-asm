@@ -19,6 +19,7 @@ dispatches to (the exact gap vgyg9 exposed at the spec level).
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,9 +28,21 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TSV = os.path.join(REPO, "scripts", "asm-fixtures", "symbol-addresses.tsv")
 ELF = os.path.join(REPO, "gen-out", "regionmap", "stateless_guest.elf")
 DRIVER = os.path.join(REPO, "scripts", "emit_guarded_handler_driver.lean")
-AS = "riscv64-unknown-elf-as"
-OBJCOPY = "riscv64-unknown-elf-objcopy"
-READELF = "riscv64-unknown-elf-readelf"
+
+
+def _riscv_tool(env_var, tool):
+    """Accept both triple spellings — CI installs
+    `binutils-riscv64-unknown-elf`, Homebrew ships the identical GNU binutils
+    as `riscv64-elf-*`.  Same convention as `resolve_riscv_tool` in
+    `codegen-eest-stateless-check.sh`."""
+    return (os.environ.get(env_var) or
+            shutil.which(f"riscv64-unknown-elf-{tool}") or
+            shutil.which(f"riscv64-elf-{tool}") or
+            f"riscv64-unknown-elf-{tool}")
+
+AS = _riscv_tool("RISCV_AS", "as")
+OBJCOPY = _riscv_tool("RISCV_OBJCOPY", "objcopy")
+READELF = _riscv_tool("RISCV_READELF", "readelf")
 
 N_INSTRS = 42  # 10 guard + 30 evm_add + addi + ret (pinned by #guard in Lean)
 
