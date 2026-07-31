@@ -1100,9 +1100,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 preparation ran at the common MTx transaction boundary before
-  -- recipient routing; do not invoke a second writer in this contract arm.
-  "  la t4, runtime_tx_create_state_charge; sd zero, 0(t4)\n" ++
+  -- The caller owns `runtime_tx_create_state_charge`: an ordinary MTx stages
+  -- its top-level value-recipient charge immediately before this call, while
+  -- the single-tx caller clears the cell before entering.  Do not clear it
+  -- here: the dispatcher gas fold below consumes this staged component.
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
