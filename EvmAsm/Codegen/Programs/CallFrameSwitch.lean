@@ -16,7 +16,8 @@
   On a CALL/CREATE descent (depth d → d+1) the handler calls `frame_save_regs(d,
   pc, codebase)` then bumps `evm_call_depth`; on return it decrements and calls
   `frame_load_regs(d)`. The register-base recompute (x12/x13/x20) uses
-  `frame_base` (.61.4) for d ≥ 1, or the existing labels for d = 0.
+  `frame_base` (.61.4) for any d ≥ 0; depth 0 has its own slot since the
+  `depth-1` skew was removed, though the dispatcher still binds the globals for it.
 -/
 
 import EvmAsm.Rv64.Program

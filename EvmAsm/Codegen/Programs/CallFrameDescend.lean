@@ -56,7 +56,7 @@ def callFrameEnterFunction : String :=
   "  slli t2, a0, 3\n" ++
   "  add t0, t0, t2\n" ++
   "  sd t1, 0(t0)\n" ++
-  "  jal ra, frame_base                 # a0 = call_frame_arena + (d-1)*0x19000\n" ++
+  "  jal ra, frame_base                 # a0 = call_frame_arena + d*0x19000\n" ++
   "  mv s0, a0                          # s0 = child slot base\n" ++
   -- call_frame_descend populated frame_parent_bases[d] before entry.
   "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
@@ -592,13 +592,16 @@ def callFrameDescendFunction : String :=
     zero-init.
     Output:
       +0  depth after push from 0            (expect 1)
-      +8  child x13 (= frame_base(1))         (expect call_frame_arena)
+      +8  child x13 (= frame_base(1))         (expect call_frame_arena + 0x19000)
       +16 child x12                           (= base + 0x8200)
       +24 child x20                           (= base + 0x18400)
       +32 child mem[0] after zero-init        (expect 0, was pre-dirtied)
       +40 x12 - x13                           (expect 0x8200)
       +48 x20 - x13                           (expect 0x18400)
-      +56 x13 - call_frame_arena              (expect 0 — depth 1 slot) -/
+      +56 x13 - call_frame_arena              (expect 0x19000 — the depth-1 slot)
+
+    ⚠️ The last two expectations MOVED when `frame_base` stopped skewing by `depth-1`:
+    depth 1 is now slot 1, not slot 0, because slot 0 is reserved for depth 0. -/
 def ziskCallDescendPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li s0, 0xa0010000\n" ++

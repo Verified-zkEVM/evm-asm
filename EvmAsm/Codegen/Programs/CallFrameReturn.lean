@@ -318,11 +318,18 @@ def frameReturnFunction : String :=
   "  la t0, evm_cur_stack_low; la t2, evm_stack_low; sd t2, 0(t0)\n" ++
   "  j 5f\n" ++
   "4:\n" ++
-  "  addi t2, t1, -1               # (parent_depth - 1)\n" ++
+  -- ⚠️ This block OPEN-CODES `frame_base` rather than calling it, and it used to carry the
+  -- same `depth - 1` skew.  `frame_base` no longer skews (depth 0 owns slot 0), so this copy
+  -- must not either.
+  --
+  -- **THE SPELLING-INDEPENDENT INSTRUMENT FOR FINDING EVERY SITE LIKE THIS IS
+  -- `la <reg>, call_frame_arena`** — any site computing a frame address must materialise the
+  -- arena base by symbol.  A grep for `0x19000` misses five further sites in `Dispatch.lean`
+  -- that render the stride through `s!` interpolation, i.e. in DECIMAL (`102400`).
   "  li t3, 0x19000               # FRAME_STRIDE\n" ++
-  "  mul t2, t2, t3\n" ++
+  "  mul t2, t1, t3               # parent_depth * FRAME_STRIDE (no skew)\n" ++
   "  la t3, call_frame_arena\n" ++
-  "  add t2, t3, t2               # frame_base(parent_depth)\n" ++
+  "  add t2, t3, t2               # = frame_base(parent_depth), open-coded\n" ++
   -- Frame-relative stack bounds: restore the guards to the parent frame's stack.
   "  li t3, 0x8200\n" ++
   "  add t3, t2, t3               # parent stack top = frame_base + frameStackTopOff\n" ++

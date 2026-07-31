@@ -1242,9 +1242,14 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   -- otherwise a stale x20 can turn the gas-zeroing store into an out-of-RAM write.
   s!"  li x5, {maxCallDepth}\n" ++
   s!"  bgtu x18, x5, {label}_top\n" ++
-  "  addi x5, x18, -1\n" ++
+  -- ⚠️ NO `depth - 1` skew: `frame_base` indexes `call_frame_arena + depth * frameStride`
+  -- (depth 0 owns slot 0), so this hand-rolled rebuild must match it.  This block is the
+  -- reason a hex grep for the stride misses five sites: it renders `frameStride` and
+  -- `frameEnvOff` through `s!` interpolation, i.e. in DECIMAL.  **The spelling-independent
+  -- instrument is `la <reg>, call_frame_arena` — every site computing a frame address must
+  -- materialise the arena base by symbol.**
   s!"  li x6, {frameStride}\n" ++
-  "  mul x5, x5, x6\n" ++
+  "  mul x5, x18, x6\n" ++
   "  la x20, call_frame_arena\n" ++
   "  add x20, x20, x5\n" ++
   s!"  li x6, {frameEnvOff}\n" ++
