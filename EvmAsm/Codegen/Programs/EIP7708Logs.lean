@@ -297,6 +297,16 @@ def eip7708SyntheticLogFunctions : String :=
   "  la a1, bv_pending_upfront_sender_pre\n" ++
   "  la a2, bv_pending_upfront_sender_post\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
+  -- The upfront debit is live transaction state, not only a BAL-comparison
+  -- observation.  Record it in AccountState before the body checkpoint so
+  -- the later settlement/refund reads the post-debit sender balance and a
+  -- body revert restores only effects after that checkpoint.
+  "  jal ra, account_state_record_nonstorage\n" ++
+  "  bnez a0, .Ldpub_sender_done\n" ++
+  "  la a0, bv_pending_upfront_sender_addr\n" ++
+  "  la a1, bv_pending_upfront_sender_pre\n" ++
+  "  la a2, bv_pending_upfront_sender_post\n" ++
+  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
   ".Ldpub_sender_done:\n" ++
