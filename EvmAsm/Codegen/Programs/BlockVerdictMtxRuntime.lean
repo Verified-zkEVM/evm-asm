@@ -92,7 +92,7 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  bnez a0, .Lbv_mtx_bail\n" ++
   "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; jal ra, account_state_latest_balance\n" ++
   "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
-  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect\n" ++
+  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect_after_account_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_sr_done:\n"
 
