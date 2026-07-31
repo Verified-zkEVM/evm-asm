@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 
 namespace EvmAsm.Codegen
 
@@ -23,6 +24,22 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  ld t3, 112(t1); or t2, t2, t3\n" ++
   "  ld t3, 120(t1); or t2, t2, t3\n" ++
   "  beqz t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  -- `process_message` evaluates account liveness against the transaction's
+  -- current state.  A preceding value transfer can have made this recipient
+  -- live even when the immutable header has no account for it.  Consult the
+  -- pending/durable AccountState overlays first; bit 1 is the explicit
+  -- account-exists bit.  Tombstones leave it clear and deliberately fall
+  -- through to the authenticated header predicate below.
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  addi a0, t1, 72; la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
+  "  bnez a0, .L" ++ tag ++ "_recipient_state_overlay\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  addi a0, t1, 72; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
+  "  beqz a0, .L" ++ tag ++ "_recipient_state_header\n" ++
+  ".L" ++ tag ++ "_recipient_state_overlay:\n" ++
+  "  ld t2, 88(a0); andi t2, t2, 2; bnez t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  ".L" ++ tag ++ "_recipient_state_header:\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t1, 72; ld a3, 80(s0); ld a4, 88(s0)\n" ++
   "  jal ra, account_exists_at_header_state_root\n" ++
   "  bnez a0, .L" ++ tag ++ "_recipient_state_zero\n" ++
