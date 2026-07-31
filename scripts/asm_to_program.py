@@ -1096,6 +1096,22 @@ SOURCE_DRIFT_ALLOW = {
     # This helper is an intentional hand-composed wrapper around a mechanically
     # converted core, so its source is not one generated literal block.
     'committedStorageChunkedSnapshotUpsertFunction',
+    # The four BAL sort routines (GH #10817). Two deviations from the generated
+    # block shape, both deliberate and both maintainer-approved:
+    #   1. They are the first converted defs that are also EXPORTED, so each
+    #      keeps `"  .globl <sym>\n"` ahead of the label. `.globl` is a directive
+    #      with no `Instr` constructor, so it cannot live in a `Program` and
+    #      `emitProgramR` does not emit it.
+    #   2. `balCanonicalSort_prog` is `head ++ balCanonicalDigit_prog ++ tail`
+    #      rather than one flat literal, because the module's four anti-drift
+    #      `#guard`s on the digit extractor have to be restatable over just that
+    #      fragment. The split is a SLICE of one conversion (indices 67..94), so
+    #      the branch offsets are still the ones resolved against the whole.
+    # Legs (a) and (c) -- the byte-identity checks -- still run on all four.
+    'balCanonicalSortFunction',
+    'balSortStorageWritesFunction',
+    'balSortAccountWritesFunction',
+    'balCanonicalSortSelftestFunction',
 }
 
 def check_file(path, funcs, rendered=None):
