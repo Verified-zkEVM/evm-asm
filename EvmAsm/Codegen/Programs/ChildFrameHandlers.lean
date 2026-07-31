@@ -715,7 +715,13 @@ def callDescendFallThrough
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  li t4, 2; beq t2, t4, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- Status 2 selects an active precompile as the delegated code address.  It
+  -- follows the empty-code route rather than descending, but execution has
+  -- nevertheless committed to that target, so record it before the route.
+  "  li t4, 2; bne t2, t4, .Lcd_same_block_not_precompile_" ++ tag ++ "\n" ++
+  recordDelegatedPrecompileTargetAsm ++
+  "  j .Lcd_empty_" ++ tag ++ "\n" ++
+  ".Lcd_same_block_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
   "  la t4, cd_deleg_target; addi t5, t3, 3; li t6, 20\n" ++
   ".Lcd_pdeleg_copy_" ++ tag ++ ":\n" ++
@@ -739,7 +745,13 @@ def callDescendFallThrough
   "  mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  li t4, 2; beq t3, t4, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- As above, a same-block resolution to a precompile executes the selected
+  -- target through the precompile route.  The BAL touch is unconditional on
+  -- that execution and must not depend on the target having bytecode.
+  "  li t4, 2; bne t3, t4, .Lcd_resolve_not_precompile_" ++ tag ++ "\n" ++
+  recordDelegatedPrecompileTargetAsm ++
+  "  j .Lcd_empty_" ++ tag ++ "\n" ++
+  ".Lcd_resolve_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   -- CALL into a contract created earlier in this block.  Resolve the current
   -- mutable CodeState before treating a header-witness miss as an empty EOA.
@@ -931,6 +943,15 @@ def callDescendFallThrough
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      ".Lcd_empty_noval_" ++ tag ++ ":\n"
    else "") ++
+  -- An empty-code CALL still enters `process_message`: after its body snapshot,
+  -- `move_ether` commits the paired debit and credit even though no child frame
+  -- is needed to execute bytecode.  Every arrival here (CodeState non-live,
+  -- both delegation status-2 paths, absent header account, and EMPTY_CODE_HASH)
+  -- bypasses `.Lcd_descend`, the only other balance-effect publisher.  Publish
+  -- the already-resolved descriptors once before the successful empty-call return.
+  (if mode != 0 then "" else
+    recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+      "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
   -- fva3w: empty callee runs nothing and cannot revert, so the value transfer (and its
   -- EIP-7708 log) is committed. Emit the deferred log in the PARENT env (x20 unchanged here).
   -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.

@@ -88,8 +88,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if ! command -v riscv64-unknown-elf-ld >/dev/null 2>&1; then
-  echo "check-build-units-link: SKIP — riscv64-unknown-elf toolchain not on PATH"
+if ! command -v riscv64-unknown-elf-ld >/dev/null 2>&1 \
+   && ! command -v riscv64-elf-ld >/dev/null 2>&1; then
+  echo "check-build-units-link: SKIP — no riscv64-{unknown-,}elf-ld on PATH"
   exit 0
 fi
 

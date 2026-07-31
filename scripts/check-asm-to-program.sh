@@ -16,12 +16,16 @@
 # emits the same output basename.  The ELF records that basename, so distinct
 # names can make otherwise byte-identical assembly and objects appear to differ.
 #
-# Requires riscv64-unknown-elf-as / -objcopy on PATH AND a built project
-# (`lake build`), since the authoritative check runs the Lean elaborator.
+# Requires a RISC-V `as`/`objcopy` on PATH AND a built project (`lake build`),
+# since the authoritative check runs the Lean elaborator.  Both triple
+# spellings are accepted: CI installs `binutils-riscv64-unknown-elf`, Homebrew
+# ships the identical GNU binutils as `riscv64-elf-*`.  Probing only the former
+# made this gate skip on every macOS checkout — green, having checked nothing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1; then
-  echo "check-asm-to-program: riscv64-unknown-elf-as not found; skipping (install to enable)"
+if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
+   && ! command -v riscv64-elf-as >/dev/null 2>&1; then
+  echo "check-asm-to-program: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
   exit 0
 fi
 exec python3 scripts/asm_to_program.py check-all

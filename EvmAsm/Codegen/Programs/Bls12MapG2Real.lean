@@ -16,772 +16,785 @@ namespace EvmAsm.Codegen
 def zkvmBls12MapFp2ToG2RealFunction : String :=
   ".globl zkvm_bls12_map_fp2_to_g2\n" ++
   "zkvm_bls12_map_fp2_to_g2:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++
-  "  addi a0, s0, 0\n" ++
-  "  li a1, 16\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_invalid\n" ++
-  "  addi a0, s0, 16\n" ++
-  "  jal ra, blsg_lt_p\n" ++
-  "  beqz a0, .Lblm2_invalid\n" ++
-  "  addi a0, s0, 16\n" ++
-  "  la a1, blm2_t\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  addi a0, s0, 64\n" ++
-  "  li a1, 16\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_invalid\n" ++
-  "  addi a0, s0, 80\n" ++
-  "  jal ra, blsg_lt_p\n" ++
-  "  beqz a0, .Lblm2_invalid\n" ++
-  "  addi a0, s0, 80\n" ++
-  "  la a1, blm2_t\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  la a0, blm2_t\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  la t0, blm2_t\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  ld t2, 48(t0)\n" ++
-  "  andi t2, t2, 1\n" ++
-  "  and t2, t2, a0\n" ++
-  "  or s4, t1, t2                  # s4 = sgn0(t)\n" ++
-  "  la a0, blm2_t\n" ++
-  "  la a1, blm2_t2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_t2\n" ++
-  "  la a1, blm2_t\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm_iso3_z\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_zt2\n" ++
-  "  la a1, blm2_t2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zt2\n" ++
-  "  la a1, blm2_tmp\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_tmp\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_tmp\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm_iso3_a\n" ++
-  "  la a1, blm2_d\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_d\n" ++
-  "  la a1, blm2_tmp\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_d\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  la a2, blm2_d\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm2_d\n" ++
-  "  addi a0, a0, 48\n" ++
-  "  mv t6, a0\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  mv a2, t6\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm2_tmp\n" ++
-  "  la a1, blsf_le_one\n" ++
-  "  la a2, blm2_tmp\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_iso3_b\n" ++
-  "  la a1, blm2_n\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_n\n" ++
-  "  la a1, blm2_tmp\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_d\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_d_ok\n" ++
-  "  la a0, blm_iso3_z\n" ++
-  "  la a1, blm2_d\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_d\n" ++
-  "  la a1, blm_iso3_a\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
+  "  addi sp, sp, -48
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)
+  mv s0, a0; mv s1, a1
+  addi a0, s0, 0
+  li a1, 16
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_invalid
+  addi a0, s0, 16
+  jal ra, blsg_lt_p
+  beqz a0, .Lblm2_invalid
+  addi a0, s0, 16
+  la a1, blm2_t
+  jal ra, blsg_be_to_le
+  addi a0, s0, 64
+  li a1, 16
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_invalid
+  addi a0, s0, 80
+  jal ra, blsg_lt_p
+  beqz a0, .Lblm2_invalid
+  addi a0, s0, 80
+  la a1, blm2_t
+  addi a1, a1, 48
+  jal ra, blsg_be_to_le
+  la a0, blm2_t
+  li a1, 48
+  jal ra, blsg_is_zero_n
+  la t0, blm2_t
+  ld t1, 0(t0)
+  andi t1, t1, 1
+  ld t2, 48(t0)
+  andi t2, t2, 1
+  and t2, t2, a0
+  or s4, t1, t2                  # s4 = sgn0(t)
+  la a0, blm2_t
+  la a1, blm2_t2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_t2
+  la a1, blm2_t
+  jal ra, blsg2_fp2_mul
+  la a0, blm_iso3_z
+  la a1, blm2_zt2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_zt2
+  la a1, blm2_t2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zt2
+  la a1, blm2_tmp
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_tmp
+  la a1, blm2_zt2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_tmp
+  la a1, blm2_zt2
+  jal ra, blsg2_fp2_add
+  la a0, blm_iso3_a
+  la a1, blm2_d
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_d
+  la a1, blm2_tmp
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_d
+  la a1, blsg2_pm1_le
+  la a2, blm2_d
+  jal ra, blsg2_fp_mul
+  la a0, blm2_d
+  addi a0, a0, 48
+  mv t6, a0
+  la a1, blsg2_pm1_le
+  mv a2, t6
+  jal ra, blsg2_fp_mul
+  la a0, blm2_tmp
+  la a1, blsf_le_one
+  la a2, blm2_tmp
+  jal ra, blsg2_fp_add
+  la a0, blm_iso3_b
+  la a1, blm2_n
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_n
+  la a1, blm2_tmp
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_d
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_d_ok
+  la a0, blm_iso3_z
+  la a1, blm2_d
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_d
+  la a1, blm_iso3_a
+  jal ra, blsg2_fp2_mul
+" ++
   ".Lblm2_d_ok:\n" ++
-  "  la a0, blm2_d\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_v\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_v\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_n\n" ++
-  "  la a1, blm2_u\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_u\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_u\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm_iso3_a\n" ++
-  "  la a1, blm2_w\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_u\n" ++
-  "  la a1, blm2_w\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm_iso3_b\n" ++
-  "  la a1, blm2_w\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_u\n" ++
-  "  la a1, blm2_w\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_v\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_w\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_u\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_cand\n" ++
-  "  la a1, blm2_w\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_w\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_cand\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_w\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_g\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  la a2, blm_pm9d16\n" ++
-  "  li a3, 757\n" ++
-  "  jal ra, blm_fp2_pow\n" ++
-  "  la a0, blm2_g\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_g\n" ++
-  "  la a1, blm2_r\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  li s2, 0                       # success\n" ++
-  "  la a0, blm_root8_0\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_g\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_u\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_r8_0\n" ++
-  "  bnez s2, .Lblm2_r8_0\n" ++
-  "  li s2, 1\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_r\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm2_d
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_v
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_v
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_n
+  la a1, blm2_u
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_u
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_u
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm_iso3_a
+  la a1, blm2_w
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_w
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_w
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_u
+  la a1, blm2_w
+  jal ra, blsg2_fp2_add
+  la a0, blm_iso3_b
+  la a1, blm2_w
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_w
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_u
+  la a1, blm2_w
+  jal ra, blsg2_fp2_add
+  la a0, blm2_v
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s2
+  la a1, blm2_w
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_w
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_w
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_u
+  la a1, blm2_cand
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_cand
+  la a1, blm2_w
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_w
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_cand
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_w
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_g
+  la a1, blm2_s2
+  la a2, blm_pm9d16
+  li a3, 757
+  jal ra, blm_fp2_pow
+  la a0, blm2_g
+  la a1, blm2_cand
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_g
+  la a1, blm2_r
+  li a2, 12
+  jal ra, blsf_copy_quads
+  li s2, 0                       # success
+  la a0, blm_root8_0
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_g
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_u
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_r8_0
+  bnez s2, .Lblm2_r8_0
+  li s2, 1
+  la a0, blm2_s1
+  la a1, blm2_r
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_r8_0:\n" ++
-  "  la a0, blm_root8_1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_g\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_u\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_r8_1\n" ++
-  "  bnez s2, .Lblm2_r8_1\n" ++
-  "  li s2, 1\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_r\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_root8_1
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_g
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_u
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_r8_1
+  bnez s2, .Lblm2_r8_1
+  li s2, 1
+  la a0, blm2_s1
+  la a1, blm2_r
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_r8_1:\n" ++
-  "  la a0, blm_root8_2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_g\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_u\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_r8_2\n" ++
-  "  bnez s2, .Lblm2_r8_2\n" ++
-  "  li s2, 1\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_r\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_root8_2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_g
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_u
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_r8_2
+  bnez s2, .Lblm2_r8_2
+  li s2, 1
+  la a0, blm2_s1
+  la a1, blm2_r
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_r8_2:\n" ++
-  "  la a0, blm_root8_3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_g\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_u\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_r8_3\n" ++
-  "  bnez s2, .Lblm2_r8_3\n" ++
-  "  li s2, 1\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_r\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_root8_3
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_g
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_u
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_r8_3
+  bnez s2, .Lblm2_r8_3
+  li s2, 1
+  la a0, blm2_s1
+  la a1, blm2_r
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_r8_3:\n" ++
-  "  la a0, blm2_t2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_t\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_r\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_cand\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zt2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm2_u\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  li s3, 0                       # success_2\n" ++
-  "  la a0, blm2_r\n" ++
-  "  la a1, blm2_y\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_eta_0\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_eta_0\n" ++
-  "  bnez s2, .Lblm2_eta_0\n" ++
-  "  bnez s3, .Lblm2_eta_0\n" ++
-  "  li s3, 1\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_y\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm2_t2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_t
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_r
+  la a1, blm2_cand
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_cand
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zt2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm2_zt2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_zt2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s1
+  la a1, blm2_u
+  jal ra, blsg2_fp2_mul
+  li s3, 0                       # success_2
+  la a0, blm2_r
+  la a1, blm2_y
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm_eta_0
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_cand
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s2
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_eta_0
+  bnez s2, .Lblm2_eta_0
+  bnez s3, .Lblm2_eta_0
+  li s3, 1
+  la a0, blm2_s2
+  la a1, blm2_y
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_eta_0:\n" ++
-  "  la a0, blm_eta_1\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_eta_1\n" ++
-  "  bnez s2, .Lblm2_eta_1\n" ++
-  "  bnez s3, .Lblm2_eta_1\n" ++
-  "  li s3, 1\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_y\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_eta_1
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_cand
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s2
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_eta_1
+  bnez s2, .Lblm2_eta_1
+  bnez s3, .Lblm2_eta_1
+  li s3, 1
+  la a0, blm2_s2
+  la a1, blm2_y
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_eta_1:\n" ++
-  "  la a0, blm_eta_2\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_eta_2\n" ++
-  "  bnez s2, .Lblm2_eta_2\n" ++
-  "  bnez s3, .Lblm2_eta_2\n" ++
-  "  li s3, 1\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_y\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_eta_2
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_cand
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s2
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_eta_2
+  bnez s2, .Lblm2_eta_2
+  bnez s3, .Lblm2_eta_2
+  li s3, 1
+  la a0, blm2_s2
+  la a1, blm2_y
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_eta_2:\n" ++
-  "  la a0, blm_eta_3\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_cand\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_chk\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_v\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_sub\n" ++
-  "  la a0, blm2_chk\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_eta_3\n" ++
-  "  bnez s2, .Lblm2_eta_3\n" ++
-  "  bnez s3, .Lblm2_eta_3\n" ++
-  "  li s3, 1\n" ++
-  "  la a0, blm2_s2\n" ++
-  "  la a1, blm2_y\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_eta_3
+  la a1, blm2_s2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s2
+  la a1, blm2_cand
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_s2
+  la a1, blm2_chk
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_chk
+  la a1, blm2_s2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_v
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_chk
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_sub
+  la a0, blm2_chk
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_eta_3
+  bnez s2, .Lblm2_eta_3
+  bnez s3, .Lblm2_eta_3
+  li s3, 1
+  la a0, blm2_s2
+  la a1, blm2_y
+  li a2, 12
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm2_eta_3:\n" ++
-  "  or t0, s2, s3\n" ++
-  "  beqz t0, .Lblm2_invalid        # unreachable per RFC 9380\n" ++
-  "  bnez s2, .Lblm2_n_ok\n" ++
-  "  la a0, blm2_n\n" ++
-  "  la a1, blm2_zt2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
+  "  or t0, s2, s3
+  beqz t0, .Lblm2_invalid        # unreachable per RFC 9380
+  bnez s2, .Lblm2_n_ok
+  la a0, blm2_n
+  la a1, blm2_zt2
+  jal ra, blsg2_fp2_mul
+" ++
   ".Lblm2_n_ok:\n" ++
-  "  la a0, blm2_y\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  la t0, blm2_y\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  ld t2, 48(t0)\n" ++
-  "  andi t2, t2, 1\n" ++
-  "  and t2, t2, a0\n" ++
-  "  or t1, t1, t2\n" ++
-  "  beq t1, s4, .Lblm2_sgn_ok\n" ++
-  "  la a0, blm2_y\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  la a2, blm2_y\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm2_y\n" ++
-  "  addi a0, a0, 48\n" ++
-  "  mv t6, a0\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  mv a2, t6\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
+  "  la a0, blm2_y
+  li a1, 48
+  jal ra, blsg_is_zero_n
+  la t0, blm2_y
+  ld t1, 0(t0)
+  andi t1, t1, 1
+  ld t2, 48(t0)
+  andi t2, t2, 1
+  and t2, t2, a0
+  or t1, t1, t2
+  beq t1, s4, .Lblm2_sgn_ok
+  la a0, blm2_y
+  la a1, blsg2_pm1_le
+  la a2, blm2_y
+  jal ra, blsg2_fp_mul
+  la a0, blm2_y
+  addi a0, a0, 48
+  mv t6, a0
+  la a1, blsg2_pm1_le
+  mv a2, t6
+  jal ra, blsg2_fp_mul
+" ++
   ".Lblm2_sgn_ok:\n" ++
-  "  la a0, blm2_y\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_d\n" ++
-  "  la a1, blm2_zp1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_zp1\n" ++
-  "  la a1, blm2_zp2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_zp3\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_zp3\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm_k3_0_3\n" ++
-  "  la a1, blm2_m0\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_0_2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_0_1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_0_0\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm_k3_1_3\n" ++
-  "  la a1, blm2_m1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_1_2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_1_1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_1_0\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm_k3_2_3\n" ++
-  "  la a1, blm2_m2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_2_2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_2_1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_2_0\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm_k3_3_3\n" ++
-  "  la a1, blm2_m3\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp1\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_3_2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp2\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_3_1\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_n\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zp3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_s1\n" ++
-  "  la a1, blm_k3_3_0\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_s1\n" ++
-  "  jal ra, blsg2_fp2_add\n" ++
-  "  la a0, blm2_m2\n" ++
-  "  la a1, blm2_y\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m3\n" ++
-  "  la a1, blm2_d\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_zg\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_zg\n" ++
-  "  la a1, blm2_m3\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m0\n" ++
-  "  la a1, blm2_xg\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_xg\n" ++
-  "  la a1, blm2_m3\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_m1\n" ++
-  "  la a1, blm2_yg\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_yg\n" ++
-  "  la a1, blm2_m2\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_zg\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm2_fin\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg2_zero192          # infinity output\n" ++
-  "  j .Lblm2_ok\n" ++
+  "  la a0, blm2_y
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_d
+  la a1, blm2_zp1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_zp1
+  la a1, blm2_zp2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_zp2
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp2
+  la a1, blm2_zp3
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_zp3
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm_k3_0_3
+  la a1, blm2_m0
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_m0
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp1
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_0_2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m0
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m0
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_0_1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m0
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m0
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp3
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_0_0
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m0
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm_k3_1_3
+  la a1, blm2_m1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_m1
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp1
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_1_2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m1
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m1
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_1_1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m1
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m1
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp3
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_1_0
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m1
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm_k3_2_3
+  la a1, blm2_m2
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_m2
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp1
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_2_2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m2
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m2
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_2_1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m2
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m2
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp3
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_2_0
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m2
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm_k3_3_3
+  la a1, blm2_m3
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_m3
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp1
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_3_2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m3
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m3
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp2
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_3_1
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m3
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m3
+  la a1, blm2_n
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zp3
+  la a1, blm2_s1
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_s1
+  la a1, blm_k3_3_0
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m3
+  la a1, blm2_s1
+  jal ra, blsg2_fp2_add
+  la a0, blm2_m2
+  la a1, blm2_y
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m3
+  la a1, blm2_d
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m1
+  la a1, blm2_zg
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_zg
+  la a1, blm2_m3
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m0
+  la a1, blm2_xg
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_xg
+  la a1, blm2_m3
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_m1
+  la a1, blm2_yg
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_yg
+  la a1, blm2_m2
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_zg
+  li a1, 96
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm2_fin
+  mv a0, s1
+  jal ra, blsg2_zero192          # infinity output
+  j .Lblm2_ok
+" ++
   ".Lblm2_fin:\n" ++
-  "  la a0, blm2_zg\n" ++
-  "  la a1, blm2_zinv\n" ++
-  "  jal ra, blsg2_fp2_inv\n" ++
-  "  la a0, blm2_xg\n" ++
-  "  la a1, blm2_zinv\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_yg\n" ++
-  "  la a1, blm2_zinv\n" ++
-  "  jal ra, blsg2_fp2_mul\n" ++
-  "  la a0, blm2_xg\n" ++
-  "  la a1, blm2_aff\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm2_yg\n" ++
-  "  la a1, blm2_aff\n" ++
-  "  addi a1, a1, 96\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_heff_g2_be\n" ++
-  "  li a1, 80\n" ++
-  "  la a2, blm2_aff\n" ++
-  "  la a3, blm2_res\n" ++
-  "  jal ra, blsg2_scalar_mul\n" ++
-  "  la a0, blm2_res\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg2_encode\n" ++
+  "  la a0, blm2_zg
+  la a1, blm2_zinv
+  jal ra, blsg2_fp2_inv
+  la a0, blm2_xg
+  la a1, blm2_zinv
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_yg
+  la a1, blm2_zinv
+  jal ra, blsg2_fp2_mul
+  la a0, blm2_xg
+  la a1, blm2_aff
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm2_yg
+  la a1, blm2_aff
+  addi a1, a1, 96
+  li a2, 12
+  jal ra, blsf_copy_quads
+  la a0, blm_heff_g2_be
+  li a1, 80
+  la a2, blm2_aff
+  la a3, blm2_res
+  jal ra, blsg2_scalar_mul
+  la a0, blm2_res
+  mv a1, s1
+  jal ra, blsg2_encode
+" ++
   ".Lblm2_ok:\n" ++
   "  li a0, 0\n" ++
   "  j .Lblm2_ret\n" ++
