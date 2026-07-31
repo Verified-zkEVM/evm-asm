@@ -340,6 +340,43 @@ def eip7708SyntheticLogFunctions : String :=
   "  addi sp, sp, 144\n" ++
   "  ret\n"
 
+/-- Emit the `record_message_value_transfer` call: save the live runtime cursors, load the
+    six operands, call the producer, restore.  GH #10938.
+
+    ## Why this is shared
+
+    execution-specs has **one** `move_ether` (`vm/interpreter.py:385-390`) serving calls and
+    creations alike, because `process_create_message` **delegates** to `process_message`
+    (`:212`) rather than transferring value itself.  The guest had the same twelve-instruction
+    setup written out at the value-CALL descend site and again at the CREATE-endowment site.
+
+    **Measured, not assumed:** extracting both from `gen-out/regionmap/stateless_guest.s` and
+    renaming the five operand globals leaves **two** differences — `li a3, 1` versus
+    `ld a3, 584(x20)`, and one `addi a5, a5, 8`.  Both are **operand locations**, which
+    parameterise; the **control shape is identical** (same save set, same six operands, same
+    `jal`, same restore).  That is the check GH #10938's cut 1 failed, where the two candidate
+    bodies had opposite branch senses.
+
+    `a3Setup` is the caller's full instruction for `a3` — the value-CALL site passes a constant
+    `should_transfer_value`, the CREATE site passes the account-witness context word.
+    `recipientPreAdjust`, when non-empty, is appended after the `a5` load for a site whose
+    recipient-pre pointer needs an offset.
+
+    ⚠️ **Deliberately does NOT serve the value-bearing precompile tail**
+    (`Programs.ChildFrameHandlerTailHelpers`).  That site emits the identical instructions but
+    as a **single `;`-separated line**, so routing it through this emitter would change the `.s`
+    line structure.  That is not cosmetic: line structure has already been shown to change
+    instruction ORDER when the original line begins with an instruction the block must follow
+    (GH #10619's prerequisite). It stays out until it can be moved without disturbing text. -/
+def recordMessageValueTransferAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
+    (recipientPreAdjust : String := "") : String :=
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, " ++ fromSym ++ "\n  la a1, " ++ toSym ++ "\n  la a2, " ++ valSym ++ "\n  " ++
+    a3Setup ++ "\n  la a4, " ++ senderPre ++ "\n  la a5, " ++ recipientPre ++ "\n" ++
+    (if recipientPreAdjust.isEmpty then "" else "  " ++ recipientPreAdjust ++ "\n") ++
+  "  jal ra, record_message_value_transfer\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n"
+
 /-- Frame-generic `move_ether` recorder.
 
     The caller supplies the two authenticated/live pre-balances because the guest
