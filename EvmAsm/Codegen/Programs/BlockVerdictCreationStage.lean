@@ -499,27 +499,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la t0, create_prebalance_acct; li t1, 128\n" ++
   ".Lbvcr_endow_zero:\n" ++
   "  sb x0, 0(t0); addi t0, t0, 1; addi t1, t1, -1; bnez t1, .Lbvcr_endow_zero\n" ++
-  -- ⚠️⚠️ REGISTER CONVENTION FOR THIS ROUTE, STATED BECAUSE IT IS NOT INHERITABLE:
-  -- **the env base must be MATERIALISED here — `la <reg>, evm_env` — and `x20` is NOT it.**
-  -- The creation route enters the callable dispatcher directly rather than through a frame
-  -- that repoints `x20`, so every other env access in this file materialises the base
-  -- explicitly (`la t1, evm_env; ld t2, 568(t1)` and six more like it).
-  --
-  -- This lookup was copied from `Programs.CreateFrameDescend`, where `ld a0, 576(x20)` is
-  -- CORRECT because the nested route does run with `x20` = env.  The sequence transferred;
-  -- its register convention did not.  The countable tell, worth re-running after any such
-  -- copy: **grep the destination file for every register the copied sequence names** — `x20`
-  -- appeared exactly once in this file, and that once was the borrowed line.
-  --
-  -- ⭐ And this is evidence about SHAREABILITY, not just about one bug: because the copy
-  -- needed its registers rewritten, the nested and top-level pre-balance lookups are **not
-  -- trivially shareable**.  A future attempt to unify them hits exactly this — `x20` denotes
-  -- different things at the two sites, which is the same class that killed GH #10938's cut 1
-  -- and blocks the item-9 relocation (`call_frame_descend` does `mv s3, x20` then
-  -- `mv x20, s9`, so identical instructions denote different accounts either side of it).
-  -- When judging whether code can move or be copied, ask what each register DENOTES at both
-  -- sites, not merely where the operands live.
-  "  la t5, evm_env; ld a0, 576(t5); ld a1, 584(t5); la a2, bv_create_addr; li a3, 20; ld a4, 592(t5); ld a5, 600(t5); la a6, create_prebalance_acct\n" ++
+  -- The top-level route has no populated header/witness tuple in `evm_env`:
+  -- its header length is zero there.  Query the authenticated parent header and
+  -- witnessed state directly, as the sibling top-level BALANCE staging does.
+  "  la t5, svf_parent_rlp; ld a0, 0(t5); la t5, svf_parent_rlp_len; ld a1, 0(t5); la a2, bv_create_addr; li a3, 20; la t5, bv_witness_state_ptr; ld a4, 0(t5); la t5, bv_witness_state_len; ld a5, 0(t5); la a6, create_prebalance_acct\n" ++
   "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
   "  beqz t6, .Lbvcr_endow_pre_ready\n" ++
   "  li t0, 1; beq t6, t0, .Lbvcr_endow_pre_ready\n" ++
