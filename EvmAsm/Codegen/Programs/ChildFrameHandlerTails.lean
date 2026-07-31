@@ -204,19 +204,9 @@ def basicPrecompileCallTail
     dispatchContinueRet ++ "\n" ++
     ".L" ++ tag ++ "_eip4788_fallthrough:\n"
     ) else "") ++
-    "  ld x14, 32(x12)\n" ++
-    "  ld x15, 40(x12)\n" ++
-    "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
-    "  ld x15, 48(x12)\n" ++
-    "  slli x15, x15, 32\n" ++
-    "  srli x15, x15, 32\n" ++
-    "  bnez x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
-    "  li x15, 1\n" ++
-    "  bltu x14, x15, .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
-    "  li x15, 0x11\n" ++
-    "  bgeu x15, x14, .L" ++ tag ++ "_supported_precompile\n" ++
-    "  li x15, 0x100\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
+    "  la x18, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
+    precompileAddressClassifyAsm (tag ++ "_precompile") "x18" "x14" "x16" "x15" ++
+    "  bnez x14, .L" ++ tag ++ "_supported_precompile\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     ".L" ++ tag ++ "_supported_precompile:\n" ++
     precompileDepthGateAsm (tag ++ "_precompile_depth") netPopBytes ++
@@ -466,7 +456,7 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    "  li x16, 150\n" ++
+    precompileFixedGasCostAsm 150 "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
@@ -495,7 +485,7 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    "  li x16, 6000\n" ++
+    precompileFixedGasCostAsm 6000 "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
@@ -528,15 +518,8 @@ def basicPrecompileCallTail
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-    "  li x16, 192\n" ++
-    "  divu x22, x18, x16\n" ++
-    "  li x16, 34000\n" ++
-    "  mulhu x23, x22, x16\n" ++
-    "  bnez x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  mul x16, x22, x16\n" ++
-    "  li x23, 45000\n" ++
-    "  add x16, x16, x23\n" ++
-    "  bltu x16, x23, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    precompilePerUnitGasCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 192 45000 34000
+      "x18" "x16" "x22" "x23" ++
     bn254ChargeGateAsm tag ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 192\n" ++
@@ -626,7 +609,7 @@ def basicPrecompileCallTail
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    "  li x16, 50000\n" ++
+    precompileFixedGasCostAsm 50000 "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
@@ -706,7 +689,7 @@ def basicPrecompileCallTail
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 256\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x16, 375\n" ++
+    precompileFixedGasCostAsm 375 "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -824,7 +807,7 @@ def basicPrecompileCallTail
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 512\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x16, 600\n" ++
+    precompileFixedGasCostAsm 600 "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -975,16 +958,8 @@ def basicPrecompileCallTail
     "  li x16, 384\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x16, 384\n" ++
-    "  divu x17, x18, x16\n" ++
-    "  li x16, 32600\n" ++
-    "  mul x16, x17, x16\n" ++
-    "  li x22, 32600\n" ++
-    "  divu x22, x16, x22\n" ++
-    "  bne x22, x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x22, 37700\n" ++
-    "  add x16, x16, x22\n" ++
-    "  bltu x16, x22, .L" ++ tag ++ "_bn254_fail_allot\n" ++
+    precompilePerUnitGasCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 384 37700 32600
+      "x18" "x16" "x17" "x22" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1043,7 +1018,7 @@ def basicPrecompileCallTail
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 64\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x16, 5500\n" ++
+    precompileFixedGasCostAsm 5500 "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1117,7 +1092,7 @@ def basicPrecompileCallTail
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 128\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    "  li x16, 23800\n" ++
+    precompileFixedGasCostAsm 23800 "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++

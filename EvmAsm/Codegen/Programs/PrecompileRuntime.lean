@@ -20,6 +20,31 @@ open EvmAsm.Rv64
 def precompileFrameAddi (dst : String) (off : Nat) : String :=
   "  addi " ++ dst ++ ", x15, " ++ toString off ++ "\n"
 
+/-- Classify a canonical 20-byte big-endian address as an Osaka precompile
+    number. The selector is independent of the caller's stack, memory, gas,
+    and continuation conventions: callers supply the address bytes and retain
+    ownership of the branch targets. A zero result means that the address is
+    not a supported precompile. -/
+def precompileAddressClassifyAsm
+    (tag addressReg resultReg indexReg byteReg : String) : String :=
+  "  li " ++ resultReg ++ ", 0\n" ++
+  "  li " ++ indexReg ++ ", 0\n" ++
+  ".L" ++ tag ++ "_precompile_high_zero:\n" ++
+  "  li " ++ byteReg ++ ", 18\n" ++
+  "  beq " ++ indexReg ++ ", " ++ byteReg ++ ", .L" ++ tag ++ "_precompile_low\n" ++
+  "  add " ++ byteReg ++ ", " ++ addressReg ++ ", " ++ indexReg ++ "; lbu " ++ byteReg ++ ", 0(" ++ byteReg ++ ")\n" ++
+  "  bnez " ++ byteReg ++ ", .L" ++ tag ++ "_precompile_done\n" ++
+  "  addi " ++ indexReg ++ ", " ++ indexReg ++ ", 1; j .L" ++ tag ++ "_precompile_high_zero\n" ++
+  ".L" ++ tag ++ "_precompile_low:\n" ++
+  "  lbu " ++ resultReg ++ ", 18(" ++ addressReg ++ "); slli " ++ resultReg ++ ", " ++ resultReg ++ ", 8\n" ++
+  "  lbu " ++ byteReg ++ ", 19(" ++ addressReg ++ "); or " ++ resultReg ++ ", " ++ resultReg ++ ", " ++ byteReg ++ "\n" ++
+  "  li " ++ byteReg ++ ", 1; bltu " ++ resultReg ++ ", " ++ byteReg ++ ", .L" ++ tag ++ "_precompile_none\n" ++
+  "  li " ++ byteReg ++ ", 0x11; bgeu " ++ byteReg ++ ", " ++ resultReg ++ ", .L" ++ tag ++ "_precompile_done\n" ++
+  "  li " ++ byteReg ++ ", 0x100; beq " ++ resultReg ++ ", " ++ byteReg ++ ", .L" ++ tag ++ "_precompile_done\n" ++
+  ".L" ++ tag ++ "_precompile_none:\n" ++
+  "  li " ++ resultReg ++ ", 0\n" ++
+  ".L" ++ tag ++ "_precompile_done:\n"
+
 private def precompileGasRemainingOff : Nat := 568
 
 def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
@@ -28,10 +53,46 @@ def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
   "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
   "  sd " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n"
 
+/-- Materialize a fixed precompile gas formula.  The caller retains the
+    distinct child-allotment or top-level-settlement policy. -/
+def precompileFixedGasCostAsm (cost : Nat) (costReg : String) : String :=
+  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n"
+
 def chargePrecompileGasConstAsm (cost : Nat)
     (costReg remainingReg : String) : String :=
-  "  li " ++ costReg ++ ", " ++ toString cost ++ "\n" ++
+  precompileFixedGasCostAsm cost costReg ++
   chargePrecompileGasAsm costReg remainingReg
+
+/-- Compute the common `base + perWord * ceil(size / 32)` precompile cost.
+    Charging remains with the caller: child messages apply the result to their
+    EIP-150 allotment, while the top-level transaction route records it for
+    transaction settlement. -/
+def precompileWordGasCostAsm
+    (overflowLabel : String) (baseGas perWordGas : Nat)
+    (sizeReg costReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", 31\n" ++
+  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ overflowLabel ++ "\n" ++
+  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n"
+
+/-- Compute `base + perUnit * floor(size / unit)` and reject machine-word
+    overflow.  Input-shape validation and charging remain caller concerns. -/
+def precompilePerUnitGasCostAsm
+    (overflowLabel : String) (unit baseGas perUnit : Nat)
+    (sizeReg costReg quotientReg scratchReg : String) : String :=
+  "  li " ++ scratchReg ++ ", " ++ toString unit ++ "\n" ++
+  "  divu " ++ quotientReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString perUnit ++ "\n" ++
+  "  mulhu " ++ costReg ++ ", " ++ quotientReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bnez " ++ costReg ++ ", " ++ overflowLabel ++ "\n" ++
+  "  mul " ++ costReg ++ ", " ++ quotientReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
+  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  "  bltu " ++ costReg ++ ", " ++ scratchReg ++ ", " ++ overflowLabel ++ "\n"
 
 def chargePrecompileGasWithAllotmentAsm
     (tag costReg remainingReg : String) : String :=
@@ -393,32 +454,20 @@ def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
 
 def chargePrecompileWordGasAsm
     (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
-  "  li " ++ scratchReg ++ ", 31\n" ++
-  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
-  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
-  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
-  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  precompileWordGasCostAsm ".exit_outofgas" baseGas perWordGas sizeReg costReg scratchReg ++
   chargePrecompileGasAsm costReg scratchReg
 
 def chargePrecompileWordGasWithAllotmentAsm
     (tag : String) (baseGas perWordGas : Nat) (sizeReg costReg scratchReg : String) : String :=
-  "  li " ++ scratchReg ++ ", 31\n" ++
-  "  add " ++ costReg ++ ", " ++ sizeReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  bltu " ++ costReg ++ ", " ++ sizeReg ++ ", .exit_outofgas\n" ++
-  "  srli " ++ costReg ++ ", " ++ costReg ++ ", 5\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString perWordGas ++ "\n" ++
-  "  mul " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
-  "  li " ++ scratchReg ++ ", " ++ toString baseGas ++ "\n" ++
-  "  add " ++ costReg ++ ", " ++ costReg ++ ", " ++ scratchReg ++ "\n" ++
+  precompileWordGasCostAsm ".exit_outofgas" baseGas perWordGas sizeReg costReg scratchReg ++
   chargePrecompileGasWithAllotmentAsm tag costReg scratchReg
 
-def stagePrecompileInputWindowAsm
-    (tag : String) (inOffsetOff inSizeOff frameOff sourceOff byteLen : Nat) : String :=
+def stagePrecompileInputWindowFromAsm
+    (tag inputReg sizeReg : String) (frameOff sourceOff byteLen : Nat) : String :=
   -- Zero-fill the fixed accelerator window, then copy the available suffix of
-  -- EVM call data. This mirrors execution-specs `buffer_read` padding.
+  -- input bytes. This mirrors execution-specs `buffer_read` padding and lets
+  -- the top-level and child precompile routes share the validator input shape.
+  "  mv x24, " ++ inputReg ++ "\n" ++
   precompileFrameAddi "x18" frameOff ++
   "  li x19, " ++ toString byteLen ++ "\n" ++
   ".L" ++ tag ++ "_zero:\n" ++
@@ -428,18 +477,15 @@ def stagePrecompileInputWindowAsm
   "  addi x19, x19, -1\n" ++
   "  j .L" ++ tag ++ "_zero\n" ++
   ".L" ++ tag ++ "_zero_done:\n" ++
-  "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
   "  li x19, " ++ toString sourceOff ++ "\n" ++
-  "  bgeu x19, x18, .L" ++ tag ++ "_done\n" ++
-  "  sub x18, x18, x19\n" ++
+  "  bgeu x19, " ++ sizeReg ++ ", .L" ++ tag ++ "_done\n" ++
+  "  sub x18, " ++ sizeReg ++ ", x19\n" ++
   "  li x22, " ++ toString byteLen ++ "\n" ++
   "  bgeu x22, x18, .L" ++ tag ++ "_copy_len_ok\n" ++
   "  mv x18, x22\n" ++
   ".L" ++ tag ++ "_copy_len_ok:\n" ++
-  "  ld x19, " ++ toString inOffsetOff ++ "(x12)\n" ++
-  "  add x19, x19, x13\n" ++
   "  li x22, " ++ toString sourceOff ++ "\n" ++
-  "  add x19, x19, x22\n" ++
+  "  add x19, x24, x22\n" ++
   precompileFrameAddi "x24" frameOff ++
   ".L" ++ tag ++ "_copy:\n" ++
   "  beqz x18, .L" ++ tag ++ "_done\n" ++
@@ -450,6 +496,13 @@ def stagePrecompileInputWindowAsm
   "  addi x18, x18, -1\n" ++
   "  j .L" ++ tag ++ "_copy\n" ++
   ".L" ++ tag ++ "_done:\n"
+
+def stagePrecompileInputWindowAsm
+    (tag : String) (inOffsetOff inSizeOff frameOff sourceOff byteLen : Nat) : String :=
+  "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
+  "  ld x19, " ++ toString inOffsetOff ++ "(x12)\n" ++
+  "  add x19, x19, x13\n" ++
+  stagePrecompileInputWindowFromAsm tag "x19" "x17" frameOff sourceOff byteLen
 
 def precompileSuccess64FromFrameAsm
     (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
