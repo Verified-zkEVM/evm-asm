@@ -23,6 +23,33 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  ld t3, 112(t1); or t2, t2, t3\n" ++
   "  ld t3, 120(t1); or t2, t2, t3\n" ++
   "  beqz t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  -- `is_account_alive` is a live TransactionState predicate, not a parent-header
+  -- lookup (execution-specs amsterdam/state_tracker.py:445-460).  A prior
+  -- transaction can make an initially absent recipient live before the next
+  -- top-level transfer.  AccountState is the guest's layered live overlay:
+  -- balance-only, nonce-only, and code snapshots each establish one of the
+  -- three non-empty Account fields.  Only an overlay miss falls back to the
+  -- authenticated header/EIP-161 predicate below.
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  addi a0, t1, 72; la a1, aex_acct_struct; jal ra, account_state_latest_balance\n" ++
+  "  beqz a0, .L" ++ tag ++ "_recipient_state_live_nonce\n" ++
+  "  la t1, aex_acct_struct; ld t2, 0(t1); ld t3, 8(t1); or t2, t2, t3; ld t3, 16(t1); or t2, t2, t3; ld t3, 24(t1); or t2, t2, t3\n" ++
+  "  bnez t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  ".L" ++ tag ++ "_recipient_state_live_nonce:\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  addi a0, t1, 72; la a1, aie_predicate; jal ra, account_state_latest_nonce\n" ++
+  "  beqz a0, .L" ++ tag ++ "_recipient_state_live_code\n" ++
+  "  la t1, aie_predicate; ld t2, 0(t1); bnez t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  ".L" ++ tag ++ "_recipient_state_live_code:\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  addi a0, t1, 72; jal ra, account_state_lookup_current\n" ++
+  -- Status 1 has a non-empty code hash.  Status 2 is explicitly an empty-code
+  -- entry, so after the balance and nonce checks above it is an EMPTY_ACCOUNT,
+  -- not a proof of liveness.  Status 3 is a finalized deletion.
+  "  li t1, 1; beq a0, t1, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  "  li t1, 2; beq a0, t1, .L" ++ tag ++ "_recipient_state_apply_charge\n" ++
+  "  li t1, 3; beq a0, t1, .L" ++ tag ++ "_recipient_state_apply_charge\n" ++
+  "  la t1, " ++ ctxLabel ++ "\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t1, 72; ld a3, 80(s0); ld a4, 88(s0)\n" ++
   "  jal ra, account_exists_at_header_state_root\n" ++
   "  bnez a0, .L" ++ tag ++ "_recipient_state_zero\n" ++
