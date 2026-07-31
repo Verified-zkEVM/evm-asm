@@ -857,6 +857,11 @@ def blockVerdictFunction : String :=
   -- fills the shared swd_* buffers for runtime replay.
   "  mv a0, s3; jal ra, system_write_descriptors\n" ++
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_stx_sender_addr; sd t1, 0(t0)\n" ++
+  -- `dispatch_tx_runtime_code` no longer clears this caller-owned staging
+  -- cell: an MTx caller may have populated it with the top-level recipient
+  -- NEW_ACCOUNT charge.  The single-tx contract route retains its former
+  -- zero stage explicitly.
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
   "  la a0, bv_simple_transfer_tx\n" ++
   "  ld a1, 80(s0); ld a2, 88(s0)\n" ++
   "  jal ra, dispatch_tx_runtime_code\n" ++

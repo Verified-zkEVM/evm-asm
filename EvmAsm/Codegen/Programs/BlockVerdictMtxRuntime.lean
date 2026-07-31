@@ -507,6 +507,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0)\n" ++
   "  la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_tl7708_skip:\n" ++
+  -- `process_message` charges NEW_ACCOUNT before its snapshot when a nonzero
+  -- top-level value transfer targets an account that is not alive
+  -- (interpreter.py:285-288).  Reuse the direct-transfer predicate rather
+  -- than reproducing its header, EIP-161, and BAL-overlay checks here.  This
+  -- route owns the staging cell: `dispatch_tx_runtime_code` consumes it in
+  -- the shared transaction gas fold and must not clear it on entry.
+  "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
+  topLevelValueRecipientStateGasAsm "bv_mtx_recipient_state" "bv_mtx_ctx" ++
+  "  mv t1, t0; la t0, runtime_tx_create_state_charge; sd t1, 0(t0)\n" ++
   -- The shared dispatcher owns the complete post-preparation body checkpoint.
   "  la t0, runtime_tx_auth_sender_ptr; la t1, bv_mtx_sender_addr; sd t1, 0(t0); la a0, bv_mtx_ctx; ld a1, 80(s0); ld a2, 88(s0); jal ra, dispatch_tx_runtime_code\n" ++
   "  la t0, create_nonce_table_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
