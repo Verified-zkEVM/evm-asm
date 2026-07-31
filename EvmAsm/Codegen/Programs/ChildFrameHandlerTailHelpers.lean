@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.ChildFrameHandlerTailHelpers
 
-  The per-effect helpers used by `basicPrecompileCallTail`: EIP-7702 delegation
+  The per-effect helpers used by `precompileMessageProcessorAsm`: EIP-7702 delegation
   access charging, the precompile value-balance gate, and the value-effect
   log/record/refund/new-account-gas sequences.
 
@@ -182,7 +182,7 @@ def emitSuccessfulPrecompileValueLogAsm (tag : String) (valueOff? : Option Nat) 
     ".L" ++ tag ++ "_precompile_xlog_skip:\n"
 
 /-- Record the successful value move of the CALL-to-precompile fast path.
-    `basicPrecompileCallTail` bypasses `callDescendFallThrough`, so it must mirror
+    `precompileMessageProcessorAsm` bypasses `callDescendFallThrough`, so it must mirror
     that path's debit/credit rows before returning success. -/
 def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option Nat) : String :=
   if tag != "call_target" then "" else

@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.GasConstants
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -469,6 +470,71 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++
+  -- GH #10944: publish the top-level CREATE endowment through the SHARED recorder.
+  --
+  -- execution-specs has ONE `move_ether` for calls and creations alike, because
+  -- `process_create_message` DELEGATES to `process_message` (`vm/interpreter.py:212`) and the
+  -- transfer lives at `:384-390` inside that shared body.  So this route must REACH the
+  -- existing recorder, not acquire a second call site.
+  --
+  -- ⚠️ THE PRE-BALANCE IS AUTHENTICATED, NOT ASSUMED.  `nse_zero_bal` is wrong as an
+  -- unconditional default and right only as a lookup RESULT: a deployable pre-existing account
+  -- may hold ether.  `account_at_header_state_root_tracked` returns three outcomes and each is
+  -- honoured exactly as the nested sites honour them (`CreateFrameDescend`):
+  --   * 0 FOUND     -> use the looked-up balance, 32B BE at `create_prebalance_acct+8`;
+  --   * 1 ABSENT    -> not in the header state, so the pre-balance IS zero.  An ESTABLISHED
+  --                    zero, which the buffer already holds because the lookup zeroes it;
+  --   * >=2 MALFORMED -> set `create_prebalance_lookup_status`.  This route ALREADY CONSUMES
+  --                    that status (`.Lbvcr_payload_unsupported` below) with nothing on it
+  --                    setting the flag; supplying the setter is part of the fix.
+  --
+  -- Gated on the endowment being nonzero, reusing the test the route already computed for the
+  -- EIP-7708 staging above -- the spec gates `move_ether` and `emit_transfer_log` in ONE
+  -- conditional structure, so one guard is correct rather than two.
+  --
+  -- Placed after `dispatcher_capture_body_state`, matching `process_message`'s
+  -- snapshot-then-transfer order (`:380` then `:384`), so a failing body discards the record.
+  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbvcr_endow_done\n" ++
+  "  la t0, create_prebalance_acct; li t1, 128\n" ++
+  ".Lbvcr_endow_zero:\n" ++
+  "  sb x0, 0(t0); addi t0, t0, 1; addi t1, t1, -1; bnez t1, .Lbvcr_endow_zero\n" ++
+  -- ⚠️⚠️ REGISTER CONVENTION FOR THIS ROUTE, STATED BECAUSE IT IS NOT INHERITABLE:
+  -- **the env base must be MATERIALISED here — `la <reg>, evm_env` — and `x20` is NOT it.**
+  -- The creation route enters the callable dispatcher directly rather than through a frame
+  -- that repoints `x20`, so every other env access in this file materialises the base
+  -- explicitly (`la t1, evm_env; ld t2, 568(t1)` and six more like it).
+  --
+  -- This lookup was copied from `Programs.CreateFrameDescend`, where `ld a0, 576(x20)` is
+  -- CORRECT because the nested route does run with `x20` = env.  The sequence transferred;
+  -- its register convention did not.  The countable tell, worth re-running after any such
+  -- copy: **grep the destination file for every register the copied sequence names** — `x20`
+  -- appeared exactly once in this file, and that once was the borrowed line.
+  --
+  -- ⭐ And this is evidence about SHAREABILITY, not just about one bug: because the copy
+  -- needed its registers rewritten, the nested and top-level pre-balance lookups are **not
+  -- trivially shareable**.  A future attempt to unify them hits exactly this — `x20` denotes
+  -- different things at the two sites, which is the same class that killed GH #10938's cut 1
+  -- and blocks the item-9 relocation (`call_frame_descend` does `mv s3, x20` then
+  -- `mv x20, s9`, so identical instructions denote different accounts either side of it).
+  -- When judging whether code can move or be copied, ask what each register DENOTES at both
+  -- sites, not merely where the operands live.
+  "  la t5, evm_env; ld a0, 576(t5); ld a1, 584(t5); la a2, bv_create_addr; li a3, 20; ld a4, 592(t5); ld a5, 600(t5); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
+  "  beqz t6, .Lbvcr_endow_pre_ready\n" ++
+  "  li t0, 1; beq t6, t0, .Lbvcr_endow_pre_ready\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lbvcr_endow_done\n" ++
+  ".Lbvcr_endow_pre_ready:\n" ++
+  -- The context record holds the endowment as 32B BE at +96 (the EIP-7708 staging above
+  -- reverses it DOWNWARD from +127 into the log's LE stack word, which fixes the direction).
+  -- The recorder takes pointers to BE buffers, so copy it forward, unreversed.
+  "  addi t0, s0, 96; la t1, bvcr_endow_val_be; li t2, 32\n" ++
+  ".Lbvcr_endow_val_cp:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_endow_val_cp\n" ++
+  recordMessageValueTransferAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
+    "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
+    (recipientPreAdjust := "addi a5, a5, 8") ++
+  ".Lbvcr_endow_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++

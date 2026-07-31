@@ -25,13 +25,12 @@ open EvmAsm.Rv64
 
 /-! ## block_verdict_eip7702_auth_nonstorage_effects
 
-    EIP-7702 set_delegation increments each successfully authorized authority's
-    nonce before message execution. That nonce change is not produced by CALL /
-    CREATE execution, so append a nonce-only non-storage effect for every auth
-    tuple whose recovered authority is present in the BAL and whose pre-state
-    nonce matches the signed nonce. Code changes remain covered by the existing
-    7702 code-comparator exception; this helper supplies only the balance/nonce
-    effect used by the all-accounts non-storage comparators. -/
+    This post-runtime helper owns the EIP-7702 code-comparator append derived
+    from BAL finals.  It intentionally no longer emits the authorization nonce
+    raw effect: `eip7702_auth_state_prepare` publishes that effect at
+    authorization time, where the current block-access index is available.
+    The code append remains here because its final-state input does not exist
+    until after runtime execution. -/
 def eip7702AuthNonstorageEffectsFunction : String :=
   "eip7702_auth_nonstorage_effects:\n" ++
   "  addi sp, sp, -128\n" ++
@@ -134,8 +133,8 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8\n" ++
   "  jal ra, account_state_latest_balance\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-  "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8; mv a2, a1; mv a3, s11; addi a4, s11, 1\n" ++
-  "  jal ra, record_nonstorage_effect\n" ++
+  -- The former nonce raw-effect append was here.  Keep the surrounding
+  -- final-state code-effect logic in place; only the nonce obligation moves.
   "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteanse_next\n" ++
   "  ld t1, 72(t0); bnez t1, .Lteanse_next\n" ++
   "  la t0, exec_code_effect_next; ld t1, 0(t0); addi t2, t1, 48; li t3, " ++ toString execCodeEffectLogCap ++ "; bgtu t2, t3, .Lteanse_code_overflow\n" ++

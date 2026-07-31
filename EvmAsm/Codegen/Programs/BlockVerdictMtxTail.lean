@@ -264,9 +264,9 @@ def blockVerdictMtxValidationTail : String :=
   -- that declare no non-storage change. So running the check with withdrawals present is
   -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
   -- effect-having account in a withdrawals block.
-  -- EIP-7702 authorization nonce/balance changes are committed before runtime
-  -- execution.  Mirror the single-tx path: materialize their authenticated
-  -- non-storage effects before the common aggregate/comparator pass.
+  -- EIP-7702 authorization code effects are reconstructed from BAL finals here.
+  -- The nonce raw effect is emitted earlier at authorization time; the code
+  -- effect cannot move because its final-state input exists only post-runtime.
   "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
   "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
   "  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
