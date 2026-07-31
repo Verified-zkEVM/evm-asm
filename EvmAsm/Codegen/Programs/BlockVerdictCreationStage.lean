@@ -466,7 +466,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- `code_state_address_set_insert` preserves every s-register, so s0 survives.
   -- Overflow is fail-closed exactly as at the descent site: set
   -- `account_state_overflow`, which both consumers turn into `bv_fail_code = 58`.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state\n" ++
+  -- The callable dispatcher performs the root sender-debit seed after its
+  -- per-transaction setup reset.  Calling that one-shot producer here would
+  -- consume the tuple before the live AccountState overlay can survive setup.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_capture_body_state\n" ++
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++
