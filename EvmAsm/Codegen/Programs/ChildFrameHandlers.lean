@@ -943,6 +943,15 @@ def callDescendFallThrough
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      ".Lcd_empty_noval_" ++ tag ++ ":\n"
    else "") ++
+  -- An empty-code CALL still enters `process_message`: after its body snapshot,
+  -- `move_ether` commits the paired debit and credit even though no child frame
+  -- is needed to execute bytecode.  Every arrival here (CodeState non-live,
+  -- both delegation status-2 paths, absent header account, and EMPTY_CODE_HASH)
+  -- bypasses `.Lcd_descend`, the only other balance-effect publisher.  Publish
+  -- the already-resolved descriptors once before the successful empty-call return.
+  (if mode != 0 then "" else
+    recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+      "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
   -- fva3w: empty callee runs nothing and cannot revert, so the value transfer (and its
   -- EIP-7708 log) is committed. Emit the deferred log in the PARENT env (x20 unchanged here).
   -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.
