@@ -7,6 +7,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.CallFrameLayout
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
@@ -488,7 +489,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- `Layout.moveZeroDataLines`, preserving fixed `.data` addresses (in
   -- particular bnf_le_a).
   ".balign 8\n" ++
-  "body_state_snapshot_by_depth:\n  .zero 106600\n" ++
+  "body_state_snapshot_by_depth:\n  .zero " ++ toString bodyStateSlabBytes ++ "\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's

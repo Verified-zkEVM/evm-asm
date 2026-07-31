@@ -473,7 +473,7 @@ def dataSizeBytes : Nat := 0x5370
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). Grew by
     `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab. -/
-def bssSizeBytes : Nat := 0x1c103000
+def bssSizeBytes : Nat := 0x1c0fafe0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not

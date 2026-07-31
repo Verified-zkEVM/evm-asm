@@ -3404,24 +3404,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   "cd_new_account_charged_current:\n  .zero 8\n" ++
   "cd_callee_alive_before_value:\n  .zero 8\n" ++
-  -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
-  -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
-  -- deferred Transfer log so receipt order is Transfer then Burn.
-  "cd_burn_log_pending:\n  .zero 8\n" ++
-  "cd_destroyed_empty_hits:\n  .zero 8\n" ++
-  -- coc3g.6.6: append-Burn flag for the same deferred hook. 0 = Transfer only,
-  -- 1 = Transfer(caller, callee, value) plus Burn(callee, value) for value sent to
-  -- an account created and deleted in this tx.
-  "cd_xfer_log_burn:\n  .zero 8\n" ++
-  -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
-  -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
-  -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
-  -- one-shot flag: set on the value-CALL committing path, consumed by call_frame_descend, and
-  -- disarmed at every CALL/CREATE descent entry to clear a stale arm from a non-descending value-CALL.
-  ".balign 8\n" ++
-  "cd_nse_presnap_armed:\n  .zero 8\n" ++
-  "cd_nse_presnap_count:\n  .zero 8\n" ++
-  "cd_nse_presnap_overflow:\n  .zero 8\n"
+  "cd_destroyed_empty_hits:\n  .zero 8\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked

@@ -137,9 +137,6 @@ def callFrameRoundtripData : String :=
   "cd_balance_be:\n  .zero 32\n" ++
   "cd_callee_be:\n  .zero 32\n" ++
   "cd_new_account_charged_current:\n  .zero 8\n" ++
-  "cd_nse_presnap_armed:\n  .zero 8\n" ++
-  "cd_nse_presnap_count:\n  .zero 8\n" ++
-  "cd_nse_presnap_overflow:\n  .zero 8\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   "swd_4788_root_slot:\n  .zero 32\n" ++

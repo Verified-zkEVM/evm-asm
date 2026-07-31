@@ -4744,6 +4744,76 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   deferred sibling in #10973's same in-place/high-water-mark cell, requiring
   separate read/write lifetimes rather than a truncation patch.
 
+  **Creation-route unification, measured 2026-07-31.** #10938 cut 2 (PR #10985)
+  moves `mark_account_created` for the **top-level** creation route to the
+  spec's pre-body position (`vm/interpreter.py:208`, before `process_message`
+  at `:212`), matching what `create_frame_descend` already did for nested
+  CREATE, and removes the post-deposit insert from
+  `create_record_code_effect`. It is a **unification, not a fix**: the
+  emitted stream has exactly two readers of `account_state_created`, both
+  `account_state_created_contains`, and neither can observe the top-level
+  address being marked earlier. In particular
+  `BlockVerdictCreationStage.lean:382` sets `create_frame_flag[0] = 1` for the
+  top-level route even though it never descends, so a top-level constructor
+  SELFDESTRUCT takes the flag branch (`NoopHalt.lean:555-558`) and never
+  consults the created set — the tempting "no descent, therefore no flag"
+  divergence does not exist. The change is monotone (marked earlier, never
+  later), so membership over time is a superset.
+  - `.text` changed shape but not size (`0x066be8` both sides), so `RegionMap`
+    needed no edit; the TSV (289 rows) and `GuestAddrs` (114 symbols) were
+    regenerated to a fixed point and `GuestImageEntries` came out unchanged.
+  - #10980's substantive item landed as PR #10984, byte-identity measured: the
+    two code-deposit sites cannot use `liStateGasRuntime` (their byte count is
+    runtime-only), so they emitted the multipliers `1530` and `6` as bare
+    literals with no `#guard`. Both now come from the import-free
+    `Codegen/GasConstants.lean`, and `accountStateCreatedCapacity` moved into
+    `Codegen/ArenaCapacities.lean` for the same reason — neither marking site
+    imports `CreateCodeEffectLog`, which is why the descent site carried a
+    bare `8192`.
+
+  **Computation-level deduplication is essentially DONE; the residue is caller
+  adapters (measured 2026-07-31).** A sweep of the emitted stream for computations
+  duplicated across both depths found almost none left — most are already behind a
+  `jal`, shared at seven, four and four call sites, plus the MPT builder, frame
+  descend, `tx_gas_settle` and the capture/restore pair. *(Those call-site counts come
+  from that sweep and are recorded as relayed; the two-remaining-computations claim
+  below is the part independently corroborated — cut 1 was withdrawn on exactly the
+  deploy-charge branch-shape finding.)* **Exactly two single
+  computations remain inline at both depths, and neither is unifiable:**
+  - the **deploy-charge arithmetic** — same constants and same spec ordering
+    (`vm/interpreter.py:222-231`), but incompatible branch shapes: the top level
+    bails conservatively to `.Lbvcr_ret` while the nested site OOG-fails the CREATE
+    via `.Lrr_crinv_<kind>`, with opposite branch senses and a different number of
+    labels. This is what made #10938 cut 1 unviable and it is a mechanical
+    consequence of the addressing model, not a divergence.
+  - the **CREATE collision consequence**, which **the spec itself requires to
+    differ**: terminal at `vm/interpreter.py:126` versus recoverable at
+    `vm/system.py:117-123`. The *predicate* is already shared; only the consequence
+    diverges, so unifying it would be wrong.
+
+  ⭐ **Two independent lines of work converged on the same conclusion from opposite
+  directions, neither aware of the other.** The boundary analysis traced the creation
+  boundary and concluded there is **no safe physical seam**, because the divergence
+  lives in the payload and frame adapters rather than in the computations; the
+  emitted-stream sweep looked for duplicated computations and found the residue is
+  **caller-side machinery**. Same answer, opposite starting points. That convergence
+  is the reason to believe it, and it is why the remaining #10938 cuts are scoped as
+  per-field moves and shared-emitter extractions rather than as a single unification
+  of the two creation processors.
+
+  - **#10938 cut 4 landed as PR #10990**, byte-identity measured on the `.s` **and**
+    the `.elf`. It is a **deduplication, not a placement move**: the nested transfer
+    record and log already sat after `create_frame_descend` and before the initcode,
+    and `record_message_value_transfer` was already the shared producer — what was
+    duplicated was the EIP-7708 **log operand staging**, present as one already-shared
+    emitter on the value-CALL side (8 emissions) and a second copy on the CREATE side
+    (2 emissions). Cut 1's lesson was applied as a gate first: normalising labels and
+    renaming the three source globals in `stateless_guest.s` made the two bodies differ
+    by **one zero-byte label line**, which is exactly the check the deploy charges fail.
+    `ChildFrameHandlerTailHelpers.lean:165-182` is deliberately excluded — it passes raw
+    stack-word pointers and does no staging, so it is not a copy but the site that does
+    not need the helper. Each caller keeps its own guard.
+
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
   dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`
