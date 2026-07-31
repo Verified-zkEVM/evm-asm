@@ -88,10 +88,16 @@ def nonstorageEffectHasNonce : Nat := 2
     `record_nonstorage_effect_after_account_state` is the companion entry for a
     caller that has already performed the AccountState mutation and needs only
     the raw effect plus AccountWrite publications.  It avoids a second pending
-    AccountState append while retaining the same output records. -/
+    AccountState append while retaining the same output records.
+
+    `record_nonstorage_effect_nonce_only_after_account_state` is the EIP-7702
+    authorization variant.  It carries an honest nonce-only raw mask while
+    retaining the AccountWrite publication at the authorization's current BAI;
+    the authorization already owns the AccountState mutation. -/
 def recordNonstorageEffectFunction : String :=
   "record_nonstorage_effect:\n  li a5, 0\n  j .Lrnse_entry\n" ++
   "record_nonstorage_effect_after_account_state:\n  li a5, 1\n" ++
+  "record_nonstorage_effect_nonce_only_after_account_state:\n  li a5, 2\n" ++
   ".Lrnse_entry:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd ra, 40(sp)\n" ++
@@ -110,7 +116,9 @@ def recordNonstorageEffectFunction : String :=
   "  beqz t6, .Lrnse_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lrnse_cpa\n" ++
   ".Lrnse_cpa_d:\n" ++
-  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; sb t4, 20(t3)\n" ++
+  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; li t5, 2; bne a5, t5, .Lrnse_mask_ready; li t4, " ++ toString nonstorageEffectHasNonce ++ "\n" ++
+  ".Lrnse_mask_ready:\n" ++
+  "  sb t4, 20(t3)\n" ++
   "  ld t4, 0(s1); sd t4, 32(t3); ld t4, 8(s1); sd t4, 40(t3); ld t4, 16(s1); sd t4, 48(t3); ld t4, 24(s1); sd t4, 56(t3)\n" ++  -- pre_balance
   "  ld t4, 0(s2); sd t4, 64(t3); ld t4, 8(s2); sd t4, 72(t3); ld t4, 16(s2); sd t4, 80(t3); ld t4, 24(s2); sd t4, 88(t3)\n" ++  -- post_balance
   "  sd s3, 96(t3)               # pre_nonce\n" ++
