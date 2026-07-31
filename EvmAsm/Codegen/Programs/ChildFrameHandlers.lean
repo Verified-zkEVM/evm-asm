@@ -987,10 +987,11 @@ def callDescendFallThrough
   -- reused by nested calls, so they are valid only in this post-descend,
   -- pre-dispatch window.
   (if mode != 0 then "" else
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_caller_be\n  la a1, nse_callee_be\n  la a2, cd_value_be\n  li a3, 1\n  la a4, cd_balance_be\n  la a5, nse_acct\n  addi a5, a5, 8\n" ++
-    "  jal ra, record_message_value_transfer\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n") ++
+    -- GH #10938: the setup is the shared `recordMessageValueTransferAsm`, which the
+    -- CREATE-endowment site also uses.  The spec has ONE `move_ether` for both, since
+    -- `process_create_message` delegates to `process_message` (`interpreter.py:212`).
+    recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+      "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
   -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
   -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
   -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
