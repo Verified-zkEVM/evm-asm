@@ -848,21 +848,22 @@ theorem txPubkeyPublicKeyMatchesFunction_eq_prog :
       +240  staged recid word
       +248  reserved pubkey buffer -/
 def ziskTxPubkeyEcrecoverStageMaterialPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # tx_len\n" ++
-  "  ld a2, 16(a5)               # chain_id\n" ++
-  "  addi a0, a5, 24             # tx ptr\n" ++
-  "  li a3, 0xa0010008           # material out\n" ++
-  "  jal ra, tx_pubkey_signature_material\n" ++
-  "  li s0, 0xa0010000\n" ++
-  "  sd a0, 0(s0)                # material status\n" ++
-  "  bnez a0, .Ltpes_probe_done\n" ++
-  "  addi a0, s0, 8              # material ptr\n" ++
-  "  addi a1, s0, 144            # staged ABI ptr\n" ++
-  "  jal ra, tx_pubkey_ecrecover_stage_material\n" ++
-  "  sd a0, 136(s0)              # stage status\n" ++
-  "  j .Ltpes_probe_done\n" ++
+  "  li sp, 0xa0050000
+  li a5, 0x40000000
+  ld a1, 8(a5)                # tx_len
+  ld a2, 16(a5)               # chain_id
+  addi a0, a5, 24             # tx ptr
+  li a3, 0xa0010008           # material out
+  jal ra, tx_pubkey_signature_material
+  li s0, 0xa0010000
+  sd a0, 0(s0)                # material status
+  bnez a0, .Ltpes_probe_done
+  addi a0, s0, 8              # material ptr
+  addi a1, s0, 144            # staged ABI ptr
+  jal ra, tx_pubkey_ecrecover_stage_material
+  sd a0, 136(s0)              # stage status
+  j .Ltpes_probe_done
+" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
@@ -894,16 +895,17 @@ def ziskTxPubkeyEcrecoverStageMaterialPrologue : String :=
       bytes  0.. 8 : status
       bytes  8..   : `tx_pubkey_signature_material` output layout. -/
 def ziskTxPubkeySignatureMaterialPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # tx_len\n" ++
-  "  ld a2, 16(a5)               # chain_id\n" ++
-  "  addi a0, a5, 24             # tx ptr\n" ++
-  "  li a3, 0xa0010008           # material out\n" ++
-  "  jal ra, tx_pubkey_signature_material\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ltps_pdone\n" ++
+  "  li sp, 0xa0050000
+  li a5, 0x40000000
+  ld a1, 8(a5)                # tx_len
+  ld a2, 16(a5)               # chain_id
+  addi a0, a5, 24             # tx ptr
+  li a3, 0xa0010008           # material out
+  jal ra, tx_pubkey_signature_material
+  li t0, 0xa0010000
+  sd a0, 0(t0)
+  j .Ltps_pdone
+" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
@@ -933,15 +935,17 @@ def ziskTxPubkeySignatureMaterialDataSection : String :=
   "tps_v:\n  .zero 8\n" ++
   "tps_cmp:\n  .zero 8\n" ++
   "tps_secp256k1_n:\n" ++
-  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
-  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe\n" ++
-  "  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b\n" ++
-  "  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41\n" ++
+  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xfe
+  .byte 0xba,0xae,0xdc,0xe6,0xaf,0x48,0xa0,0x3b
+  .byte 0xbf,0xd2,0x5e,0x8c,0xd0,0x36,0x41,0x41
+" ++
   "tps_secp256k1_half_n:\n" ++
-  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
-  "  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff\n" ++
-  "  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d\n" ++
-  "  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0\n" ++
+  "  .byte 0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+  .byte 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+  .byte 0x5d,0x57,0x6e,0x73,0x57,0xa4,0x50,0x1d
+  .byte 0xdf,0xe9,0x2f,0x46,0x68,0x1b,0x20,0xa0
+" ++
   "tlxs_offset:\n  .zero 8\n" ++
   "tlxs_length:\n  .zero 8\n" ++
   "txes_offset:\n  .zero 8\n" ++
@@ -998,28 +1002,30 @@ def ziskTxPubkeySignatureMaterialProbeUnit : BuildUnit := {
       +0  helper status (10 material fail, 20 stage fail, 50 backend stub)
       +8  material status side slot (meaningful when helper status == 10) -/
 def ziskTxPubkeyRecoverRawStatusPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # tx_len\n" ++
-  "  ld a2, 16(a5)               # chain_id\n" ++
-  "  addi a0, a5, 24             # tx ptr\n" ++
-  "  la a3, tprr_pubkey_out      # recovered pubkey out (64 bytes)\n" ++
-  "  la a4, tprr_scratch         # scratch (>= 304 bytes)\n" ++
-  "  jal ra, tx_pubkey_recover_raw\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # helper status\n" ++
-  "  la t1, tprr_scratch\n" ++
-  "  ld t2, 0(t1)\n" ++
-  "  sd t2, 8(t0)                # material status side slot\n" ++
-  "  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions\n" ++
-  "  la t1, tprr_pubkey_out\n" ++
-  "  addi t0, t0, 16\n" ++
-  "  li t2, 8\n" ++
+  "  li sp, 0xa0050000
+  li a5, 0x40000000
+  ld a1, 8(a5)                # tx_len
+  ld a2, 16(a5)               # chain_id
+  addi a0, a5, 24             # tx ptr
+  la a3, tprr_pubkey_out      # recovered pubkey out (64 bytes)
+  la a4, tprr_scratch         # scratch (>= 304 bytes)
+  jal ra, tx_pubkey_recover_raw
+  li t0, 0xa0010000
+  sd a0, 0(t0)                # helper status
+  la t1, tprr_scratch
+  ld t2, 0(t1)
+  sd t2, 8(t0)                # material status side slot
+  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions
+  la t1, tprr_pubkey_out
+  addi t0, t0, 16
+  li t2, 8
+" ++
   ".Ltprrs_copy_pub:\n" ++
-  "  ld t3, 0(t1); sd t3, 0(t0)\n" ++
-  "  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltprrs_copy_pub\n" ++
-  "  j .Ltprrs_pdone\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0)
+  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1
+  bnez t2, .Ltprrs_copy_pub
+  j .Ltprrs_pdone
+" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
@@ -1083,25 +1089,27 @@ def ziskTxPubkeyPublicKeyMatchesStatusPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t6, 0x40000000           # input base (ziskemu writes an 8-byte length\n" ++
   "                              # header at +0, so user byte k is at t6+8+k)\n" ++
-  "  ld a1, 8(t6)                # tx_len      (user +0)\n" ++
-  "  ld a2, 16(t6)               # chain_id    (user +8)\n" ++
-  "  addi a3, t6, 24             # supplied public key ptr (65 bytes; user +16)\n" ++
-  "  addi a0, t6, 96             # tx ptr       (user +88)\n" ++
-  "  la a4, tpm_pubkey_out       # recovered pubkey out (64 bytes)\n" ++
-  "  la a5, tpm_scratch          # recover scratch (>= 304 bytes)\n" ++
-  "  jal ra, tx_pubkey_public_key_matches\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # match status\n" ++
-  "  sd zero, 8(t0)              # reserved\n" ++
-  "  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions\n" ++
-  "  la t1, tpm_pubkey_out\n" ++
-  "  addi t0, t0, 16\n" ++
-  "  li t2, 8\n" ++
+  "  ld a1, 8(t6)                # tx_len      (user +0)
+  ld a2, 16(t6)               # chain_id    (user +8)
+  addi a3, t6, 24             # supplied public key ptr (65 bytes; user +16)
+  addi a0, t6, 96             # tx ptr       (user +88)
+  la a4, tpm_pubkey_out       # recovered pubkey out (64 bytes)
+  la a5, tpm_scratch          # recover scratch (>= 304 bytes)
+  jal ra, tx_pubkey_public_key_matches
+  li t0, 0xa0010000
+  sd a0, 0(t0)                # match status
+  sd zero, 8(t0)              # reserved
+  # copy the 64-byte recovered pubkey (x||y) to output+16 for assertions
+  la t1, tpm_pubkey_out
+  addi t0, t0, 16
+  li t2, 8
+" ++
   ".Ltpms_copy_pub:\n" ++
-  "  ld t3, 0(t1); sd t3, 0(t0)\n" ++
-  "  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1\n" ++
-  "  bnez t2, .Ltpms_copy_pub\n" ++
-  "  j .Ltpms_pdone\n" ++
+  "  ld t3, 0(t1); sd t3, 0(t0)
+  addi t1, t1, 8; addi t0, t0, 8; addi t2, t2, -1
+  bnez t2, .Ltpms_copy_pub
+  j .Ltpms_pdone
+" ++
   txTypeDispatchFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
