@@ -421,7 +421,17 @@ theorem reub_spec_single_small (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word
     overwrite.  So the whole tail from `reubBase+84` on is proved once,
     universally quantified over those two registers (`hrest`), and each route
     instantiates it.  The shorter route is padded to the common bound with
-    `cpsTripleWithin_mono_nSteps`. -/
+    `cpsTripleWithin_mono_nSteps`.
+
+    **What that quantification rests on.**  Discarding the two routes'
+    disagreement is sound only if no caller may read `x29`/`x30` after the
+    return — a claim about the callee contract, not about this proof.  It is not
+    left implicit: `reubAbiPost` returns both as `regOwn`, which is exactly the
+    formal statement that the caller may not rely on them.  Were a caller
+    entitled to either register, the post would have to *name* its value, the two
+    routes would then have different posts, and this quantification would stop
+    typechecking rather than silently weaken.  `x29`/`x30` are `t4`/`t5`, both
+    caller-saved temporaries under LP64. -/
 
 set_option maxRecDepth 8000 in
 /-- **Whole routine, header path**: `6*n + 7*L + 17` steps (prologue 2, strip
@@ -612,15 +622,21 @@ theorem reub_spec_header (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word)
     already fixed, so this is a case split on the input list, not on the machine.
 
     The preconditions are the strongest of the three paths', and each path is
-    handed the weaker form it actually needs.  `n ≤ 55` is the ABI's documented
-    bound (`RlpRead.lean`); it reaches §6 as `L ≤ 55` via `L ≤ n`, and that is
-    the only place it does any work. -/
+    handed the weaker form it actually needs.
+
+    **The domain bound is on `L`, not on `n`.**  RLP's short-form boundary is a
+    property of the *payload* length `L = n - reubZeros xs 0 n`, so `L ≤ 55` is
+    the hypothesis the mathematics needs and `n ≤ 55` — the ABI's documented
+    bound (`RlpRead.lean`) — is strictly stronger: 56 input bytes with one
+    leading zero have `L = 55` and are still short-form.  The tight form is
+    primary here; `reub_spec_within_of_length_le` is the ABI-shaped corollary
+    for callers who would rather not reason about `reubZeros`. -/
 
 set_option maxRecDepth 8000 in
-/-- **`rlp_encode_uint_be` computes RLP.**  On any `n ≤ 55`-byte big-endian input
-    with `n + 1` bytes of output capacity, the routine returns
-    `a0 = (reubOut xs).length` and leaves `reubOut xs` at the front of the output
-    buffer with the rest of the buffer untouched, in at most
+/-- **`rlp_encode_uint_be` computes RLP.**  On any big-endian input whose
+    stripped payload is at most 55 bytes, with `n + 1` bytes of output capacity,
+    the routine returns `a0 = (reubOut xs).length` and leaves `reubOut xs` at the
+    front of the output buffer with the rest of the buffer untouched, in at most
     `6*n + 7*L + 17` steps.
 
     Three paths are covered and each fires on its own inputs: all-zero
@@ -628,7 +644,7 @@ set_option maxRecDepth 8000 in
     (`L = 1` with the byte at or above `0x80`, or `2 ≤ L ≤ 55`, §6). -/
 theorem reub_spec_within (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word)
     (xs oldOut : List Byte) (n : Nat)
-    (hn : xs.length = n) (hdom : n ≤ 55)
+    (hn : xs.length = n) (hdom : n - reubZeros xs 0 n ≤ 55)
     (holen : n + 1 ≤ oldOut.length)
     (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
     (hsover : srcPtr.toNat + n < 2 ^ 64) (hoover : outPtr.toNat + (n + 1) ≤ 2 ^ 64)
@@ -682,14 +698,39 @@ theorem reub_spec_within (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word)
         (fun b hb => by obtain ⟨h1', _⟩ := hbeq b hb; omega)
         holen hsalign hoalign hsover hoover hsvalid hovalid
 
+/-- **The ABI-shaped corollary.**  `RlpRead.lean` documents the domain as
+    `a1 ≤ 55`, which is strictly stronger than what `reub_spec_within` needs
+    (`L ≤ n` always), but it is the form a caller can discharge without knowing
+    anything about `reubZeros`.  Every production caller passes 8 or 32. -/
+theorem reub_spec_within_of_length_le (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word)
+    (xs oldOut : List Byte) (n : Nat)
+    (hn : xs.length = n) (hdom : n ≤ 55)
+    (holen : n + 1 ≤ oldOut.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64) (hoover : outPtr.toNat + (n + 1) ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hovalid : ∀ k, k < n + 1 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (n * 6 + 7 * (n - reubZeros xs 0 n) + 17) reubBase
+      (raVal &&& ~~~1) reubCode
+      (reubAbiPre srcPtr outPtr raVal xs oldOut n v5 v6 v28 v29 v30 v31)
+      (reubAbiPost srcPtr outPtr raVal xs oldOut n) :=
+  reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 xs oldOut n hn
+    (by omega) holen hsalign hoalign hsover hoover hsvalid hovalid
+
 /-- **The same claim in scalar form** — the statement an auditor wants, with the
     routine's own `reubOut` eliminated in favour of the reference encoding.  The
     routine writes `rlp.encode(Uint(v))` for the scalar `v` its input denotes, in
     canonical minimal big-endian form: not merely *some* encoding of *some* byte
-    string, but the one `execution-specs` prescribes. -/
+    string.
+
+    **The reference here is this repo's Lean port**, `EvmAsm.EL.RLP.encodeBytes`
+    and `Nat.toBytesBE`, not the pinned Python of `execution-specs`.  So "what
+    `execution-specs` prescribes" is one remove away: a divergence between the
+    port and the Python would be a finding about the port, not an impossibility,
+    and this theorem would not see it. -/
 theorem reub_spec_encode_within (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word)
     (xs oldOut : List Byte) (n : Nat)
-    (hn : xs.length = n) (hdom : n ≤ 55)
+    (hn : xs.length = n) (hdom : n - reubZeros xs 0 n ≤ 55)
     (holen : n + 1 ≤ oldOut.length)
     (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
     (hsover : srcPtr.toNat + n < 2 ^ 64) (hoover : outPtr.toNat + (n + 1) ≤ 2 ^ 64)
@@ -715,11 +756,27 @@ theorem reub_spec_encode_within (srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Wor
 /-! ## §8  Path coverage
 
     A composition that silently covers only one path is exactly the failure mode
-    #10942 was about, so each of the three is exercised at concrete data.  The
-    `#guard`s pin *which* path each input takes (`reubZeros` fixes the payload
-    length, `reubOut` fixes the encoding), and the `example`s instantiate the
-    composed triple at those inputs with the step bound reduced to a literal —
-    which it can only do if that path's chain actually fired. -/
+    #10942 was about, so each of the three is exercised at concrete data.
+
+    **What these checks do and do not establish.**  The step bound
+    `n*6 + 7*(n - reubZeros xs 0 n) + 17` is a *model-level* expression: it
+    evaluates to a literal by arithmetic on `reubZeros`, regardless of which
+    branch of the composition proof was taken.  So a literal step count is
+    **not** evidence that a path's chain fired — a composition with a vacuously
+    discharged path would still typecheck and these instantiations would still
+    go through.  What the `#guard`s establish is which path the *model* selects;
+    the step count merely confirms the formula agrees there.
+
+    The checks that do carry weight are the four `example`s below, whose posts
+    name the **output bytes as literals** rather than as `reubOut xs`.  Each only
+    typechecks if the composed triple really does put those bytes in the output
+    region on that input — witnessing the path's *content*, not just its cost.
+    That is the difference between "the arithmetic agrees" and "this path
+    computes RLP".
+
+    Checked with a negative control rather than assumed: replacing the `L = 1`
+    example's `0x81` header byte with `0x80` makes it fail to elaborate, so these
+    posts are not passing on definitional slack. -/
 
 -- §4 · all zeros: `L = 0`, output `0x80`, bound `2*6 + 7*0 + 17 = 29`
 #guard reubZeros [0, 0] 0 2 = 2
@@ -743,31 +800,46 @@ variable {srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word} {oldOut : List Byte}
   (hsvalid : ∀ k, k < 2 → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
   (hovalid : ∀ k, k < 3 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
 
-/-- §4 fires: all-zero input, 29 steps. -/
+/-- The output side of `reubAbiPost` with the written bytes given literally, so
+    that instantiating it is a claim about *content*.  `outBytes` is what the
+    routine must leave at the front of the buffer. -/
+private def reubLiteralPost (srcPtr outPtr raVal : Word) (xs oldOut outBytes : List Byte)
+    (n : Nat) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 outBytes.length) **
+  ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ outPtr) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion outPtr (outBytes ++ oldOut.drop outBytes.length)
+
+/-- §4 · all-zero input writes `0x80` and returns 1, in 29 steps. -/
 example : cpsTripleWithin 29 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0] oldOut 2 v5 v6 v28 v29 v30 v31)
-    (reubAbiPost srcPtr outPtr raVal [0, 0] oldOut 2) :=
+    (reubLiteralPost srcPtr outPtr raVal [0, 0] oldOut [0x80] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
-/-- §5 fires: one byte below `0x80`, 36 steps. -/
+/-- §5 · one byte below `0x80` is written raw and returns 1, in 36 steps. -/
 example : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0x2a] oldOut 2 v5 v6 v28 v29 v30 v31)
-    (reubAbiPost srcPtr outPtr raVal [0, 0x2a] oldOut 2) :=
+    (reubLiteralPost srcPtr outPtr raVal [0, 0x2a] oldOut [0x2a] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0x2a] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
-/-- §6 fires at `L = 1`: one byte at or above `0x80`, 36 steps. -/
+/-- §6 at `L = 1` · one byte at or above `0x80` gets the `0x81` header and
+    returns 2, in 36 steps.  This is the check the header path's *content* rests
+    on: the `0x81` is in the type. -/
 example : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0x81] oldOut 2 v5 v6 v28 v29 v30 v31)
-    (reubAbiPost srcPtr outPtr raVal [0, 0x81] oldOut 2) :=
+    (reubLiteralPost srcPtr outPtr raVal [0, 0x81] oldOut [0x81, 0x81] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0x81] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
-/-- §6 fires at `L = 2`: the short-form header path, 43 steps. -/
+/-- §6 at `L = 2` · the short-form `0x82` header and returns 3, in 43 steps. -/
 example : cpsTripleWithin 43 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0x01, 0x02] oldOut 2 v5 v6 v28 v29 v30 v31)
-    (reubAbiPost srcPtr outPtr raVal [0x01, 0x02] oldOut 2) :=
+    (reubLiteralPost srcPtr outPtr raVal [0x01, 0x02] oldOut [0x82, 0x01, 0x02] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0x01, 0x02] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
