@@ -476,13 +476,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ret\n" ++
   "\n" ++
   -- Same-block delegation already selected the exact target code before the
-  -- runtime is staged.  It still needs the identical post-seed access charge,
-  -- but no second code materialization.
+  -- runtime is staged.  It still needs the post-seed access charge, but no
+  -- second code materialization.  `prepare_dispatch` reads the selected
+  -- delegate after that charge, so record that target here as well: the root
+  -- path otherwise warms it without adding the all-empty BAL account-read.
   "dtrc_charge_deferred_delegation:\n" ++
   -- `delegationAccessChargeAsm` contains a nested `jal`; preserve the
   -- dispatcher continuation before invoking the charge-only callback.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   delegationAccessChargeAsm "dtrc_deleg_target" ++
+  "  la a0, dtrc_deleg_target; jal ra, account_read_record\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "\n" ++
