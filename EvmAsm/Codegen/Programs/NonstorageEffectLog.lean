@@ -83,9 +83,16 @@ def nonstorageEffectHasNonce : Nat := 2
     a0 = 20-byte big-endian address ptr   a1 = pre_balance ptr (32B BE)
     a2 = post_balance ptr (32B BE)        a3 = pre_nonce (u64)   a4 = post_nonce (u64)
     Returns a0 = 0 appended / 1 overflow (not written; exec_nonstorage_effect_overflow set).
-    Clobbers t0-t6, a0; preserves s-regs (saved). -/
+    Clobbers t0-t6, a0; preserves s-regs (saved).
+
+    `record_nonstorage_effect_after_account_state` is the companion entry for a
+    caller that has already performed the AccountState mutation and needs only
+    the raw effect plus AccountWrite publications.  It avoids a second pending
+    AccountState append while retaining the same output records. -/
 def recordNonstorageEffectFunction : String :=
-  "record_nonstorage_effect:\n" ++
+  "record_nonstorage_effect:\n  li a5, 0\n  j .Lrnse_entry\n" ++
+  "record_nonstorage_effect_after_account_state:\n  li a5, 1\n" ++
+  ".Lrnse_entry:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd ra, 40(sp)\n" ++
   "  mv s0, a0                   # addr ptr\n" ++
@@ -113,7 +120,8 @@ def recordNonstorageEffectFunction : String :=
   -- journal.  The legacy record remains intact for the BAL comparator until
   -- the final comparison-materialization switch; a bounded journal failure
   -- fails closed through this producer's established overflow path.
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  "  bnez a5, .Lrnse_account_state_done; mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  ".Lrnse_account_state_done:\n" ++
   -- Preserve this successful execution effect in the transaction-local map.
   -- It is a fieldwise overlay: a balance-only effect must not overwrite a
   -- prior nonce increment merely because this generic record also carries a
