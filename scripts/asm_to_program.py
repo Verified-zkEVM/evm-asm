@@ -596,6 +596,30 @@ READELF = (os.environ.get('RISCV_READELF') or
            shutil.which('riscv64-unknown-elf-readelf') or
            shutil.which('riscv64-elf-readelf') or
            shutil.which('readelf') or 'readelf')
+def symbol_binding(asm_text, sym):
+    """Assemble `asm_text` and return `sym`'s ELF binding ('GLOBAL' / 'LOCAL'),
+    or None if the symbol is absent from the object.
+
+    Exists because `.text` byte-comparison is STRUCTURALLY BLIND to symbol
+    binding: a symbol demoted GLOBAL -> LOCAL, or dropped entirely, leaves the
+    `.text` bytes identical. Any conversion whose Lean string carries a `.globl`
+    therefore has a property no other leg of `check_file` can see -- `.globl` is
+    a directive with no `Instr` constructor, so it lives in the string prefix
+    rather than in the `Program`, and nothing else re-checks it. (GH #11046.)
+    """
+    with tempfile.TemporaryDirectory() as d:
+        s=os.path.join(d,'b.s'); o=os.path.join(d,'b.o')
+        open(s,'w').write(".text\n"+asm_text+"\n")
+        r=subprocess.run([AS,'-march=rv64im','-mno-relax','-o',o,s],
+                         stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        if r.returncode!=0: return None
+        out=subprocess.run([READELF,'-sW',o],check=True,
+                           capture_output=True,text=True).stdout
+        for ln in out.splitlines():
+            c=ln.split()
+            if len(c)>=8 and c[7]==sym: return c[4]
+    return None
+
 def emitted_reloc_count(asm_text):
     """Assemble `asm_text` and count RISC-V PC-relative / call / jump
     relocations in the object. A reloc-bearing function's EMITTED (symbolic)
@@ -1112,6 +1136,22 @@ SOURCE_DRIFT_ALLOW = {
     # This helper is an intentional hand-composed wrapper around a mechanically
     # converted core, so its source is not one generated literal block.
     'committedStorageChunkedSnapshotUpsertFunction',
+    # The four BAL sort routines (GH #10817). Two deviations from the generated
+    # block shape, both deliberate and both maintainer-approved:
+    #   1. They are the first converted defs that are also EXPORTED, so each
+    #      keeps `"  .globl <sym>\n"` ahead of the label. `.globl` is a directive
+    #      with no `Instr` constructor, so it cannot live in a `Program` and
+    #      `emitProgramR` does not emit it.
+    #   2. `balCanonicalSort_prog` is `head ++ balCanonicalDigit_prog ++ tail`
+    #      rather than one flat literal, because the module's four anti-drift
+    #      `#guard`s on the digit extractor have to be restatable over just that
+    #      fragment. The split is a SLICE of one conversion (indices 67..94), so
+    #      the branch offsets are still the ones resolved against the whole.
+    # Legs (a) and (c) -- the byte-identity checks -- still run on all four.
+    'balCanonicalSortFunction',
+    'balSortStorageWritesFunction',
+    'balSortAccountWritesFunction',
+    'balCanonicalSortSelftestFunction',
 }
 
 def check_file(path, funcs, rendered=None):
@@ -1184,6 +1224,18 @@ def check_file(path, funcs, rendered=None):
             if not real_ok:
                 problems.append(f"{fn}: LEAN-RENDERED string does NOT assemble identically to fixture "
                                 f"(emitInstr/py_emit divergence or guest-binary change)"); continue
+        # (d) SYMBOL BINDING — only for conversions whose Lean string declares
+        #     `.globl`. `.text` identity cannot see a lost or demoted export, and
+        #     `.globl` is the one part of the emitted text the conversion does not
+        #     establish (no `Instr` constructor, so it is not in the `Program`).
+        if f".globl {entry}" in rendered[fn]:
+            b=symbol_binding(rendered[fn], entry)
+            if b is None:
+                problems.append(f"{fn}: declares `.globl {entry}` but {entry} is absent from the "
+                                f"assembled object (or the render no longer assembles)")
+            elif b!='GLOBAL':
+                problems.append(f"{fn}: {entry} is {b}, not GLOBAL — the `.globl` was lost or "
+                                f"demoted; `.text` bytes are unchanged, so no other leg sees this")
         # source drift
         prog=lean_camel(entry)+'_prog'
         if layout_mode:
