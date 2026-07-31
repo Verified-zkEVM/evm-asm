@@ -50,10 +50,11 @@ def mptBoundedSortChangesFunction : String :=
   "  beqz s1, .Lmbs_ok\n" ++
   "  sd zero, 0(s2); sd s1, 8(s2); sd zero, 16(s2); sd zero, 24(s2); li s3, 1\n" ++
   ".Lmbs_pop:\n" ++
-  "  beqz s3, .Lmbs_ok\n" ++
-  "  addi s3, s3, -1; slli t0, s3, 5; add t0, s2, t0\n" ++
-  "  ld s4, 0(t0); ld s5, 8(t0); ld s6, 16(t0)\n" ++
-  "  addi t1, s4, 1; bgeu t1, s5, .Lmbs_pop\n" ++
+  "  beqz s3, .Lmbs_ok
+  addi s3, s3, -1; slli t0, s3, 5; add t0, s2, t0
+  ld s4, 0(t0); ld s5, 8(t0); ld s6, 16(t0)
+  addi t1, s4, 1; bgeu t1, s5, .Lmbs_pop
+" ++
   "  li t1, " ++ toString bsrMptKeyNibbles ++ "; bgeu s6, t1, .Lmbs_pop\n" ++
   "  mv s7, s4; li t6, 0\n" ++
   ".Lmbs_digit:\n" ++
@@ -63,10 +64,11 @@ def mptBoundedSortChangesFunction : String :=
   "  beq t1, s5, .Lmbs_group\n" ++
   "  slli t0, t1, 5; slli t2, t1, 3; add t0, t0, t2; add t0, s0, t0; ld t2, 0(t0); add t2, t2, s6; lbu t3, 0(t2)\n" ++
   "  li t4, " ++ toString bsrMptRadixFanout ++ "; bgeu t3, t4, .Lmbs_fail\n" ++
-  "  bne t3, t6, .Lmbs_scan_next\n" ++
-  "  beq t1, s7, .Lmbs_scan_match\n" ++
-  "  slli t2, s7, 5; slli t3, s7, 3; add t2, t2, t3; add t2, s0, t2\n" ++
-  "  la t3, bsr_builder_frames; li t4, 5\n" ++
+  "  bne t3, t6, .Lmbs_scan_next
+  beq t1, s7, .Lmbs_scan_match
+  slli t2, s7, 5; slli t3, s7, 3; add t2, t2, t3; add t2, s0, t2
+  la t3, bsr_builder_frames; li t4, 5
+" ++
   ".Lmbs_swap:\n" ++
   "  ld t5, 0(t0); sd t5, 0(t3); ld t5, 0(t2); sd t5, 0(t0); ld t5, 0(t3); sd t5, 0(t2); addi t0, t0, 8; addi t2, t2, 8; addi t3, t3, 8; addi t4, t4, -1; bnez t4, .Lmbs_swap\n" ++
   ".Lmbs_scan_match:\n" ++
@@ -101,16 +103,18 @@ value-bearing/unknown mode.  It does not build or route a root yet. -/
 def mptBoundedPrepareChangesFunction : String :=
   "  .globl mpt_bounded_prepare_changes\n" ++
   "mpt_bounded_prepare_changes:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; jal ra, mpt_bounded_sort_changes; bnez a0, .Lmbp_sort_fail\n" ++
-  "  li s2, 0\n" ++
+  "  addi sp, sp, -48
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  mv s0, a0; mv s1, a1; jal ra, mpt_bounded_sort_changes; bnez a0, .Lmbp_sort_fail
+  li s2, 0
+" ++
   ".Lmbp_desc:\n" ++
-  "  beq s2, s1, .Lmbp_ok\n" ++
-  "  slli t0, s2, 5; slli t1, s2, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 32(t0); li t2, 3; bgeu t1, t2, .Lmbp_bad_mode\n" ++
-  "  beqz s2, .Lmbp_next\n" ++
-  "  addi t0, s2, -1; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t1, s0, t1; ld t1, 0(t1)\n" ++
-  "  slli t2, s2, 5; slli t3, s2, 3; add t2, t2, t3; add t2, s0, t2; ld t2, 0(t2); li s3, 0\n" ++
+  "  beq s2, s1, .Lmbp_ok
+  slli t0, s2, 5; slli t1, s2, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 32(t0); li t2, 3; bgeu t1, t2, .Lmbp_bad_mode
+  beqz s2, .Lmbp_next
+  addi t0, s2, -1; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t1, s0, t1; ld t1, 0(t1)
+  slli t2, s2, 5; slli t3, s2, 3; add t2, t2, t3; add t2, s0, t2; ld t2, 0(t2); li s3, 0
+" ++
   ".Lmbp_cmp:\n" ++
   "  li t3, " ++ toString bsrMptKeyNibbles ++ "; beq s3, t3, .Lmbp_dup\n" ++
   "  add t3, t1, s3; lbu t4, 0(t3); add t3, t2, s3; lbu t5, 0(t3); bne t4, t5, .Lmbp_next\n" ++
@@ -138,10 +142,11 @@ valid 17-item branch with canonical child references, `1` otherwise. -/
 def mptBoundedCaptureBranchRefsFunction : String :=
   "  .globl mpt_bounded_capture_branch_refs\n" ++
   "mpt_bounded_capture_branch_refs:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; addi a2, sp, 40; jal ra, rlp_list_count_items; bnez a0, .Lmbcr_fail\n" ++
-  "  ld t0, 40(sp); li t1, 17; bne t0, t1, .Lmbcr_fail; li s3, 0\n" ++
+  "  addi sp, sp, -64
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; addi a2, sp, 40; jal ra, rlp_list_count_items; bnez a0, .Lmbcr_fail
+  ld t0, 40(sp); li t1, 17; bne t0, t1, .Lmbcr_fail; li s3, 0
+" ++
   ".Lmbcr_child:\n" ++
   "  li t0, " ++ toString bsrMptRadixFanout ++ "; beq s3, t0, .Lmbcr_ok\n" ++
   "  mv a0, s0; mv a1, s1; mv a2, s3; addi a3, sp, 48; addi a4, sp, 56; jal ra, rlp_list_nth_item; bnez a0, .Lmbcr_fail\n" ++
@@ -170,11 +175,12 @@ on a missing/malformed witness entry. -/
 def mptBoundedResolveWitnessFunction : String :=
   "  .globl mpt_bounded_resolve_witness\n" ++
   "mpt_bounded_resolve_witness:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; sd zero, 0(s3); sd zero, 0(s4)\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, sp, 48; addi a4, sp, 56; jal ra, witness_lookup_by_hash; bnez a0, .Lmbw_fail\n" ++
-  "  ld t0, 48(sp); add t0, s0, t0; sd t0, 0(s3); ld t0, 56(sp); sd t0, 0(s4); li a0, 0; j .Lmbw_ret\n" ++
+  "  addi sp, sp, -72
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; sd zero, 0(s3); sd zero, 0(s4)
+  mv a0, s0; mv a1, s1; mv a2, s2; addi a3, sp, 48; addi a4, sp, 56; jal ra, witness_lookup_by_hash; bnez a0, .Lmbw_fail
+  ld t0, 48(sp); add t0, s0, t0; sd t0, 0(s3); ld t0, 56(sp); sd t0, 0(s4); li a0, 0; j .Lmbw_ret
+" ++
   ".Lmbw_fail:\n  li a0, 1\n" ++
   ".Lmbw_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 72; ret\n"
@@ -250,12 +256,13 @@ on success and `1` on malformed/non-MPT input. -/
 def mptBoundedClassifyNodeFunction : String :=
   "  .globl mpt_bounded_classify_node\n" ++
   "mpt_bounded_classify_node:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; sd zero, 0(s2); mv a0, s0; mv a1, s1; addi a2, sp, 32; jal ra, rlp_list_count_items; bnez a0, .Lmbcn_fail\n" ++
-  "  ld t0, 32(sp); li t1, 17; beq t0, t1, .Lmbcn_branch; li t1, 2; bne t0, t1, .Lmbcn_fail\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 32; addi a4, sp, 40; jal ra, rlp_list_nth_item; bnez a0, .Lmbcn_fail\n" ++
-  "  ld t0, 40(sp); beqz t0, .Lmbcn_fail; ld t0, 32(sp); add t0, s0, t0; lbu t0, 0(t0); srli t0, t0, 5; andi t0, t0, 1; addi t0, t0, 1; sd t0, 0(s2); li a0, 0; j .Lmbcn_ret\n" ++
+  "  addi sp, sp, -48
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; sd zero, 0(s2); mv a0, s0; mv a1, s1; addi a2, sp, 32; jal ra, rlp_list_count_items; bnez a0, .Lmbcn_fail
+  ld t0, 32(sp); li t1, 17; beq t0, t1, .Lmbcn_branch; li t1, 2; bne t0, t1, .Lmbcn_fail
+  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 32; addi a4, sp, 40; jal ra, rlp_list_nth_item; bnez a0, .Lmbcn_fail
+  ld t0, 40(sp); beqz t0, .Lmbcn_fail; ld t0, 32(sp); add t0, s0, t0; lbu t0, 0(t0); srli t0, t0, 5; andi t0, t0, 1; addi t0, t0, 1; sd t0, 0(s2); li a0, 0; j .Lmbcn_ret
+" ++
   ".Lmbcn_branch:\n  sd zero, 0(s2); li a0, 0; j .Lmbcn_ret\n" ++
   ".Lmbcn_fail:\n  li a0, 1\n" ++
   ".Lmbcn_ret:\n" ++
@@ -273,10 +280,11 @@ returns `0` on success and `1` on any witness/node-shape failure. -/
 def mptBoundedOpenRootFrameFunction : String :=
   "  .globl mpt_bounded_open_root_frame\n" ++
   "mpt_bounded_open_root_frame:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  mv a0, s1; mv a1, s2; mv a2, s0; addi a3, sp, 40; addi a4, sp, 48; jal ra, mpt_bounded_resolve_witness; bnez a0, .Lmbor_fail\n" ++
+  "  addi sp, sp, -72
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3
+  mv a0, s1; mv a1, s2; mv a2, s0; addi a3, sp, 40; addi a4, sp, 48; jal ra, mpt_bounded_resolve_witness; bnez a0, .Lmbor_fail
+" ++
   "  ld t0, 40(sp); sd t0, " ++ toString bsrMptFrameNodePtrOffset ++ "(s3); ld t0, 48(sp); sd t0, " ++ toString bsrMptFrameNodeLenOffset ++ "(s3)\n" ++
   "  ld a0, 40(sp); ld a1, 48(sp); addi a2, sp, 56; jal ra, mpt_bounded_classify_node; bnez a0, .Lmbor_fail\n" ++
   "  ld t0, 56(sp); sd t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s3); bnez t0, .Lmbor_ok\n" ++
@@ -403,10 +411,11 @@ def mptBoundedEncodeLeafRefFunction : String :=
 def mptBoundedDecodeExtensionFunction : String :=
   "  .globl mpt_bounded_decode_extension\n" ++
   "mpt_bounded_decode_extension:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbde_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbde_fail\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 88(sp); beqz t0, .Lmbde_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bgeu t3, t4, .Lmbde_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbde_even; addi t0, t0, 1; j .Lmbde_len\n" ++
+  "  addi sp, sp, -96
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbde_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbde_fail
+  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbde_fail; ld t0, 88(sp); beqz t0, .Lmbde_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bgeu t3, t4, .Lmbde_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbde_even; addi t0, t0, 1; j .Lmbde_len
+" ++
   ".Lmbde_even:\n  andi t5, t2, 15; bnez t5, .Lmbde_fail\n" ++
   ".Lmbde_len:\n  beqz t0, .Lmbde_fail; bgtu t0, s2, .Lmbde_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbde_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
   ".Lmbde_pairs:\n  ld t2, 88(sp); addi t2, t2, -1\n" ++
@@ -428,10 +437,11 @@ def mptBoundedDecodeExtensionFunction : String :=
 def mptBoundedDecodeLeafFunction : String :=
   "  .globl mpt_bounded_decode_leaf\n" ++
   "mpt_bounded_decode_leaf:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbdl_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbdl_fail\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 88(sp); beqz t0, .Lmbdl_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bltu t3, t4, .Lmbdl_fail; li t4, 4; bgeu t3, t4, .Lmbdl_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbdl_even; addi t0, t0, 1; j .Lmbdl_len\n" ++
+  "  addi sp, sp, -96
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; sd zero, 0(s4); sd zero, 0(s5); sd zero, 0(s6); mv a0, s0; mv a1, s1; addi a2, sp, 72; jal ra, rlp_list_count_items; bnez a0, .Lmbdl_fail; ld t0, 72(sp); li t1, 2; bne t0, t1, .Lmbdl_fail
+  mv a0, s0; mv a1, s1; li a2, 0; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item; bnez a0, .Lmbdl_fail; ld t0, 88(sp); beqz t0, .Lmbdl_fail; ld t1, 80(sp); add t1, s0, t1; lbu t2, 0(t1); srli t3, t2, 4; li t4, 2; bltu t3, t4, .Lmbdl_fail; li t4, 4; bgeu t3, t4, .Lmbdl_fail; andi t4, t3, 1; addi t0, t0, -1; slli t0, t0, 1; beqz t4, .Lmbdl_even; addi t0, t0, 1; j .Lmbdl_len
+" ++
   ".Lmbdl_even:\n  andi t5, t2, 15; bnez t5, .Lmbdl_fail\n" ++
   ".Lmbdl_len:\n  bgtu t0, s2, .Lmbdl_fail; sd t0, 0(s4); addi t1, t1, 1; mv t5, s3; beqz t4, .Lmbdl_pairs; andi t2, t2, 15; sb t2, 0(t5); addi t5, t5, 1\n" ++
   ".Lmbdl_pairs:\n  ld t2, 88(sp); addi t2, t2, -1\n" ++
@@ -806,11 +816,12 @@ def mptBoundedStateRootFunction : String :=
   "mpt_bounded_storage_root:\n" ++
   "  la t0, bsr_builder_value_max; li t1, " ++ toString bsrEncodedStorageValueBytes ++ "; sd t1, 0(t0); la t0, bsr_builder_witness_value_max; li t1, " ++ toString bsrMptNodeMaxBytes ++ "; sd t1, 0(t0)\n" ++
   ".Lmbsr_body:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd s1, 56(sp); sd s2, 64(sp); beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; ld s1, 56(sp); ld s2, 64(sp); bnez a0, .Lmbsr_fail\n" ++
-  "  # EMPTY_TRIE_ROOT = keccak256(rlp(b'')) has no witness node to open.  Hash its one-byte RLP directly, then build the normalized insertion interval as a missing subtree.\n" ++
-  "  sd s1, 56(sp); sd s2, 64(sp); addi t0, sp, 72; li t1, 128; sb t1, 0(t0); mv a0, t0; li a1, 1; la a2, bsr_builder_node; jal ra, zkvm_keccak256; ld s1, 56(sp); ld s2, 64(sp); li t0, 0; la t1, bsr_builder_node\n" ++
+  "  addi sp, sp, -80
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; sd s1, 56(sp); sd s2, 64(sp); beqz s4, .Lmbsr_copy_old; mv a0, s3; mv a1, s4; jal ra, mpt_bounded_prepare_changes; ld s1, 56(sp); ld s2, 64(sp); bnez a0, .Lmbsr_fail
+  # EMPTY_TRIE_ROOT = keccak256(rlp(b'')) has no witness node to open.  Hash its one-byte RLP directly, then build the normalized insertion interval as a missing subtree.
+  sd s1, 56(sp); sd s2, 64(sp); addi t0, sp, 72; li t1, 128; sb t1, 0(t0); mv a0, t0; li a1, 1; la a2, bsr_builder_node; jal ra, zkvm_keccak256; ld s1, 56(sp); ld s2, 64(sp); li t0, 0; la t1, bsr_builder_node
+" ++
   ".Lmbsr_empty_cmp:\n  li t2, 32; beq t0, t2, .Lmbsr_empty_match; add t3, s0, t0; lbu t4, 0(t3); add t3, t1, t0; lbu t5, 0(t3); bne t4, t5, .Lmbsr_open; addi t0, t0, 1; j .Lmbsr_empty_cmp\n" ++
   "  # On an empty trie, final deletes are no-ops. Compact them in place and\n" ++
   "  # turn final mode-0/1 values into inserts before constructing the missing tree.\n" ++
@@ -863,10 +874,11 @@ def ziskMptBoundedSortPrologue : String :=
   "  li t0, 0x40000000; ld s0, 8(t0); li t1, 17; bgeu s0, t1, .Lmbsp_fail\n" ++
   "  addi s1, t0, 16; la s2, mbs_changes; li s3, 0\n" ++
   ".Lmbsp_desc:\n" ++
-  "  beq s3, s0, .Lmbsp_sort\n" ++
-  "  slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s2, t0\n" ++
-  "  sd s1, 0(t0); li t1, 64; sd t1, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
-  "  addi s1, s1, 64; addi s3, s3, 1; j .Lmbsp_desc\n" ++
+  "  beq s3, s0, .Lmbsp_sort
+  slli t0, s3, 5; slli t1, s3, 3; add t0, t0, t1; add t0, s2, t0
+  sd s1, 0(t0); li t1, 64; sd t1, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)
+  addi s1, s1, 64; addi s3, s3, 1; j .Lmbsp_desc
+" ++
   ".Lmbsp_sort:\n" ++
   "  mv a0, s2; mv a1, s0; jal ra, mpt_bounded_prepare_changes; mv s4, a0; j .Lmbsp_out\n" ++
   ".Lmbsp_fail:\n" ++
@@ -940,10 +952,11 @@ def ziskMptBoundedCaptureBranchRefsProbeUnit : BuildUnit := {
     as `zisk_witness_lookup_by_hash`; the output pointer is converted back to
     a section-relative offset for a stable regression oracle. -/
 def ziskMptBoundedResolveWitnessPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; addi s3, s0, 48\n" ++
-  "  mv a0, s3; mv a1, s1; mv a2, s2; li a3, 0xa0010008; li a4, 0xa0010010; jal ra, mpt_bounded_resolve_witness; mv s4, a0\n" ++
-  "  li t0, 0xa0010000; sd s4, 0(t0); bnez s4, .Lmbwr_done; li t0, 0xa0010008; ld t1, 0(t0); sub t1, t1, s3; sd t1, 0(t0)\n" ++
+  "  li sp, 0xa0050000
+  li s0, 0x40000000; ld s1, 8(s0); addi s2, s0, 16; addi s3, s0, 48
+  mv a0, s3; mv a1, s1; mv a2, s2; li a3, 0xa0010008; li a4, 0xa0010010; jal ra, mpt_bounded_resolve_witness; mv s4, a0
+  li t0, 0xa0010000; sd s4, 0(t0); bnez s4, .Lmbwr_done; li t0, 0xa0010008; ld t1, 0(t0); sub t1, t1, s3; sd t1, 0(t0)
+" ++
   ""
 
 def ziskMptBoundedResolveWitnessProbeUnit : BuildUnit := {
@@ -1162,11 +1175,12 @@ def ziskMptBoundedEncodeExtensionProbeUnit : BuildUnit := {
     Input is `witness_len:u64`, old root, 64-nibble key, value length/value,
     descriptor mode, then one SSZ witness-state section. -/
 def ziskMptBoundedStateRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 128(t0); addi s6, t0, 136\n" ++
-  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)\n" ++
-  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
-  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32\n" ++
+  "  li sp, 0xa0050000
+  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 128(t0); addi s6, t0, 136
+  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)
+  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_state_root; mv s6, a0
+  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32
+" ++
   ".Lmbsrp_copy:\n  beqz t2, .Lmbsrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbsrp_copy\n"
 
 def ziskMptBoundedStateRootDataSection : String :=
@@ -1195,11 +1209,12 @@ def ziskMptBoundedStateRootProbeUnit : BuildUnit := {
     RLP encoding; it otherwise selects the storage wrapper, whose decoded
     witness leaves retain the node-sized bound. -/
 def ziskMptBoundedStorageRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 160(t0); addi s6, t0, 168\n" ++
-  "  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)\n" ++
-  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_storage_root; mv s6, a0\n" ++
-  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbstrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32\n" ++
+  "  li sp, 0xa0050000
+  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; ld s3, 112(t0); addi s4, t0, 120; ld s5, 160(t0); addi s6, t0, 168
+  la t1, mbsr_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s4, 16(t1); sd s3, 24(t1); sd s5, 32(t1)
+  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsr_desc; li a4, 1; la a5, mbsr_out; jal ra, mpt_bounded_storage_root; mv s6, a0
+  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbstrp_done; la t1, mbsr_out; addi t0, t0, 8; li t2, 32
+" ++
   ".Lmbstrp_copy:\n  beqz t2, .Lmbstrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbstrp_copy\n"
 
 def ziskMptBoundedStorageRootProbeUnit : BuildUnit := {
@@ -1217,11 +1232,12 @@ def ziskMptBoundedStorageRootProbeUnit : BuildUnit := {
     KATs cover grouped insertions and an existing-leaf update sharing its radix
     slot with a new insertion. -/
 def ziskMptBoundedMissingGroupPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; addi s3, t0, 112; addi s4, t0, 120; addi s5, t0, 184; ld t3, 192(t0); ld t4, 200(t0); addi s6, t0, 208\n" ++
-  "  la t1, mbsmg_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s3, 16(t1); li t2, 1; sd t2, 24(t1); sd t3, 32(t1); addi t1, t1, 40; sd s4, 0(t1); li t2, 64; sd t2, 8(t1); sd s5, 16(t1); li t2, 1; sd t2, 24(t1); sd t4, 32(t1)\n" ++
-  "  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsmg_desc; li a4, 2; la a5, mbsmg_out; jal ra, mpt_bounded_state_root; mv s6, a0\n" ++
-  "  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsmg_done; la t1, mbsmg_out; addi t0, t0, 8; li t2, 32\n" ++
+  "  li sp, 0xa0050000
+  li t0, 0x40000000; ld s0, 8(t0); addi s1, t0, 16; addi s2, t0, 48; addi s3, t0, 112; addi s4, t0, 120; addi s5, t0, 184; ld t3, 192(t0); ld t4, 200(t0); addi s6, t0, 208
+  la t1, mbsmg_desc; sd s2, 0(t1); li t2, 64; sd t2, 8(t1); sd s3, 16(t1); li t2, 1; sd t2, 24(t1); sd t3, 32(t1); addi t1, t1, 40; sd s4, 0(t1); li t2, 64; sd t2, 8(t1); sd s5, 16(t1); li t2, 1; sd t2, 24(t1); sd t4, 32(t1)
+  mv a0, s1; mv a1, s6; mv a2, s0; la a3, mbsmg_desc; li a4, 2; la a5, mbsmg_out; jal ra, mpt_bounded_state_root; mv s6, a0
+  li t0, 0xa0010000; sd s6, 0(t0); bnez s6, .Lmbsmg_done; la t1, mbsmg_out; addi t0, t0, 8; li t2, 32
+" ++
   ".Lmbsmg_copy:\n  beqz t2, .Lmbsmg_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbsmg_copy\n"
 
 def ziskMptBoundedMissingGroupDataSection : String :=
