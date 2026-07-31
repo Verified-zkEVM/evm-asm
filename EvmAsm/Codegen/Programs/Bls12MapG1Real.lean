@@ -17,913 +17,920 @@ namespace EvmAsm.Codegen
 def zkvmBls12MapFpToG1RealFunction : String :=
   ".globl zkvm_bls12_map_fp_to_g1\n" ++
   "zkvm_bls12_map_fp_to_g1:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++
-  "  mv a0, s0\n" ++
-  "  li a1, 16\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm1_invalid\n" ++
-  "  addi a0, s0, 16\n" ++
-  "  jal ra, blsg_lt_p\n" ++
-  "  beqz a0, .Lblm1_invalid\n" ++
-  "  addi a0, s0, 16\n" ++
-  "  la a1, blm_t\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  la a0, blm_t\n" ++
-  "  la a1, blm_t\n" ++
-  "  la a2, blm_t2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_iso11_z\n" ++
-  "  la a1, blm_t2\n" ++
-  "  la a2, blm_zt2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zt2\n" ++
-  "  la a1, blm_zt2\n" ++
-  "  la a2, blm_tmp\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_tmp\n" ++
-  "  la a1, blm_zt2\n" ++
-  "  la a2, blm_tmp\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_iso11_a\n" ++
-  "  la a1, blm_tmp\n" ++
-  "  la a2, blm_d\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_d\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  la a2, blm_d\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_tmp\n" ++
-  "  la a1, blsf_le_one\n" ++
-  "  la a2, blm_tmp\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_iso11_b\n" ++
-  "  la a1, blm_tmp\n" ++
-  "  la a2, blm_n\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_d\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm1_d_ok\n" ++
-  "  la a0, blm_iso11_z\n" ++
-  "  la a1, blm_iso11_a\n" ++
-  "  la a2, blm_d\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
+  "  addi sp, sp, -32
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)
+  mv s0, a0; mv s1, a1
+  mv a0, s0
+  li a1, 16
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm1_invalid
+  addi a0, s0, 16
+  jal ra, blsg_lt_p
+  beqz a0, .Lblm1_invalid
+  addi a0, s0, 16
+  la a1, blm_t
+  jal ra, blsg_be_to_le
+  la a0, blm_t
+  la a1, blm_t
+  la a2, blm_t2
+  jal ra, blsg2_fp_mul
+  la a0, blm_iso11_z
+  la a1, blm_t2
+  la a2, blm_zt2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zt2
+  la a1, blm_zt2
+  la a2, blm_tmp
+  jal ra, blsg2_fp_mul
+  la a0, blm_tmp
+  la a1, blm_zt2
+  la a2, blm_tmp
+  jal ra, blsg2_fp_add
+  la a0, blm_iso11_a
+  la a1, blm_tmp
+  la a2, blm_d
+  jal ra, blsg2_fp_mul
+  la a0, blm_d
+  la a1, blsg2_pm1_le
+  la a2, blm_d
+  jal ra, blsg2_fp_mul
+  la a0, blm_tmp
+  la a1, blsf_le_one
+  la a2, blm_tmp
+  jal ra, blsg2_fp_add
+  la a0, blm_iso11_b
+  la a1, blm_tmp
+  la a2, blm_n
+  jal ra, blsg2_fp_mul
+  la a0, blm_d
+  li a1, 48
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm1_d_ok
+  la a0, blm_iso11_z
+  la a1, blm_iso11_a
+  la a2, blm_d
+  jal ra, blsg2_fp_mul
+" ++
   ".Lblm1_d_ok:\n" ++
-  "  la a0, blm_d\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_s1\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_v\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_n\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_u\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_u\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_u\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_iso11_a\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_w\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_w\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_w\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_u\n" ++
-  "  la a1, blm_w\n" ++
-  "  la a2, blm_u\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_iso11_b\n" ++
-  "  la a1, blm_v\n" ++
-  "  la a2, blm_w\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_u\n" ++
-  "  la a1, blm_w\n" ++
-  "  la a2, blm_u\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_u\n" ++
-  "  la a1, blm_v\n" ++
-  "  la a2, blm_w\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_v\n" ++
-  "  la a1, blm_v\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_w\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_r\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_pm3d4\n" ++
-  "  li a3, 378\n" ++
-  "  jal ra, blm_fp_pow\n" ++
-  "  la a0, blm_w\n" ++
-  "  la a1, blm_r\n" ++
-  "  la a2, blm_r\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_r\n" ++
-  "  la a1, blm_r\n" ++
-  "  la a2, blm_chk\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_chk\n" ++
-  "  la a1, blm_v\n" ++
-  "  la a2, blm_chk\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_chk\n" ++
-  "  la a1, blm_u\n" ++
-  "  li a2, 48\n" ++
-  "  jal ra, blsg2_eq_n\n" ++
-  "  bnez a0, .Lblm1_root_ok\n" ++
-  "  la a0, blm_t2\n" ++
-  "  la a1, blm_t\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_r\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_y\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_y\n" ++
-  "  la a1, blm_sqrt_m11c\n" ++
-  "  la a2, blm_y\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_n\n" ++
-  "  la a1, blm_zt2\n" ++
-  "  la a2, blm_n\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  j .Lblm1_have_y\n" ++
+  "  la a0, blm_d
+  la a1, blm_d
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_s1
+  la a1, blm_d
+  la a2, blm_v
+  jal ra, blsg2_fp_mul
+  la a0, blm_n
+  la a1, blm_n
+  la a2, blm_u
+  jal ra, blsg2_fp_mul
+  la a0, blm_u
+  la a1, blm_n
+  la a2, blm_u
+  jal ra, blsg2_fp_mul
+  la a0, blm_iso11_a
+  la a1, blm_n
+  la a2, blm_w
+  jal ra, blsg2_fp_mul
+  la a0, blm_w
+  la a1, blm_s1
+  la a2, blm_w
+  jal ra, blsg2_fp_mul
+  la a0, blm_u
+  la a1, blm_w
+  la a2, blm_u
+  jal ra, blsg2_fp_add
+  la a0, blm_iso11_b
+  la a1, blm_v
+  la a2, blm_w
+  jal ra, blsg2_fp_mul
+  la a0, blm_u
+  la a1, blm_w
+  la a2, blm_u
+  jal ra, blsg2_fp_add
+  la a0, blm_u
+  la a1, blm_v
+  la a2, blm_w
+  jal ra, blsg2_fp_mul
+  la a0, blm_v
+  la a1, blm_v
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_w
+  la a1, blm_s1
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_r
+  la a1, blm_s1
+  la a2, blm_pm3d4
+  li a3, 378
+  jal ra, blm_fp_pow
+  la a0, blm_w
+  la a1, blm_r
+  la a2, blm_r
+  jal ra, blsg2_fp_mul
+  la a0, blm_r
+  la a1, blm_r
+  la a2, blm_chk
+  jal ra, blsg2_fp_mul
+  la a0, blm_chk
+  la a1, blm_v
+  la a2, blm_chk
+  jal ra, blsg2_fp_mul
+  la a0, blm_chk
+  la a1, blm_u
+  li a2, 48
+  jal ra, blsg2_eq_n
+  bnez a0, .Lblm1_root_ok
+  la a0, blm_t2
+  la a1, blm_t
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_r
+  la a1, blm_s1
+  la a2, blm_y
+  jal ra, blsg2_fp_mul
+  la a0, blm_y
+  la a1, blm_sqrt_m11c
+  la a2, blm_y
+  jal ra, blsg2_fp_mul
+  la a0, blm_n
+  la a1, blm_zt2
+  la a2, blm_n
+  jal ra, blsg2_fp_mul
+  j .Lblm1_have_y
+" ++
   ".Lblm1_root_ok:\n" ++
-  "  la a0, blm_r\n" ++
-  "  la a1, blm_y\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
+  "  la a0, blm_r
+  la a1, blm_y
+  li a2, 6
+  jal ra, blsf_copy_quads
+" ++
   ".Lblm1_have_y:\n" ++
-  "  la t0, blm_t\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  andi t1, t1, 1\n" ++
-  "  la t0, blm_y\n" ++
-  "  ld t2, 0(t0)\n" ++
-  "  andi t2, t2, 1\n" ++
-  "  beq t1, t2, .Lblm1_sgn_ok\n" ++
-  "  la a0, blm_y\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  la a2, blm_y\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
+  "  la t0, blm_t
+  ld t1, 0(t0)
+  andi t1, t1, 1
+  la t0, blm_y
+  ld t2, 0(t0)
+  andi t2, t2, 1
+  beq t1, t2, .Lblm1_sgn_ok
+  la a0, blm_y
+  la a1, blsg2_pm1_le
+  la a2, blm_y
+  jal ra, blsg2_fp_mul
+" ++
   ".Lblm1_sgn_ok:\n" ++
-  "  la a0, blm_y\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_y\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_d\n" ++
-  "  la a1, blm_zp0\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_zp0\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp1\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp2\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp3\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp4\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp4\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp5\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp5\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp6\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp6\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp7\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp7\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp8\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp8\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp9\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp9\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp10\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp10\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp11\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp11\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp12\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp12\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp13\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp13\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_zp14\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_k11_0_11\n" ++
-  "  la a1, blm_m0\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp0\n" ++
-  "  la a1, blm_k11_0_10\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp1\n" ++
-  "  la a1, blm_k11_0_9\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp2\n" ++
-  "  la a1, blm_k11_0_8\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp3\n" ++
-  "  la a1, blm_k11_0_7\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp4\n" ++
-  "  la a1, blm_k11_0_6\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp5\n" ++
-  "  la a1, blm_k11_0_5\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp6\n" ++
-  "  la a1, blm_k11_0_4\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp7\n" ++
-  "  la a1, blm_k11_0_3\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp8\n" ++
-  "  la a1, blm_k11_0_2\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp9\n" ++
-  "  la a1, blm_k11_0_1\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp10\n" ++
-  "  la a1, blm_k11_0_0\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m0\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_k11_1_10\n" ++
-  "  la a1, blm_m1\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp0\n" ++
-  "  la a1, blm_k11_1_9\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp1\n" ++
-  "  la a1, blm_k11_1_8\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp2\n" ++
-  "  la a1, blm_k11_1_7\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp3\n" ++
-  "  la a1, blm_k11_1_6\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp4\n" ++
-  "  la a1, blm_k11_1_5\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp5\n" ++
-  "  la a1, blm_k11_1_4\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp6\n" ++
-  "  la a1, blm_k11_1_3\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp7\n" ++
-  "  la a1, blm_k11_1_2\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp8\n" ++
-  "  la a1, blm_k11_1_1\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp9\n" ++
-  "  la a1, blm_k11_1_0\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_k11_2_15\n" ++
-  "  la a1, blm_m2\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp0\n" ++
-  "  la a1, blm_k11_2_14\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp1\n" ++
-  "  la a1, blm_k11_2_13\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp2\n" ++
-  "  la a1, blm_k11_2_12\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp3\n" ++
-  "  la a1, blm_k11_2_11\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp4\n" ++
-  "  la a1, blm_k11_2_10\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp5\n" ++
-  "  la a1, blm_k11_2_9\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp6\n" ++
-  "  la a1, blm_k11_2_8\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp7\n" ++
-  "  la a1, blm_k11_2_7\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp8\n" ++
-  "  la a1, blm_k11_2_6\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp9\n" ++
-  "  la a1, blm_k11_2_5\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp10\n" ++
-  "  la a1, blm_k11_2_4\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp11\n" ++
-  "  la a1, blm_k11_2_3\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp12\n" ++
-  "  la a1, blm_k11_2_2\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp13\n" ++
-  "  la a1, blm_k11_2_1\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp14\n" ++
-  "  la a1, blm_k11_2_0\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_k11_3_15\n" ++
-  "  la a1, blm_m3\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp0\n" ++
-  "  la a1, blm_k11_3_14\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp1\n" ++
-  "  la a1, blm_k11_3_13\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp2\n" ++
-  "  la a1, blm_k11_3_12\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp3\n" ++
-  "  la a1, blm_k11_3_11\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp4\n" ++
-  "  la a1, blm_k11_3_10\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp5\n" ++
-  "  la a1, blm_k11_3_9\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp6\n" ++
-  "  la a1, blm_k11_3_8\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp7\n" ++
-  "  la a1, blm_k11_3_7\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp8\n" ++
-  "  la a1, blm_k11_3_6\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp9\n" ++
-  "  la a1, blm_k11_3_5\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp10\n" ++
-  "  la a1, blm_k11_3_4\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp11\n" ++
-  "  la a1, blm_k11_3_3\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp12\n" ++
-  "  la a1, blm_k11_3_2\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp13\n" ++
-  "  la a1, blm_k11_3_1\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_n\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zp14\n" ++
-  "  la a1, blm_k11_3_0\n" ++
-  "  la a2, blm_s1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_s1\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_add\n" ++
+  "  la a0, blm_y
+  la a1, blm_d
+  la a2, blm_y
+  jal ra, blsg2_fp_mul
+  la a0, blm_d
+  la a1, blm_zp0
+  li a2, 6
+  jal ra, blsf_copy_quads
+  la a0, blm_zp0
+  la a1, blm_d
+  la a2, blm_zp1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp1
+  la a1, blm_d
+  la a2, blm_zp2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp2
+  la a1, blm_d
+  la a2, blm_zp3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp3
+  la a1, blm_d
+  la a2, blm_zp4
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp4
+  la a1, blm_d
+  la a2, blm_zp5
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp5
+  la a1, blm_d
+  la a2, blm_zp6
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp6
+  la a1, blm_d
+  la a2, blm_zp7
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp7
+  la a1, blm_d
+  la a2, blm_zp8
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp8
+  la a1, blm_d
+  la a2, blm_zp9
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp9
+  la a1, blm_d
+  la a2, blm_zp10
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp10
+  la a1, blm_d
+  la a2, blm_zp11
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp11
+  la a1, blm_d
+  la a2, blm_zp12
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp12
+  la a1, blm_d
+  la a2, blm_zp13
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp13
+  la a1, blm_d
+  la a2, blm_zp14
+  jal ra, blsg2_fp_mul
+  la a0, blm_k11_0_11
+  la a1, blm_m0
+  li a2, 6
+  jal ra, blsf_copy_quads
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp0
+  la a1, blm_k11_0_10
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp1
+  la a1, blm_k11_0_9
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp2
+  la a1, blm_k11_0_8
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp3
+  la a1, blm_k11_0_7
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp4
+  la a1, blm_k11_0_6
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp5
+  la a1, blm_k11_0_5
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp6
+  la a1, blm_k11_0_4
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp7
+  la a1, blm_k11_0_3
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp8
+  la a1, blm_k11_0_2
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp9
+  la a1, blm_k11_0_1
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_m0
+  la a1, blm_n
+  la a2, blm_m0
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp10
+  la a1, blm_k11_0_0
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_s1
+  la a2, blm_m0
+  jal ra, blsg2_fp_add
+  la a0, blm_k11_1_10
+  la a1, blm_m1
+  li a2, 6
+  jal ra, blsf_copy_quads
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp0
+  la a1, blm_k11_1_9
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp1
+  la a1, blm_k11_1_8
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp2
+  la a1, blm_k11_1_7
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp3
+  la a1, blm_k11_1_6
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp4
+  la a1, blm_k11_1_5
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp5
+  la a1, blm_k11_1_4
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp6
+  la a1, blm_k11_1_3
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp7
+  la a1, blm_k11_1_2
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp8
+  la a1, blm_k11_1_1
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_m1
+  la a1, blm_n
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp9
+  la a1, blm_k11_1_0
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_s1
+  la a2, blm_m1
+  jal ra, blsg2_fp_add
+  la a0, blm_k11_2_15
+  la a1, blm_m2
+  li a2, 6
+  jal ra, blsf_copy_quads
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp0
+  la a1, blm_k11_2_14
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp1
+  la a1, blm_k11_2_13
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp2
+  la a1, blm_k11_2_12
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp3
+  la a1, blm_k11_2_11
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp4
+  la a1, blm_k11_2_10
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp5
+  la a1, blm_k11_2_9
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp6
+  la a1, blm_k11_2_8
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp7
+  la a1, blm_k11_2_7
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp8
+  la a1, blm_k11_2_6
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp9
+  la a1, blm_k11_2_5
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp10
+  la a1, blm_k11_2_4
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp11
+  la a1, blm_k11_2_3
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp12
+  la a1, blm_k11_2_2
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp13
+  la a1, blm_k11_2_1
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_m2
+  la a1, blm_n
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp14
+  la a1, blm_k11_2_0
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_s1
+  la a2, blm_m2
+  jal ra, blsg2_fp_add
+  la a0, blm_k11_3_15
+  la a1, blm_m3
+  li a2, 6
+  jal ra, blsf_copy_quads
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp0
+  la a1, blm_k11_3_14
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp1
+  la a1, blm_k11_3_13
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp2
+  la a1, blm_k11_3_12
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp3
+  la a1, blm_k11_3_11
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp4
+  la a1, blm_k11_3_10
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp5
+  la a1, blm_k11_3_9
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp6
+  la a1, blm_k11_3_8
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp7
+  la a1, blm_k11_3_7
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp8
+  la a1, blm_k11_3_6
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp9
+  la a1, blm_k11_3_5
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp10
+  la a1, blm_k11_3_4
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp11
+  la a1, blm_k11_3_3
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp12
+  la a1, blm_k11_3_2
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp13
+  la a1, blm_k11_3_1
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+  la a0, blm_m3
+  la a1, blm_n
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_zp14
+  la a1, blm_k11_3_0
+  la a2, blm_s1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_s1
+  la a2, blm_m3
+  jal ra, blsg2_fp_add
+" ++
   -- x-denominator poly is one order lower than x-numerator: m1 *= z
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_m1\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m2\n" ++
-  "  la a1, blm_y\n" ++
-  "  la a2, blm_m2\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m3\n" ++
-  "  la a1, blm_d\n" ++
-  "  la a2, blm_m3\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_m3\n" ++
-  "  la a2, blm_zg\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m0\n" ++
-  "  la a1, blm_m3\n" ++
-  "  la a2, blm_xg\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_m1\n" ++
-  "  la a1, blm_m2\n" ++
-  "  la a2, blm_yg\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_zg\n" ++
-  "  li a1, 48\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblm1_fin\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg_zero96\n" ++
-  "  j .Lblm1_ok\n" ++
+  "  la a0, blm_m1
+  la a1, blm_d
+  la a2, blm_m1
+  jal ra, blsg2_fp_mul
+  la a0, blm_m2
+  la a1, blm_y
+  la a2, blm_m2
+  jal ra, blsg2_fp_mul
+  la a0, blm_m3
+  la a1, blm_d
+  la a2, blm_m3
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_m3
+  la a2, blm_zg
+  jal ra, blsg2_fp_mul
+  la a0, blm_m0
+  la a1, blm_m3
+  la a2, blm_xg
+  jal ra, blsg2_fp_mul
+  la a0, blm_m1
+  la a1, blm_m2
+  la a2, blm_yg
+  jal ra, blsg2_fp_mul
+  la a0, blm_zg
+  li a1, 48
+  jal ra, blsg_is_zero_n
+  beqz a0, .Lblm1_fin
+  mv a0, s1
+  jal ra, blsg_zero96
+  j .Lblm1_ok
+" ++
   ".Lblm1_fin:\n" ++
-  "  la a0, blm_zg\n" ++
-  "  la a1, blm_zinv\n" ++
-  "  jal ra, blsg2_fp_inv\n" ++
-  "  la a0, blm_xg\n" ++
-  "  la a1, blm_zinv\n" ++
-  "  la a2, blm_xg\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_yg\n" ++
-  "  la a1, blm_zinv\n" ++
-  "  la a2, blm_yg\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blm_xg\n" ++
-  "  la a1, blm_aff\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  la a0, blm_yg\n" ++
-  "  la a1, blm_aff\n" ++
-  "  addi a1, a1, 48\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  la a0, blm_heff_g1_be\n" ++
-  "  li a1, 8\n" ++
-  "  la a2, blm_aff\n" ++
-  "  mv a3, s1\n" ++
-  "  jal ra, blsg_scalar_mul\n" ++
+  "  la a0, blm_zg
+  la a1, blm_zinv
+  jal ra, blsg2_fp_inv
+  la a0, blm_xg
+  la a1, blm_zinv
+  la a2, blm_xg
+  jal ra, blsg2_fp_mul
+  la a0, blm_yg
+  la a1, blm_zinv
+  la a2, blm_yg
+  jal ra, blsg2_fp_mul
+  la a0, blm_xg
+  la a1, blm_aff
+  jal ra, blsg_le_to_be
+  la a0, blm_yg
+  la a1, blm_aff
+  addi a1, a1, 48
+  jal ra, blsg_le_to_be
+  la a0, blm_heff_g1_be
+  li a1, 8
+  la a2, blm_aff
+  mv a3, s1
+  jal ra, blsg_scalar_mul
+" ++
   ".Lblm1_ok:\n" ++
   "  li a0, 0\n" ++
   "  j .Lblm1_ret\n" ++
