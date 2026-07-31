@@ -155,7 +155,7 @@ def eip7702AuthorityAsOfFunction : String :=
     This is the single execution-time traversal for EIP-7702 preparation:
     it charges the state-dependent costs, records the regular ACCOUNT_WRITE
     component, and writes accepted authorities to AccountState's pending
-    overlay in one pass.  The dispatcher invokes it after the state-gas
+    overlay plus the BAL effects at the same authorization point. The dispatcher invokes it after the state-gas
     reservoir exists and before prepare_dispatch consumes the staged charge.
     Bad individual authorizations are ignored, matching `validate_authorization`.
     Malformed outer RLP returns one so the caller fails closed. -/
@@ -255,12 +255,14 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
-  -- A one-transaction block has no later tx that can observe this overlay;
-  -- publishing its auth snapshot would nevertheless feed the block-level
-  -- non-storage comparator as an extra effect and regress the existing
-  -- single-tx surface.  Keep the execution-time AccountState write on the
-  -- MTx lane, where the next transaction reads the committed prior-tx state.
+  -- execution-specs `eoa_delegation.py:set_delegation` increments the authority
+  -- nonce here, before message execution.  Publish a nonce-only effect at this
+  -- point as well: its AccountWrite row receives the current transaction BAI,
+  -- rather than a post-runtime replay BAI.  The AccountState write above already
+  -- owns the execution-state mutation, so the companion producer must not append
+  -- it a second time.
   "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  "  la a0, b1an_authority; la a1, nse_zero_bal; la a2, nse_zero_bal; ld a3, 112(sp); addi a4, a3, 1; jal ra, record_nonstorage_effect_nonce_only_after_account_state; bnez a0, .L77prep_bad_record\n" ++
   -- The direct single-tx lane has no account-write builder pass.  MTx records
   -- the same accepted authorization into the transaction map, with a
   -- block-lifetime code slot: the map retains code pointers past tx-map clear,
