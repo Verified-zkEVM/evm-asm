@@ -1,6 +1,6 @@
 /-
 Placement guards for the CALL-family producer read emitted by
-`basicPrecompileCallTail`.
+`precompileMessageProcessorAsm`.
 
 Split out of `ChildFrameHandlerTails.lean` to stay under the 1500-line
 `Codegen/Programs` file-size cap (`scripts/check-file-size.sh`), which does not
@@ -24,7 +24,7 @@ namespace EvmAsm.Codegen
     precompile dispatch. -/
 
 private def guardedCallTail : String :=
-  basicPrecompileCallTail "call_target" 192 96 128 160 192 (some 64) "" false
+  precompileMessageProcessorAsm "call_target" 192 96 128 160 192 (some 64) "" false
 
 -- The tail must not emit the former pre-charge producer sequence.
 #guard

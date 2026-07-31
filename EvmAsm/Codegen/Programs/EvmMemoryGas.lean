@@ -524,7 +524,7 @@ def returnRevertMemoryGasAsm (tag : String) (sparseWindows : Bool := false) : St
     the parent's live memory (`call_frame_set_calldata`), so a beyond-dense
     args window has no materialized backing for the child's lifetime —
     conservative, and no known fixture needs it. The precompile dispatch
-    branch re-imposes the dense OUT bound (`basicPrecompileCallTail`), since
+    branch re-imposes the dense OUT bound (`precompileMessageProcessorAsm`), since
     precompile outputs are written raw to `x13 + outoff`. -/
 def callMemoryExpansionGasAsm
     (tag : String)
