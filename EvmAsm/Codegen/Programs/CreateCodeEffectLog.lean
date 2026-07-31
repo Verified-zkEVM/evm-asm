@@ -287,8 +287,8 @@ def accountStateCommitPendingFunction : String :=
     Adapt the existing non-storage producer ABI to a complete AccountState
     snapshot.  The raw producer remains the comparison trace; this helper is
     the execution-state mirror of the same transition.  It clones an existing
-    pending/durable snapshot when available, then overwrites only the balance
-    and nonce supplied by the producer.  Thus a balance mutation preserves the
+    pending/durable snapshot when available, then overwrites the balance and
+    merges the supplied nonce monotonically.  Thus a balance mutation preserves the
     code/existence fields written by CREATE, and vice versa.
 
     a0 = address, a1 = pre-balance (comparison-only), a2 = post-balance,
@@ -317,10 +317,12 @@ def accountStateRecordNonstorageFunction : String :=
   -- A later non-storage producer may change only balance (notably the
   -- sender-is-coinbase fee credit).  Preserve an already-authoritative nonce
   -- when that producer's nonce is unchanged, but seed the producer's nonce
-  -- when this is the first authoritative snapshot for the address.
+  -- when this is the first authoritative snapshot for the address.  Nonces
+  -- only advance during a transaction, so a later publisher carrying a stale
+  -- transition must not overwrite an already-recorded authorization increment.
   "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
-  "  sd s2, 64(t0)\n" ++
+  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_unchanged; sd s2, 64(t0)\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
   "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
