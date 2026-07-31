@@ -463,10 +463,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the child target's staged pre-state balance.  Record the shared
     -- move_ether pair after the child snapshot, so frame_return discards it
     -- with a reverting initcode.  Log scheduling remains below at this caller.
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, create_sender_be\n  la a1, create_address_be\n  la a2, create_value_be\n  ld a3, 584(x20)\n  la a4, message_value_transfer_sender_pre\n  la a5, nse_create_pre_bal\n" ++
-    "  jal ra, record_message_value_transfer\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- GH #10938: shared setup with the value-CALL descend site — one `move_ether` in the
+    -- spec, because `process_create_message` delegates to `process_message` (`:212`).
+    recordMessageValueTransferAsm "create_sender_be" "create_address_be" "create_value_be"
+      "ld a3, 584(x20)" "message_value_transfer_sender_pre" "nse_create_pre_bal" ++
     -- coc3g.6 CAUSE 3: EIP-7708 transfer log for the CREATE endowment value move. Spec
     -- interpreter.py:307-316 emits Transfer(caller, current_target, value) at EVERY message-call
     -- frame entry with should_transfer_value and value!=0 and caller!=current_target, AFTER the
