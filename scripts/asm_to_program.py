@@ -535,10 +535,24 @@ def emit_program_text(entry, asm):
 # --------------------------------------------------------------------------- #
 # assemble + compare .text                                                    #
 # --------------------------------------------------------------------------- #
-AS = shutil.which('riscv64-unknown-elf-as') or 'riscv64-unknown-elf-as'
-OBJCOPY = (shutil.which('riscv64-unknown-elf-objcopy') or
-           'riscv64-unknown-elf-objcopy')
-LD = shutil.which('riscv64-unknown-elf-ld') or 'riscv64-unknown-elf-ld'
+def _riscv_tool(env_var, tool):
+    """Resolve a RISC-V binutils tool across both triple spellings.
+
+    Same convention as `resolve_riscv_tool` in
+    `scripts/codegen-eest-stateless-check.sh` and the two-triple probes in
+    `check-region-map.sh` / `check-opcode-tables.sh`: CI installs
+    `binutils-riscv64-unknown-elf`, but Homebrew ships the identical GNU
+    binutils as `riscv64-elf-*`.  Without the fallback every byte-identity
+    check silently skips on macOS, which reads as "verified" when nothing ran.
+    """
+    return (os.environ.get(env_var) or
+            shutil.which(f'riscv64-unknown-elf-{tool}') or
+            shutil.which(f'riscv64-elf-{tool}') or
+            f'riscv64-unknown-elf-{tool}')
+
+AS = _riscv_tool('RISCV_AS', 'as')
+OBJCOPY = _riscv_tool('RISCV_OBJCOPY', 'objcopy')
+LD = _riscv_tool('RISCV_LD', 'ld')
 
 def _text_bytes(asm_text, d, tag='a'):
     """Assemble a snippet and return its raw `.text` (assemble-only; used for
@@ -578,7 +592,9 @@ def _linked_text_bytes(asm_text, d, tag, entry_addr, externals):
                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     return open(b,'rb').read()
 
-READELF = (shutil.which('riscv64-unknown-elf-readelf') or
+READELF = (os.environ.get('RISCV_READELF') or
+           shutil.which('riscv64-unknown-elf-readelf') or
+           shutil.which('riscv64-elf-readelf') or
            shutil.which('readelf') or 'readelf')
 def emitted_reloc_count(asm_text):
     """Assemble `asm_text` and count RISC-V PC-relative / call / jump
