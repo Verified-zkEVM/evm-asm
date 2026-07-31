@@ -69,11 +69,12 @@ private def blockVerdictMtxStageSenderUpfront : String :=
   "  li t1, 1; la t0, bv_pending_upfront_balance_flag; sd t1, 0(t0)\n" ++
   ".Lbv_mtx_su_done:\n"
 
-/-- Record the post-execution sender refund.  The preceding execution-start
-    record has already placed the gas-limit debit in AccountState; this second
-    record applies `create_ether(sender, gas_refund_amount)` from the actual
-    dispatch result.  The transaction map upsert deliberately collapses both
-    writes to the final per-transaction balance. -/
+/-- Apply the post-execution sender refund, then publish its resulting live
+    balance.  `fork.py:1169` calls `create_ether(sender, gas_refund_amount)`:
+    this is a one-sided AccountState credit, not a `move_ether` transfer.  The
+    upfront debit is already materialized before dispatch.  Preserve that
+    state transition first, then read its final post-balance for the BAL
+    producer rather than reconstructing a BAL value from refund arithmetic. -/
 private def blockVerdictMtxRecordSenderRefund : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t0, bv_mtx_ctx; ld a0, 40(t0); la t2, bv_mtx_gas_left; add t2, t2, t1; ld a1, 0(t2); la t2, bv_mtx_refund; add t2, t2, t1; ld a2, 0(t2); la t2, bv_mtx_calldata; add t2, t2, t1; ld a3, 0(t2); jal ra, tx_gas_result_increments\n" ++
@@ -82,12 +83,16 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  la a0, bv_fee_egp_scratch; la a2, bv_pending_upfront_sender_post; jal ra, u256_mul_u64_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
-  "  bnez a0, .Lbv_mtx_sr_have_pre\n" ++
-  "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  ".Lbv_mtx_sr_have_pre:\n" ++
+  "  beqz a0, .Lbv_mtx_bail  # no fallback: the staged upfront debit retained the sender entry\n" ++
   "  la a0, bv_pending_upfront_sender_pre; la a1, bv_pending_upfront_sender_post; la a2, bv_pending_upfront_sender_post; jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect\n" ++
+  -- Apply the execution-spec's `create_ether` transition before emitting the
+  -- BAL row.  The BAL producer below deliberately re-reads this final state.
+  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, account_state_record_nonstorage\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; jal ra, account_state_latest_balance\n" ++
+  "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
+  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect_after_account_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_sr_done:\n"
 
