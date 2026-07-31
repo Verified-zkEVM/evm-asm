@@ -875,6 +875,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   ".balign 32\n" ++
   "bv_tx_recipient_code_hash:\n  .zero 32\n" ++
   "bv_create_addr:\n  .zero 32\n" ++
+  -- GH #10944: the top-level CREATE endowment in canonical 32-byte BE, copied from the
+  -- context record so the shared `record_message_value_transfer` can take a pointer to it.
+  "bvcr_endow_val_be:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
   -- Output routing for the generalized top-level creation runner.  Mode 0 is
