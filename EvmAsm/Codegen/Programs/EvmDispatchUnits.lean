@@ -212,6 +212,9 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bv_tx_status_arr:\n  .zero 8192\n" ++
     "bv_tx_is_creation_arr:\n  .zero 8192\n" ++
     "bv_create_addr:\n  .zero 32\n" ++
+  -- GH #10944: the top-level CREATE endowment in canonical 32-byte BE, copied from the
+  -- context record so the shared `record_message_value_transfer` can take a pointer to it.
+  "bvcr_endow_val_be:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "bv_creation_ctx_ptr:\n  .zero 8\n" ++
     "bv_tx_log_window:\n  .zero 16\n" ++
