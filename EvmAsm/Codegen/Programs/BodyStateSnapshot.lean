@@ -39,8 +39,9 @@ def bodyStateCaptureCursorsAsm (sourceSetup sourceEnvReg destinationReg valueReg
     In offset order: `exec_nonstorage_effect_count`, `exec_nonstorage_effect_overflow`,
     `exec_code_effect_count`, `exec_code_effect_next`, `exec_code_effect_overflow`, the
     three `evm_env` cursors, `account_writes_undo_count`, `account_state_pending_count`,
-    `account_state_delete_count`, `account_state_overflow`, `create_nonce_undo_count`. -/
-def bodyStateSlabFields : Nat := 13
+    `account_state_delete_count`, `account_state_overflow`, `create_nonce_undo_count`,
+    `storage_writes_undo_count` (GH #10619, at offset 104). -/
+def bodyStateSlabFields : Nat := 14
 
 /-- Bytes per depth. -/
 def bodyStateSlabStride : Nat := bodyStateSlabFields * 8
@@ -52,14 +53,14 @@ def bodyStateSlabDepths : Nat := 1025
 /-- Total `.bss` allocation of the slab. -/
 def bodyStateSlabBytes : Nat := bodyStateSlabStride * bodyStateSlabDepths
 
-#guard bodyStateSlabStride = 104
-#guard bodyStateSlabBytes = 106600
+#guard bodyStateSlabStride = 112
+#guard bodyStateSlabBytes = 114800
 
 /-- Emit `acc := depth * bodyStateSlabStride` with shifts and adds only.
 
     `depth` is read repeatedly and never written; `acc` and `tmp` are clobbered, and `tmp`
     must differ from `depth`.  The decomposition walks the stride's set bits from high to
-    low, which is exactly what the eight hand-written copies did for 104 (`64 + 32 + 8`).
+    low, which is exactly what the eight hand-written copies did for 104 (`64 + 32 + 8`), and now renders 112 as `64 + 32 + 16`.
 
     Returned WITHOUT leading indentation or a trailing newline, so each call site can splice
     it into the single emitted line it already occupies.  That is not cosmetic: emitting it
@@ -83,8 +84,8 @@ def bodyStateSlabStrideAsm (depth acc tmp : String) : String :=
 /- Pin the rendering the eight call sites previously wrote by hand, so a stride change
    cannot silently alter the instruction sequence.  A `#guard` takes no docstring. -/
 #guard bodyStateSlabStrideOps "t1" "t2" "t3"
-  = "slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3; slli t3, t1, 3; add t2, t2, t3"
+  = "slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3; slli t3, t1, 4; add t2, t2, t3"
 #guard bodyStateSlabStrideOps "s8" "t2" "t3"
-  = "slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3"
+  = "slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 4; add t2, t2, t3"
 
 end EvmAsm.Codegen
