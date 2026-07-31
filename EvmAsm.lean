@@ -42,6 +42,7 @@ import EvmAsm.Progress.Obligations
 import EvmAsm.Tests.ArithDiffCheck
 import EvmAsm.Tests.Div128V5RandomCheck
 import EvmAsm.Tests.RlpDiffCheck
+import EvmAsm.Tests.Correspondence.Bal
 import EvmAsm.Tests.Correspondence.Harness
 import EvmAsm.Tests.Correspondence.Registry
 import EvmAsm.Tests.Correspondence.Rlp

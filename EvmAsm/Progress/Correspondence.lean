@@ -91,8 +91,25 @@ inductive Basis where
   | none
   deriving DecidableEq, BEq, Repr
 
-/-- One audited routine. -/
+/-- Which layer a row is about.
+
+    BAL forced this distinction. Its *model* is differential-backed while every
+    *guest* routine is unproven — a shape the schema could not express when every
+    row was assumed to be a guest routine with a theorem. Recording only the
+    guest rows would hide the result; recording the model row as if it were a
+    routine would misreport what is proven. -/
+inductive Layer where
+  /-- A guest RISC-V routine. Its evidence is a whole-routine spec. -/
+  | guest
+  /-- A pure Lean model function. Its evidence is the executable differential,
+      not a theorem. -/
+  | model
+  deriving DecidableEq, BEq, Repr
+
+/-- One audited routine or model function. -/
 structure Entry where
+  /-- Guest routine or model function? -/
+  kind : Layer := .guest
   /-- Family name; matches the `correspondence-check` subject and the doc page. -/
   family : String
   /-- Guest routine symbol as it appears in the linker facts. -/
@@ -199,7 +216,29 @@ the routine — `unproven`, not `domainRestricted`. Caught by verdict_requires_s
     note := "signing-hash truncation is guest-specific" },
   { family := "rlp", routine := "rlp_prefix_to_buffer",
     verdict := .noCounterpart, basis := .inspection,
-    note := "header emission; no standalone counterpart. Also has NO drift guard" }
+    note := "header emission; no standalone counterpart. Also has NO drift guard" },
+
+  -- BAL canonical ordering. The model is differential-backed; every guest
+  -- routine is unproven because BalCanonicalSort.lean defines only Strings —
+  -- no `Program`, so no triple is statable (issue #10817). That split IS the
+  -- finding: the ordering is right, and whether the asm implements it is open.
+  { family := "bal", kind := .model, routine := "_build_from_builder",
+    verdict := .agrees, basis := .diff,
+    reference := "block_access_lists.py _build_from_builder (vendored)",
+    note := "1149/1149 records agree via `lake exe correspondence-check bal`; \
+covers account order (byte-lexicographic), slot order (numeric, NOT \
+encoded-byte), per-index orders, and the read/write exclusion" },
+  { family := "bal", routine := "bal_canonical_sort",
+    verdict := .unproven, basis := .none,
+    reference := "the ordering _build_from_builder imposes",
+    note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
+cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
+  { family := "bal", routine := "bal_sort_storage_writes",
+    verdict := .unproven, basis := .none,
+    note := "DEAD CODE — nothing calls it; its #guards pin a path nothing runs" },
+  { family := "bal", routine := "bal_sort_account_writes",
+    verdict := .unproven, basis := .none,
+    note := "DEAD CODE — nothing calls it. Descriptor 0x9400 is big-endian" }
 ]
 
 /-! ## Counts -/
@@ -208,18 +247,21 @@ def countVerdict (v : Verdict) : Nat := (registry.filter (·.verdict == v)).leng
 def countBasis (b : Basis) : Nat := (registry.filter (·.basis == b)).length
 def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
-theorem registry_size : registry.length = 18 := by decide
+def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
+
+theorem registry_size : registry.length = 22 := by decide
 theorem rlp_rows : countFamily "rlp" = 18 := by decide
+theorem bal_rows : countFamily "bal" = 4 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 10 ∧ countVerdict .domainRestricted = 2 ∧
+    countVerdict .agrees = 11 ∧ countVerdict .domainRestricted = 2 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 4 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 7 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 0 ∧ countBasis .bridged = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 5 ∧
     countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
-    countBasis .none = 4 := by decide
+    countBasis .none = 7 := by decide
 
 /-! ## Invariants
 
@@ -231,17 +273,29 @@ theorem basis_counts :
     cannot land quietly — amending it must be deliberate and visible in review. -/
 theorem no_looser_verdicts : countVerdict .looser = 0 := by decide
 
-/-- A routine with no spec cannot carry a substantive verdict: without a spec
-    there is nothing to compare, so the only honest values are `unproven` and
-    `noCounterpart`. -/
+/-- A **guest routine** with no spec cannot carry a substantive verdict: without
+    a spec there is nothing to compare, so the only honest values are `unproven`
+    and `noCounterpart`. Model rows are exempt — their evidence is the
+    differential, not a theorem. -/
 theorem verdict_requires_spec :
     registry.all (fun e =>
-      e.spec.isSome || e.verdict == .unproven || e.verdict == .noCounterpart) := by
+      e.kind != .guest || e.spec.isSome
+        || e.verdict == .unproven || e.verdict == .noCounterpart) := by
   decide
 
-/-- A `diff`-graded verdict must name the spec it is grading. -/
+/-- A `diff`-graded **guest** row must name the spec it is grading; a guest
+    routine cannot inherit the differential without a theorem tying it to the
+    model. -/
 theorem basis_diff_requires_spec :
-    registry.all (fun e => e.basis != .diff || e.spec.isSome) := by decide
+    registry.all (fun e => e.kind != .guest || e.basis != .diff || e.spec.isSome) := by
+  decide
+
+/-- Only model rows may be `diff`-graded without a spec — stated so that adding
+    a spec-less `diff` guest row fails elaboration rather than quietly
+    overclaiming. -/
+theorem specless_diff_is_model_only :
+    registry.all (fun e => e.basis != .diff || e.spec.isSome || e.kind == .model) := by
+  decide
 
 /-- Every row names the family it belongs to. -/
 theorem families_nonempty : registry.all (fun e => e.family != "") := by decide
