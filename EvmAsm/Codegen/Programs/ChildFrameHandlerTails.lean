@@ -19,7 +19,17 @@ import EvmAsm.Codegen.Programs.ChildFrameHandlerTailHelpers
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
-def basicPrecompileCallTail
+/-- Process a CALL-family message whose `code_address` may select a precompile.
+
+    This is the shared message-processor portion of the four child CALL-family
+    handlers.  Its ABI is deliberately explicit: `x10` is the EVM dispatch PC,
+    `x12` is the operand-stack cursor, `x13` is the frame memory base, and
+    `x20` is the current EVM environment.  The offset parameters describe the
+    caller's stack layout; `netPopBytes` is the result-stack adjustment; and
+    `fallThroughAsm` resumes ordinary bytecode processing when `code_address`
+    is not a supported precompile.  Callers must materialise that ABI rather
+    than relying on a route-specific scratch convention. -/
+def precompileMessageProcessorAsm
       (tag : String) (netPopBytes inOffsetOff inSizeOff outOffsetOff outSizeOff : Nat)
       (valueOff? : Option Nat)
       (fallThroughAsm : String)
