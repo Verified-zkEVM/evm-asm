@@ -269,6 +269,11 @@ def dispatchHaltRet (kind : Nat) : String :=
     the halt flag is `0` (the overwhelmingly common case) this is a single
     load + `beqz` fall-through into `.dispatch_loop`. -/
 def emitDispatchResume : String :=
+  -- Child frames enter at the same resume sequence their former
+  -- `dispatchContinueRet` used.  It is deliberately below the root-only
+  -- setup: a descended frame already owns its registers, stack, memory, and
+  -- rollback snapshot.
+  ".runtime_tx_child_message_entry:\n" ++
   s!"{dispatchResumeLabel}:\n" ++
   s!"  la x5, {haltFlagLabel}\n" ++
   "  ld x6, 0(x5)\n" ++
@@ -2857,9 +2862,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  bnez x28, .runtime_tx_top_level_message_d0_done\n" ++
   emitTopLevelMessageD0Preparation ++
   ".runtime_tx_top_level_message_d0_done:\n" ++
-  -- Snapshot and pending-value staging are the shared post-preparation body:
-  -- every frame needs its rollback boundary and eligible value transfer.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
+  -- This is the last depth-zero-only operation before `process_message`:
+  -- process_transaction, not process_message, materializes the transaction's
+  -- up-front sender gas debit.  Keep it above the child entry so a future
+  -- child frame cannot charge the transaction's gas a second time.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
+  -- The root arm takes an explicit jump rather than falling through its own
+  -- body setup.  Child frames enter at `runtime_tx_child_message_entry`, below
+  -- this root-only capture/value seed and stack/memory bootstrap.
+  "  j .runtime_tx_shared_message_body\n" ++
+  ".runtime_tx_shared_message_body:\n" ++
+  -- Snapshot and pending-value staging remain the existing root path.  The
+  -- child uses its current frame-local setup until the later migration.
+  "  jal ra, dispatcher_capture_body_state; jal ra, dispatcher_seed_pending_value_transfer; ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
@@ -3389,24 +3404,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "cd_xfer_gas_precharged:\n  .zero 8\n" ++
   "cd_new_account_charged_current:\n  .zero 8\n" ++
   "cd_callee_alive_before_value:\n  .zero 8\n" ++
-  -- c83ty.2: per-CALL flag for the EIP-7708 Burn log paired with a value transfer into an
-  -- account already queued for same-tx EIP-6780 deletion. Emitted immediately after the
-  -- deferred Transfer log so receipt order is Transfer then Burn.
-  "cd_burn_log_pending:\n  .zero 8\n" ++
-  "cd_destroyed_empty_hits:\n  .zero 8\n" ++
-  -- coc3g.6.6: append-Burn flag for the same deferred hook. 0 = Transfer only,
-  -- 1 = Transfer(caller, callee, value) plus Burn(callee, value) for value sent to
-  -- an account created and deleted in this tx.
-  "cd_xfer_log_burn:\n  .zero 8\n" ++
-  -- drj99.1 (failed-inner rollback): pre-snapshot of exec_nonstorage_effect_count/overflow taken by
-  -- callDescendFallThrough BEFORE the value-CALL caller-debit/callee-credit records, consumed by
-  -- call_frame_descend so frame_return rolls those records back on a child OOG/REVERT. `armed` is a
-  -- one-shot flag: set on the value-CALL committing path, consumed by call_frame_descend, and
-  -- disarmed at every CALL/CREATE descent entry to clear a stale arm from a non-descending value-CALL.
-  ".balign 8\n" ++
-  "cd_nse_presnap_armed:\n  .zero 8\n" ++
-  "cd_nse_presnap_count:\n  .zero 8\n" ++
-  "cd_nse_presnap_overflow:\n  .zero 8\n"
+  "cd_destroyed_empty_hits:\n  .zero 8\n"
 
 /-- Runtime-bytecode `.data` section. Drops the `evm_code:` block
     (no baked bytecode); everything else matches the `.data`-baked

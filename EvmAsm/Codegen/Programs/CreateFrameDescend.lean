@@ -32,6 +32,7 @@
   returns; the caller then `j .dispatch_loop` to run the init code. Clobbers t0-t4, a0-a7.
 -/
 
+import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Layout
 import EvmAsm.Rv64.Program
 
@@ -47,11 +48,6 @@ def createFrameDescendFunction : String :=
   "create_frame_descend:\n" ++
   "  addi sp, sp, -16\n" ++
   "  sd ra, 0(sp)\n" ++
-  -- drj99.1 (failed-inner rollback): disarm the value-CALL non-storage pre-snapshot so this CREATE
-  -- descent uses the LIVE effect count for the child env snapshot (its endowment/creator effects are
-  -- recorded INSIDE the child at the RETURN deposit, after the snapshot). Clears a stale arm left by
-  -- a prior value-CALL that armed then routed to .Lcd_empty/.Lcd_fail without descending.
-  "  la t0, cd_nse_presnap_armed; sd x0, 0(t0)\n" ++
   -- NB: do NOT take the endowment ptr in a0 -- a0 == x10 (the dispatcher PC), and
   -- call_frame_descend below saves x10 as the parent return PC (#8608/#8629 lesson).
   -- The CREATE value operand is the stack top (x12+0), so read it from x12 directly.
@@ -136,7 +132,7 @@ def createFrameDescendFunction : String :=
   -- aliases include the live child PC/stack/memory registers x10/x12/x13;
   -- preserve all three across the created_accounts insert before dispatching
   -- the child's initcode.
-  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, 8192; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lcfd_account_created_ok:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
   -- The new account's nonce is 1 before its initcode runs. Register it now

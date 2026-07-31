@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -117,7 +118,8 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 def accountStateEntryBytes : Nat := 128
 def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
-def accountStateCreatedCapacity : Nat := 8192
+-- `accountStateCreatedCapacity` moved to `EvmAsm.Codegen.ArenaCapacities` (imported
+-- above) so the two sites that mark `created_accounts` can both name it; unchanged at 8192.
 
 /-! AccountState entry layout (all fields are fixed-width and 8-byte aligned):
 
@@ -246,7 +248,7 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_loop\n" ++
   ".Lascp_clear:\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateCreatedCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_delete_loop:\n" ++
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
   -- EIP-161 preserves an empty account whose final balance is nonzero.  The
@@ -778,14 +780,6 @@ def codeStateData : String :=
   "code_state_bal_bytes:\n  .zero 32\n" ++
   "code_state_bal_nonce:\n  .zero 32\n" ++
   "code_state_pre_acct:\n  .zero 48\n" ++
-  -- Frame-local high-water marks for the transaction overlay.  The execution
-  -- journal is nested: a reverted child must discard only changes made below
-  -- its own entry, never its parent's pending CREATE or SELFDESTRUCT work.
-  -- The depth is capped at 1024 by the EVM frame gate, hence 1025 slots
-  -- including depth zero.  These are counts, not input-sized allocations.
-  "account_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_created_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
@@ -841,14 +835,41 @@ def createRecordCodeEffectFunction : String :=
   "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
   ".Lcrce_account_state_ok:\n" ++
-  -- This successful deposit is also a transaction-local `created_accounts`
-  -- event for AccountState.  Empty deployed code still reaches this path.
-  "  mv a0, s0; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcrce_account_created_ok\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_account_created_ok:\n" ++
-  -- A successful later CREATE at the same address is the latest transaction
-  -- state and cancels an earlier same-transaction EIP-6780 delete request.
-  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
+  -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
+  -- pre-body position the spec uses (`vm/interpreter.py:208`, before `process_message`
+  -- at :212).  Both live callers now mark before the initcode runs — the nested route
+  -- in `create_frame_descend`, the top-level route in `BlockVerdictCreationStage` —
+  -- so an insert here was redundant on one path and too late on the other.  The
+  -- population is two: `jal ra, create_record_code_effect` occurs exactly twice in
+  -- `gen-out/regionmap/stateless_guest.s` (the self-test call sites at the bottom of
+  -- this file are not emitted).  A successful deposit is still an AccountState code
+  -- event, which is the `account_state_record_code` call above and is unchanged.
+  -- ⚠️ GH #10976: THIS CALL IS A NO-OP TODAY AND IS KEPT DELIBERATELY.  It runs on every
+  -- successful deposit and its miss return is ignored, so it will never show up as
+  -- unexecuted in a coverage or reachability analysis — only the precondition finds it.
+  --
+  -- Its stated purpose is that a successful later CREATE at the same address is the latest
+  -- transaction state and cancels an earlier same-transaction EIP-6780 delete request.
+  -- **That CREATE cannot succeed.**  `account_deployable` requires nonce 0 and empty code;
+  -- SELFDESTRUCT clears neither mid-transaction (the clearing is at `fork.py:1201`, after
+  -- execution); and the `modify_state` destroy-cascade that might otherwise have rescued it
+  -- needs nonce 0 too (`account_exists_and_is_empty`).  So there is never a delete row here
+  -- to cancel, and the flag-clear always misses.
+  --
+  -- WHY IT STAYS RATHER THAN BEING DELETED.  The delete set is an IN-PLACE editor whose
+  -- rollback is a HIGH-WATER MARK, which is the one cell of the append-versus-in-place ×
+  -- mark-versus-journal grid that is actually unsound (GH #10966).  This call is the only
+  -- barrier between a future reachability change and that combination: if anything ever makes
+  -- a same-transaction re-CREATE at a destroyed address succeed, the cancel must already be
+  -- here or a stale delete request survives into commit.  One instruction on the
+  -- successful-deposit path is a fair price for that, and unlike a dead SYMBOL a no-op CALL
+  -- does not pollute any allocation census.
+  --
+  -- WHAT WOULD MAKE IT LIVE: any change that lets `account_deployable` admit an address with a
+  -- pending same-transaction delete — e.g. clearing nonce/code at SELFDESTRUCT time rather than
+  -- at `fork.py:1201`, or a destroy-cascade that no longer requires nonce 0.  If you are
+  -- editing either, this line is load-bearing and its miss return should start being checked.
+  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
   -- Balance remains absent here: value flow owns its own nonstorage record.
   --

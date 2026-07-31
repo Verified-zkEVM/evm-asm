@@ -11,6 +11,60 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Stage the three `eip7708_append_transfer_log` operands from canonical big-endian
+    globals into a 128-byte stack frame, call the appender, and restore the live runtime
+    cursors.  GH #10938 cut 4.
+
+    ## Why this exists
+
+    execution-specs has **one** `emit_transfer_log` call, at `vm/interpreter.py:391-397`
+    inside `process_message`, shared by every message-call frame entry at every depth.
+    The guest had two byte-identical copies of the operand staging: the value-CALL frame
+    entry (`Programs.ChildFrameHandlers`, emitted eight times — two sites in each of four
+    closures) and the CREATE endowment (`Programs.ChildFrameCreateTail`, emitted twice for
+    the salt/no-salt forms).
+
+    **Measured, not assumed:** extracting the two blocks from
+    `gen-out/regionmap/stateless_guest.s` and renaming the three source globals makes them
+    diff to **one line** — a label the CALL side emits and the CREATE side does not, which
+    contributes zero bytes.  That is why this is an extraction and not a rewrite, and it is
+    the discriminator cut 1 lacked: there the two blocks' *control flow* differed (opposite
+    branch senses, two labels versus three), so no shared emitter could reproduce both.
+
+    ## What is deliberately NOT shared
+
+    Each caller keeps its own **guard**, because the guards are genuinely different
+    predicates over different state: the CALL side is a one-shot `cd_xfer_log_pending`
+    flag cleared before the emit, the CREATE side is an account-witness context gate plus
+    `value != 0`.  Folding those together would repeat cut 1's mistake in the other
+    direction — a shared capture must never imply a shared disposition.
+
+    Operands are 32-byte stack words, matching what the appender expects: an address in the
+    **low 20 bytes** (the synthetic-log materializer reverses the whole 32-byte slot back to
+    big-endian), and the value byte-reversed to little-endian.
+
+    `labFrom`/`labTo`/`labVal` are complete label names including the leading `.L`;
+    `restoreLabel`, when non-empty, emits a branch target immediately after the call for a
+    caller that needs to jump straight to the register restore. -/
+def eip7708TransferLogStageAsm (fromSym toSym valSym labFrom labTo labVal : String)
+    (restoreLabel : String := "") : String :=
+  "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
+  "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
+  "  la t0, " ++ fromSym ++ "; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
+  labFrom ++ ":\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, " ++ labFrom ++ "\n" ++
+  "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
+  "  la t0, " ++ toSym ++ "; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
+  labTo ++ ":\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, " ++ labTo ++ "\n" ++
+  "  la t0, " ++ valSym ++ "; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
+  labVal ++ ":\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, " ++ labVal ++ "\n" ++
+  "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++
+  "  jal ra, eip7708_append_transfer_log\n" ++
+  (if restoreLabel.isEmpty then "" else restoreLabel ++ ":\n") ++
+  "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n"
+
 private def copyWordAsm (src : String) (dstOff : Nat) : String :=
   "  ld t3, 0(" ++ src ++ ")\n" ++
   "  sd t3, " ++ toString dstOff ++ "(t2)\n" ++
@@ -285,6 +339,43 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
   "  ret\n"
+
+/-- Emit the `record_message_value_transfer` call: save the live runtime cursors, load the
+    six operands, call the producer, restore.  GH #10938.
+
+    ## Why this is shared
+
+    execution-specs has **one** `move_ether` (`vm/interpreter.py:385-390`) serving calls and
+    creations alike, because `process_create_message` **delegates** to `process_message`
+    (`:212`) rather than transferring value itself.  The guest had the same twelve-instruction
+    setup written out at the value-CALL descend site and again at the CREATE-endowment site.
+
+    **Measured, not assumed:** extracting both from `gen-out/regionmap/stateless_guest.s` and
+    renaming the five operand globals leaves **two** differences — `li a3, 1` versus
+    `ld a3, 584(x20)`, and one `addi a5, a5, 8`.  Both are **operand locations**, which
+    parameterise; the **control shape is identical** (same save set, same six operands, same
+    `jal`, same restore).  That is the check GH #10938's cut 1 failed, where the two candidate
+    bodies had opposite branch senses.
+
+    `a3Setup` is the caller's full instruction for `a3` — the value-CALL site passes a constant
+    `should_transfer_value`, the CREATE site passes the account-witness context word.
+    `recipientPreAdjust`, when non-empty, is appended after the `a5` load for a site whose
+    recipient-pre pointer needs an offset.
+
+    ⚠️ **Deliberately does NOT serve the value-bearing precompile tail**
+    (`Programs.ChildFrameHandlerTailHelpers`).  That site emits the identical instructions but
+    as a **single `;`-separated line**, so routing it through this emitter would change the `.s`
+    line structure.  That is not cosmetic: line structure has already been shown to change
+    instruction ORDER when the original line begins with an instruction the block must follow
+    (GH #10619's prerequisite). It stays out until it can be moved without disturbing text. -/
+def recordMessageValueTransferAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
+    (recipientPreAdjust : String := "") : String :=
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, " ++ fromSym ++ "\n  la a1, " ++ toSym ++ "\n  la a2, " ++ valSym ++ "\n  " ++
+    a3Setup ++ "\n  la a4, " ++ senderPre ++ "\n  la a5, " ++ recipientPre ++ "\n" ++
+    (if recipientPreAdjust.isEmpty then "" else "  " ++ recipientPreAdjust ++ "\n") ++
+  "  jal ra, record_message_value_transfer\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n"
 
 /-- Frame-generic `move_ether` recorder.
 

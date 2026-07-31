@@ -83,6 +83,10 @@ def basicPrecompileCallTail
     "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L" ++ tag ++ "_eip4788_fallthrough\n" ++
     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L" ++ tag ++ "_eip4788_addr_cmp\n" ++
     ".L" ++ tag ++ "_eip4788_addr_match:\n" ++
+    -- This specialized EIP-4788 region returns without descending on both its
+    -- current-success and same-slot-stale arms.  Gate before either arm can
+    -- take its special child-allotment charge.
+    precompileDepthGateAsm (tag ++ "_eip4788_depth") netPopBytes ++
     (match valueOff? with
     | none => ""
     | some valueOff =>
@@ -215,6 +219,7 @@ def basicPrecompileCallTail
     "  beq x14, x15, .L" ++ tag ++ "_supported_precompile\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     ".L" ++ tag ++ "_supported_precompile:\n" ++
+    precompileDepthGateAsm (tag ++ "_precompile_depth") netPopBytes ++
     (if sparseWindows then
       -- 0w05f.13 surface 3: with the depth-1+ OUT-window arena bail relaxed
       -- in callMemoryExpansionGasAsm above, re-impose the dense bound for

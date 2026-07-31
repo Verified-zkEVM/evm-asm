@@ -8,17 +8,23 @@
   16 storage-set writes.  The concrete system-contract children (EIP-4788,
   EIP-2935, EIP-7002, EIP-7251) should import this module instead of
   open-coding these numbers.
+
+  `COST_PER_STATE_BYTE` itself moved **down** to the import-free
+  `EvmAsm.Codegen.GasConstants` (GH #10980) so the two code-deposit sites, which need
+  the multiplier as a runtime operand rather than a folded product, can name it without
+  importing this module.  Every user of `amsterdamCostPerStateByte` still resolves it
+  through the import below.
 -/
+
+import EvmAsm.Codegen.GasConstants
 
 namespace EvmAsm.Codegen
 
 /-- execution-specs Amsterdam `SYSTEM_TRANSACTION_GAS`. -/
 def amsterdamSystemTransactionGas : Nat := 30000000
 
-/-- execution-specs Amsterdam `COST_PER_STATE_BYTE` — the v0.4.0 conformance target uses a CONSTANT 1530
-    (vm/gas.py:29). (A later eip-8037 draft scales it with the block gas limit; the v0.4.0 fixtures do NOT —
-    header.gas_used is independent of gas_limit. See memory project_v04_state_gas_constant_not_scaling.) -/
-def amsterdamCostPerStateByte : Nat := 1530
+/- `amsterdamCostPerStateByte` now lives in `EvmAsm.Codegen.GasConstants` (imported above);
+   it is unchanged at 1530 and is still referenced by name throughout this module. -/
 
 /-- `STATE_BYTES_PER_NEW_ACCOUNT` for the v0.4.0 conformance target = 120 (vm/gas.py:31). -/
 def amsterdamStateBytesPerNewAccountV2 : Nat := 120
@@ -72,9 +78,18 @@ def liStateGasRuntime (reg : String) (bytes : Nat) : String :=
 def liAmsterdamStorageSetStateGas (reg : String) : String :=
   liStateGasRuntime reg amsterdamStateBytesPerStorageSet               -- 64 * cost
 
-/-- Assembly helper for the new-account state gas (112 bytes * runtime cost, EIP-8037). -/
+/-- Assembly helper for the new-account state gas: `amsterdamStateBytesPerNewAccountV2` (**120**) bytes times
+    `amsterdamCostPerStateByte` (1530) = **183600**, pinned by the `#guard` above.
+
+    ⚠️ GH #10980: this docstring previously read *"112 bytes \* runtime cost"* with a trailing
+    *"(was 120\*1530)"*, i.e. it named the WRONG count **and** presented the correct one as superseded. That is
+    worse than a bare wrong number, because it pre-answers the question a reader would otherwise ask: taking it at
+    face value gives `112 * 1530 = 171360`, which against the bare `183600` literals still emitted on the refund
+    paths (`Dispatch.lean`, `ChildFrameCreateTail.lean`, `ChildFrameHandlers.lean`, `NoopHalt.lean`) assembles
+    into a plausible "every charge-then-refund cycle leaks 12240 gas" — a gas defect that does not exist. Do not
+    reintroduce a byte count here; cite the constant. -/
 def liAmsterdamNewAccountStateGas (reg : String) : String :=
-  liStateGasRuntime reg amsterdamStateBytesPerNewAccountV2             -- 112 * cost (was 120*1530)
+  liStateGasRuntime reg amsterdamStateBytesPerNewAccountV2             -- 120 * 1530 = 183600
 
 /-- Assembly helper for the per-authorization state gas ((112+23) bytes * runtime cost). -/
 def liAmsterdamAuthStateGas (reg : String) : String :=

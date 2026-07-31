@@ -12,6 +12,8 @@ import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Codegen.ArenaCapacities
+import EvmAsm.Codegen.GasConstants
 
 namespace EvmAsm.Codegen
 
@@ -130,7 +132,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- (no reservoir/spill): drain the child frame gas_left (568(x20)); OOG-fail the CREATE
       -- (-> .Lrr_crinv) if short. A valid block never OOGs at deposit -> no false-reject. x15 preserved.
       "  addi t0, x15, 31\n  srli t0, t0, 5\n" ++                  -- words = ceil32(len)/32
-      "  li t1, 6\n  mul t0, t0, t1\n" ++                          -- code_hash_gas = 6 * words
+      "  li t1, " ++ toString amsterdamKeccak256PerWord ++ "\n  mul t0, t0, t1\n" ++   -- code_hash_gas = 6 * words
       "  ld t1, 568(x20)\n  bltu t1, t0, .Lrr_crinv_" ++ toString kind ++ "\n" ++   -- gas_left < code_hash_gas -> OOG, CREATE fails
       "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++                   -- gas_left -= code_hash_gas
       -- nxio8.6: charge code-deposit STATE gas = deployed_code_len(x15) * COST_PER_STATE_BYTE(1530)
@@ -145,7 +147,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- creation blocks); this makes the exec state gas (bvgr_tx_exec_state_gas) spec-accurate.
       -- x13/x14/x15 preserved by create_deployed_code_valid (#8629) and untouched here (only t0-t3 +
       -- the child gas_left). x15 <= MAX_CODE_SIZE (0x10000) so x15*1530 cannot overflow u64.
-      "  li t0, 1530\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE (v0.4.0 constant 1530)
+      "  li t0, " ++ toString amsterdamCostPerStateByte ++ "\n  mul t0, x15, t0\n" ++  -- code-deposit state gas = code_len * COST_PER_STATE_BYTE
       "  la t1, evm_state_gas_left\n  ld t2, 0(t1)\n" ++
       "  bgeu t2, t0, .Lrr_csg_res_" ++ toString kind ++ "\n" ++
       "  sub t3, t0, t2\n" ++                                             -- reservoir short: spill = charge - reservoir
@@ -572,8 +574,8 @@ private def selfdestructTailAsm : String :=
   -- in AccountState; the current entry stays executable for later same-tx
   -- CALLs.  Keep the live runtime cursors intact across the set helpers.
   "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
-  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, 8192; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; jal ra, code_state_address_set_insert; bnez a0, .L_selfdestruct_created_delete_restore_overflow\n" ++
+  "  la a0, sdai_origin_address; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 1; jal ra, code_state_address_set_flag; mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24; beqz t3, .L_selfdestruct_created_legacy_clear\n" ++
   ".L_selfdestruct_created_delete_restore_overflow:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++

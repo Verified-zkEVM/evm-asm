@@ -4700,6 +4700,191 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     also un-rotted — stale link stubs/expectations predating this change). EEST `stReturnDataTest`
     271/271 full, `random_statetest` window A/B identical vs main. Unblocks PR #10053.
 
+- ✅ **Codegen structural measurements (2026-07-30)**:
+  - **#10963** merged at `ae998d91d` (2026-07-30): canonical body-state
+    snapshots are a 1025×13 `.bss` slab with the root at index zero, retiring
+    the legacy `bv_tx_effect_snap` globals. Measured layout delta:
+    `106600 - 104 = 0x1a000`, exactly the slab minus the retired record.
+  - **#10967** merged at `b9b68757b` (2026-07-30): the depth-1024 gate is
+    present on all six no-descent paths, including the EIP-4788 address-match
+    arm. Three tail-ABI probes agreed on `(1024, 0, 192, 0x501)`, establishing
+    a callee-kind-independent failure ABI; emitted-order traces put each gate
+    after charges the spec keeps and before the returned allotment.
+  - **#10969** merged at `1d78ef6c3` (2026-07-30): child-entry routing seam
+    plus source-level body-state snapshot-emitter factoring. Its measurement
+    was `+4` bytes and one source hunk, independently base-invariant across
+    three bases; the extraction touched no generated file.
+  - **#10972** is labelled `merge!` (measured 2026-07-30, head
+    `6470c3799`): names the delete-arena capacity at all six bounds while
+    retaining its one legitimate created-arena *layout* use. It is
+    byte-identical by measured assembler and ELF SHA-256 against clean
+    `0320615e2`, so it deliberately regenerates no layout artifact.
+  - **#10974** is labelled `merge!` (measured 2026-07-30, head
+    `b4879ad2b`): moves value-CALL BAL records after the child snapshot and
+    retires the presnapshot protocol. `.text` decreased `0x66d28 → 0x66c34`
+    (244 bytes), and the three retired cells `beabf798`, `beabf7a0`, and
+    `beabf7a8` had zero writes in the 00212 commit log. The record's static
+    descriptors are valid only in the post-descend, pre-child-dispatch window:
+    nested calls reuse that scratch.
+  - **#10938 depth-parity gate** completed 23/23 entries (2026-07-30), each
+    with either a cited consumer or a written reachability argument. This does
+    **not** mean the audit found nothing: four candidate defects were raised
+    and refuted, while the gate's own frame-obligation question found the real
+    defect #10965, now fixed. Item 4's behavioural correspondence also does
+    **not** make #10957's snapshot unification unnecessary; the gate measures
+    behaviour, whereas #10957 was structural convergence.
+
+  **Open acceptance work, measured 2026-07-30:** #10966 needs the two-axis
+  append-versus-in-place / restore-versus-undo grid retained, with
+  `accounts_to_delete` in the unsound cell; #10973 needs the one remaining
+  reachability read for an existing delete row cleared then re-flagged by a
+  reverted child; #10968 needs a placement-faithful depth-1024 production
+  precompile probe (EIP-4788 plus ordinary precompile); #10971 is being
+  landed as #10972's named-capacity replacement; and #10619 remains the
+  deferred sibling in #10973's same in-place/high-water-mark cell, requiring
+  separate read/write lifetimes rather than a truncation patch.
+
+  **Creation-route unification, measured 2026-07-31.** #10938 cut 2 (PR #10985)
+  moves `mark_account_created` for the **top-level** creation route to the
+  spec's pre-body position (`vm/interpreter.py:208`, before `process_message`
+  at `:212`), matching what `create_frame_descend` already did for nested
+  CREATE, and removes the post-deposit insert from
+  `create_record_code_effect`. It is a **unification, not a fix**: the
+  emitted stream has exactly two readers of `account_state_created`, both
+  `account_state_created_contains`, and neither can observe the top-level
+  address being marked earlier. In particular
+  `BlockVerdictCreationStage.lean:382` sets `create_frame_flag[0] = 1` for the
+  top-level route even though it never descends, so a top-level constructor
+  SELFDESTRUCT takes the flag branch (`NoopHalt.lean:555-558`) and never
+  consults the created set — the tempting "no descent, therefore no flag"
+  divergence does not exist. The change is monotone (marked earlier, never
+  later), so membership over time is a superset.
+  - `.text` changed shape but not size (`0x066be8` both sides), so `RegionMap`
+    needed no edit; the TSV (289 rows) and `GuestAddrs` (114 symbols) were
+    regenerated to a fixed point and `GuestImageEntries` came out unchanged.
+  - #10980's substantive item landed as PR #10984, byte-identity measured: the
+    two code-deposit sites cannot use `liStateGasRuntime` (their byte count is
+    runtime-only), so they emitted the multipliers `1530` and `6` as bare
+    literals with no `#guard`. Both now come from the import-free
+    `Codegen/GasConstants.lean`, and `accountStateCreatedCapacity` moved into
+    `Codegen/ArenaCapacities.lean` for the same reason — neither marking site
+    imports `CreateCodeEffectLog`, which is why the descent site carried a
+    bare `8192`.
+
+  **Computation-level deduplication is essentially DONE; the residue is caller
+  adapters (measured 2026-07-31).** A sweep of the emitted stream for computations
+  duplicated across both depths found almost none left — most are already behind a
+  `jal`, shared at seven, four and four call sites, plus the MPT builder, frame
+  descend, `tx_gas_settle` and the capture/restore pair. *(Those call-site counts come
+  from that sweep and are recorded as relayed; the two-remaining-computations claim
+  below is the part independently corroborated — cut 1 was withdrawn on exactly the
+  deploy-charge branch-shape finding.)* **Exactly two single
+  computations remain inline at both depths, and neither is unifiable:**
+  - the **deploy-charge arithmetic** — same constants and same spec ordering
+    (`vm/interpreter.py:222-231`), but incompatible branch shapes: the top level
+    bails conservatively to `.Lbvcr_ret` while the nested site OOG-fails the CREATE
+    via `.Lrr_crinv_<kind>`, with opposite branch senses and a different number of
+    labels. This is what made #10938 cut 1 unviable and it is a mechanical
+    consequence of the addressing model, not a divergence.
+  - the **CREATE collision consequence**, which **the spec itself requires to
+    differ**: terminal at `vm/interpreter.py:126` versus recoverable at
+    `vm/system.py:117-123`. The *predicate* is already shared; only the consequence
+    diverges, so unifying it would be wrong.
+
+  ⭐ **Two independent lines of work converged on the same conclusion from opposite
+  directions, neither aware of the other.** The boundary analysis traced the creation
+  boundary and concluded there is **no safe physical seam**, because the divergence
+  lives in the payload and frame adapters rather than in the computations; the
+  emitted-stream sweep looked for duplicated computations and found the residue is
+  **caller-side machinery**. Same answer, opposite starting points. That convergence
+  is the reason to believe it, and it is why the remaining #10938 cuts are scoped as
+  per-field moves and shared-emitter extractions rather than as a single unification
+  of the two creation processors.
+
+  - **#10938 cut 4 landed as PR #10990**, byte-identity measured on the `.s` **and**
+    the `.elf`. It is a **deduplication, not a placement move**: the nested transfer
+    record and log already sat after `create_frame_descend` and before the initcode,
+    and `record_message_value_transfer` was already the shared producer — what was
+    duplicated was the EIP-7708 **log operand staging**, present as one already-shared
+    emitter on the value-CALL side (8 emissions) and a second copy on the CREATE side
+    (2 emissions). Cut 1's lesson was applied as a gate first: normalising labels and
+    renaming the three source globals in `stateless_guest.s` made the two bodies differ
+    by **one zero-byte label line**, which is exactly the check the deploy charges fail.
+    `ChildFrameHandlerTailHelpers.lean:165-182` is deliberately excluded — it passes raw
+    stack-word pointers and does no staging, so it is not a copy but the site that does
+    not need the helper. Each caller keeps its own guard.
+
+  **CALL-route convergence status, all figures measured at base `7d21882a9` unless
+  marked otherwise.** ⚠️ Every number here is a measurement with a base commit; a figure
+  without its commit has misled readers of this file before.
+
+  - **Executor tail unification is 4-of-4, complete at this base.** PR #10992 routed
+    ordinary CALL (mode 0) through the shared child entry, PR #10997 added DELEGATECALL
+    (mode 3) and STATICCALL (mode 1), and **PR #10999 landed CALLCODE (mode 2)** — the
+    four child-entry jumps now sit at `.s:61103 / 64150 / 66995 / 70692`, exactly one per
+    mode. All four modes already shared
+    `jal call_frame_descend` before any of these cuts — **what the cuts unified is the
+    POST-DESCENT TAIL**, not the descent. The ingress census bounded this at exactly four
+    routes, so this **closes** rather than merely advances.
+  - **The CALL-route caller adapters are classified on #10938** with the same three-way
+    scheme used for the creation route: **18 items — 8 spec-caller-side (staying), 4
+    spec-processor-side (all four movable), 3 guest-only-necessary, 3
+    needs-justification.** The four movable items are the caller-side value debit, the
+    callee pre-balance staging, `record_message_value_transfer` and the EIP-7708 transfer
+    log — i.e. half of `move_ether`, its other operand, its BAL record, and
+    `emit_transfer_log`, all inside `process_message` in the spec
+    (`interpreter.py:384-397`).
+  - ⭐ **The number that scopes the next phase: `.Lcd_*` label counts per mode are CALL
+    67, CALLCODE 29, DELEGATECALL 19, STATICCALL 19.** The residual duplication is **not**
+    four copies of one thing — it is one big adapter and three small ones, and the entire
+    delta is the **value machinery** (CALLCODE sits between because it gates on value
+    without transferring). That reframes the remaining work from *unify four things* to
+    **move the value payload inward**.
+  - ⛔ **So the routing cut is NOT near the end of the alignment work.** That answers the
+    planning question in the negative, which is more useful than a yes: there is a
+    coherent bounded next step rather than a finished phase.
+  - **`.Lcd_empty` (the empty-target short-circuit) is equivalent on two tested axes and
+    remains classified needs-justification, not necessary.** The depth gate dominates it
+    on all four modes (gate `.s:60359` before the earliest edge `.s:60711` for CALL, and
+    likewise `63817/63905`, `66784/66802`, `70481/70499`), and the target's access record
+    — `account_read_record` on `evm_access_seed_addr`, straight-line immediately after
+    `.Lcallmem_precompile_<mode>_target_done` — also dominates it. Both were established
+    by enumerating **every** edge plus a bypass test, not by source order. Two cleared
+    axes are **not** a general equivalence claim: the short-circuit still skips whatever
+    else `process_message` does for an empty-code target, and that is unenumerated.
+    *(Both dominance results were re-derived at this base rather than carried: the four
+    `.s` pointers past `h_CALLCODE` each shifted by −1 when #10999 landed, while the
+    instructions they name are unchanged and each still has a unique match. The bypass
+    tests were re-run — band labels 57/15/7/7 with zero references from above the gate, and
+    zero numeric labels, indirect jumps or foreign globals; access record at +3 from
+    `.Lcallmem_precompile_<mode>_done` with no intervening branch and zero references from
+    before it.)*
+  - **Computation-level dedup was already essentially done**; the caller-adapter
+    classification above is the refinement of that earlier finding, and both converge with
+    the boundary analysis from the opposite direction — payload and frame adapters there,
+    the **value** payload here.
+
+  **#10698 is diagnosed three layers deep, and the repair order is forced.** The BAL
+  sender row's value-correctness depends on: (1) `dispatcher_seed_pending_value_transfer`,
+  the only top-level `move_ether` recorder, having **one** call site (`.s:36120`) against
+  the upfront publisher's **two** (`.s:22353`, `.s:36117`); (2) that one site being doubly
+  gated, with the `account_state_latest_balance` miss traced as the live bail; and (3)
+  `blockVerdictMtxRecordSenderRefund` reconstructing the row as `pre + refund` with **no
+  value operand**, as the **later** writer, while `balance_changes` is last-write per
+  address and BAI.
+  - ⛔ **Layer 3 masks layers 1 and 2**, so making the reconstruction value-aware or
+    fail-closed must come **first**; only then do the bailing guard (#10698) and the
+    structurally absent call site (#10944) become verifiable. **Anyone who fixes the guard,
+    measures no change, and concludes the guard was innocent will be wrong.**
+  - ⚠️ **1 wei does not discriminate value-blind from off-by-one.** A `+1` patch would pass
+    the witnessing fixture and be wrong; the structural argument (no value operand in the
+    producer) is the evidence, and it does not depend on the magnitude.
+  - **#10996** records a three-route `-3` BAL shortfall, evidence-only at this base.
+  - **#10998** files `cd_xfer_log_pending` as a deferred one-shot flag with **eight**
+    consumer sites across the four modes against **one** `emit_transfer_log` in the spec,
+    where the one-shot discipline rests on a *stated* per-CALL reset rather than a
+    fail-closed mechanism — the #10925 single-buffer shape. Not a demonstrated defect.
+
 - 🔶 **Contract-recipient gas-measurement accuracy (beads `nxio8`, `tpdo1`; 2026-06)**: the runtime
   dispatcher meters CONTRACT execution with STATIC base opcode gas only (`Dispatch.lean:338-345`),
   dropping the dynamic components — so a contract recipient measured by `dispatch_tx_runtime_code`

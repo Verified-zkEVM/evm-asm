@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 
@@ -504,56 +505,37 @@ def callFrameDescendFunction : String :=
   -- exactly like storage/log cursors above; otherwise the block-verdict reverse
   -- BAL covers checks see stale created-account effects and false-reject valid
   -- reverted-create blocks.
-  -- drj99.1 (failed-inner rollback): the CALL value-transfer non-storage effects (caller-debit +
-  -- callee-credit) are appended by callDescendFallThrough BEFORE this descent, so the LIVE count
-  -- here is already PAST them. On a child OOG/REVERT the spec discards the value transfer, so those
-  -- records must be rolled back too -- snapshot the PRE-recording count (cd_nse_presnap_*) the CALL
-  -- path armed, not the live count. CREATE / other descenders leave cd_nse_presnap_armed=0 and use
-  -- the live count (their effects are recorded inside the child, after this snapshot). Consume the
-  -- one-shot flag so a later non-arming descent does not reuse a stale pre-snap.
   -- Canonical body snapshot for this child at record `evm_call_depth`.
   -- Record width is 13 * 8 = 104 bytes: d*104 = d*64 + d*32 + d*8.
   -- Slot +88 (`account_state_overflow`) is root-only: no child restore existed
   -- before this representation migration, so retaining that child behavior is
   -- deliberate rather than an omitted shared restore.
-  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
-  "  ld t0, 448(s3); sd t0, 40(t1); ld t0, 464(s3); sd t0, 48(t1); ld t0, 472(s3); sd t0, 56(t1)\n" ++
-  "  la t4, cd_nse_presnap_armed; ld t2, 0(t4)\n" ++
-  "  beqz t2, .Lcfd_nse_live\n" ++
-  "  sd x0, 0(t4)                              # consume the one-shot armed flag\n" ++
-  "  la t4, cd_nse_presnap_count; ld t0, 0(t4); sd t0, 0(t1)\n" ++
-  "  la t4, cd_nse_presnap_overflow; ld t0, 0(t4); sd t0, 8(t1)\n" ++
-  "  j .Lcfd_nse_snap_done\n" ++
-  ".Lcfd_nse_live:\n" ++
+  "  la t1, body_state_snapshot_by_depth; " ++ bodyStateSlabStrideOps "s8" "t2" "t3" ++ "; add t1, t1, t2\n" ++
+  bodyStateCaptureCursorsAsm "  " "s3" "t1" "t0" ++
   "  la t4, exec_nonstorage_effect_count; ld t0, 0(t4); sd t0, 0(t1)  # nonstorage effect count snapshot\n" ++
   "  la t4, exec_nonstorage_effect_overflow; ld t0, 0(t4); sd t0, 8(t1)  # nonstorage overflow snapshot\n" ++
-  ".Lcfd_nse_snap_done:\n" ++
   -- Every child frame owns a journal high-water mark captured at ITS entry.
   -- In particular, a CREATE's creator-nonce advance is already committed before
   -- its child descends, so a child REVERT must retain that parent mutation and
   -- roll back only mutations made inside the child (its seed/nested CREATEs).
-  "  la t4, create_nonce_undo_count; ld t0, 0(t4); sd t0, 96(t1)\n" ++
+  bodyStateCaptureScalarAsm "create_nonce_undo_count" "t1" 96 "t4" "t0" ++
   -- r59nm S5a: the storage write-map undo journal takes its mark the same way
   -- and for the same reason -- a child REVERT must roll back only the writes
   -- made inside the child, leaving the parent's earlier writes standing.
   "  la t1, storage_writes_undo_count; ld t0, 0(t1)\n" ++
   "  la t1, storage_writes_undo_checkpoint; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)\n" ++
-  "  la t1, body_state_snapshot_by_depth; slli t2, s8, 6; slli t3, s8, 5; add t2, t2, t3; slli t3, s8, 3; add t2, t2, t3; add t1, t1, t2\n" ++
+  "  la t1, body_state_snapshot_by_depth; " ++ bodyStateSlabStrideOps "s8" "t2" "t3" ++ "; add t1, t1, t2\n" ++
   -- Account writes have the same transaction-state rollback rule as storage
   -- writes (but unlike storage reads, which remain evidence of an access).
-  "  la t4, account_writes_undo_count; ld t0, 0(t4); sd t0, 64(t1)\n" ++
-  "  la t4, exec_code_effect_count; ld t0, 0(t4); sd t0, 16(t1)  # code effect count snapshot\n" ++
-  "  la t4, exec_code_effect_next; ld t0, 0(t4); sd t0, 24(t1)  # code effect heap cursor snapshot\n" ++
-  "  la t4, exec_code_effect_overflow; ld t0, 0(t4); sd t0, 32(t1)  # code effect overflow snapshot\n" ++
+  bodyStateCaptureScalarAsm "account_writes_undo_count" "t1" 64 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_count" "t1" 16 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_next" "t1" 24 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t1" 32 "t4" "t0" ++
   -- The mutable CodeState is a transaction overlay, so it needs the same
   -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
   -- the checkpoints depth-indexed rather than extending the packed env ABI.
-  "  la t4, account_state_pending_count; ld t0, 0(t4); sd t0, 72(t1)\n" ++
-  -- `created_count` deliberately keeps its existing per-depth checkpoint:
-  -- #10940 owns its rollback semantics and this representation-only migration
-  -- must not fold that behavioral change into the body-state slab.
-  "  la t4, account_state_created_count; ld t0, 0(t4); la t4, account_state_created_checkpoint; slli t2, s8, 3; add t4, t4, t2; sd t0, 0(t4)\n" ++
-  "  la t4, account_state_delete_count; ld t0, 0(t4); sd t0, 80(t1)\n" ++
+  bodyStateCaptureScalarAsm "account_state_pending_count" "t1" 72 "t4" "t0" ++
+  bodyStateCaptureScalarAsm "account_state_delete_count" "t1" 80 "t4" "t0" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++
   "  la t1, evm_selfdestruct_seen_count_by_depth; slli t2, s8, 3; add t1, t1, t2; sd t0, 0(t1)  # journal snapshot at child depth\n" ++

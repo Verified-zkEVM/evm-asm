@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.CreateRuntime
+import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.CreateSameTxCollision
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
@@ -462,10 +463,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- the child target's staged pre-state balance.  Record the shared
     -- move_ether pair after the child snapshot, so frame_return discards it
     -- with a reverting initcode.  Log scheduling remains below at this caller.
-    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, create_sender_be\n  la a1, create_address_be\n  la a2, create_value_be\n  ld a3, 584(x20)\n  la a4, message_value_transfer_sender_pre\n  la a5, nse_create_pre_bal\n" ++
-    "  jal ra, record_message_value_transfer\n" ++
-    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- GH #10938: shared setup with the value-CALL descend site — one `move_ether` in the
+    -- spec, because `process_create_message` delegates to `process_message` (`:212`).
+    recordMessageValueTransferAsm "create_sender_be" "create_address_be" "create_value_be"
+      "ld a3, 584(x20)" "message_value_transfer_sender_pre" "nse_create_pre_bal" ++
     -- coc3g.6 CAUSE 3: EIP-7708 transfer log for the CREATE endowment value move. Spec
     -- interpreter.py:307-316 emits Transfer(caller, current_target, value) at EVERY message-call
     -- frame entry with should_transfer_value and value!=0 and caller!=current_target, AFTER the
@@ -486,24 +487,15 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  beqz t1, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- value == 0: no log
-    "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
-    -- from_sw = [reverse(create_sender_be) low 20][12 zero] (sp+0)
-    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-    "  la t0, create_sender_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
-    ".Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    -- to_sw = [reverse(create_address_be) low 20][12 zero] (sp+32)
-    "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
-    "  la t0, create_address_be; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
-    ".Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    -- val_sw = reverse(create_value_be) = LE 32 bytes (sp+64)
-    "  la t0, create_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
-    ".Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++   -- from = from_sw, to = to_sw, amount = val_sw
-    "  jal ra, eip7708_append_transfer_log\n" ++
-    "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
+    -- GH #10938 cut 4: the operand staging is the shared `eip7708TransferLogStageAsm`,
+    -- which the value-CALL frame-entry site also uses.  from_sw is
+    -- [reverse(create_sender_be) low 20][12 zero] at sp+0, to_sw the same for
+    -- create_address_be at sp+32, val_sw = reverse(create_value_be) (LE 32B) at sp+64.
+    -- The ctx gate and the value != 0 test above stay here: they are this site's guard.
+    eip7708TransferLogStageAsm "create_sender_be" "create_address_be" "create_value_be"
+      (".Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0"))
+      (".Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0"))
+      (".Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0")) ++
     ".Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     -- The shared producer above is this CREATE frame's sole balance-transfer
     -- recorder.  Keep the independent EIP-161 nonce transition here, but give

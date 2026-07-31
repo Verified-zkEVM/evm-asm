@@ -22,6 +22,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Stateless.SpecRef.Gas
 
@@ -490,15 +491,24 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- or bytecode; both MTx and the one-tx verdict caller therefore share it.
   "dispatcher_capture_body_state:\n" ++
   "  la t2, body_state_snapshot_by_depth\n" ++
-  "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); sd t1, 0(t2)\n" ++
-  "  la t0, exec_nonstorage_effect_overflow; ld t1, 0(t0); sd t1, 8(t2)\n" ++
-  "  la t0, exec_code_effect_count; ld t1, 0(t0); sd t1, 16(t2)\n" ++
-  "  la t0, exec_code_effect_next; ld t1, 0(t0); sd t1, 24(t2)\n" ++
-  "  la t0, exec_code_effect_overflow; ld t1, 0(t0); sd t1, 32(t2)\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); sd t1, 40(t2); ld t1, 464(t0); sd t1, 48(t2); ld t1, 472(t0); sd t1, 56(t2)\n" ++
-  "  la t0, account_writes_undo_count; ld t1, 0(t0); sd t1, 64(t2)\n" ++
-  "  la t0, account_state_pending_count; ld t1, 0(t0); sd t1, 72(t2); la t0, account_state_delete_count; ld t1, 0(t0); sd t1, 80(t2); la t0, account_state_overflow; ld t1, 0(t0); sd t1, 88(t2)\n" ++
-  "  la t0, create_nonce_undo_count; ld t1, 0(t0); sd t1, 96(t2)\n" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_count" "t2" 0 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_overflow" "t2" 8 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_count" "t2" 16 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_next" "t2" 24 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t2" 32 "t0" "t1" ++
+  bodyStateCaptureCursorsAsm "  la t0, evm_env; " "t0" "t2" "t1" ++
+  bodyStateCaptureScalarAsm "account_writes_undo_count" "t2" 64 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_pending_count" "t2" 72 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_delete_count" "t2" 80 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_overflow" "t2" 88 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "create_nonce_undo_count" "t2" 96 "t0" "t1" ++
+  -- GH #10619: the storage-writes undo cursor is transaction state exactly as
+  -- `account_writes_undo_count` (offset 64) and `create_nonce_undo_count` (offset 96) are.
+  -- execution-specs `restore_tx_state` (`state_tracker.py:823-826`) restores FOUR write
+  -- structures, `storage_writes` among them; the guest captured the other two marks here
+  -- and left this one to the whole-transaction `write_sets_discard_tx`, which is a commit
+  -- predicate rather than a body rollback.
+  bodyStateCaptureScalarAsm "storage_writes_undo_count" "t2" 104 "t0" "t1" ++
   "  ret\n" ++
   "dispatcher_restore_body_state:\n" ++
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
@@ -509,6 +519,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 64(t2); jal ra, account_writes_restore_frame\n" ++
   "  la t2, body_state_snapshot_by_depth; ld t1, 72(t2); la t0, account_state_pending_count; sd t1, 0(t0); ld t1, 80(t2); la t0, account_state_delete_count; sd t1, 0(t0); ld t1, 88(t2); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
   "  ld a0, 96(t2); jal ra, create_creator_nonce_undo_to\n" ++
+  -- Replay the storage-writes undo journal to the captured mark, the same way the two
+  -- marks above are replayed.  `write_sets_restore_frame` takes the mark in a0, walks the
+  -- journal in REVERSE so nested overwrites land on the earliest recorded value, and
+  -- resets `storage_writes_undo_count` to the mark; `CallFrameReturn` already uses it for
+  -- child frames off the per-frame checkpoint array.  `t2` is reloaded because the call
+  -- above clobbers it.
+  "  la t2, body_state_snapshot_by_depth; ld a0, 104(t2); jal ra, write_sets_restore_frame\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "dispatch_tx_runtime_code:\n" ++

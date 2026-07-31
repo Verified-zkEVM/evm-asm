@@ -38,6 +38,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
 
@@ -90,7 +91,7 @@ def frameReturnFunction : String :=
   -- Revert every CREATE nonce-table mutation made since this child frame's
   -- entry checkpoint.  This is a journal replay, not a count truncation: it
   -- restores in-place advances of an existing creator as well as new entries.
-  "  la t0, evm_call_depth; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3; slli t3, t1, 3; add t2, t2, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 96(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0); " ++ bodyStateSlabStrideOps "t1" "t2" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 96(t0)\n" ++
   "  jal ra, create_creator_nonce_undo_to\n" ++
   -- r59nm S5a: same replay for the storage write map.  restore_tx_state
   -- (state_tracker.py:809-826) restores the WRITE structures and leaves the
@@ -102,7 +103,7 @@ def frameReturnFunction : String :=
   -- The account-writes mirror is transaction state too: replay its undo journal
   -- on REVERT so a reverted child cannot contribute a balance, nonce, or code
   -- change to the transaction-level BAL source.
-  "  la t0, evm_call_depth; ld t1, 0(t0); slli t2, t1, 6; slli t3, t1, 5; add t2, t2, t3; slli t3, t1, 3; add t2, t2, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 64(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0); " ++ bodyStateSlabStrideOps "t1" "t2" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 64(t0)\n" ++
   "  jal ra, account_writes_restore_frame\n" ++
   -- On child error, execution-specs `refill_frame_state_gas` returns the
   -- child state-gas allocation in LIFO order: the portion that spilled into
@@ -197,7 +198,7 @@ def frameReturnFunction : String :=
   -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
   -- pre-child snapshots captured by call_frame_descend. Successful child frames
   -- keep their CREATE/CALL value effects; reverted child frames discard them.
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t1, t2, 6; slli t3, t2, 5; add t1, t1, t3; slli t3, t2, 3; add t1, t1, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
   "  ld t2, 0(t0); la t1, exec_nonstorage_effect_count; sd t2, 0(t1)\n" ++
   "  ld t2, 8(t0); la t1, exec_nonstorage_effect_overflow; sd t2, 0(t1)\n" ++
   "  ld t2, 16(t0); la t1, exec_code_effect_count; sd t2, 0(t1)\n" ++
@@ -205,11 +206,9 @@ def frameReturnFunction : String :=
   "  ld t2, 32(t0); la t1, exec_code_effect_overflow; sd t2, 0(t1)\n" ++
   -- Restore this child's CodeState high-water marks on REVERT/exceptional
   -- return.  The current depth still names the child at this point.
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t1, t2, 6; slli t3, t2, 5; add t1, t1, t3; slli t3, t2, 3; add t1, t1, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
   "  ld t3, 72(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
-  -- `created_count` deliberately remains on #10940's dedicated checkpoint.
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3; la t0, account_state_created_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_created_count; sd t3, 0(t1)\n" ++
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t1, t2, 6; slli t3, t2, 5; add t1, t1, t3; slli t3, t2, 3; add t1, t1, t3; la t0, body_state_snapshot_by_depth; add t0, t0, t1; ld t3, 80(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1; ld t3, 80(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
   "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_selfdestruct_seen_overflow_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_overflow; sd t3, 0(t1)\n" ++

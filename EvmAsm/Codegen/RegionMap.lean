@@ -47,6 +47,7 @@
 -/
 
 import EvmAsm.Codegen.CallFrameLayout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen.RegionMap
@@ -445,7 +446,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x066b74
+def textSizeBytes : Nat := 0x066be8
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -472,8 +473,18 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). Grew by
-    `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab. -/
-def bssSizeBytes : Nat := 0x1c105000
+    `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab, then `0x2000`
+    for GH #10619's fourteenth slab field (`storage_writes_undo_count`).
+
+    ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
+    the eight-byte remainder is absorbed by the `.balign 32` that already followed the
+    slab. Derived from the emitted addresses, not from arithmetic —
+    `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
+    `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
+    `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
+    the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
+    removal absorbs in the same direction (#10986, #10988). -/
+def bssSizeBytes : Nat := 0x1c0fcfe0
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -494,13 +505,21 @@ def outputRegion : GuestRegion :=
 /-- `.text` section (`-Ttext=0x80000000`). -/
 def textRegion : GuestRegion :=
   { name := ".text", base := 0x80000000, size := textSizeBytes, mode := .rx, zone := .text,
+    -- GH #10619: the two ELF-measured sizes below INTERPOLATE their pins rather than
+    -- restating them.  The `.bss` string hardcoded `0x1c105000` and had gone stale by
+    -- THREE merged PRs: #10979 shrank the pin and left the prose, then #10986 and #10988
+    -- shrank it again, leaving the string `0xa020` bytes wrong.  Updating the digit would
+    -- only re-stale it on the next repin — and note the `.text` evidence just above never
+    -- went stale precisely because it states NO NUMBER.  The `.data` string was correct
+    -- when this change was made and is interpolated anyway: a literal duplicating a named
+    -- value with no tripwire is the exposure, whether or not it currently agrees.
     evidence := "ELF -Ttext=0x80000000; size link-dependent (drift guard)" }
 
 /-- `.data` section (`-Tdata=0xa3000000`). Contains every static/verdict arena,
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; 0x5370-byte PROGBITS extent" }
+    evidence := "ELF -Tdata=0xa3000000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
 
 /-- Fixed-size cross-transaction committed-storage map
     (`--section-start=.committed_storage=0xa2000000`). -/
@@ -517,7 +536,7 @@ def committedStorageRegion : GuestRegion :=
     unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa3110000; 0x1c105000-byte NOBITS extent" }
+    evidence := "ELF --section-start=.bss=0xa3110000; 0x" ++ natToHex bssSizeBytes ++ "-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
