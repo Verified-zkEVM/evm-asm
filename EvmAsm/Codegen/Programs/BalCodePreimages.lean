@@ -1133,6 +1133,11 @@ def balCodePreimagesValidFunction : String :=
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
   "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
+  -- A charged delegated CALL resolves the delegate through `get_account`.
+  -- The marker is `0xef0100 || address`, so `s9 + 3` is its 20-byte target.
+  -- Record it here because this resolver also serves nested calls, whereas
+  -- the root post-frame callback does not run on those paths.
+  "  addi a0, s9, 3; jal ra, account_read_record\n" ++
   "  ld s4, 96(sp)\n" ++
   ".Lbsbd_skip_charge:\n" ++
   -- EIP-7702: a delegation target that is an active precompile has empty code
