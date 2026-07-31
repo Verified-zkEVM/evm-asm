@@ -117,29 +117,46 @@ uniqueness as *machine* properties still need the ~230-instruction conversion,
 which is separately blocked — the conversion tool refuses all four asm functions
 in the module (leading `.globl`; a spliced `String` ident).
 
-## Findings
+## Findings — filed, not carried here
 
-1. **`BalCanonicalSort.lean:218` — the capacity check uses
-   `blockAccountWritesCapacity` for *every* container**, regardless of which
-   array is being sorted. On the live path the arrays have different capacities.
-   Possibly a real bug; not exercised by this audit, which is model-layer.
-2. **`bal_sort_storage_writes` / `bal_sort_account_writes` are dead code** —
-   nothing calls them (`:456` says so). Their `#guard`s (`:503`–`506`,
-   `:533`–`534`) pin a path nothing runs.
-3. Status 4 ("unsupported firstSig") is documented at `:199` and **never
-   emitted**.
-4. Comment/code drift at `:498`: the comment says `account: [(0,20)] = 0x1400`;
-   the guard and code use `0x9400` (`0x1400` is the *selftest's*).
-5. The BAL sort symbols are **absent from `GuestAddrs.lean`** — no resolved
-   address, unlike every other `bal_*` entry.
-6. **Representation gap.** Python holds `storage_changes` in a `Dict` and
-   `storage_reads` in a `Set`; the Lean model uses `List` for both, so it can
-   represent duplicate slots and duplicate reads — states the reference cannot.
-   The corpus stays inside the reference's representable domain, so this is not
-   a divergence; it is a modelling difference worth knowing before anyone proves
-   uniqueness against the Lean type.
-7. Upstream: the docstring/code mismatch on "lexicographically" (above) is worth
-   reporting to execution-specs.
+All of these are tracked as issues, so this page records them for context rather
+than as open work on the audit.
+
+**[#11017](https://github.com/Verified-zkEVM/evm-asm/issues/11017) — `BalCanonicalSort` hygiene cluster:**
+
+- `bal_sort_storage_writes` / `bal_sort_account_writes` are **dead code** —
+  nothing calls them (`:456` says so) — *and* their `#guard`s (`:503`–`506`,
+  `:533`–`534`) pin that unreachable path.
+- The BAL sort symbols are **absent from `GuestAddrs.lean`** — no resolved
+  address, unlike every other `bal_*` entry.
+- Status 4 ("unsupported firstSig") is documented at `:199` and **never emitted**.
+- Comment/code drift at `:498`: the comment says `account: [(0,20)] = 0x1400`;
+  the guard and code use `0x9400` (`0x1400` is the *selftest's*).
+
+**[#11018](https://github.com/Verified-zkEVM/evm-asm/issues/11018) — the
+per-container bound question, and the representation gap:**
+
+- **`BalCanonicalSort.lean:218` is NOT a defect.** An earlier revision of this
+  page called it "possibly a real bug"; that was wrong. Using
+  `blockAccountWritesCapacity` for every container is a **deliberate
+  static-allocation choice** under tight memory. What remains open is the
+  *behavioural* question it leaves: static sizing governs what the guest **can
+  hold**, while the spec governs what a block may **validly contain**, and one
+  shared capacity settles only the first. If a container's logical limit is
+  tighter than the shared allocation, a runtime bound may be needed for
+  equivalence.
+- **Representation gap — a proof-side caveat, not a model defect.** Python holds
+  `storage_changes` in a `Dict` and `storage_reads` in a `Set`; the Lean model
+  uses `List` for both, so it can represent duplicate slots and duplicate reads,
+  states the reference cannot. The corpus stays inside the representable domain,
+  so the 1149/1149 result is sound — it simply **cannot speak to the surplus
+  domain**, which is exactly what matters for #10817 if a uniqueness obligation
+  is stated over `List`.
+
+**Upstream:** the reference's docstring/code mismatch on "lexicographically"
+(above) is worth reporting to execution-specs. Independently confirmed in
+review: the docstring lists "Storage slots (lexicographically)" while the code
+sorts `U256` numerically.
 
 ## A note on the auxiliary axis
 
