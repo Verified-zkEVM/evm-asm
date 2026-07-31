@@ -996,12 +996,12 @@ def callDescendFallThrough
   -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
   -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
   emitPendingXferLog "desc_" ++
-  -- Ordinary non-precompile CALL reaches the existing dispatcher resume
-  -- sequence through the child entry.  The entry is after all root-only setup
-  -- and begins with the dispatcher-resume sequence that
-  -- `dispatchContinueRet` previously entered after its return; other call
-  -- kinds retain their current route.
-  (if mode == 0 then
+  -- Non-value CALL-family kinds reach the existing dispatcher resume sequence
+  -- through the child entry.  The entry is after all root-only setup and
+  -- begins with the dispatcher-resume sequence that `dispatchContinueRet`
+  -- previously entered after its return.  CALLCODE (mode 2) retains its
+  -- separate value-bearing route and balance gate.
+  (if mode == 0 || mode == 1 || mode == 3 then
     "  j .runtime_tx_child_message_entry"
    else
     dispatchContinueRet)
