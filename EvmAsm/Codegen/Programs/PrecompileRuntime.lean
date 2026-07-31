@@ -109,10 +109,11 @@ def chargePrecompileGasWithAllotmentAsm
     temporaries do not need restoring. -/
 def chargePrecompileGasWithAllotmentPreservingModexpAsm
     (tag costReg remainingReg : String) : String :=
-  "  mv x6, x17\n" ++
-  "  mv x7, x22\n" ++
-  "  mv x28, x23\n" ++
-  "  jal x1, bn254_call_allotment\n" ++
+  "  mv x6, x17
+  mv x7, x22
+  mv x28, x23
+  jal x1, bn254_call_allotment
+" ++
   "  bltu x22, " ++ costReg ++ ", .L" ++ tag ++ "_bn254_fail_burn\n" ++
   "  ld " ++ remainingReg ++ ", " ++ toString precompileGasRemainingOff ++ "(x20)\n" ++
   "  sub " ++ remainingReg ++ ", " ++ remainingReg ++ ", " ++ costReg ++ "\n" ++
@@ -132,69 +133,76 @@ def stageEcrecoverInputAsm
   "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
   "  add x18, x13, x18\n" ++
   precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
-  "  mv x22, x17\n" ++
-  "  li x23, 128\n" ++
-  "  bgeu x23, x22, 30f\n" ++
-  "  mv x22, x23\n" ++
+  "  mv x22, x17
+  li x23, 128
+  bgeu x23, x22, 30f
+  mv x22, x23
+" ++
   "30:\n" ++
   "  mv x24, x22\n" ++
   "  beqz x24, 32f\n" ++
   "31:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x24, x24, -1\n" ++
-  "  bnez x24, 31b\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x24, x24, -1
+  bnez x24, 31b
+" ++
   "32:\n" ++
   "  sub x24, x23, x22\n" ++
   "  beqz x24, 34f\n" ++
   "33:\n" ++
-  "  sb x0, 0(x19)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x24, x24, -1\n" ++
-  "  bnez x24, 33b\n" ++
+  "  sb x0, 0(x19)
+  addi x19, x19, 1
+  addi x24, x24, -1
+  bnez x24, 33b
+" ++
   "34:\n"
 
 def ecrecoverVGateAsm : String :=
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
   "  li x19, 31\n" ++
   "40:\n" ++
-  "  beqz x19, 41f\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  bnez x16, 43f\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, -1\n" ++
-  "  j 40b\n" ++
+  "  beqz x19, 41f
+  lbu x16, 0(x18)
+  bnez x16, 43f
+  addi x18, x18, 1
+  addi x19, x19, -1
+  j 40b
+" ++
   "41:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  li x19, 27\n" ++
-  "  beq x16, x19, 42f\n" ++
-  "  li x19, 28\n" ++
-  "  beq x16, x19, 42f\n" ++
+  "  lbu x16, 0(x18)
+  li x19, 27
+  beq x16, x19, 42f
+  li x19, 28
+  beq x16, x19, 42f
+" ++
   "43:\n" ++
   "  j 7b\n" ++
   "42:\n"
 
 def ecrecoverNonzeroRSGateAsm : String :=
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
-  "  ld x16, 0(x18)\n" ++
-  "  ld x17, 8(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 16(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 24(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  beqz x16, 7b\n" ++
+  "  ld x16, 0(x18)
+  ld x17, 8(x18)
+  or x16, x16, x17
+  ld x17, 16(x18)
+  or x16, x16, x17
+  ld x17, 24(x18)
+  or x16, x16, x17
+  beqz x16, 7b
+" ++
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
-  "  ld x16, 0(x18)\n" ++
-  "  ld x17, 8(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 16(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  ld x17, 24(x18)\n" ++
-  "  or x16, x16, x17\n" ++
-  "  beqz x16, 7b\n"
+  "  ld x16, 0(x18)
+  ld x17, 8(x18)
+  or x16, x16, x17
+  ld x17, 16(x18)
+  or x16, x16, x17
+  ld x17, 24(x18)
+  or x16, x16, x17
+  beqz x16, 7b
+"
 
 private def secp256k1OrderBytes : List Nat :=
   [ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
@@ -253,42 +261,46 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   -- Stage the recovery ABI block (hash/r/s/recid) from the gated input
   -- (hash/v/r/s). Both regions are 8-byte aligned; copy by u64 limbs.
   precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
-  "  la x22, ecr_abi\n" ++
-  "  ld x16, 0(x19);  sd x16, 0(x22)\n" ++
-  "  ld x16, 8(x19);  sd x16, 8(x22)\n" ++
-  "  ld x16, 16(x19); sd x16, 16(x22)\n" ++
-  "  ld x16, 24(x19); sd x16, 24(x22)\n" ++
-  "  ld x16, 64(x19); sd x16, 32(x22)\n" ++
-  "  ld x16, 72(x19); sd x16, 40(x22)\n" ++
-  "  ld x16, 80(x19); sd x16, 48(x22)\n" ++
-  "  ld x16, 88(x19); sd x16, 56(x22)\n" ++
-  "  ld x16, 96(x19);  sd x16, 64(x22)\n" ++
-  "  ld x16, 104(x19); sd x16, 72(x22)\n" ++
-  "  ld x16, 112(x19); sd x16, 80(x22)\n" ++
-  "  ld x16, 120(x19); sd x16, 88(x22)\n" ++
+  "  la x22, ecr_abi
+  ld x16, 0(x19);  sd x16, 0(x22)
+  ld x16, 8(x19);  sd x16, 8(x22)
+  ld x16, 16(x19); sd x16, 16(x22)
+  ld x16, 24(x19); sd x16, 24(x22)
+  ld x16, 64(x19); sd x16, 32(x22)
+  ld x16, 72(x19); sd x16, 40(x22)
+  ld x16, 80(x19); sd x16, 48(x22)
+  ld x16, 88(x19); sd x16, 56(x22)
+  ld x16, 96(x19);  sd x16, 64(x22)
+  ld x16, 104(x19); sd x16, 72(x22)
+  ld x16, 112(x19); sd x16, 80(x22)
+  ld x16, 120(x19); sd x16, 88(x22)
+" ++
   "  lbu x16, 63(x19)\n" ++          -- v byte 31 (the v gate proved 27/28)
   "  addi x16, x16, -27\n" ++
   "  sd x16, 96(x22)\n" ++           -- recid word
-  "  mv s9, x13\n" ++
-  "  mv s10, x10\n" ++
-  "  mv s11, x12\n" ++
-  "  la a0, ecr_abi\n" ++
-  "  la a1, ecr_pubkey\n" ++
+  "  mv s9, x13
+  mv s10, x10
+  mv s11, x12
+  la a0, ecr_abi
+  la a1, ecr_pubkey
+" ++
   "  jalr x1, x18, 0\n" ++           -- secp256k1_recover_pubkey_staged
   -- a0 IS x10: stash the status before restoring the EVM code pointer
   -- (restoring first would make the bnez read the nonzero code pointer).
-  "  mv x16, a0\n" ++
-  "  mv x13, s9\n" ++
-  "  mv x10, s10\n" ++
-  "  mv x12, s11\n" ++
+  "  mv x16, a0
+  mv x13, s9
+  mv x10, s10
+  mv x12, s11
+" ++
   "  bnez x16, 7b\n" ++              -- invalid signature: empty-returndata success
-  "  mv s9, x13\n" ++
-  "  mv s10, x10\n" ++
-  "  mv s11, x12\n" ++
-  "  la a0, ecr_pubkey\n" ++
-  "  li a1, 64\n" ++
-  "  la a2, ecr_hash\n" ++
-  "  jal x1, zkvm_keccak256\n" ++
+  "  mv s9, x13
+  mv s10, x10
+  mv s11, x12
+  la a0, ecr_pubkey
+  li a1, 64
+  la a2, ecr_hash
+  jal x1, zkvm_keccak256
+" ++
   "  mv x16, a0\n" ++                -- stash status before the x10 (=a0) restore
   "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
@@ -302,13 +314,14 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   "  addi x19, x15, 28\n" ++
   "  li x22, 20\n" ++
   "46:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x22, x22, -1\n" ++
-  "  bnez x22, 46b\n" ++
-  "  li x16, 32\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x22, x22, -1
+  bnez x22, 46b
+  li x16, 32
+" ++
   "  sd x16, 8(x15)\n" ++            -- returndata length = 32
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  li x23, 32\n" ++
@@ -320,13 +333,14 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x19, x13, x19\n" ++
   "48:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x23, x23, -1\n" ++
-  "  bnez x23, 48b\n" ++
-  "  j 7b\n"
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x23, x23, -1
+  bnez x23, 48b
+  j 7b
+"
 
 /-- BN254 (0x06/0x07) charge-and-gate. `x16` must already hold the
     EIP-1108 constant cost. Computes the EIP-150 child allotment
@@ -445,11 +459,12 @@ def bn254FailureStubAsm (tag : String) (netPopBytes : Nat) : String :=
   "  sd x0, 0(x15)\n" ++
   "  sd x0, 8(x15)\n" ++
   "  addi x12, x12, " ++ toString netPopBytes ++ "\n" ++
-  "  sd x0, 0(x12)\n" ++
-  "  sd x0, 8(x12)\n" ++
-  "  sd x0, 16(x12)\n" ++
-  "  sd x0, 24(x12)\n" ++
-  "  addi x10, x10, 1\n" ++
+  "  sd x0, 0(x12)
+  sd x0, 8(x12)
+  sd x0, 16(x12)
+  sd x0, 24(x12)
+  addi x10, x10, 1
+" ++
   dispatchContinueRet ++ "\n"
 
 def chargePrecompileWordGasAsm
@@ -489,11 +504,12 @@ def stagePrecompileInputWindowFromAsm
   precompileFrameAddi "x24" frameOff ++
   ".L" ++ tag ++ "_copy:\n" ++
   "  beqz x18, .L" ++ tag ++ "_done\n" ++
-  "  lbu x23, 0(x19)\n" ++
-  "  sb x23, 0(x24)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x24, x24, 1\n" ++
-  "  addi x18, x18, -1\n" ++
+  "  lbu x23, 0(x19)
+  sb x23, 0(x24)
+  addi x19, x19, 1
+  addi x24, x24, 1
+  addi x18, x18, -1
+" ++
   "  j .L" ++ tag ++ "_copy\n" ++
   ".L" ++ tag ++ "_done:\n"
 
@@ -512,17 +528,19 @@ def precompileSuccess64FromFrameAsm
   "  li x22, 64\n" ++
   ".L" ++ tag ++ "_retcopy:\n" ++
   "  beqz x22, .L" ++ tag ++ "_retcopy_done\n" ++
-  "  lbu x16, 0(x19)\n" ++
-  "  sb x16, 0(x18)\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x22, x22, -1\n" ++
+  "  lbu x16, 0(x19)
+  sb x16, 0(x18)
+  addi x19, x19, 1
+  addi x18, x18, 1
+  addi x22, x22, -1
+" ++
   "  j .L" ++ tag ++ "_retcopy\n" ++
   ".L" ++ tag ++ "_retcopy_done:\n" ++
-  "  li x16, 1\n" ++
-  "  sd x16, 0(x15)\n" ++
-  "  li x16, 64\n" ++
-  "  sd x16, 8(x15)\n" ++
+  "  li x16, 1
+  sd x16, 0(x15)
+  li x16, 64
+  sd x16, 8(x15)
+" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  li x23, 64\n" ++
   "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
@@ -533,11 +551,12 @@ def precompileSuccess64FromFrameAsm
   "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x19, x13, x19\n" ++
   ".L" ++ tag ++ "_outcopy:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x23, x23, -1\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x23, x23, -1
+" ++
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
@@ -558,10 +577,11 @@ def bls12MsmCostAsm (failureLabel : String)
   "  li x22, " ++ toString basePerPair ++ "\n" ++
   "  divu x23, x16, x22\n" ++
   "  bne x23, x17, " ++ failureLabel ++ "\n" ++
-  "  li x22, 128\n" ++
-  "  bltu x22, x17, 44f\n" ++
-  "  addi x23, x17, -1\n" ++
-  "  slli x23, x23, 3\n" ++
+  "  li x22, 128
+  bltu x22, x17, 44f
+  addi x23, x17, -1
+  slli x23, x23, 3
+" ++
   "  la x22, " ++ tableLabel ++ "\n" ++
   "  add x23, x22, x23\n" ++
   "  ld x23, 0(x23)\n" ++
@@ -680,17 +700,19 @@ def kzgVersionedHashGateAsm (failLabel : String) : String :=
 
 def precompileSuccessBoolFromFrameAsm
     (tag : String) (outOffsetOff outSizeOff resultFrameOff : Nat) : String :=
-  "  la x15, evm_precompile_frame\n" ++
-  "  sd x0, 16(x15)\n" ++
-  "  sd x0, 24(x15)\n" ++
-  "  sd x0, 32(x15)\n" ++
-  "  sd x0, 40(x15)\n" ++
+  "  la x15, evm_precompile_frame
+  sd x0, 16(x15)
+  sd x0, 24(x15)
+  sd x0, 32(x15)
+  sd x0, 40(x15)
+" ++
   "  lbu x16, " ++ toString resultFrameOff ++ "(x15)\n" ++
-  "  sb x16, 47(x15)\n" ++
-  "  li x16, 1\n" ++
-  "  sd x16, 0(x15)\n" ++
-  "  li x16, 32\n" ++
-  "  sd x16, 8(x15)\n" ++
+  "  sb x16, 47(x15)
+  li x16, 1
+  sd x16, 0(x15)
+  li x16, 32
+  sd x16, 8(x15)
+" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  li x23, 32\n" ++
   "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
@@ -701,11 +723,12 @@ def precompileSuccessBoolFromFrameAsm
   "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x19, x13, x19\n" ++
   ".L" ++ tag ++ "_outcopy:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x23, x23, -1\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x23, x23, -1
+" ++
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
@@ -722,72 +745,73 @@ def precompileSuccessKzgPointEvalAsm
   "  addi x22, x22, -1\n" ++
   "  j .L" ++ tag ++ "_field_zero\n" ++
   ".L" ++ tag ++ "_field_tail:\n" ++
-  "  li x16, 0x10\n" ++
-  "  sb x16, 0(x18)\n" ++
-  "  sb x0, 1(x18)\n" ++
-  "  addi x18, x18, 2\n" ++
-  "  li x16, 0x73\n" ++
-  "  sb x16, 0(x18)\n" ++
-  "  li x16, 0xed\n" ++
-  "  sb x16, 1(x18)\n" ++
-  "  li x16, 0xa7\n" ++
-  "  sb x16, 2(x18)\n" ++
-  "  li x16, 0x53\n" ++
-  "  sb x16, 3(x18)\n" ++
-  "  li x16, 0x29\n" ++
-  "  sb x16, 4(x18)\n" ++
-  "  li x16, 0x9d\n" ++
-  "  sb x16, 5(x18)\n" ++
-  "  li x16, 0x7d\n" ++
-  "  sb x16, 6(x18)\n" ++
-  "  li x16, 0x48\n" ++
-  "  sb x16, 7(x18)\n" ++
-  "  li x16, 0x33\n" ++
-  "  sb x16, 8(x18)\n" ++
-  "  li x16, 0x39\n" ++
-  "  sb x16, 9(x18)\n" ++
-  "  li x16, 0xd8\n" ++
-  "  sb x16, 10(x18)\n" ++
-  "  li x16, 0x08\n" ++
-  "  sb x16, 11(x18)\n" ++
-  "  li x16, 0x09\n" ++
-  "  sb x16, 12(x18)\n" ++
-  "  li x16, 0xa1\n" ++
-  "  sb x16, 13(x18)\n" ++
-  "  li x16, 0xd8\n" ++
-  "  sb x16, 14(x18)\n" ++
-  "  li x16, 0x05\n" ++
-  "  sb x16, 15(x18)\n" ++
-  "  li x16, 0x53\n" ++
-  "  sb x16, 16(x18)\n" ++
-  "  li x16, 0xbd\n" ++
-  "  sb x16, 17(x18)\n" ++
-  "  li x16, 0xa4\n" ++
-  "  sb x16, 18(x18)\n" ++
-  "  li x16, 0x02\n" ++
-  "  sb x16, 19(x18)\n" ++
-  "  li x16, 0xff\n" ++
-  "  sb x16, 20(x18)\n" ++
-  "  li x16, 0xfe\n" ++
-  "  sb x16, 21(x18)\n" ++
-  "  li x16, 0x5b\n" ++
-  "  sb x16, 22(x18)\n" ++
-  "  li x16, 0xfe\n" ++
-  "  sb x16, 23(x18)\n" ++
-  "  li x16, 0xff\n" ++
-  "  sb x16, 24(x18)\n" ++
-  "  sb x16, 25(x18)\n" ++
-  "  sb x16, 26(x18)\n" ++
-  "  sb x16, 27(x18)\n" ++
-  "  sb x0, 28(x18)\n" ++
-  "  sb x0, 29(x18)\n" ++
-  "  sb x0, 30(x18)\n" ++
-  "  li x16, 0x01\n" ++
-  "  sb x16, 31(x18)\n" ++
-  "  li x16, 1\n" ++
-  "  sd x16, 0(x15)\n" ++
-  "  li x16, 64\n" ++
-  "  sd x16, 8(x15)\n" ++
+  "  li x16, 0x10
+  sb x16, 0(x18)
+  sb x0, 1(x18)
+  addi x18, x18, 2
+  li x16, 0x73
+  sb x16, 0(x18)
+  li x16, 0xed
+  sb x16, 1(x18)
+  li x16, 0xa7
+  sb x16, 2(x18)
+  li x16, 0x53
+  sb x16, 3(x18)
+  li x16, 0x29
+  sb x16, 4(x18)
+  li x16, 0x9d
+  sb x16, 5(x18)
+  li x16, 0x7d
+  sb x16, 6(x18)
+  li x16, 0x48
+  sb x16, 7(x18)
+  li x16, 0x33
+  sb x16, 8(x18)
+  li x16, 0x39
+  sb x16, 9(x18)
+  li x16, 0xd8
+  sb x16, 10(x18)
+  li x16, 0x08
+  sb x16, 11(x18)
+  li x16, 0x09
+  sb x16, 12(x18)
+  li x16, 0xa1
+  sb x16, 13(x18)
+  li x16, 0xd8
+  sb x16, 14(x18)
+  li x16, 0x05
+  sb x16, 15(x18)
+  li x16, 0x53
+  sb x16, 16(x18)
+  li x16, 0xbd
+  sb x16, 17(x18)
+  li x16, 0xa4
+  sb x16, 18(x18)
+  li x16, 0x02
+  sb x16, 19(x18)
+  li x16, 0xff
+  sb x16, 20(x18)
+  li x16, 0xfe
+  sb x16, 21(x18)
+  li x16, 0x5b
+  sb x16, 22(x18)
+  li x16, 0xfe
+  sb x16, 23(x18)
+  li x16, 0xff
+  sb x16, 24(x18)
+  sb x16, 25(x18)
+  sb x16, 26(x18)
+  sb x16, 27(x18)
+  sb x0, 28(x18)
+  sb x0, 29(x18)
+  sb x0, 30(x18)
+  li x16, 0x01
+  sb x16, 31(x18)
+  li x16, 1
+  sd x16, 0(x15)
+  li x16, 64
+  sd x16, 8(x15)
+" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  li x23, 64\n" ++
   "  bgeu x22, x23, .L" ++ tag ++ "_out_len_ok\n" ++
@@ -798,11 +822,12 @@ def precompileSuccessKzgPointEvalAsm
   "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
   "  add x19, x13, x19\n" ++
   ".L" ++ tag ++ "_outcopy:\n" ++
-  "  lbu x16, 0(x18)\n" ++
-  "  sb x16, 0(x19)\n" ++
-  "  addi x18, x18, 1\n" ++
-  "  addi x19, x19, 1\n" ++
-  "  addi x23, x23, -1\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x23, x23, -1
+" ++
   "  bnez x23, .L" ++ tag ++ "_outcopy\n" ++
   "  j 7b\n"
 
