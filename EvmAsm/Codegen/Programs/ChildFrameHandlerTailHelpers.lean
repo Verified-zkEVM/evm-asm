@@ -75,6 +75,15 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
+/-- Record a delegation target when the CALL resolver selects an active
+    precompile.  This is deliberately separate from the resolver: its `a3 = 2`
+    liveness probe must remain a pure probe, while this site has committed to
+    executing the selected target. -/
+def recordDelegatedPrecompileTargetAsm : String :=
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  la a0, bsbd_deleg_target\n  jal ra, account_read_record\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n"
+
 def precompileValueBalanceGateAsm (tag : String) (netPopBytes valueOff : Nat) : String :=
   -- Value-bearing CALL/CALLCODE to a precompile still runs the generic-call
   -- caller-balance check before entering the precompile. The precompile fast

@@ -715,7 +715,13 @@ def callDescendFallThrough
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  li t4, 2; beq t2, t4, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- Status 2 selects an active precompile as the delegated code address.  It
+  -- follows the empty-code route rather than descending, but execution has
+  -- nevertheless committed to that target, so record it before the route.
+  "  li t4, 2; bne t2, t4, .Lcd_same_block_not_precompile_" ++ tag ++ "\n" ++
+  recordDelegatedPrecompileTargetAsm ++
+  "  j .Lcd_empty_" ++ tag ++ "\n" ++
+  ".Lcd_same_block_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t2, .Lcd_descend_" ++ tag ++ "\n" ++
   "  la t4, cd_deleg_target; addi t5, t3, 3; li t6, 20\n" ++
   ".Lcd_pdeleg_copy_" ++ tag ++ ":\n" ++
@@ -739,7 +745,13 @@ def callDescendFallThrough
   "  mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  "  li t4, 2; beq t3, t4, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- As above, a same-block resolution to a precompile executes the selected
+  -- target through the precompile route.  The BAL touch is unconditional on
+  -- that execution and must not depend on the target having bytecode.
+  "  li t4, 2; bne t3, t4, .Lcd_resolve_not_precompile_" ++ tag ++ "\n" ++
+  recordDelegatedPrecompileTargetAsm ++
+  "  j .Lcd_empty_" ++ tag ++ "\n" ++
+  ".Lcd_resolve_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   -- CALL into a contract created earlier in this block.  Resolve the current
   -- mutable CodeState before treating a header-witness miss as an empty EOA.
