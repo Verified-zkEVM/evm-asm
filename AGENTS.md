@@ -465,6 +465,20 @@ Pitfalls:
 Detailed material has been split out of this file to keep the agent guide compact. **Load each
 doc only when its trigger applies** — they are reference material, not required reading.
 
+- [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.md) — the method for
+  auditing whether a proven routine proves the *right* thing: a whole-routine triple ties RISC-V to
+  the Lean spec beside it and says nothing about whether that spec matches `execution-specs`.
+  Verdict vocabulary (`agrees`/`domain-restricted`/`stricter`/`looser`/`no-counterpart`/`unproven`),
+  the **basis** grading that keeps a verdict from being an unverified claim, the inheritance gap
+  (a spec may *restate* the shared model rather than reference it, so a differential does not
+  transfer), the vendored-vs-external reference taxonomy, and the four families where an audit is a
+  category error (`zkvm_*` ecalls would present an axiom as a theorem). Instances:
+  [`docs/rlp-spec-correspondence.md`](docs/rlp-spec-correspondence.md) (differential-backed, 0
+  divergences) and [`docs/ssz-spec-correspondence.md`](docs/ssz-spec-correspondence.md) (prose;
+  merkleization tower entirely unspecified). Verdicts are kernel-checked in
+  `EvmAsm/Progress/Correspondence.lean` and render to `PROGRESS.md` §F.2.
+  **Load when:** declaring an RLP/SSZ routine done, changing a decoder with an execution-specs
+  counterpart, or starting an audit for a new family.
 - [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*
   behind mirroring `execution-specs`: align the guest to the spec's MODEL even at a temporary
   `+FR` cost (`FA = 0` the one gate); replacing a proven routine with unverified emitted code to
