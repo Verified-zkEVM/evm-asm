@@ -143,9 +143,13 @@ private def basisLabel : EvmAsm.Progress.Correspondence.Basis → String
   | .inspection => "inspection"
   | .none => "—"
 
+private def kindLabel : EvmAsm.Progress.Correspondence.Layer → String
+  | .guest => "guest"
+  | .model => "model"
+
 private def fmtCorrRow (e : EvmAsm.Progress.Correspondence.Entry) : String :=
   let spec := match e.spec with | some t => s!"`{t}`" | none => "—"
-  s!"| `{e.routine}` | {spec} | {verdictLabel e.verdict} | {basisLabel e.basis} | {e.reference} |"
+  s!"| `{e.family}` | {kindLabel e.kind} | `{e.routine}` | {spec} | {verdictLabel e.verdict} | {basisLabel e.basis} | {e.reference} |"
 
 private def renderCorrespondence : String :=
   let rows := String.intercalate "\n" (EvmAsm.Progress.Correspondence.registry.map fmtCorrRow)
@@ -183,8 +187,14 @@ routines inherit that through `bridged`. A `machine-only` row does **not**
 inherit it — its spec restates the reference's rules locally, so a drift between
 predicate and model would be invisible to both the differential and the proof.
 
-| Routine | Spec | Verdict | Basis | Reference |
-|---|---|---|---|---|
+A **model** row is a pure Lean function whose evidence is the executable
+differential; a **guest** row is a RISC-V routine whose evidence is a
+whole-routine spec. A family where the model agrees but every guest row is
+`unproven` is reporting exactly that: the semantics are right, and whether the
+assembly implements them is the open obligation.
+
+| Family | Layer | Routine / function | Spec | Verdict | Basis | Reference |
+|---|---|---|---|---|---|---|
 {rows}"
 
 private def opcodeNamesAtTier (t : ProofTier) : List String :=

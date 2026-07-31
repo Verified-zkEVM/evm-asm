@@ -106,6 +106,7 @@ jobs:
         run: |
           lake exe correspondence-check --self-test
           lake exe correspondence-check rlp
+          lake exe correspondence-check bal
 
       - name: Install RISC-V binutils for codegen link checks
         run: |

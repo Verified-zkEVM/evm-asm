@@ -23,9 +23,10 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import spec_oracle  # noqa: E402
+from oracles import bal as bal_family  # noqa: E402
 from oracles import rlp as rlp_family  # noqa: E402
 
-REGISTRY = [rlp_family.FAMILY]
+REGISTRY = [rlp_family.FAMILY, bal_family.FAMILY]
 
 if __name__ == "__main__":
     raise SystemExit(spec_oracle.main(REGISTRY))
