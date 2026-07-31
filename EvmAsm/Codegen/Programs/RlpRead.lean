@@ -478,13 +478,21 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
     `RlpEncodeUintBeSAsm.lean`'s module docstring, together with the
     two greps that regenerate it.  Verified there, not here.
 
-    **Verified in** `EvmAsm.Codegen.RlpEncodeUintBeSAsm`, against the
-    independent RLP model `reubOut`: all 35 instructions are covered
-    by block theorems — `reubPrologue`, `reubStripLoop`,
-    `reubEmptyTail`, the three `reubDisp*`, `reubSingleTail`,
-    `reubHeaderWrite`, `reubCopyLoop`, `reubRetTail`.  The composed
-    whole-routine triple is **not yet proven**, so there is as yet no
-    theorem saying this routine computes RLP.
+    **Verified in** `EvmAsm.Codegen.RlpEncodeUintBeSAsm` (block
+    theorems) and `EvmAsm.Codegen.RlpEncodeUintBeComposeSAsm` (the
+    whole-routine triple), against the independent RLP model
+    `reubOut`.  All 35 instructions are covered by block theorems —
+    `reubPrologue`, `reubStripLoop`, `reubEmptyTail`, the three
+    `reubDisp*`, `reubSingleTail`, `reubHeaderWrite`, `reubCopyLoop`,
+    `reubRetTail` — and those chain into
+    `reub_spec_within : cpsTripleWithin (6n + 7L + 17) reubBase
+    (ra &&& ~~~1) …`, which says the routine *computes RLP*: `a0` is
+    the byte count and the output buffer begins with `reubOut xs`,
+    the rest untouched.  `reub_spec_encode_within` restates that as
+    `encodeBytes (Nat.toBytesBE (Nat.fromBytesBE xs))`, i.e. against
+    the reference encoding rather than the module's own model.  The
+    `a1 ≤ 55` domain bound above is load-bearing in exactly one
+    place: that composition.
 
     That pointer is here deliberately: a per-file theorem count of
     *this* module sees only the drift guard below and reads as
