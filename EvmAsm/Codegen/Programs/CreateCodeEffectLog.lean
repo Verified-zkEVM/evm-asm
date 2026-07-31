@@ -844,8 +844,31 @@ def createRecordCodeEffectFunction : String :=
   -- `gen-out/regionmap/stateless_guest.s` (the self-test call sites at the bottom of
   -- this file are not emitted).  A successful deposit is still an AccountState code
   -- event, which is the `account_state_record_code` call above and is unchanged.
-  -- A successful later CREATE at the same address is the latest transaction
-  -- state and cancels an earlier same-transaction EIP-6780 delete request.
+  -- ⚠️ GH #10976: THIS CALL IS A NO-OP TODAY AND IS KEPT DELIBERATELY.  It runs on every
+  -- successful deposit and its miss return is ignored, so it will never show up as
+  -- unexecuted in a coverage or reachability analysis — only the precondition finds it.
+  --
+  -- Its stated purpose is that a successful later CREATE at the same address is the latest
+  -- transaction state and cancels an earlier same-transaction EIP-6780 delete request.
+  -- **That CREATE cannot succeed.**  `account_deployable` requires nonce 0 and empty code;
+  -- SELFDESTRUCT clears neither mid-transaction (the clearing is at `fork.py:1201`, after
+  -- execution); and the `modify_state` destroy-cascade that might otherwise have rescued it
+  -- needs nonce 0 too (`account_exists_and_is_empty`).  So there is never a delete row here
+  -- to cancel, and the flag-clear always misses.
+  --
+  -- WHY IT STAYS RATHER THAN BEING DELETED.  The delete set is an IN-PLACE editor whose
+  -- rollback is a HIGH-WATER MARK, which is the one cell of the append-versus-in-place ×
+  -- mark-versus-journal grid that is actually unsound (GH #10966).  This call is the only
+  -- barrier between a future reachability change and that combination: if anything ever makes
+  -- a same-transaction re-CREATE at a destroyed address succeed, the cancel must already be
+  -- here or a stale delete request survives into commit.  One instruction on the
+  -- successful-deposit path is a fair price for that, and unlike a dead SYMBOL a no-op CALL
+  -- does not pollute any allocation census.
+  --
+  -- WHAT WOULD MAKE IT LIVE: any change that lets `account_deployable` admit an address with a
+  -- pending same-transaction delete — e.g. clearing nonce/code at SELFDESTRUCT time rather than
+  -- at `fork.py:1201`, or a destroy-cascade that no longer requires nonce 0.  If you are
+  -- editing either, this line is load-bearing and its miss return should start being checked.
   "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
   -- Balance remains absent here: value flow owns its own nonstorage record.
