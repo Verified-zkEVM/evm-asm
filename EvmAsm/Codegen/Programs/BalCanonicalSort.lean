@@ -358,6 +358,16 @@ theorem balCanonicalSortFunction_eq_prog :
     which key width belongs to which arena — the misuse the status codes 2 and 4
     exist to catch is not reachable from these. -/
 
+-- REACHABILITY (measured 2026-07-31 on ed50a5dbb): ZERO callers. No jal/jalr/la/call/
+-- tail/auipc materialisation of `bal_sort_storage_writes` anywhere in the 2,124,874-byte
+-- emitted guest stream (it appears only as its own `.globl` + label); no external
+-- `GuestAddrs.bal_sort_storage_writes` reference outside this module. The EIP-7928 BAL
+-- canonical ordering (incl. the address-major/slot-minor slot order this produces) is
+-- already achieved by the live path and proven correct by the #11016 correspondence
+-- (1149/1149 records: account / slot / per-index orders). So this routine is UNUSED — the
+-- ordering obligation is met without it. Kept, not deleted, because its address is pinned
+-- in `GuestAddrs.lean` (removal would force a repin cascade across GuestAddrs / the region
+-- map / address-pinned proofs). See #11017.
 /-- Sort the block-level `storage_writes` map into address-major, slot-minor
     order. a0 = 0 on success, else the `bal_canonical_sort` status. -/
 def balSortStorageWrites_prog : Program :=
@@ -393,6 +403,16 @@ theorem balSortStorageWritesFunction_eq_prog :
       "bal_sort_storage_writes:\n" ++ emitProgramR balSortStorageWrites_prog balSortStorageWrites_relocs := rfl
 
 
+-- REACHABILITY (measured 2026-07-31 on ed50a5dbb): ZERO callers. No jal/jalr/la/call/
+-- tail/auipc materialisation of `bal_sort_account_writes` anywhere in the 2,124,874-byte
+-- emitted guest stream (it appears only as its own `.globl` + label); no external
+-- `GuestAddrs.bal_sort_account_writes` reference outside this module. The EIP-7928 BAL
+-- canonical ordering (incl. the account order this produces) is already achieved by the
+-- live path and proven correct by the #11016 correspondence (1149/1149 records: account /
+-- slot / per-index orders). So this routine is UNUSED — the ordering obligation is met
+-- without it. Kept, not deleted, because its address is pinned in `GuestAddrs.lean`
+-- (removal would force a repin cascade across GuestAddrs / the region map / address-pinned
+-- proofs). See #11017.
 /-- Sort the block-level `account_writes` map into address order. -/
 def balSortAccountWrites_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
