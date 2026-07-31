@@ -323,10 +323,19 @@ def eip7708SyntheticLogFunctions : String :=
   -- gate: it was a non-self log/credit staging flag, while `move_ether` also
   -- executes for self-transfers.
   "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
-  "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; bnez a0, .Ldpub_done\n" ++
+  -- A successful lookup supplies the current post-gas sender balance required
+  -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
+  -- skip rather than falling through to the reused scratch cell.
+  "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; beqz a0, .Ldpub_done\n" ++
+  -- The runtime CALLVALUE word is an EVM stack word (LE limbs), while the
+  -- generic producer calls `u256_sub_be`; reverse it at this ABI boundary.
+  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 127\n" ++
+  "  la t1, bv_pending_value_be; li t2, 32\n" ++
+  ".Ldpub_value_be:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldpub_value_be\n" ++
   "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0)\n" ++
   "  la a1, bv_pending_recipient_addr\n" ++
-  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi a2, t0, 96\n" ++
+  "  la a2, bv_pending_value_be\n" ++
   "  li a3, 1\n" ++
   "  la a4, bv_pending_value_sender_pre\n" ++
   "  la a5, bv_pending_recipient_pre\n" ++
@@ -469,7 +478,11 @@ def eip7708SyntheticLogTopicData : String :=
   -- separate from the gas-debit tuple because the former must be restored on
   -- a failed body while the latter must survive it.
   "bv_pending_value_sender_pre:\n  .zero 32\n" ++
+  -- Retained for the unfinished sender post-value protocol.  The publisher's
+  -- LE-to-BE ABI conversion below deliberately uses its own cell so completing
+  -- that protocol cannot alias a byte-order scratch.
   "bv_pending_value_sender_post:\n  .zero 32\n" ++
+  "bv_pending_value_be:\n  .zero 32\n" ++
   "\n"
 
 def eip7708SyntheticLogDataSection : String :=
