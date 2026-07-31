@@ -34,8 +34,9 @@ def modexpBnMaxLimbs : Nat := 256
     splice this inline between `.text` functions must restore `.section .text`
     afterwards (see `Dispatch.lean`). -/
 def emitModexpBnScratchData : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
+  ".section .data
+.balign 8
+" ++
   "modexp_bn_base:\n" ++ "  .zero 2048\n" ++
   "modexp_bn_exp:\n" ++ "  .zero 2048\n" ++
   "modexp_bn_mod:\n" ++ "  .zero 2048\n" ++
@@ -91,8 +92,9 @@ def modexpBnHelpers : String :=
   "  slli t2, t1, 3\n" ++
   "  add t3, a0, t2\n" ++ "  ld t4, 0(t3)\n" ++
   "  add t3, a1, t2\n" ++ "  ld t5, 0(t3)\n" ++
-  "  bltu t4, t5, .Lmcmp_lt\n" ++
-  "  beq t4, t5, .Lmcmp_eq\n" ++
+  "  bltu t4, t5, .Lmcmp_lt
+  beq t4, t5, .Lmcmp_eq
+" ++
   "  li t0, 1\n" ++ "  j .Lmcmp_done\n" ++
   ".Lmcmp_eq:\n" ++ "  addi t1, t1, -1\n" ++ "  j .Lmcmp_loop\n" ++
   ".Lmcmp_lt:\n" ++ "  li t0, 0\n" ++
@@ -170,13 +172,15 @@ def modexpBnHelpers : String :=
   "  slli t4, s3, 3\n" ++ "  add t4, t0, t4\n" ++ "  ld t4, 0(t4)\n" ++
   "  bnez t4, .Lmbinm_sub\n" ++
   "  mv a0, t0\n" ++ "  mv a1, s2\n" ++ "  mv a2, s3\n" ++
-  "  jal ra, modexp_cmpge\n" ++
-  "  beqz a0, .Lmbinm_next\n" ++
+  "  jal ra, modexp_cmpge
+  beqz a0, .Lmbinm_next
+" ++
   ".Lmbinm_sub:\n" ++
   "  la t0, modexp_bn_remainder\n" ++
   "  mv a0, t0\n" ++ "  mv a1, s2\n" ++ "  mv a2, s3\n" ++
-  "  jal ra, modexp_sub\n" ++
-  "  la t0, modexp_bn_remainder\n" ++
+  "  jal ra, modexp_sub
+  la t0, modexp_bn_remainder
+" ++
   "  slli t4, s3, 3\n" ++ "  add t4, t0, t4\n" ++ "  sd zero, 0(t4)\n" ++
   ".Lmbinm_next:\n" ++ "  addi s5, s5, -1\n" ++ "  j .Lmbinm_bit\n" ++
   ".Lmbinm_finish:\n" ++
@@ -202,8 +206,9 @@ def zkvmModexpBackendImpl : String :=
   modexpBnHelpers ++ "\n" ++
   ".globl zkvm_modexp\n" ++ "zkvm_modexp:\n" ++
   -- Save all inputs in s-regs before any jal call
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
+  "  addi sp, sp, -128
+  sd ra, 0(sp)
+" ++
   "  sd s0, 8(sp)\n" ++     -- base_ptr
   "  sd s1, 16(sp)\n" ++    -- Blen
   "  sd s2, 24(sp)\n" ++    -- exp_ptr
@@ -220,10 +225,11 @@ def zkvmModexpBackendImpl : String :=
   "  mv s3, a3\n" ++ "  mv s4, a4\n" ++ "  mv s5, a5\n" ++
   "  mv s6, a6\n" ++
   -- Validate lengths
-  "  li t0, 2048\n" ++
-  "  bltu t0, s1, .Lmexp_err\n" ++
-  "  bltu t0, s3, .Lmexp_err\n" ++
-  "  bltu t0, s5, .Lmexp_err\n" ++
+  "  li t0, 2048
+  bltu t0, s1, .Lmexp_err
+  bltu t0, s3, .Lmexp_err
+  bltu t0, s5, .Lmexp_err
+" ++
   -- nm = ceil(Mlen / 8)
   "  addi t0, s5, 7\n" ++ "  srli s7, t0, 3\n" ++
   -- nb = ceil(Blen / 8)
@@ -238,8 +244,9 @@ def zkvmModexpBackendImpl : String :=
   "  jal ra, modexp_be_to_le\n" ++
   -- Check modulus == 0 → fill output with Mlen zeros
   "  la a0, modexp_bn_mod\n" ++ "  mv a1, s7\n" ++
-  "  jal ra, modexp_iszero\n" ++
-  "  bnez a0, .Lmexp_modzero\n" ++
+  "  jal ra, modexp_iszero
+  bnez a0, .Lmexp_modzero
+" ++
   -- Parse base → modexp_bn_base
   "  mv a0, s0\n" ++ "  mv a1, s1\n" ++
   "  la a2, modexp_bn_base\n" ++ "  li a3, 2048\n" ++
@@ -251,8 +258,9 @@ def zkvmModexpBackendImpl : String :=
   -- Reduce base mod modulus: binmod(base, nb, mod, nm) → base
   "  la a0, modexp_bn_base\n" ++ "  mv a1, s8\n" ++
   "  la a2, modexp_bn_mod\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_base\n" ++
-  "  jal ra, modexp_binmod\n" ++
+  "  la a4, modexp_bn_base
+  jal ra, modexp_binmod
+" ++
   -- Result = 1 (set result[0] = 1, rest zero)
   "  la t0, modexp_bn_result\n" ++
   "  addi t1, s7, 1\n" ++ "  slli t1, t1, 3\n" ++
@@ -263,8 +271,9 @@ def zkvmModexpBackendImpl : String :=
   "  la t0, modexp_bn_result\n" ++ "  li t1, 1\n" ++ "  sd t1, 0(t0)\n" ++
   -- Check exp == 0: if so, result = 1 mod modulus (0 when modulus == 1)
   "  la a0, modexp_bn_exp\n" ++ "  mv a1, s9\n" ++
-  "  jal ra, modexp_iszero\n" ++
-  "  bnez a0, .Lmexp_expzero\n" ++
+  "  jal ra, modexp_iszero
+  bnez a0, .Lmexp_expzero
+" ++
   -- Find highest set bit in exp: scan from MSB limb/bit down
   -- s10 = current bit index (global), start at ne*64-1
   "  slli s10, s9, 6\n" ++ "  addi s10, s10, -1\n" ++
@@ -285,14 +294,16 @@ def zkvmModexpBackendImpl : String :=
   -- product = result * result
   "  la a0, modexp_bn_result\n" ++ "  mv a1, s7\n" ++
   "  la a2, modexp_bn_result\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_product\n" ++
-  "  jal ra, modexp_mul\n" ++
+  "  la a4, modexp_bn_product
+  jal ra, modexp_mul
+" ++
   -- result = product mod modulus (product has 2*nm limbs)
   "  la a0, modexp_bn_product\n" ++
   "  li a1, 0\n" ++ "  add a1, s7, s7\n" ++  -- na = 2*nm
   "  la a2, modexp_bn_mod\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_result\n" ++
-  "  jal ra, modexp_binmod\n" ++
+  "  la a4, modexp_bn_result
+  jal ra, modexp_binmod
+" ++
   -- If exp bit s10 is set: result = result * base mod modulus
   "  srli t0, s10, 6\n" ++ "  andi t1, s10, 63\n" ++
   "  slli t2, t0, 3\n" ++
@@ -303,24 +314,28 @@ def zkvmModexpBackendImpl : String :=
   -- product = result * base
   "  la a0, modexp_bn_result\n" ++ "  mv a1, s7\n" ++
   "  la a2, modexp_bn_base\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_product\n" ++
-  "  jal ra, modexp_mul\n" ++
+  "  la a4, modexp_bn_product
+  jal ra, modexp_mul
+" ++
   -- result = product mod modulus
   "  la a0, modexp_bn_product\n" ++
   "  li a1, 0\n" ++ "  add a1, s7, s7\n" ++
   "  la a2, modexp_bn_mod\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_result\n" ++
-  "  jal ra, modexp_binmod\n" ++
+  "  la a4, modexp_bn_result
+  jal ra, modexp_binmod
+" ++
   ".Lmexp_next_bit:\n" ++
-  "  addi s10, s10, -1\n" ++
-  "  bgez s10, .Lmexp_sqmul\n" ++
+  "  addi s10, s10, -1
+  bgez s10, .Lmexp_sqmul
+" ++
   -- exp == 0: pow(base, 0, m) = 1 % m. result currently holds 1; reduce it mod
   -- modulus so modulus == 1 yields 0 (EIP-198). modulus == 0 handled earlier.
   ".Lmexp_expzero:\n" ++
   "  la a0, modexp_bn_result\n" ++ "  mv a1, s7\n" ++
   "  la a2, modexp_bn_mod\n" ++ "  mv a3, s7\n" ++
-  "  la a4, modexp_bn_result\n" ++
-  "  jal ra, modexp_binmod\n" ++
+  "  la a4, modexp_bn_result
+  jal ra, modexp_binmod
+" ++
   -- fall through to format
   -- Format output: result (nm LE limbs) → output (Mlen BE bytes)
   ".Lmexp_format:\n" ++
@@ -337,8 +352,9 @@ def zkvmModexpBackendImpl : String :=
   "  ld s6, 56(sp)\n" ++ "  ld s7, 64(sp)\n" ++
   "  ld s8, 72(sp)\n" ++ "  ld s9, 80(sp)\n" ++
   "  ld s10, 88(sp)\n" ++ "  ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret\n" ++
+  "  addi sp, sp, 128
+  ret
+" ++
   ".Lmexp_modzero:\n" ++
   -- Fill output with Mlen zeros
   "  mv t0, s6\n" ++ "  mv t1, s5\n" ++
