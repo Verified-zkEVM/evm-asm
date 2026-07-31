@@ -288,15 +288,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- BlockVerdictMultiTx.lean:38); base_fee comes from bv_mtx_base_fee_be (computed above —
   -- record+32 is NOT filled by multi_tx_nth_context). Placed before the contract/EOA-recipient
   -- routing so it covers EVERY status-0 tx the loop reaches. tx_effective_gas_pricing returns
-  -- 2 (priority>max_fee) / 3 (max_fee<base_fee) for the two spec errors; status 1 (extraction
-  -- failed) / 4 (egp overflow) -> fall through. An invalid-fee tx is spec-rejected regardless
-  -- of recipient type, and a valid block never carries one, so this only ADDS spec-faithful
-  -- rejects -- no false-reject. (t1 is reset at the code-hash compare / reloaded from bv_mtx_i
-  -- later; s0-s3 preserved by the call.)
+  -- 1 when transaction-type or canonical fee extraction fails, 2 when priority>max_fee, and 3
+  -- when max_fee<base_fee. execution-specs decodes every transaction unconditionally before
+  -- applying the block, so all three are transaction-validity failures and reject here. Status 4
+  -- is the separately-proven-unreachable effective-price overflow case. (t1 is reset at the
+  -- code-hash compare / reloaded from bv_mtx_i later; s0-s3 preserved by the call.)
   "  la t2, bv_mtx_ctx\n" ++
   "  ld a0, 8(t2); ld a1, 16(t2); la a2, bv_mtx_base_fee_be\n" ++   -- tx ptr, tx len, block base_fee (BE)
   "  la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
   "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t1, 1; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- pricing extraction failed -> reject
   "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
   "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
   -- Exact sequential sender nonce check.  The first transaction falls back to
