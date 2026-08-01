@@ -13,7 +13,6 @@ import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
-import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
@@ -720,7 +719,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "tvhm_hash_off:\n  .zero 8\n" ++
   "tvhm_hash_len:\n  .zero 8\n" ++
   "tvhm_struct:\n  .zero 248\n" ++
-  eip7702NonceReuseGuardDataSection ++
+  ".balign 32\n" ++
+  "afp_digest:\n  .zero 32\n" ++
   "brl_item_start:\n  .zero 8\n" ++
   "brl_item_end:\n  .zero 8\n" ++
   "brl_wd_len:\n  .zero 8\n" ++
