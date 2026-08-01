@@ -28,21 +28,17 @@ import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
-import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
-import EvmAsm.Codegen.Programs.BalAllAccountsCode
-import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
-import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -365,13 +361,9 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_mtx_committed_chunked_snapshot_upsert, bvMtxCommittedChunkedSnapshotUpsert_prog),
   (GuestAddrs.bv_mtx_committed_chunked_latest_value, bvMtxCommittedChunkedLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
-  (GuestAddrs.bal_storage_reads_in_exec_log, balStorageReadsInExecLog_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
-  (GuestAddrs.bal_all_accounts_code_covers, balAllAccountsCodeCovers_prog),
-  (GuestAddrs.bal_all_accounts_code_consistent, balAllAccountsCodeConsistent_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
-  (GuestAddrs.bal_account_code_consistent, balAccountCodeConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_consistent, balAccountNonstorageConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
@@ -530,6 +522,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 364
+#guard guestImageEntries.length = 360
 
 end EvmAsm.Codegen
