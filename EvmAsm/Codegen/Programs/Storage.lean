@@ -28,8 +28,10 @@
   ## Semantics
 
   **SLOAD (0x54)** — scan persistent log from end (last-write-
-  wins); copy matching `current` to the stack-top slot; default
-  zero on miss. Net stack delta = 0.
+  wins); copy matching `current` to the stack-top slot. On a MISS,
+  resolve the value on demand (GH #10874: block-committed map, then the
+  witness by key, then zero) and SEED it into the log so the verified
+  scan finds it. Net stack delta = 0.
 
   **SSTORE (0x55)** — scan from end; append a new entry preserving
   the prior `original` on match (or 0 on miss). **Always appends**
@@ -53,8 +55,11 @@
 
   - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
     env.ADDRESS (multi-contract isolated).
-  - Cold reads of non-preloaded slots return `original = 0`; real
-    EVM reads from the witness MPT (M27).
+  - GH #10874: cold reads are DEMAND-DRIVEN. A persistent-log miss is resolved
+    through the three-tier chain (`storagePrestateResolveAsm`): the block-committed
+    map, then the witness BY KEY against the parent header, then zero. It used to
+    read `original = 0` unconditionally, which made a slot readable only if
+    something had PRELOADED it from the declared BAL.
   - 4 MiB per log = ~32K entries each — well past any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/

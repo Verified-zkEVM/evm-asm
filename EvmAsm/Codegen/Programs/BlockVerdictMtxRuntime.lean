@@ -458,9 +458,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxPrecompileSettlement ++
   -- An inactive precompile is ordinary zero-byte code.  Rejoin the one
   -- top-level message processor instead of falling through to a second EOA
-  -- settlement route.
+  -- settlement route.  In the shared dispatcher this is a one-shot hook:
+  -- clear both sentinels and return to the callable prologue's regular-loop
+  -- label.  Re-entering `.Lbv_mtx_is_contract` here would recursively invoke
+  -- `dispatch_tx_runtime_code` while its frame is still live, and a later MTx
+  -- iteration would reach its `ld a1,80(s0)` with a null frame pointer.
   ".Lbv_mtx_precompile_not_active:\n" ++
-  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0); j .Lbv_mtx_is_contract\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
+  "  ret\n" ++
   ".Lbv_mtx_is_contract:\n" ++
   -- #10695 INVARIANT: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
   -- TRANSACTION'S block_access_index (i+1; EIP-7928: 0 for system, i+1 for the i-th user tx,
