@@ -404,7 +404,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.address_compute_create, addressComputeCreate_prog),
   (GuestAddrs.address_compute_create2, addressComputeCreate2_prog),
   (GuestAddrs.enrg_u32le, enrgU32le_prog),
-  (GuestAddrs.eip7702_nonce_reuse_guard, eip7702NonceReuseGuard_prog),
   (GuestAddrs.dispatcher_capture_exec_state_gas, dispatcherCaptureExecStateGas_prog),
   (GuestAddrs.rlp_list_truncate_to_n_fields, rlpListTruncateToNFields_prog),
   (GuestAddrs.tx_signing_hash, txSigningHash_prog),
@@ -532,6 +531,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 366
+#guard guestImageEntries.length = 365
 
 end EvmAsm.Codegen
