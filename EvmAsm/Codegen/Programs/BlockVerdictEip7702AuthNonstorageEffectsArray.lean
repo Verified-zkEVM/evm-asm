@@ -8,7 +8,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
-  [ .ADDI .x2 .x2 (-88 : BitVec 12),
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
@@ -19,6 +19,7 @@ def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
     .SD .x2 .x22 (56 : BitVec 12),
     .SD .x2 .x23 (64 : BitVec 12),
     .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x16 (80 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x18 .x12,
@@ -26,19 +27,24 @@ def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
     .MV .x20 .x14,
     .MV .x24 .x15,
     .LI .x5 (4 : Word),
-    .BLTU .x9 .x5 (140 : BitVec 13),
+    .BLTU .x9 .x5 (160 : BitVec 13),
     .MV .x10 .x8,
-    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 80)),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 84)),
     .ANDI .x5 .x10 (3 : BitVec 12),
-    .BNE .x5 .x0 (124 : BitVec 13),
-    .BLTU .x9 .x10 (120 : BitVec 13),
+    .BNE .x5 .x0 (144 : BitVec 13),
+    .BLTU .x9 .x10 (140 : BitVec 13),
     .SRLI .x21 .x10 (2 : BitVec 6),
-    .BNE .x21 .x18 (112 : BitVec 13),
+    .BNE .x21 .x18 (132 : BitVec 13),
     .LI .x22 (0 : Word),
-    .BEQ .x22 .x21 (104 : BitVec 13),
+    .BEQ .x22 .x21 (124 : BitVec 13),
+    .LD .x16 .x2 (80 : BitVec 12),
+    .SLLI .x5 .x22 (3 : BitVec 6),
+    .ADD .x5 .x16 .x5,
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (96 : BitVec 13),
     .SLLI .x5 .x22 (2 : BitVec 6),
     .ADD .x10 .x8 .x5,
-    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 120)),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 144)),
     .MV .x23 .x10,
     .SLLI .x5 .x21 (2 : BitVec 6),
     .BLTU .x23 .x5 (72 : BitVec 13),
@@ -47,7 +53,7 @@ def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
     .BEQ .x5 .x21 (20 : BitVec 13),
     .SLLI .x6 .x5 (2 : BitVec 6),
     .ADD .x10 .x8 .x6,
-    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 156)),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 180)),
     .JAL .x0 (8 : BitVec 21),
     .MV .x10 .x9,
     .BLTU .x10 .x23 (36 : BitVec 13),
@@ -58,9 +64,9 @@ def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
     .MV .x12 .x19,
     .MV .x13 .x20,
     .MV .x14 .x24,
-    .JAL .x1 (jalOff GuestAddrs.eip7702_auth_nonstorage_effects (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 200)),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_auth_nonstorage_effects (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array + 224)),
     .ADDI .x22 .x22 (1 : BitVec 12),
-    .JAL .x0 (-100 : BitVec 21),
+    .JAL .x0 (-120 : BitVec 21),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -72,17 +78,17 @@ def blockVerdictEip7702AuthNonstorageEffectsArray_prog : Program :=
     .LD .x22 .x2 (56 : BitVec 12),
     .LD .x23 .x2 (64 : BitVec 12),
     .LD .x24 .x2 (72 : BitVec 12),
-    .ADDI .x2 .x2 (88 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `blockVerdictEip7702AuthNonstorageEffectsArray_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def blockVerdictEip7702AuthNonstorageEffectsArray_relocs : RelocTable :=
-  [ (20, .jal .x1 "bgv_u32le"),
-    (30, .jal .x1 "bgv_u32le"),
-    (39, .jal .x1 "bgv_u32le"),
-    (50, .jal .x1 "eip7702_auth_nonstorage_effects") ]
+  [ (21, .jal .x1 "bgv_u32le"),
+    (36, .jal .x1 "bgv_u32le"),
+    (45, .jal .x1 "bgv_u32le"),
+    (56, .jal .x1 "eip7702_auth_nonstorage_effects") ]
 
 def blockVerdictEip7702AuthNonstorageEffectsArrayFunction : String :=
   "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++ emitProgramR blockVerdictEip7702AuthNonstorageEffectsArray_prog blockVerdictEip7702AuthNonstorageEffectsArray_relocs
@@ -96,6 +102,6 @@ theorem blockVerdictEip7702AuthNonstorageEffectsArrayFunction_eq_prog :
     blockVerdictEip7702AuthNonstorageEffectsArrayFunction = "block_verdict_eip7702_auth_nonstorage_effects_array:\n" ++ emitProgramR blockVerdictEip7702AuthNonstorageEffectsArray_prog blockVerdictEip7702AuthNonstorageEffectsArray_relocs := rfl
 
 #guard blockVerdictEip7702AuthNonstorageEffectsArrayFunction.startsWith "block_verdict_eip7702_auth_nonstorage_effects_array:\n"
-#guard blockVerdictEip7702AuthNonstorageEffectsArray_prog.length = 66
+#guard blockVerdictEip7702AuthNonstorageEffectsArray_prog.length = 72
 
 end EvmAsm.Codegen

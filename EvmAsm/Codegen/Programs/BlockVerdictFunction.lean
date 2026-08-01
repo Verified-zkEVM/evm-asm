@@ -323,6 +323,7 @@ def blockVerdictFunction : String :=
   -- former replay-based producer is deliberately not invoked afterwards.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_post_preparation_reached; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0); la t2, bv_simple_transfer_tx; ld a0, 8(t2); ld a1, 16(t2); ld a2, 176(t2); ld a3, 184(t2); la a4, bv_stx_sender_addr; ld a5, 160(t2); li a6, 0; jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
@@ -658,6 +659,11 @@ def blockVerdictFunction : String :=
   "  la t4, tgbpv_direct_oog; ld t5, 0(t4); beqz t5, .Lbv_std_status_one\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_direct_status_store\n" ++
   ".Lbv_std_status_one:\n" ++
+  -- Direct EOA execution has no callable dispatcher to set the shared
+  -- post-preparation marker.  Set it only after the direct gas boundary has
+  -- passed; an auth/preparation OOG must leave it clear so the auth snapshot
+  -- is restored and the post-auth effect producer is suppressed.
+  "  li t6, 1; la t4, runtime_tx_post_preparation_reached; sd t6, 0(t4); la t4, bv_tx_auth_phase_applied_arr; sd t6, 0(t4)\n" ++
   "  li t5, 1\n" ++
   ".Lbv_simple_transfer_direct_status_store:\n" ++
   "  la t4, bv_tx_status_arr; sd t5, 0(t4)\n" ++

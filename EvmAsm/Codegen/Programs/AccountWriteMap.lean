@@ -349,6 +349,12 @@ def accountWritesEmitBuilderTxFunction : String :=
   -- change which comparisons are made, and `bit_set = eq + ne` is the built-in
   -- check that the relabel did not lose a path.
   "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_bal_eq\n" ++
+  "  li t0, 4; bgeu s3, t0, .Laweb_balance_trace_done; li t0, 96; mul t0, s3, t0; la t1, account_builder_diag_balance_pairs; add t1, t1, t0\n" ++
+  "  ld t0, 0(s4); sd t0, 0(t1); ld t0, 8(s4); sd t0, 8(t1); ld t0, 16(s4); sd t0, 16(t1); ld t0, 24(s4); sd t0, 24(t1)\n" ++
+  "  ld t0, 0(s6); sd t0, 32(t1); ld t0, 8(s6); sd t0, 40(t1); ld t0, 16(s6); sd t0, 48(t1); ld t0, 24(s6); sd t0, 56(t1)\n" ++
+  "  ld t0, 32(s4); sd t0, 64(t1); ld t0, 40(s4); sd t0, 72(t1); ld t0, 48(s4); sd t0, 80(t1); ld t0, 56(s4); sd t0, 88(t1)\n" ++
+  ".Laweb_balance_trace_done:\n" ++
+  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
   ".Laweb_balance_emit:\n" ++
   -- Diagnostic cell: the compare found inequality, so the append is CALLED.
   -- bit_set minus differs is exactly the "compare found equality" population
@@ -383,6 +389,10 @@ def accountWritesEmitBuilderTxFunction : String :=
   ".Laweb_non_eq:\n" ++
   "  la t2, bald_non_eq_bai_mask; ld t3, 0(t2); li t4, 1; sll t4, t4, s7; or t3, t3, t4; sd t3, 0(t2)\n" ++
   "  la t2, bald_non_eq_val_pre; sd t0, 0(t2); la t2, bald_non_eq_val_post; sd t1, 0(t2)\n" ++
+  "  li t2, 4; bgeu s3, t2, .Laweb_nonce_trace_done; li t2, 48; mul t2, s3, t2; la t3, account_builder_diag_nonce_pairs; add t3, t3, t2\n" ++
+  "  ld t2, 0(s4); sd t2, 0(t3); ld t2, 8(s4); sd t2, 8(t3); ld t2, 16(s4); sd t2, 16(t3); ld t2, 24(s4); sd t2, 24(t3); sd t0, 32(t3); ld t2, 64(s4); sd t2, 40(t3)\n" ++
+  ".Laweb_nonce_trace_done:\n" ++
+  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
   -- Code compares hashes, never code pointer/length identity.  The header
   -- reader zeroes its output on authenticated absence, so select the canonical
   -- EMPTY_CODE_HASH in that one case.
@@ -640,6 +650,8 @@ def accountWriteMapBssSection : String :=
   "account_builder_pre_account:\n  .zero 104\n" ++
   "account_builder_post_code_hash:\n  .zero 32\n" ++
   "account_builder_block_code_hash:\n  .zero 32\n" ++
+  "account_builder_diag_balance_pairs:\n  .zero 384\n" ++
+  "account_builder_diag_nonce_pairs:\n  .zero 192\n" ++
   ".balign 8\n"
 
 /-- Every routine in this module, in emission order. `account_write_record`

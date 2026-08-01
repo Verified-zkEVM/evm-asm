@@ -335,6 +335,22 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
   "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   ".section .bss, \"aw\", @nobits\n" ++
+  -- Per-transaction auth-preparation outcome.  A receipt status cannot carry
+  -- this bit because body REVERT retains the authorization phase while an
+  -- auth/preparation OOG rolls it back; keep the marker in NOBITS storage so
+  -- it does not perturb .data address pins.
+  ".balign 8\n" ++
+  -- Depth-zero message snapshot for the auth-preparation rollback.  Child
+  -- frames use the body snapshot slab; this slot is the transaction-level
+  -- counterpart and is intentionally kept in .bss.
+  "account_state_pending_checkpoint:\n  .zero 8\n" ++
+  -- Auth preparation appends raw non-storage effects before the dispatcher
+  -- knows whether the state-gas reservoir can pay for them.  Keep a
+  -- transaction-boundary high-water mark so an auth/preparation halt erases
+  -- those appends, mirroring interpreter.py:367-378's state rollback.
+  "runtime_tx_auth_effect_count_checkpoint:\n  .zero 8\n" ++
+  "runtime_tx_auth_effect_overflow_checkpoint:\n  .zero 8\n" ++
+  "bv_tx_auth_phase_applied_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
   "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match

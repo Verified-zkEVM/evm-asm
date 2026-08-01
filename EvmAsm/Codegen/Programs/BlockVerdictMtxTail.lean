@@ -273,6 +273,7 @@ def blockVerdictMtxValidationTail : String :=
   "  la t2, bv_bal_start; ld a3, 0(t2)\n" ++
   "  la t2, bv_bal_len; ld a4, 0(t2)\n" ++
   "  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
+  "  la a6, bv_tx_auth_phase_applied_arr\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by

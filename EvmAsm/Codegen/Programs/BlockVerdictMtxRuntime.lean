@@ -297,6 +297,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- EOA/non-runtime route otherwise inherits a previous transaction's
   -- successful preparation and incorrectly retains staged authorization gas.
   "  la t0, runtime_tx_post_preparation_reached; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; sd zero, 0(t0)\n" ++
+  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3; la t0, bv_tx_auth_phase_applied_arr; add t0, t0, t2; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++
   -- The tuple is one-shot.  A pre-dispatch terminal route must not leak an
@@ -574,6 +576,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- raw evm_refund_acc read.
   "  la t3, bv_mtx_refund;   add t3, t3, t0; sd a3, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; sd a4, 0(t3)\n" ++   -- .63.1.6.2.1: receipt status, tx i
+  -- Preserve the auth-preparation outcome per transaction.  Receipt status is
+  -- not sufficient: body REVERT keeps the authorization phase, while an
+  -- auth/preparation OOG has status zero and must suppress its BAL effects.
+  "  la t3, runtime_tx_post_preparation_reached; ld t5, 0(t3); la t3, bv_tx_auth_phase_applied_arr; add t3, t3, t0; sd t5, 0(t3)\n" ++
   "  la t3, bv_tx_is_creation_arr; add t3, t3, t0; la t4, bv_mtx_ctx; ld t5, 48(t4); sd t5, 0(t3)\n" ++
   "  slli t4, t1, 4\n" ++   -- .63.1.6.2.1: per-tx log window (16-byte stride)
   "  la t3, bv_tx_log_window; add t3, t3, t4\n" ++
@@ -618,10 +624,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- preparation OOG never reaches that point and therefore drops pending auth.
   -- r59nm: the storage_writes map commits on TX STATUS ALONE, decided here and
   -- NOT inside account_state_commit_pending.  The AccountState gate below also
-  -- commits when `runtime_tx_post_preparation_reached` is set, and that flag does NOT
-  -- mean an authorization was applied -- it marks the dispatcher reaching the
-  -- POST-PREPARATION COVERAGE POINT, which nearly every transaction whose body
-  -- fails after preparation reaches.  Merging storage on that disjunct promoted
+  -- commits normally; only an authorization-phase halt restores the
+  -- preparation snapshot.  The post-preparation marker is deliberately not
+  -- used as a generic rollback trigger: unrelated early exits can occur before
+  -- that point and must not truncate this transaction's pending state.  Merging
+  -- storage on that disjunct promoted
   -- failed transactions' writes into the block map (measured: sstore_0to0to_x
   -- d5-g0, status 0, flag 1, the reverted write present in the block map).
   -- The spec has no such carve-out for storage: incorporate_tx_into_block runs
@@ -645,7 +652,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The debit was materialized before execution; apply the spec's later
   -- sender `create_ether` refund before AccountState commits this transaction.
   blockVerdictMtxRecordSenderRefund ++
-  "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2); bnez t2, .Lbv_mtx_code_commit; la t0, runtime_tx_post_preparation_reached; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); beqz t2, .Lbv_mtx_code_commit\n" ++
   -- `process_message` restores the preparation snapshot when preparation
   -- itself halts.  The map's direct auth producer mirrors that control-flow
   -- fact with its own cursor, rather than reusing the dead frame checkpoint.
