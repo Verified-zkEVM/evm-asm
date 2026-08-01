@@ -2239,12 +2239,11 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "top_level_creation_returndata_status:\n" ++
   "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
-  ".balign 8\n" ++
-  "top_level_creation_returndata_len:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "top_level_creation_returndata:\n" ++
-  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
+  -- GH #10938 piece 3: `top_level_creation_returndata` and `..._len` are GONE.  They were written
+  -- by `.Lrr_createcap_*` and read only by the creation stage's deposit block, which piece 2
+  -- deleted; the buffer outlived its consumer.  ⚠️ The LENGTH cell had a writer AND a clear and no
+  -- load anywhere — a clear is a write, so it read as live to a reference count and was not.
+  -- `top_level_creation_returndata_status` above SURVIVES: the stage still loads it to route.
   -- GH #10938: the depth-0 RETURN triple (x13 mem base / x14 offset / x15 size), stashed
   -- before the CREATE deposit block runs.  The deposit calls create_record_code_effect and
   -- record_nonstorage_effect, both of which clobber a3/a4/a5 == x13/x14/x15; at depth 1+
@@ -3730,12 +3729,11 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "top_level_creation_returndata_status:\n" ++
   "  .zero 8\n" ++        -- 0=no depth-0 RETURN, 1=captured, 2=oversized RETURN (fail closed)
-  ".balign 8\n" ++
-  "top_level_creation_returndata_len:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "top_level_creation_returndata:\n" ++
-  "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
+  -- GH #10938 piece 3: `top_level_creation_returndata` and `..._len` are GONE.  They were written
+  -- by `.Lrr_createcap_*` and read only by the creation stage's deposit block, which piece 2
+  -- deleted; the buffer outlived its consumer.  ⚠️ The LENGTH cell had a writer AND a clear and no
+  -- load anywhere — a clear is a write, so it read as live to a reference count and was not.
+  -- `top_level_creation_returndata_status` above SURVIVES: the stage still loads it to route.
   -- GH #10938: the depth-0 RETURN triple (x13 mem base / x14 offset / x15 size), stashed
   -- before the CREATE deposit block runs.  The deposit calls create_record_code_effect and
   -- record_nonstorage_effect, both of which clobber a3/a4/a5 == x13/x14/x15; at depth 1+

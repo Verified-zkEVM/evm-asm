@@ -736,8 +736,10 @@ def blockAccessListBuilderFunctions : String :=
 -- account sort, back when that was the only ordering implemented.
 
 -- The descriptor must carry the BIG-ENDIAN flag (0x80) in its width byte: 0x94 is
--- `0x80 | 20`. This is the same value `bal_sort_account_writes` passes, pinned on that
--- side by the matching guard in BalCanonicalSort.lean. Writing 0x1400 declares a
+-- `0x80 | 20`. (GH #11054: this used to cite `bal_sort_account_writes`, which passed the
+-- same value and has since been deleted as unreachable; the CONSTANT is the contract, not
+-- that routine.) The value stays pinned on the BalCanonicalSort.lean side by the width/offset
+-- guards there, which are value-level and so survived the deletion. Writing 0x1400 declares a
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
 #guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
 
