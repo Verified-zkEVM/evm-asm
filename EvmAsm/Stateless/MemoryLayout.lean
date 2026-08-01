@@ -102,10 +102,10 @@
   | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 1 MiB       |
-  | `ACCOUNT_WRITES_AREA`        | `0xa24a0000`     | 2.5 MiB     |
-  | `TX_ACCOUNT_WRITES_AREA`     | `0xa2720000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2920000`     | 2 MiB       |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 2.5 MiB     |
+  | `ACCOUNT_WRITES_AREA`        | `0xa2620000`     | 2.5 MiB     |
+  | `TX_ACCOUNT_WRITES_AREA`     | `0xa28a0000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2aa0000`     | 2 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -336,15 +336,19 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
     transaction physically cannot perform more writes than the journal can
     hold — it inherits an already-enforced bound.
 
-    Entry layout (64 B stride, exact fit, all fields 8-aligned):
+    Entry layout (160 B stride; wasAbsent=2 journals a full 128 B map row):
 
-        +0  entryIndex (8 B)   index into the tx-level map this write touched
-        +8  wasAbsent  (8 B)   1 if the write APPENDED a new key, else 0
-        +32 prevValue  (32 B)  the value before the write (unused if wasAbsent)
+        +0   entryIndex (8 B)   index into the tx-level map this write touched
+        +8   wasAbsent  (8 B)   0 = overwrite, 1 = append, 2 = destroy_storage drop
+        +16  (16 B pad)
+        +32  payload: prevValue (32 B) when wasAbsent=0;
+             full map row (128 B) when wasAbsent=2
 
     `wasAbsent` is a distinct field rather than a sentinel because **zero is a
     legitimate stored value**: restoring an appended key by writing zero would
     silently invent a written-zero slot where the spec has no key at all.
+    Code 2 is the destroy_storage drop: full-row journal (not bare count++) so a
+    later append that reuses the parked tail cannot corrupt fail-restore.
 
     Nesting is LIFO, so reverse replay is exact: a child frame's entries sit
     above its parent's mark, appended keys are unwound from the end, and a
@@ -352,7 +356,16 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
     undoes them — mirroring `frame_return`'s merge-on-success cursor
     discipline. -/
 
-/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 64 B = 1 MiB. -/
+/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 160 B = 2.5 MiB.
+
+    Stride grew from 64 B to 160 B so `wasAbsent = 2` (`destroy_storage` drop)
+    can journal the full 128 B map row. Layout:
+
+        +0   entryIndex (8 B)
+        +8   wasAbsent  (8 B)   0 = overwrite, 1 = append, 2 = destroy drop
+        +16  (16 B pad — keeps payload at +32)
+        +32  payload: prevValue (32 B) when wasAbsent=0;
+             full map row (128 B) when wasAbsent=2 -/
 def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
 
 /-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
@@ -387,9 +400,9 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
 
 /-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
     20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound. -/
-def ACCOUNT_WRITES_AREA      : Word := 0xa24a0000
+def ACCOUNT_WRITES_AREA      : Word := 0xa2620000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
-def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2720000
+def TX_ACCOUNT_WRITES_AREA   : Word := 0xa28a0000
 /-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB.
 
     Same rationale as `STORAGE_WRITES_UNDO_AREA`: the spec rolls a frame back by
@@ -403,7 +416,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2720000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2920000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2aa0000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 

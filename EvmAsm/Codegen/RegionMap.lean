@@ -218,9 +218,10 @@ def schemeAAnchors : List GuestRegion :=
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
     -- a per-frame copy would cost capacity x call depth.  Bounded by the SSTORE
     -- handler's own 16384-row cap, so it needs no overflow path.
-    { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x100000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 1 MiB = 16384x64 "
-        ++ "(entryIndex, wasAbsent, prevValue); reverse-replayed by write_sets_restore_frame" },
+    { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x280000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 2.5 MiB = 16384x160 "
+        ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
+        ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2" },
     -- #10695/#10699: the NONSTORAGE half of the same two levels -- BlockState
     -- .account_writes (state_tracker.py:75) and TransactionState.account_writes
     -- (:102).  Same shape as the storage trio above and for the same reasons, so the
@@ -231,19 +232,20 @@ def schemeAAnchors : List GuestRegion :=
     -- things -- the block map by the distinct-account bound across a whole block
     -- (19047), the tx map by what one transaction can touch -- so sizing them
     -- together would either waste 2.5 MiB or cap the block level too low.
-    { name := "account_writes_area",    base := 0xa24a0000, size := 0x280000, mode := .rw, zone := .ram,
+    -- Bases shifted +0x180000 when storage undo grew 64->160 B/entry (#10645 review).
+    { name := "account_writes_area",    base := 0xa2620000, size := 0x280000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2.5 MiB = 20480x128 "
         ++ "(addr++nonce++present++balance++codeHash, 128 B stride); block level, "
         ++ "filled only by account_writes_incorporate_tx; 20480 covers the 19047 "
         ++ "distinct block-account bound" },
-    { name := "tx_account_writes_area", base := 0xa2720000, size := 0x200000, mode := .rw, zone := .ram,
+    { name := "tx_account_writes_area", base := 0xa28a0000, size := 0x200000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
         ++ "account_writes, target of account_write_record (mirrors the spec's "
         ++ "nonstorage setters, state_tracker.py:102)" },
     -- Same rationale as storage_writes_undo_area: the spec rolls a frame back by
     -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
     -- depth, so the bounded equivalent is a reverse-replayed journal.
-    { name := "account_writes_undo_area", base := 0xa2920000, size := 0x200000, mode := .rw, zone := .ram,
+    { name := "account_writes_undo_area", base := 0xa2aa0000, size := 0x200000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
         ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
         ++ "reverse-replayed by account_writes_restore_frame" } ]
