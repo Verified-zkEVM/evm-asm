@@ -75,7 +75,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  # no state-trie code hash; skip this 21k-only verifier for them too.\n" ++
   "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc" "t0" "t3" "t1" "t4" ++
-  "  beqz t3, .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  beqz t3, .Lbv_mtx_precompile_not_active\n" ++
   "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
   "  li t4, 2; beq t3, t4, .Lbv_simple_transfer_precompile_sha256\n" ++
   "  li t4, 3; beq t3, t4, .Lbv_simple_transfer_precompile_ripemd160\n" ++
@@ -94,7 +94,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t4, 16; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g1\n" ++
   "  li t4, 17; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g2\n" ++
   "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
-  "  j .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  j .Lbv_mtx_precompile_not_active\n" ++
   ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
   -- At depth zero the precompile's returndata is intentionally not materialized:
   -- execution-specs stores it only in `evm.output`/`MessageCallOutput.return_data`,

@@ -5,11 +5,8 @@
 -/
 
 import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
-import EvmAsm.Codegen.Programs.BlockVerdictCreateCollision
 import EvmAsm.Codegen.Programs.BlockVerdictGasGatePrelude
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
-import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 
 namespace EvmAsm.Codegen
@@ -22,16 +19,6 @@ open EvmAsm.Rv64
     concatenates it immediately after the runtime phase so labels and emitted
     instruction order remain byte-identical. -/
 def blockVerdictFunctionTail : String :=
-  blockVerdictCreateCollisionBranch ++
-  bvReceiptsShapeSet 60 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
-  ".Lbv_contract_dispatch_unsupported:\n" ++
-  -- A failed/unsupported single-tx runtime has no executed-state component,
-  -- but its already-prepared intrinsic/auth state charge still belongs to the
-  -- receipt and EIP-8037 settlement.  This is the failed arm of the same
-  -- per-transaction finalizer used after successful runtime dispatch.
-  "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
-  "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvRuntimeCompletenessSet 3 ++ bvReceiptsShapeSet 61 true ++  "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictGasGatePrelude ++
   -- Exact block-gas settlement needs one runtime result for every transaction.
   -- Creation and otherwise unsupported execution shapes deliberately leave that
