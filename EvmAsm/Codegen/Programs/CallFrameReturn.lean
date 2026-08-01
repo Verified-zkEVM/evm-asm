@@ -851,7 +851,8 @@ def ziskFrameReturnPrologue : String :=
   createCreatorNonceUseFunction ++ "\n" ++
   -- GH #11001: frame_return may jal u256_add_be on the fail+debited path; probe
   -- never sets live_balance_debited_by_depth so this is unreached, but must link.
-  "u256_add_be:\n  li a0, 0\n  ret\n" ++
+  -- Trap (not silent zero-return) if ever reached — silent wrong answer is worse.
+  "u256_add_be:\n  j u256_add_be\n" ++
   ".Lfr_done:"
 
 /-- Data stubs so the probe links standalone (the real symbols live in the guest's
