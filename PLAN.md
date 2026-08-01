@@ -5209,3 +5209,39 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 8. **IO standard**: The STF program uses `read_input`/`write_output` per
    the zkvm IO standard. Input = block + pre-state witness. Output =
    post-state root hash.
+
+## Probe discipline (read this before building one)
+
+Guest measurements here routinely require a probe that **suppresses, disables or starves**
+something so an otherwise-unreached path executes. Two failures of that method cost a full
+evening on 2026-08-01 and produced a GitHub issue that had to be closed as invalid within the
+hour (#11122). Both are one counter away from being caught.
+
+1. **Measure that your intervention did what you think — before measuring anything through
+   it.** Count the thing you believe you removed. "Starving the preload" turned out to zero
+   only the *scan bound* (`env+448`) while `.preload_expand_loop`, guarded by the count
+   **register** `x6`, still wrote all 16 arena entries. The probe produced a **corrupted** log,
+   not an empty one — a state production cannot reach, which manufactured 16 phantom faults.
+   ⚠️ The tell was there and was read as reassurance: `h_SSTORE` ran **312 times in both
+   builds**. When an intervention meant to change behaviour leaves a downstream count
+   *identical*, that is evidence it did not land.
+
+2. **Run the UNMODIFIED build and check the condition exists there at all.** Do this before
+   investigating any fault a probe surfaces. 16 "header faults" in the probe build were
+   **zero** in production. This step is what caught failure (1) — from the other end, hours
+   late.
+
+3. **Establish the expected value from the data, never from a name.** `test_sstore_xto_y` was
+   read as "this contract has a nonzero pre-state slot"; the fixture's `pre` says
+   `storage_entries=0` for every account the code looked up, so the "failing" lookups were
+   returning the *correct* answer. The `x` is written by a transaction **in the block**. Open
+   the fixture.
+
+4. **Look for the direct oracle first.** `scripts/eest-stateless-to-input.py
+   --verify-run-stateless-guest` runs execution-specs' own `run_stateless_guest` on the exact
+   input blob and compares to the fixture's `statelessOutputBytes`. One command; it refutes
+   any "our input is deficient" theory before you write it up.
+
+5. **Prefer PC counters read from the objdump to added probe code.** Nothing to leave behind,
+   nothing to mis-place, and a funnel's *every* exit can be counted at once — entry == sum of
+   exits is what makes an attribution forced rather than plausible.
