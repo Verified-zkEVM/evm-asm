@@ -1044,7 +1044,9 @@ def balSerializerEmitOuterFunction : String :=
 
     Accounts are 20-byte rows sorted on one BIG-ENDIAN 20-byte segment: offset byte 0,
     width byte 0x94 -- that is `0x80 | 20`, the 0x80 being the big-endian flag -- so the
-    descriptor is 0x9400, the same value `bal_sort_account_writes` passes. Writing 0x1400
+    descriptor is 0x9400 (GH #11054: this used to cite `bal_sort_account_writes`, which
+    passed the same value and has since been deleted as unreachable -- the CONSTANT is the
+    contract here, not that routine). Writing 0x1400
     instead declares a big-endian address little-endian; it does not sort wrongly and
     carry on, it faults on a bad pointer inside the sort. -/
 def balSerializerRebuildHashFunction : String :=

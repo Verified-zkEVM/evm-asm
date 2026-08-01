@@ -1149,8 +1149,6 @@ SOURCE_DRIFT_ALLOW = {
     #      the branch offsets are still the ones resolved against the whole.
     # Legs (a) and (c) -- the byte-identity checks -- still run on all four.
     'balCanonicalSortFunction',
-    'balSortStorageWritesFunction',
-    'balSortAccountWritesFunction',
     'balCanonicalSortSelftestFunction',
 }
 

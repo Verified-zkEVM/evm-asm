@@ -402,7 +402,6 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- silently treating an unsupported output as empty code.
   "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_failed_flag; sd zero, 0(t0)\n" ++
-  "  la t0, top_level_creation_returndata_len; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
   -- `process_create_message` moves the endowment and emits its EIP-7708

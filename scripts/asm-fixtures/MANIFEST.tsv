@@ -41,8 +41,6 @@ balCanonicalSortSelftestFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balFindAccountByAddressFunction	EvmAsm/Codegen/Programs/BlockVerdictBalFindAccount.lean
 balGasValidFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balSectionInfoFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
-balSortAccountWritesFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
-balSortStorageWritesFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balStorageAccessOutcomeDescriptorsFunction	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean
 balStorageReadsInExecLogFunction	EvmAsm/Codegen/Programs/BalStorageReadsExecLog.lean
 bgvU32leFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
