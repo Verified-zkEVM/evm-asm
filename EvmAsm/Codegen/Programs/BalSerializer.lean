@@ -619,10 +619,15 @@ def balSerializerMeasureCodeFunction : String :=
   "  beqz a0, .Lbsmc_next\n" ++
   "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
   "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  -- `bal_rlp_measure_into_throwaway` calls the variable-length byte emitter,
+  -- which may clobber caller-saved t5.  Preserve the block-access-index size
+  -- while measuring the code byte string.
+  "  sd t5, 48(sp)\n" ++
   "  la a0, bal_serializer_throwaway_ctx\n" ++
   "  la a1, bal_rlp_emit_bytes\n" ++
   "  ld a2, 32(s4); ld a3, 40(s4); la a4, bal_serializer_hdr_scratch\n" ++
   "  jal ra, bal_rlp_measure_into_throwaway\n" ++
+  "  ld t5, 48(sp)\n" ++
   "  add t5, t5, a0\n" ++
   "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
   "  add s2, s2, t5\n" ++

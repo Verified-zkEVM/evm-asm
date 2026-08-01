@@ -426,21 +426,17 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl7708_staged:\n" ++
   -- The creation path enters the callable dispatcher directly, rather than
   -- through the ordinary post-preparation seam.  Preserve that seam's order:
-  -- materialize gas/blob first, capture the body state, then publish the two
-  -- value-transfer halves.  The transfer helper is harmless when this route
-  -- has no staged recipient credit, but keeping the call makes the ordering
-  -- contract explicit for every top-level message route.  This capture is
+  -- materialize gas/blob first, capture the body state, then publish the
+  -- value-transfer record from the shared post-capture hook.  The CREATE
+  -- producer is intentionally not called here: the gas seed below must first
+  -- materialise `bv_pending_upfront_sender_post` (execution-specs
+  -- `fork.py:1105-1108`) before `move_ether` consumes it.
+  -- This capture is
   -- paired with the failure restore below in this routine; the ordinary route
   -- pairs its capture in `Dispatch.lean` with the caller-side restore in
   -- `BlockVerdictDispatchTx.lean`.
   -- Save `ra`: the dispatcher uses its caller return address to resume after
   -- initcode, while both helpers and the mark are calls.
-  -- Top-level CREATE is intentionally not wired to record_message_value_transfer
-  -- yet: #10944 must first authenticate bv_create_addr's pre-balance.  The
-  -- current nse_zero_bal records below are not a valid substitute because a
-  -- deployable pre-existing account may hold ether.  Keep the existing path
-  -- unchanged while the shared producer serves the four callers that can name
-  -- both pre-balances.
   -- GH #10784 cut 2: `mark_account_created` is a PRE-BODY event.  execution-specs
   -- `process_create_message` marks the target at `vm/interpreter.py:208` — after
   -- `destroy_storage` (:202), before `increment_nonce` (:210) and before
@@ -466,11 +462,14 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- `code_state_address_set_insert` preserves every s-register, so s0 survives.
   -- Overflow is fail-closed exactly as at the descent site: set
   -- `account_state_overflow`, which both consumers turn into `bv_fail_code = 58`.
-  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_seed_pending_upfront_sender_balance; jal ra, dispatcher_capture_body_state\n" ++
+  -- The callable dispatcher performs the root sender-debit seed after its
+  -- per-transaction setup reset.  Calling that one-shot producer here would
+  -- consume the tuple before the live AccountState overlay can survive setup.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_capture_body_state\n" ++
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++
-  -- GH #10944: publish the top-level CREATE endowment through the SHARED recorder.
+  -- GH #10944: stage the top-level CREATE endowment for the SHARED recorder.
   --
   -- execution-specs has ONE `move_ether` for calls and creations alike, because
   -- `process_create_message` DELEGATES to `process_message` (`vm/interpreter.py:212`) and the
@@ -499,27 +498,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la t0, create_prebalance_acct; li t1, 128\n" ++
   ".Lbvcr_endow_zero:\n" ++
   "  sb x0, 0(t0); addi t0, t0, 1; addi t1, t1, -1; bnez t1, .Lbvcr_endow_zero\n" ++
-  -- ⚠️⚠️ REGISTER CONVENTION FOR THIS ROUTE, STATED BECAUSE IT IS NOT INHERITABLE:
-  -- **the env base must be MATERIALISED here — `la <reg>, evm_env` — and `x20` is NOT it.**
-  -- The creation route enters the callable dispatcher directly rather than through a frame
-  -- that repoints `x20`, so every other env access in this file materialises the base
-  -- explicitly (`la t1, evm_env; ld t2, 568(t1)` and six more like it).
-  --
-  -- This lookup was copied from `Programs.CreateFrameDescend`, where `ld a0, 576(x20)` is
-  -- CORRECT because the nested route does run with `x20` = env.  The sequence transferred;
-  -- its register convention did not.  The countable tell, worth re-running after any such
-  -- copy: **grep the destination file for every register the copied sequence names** — `x20`
-  -- appeared exactly once in this file, and that once was the borrowed line.
-  --
-  -- ⭐ And this is evidence about SHAREABILITY, not just about one bug: because the copy
-  -- needed its registers rewritten, the nested and top-level pre-balance lookups are **not
-  -- trivially shareable**.  A future attempt to unify them hits exactly this — `x20` denotes
-  -- different things at the two sites, which is the same class that killed GH #10938's cut 1
-  -- and blocks the item-9 relocation (`call_frame_descend` does `mv s3, x20` then
-  -- `mv x20, s9`, so identical instructions denote different accounts either side of it).
-  -- When judging whether code can move or be copied, ask what each register DENOTES at both
-  -- sites, not merely where the operands live.
-  "  la t5, evm_env; ld a0, 576(t5); ld a1, 584(t5); la a2, bv_create_addr; li a3, 20; ld a4, 592(t5); ld a5, 600(t5); la a6, create_prebalance_acct\n" ++
+  -- The top-level route has no populated header/witness tuple in `evm_env`:
+  -- its header length is zero there.  Query the authenticated parent header and
+  -- witnessed state directly, as the sibling top-level BALANCE staging does.
+  "  la t5, svf_parent_rlp; ld a0, 0(t5); la t5, svf_parent_rlp_len; ld a1, 0(t5); la a2, bv_create_addr; li a3, 20; la t5, bv_witness_state_ptr; ld a4, 0(t5); la t5, bv_witness_state_len; ld a5, 0(t5); la a6, create_prebalance_acct\n" ++
   "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
   "  beqz t6, .Lbvcr_endow_pre_ready\n" ++
   "  li t0, 1; beq t6, t0, .Lbvcr_endow_pre_ready\n" ++
@@ -531,9 +513,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  addi t0, s0, 96; la t1, bvcr_endow_val_be; li t2, 32\n" ++
   ".Lbvcr_endow_val_cp:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_endow_val_cp\n" ++
-  recordMessageValueTransferAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
-    "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
-    (recipientPreAdjust := "addi a5, a5, 8") ++
+  -- The descriptor is consumed by `dispatcher_seed_pending_value_transfer`
+  -- after the sender gas seed and body snapshot.  Calling the producer here
+  -- would observe the still-zero sender-post scratch and underflow exactly as
+  -- seen on 00078 (execution-specs `interpreter.py:380-390`).
   ".Lbvcr_endow_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
@@ -617,6 +600,21 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- published combined gas+state left (no post-settle constant adjustment).
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  -- `process_message` restores the transaction snapshot after an initcode
+  -- REVERT/exception (`vm/interpreter.py:429`), not only after a code-deposit
+  -- failure.  The top-level CREATE wrapper receives that status from the
+  -- shared settlement fold, so restore the captured body state here before
+  -- publishing any receipt/effect data.  In particular this replays the
+  -- storage-writes undo journal captured by `dispatcher_capture_body_state`;
+  -- without it, a reverted constructor's SSTORE rows survive into the BAL.
+  "  bnez a2, .Lbvcr_body_state_kept\n" ++
+  "  jal ra, dispatcher_restore_body_state\n" ++
+  -- Keep the transaction-level discard explicit at the top-level boundary as
+  -- well.  The wrapper can be entered by both single- and multi-transaction
+  -- callers, and neither caller may promote a failed constructor's leftover
+  -- tx map on its next incorporation (`fork.py:832,879-881`).
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbvcr_body_state_kept:\n" ++
   "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
   -- A failed top-level creation rolls back all logs, including the staged

@@ -66,6 +66,18 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   --
   -- See the sibling comment for why the baseline forces this position rather than
   -- the requests phase where the writes are actually made.
+  -- A failed single transaction has already restored its execution snapshot in
+  -- the spec (`vm/interpreter.py:217,301`), so none of its storage writes may
+  -- reach the later system replay. The guest reuses the transaction arena and
+  -- reaches this common postlude with the failed SSTORE row still present;
+  -- discard it by the authoritative receipt status before replaying the
+  -- end-of-block system writes. Successful transactions retain their writes
+  -- for the normal incorporate below. This mirrors `process_transaction`'s
+  -- fresh TransactionState (`fork.py:870`) and final incorporation (`:974`)
+  -- without touching the read set, whose rollback semantics are separate.
+  "  la t0, bv_tx_status_arr; ld t1, 0(t0); bnez t1, .Lbv_eoa_storage_tx_ready\n" ++
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbv_eoa_storage_tx_ready:\n" ++
   "  jal ra, replay_system_storage_writes_at_bai\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"

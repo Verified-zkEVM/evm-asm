@@ -100,7 +100,7 @@ def read_prog_lengths(files):
     bridge's concrete `<prog>` def name (strip the `_of` application)."""
     lens = {}
     pat = re.compile(
-        r"#guard\s+(?:\((\w+)_of\s+\.zero\)|(\w+))\.length\s*=\s*(\d+)")
+        r"#guard\s+(?:\((\w+)_of\s+\.zero\)|(\w+))\.length\s*(?:==|=)\s*(\d+)")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):
             lens[m.group(1) or m.group(2)] = int(m.group(3))
@@ -109,14 +109,18 @@ def read_prog_lengths(files):
 
 def read_function_bindings(files):
     """FunctionName -> (entry_label, prog_name), parsed from the generated
-    `def <func> : String := "<entry>:\\n" ++ emitProgram(R) <prog>` defs.
+    `def <func> : String := "<entry>:\\n" ++ emitProgram(R) <prog>` defs,
+    allowing an optional assembler directive prefix such as
+    `.globl <entry>\\n" ++` before the label string.
 
     GH #10753 leaf awareness: the applied form
     `emitProgramR (<prog>_of .zero)` in a leaf is normalised to the
     bridge's concrete `<prog>` def name."""
     out = {}
     pat = re.compile(
-        r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*"([\w.]+):\\n"\s*\+\+\s*'
+        r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*'
+        r'(?:"\s*\.globl\s+[\w.]+\\n"\s*\+\+\s*)?'
+        r'"([\w.]+):\\n"\s*\+\+\s*'
         r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|(\w+))")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):

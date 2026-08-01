@@ -75,6 +75,15 @@ private def copyWordAsm (src : String) (dstOff : Nat) : String :=
   "  ld t3, 24(" ++ src ++ ")\n" ++
   "  sd t3, " ++ toString (dstOff + 24) ++ "(t2)\n"
 
+private def recordMessageValueTransferCoreAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
+    (recipientPreAdjust : String := "") : String :=
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, " ++ fromSym ++ "\n  la a1, " ++ toSym ++ "\n  la a2, " ++ valSym ++ "\n  " ++
+    a3Setup ++ "\n  la a4, " ++ senderPre ++ "\n  la a5, " ++ recipientPre ++ "\n" ++
+    (if recipientPreAdjust.isEmpty then "" else "  " ++ recipientPreAdjust ++ "\n") ++
+  "  jal ra, record_message_value_transfer\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n"
+
 /-! ## EIP-7708 synthetic event-log descriptors
 
     `eip7708_append_synthetic_log` appends one descriptor in the same bounded
@@ -297,6 +306,16 @@ def eip7708SyntheticLogFunctions : String :=
   "  la a1, bv_pending_upfront_sender_pre\n" ++
   "  la a2, bv_pending_upfront_sender_post\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
+  -- The upfront debit is live transaction state, not only a BAL-comparison
+  -- observation.  Record it in AccountState before the body checkpoint so
+  -- the later settlement/refund reads the post-debit sender balance and a
+  -- body revert restores only effects after that checkpoint.
+  "  jal ra, account_state_record_nonstorage\n" ++
+  "  bnez a0, .Ldpub_sender_done\n" ++
+  "  la a0, bv_pending_upfront_sender_addr\n" ++
+  "  la a1, bv_pending_upfront_sender_pre\n" ++
+  "  la a2, bv_pending_upfront_sender_post\n" ++
+  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
   ".Ldpub_sender_done:\n" ++
@@ -306,22 +325,31 @@ def eip7708SyntheticLogFunctions : String :=
   "  ld x20, 128(sp)\n" ++
   "  addi sp, sp, 144\n" ++
   "  ret\n" ++
-  -- This is the top-level CALL site of `move_ether`: both records are after
+  -- This is the post-snapshot site of `move_ether`: both records are after
   -- the body mark, so body failure removes both together.  The generic
   -- producer receives the site-resolved balances below; it must not choose an
-  -- overlay itself.  Top-level CREATE deliberately remains outside this helper
-  -- pending #10944's authenticated created-address pre-balance lookup.
+  -- overlay itself.  Top-level CREATE uses the same hook while
+  -- `system_call_mode = 2`, after its authenticated created-address lookup.
   "dispatcher_seed_pending_value_transfer:\n" ++
   "  addi sp, sp, -144\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd t0, 8(sp); sd t1, 16(sp); sd t2, 24(sp); sd t3, 32(sp); sd t4, 40(sp); sd t5, 48(sp); sd t6, 56(sp)\n" ++
   "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
   "  sd x20, 128(sp)\n" ++
-  -- The sender gas debit was materialised before the mark.  Read that live
-  -- balance and pass it, together with the already-resolved recipient balance,
-  -- to the shared move_ether producer.  Do not use recipient_credit_flag as a
-  -- gate: it was a non-self log/credit staging flag, while `move_ether` also
-  -- executes for self-transfers.
+  -- The sender gas debit was materialised before the mark.  A top-level CREATE
+  -- must consume that same authenticated sender-post together with the
+  -- authenticated target pre-balance; this branch is deliberately before the
+  -- ordinary CALL sender-pointer test so CREATE does not fall through to a
+  -- null `runtime_tx_auth_sender_ptr`.
+  "  la t0, system_call_mode; ld t0, 0(t0); li t1, 2; bne t0, t1, .Ldpub_call\n" ++
+  "  la t0, create_prebalance_lookup_status; ld t0, 0(t0); bnez t0, .Ldpub_done\n" ++
+  recordMessageValueTransferCoreAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
+    "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
+    (recipientPreAdjust := "addi a5, a5, 8") ++
+  "  j .Ldpub_done\n" ++
+  ".Ldpub_call:\n" ++
+  -- Do not use recipient_credit_flag as a gate: it was a non-self log/credit
+  -- staging flag, while `move_ether` also executes for self-transfers.
   "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
   -- A successful lookup supplies the current post-gas sender balance required
   -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
@@ -379,12 +407,7 @@ def eip7708SyntheticLogFunctions : String :=
     (GH #10619's prerequisite). It stays out until it can be moved without disturbing text. -/
 def recordMessageValueTransferAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
     (recipientPreAdjust : String := "") : String :=
-  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-  "  la a0, " ++ fromSym ++ "\n  la a1, " ++ toSym ++ "\n  la a2, " ++ valSym ++ "\n  " ++
-    a3Setup ++ "\n  la a4, " ++ senderPre ++ "\n  la a5, " ++ recipientPre ++ "\n" ++
-    (if recipientPreAdjust.isEmpty then "" else "  " ++ recipientPreAdjust ++ "\n") ++
-  "  jal ra, record_message_value_transfer\n" ++
-  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n"
+  recordMessageValueTransferCoreAsm fromSym toSym valSym a3Setup senderPre recipientPre recipientPreAdjust
 
 /-- Frame-generic `move_ether` recorder.
 

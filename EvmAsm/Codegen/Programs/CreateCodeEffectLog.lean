@@ -287,8 +287,8 @@ def accountStateCommitPendingFunction : String :=
     Adapt the existing non-storage producer ABI to a complete AccountState
     snapshot.  The raw producer remains the comparison trace; this helper is
     the execution-state mirror of the same transition.  It clones an existing
-    pending/durable snapshot when available, then overwrites only the balance
-    and nonce supplied by the producer.  Thus a balance mutation preserves the
+    pending/durable snapshot when available, then overwrites the balance and
+    merges the supplied nonce monotonically.  Thus a balance mutation preserves the
     code/existence fields written by CREATE, and vice versa.
 
     a0 = address, a1 = pre-balance (comparison-only), a2 = post-balance,
@@ -317,10 +317,12 @@ def accountStateRecordNonstorageFunction : String :=
   -- A later non-storage producer may change only balance (notably the
   -- sender-is-coinbase fee credit).  Preserve an already-authoritative nonce
   -- when that producer's nonce is unchanged, but seed the producer's nonce
-  -- when this is the first authoritative snapshot for the address.
+  -- when this is the first authoritative snapshot for the address.  Nonces
+  -- only advance during a transaction, so a later publisher carrying a stale
+  -- transition must not overwrite an already-recorded authorization increment.
   "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
-  "  sd s2, 64(t0)\n" ++
+  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_unchanged; sd s2, 64(t0)\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
   "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
@@ -475,13 +477,20 @@ def accountStateLatestNonceFunction : String :=
   -- GH #10619: record the account READ (unconditional, state_tracker.py:139).
   -- Hooked INSIDE the accessor so every caller is covered and the recording
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
+  -- Only bit 6 (64) says that the nonce field is authoritative.  Bit 5 (32)
+  -- is balance-present; testing `flags & 96` would treat a balance-only
+  -- AccountState entry as a nonce hit and overwrite the authenticated
+  -- pre-state nonce with its zero-initialised nonce field.  That is precisely
+  -- the CREATE address defect on 00091 (execution-specs state_tracker.py's
+  -- write-through read must preserve the account's nonce, not infer one from
+  -- an unrelated balance update).
   "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
   "  jal ra, account_read_record\n" ++
   "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 96; bnez t0, .Lasln_hit\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 64; bnez t0, .Lasln_hit\n" ++
   ".Lasln_durable:\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 96; beqz t0, .Lasln_miss\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 64; beqz t0, .Lasln_miss\n" ++
   ".Lasln_hit:\n" ++
   "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasln_ret\n" ++
   ".Lasln_miss:\n" ++
