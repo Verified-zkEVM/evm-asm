@@ -53,9 +53,16 @@
 
   - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
     env.ADDRESS (multi-contract isolated).
-  - Cold `SLOAD` reads of non-preloaded slots return 0. The BAL-driven preload
-    stages every slot a block reads, so this is not observed (GH #10874 measured
-    zero misses on the corpus); a demand-driven read is blocked on GH #11105.
+  - Cold `SLOAD` reads of non-preloaded slots return 0. ⛔ The reason recorded here
+    used to be *"the BAL-driven preload stages every slot a block reads, so this is
+    not observed (GH #10874 measured zero misses on the corpus); a demand-driven read
+    is blocked on GH #11105"*. **All three clauses are false.** Measured on the
+    UNMODIFIED guest: `h_SSTORE`'s cold-miss resolve runs **16 and 17 times** on two
+    rows, so the preload does NOT stage every slot and misses are NOT zero; and
+    GH #11105 is closed with no code change, so nothing is blocked on it.
+    What a demand-driven `SLOAD` read still needs is a **present-slot** case — every
+    measured cold miss resolved a genuinely-absent slot, so the found path is
+    unexercised. See `storagePrestateResolveAsm` below for the full funnel.
   - 4 MiB per log = ~32K entries each — well past any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
@@ -310,9 +317,16 @@ def storagePersistentLogFindAsm : String :=
     ⛔ FOUR CLAIMS THAT USED TO BE HERE WERE REFUTED BY MEASUREMENT (GH #11105,
     GH #11122 closed invalid). Recorded so nobody re-derives them:
     * *"tier 3 does not work / returns status 4 on every call"* -- it works. The
-      82-call funnel that produced that reading came from a build with the preload
-      **starved**, an artificial condition; the starve itself added the 16
-      zero-length-header calls, and production has **zero**.
+      82-call funnel that produced that reading came from a probe build whose log was
+      ⚠️ **CORRUPTED, not starved** -- an earlier revision of this note said "the
+      preload starved" and that was wrong about its own instrument. The probe zeroed
+      only the scan bound (`env+448`); `.preload_expand_loop` is guarded by the count
+      REGISTER `x6` and still wrote all 16 arena entries, which each SSTORE then
+      appended over from index 0. That is a state production cannot reach, and it is
+      what manufactured the 16 zero-length-header calls -- production has **zero**.
+      The tell was that `h_SSTORE` ran **312 times in both builds**: an intervention
+      that leaves a downstream count identical did not land. See PLAN.md
+      "Probe discipline" before building another one.
     * *"this chain never executes in production, the preload means SSTORE never sees
       a cold miss"* -- it executes 16 times on a single row of the unmodified guest.
       Production does see cold misses.
