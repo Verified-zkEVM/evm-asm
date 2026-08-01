@@ -204,7 +204,18 @@ def callDescendFallThrough
   -- The snippet that emits one pending Transfer(cd_caller_be, cd_callee_be, cd_value_be)
   -- log into the CURRENT frame's env (env+472 count, via eip7708_append_transfer_log) and
   -- clears the flag. Used at .Lcd_descend (child env) and .Lcd_empty (parent env).
+  -- ⛔ GH #10998: EMITTED ONLY WHERE THE FLAG CAN BE SET, so the reachability argument IS the
+  -- emission condition rather than a comment.  `cd_xfer_log_pending` has exactly ONE setter --
+  -- `.Lcd_tl_notself_*`, reached only by mode 0 -- because execution-specs gates
+  -- `emit_transfer_log` on `should_transfer_value and value != 0` (`vm/interpreter.py:391-397`):
+  -- DELEGATECALL and STATICCALL carry no value, and CALLCODE targets the caller's own context so
+  -- the transfer is self-to-self and the spec's `caller != current_target` test excludes it.
+  -- Emitting the consumer for those three meant 15 references reading and clearing a flag they
+  -- can never write, and a leaked set would have made them emit a log the spec forbids.
+  -- ⚠️ The per-CALL RESET is deliberately kept in all four modes: it is what stops a set from
+  -- surviving into a later CALL, and it is a different site from the paired clear below.
   let emitPendingXferLog : String → String := fun site =>
+    if mode != 0 then "" else
     "  la t0, cd_xfer_log_pending\n  ld t0, 0(t0)\n  beqz t0, .Lcd_xlog_skip_" ++ site ++ tag ++ "\n" ++
     "  la t0, cd_xfer_log_pending\n  sd x0, 0(t0)\n" ++   -- one-shot: clear before emit
     -- build from_sw/to_sw/val_sw on the stack from the canonical-BE globals (mirrors the
