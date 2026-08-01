@@ -151,14 +151,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   --    `bal_all_accounts_storage_consistent_skip_list`.  Measured: the
   --    single-tx all-accounts call site is reached on 0 of 60 EIP-7928
   --    fixtures, the MtxTail one on 56 of 60.
-  --  * the single-tx region's INTERIOR is NOT dead: the MTX precompile lane
-  --    jumps into it at `.Lbv_tx_gas_precharge_pc0_prefix` and from there
-  --    reaches the whole precompile recipient family (ecrecover .. ecpairing).
-  --    A forward closure from that entry reaches 141 of the 179 interior
-  --    labels, so the extent must not be deleted as a block.
-  --  * the 38 labels that closure does NOT reach are the recipient-exactness
-  --    check and the skip-list construction.  Their removal is deferred to
-  --    GH #10680, which retires the matching apparatus they belong to.
+  --  * the old single-tx entry and its contract/creation/recipient-exactness
+  --    body were audited on the emitted image before removal.  The closure was
+  --    seeded from `block_verdict`, `block_verdict_mtx_oog_materialize`, and
+  --    the live MTx precompile jump at `.Lbv_tx_gas_precharge_pc0_prefix`;
+  --    the 235-label region had 189 reachable and 46 unreachable labels.  No
+  --    `la`, `auipc`, `jalr`, dispatch-table entry, or `.dword` materialized an
+  --    address into the retired region.  The precompile selector/publish tail
+  --    is retained and emitted immediately after this loop because that is the
+  --    only live interior entry.
+  --  * the surviving guard `bv_pending_upfront_balance_flag` remains a live
+  --    dispatcher consumer for #10698; the retired single-tx producer was not
+  --    its only producer on current main (the MTx producer is present).
   -- #10591 routing: every block (including zero-tx) goes through the MTx
   -- loop; the loop iterates zero times on an empty block (matches
   -- execution-specs fork.py:913-914, which has no empty-block special case).
