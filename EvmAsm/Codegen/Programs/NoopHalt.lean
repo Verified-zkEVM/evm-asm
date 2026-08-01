@@ -508,24 +508,34 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     -- into the survivor and deleted the creation stage's deposit block, which was the only reader
     -- of `top_level_creation_returndata` and `..._len`; the capture outlived its consumer.  What
     -- survives is the STATUS, which `BlockVerdictCreationStage` still loads to route the depth-0
-    -- creation RETURN (1 -> settle, 2 -> exception).  Three cells shared one prefix and had three
+    -- creation RETURN.  Three cells shared one prefix and had three
     -- fates: the buffer had a writer and no reader, the length had a writer AND A CLEAR and no
     -- load — ⚠️ a clear is a write, so four references read as "live" and were not — and only the
     -- status has a real consumer.
     --
-    -- ⚠️ `topLevelCreationReturndataMaxBytes` therefore remains as a THRESHOLD WITH NO BUFFER
-    -- BEHIND IT.  It is deliberately NOT folded into the deposit validator's limit even though
-    -- both are currently 65536: the validator enforces the EIP-7907 deployed-code limit
-    -- (`CreateDeployedCodeValid`'s own probe pins 65536 valid / 65537 invalid), and this is a
-    -- capture bound.  They are EQUAL BY COINCIDENCE, not by construction, so status 2 and
-    -- `create_deposit_failed_flag` fire together today and would separate the moment either
-    -- constant moved.  Collapsing them is GH #10938 piece 4 and needs that equality promoted to a
-    -- stated invariant or removed — not assumed.
-    "  li t1, " ++ toString topLevelCreationReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_createcap_over_" ++ toString kind ++ "\n" ++
+    -- GH #10938 piece 4: the SIZE TEST AND STATUS 2 ARE GONE. The status is now
+    -- unconditionally 1 ("depth-0 creation RETURN seen"); it no longer encodes a size verdict.
+    --
+    -- ⚠️ Piece 3 left `topLevelCreationReturndataMaxBytes` (SINCE DELETED) as a THRESHOLD WITH NO BUFFER BEHIND
+    -- IT, gating status 1 against status 2 ("oversized capture") for a capture that no longer
+    -- exists. Status 2's only consumer routed to the stage's exception arm — which the
+    -- OVERSIZED-CODE case already reaches by a different and authoritative route: the deposit
+    -- validator runs BEFORE this point, rejects `len(code) > MAX_CODE_SIZE`
+    -- (`maxDeployedCodeSize`, EIP-7907), diverts through `.Lrr_crinv_*`, and publishes
+    -- `create_deposit_failed_flag` — which the stage checks FIRST, before the status.
+    --
+    -- ⛔ AND THIS REMOVES THE COINCIDENCE RATHER THAN RELYING ON IT. The two limits are
+    -- `Dispatch.topLevelCreationReturndataMaxBytes` (now DELETED, it had no other consumer) and
+    -- `CreateDeployedCodeValid.maxDeployedCodeSize`, defined independently and both 65536
+    -- today. Collapsing the two signals by ARGUING they agree would bake that equality in;
+    -- deleting the size test means the guest no longer has a second opinion about code size at
+    -- all, so the constants are free to diverge. One limit, one enforcer.
     "  la t1, top_level_creation_returndata_status\n  li t5, 1\n  sd t5, 0(t1)\n" ++
-    "  j .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    ".Lrr_createcap_over_" ++ toString kind ++ ":\n" ++
-    "  la t1, top_level_creation_returndata_status\n  li t5, 2\n  sd t5, 0(t1)\n" ++
+    -- ⚠️ `.Lrr_nocap_<kind>` must stay DEFINED even though this block no longer jumps to it: the
+    -- SYSTEM-CALL capture above branches here FOUR times (no-mode, non-zero depth, oversized
+    -- system result, and the copy-loop exit). Deleting the size test removed the only `j` to this
+    -- label and it read as dead — labels sharing a prefix have independent fates, exactly like the
+    -- three `top_level_creation_returndata*` cells in piece 3.
     ".Lrr_nocap_" ++ toString kind ++ ":\n"
    else "") ++
   "  li x16, 0xa0010000\n" ++
