@@ -1072,14 +1072,18 @@ def _collect_guest_addr_syms():
             entry,entry_addr,out,externals,relocs=_resolve(open(fp).read())
         except ConvError:
             continue
-        if entry in SYMMAP:
-            # every linked converted function's entry: the guest-image CodeReq
-            # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
-            # must exist even for straight-line (reloc-free) functions.
-            # Unlinked conversions (entry absent from the TSV) are skipped.
-            need.add(entry)
+        if entry not in SYMMAP:
+            # Unlinked conversions (entry absent from the TSV) are skipped
+            # entirely — including those with reloc externals.  A probe-only
+            # converted self-test must not force a GuestAddrs entry for a
+            # symbol the guest no longer defines.
+            continue
+        # every linked converted function's entry: the guest-image CodeReq
+        # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
+        # must exist even for straight-line (reloc-free) functions.
+        need.add(entry)
         if externals:                      # reloc-using functions also need addrs
-            need.add(entry); need.update(externals)
+            need.update(externals)
     missing=sorted(s for s in need if s not in SYMMAP)
     if missing:
         raise ConvError(f"GuestAddrs: symbols absent from address table: {missing}")

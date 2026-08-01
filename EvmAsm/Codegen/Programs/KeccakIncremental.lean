@@ -290,12 +290,12 @@ def keccakIncrementalSelftestFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret\n"
 
-/-- All three entry points, in emission order. -/
+/-- Production entry points only. `keccak_incremental_selftest` stays defined for
+    probe units and is not linked into `stateless_guest` (R3 deadness census). -/
 def keccakIncrementalFunctions : String :=
   keccakInitFunction ++
   keccakAbsorbFunction ++
-  keccakFinalFunction ++
-  keccakIncrementalSelftestFunction
+  keccakFinalFunction
 
 /-! ## Anti-drift guards on the emitted text
 
@@ -312,11 +312,12 @@ def keccakIncrementalFunctions : String :=
 #guard keccakCtxBytes == 208
 #guard keccakCtxFillOff == 200
 
--- All three entry points emitted.
+-- Production entry points emitted; self-test is probe-only.
 #guard (keccakIncrementalFunctions.splitOn "keccak_init:").length == 2
 #guard (keccakIncrementalFunctions.splitOn "keccak_absorb:").length == 2
 #guard (keccakIncrementalFunctions.splitOn "keccak_final:").length == 2
-#guard (keccakIncrementalFunctions.splitOn "keccak_incremental_selftest:").length == 2
+#guard (keccakIncrementalFunctions.splitOn "keccak_incremental_selftest:").length == 1
+#guard (keccakIncrementalSelftestFunction.splitOn "keccak_incremental_selftest:").length == 2
 
 -- CONTRACT GUARDS on the matrix. These pin the cases the self-test claims to
 -- cover, so a later edit cannot quietly shrink the matrix while the routine still
