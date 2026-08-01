@@ -1039,16 +1039,18 @@ def callDescendFallThrough
      "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
      "  addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1\n" ++
      "  bnez t2, .Lcd_child_sb_rev_" ++ tag ++ "\n" ++
-     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-     "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, cd_caller_newbal\n" ++
-     "  jal ra, u256_add_be\n" ++
-     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-     "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
-     ".Lcd_child_sb_wb_" ++ tag ++ ":\n" ++
-     "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
-     "  addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1\n" ++
-     "  bnez t2, .Lcd_child_sb_wb_" ++ tag ++ "\n" ++
-     ".Lcd_child_sb_done_" ++ tag ++ ":\n") ++
+      -- Save set = write set of the helper args: a0=x10, a1=x11, a2=x12.
+      -- (Inherited CREATE comment claimed a0-a2 alias x10/x12/x13 — wrong.)
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x11, 8(sp)\n  sd x12, 16(sp)\n" ++
+      "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, cd_caller_newbal\n" ++
+      "  jal ra, u256_add_be\n" ++
+      "  ld x10, 0(sp)\n  ld x11, 8(sp)\n  ld x12, 16(sp)\n  addi sp, sp, 32\n" ++
+      "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+      ".Lcd_child_sb_wb_" ++ tag ++ ":\n" ++
+      "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
+      "  addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1\n" ++
+      "  bnez t2, .Lcd_child_sb_wb_" ++ tag ++ "\n" ++
+      ".Lcd_child_sb_done_" ++ tag ++ ":\n") ++
    -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
    -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
    -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
