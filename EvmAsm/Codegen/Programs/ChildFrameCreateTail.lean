@@ -320,12 +320,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  jal ra, u256_sub_be\n" ++
     "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  bnez t0, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- underflow -> skip
-    -- reverse create_creator_newbal (BE) back into env+32 (LE)
-    "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
-    ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+     "  bnez t0, .Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- underflow -> skip
+     -- reverse create_creator_newbal (BE) back into env+32 (LE)
+     "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+     ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+     -- GH #11001: same live-balance debit mark as CALL — frame_return re-credits
+     -- creator env+32 when the CREATE child reverts/exceptionally halts.
+     "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  addi t0, t0, 1\n" ++
+     "  slli t0, t0, 3\n  la t1, live_balance_debited_by_depth\n  add t1, t1, t0\n  li t2, 1\n  sd t2, 0(t1)\n" ++
+     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     -- bbow4.2.5.1: generic_create increments the creator's nonce before the
     -- child exists, for every deployable CREATE/CREATE2 attempt (including a
     -- nonzero endowment and a child that later REVERTs / exceptionally halts;
