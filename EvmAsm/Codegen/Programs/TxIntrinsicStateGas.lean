@@ -161,9 +161,11 @@ def eip7702AuthorityAsOfFunction : String :=
     Malformed outer RLP returns one so the caller fails closed. -/
 def eip7702AuthStatePrepareFunction : String :=
   "eip7702_auth_state_prepare:\n" ++
-  "  addi sp, sp, -176; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  addi sp, sp, -176; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp); sd a4, 136(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0); la t0, teer_success_count; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_state_charge; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0); la t0, teer_success_count; sd zero, 0(t0)\n" ++
+  "  ld t0, 136(sp); li t1, -1; beq t0, t1, .L77prep_aggregate_mode; la t0, runtime_tx_auth_state_charged; li t1, 1; sd t1, 0(t0)\n" ++
+  ".L77prep_aggregate_mode:\n" ++
   "  li t0, 4; bne s3, t0, .L77prep_ok\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item; bnez a0, .L77prep_bad_outer\n" ++
   "  la t0, b1an_auth_off; ld t0, 0(t0); add s4, s0, t0; la t0, b1an_auth_len; ld s5, 0(t0)\n" ++
@@ -180,6 +182,7 @@ def eip7702AuthStatePrepareFunction : String :=
   "  li t0, 1; sd t0, 160(sp)\n" ++
   ".L77prep_value_done:\n" ++
   ".L77prep_loop:\n" ++
+  "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  bgeu s7, s6, .L77prep_ok\n" ++
   "  mv a0, s4; mv a1, s5; mv a2, s7; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .L77prep_bad_span\n" ++
   "  la t0, b1an_item_off; ld t0, 0(t0); add s8, s4, t0; la t0, b1an_item_len; ld s9, 0(t0)\n" ++
@@ -238,9 +241,23 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charges:\n" ++
   -- state charge = NEW_ACCOUNT iff absent, plus AUTH_BASE for a non-null
   -- delegation target when the current state is not already delegated.
-  "  ld t0, 104(sp); bnez t0, .L77prep_no_new; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString amsterdamNewAccountStateGas ++ "; add t1, t1, t2; sd t1, 0(t0)\n" ++
+  -- In the dispatcher callback, charge each authorization immediately after
+  -- its account read/validation.  This matches eoa_delegation.py's
+  -- recover/get_account ordering: an auth-phase OOG stops later auths while
+  -- the account read itself remains visible.  The direct single-tx caller
+  -- passes -1 and retains the aggregate compatibility path.
+  "  ld t0, 104(sp); bnez t0, .L77prep_no_new; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString amsterdamNewAccountStateGas ++ "; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_no_new:\n" ++
-  "  beqz s11, .L77prep_regular; ld t0, 120(sp); bnez t0, .L77prep_regular; ld t0, 168(sp); bnez t0, .L77prep_regular; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "; add t1, t1, t2; sd t1, 0(t0); li t0, 1; sw t0, 20(t4)\n" ++
+  "  beqz s11, .L77prep_auth_charge; ld t0, 120(sp); bnez t0, .L77prep_auth_charge; ld t0, 168(sp); bnez t0, .L77prep_auth_charge; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0); li t0, 1; sw t0, 20(t4)\n" ++
+  ".L77prep_auth_charge:\n" ++
+  "  ld t0, 136(sp); li t1, -1; beq t0, t1, .L77prep_auth_charge_done; la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); beqz t1, .L77prep_auth_charge_done; la t2, evm_state_gas_left; ld t3, 0(t2); bgeu t3, t1, .L77prep_auth_charge_reservoir; sub t4, t1, t3; ld t0, 136(sp); bltu t0, t4, .L77prep_auth_charge_oog; sd zero, 0(t2); sub t0, t0, t4; sd t0, 136(sp); j .L77prep_auth_charge_used\n" ++
+  ".L77prep_auth_charge_reservoir:\n" ++
+  "  sub t3, t3, t1; sd t3, 0(t2)\n" ++
+  ".L77prep_auth_charge_used:\n" ++
+  "  la t2, runtime_tx_auth_state_charge; sd zero, 0(t2); j .L77prep_auth_charge_done\n" ++
+  ".L77prep_auth_charge_oog:\n" ++
+  "  li a0, 1; j .L77prep_ret\n" ++
+  ".L77prep_auth_charge_done:\n" ++
   ".L77prep_regular:\n" ++
   -- ACCOUNT_WRITE is charged exactly once for a non-sender authority in this
   -- transaction; the transaction-local first-write set above intentionally
@@ -292,7 +309,7 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_bad:\n" ++
   "  li a0, 1\n" ++
   ".L77prep_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 176; ret"
+  "  ld a4, 136(sp); ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 176; ret"
 
 -- The widened scalar read is reached through typed-transaction field 9, then
 -- authorization-tuple field 0.  Pin both emitted selectors: outer field 0 is
@@ -331,7 +348,7 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- the same boundary so an authorization-phase OOG can roll it back too.
   "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
   "  la t3, code_state_mtx_active; ld t3, 0(t3); bnez t3, .Lbvtgip_ret\n" ++
-  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
+  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, -1; jal ra, eip7702_auth_state_prepare\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1); la t3, runtime_tx_auth_state_refund; ld t3, 0(t3); add t2, t2, t3; sd t2, 0(t1); j .Lbvtgip_ret\n" ++
   ".Lbvtgip_restore:\n" ++
