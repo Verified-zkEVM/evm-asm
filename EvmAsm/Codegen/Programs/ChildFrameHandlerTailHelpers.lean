@@ -52,17 +52,28 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
+  -- The resolver returns 0 for a selected transaction-state delegation,
+  -- 1 when the BAL has no same-block delegation row, and 2 for an active
+  -- precompile target.  Status 0 exports the selected target to
+  -- `bsbd_deleg_target`; status 1 must retain the prior-block marker found by
+  -- `code_at_header_state_root`, whose target is `t3 + 3`.  The two sources
+  -- are semantically distinct, so select one pointer before either charge or
+  -- record rather than treating a resolver miss as an all-zero target.
+  "  beqz t6, .Lcdac_sameblock_" ++ tag ++ "\n" ++
   "  li t4, 1; bne t6, t4, .Lcdac_done_" ++ tag ++ "\n" ++
-  -- The resolver selected the transaction-state delegation marker and exported
-  -- its target to `bsbd_deleg_target`.  Do not reuse t3+3: t3 points at the
-  -- header-state marker and may name a stale delegate when same-block code
-  -- changed.  Both the BAL record and warm/cold access charge must use the
-  -- selected `code_address`.
-  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, bsbd_deleg_target\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
+  "  addi t4, t3, 3\n" ++
+  "  j .Lcdac_target_selected_" ++ tag ++ "\n" ++
+  ".Lcdac_sameblock_" ++ tag ++ ":\n" ++
+  "  la t4, bsbd_deleg_target\n" ++
+  ".Lcdac_target_selected_" ++ tag ++ ":\n" ++
+  -- Preserve the selected target across the access-charge call.  The charge
+  -- helper is caller-clobbering, while the final BAL read must use the same
+  -- address that was charged.
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t4, 24(sp)\n" ++
+  "  mv a0, t4\n  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
   "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
   "  jal ra, runtime_access_account_charge\n" ++
-  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t4, 24(sp)\n  addi sp, sp, 32\n" ++
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
   s!"  ld t0, 568(x20)\n  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
@@ -70,9 +81,10 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   -- it only after the delegation-specific gas check succeeds.  Record the
   -- resolved delegate here, not the original CALL target (which the caller
   -- records separately after the initial static check).
-  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t4, 24(sp)\n" ++
+  "  mv a0, t4\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t4, 24(sp)\n  addi sp, sp, 32\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
 /-- Record a delegation target when the CALL resolver selects an active
