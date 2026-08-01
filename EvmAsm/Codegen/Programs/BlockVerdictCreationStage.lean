@@ -466,6 +466,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- per-transaction setup reset.  Calling that one-shot producer here would
   -- consume the tuple before the live AccountState overlay can survive setup.
   "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_capture_body_state\n" ++
+  -- GH #10645: destroy_storage before mark (interpreter.py:202 then :208).
+  -- LE stack-word key into create_address_word (same form as storage_write_record).
+  "  la t0, create_address_word; sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t1, bv_create_addr; addi t1, t1, 19; mv t2, t0; li t3, 20\n" ++
+  ".Lbvcr_ds_rev:\n  beqz t3, .Lbvcr_ds_rev_d\n  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; j .Lbvcr_ds_rev\n" ++
+  ".Lbvcr_ds_rev_d:\n  la a0, create_address_word; jal ra, destroy_storage\n" ++
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++

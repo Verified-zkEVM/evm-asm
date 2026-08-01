@@ -143,6 +143,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- reason as the read recorders above -- this unit has its own `.elf`, so an
     -- omission here surfaces only as a link error inside an A/B leg.
     storageWriteRecordFunction ++ "\n" ++
+    destroyStorageFunction ++ "\n" ++
     storageWritesBlockUpsertFunction ++ "\n" ++
     writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
@@ -563,6 +564,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- every comparator still reads the exec-log arenas, so this cannot move a
   -- verdict.  S3/S4 wire the comparators over.
   storageWriteRecordFunction ++ "\n" ++
+    destroyStorageFunction ++ "\n" ++
   storageWritesBlockUpsertFunction ++ "\n" ++
   writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
