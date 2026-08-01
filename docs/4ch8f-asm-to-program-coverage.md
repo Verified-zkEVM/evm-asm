@@ -188,9 +188,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `codesBlockhashRequiredHeadersFunction` | `EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean` | 0 |
 | `committedStorageChunkedLatestValueFunction` | `EvmAsm/Codegen/Programs/CommittedStorageLookup.lean` | 0 |
 | `committedStorageChunkedSnapshotUpsertFunction` | `EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean` | 0 |
-| `committedStorageLatestValueFunction` | `EvmAsm/Codegen/Programs/CommittedStorageLookup.lean` | 0 |
-| `committedStorageSnapshotAppendFunction` | `EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean` | 0 |
-| `committedStorageSnapshotUpsertFunction` | `EvmAsm/Codegen/Programs/CommittedStorageSnapshot.lean` | 0 |
 | `copyWordGasFunction` | `EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean` | 0 |
 | `createExecuteInitcodeFrameRuntimeFunction` | `EvmAsm/Codegen/Dispatch.lean` | 0 |
 | `createStageInitcodeFrameRuntimeFunction` | `EvmAsm/Codegen/Dispatch.lean` | 0 |
@@ -947,4 +944,3 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxSignature.lean` | 6 |
 | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 1 |
-
