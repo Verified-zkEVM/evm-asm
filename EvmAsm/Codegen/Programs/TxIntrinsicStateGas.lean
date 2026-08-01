@@ -314,17 +314,29 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- a0/a1 = full typed envelope; a2/a3 = inner RLP; a4 = sender;
   -- a5 = tx type; a6 = transaction index.
   "  addi sp, sp, -64; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); sd a6, 56(sp)\n" ++
+  -- The execution-specs message snapshot is taken immediately before
+  -- `set_delegation`.  Reuse the depth-indexed checkpoint slab's unused
+  -- depth-zero slot for that top-level message snapshot; child descent uses
+  -- the positive slots in CallFrameDescend.
+  "  la t0, account_state_pending_count; ld t1, 0(t0); la t0, account_state_pending_checkpoint; sd t1, 0(t0)\n" ++
   "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
-  "  bnez a0, .Lbvtgip_ret\n" ++
+  "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
   -- The direct single-tx lane has no callable dispatcher seam.  Preserve its
   -- historical execution ordering by running the same writer immediately
   -- after ordinary intrinsic decoding, while the sequential MTx lane uses the
   -- post-reservoir callback below.  The active flag is set only by MTx setup.
+  -- Direct transactions run authorization preparation here, before the
+  -- dispatcher-side checkpoint. Snapshot the append-only raw effect log at
+  -- the same boundary so an authorization-phase OOG can roll it back too.
+  "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
   "  la t3, code_state_mtx_active; ld t3, 0(t3); bnez t3, .Lbvtgip_ret\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
-  "  bnez a0, .Lbvtgip_ret\n" ++
-  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1); la t3, runtime_tx_auth_state_refund; ld t3, 0(t3); add t2, t2, t3; sd t2, 0(t1)\n" ++
+  "  bnez a0, .Lbvtgip_restore\n" ++
+  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1); la t3, runtime_tx_auth_state_refund; ld t3, 0(t3); add t2, t2, t3; sd t2, 0(t1); j .Lbvtgip_ret\n" ++
+  ".Lbvtgip_restore:\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   ".Lbvtgip_ret:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 64; ret"
 
@@ -337,15 +349,20 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
 def blockVerdictTxStateGasInlineFinalizeFunction : String :=
   "block_verdict_tx_state_gas_inline_finalize:\n" ++
   "  slli t0, a0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
-  -- The depth-zero preparation snapshot is rolled back on ExceptionalHalt.
-  -- `runtime_tx_post_preparation_reached` is the same gas-coverage-derived control
-  -- fact used by the AccountState commit path: a failed transaction before
-  -- that point restores the *entire* pre-preparation state-gas cell.  The
-  -- dispatcher may already have consumed the live auth-refund scratch while
-  -- attempting its gas spill, so subtracting that scratch here is neither
-  -- stable nor the snapshot semantics.
+  -- The depth-zero preparation snapshot is rolled back only when the
+  -- authorization phase itself halts.  A generic pre-preparation halt is not
+  -- an authorization OOG and must retain the caller's current state-gas cell.
   "  bnez a1, .Lbvtgif_exec\n" ++
-  "  la t3, runtime_tx_post_preparation_reached; ld t3, 0(t3); bnez t3, .Lbvtgif_store; sd zero, 0(t1); li t2, 0\n" ++
+  "  la t3, runtime_tx_auth_phase_halted; ld t3, 0(t3); beqz t3, .Lbvtgif_store; sd zero, 0(t1); li t2, 0\n" ++
+  -- Auth-phase ExceptionalHalt restores the same message snapshot used by
+  -- the pending AccountState overlay.  Body REVERT keeps the overlay because
+  -- runtime_tx_post_preparation_reached is set only after preparation passes.
+  "  la t3, account_state_pending_checkpoint; ld t4, 0(t3); la t3, account_state_pending_count; sd t4, 0(t3)\n" ++
+  -- Auth preparation also appends BAL-facing nonce records before the
+  -- dispatcher checks the state-gas reservoir.  Truncate those append-only
+  -- cursors on the same phase-zero halt; this is the BAL counterpart of the
+  -- AccountState rollback above.
+  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3)\n" ++
   -- The same pre-dispatch snapshot owns the staged ACCOUNT_WRITE regular gas.
   -- A phase-zero exceptional halt restores it together with NEW_ACCOUNT and
   -- AUTH_BASE; a body revert (phase one) retains all preparation charges.

@@ -1018,17 +1018,55 @@ def callDescendFallThrough
   -- nse_callee_be, cd_value_be, cd_balance_be, and nse_acct are static scratch
   -- reused by nested calls, so they are valid only in this post-descend,
   -- pre-dispatch window.
-  (if mode != 0 then "" else
-    -- GH #10938: the setup is the shared `recordMessageValueTransferAsm`, which the
-    -- CREATE-endowment site also uses.  The spec has ONE `move_ether` for both, since
-    -- `process_create_message` delegates to `process_message` (`interpreter.py:212`).
-    recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
-      "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
-  -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
-  -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
-  -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
-  -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
-  emitPendingXferLog "desc_" ++
+   (if mode != 0 then "" else
+     -- GH #10938: the setup is the shared `recordMessageValueTransferAsm`, which the
+     -- CREATE-endowment site also uses.  The spec has ONE `move_ether` for both, since
+     -- `process_create_message` delegates to `process_message` (`interpreter.py:212`).
+     recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+       "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8") ++
+     -- Credit child env+32 (.selfBalance) with the transferred value so nested-frame
+     -- SELFBALANCE and the child's own CREATE value-gate see pre + call.value.
+     -- call_frame_descend stages env+32 from pre-transfer balance only; the parent
+     -- debit above updates the caller frame, but until now nothing wrote the callee
+     -- frame. CREATE already credits its child after descend (ChildFrameCreateTail
+     -- drj99.1 part 2); mirror that here. Inside the child rollback interval: a
+     -- REVERT/exceptional halt discards the frame, so the credit dies with it.
+     -- Skip value==0 (cd_value_be may be stale) and self-call (net-zero; parent debit
+     -- also skips — adding V would make SELFBALANCE read B+V).
+     "  la t0, cd_value_be\n" ++
+     "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2\n" ++
+     "  ld t2, 16(t0); or t1, t1, t2\n" ++
+     "  ld t2, 24(t0); or t1, t1, t2\n" ++
+     "  beqz t1, .Lcd_child_sb_done_" ++ tag ++ "\n" ++
+     "  la t0, cd_caller_be\n  la t1, nse_callee_be\n  li t2, 20\n" ++
+     ".Lcd_child_sb_self_" ++ tag ++ ":\n" ++
+     "  beqz t2, .Lcd_child_sb_done_" ++ tag ++ "\n" ++
+     "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lcd_child_sb_credit_" ++ tag ++ "\n" ++
+     "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+     "  j .Lcd_child_sb_self_" ++ tag ++ "\n" ++
+     ".Lcd_child_sb_credit_" ++ tag ++ ":\n" ++
+     "  addi t0, x20, 63\n  la t1, cd_caller_newbal\n  li t2, 32\n" ++
+     ".Lcd_child_sb_rev_" ++ tag ++ ":\n" ++
+     "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
+     "  addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+     "  bnez t2, .Lcd_child_sb_rev_" ++ tag ++ "\n" ++
+      -- Save set = write set of the helper args: a0=x10, a1=x11, a2=x12.
+      -- (Inherited CREATE comment claimed a0-a2 alias x10/x12/x13 — wrong.)
+      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x11, 8(sp)\n  sd x12, 16(sp)\n" ++
+      "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, cd_caller_newbal\n" ++
+      "  jal ra, u256_add_be\n" ++
+      "  ld x10, 0(sp)\n  ld x11, 8(sp)\n  ld x12, 16(sp)\n  addi sp, sp, 32\n" ++
+      "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+      ".Lcd_child_sb_wb_" ++ tag ++ ":\n" ++
+      "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
+      "  addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1\n" ++
+      "  bnez t2, .Lcd_child_sb_wb_" ++ tag ++ "\n" ++
+      ".Lcd_child_sb_done_" ++ tag ++ ":\n") ++
+   -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
+   -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
+   -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
+   -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
+   emitPendingXferLog "desc_" ++
   -- Every successfully descended CALL-family kind reaches the existing
   -- dispatcher resume sequence through the child entry. The entry is after all
   -- root-only setup and begins with the dispatcher-resume sequence that

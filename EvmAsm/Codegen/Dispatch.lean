@@ -1323,6 +1323,13 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"  beqz x6, {label}_hook_done\n" ++
   "  jalr ra, x6, 0\n" ++
   s!"{label}_hook_done:\n" ++
+  -- `process_message` restores the preparation snapshot only when the
+  -- authorization phase itself halts.  A generic pre-preparation halt is not
+  -- sufficient: it occurs on unrelated early-exit routes and must not truncate
+  -- the caller's pending state.
+  "  la x5, runtime_tx_auth_phase_halted; ld x6, 0(x5); beqz x6, " ++ label ++ "_top_no_auth_restore\n" ++
+  "  la x5, account_state_pending_checkpoint; ld x6, 0(x5); la x5, account_state_pending_count; sd x6, 0(x5)\n" ++
+  s!"{label}_top_no_auth_restore:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
   "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
   "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
@@ -2359,13 +2366,28 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- Do not move individual instructions across this boundary: state-gas and
   -- early-exit ordering is part of the transaction semantics.
   -- 1. authorization traversal / set_delegation callback
+  -- The callback publishes auth nonce effects before the state-gas boundary
+  -- is checked.  Save append-only log cursors before it so an auth-phase OOG
+  -- can roll those effects back without disturbing earlier transactions.
+  -- The direct single-tx lane snapshots the append-only log immediately
+  -- before its inline authorization call.  Do not overwrite that checkpoint
+  -- here after authorization has already run; MTx uses this callback as its
+  -- first authorization boundary and must snapshot here instead.
+  "  la x11, runtime_tx_auth_phase_halted; sd x0, 0(x11)\n" ++
+  "  la x11, code_state_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
+  "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
+  "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
+  ".runtime_tx_auth_checkpoint_done:\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
   "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
   "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
   "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
   "  jalr ra, x9, 0; mv x9, x10\n" ++
   "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
-  "  bnez x9, .exit_outofgas\n" ++
+  "  bnez x9, .runtime_tx_auth_phase_oog\n" ++
+  "  j .runtime_tx_auth_exec_done\n" ++
+  ".runtime_tx_auth_phase_oog:\n" ++
+  "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11); j .exit_outofgas\n" ++
   ".runtime_tx_auth_exec_done:\n" ++
   -- 2. authorization state-gas fold
   "  la x11, runtime_tx_auth_state_refund\n" ++
@@ -2382,7 +2404,7 @@ private def emitTopLevelMessageD0Preparation : String :=
   ".runtime_tx_auth_state_spill:\n" ++
   "  sub x9, x9, x8\n" ++
   "  sd x0, 0(x11)\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  bltu x6, x9, .runtime_tx_auth_phase_oog\n" ++
   "  sub x6, x6, x9\n" ++
   ".runtime_tx_auth_state_refund_done:\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
@@ -3472,6 +3494,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_count:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_exec_fn:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_phase_halted:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_state_gas_ptr:\n" ++
   "  .zero 8\n" ++
