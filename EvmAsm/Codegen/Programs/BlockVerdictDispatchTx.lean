@@ -122,8 +122,15 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_dlen; ld t1, 0(t0); li t2, 20; bne t1, t2, .Lscs_acct_next   # item0 not a 20B address\n" ++
   "  la t0, csce_doff; ld t1, 0(t0); add t1, s3, t1; la t0, csce_addrp; sd t1, 0(t0)   # addr ptr (BE)\n" ++
   -- 1ipxd.1: pre-resolve this BAL account's balance into callee_balance_table (clean
-  -- pre-execution context; the witness MPT walk returns absent if run mid-EVM-execution
-  -- inside call_frame_descend). Covers the recipient too (it IS a BAL account; the recipient
+  -- pre-execution context). ⚠️ This used to say "the witness MPT walk returns absent if run
+  -- mid-EVM-execution inside call_frame_descend" as if it were an inherent restriction. It is
+  -- not: GH #11105 measured h_SSTORE's tier-3 witness read running mid-EVM-execution and at
+  -- least 14 of its 16 well-formed calls RESOLVED an account from the witness there. What does
+  -- fail, in every phase and for every caller, is the SLOT walk (64 of 64 inside
+  -- mpt_lookup_by_key). The `call_frame_descend` window specifically was not measured, so
+  -- pre-resolving here is retained on the original conservative grounds -- but do not cite the
+  -- old sentence as a reason the demand-driven read cannot work. Covers the recipient too (it
+  -- IS a BAL account; the recipient
   -- skip below is storage-only). Key = canonical-BE 20-byte addr (csce_addrp); value = balance
   -- stored LE-limb so the descend copies it verbatim to the LE EVM stack (odq06 byte-order).
   -- Header = svf_parent_rlp (parent/witness root; the single-tx POST header bails). The verdict
