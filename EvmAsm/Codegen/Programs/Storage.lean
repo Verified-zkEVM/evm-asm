@@ -28,10 +28,8 @@
   ## Semantics
 
   **SLOAD (0x54)** — scan persistent log from end (last-write-
-  wins); copy matching `current` to the stack-top slot. On a MISS,
-  resolve the value on demand (GH #10874: block-committed map, then the
-  witness by key, then zero) and SEED it into the log so the verified
-  scan finds it. Net stack delta = 0.
+  wins); copy matching `current` to the stack-top slot; default
+  zero on miss. Net stack delta = 0.
 
   **SSTORE (0x55)** — scan from end; append a new entry preserving
   the prior `original` on match (or 0 on miss). **Always appends**
@@ -55,11 +53,9 @@
 
   - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
     env.ADDRESS (multi-contract isolated).
-  - GH #10874: cold reads are DEMAND-DRIVEN. A persistent-log miss is resolved
-    through the three-tier chain (`storagePrestateResolveAsm`): the block-committed
-    map, then the witness BY KEY against the parent header, then zero. It used to
-    read `original = 0` unconditionally, which made a slot readable only if
-    something had PRELOADED it from the declared BAL.
+  - Cold `SLOAD` reads of non-preloaded slots return 0. The BAL-driven preload
+    stages every slot a block reads, so this is not observed (GH #10874 measured
+    zero misses on the corpus); a demand-driven read is blocked on GH #11105.
   - 4 MiB per log = ~32K entries each — well past any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
@@ -216,10 +212,12 @@ def sstoreValueTransitionGasAsm : String :=
     frame's `(env.ADDRESS, stack key)`, setting `x18 = &found.original`
     (`entry+64`) or leaving it `0` on a miss.
 
-    Extracted verbatim from `h_SSTORE`'s inline scan so `h_SLOAD` determines
-    "absent from the log" the SAME way rather than by a second implementation.
-    Numeric local labels (`1:`/`2:`/`3:`) are unique-per-use, so both
-    instantiations coexist without a prefix parameter.
+    Extracted verbatim from `h_SSTORE`'s inline scan. ⚠️ It currently has ONE
+    consumer: a second was intended for `h_SLOAD`'s cold-miss path (GH #10874) and
+    is not landed, because that path is unreachable while the BAL preload stages
+    every slot a block reads. Numeric local labels (`1:`/`2:`/`3:`) are
+    unique-per-use, so a second instantiation can coexist without a prefix
+    parameter when the read lands.
 
     Register convention -- identical at both sites, which is what makes this
     shareable at all: `x20` = env base (`env.ADDRESS` at `+0..32`, log length at
@@ -284,8 +282,18 @@ def storagePersistentLogFindAsm : String :=
 
     ⚠️ Skipping tier 2 and going straight to the witness would return the
     PRE-BLOCK value wherever a prior transaction in this block already wrote the
-    slot. That is why `h_SLOAD` reuses this chain instead of calling
-    `sload_at_header_state_root`, which resolves the witness tier ALONE.
+    slot. That is why a demand-driven `h_SLOAD` must reuse this chain rather than
+    call `sload_at_header_state_root`, which resolves the witness tier ALONE.
+
+    ⛔ AND TIER 3 DOES NOT WORK. `slot_at_header_state_root` returns status 4
+    (header parse / state_root size fail) on EVERY call from this chain -- measured
+    16 for 16 the first time anything reached it (GH #11105). Three operand sources
+    were tried, including the verbatim operands the two working callers pass, and
+    all three failed identically, so the cause is the frame/phase rather than the
+    arguments. This chain has never executed in production because the preload
+    means SSTORE never sees a cold miss either. Do not build on tier 3 until #11105
+    is fixed, and note that every non-zero status is flattened to value 0 -- so a
+    broken authenticated read is indistinguishable from an absent slot.
 
     `p` prefixes the named labels so both handlers can instantiate it.
     `out` is a 64-byte scratch buffer, also used to stage the canonical
@@ -398,67 +406,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 2\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  li x15, 3\n" ++
-        "  beq x14, x15, .exit_outofgas\n" ++
-        -- GH #10874: DEMAND-DRIVEN COLD READ. Until now an SLOAD of a slot absent
-        -- from the persistent log returned 0 unconditionally, so the only way a
-        -- predeploy or a nested callee could read its real storage was for
-        -- something to have PRELOADED the slot first -- and the slot SET came from
-        -- the declared BAL (`stage_predeploy_storage_preload`,
-        -- `seed_callee_storage`). That is a BAL echo into readable state: what the
-        -- oracle omitted, the guest could not read.
-        --
-        -- execution-specs has no slot enumerator and needs none.
-        -- `WitnessState.get_storage` walks the witness node DB BY KEY and returns
-        -- zero when the leaf is absent, so a demand-driven miss path IS the spec
-        -- model. Resolve the miss here, through the SAME three-tier chain h_SSTORE
-        -- already uses, then SEED the resolved value into the log so the verified
-        -- scan core below finds it.
-        --
-        -- Seeding rather than patching the returned value is what keeps the
-        -- verified body untouched: `evm_sload` is witnessed at tier `.conditional`
-        -- and pinned byte-identical by the `#guard`, so the miss cannot be handled
-        -- inside it. The seeded entry has original == current (no net change),
-        -- exactly the shape `seed_callee_storage` already appends.
-        storagePersistentLogFindAsm ++
-        -- ⚠️ This guard MUST test the SCAN result, before the resolve runs. On a log HIT
-        -- the scan leaves x18 = &found.original, and the resolve chain self-skips on
-        -- `bnez x18` — so a guard placed AFTER it cannot tell "resolve succeeded" from
-        -- "scan already found it", and the append below would duplicate the found entry
-        -- on every hit. Measured when it was wrong: 16 seed commits on an ordinary row
-        -- with ZERO calls to either resolution tier, and the log growing 4 -> 8.
-        "  bnez x18, .Lsload_seed_done\n" ++
-        -- x11 = a1 is clobbered by the resolve chain's calls and is live here (the
-        -- storage_read_record call above saves it for the same reason). The chain
-        -- saves x1/x10/x12/x13/x19 itself.
-        "  addi sp, sp, -8\n" ++
-        "  sd x11, 0(sp)\n" ++
-        storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
-        "  ld x11, 0(sp); addi sp, sp, 8\n" ++
-        "  beqz x18, .Lsload_seed_done\n" ++
-        -- Capacity: 16384 entries of 128 B in [0xa0630000, 0xa0830000).
-        -- ⚠️ Deliberately NOT h_SSTORE's `.exit_outofgas` halt. An SSTORE MUST
-        -- append -- dropping a write corrupts state -- but a SLOAD seed is only a
-        -- cache of an authenticated read, so on a full log we skip the seed and
-        -- degrade to the previous cold-zero behavior instead of killing the block.
-        "  ld x15, 448(x20)\n" ++
-        "  li x14, 16384\n" ++
-        "  bgeu x15, x14, .Lsload_seed_done\n" ++
-        "  li x14, 0xa0630000\n" ++
-        "  slli x16, x15, 7\n" ++
-        "  add x14, x14, x16\n" ++          -- x14 = &new entry
-        -- addrHash = env.ADDRESS (env+0..32), keyed exactly as the scan compares.
-        "  ld x16, 0(x20); sd x16, 0(x14); ld x16, 8(x20); sd x16, 8(x14)\n" ++
-        "  ld x16, 16(x20); sd x16, 16(x14); ld x16, 24(x20); sd x16, 24(x14)\n" ++
-        -- slotKey = stack[0..32]
-        "  ld x16, 0(x12); sd x16, 32(x14); ld x16, 8(x12); sd x16, 40(x14)\n" ++
-        "  ld x16, 16(x12); sd x16, 48(x14); ld x16, 24(x12); sd x16, 56(x14)\n" ++
-        -- original = pair[0..32], current = pair[32..64] (both LE-limb)
-        "  ld x16, 0(x18); sd x16, 64(x14); ld x16, 8(x18); sd x16, 72(x14)\n" ++
-        "  ld x16, 16(x18); sd x16, 80(x14); ld x16, 24(x18); sd x16, 88(x14)\n" ++
-        "  ld x16, 32(x18); sd x16, 96(x14); ld x16, 40(x18); sd x16, 104(x14)\n" ++
-        "  ld x16, 48(x18); sd x16, 112(x14); ld x16, 56(x18); sd x16, 120(x14)\n" ++
-        "  addi x15, x15, 1; sd x15, 448(x20)\n" ++
-        ".Lsload_seed_done:\n"
+        "  beq x14, x15, .exit_outofgas\n"
       -- Verified reverse-scan core (byte-identical re-encoding of the former
       -- inline label-based scan on the persistent log; see the `#guard` pin
       -- below). Witnessed at tier `.conditional` by
