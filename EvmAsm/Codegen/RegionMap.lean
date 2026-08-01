@@ -446,7 +446,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x0676d4
+def textSizeBytes : Nat := 0x06788c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -473,18 +473,20 @@ def dataSizeBytes : Nat := 0x5370
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
     state table (address, nonce delta, and header-delegated bit). Grew by
-    `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab, then `0x2000`
-    for GH #10619's fourteenth slab field (`storage_writes_undo_count`).
+     `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab, then `0x2000`
+     for GH #10619's fourteenth slab field (`storage_writes_undo_count`). Grew by
+     `0x2000` for GH #11001's `live_balance_debited_by_depth` (1025 × 8; eight-byte
+     remainder absorbed by a following `.balign 32` — same pattern as the slab note).
 
-    ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
-    the eight-byte remainder is absorbed by the `.balign 32` that already followed the
-    slab. Derived from the emitted addresses, not from arithmetic —
-    `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
-    `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
-    `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
-    the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
-    removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1c10fc20
+     ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
+     the eight-byte remainder is absorbed by the `.balign 32` that already followed the
+     slab. Derived from the emitted addresses, not from arithmetic —
+     `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
+     `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
+     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
+     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
+     removal absorbs in the same direction (#10986, #10988). -/
+def bssSizeBytes : Nat := 0x1c111c20
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -589,7 +591,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbf215000`,
+    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbf221c20`,
     both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
     is expanded — as its own inventory —
