@@ -4831,15 +4831,31 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
       order: `storage_read_record` at instruction **14** (env + key only, no value
       argument, and the 64-B entry has no value field), the access charge at **23**, the
       value resolution at **87/99**.
-    - **Two independent random-200 nulls, checked positionally.** Seed 1914030346 (16 fail)
-      and seed 1221680070 (11 fail): `(manifest_row, bv_fail)` pairs diff **empty**, 0
-      forward and 0 reverse flips. The mechanism is nonetheless **live** — seed-commit PC
-      `0x800509c4` executes 16× on `bal_7002_no_withdrawal_requests` and 17× on
-      `builder_deposit_inhibited`. ⇒ On the reachable sample the declared BAL already
-      enumerated every slot actually read: the echo existed but was **not load-bearing**.
-      This is a doctrine fix with a measured null, **not** a bug fix. Demonstrating value
-      needs a row where the declared BAL **omits** a slot the predeploy reads, which no
-      expected-valid row should produce.
+    - ⛔ **The read was REMOVED and PR #11099 rescoped to the extraction alone** — whole
+      emitted image byte-identical to base (ELF `c1c92b00…` both sides). Two random-200
+      nulls (seeds 1914030346 / 1221680070, positionally identical) turned out to be the
+      **dead-code** case: measured on the **parent**, every `SLOAD` HITS the log (16/16/18
+      hits, **0** misses) because the preload stages every slot a block reads. The coupling
+      is exact — short-circuit the preload and those same reads become **16 misses**, one
+      for one, with 2 tx-level hits surviving as a control.
+    - ⛔ **And the witness tier is UNEXERCISABLE, not merely unexercised (GH #11105).** When
+      reached it returns **status 4 on 16/16 calls**; three operand sources failed
+      identically. The cause is documented in-tree twice
+      (`BlockVerdictDispatchTx.lean:124`, `BlockVerdictDataSection.lean:555`): *"the witness
+      MPT walk returns absent if run mid-EVM-execution"*. Opcode handlers run
+      mid-execution **by definition**, so a demand-driven witness read from `h_SLOAD` cannot
+      work. ⇒ `seed_callee_storage` / `callee_balance_table` /
+      `stage_predeploy_storage_preload` are the **required** design, not an incidental echo.
+    - **Constructive path for #10874, needing neither a demand-driven read nor #11105:** the
+      request predeploys' queue slots are **fixed constants** in EIP-7002/7251/8282, so the
+      preload can stage those constant slots from the witness in the existing pre-execution
+      phase and drop `bal_find_account_by_address` and the declared-BAL slot set entirely.
+    - ⚠️ **Method lessons, both of which produced wrong published claims.** (a) A seed-commit
+      counter firing 16× was published twice as proof the new path fired — it was counting
+      **hits**; count *both* sides of a branch in one run. (b) Diagnosing existing behaviour
+      on the **candidate** turned my own guard bug into an issue filed against the codebase
+      (#11101, closed as false). Instrument the **parent** to characterise existing
+      behaviour. See `feedback_counter_on_one_side_of_a_branch`.
 
   - **#10938 cut 4 landed as PR #10990**, byte-identity measured on the `.s` **and**
     the `.elf`. It is a **deduplication, not a placement move**: the nested transfer
