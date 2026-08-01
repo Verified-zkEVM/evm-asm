@@ -1151,7 +1151,7 @@ def emitDispatcherPrologue : String :=
   -- at STATE_TRACKER_AREA (0xa0630000 / 0xa0830000) outside `.data`;
   -- the regions are byte-accessed directly by the storage handlers.
   "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
-  "  sd x0, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = 0
+  -- GH #10981: env+456 persistentLogCheckpoint retired (slab is sole source).
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
   "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
@@ -1178,7 +1178,7 @@ def emitDispatcherPrologue : String :=
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++       -- 8uld3.1a: reset per-tx full-log-data buffer cursor
   "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++   -- 8uld3.1a: reset per-tx full-log-data overflow flag
-  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  -- GH #10981: env+480 eventLogCheckpoint retired (slab is sole source).
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee trailer slot = 0
   "  sd x0, 520(x20)\n" ++
@@ -2531,7 +2531,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  li x28, 16384\n" ++
   "  bgtu x6, x28, .exit_invalid\n" ++
   "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
-  "  sd x6, 456(x20)\n" ++         -- env.persistentLogCheckpointOff = preload count
+  -- GH #10981: no env+456 checkpoint write; body slab captures 448 at tx start.
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   -- 8uld3.2.1.3 FIX: reset the per-tx full-log-data globals via x28 (a dead scratch
@@ -2582,7 +2582,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- The exceptional exits and RETURN/REVERT tails overwrite it during this
   -- dispatch; a clean STOP leaves this 0.
   "  li x28, 0xa0010000; sd x0, 32(x28)\n" ++
-  "  sd x0, 480(x20)\n" ++         -- env.eventLogCheckpointOff = 0
+  -- GH #10981: no env+480 checkpoint write; body slab is sole event checkpoint.
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
   "  sd x0, 520(x20)\n" ++         -- M28: blobBaseFee[1] = 0
