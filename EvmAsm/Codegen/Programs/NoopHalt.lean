@@ -81,7 +81,53 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   (if depthAware then
     "  la t0, evm_call_depth\n" ++
     "  ld t0, 0(t0)\n" ++
-    "  beqz t0, .Lrr_halt_" ++ toString kind ++ "\n" ++
+    -- GH #10938: depth 0 normally halts here.  A depth-0 CREATE-frame RETURN does NOT:
+    -- execution-specs `process_create_message` DEPOSITS UNCONDITIONALLY (`interpreter.py:215-241`)
+    -- and only the CALLER pushes a result, so "no caller" must mean "no result to push", not
+    -- "no deposit".  The guest encoded it as the latter, which is why the top-level route had to
+    -- capture the returndata and run a SECOND deposit epilogue of its own.
+    --
+    -- `create_frame_flag[0]` is set by the top-level creation route, so it distinguishes a
+    -- depth-0 creation RETURN from an ordinary depth-0 halt.  The deposit work below is
+    -- depth-agnostic — it reads the code from `x13 + x14` / `x15`, which is exactly what the
+    -- capture block copies FROM, so the data is live here.  The depth-0 exit therefore moves to
+    -- just before `frame_return`, which is the only part that needs a parent.
+    -- NOTE: kind 1 is RETURN and kind 2 is REVERT — the `.Lrr_createcap_1` / `.Lrr_halt_1`
+    -- suffixes in the emitted stream are this `kind`, not an index.
+    --
+    -- ⛔ AND THE TRIPLE MUST BE STASHED BEFORE THE DEPOSIT RUNS.  `x13`/`x14`/`x15` are
+    -- `a3`/`a4`/`a5`, and the deposit block calls `create_record_code_effect` (which loads
+    -- `a4`/`a5` as `account_write_record` arguments) and `record_nonstorage_effect`.  At depth
+    -- 1+ the clobber is invisible: the exit is `frame_return` with an explicit `a1`/`a2`, so
+    -- the triple is dead.  At depth 0 it is NOT dead — `.Lrr_createcap_*` and the halt output
+    -- tail both read `x13 + x14` / `x15` — so the depth-0 exit restores it from `rr_halt_ret_save`.
+    -- Measured, not assumed: without the restore the halt wrote size 1 instead of 2484 on
+    -- `stWalletTest/day_limit_construction`, and only output byte 248 changed, which is past
+    -- the 105 bytes the fixture comparator reads.
+    (if kind == 1 then
+      "  bnez t0, .Lrr_depth_ok_" ++ toString kind ++ "\n" ++
+      "  la t1, create_frame_flag; ld t1, 0(t1)\n" ++
+      "  beqz t1, .Lrr_halt_" ++ toString kind ++ "\n" ++
+      ".Lrr_depth_ok_" ++ toString kind ++ ":\n" ++
+      "  la t1, rr_halt_ret_save; sd x13, 0(t1); sd x14, 8(t1); sd x15, 16(t1)\n" ++
+      -- GH #11057: give depth 0 the state-gas snapshot every nested depth already has.
+      -- `create_frame_descend` (`CallFrameDescend.lean:485-486`) writes the pair into the
+      -- CHILD env on descend; nothing descends at depth 0, so `632`/`760` there hold a
+      -- generic env-trailer word (zeroed by `Dispatch.lean:1195`, copied from the stateless
+      -- INPUT by `:2670`) and `760(x20)` is never written at all. The spec's analogue is
+      -- `message.state_gas_reservoir` — a field of the MESSAGE, constructed at every depth
+      -- (`vm/__init__.py:240-256`), which is why this is a missing construction rather than a
+      -- missing mechanism.
+      --
+      -- ⛔ GATED ON DEPTH 0. At depth 1+ the descend already wrote this pair as the frame's
+      -- ENTRY values; rewriting it here with the CURRENT accumulators would make the refill in
+      -- `.Lrr_crinv_*` a no-op and silently disable nested-CREATE state-gas rollback.
+      "  bnez t0, .Lrr_sgsnap_done_" ++ toString kind ++ "\n" ++
+      "  la t1, evm_state_gas_used; ld t2, 0(t1); sd t2, 632(x20)\n" ++
+      "  la t1, evm_state_gas_spilled; ld t2, 0(t1); sd t2, 760(x20)\n" ++
+      ".Lrr_sgsnap_done_" ++ toString kind ++ ":\n"
+     else
+      "  beqz t0, .Lrr_halt_" ++ toString kind ++ "\n") ++
     rollbackAsm ++
     -- .61.8.3.5.2 (.5b): a CREATE child frame (create_frame_flag[depth]=1, set by
     -- create_frame_descend) does NOT return a CALL result — on RETURN it deposits the
@@ -229,6 +275,15 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
       "  la t0, create_target_alive_flag; slli t1, t1, 3; add t0, t0, t1\n" ++
       "  ld t1, 0(t0); la t0, create_target_alive_current_tx; sd t1, 0(t0)\n" ++
+      -- GH #10938: THIS is the depth-0 exit.  Everything above is depth-agnostic deposit work;
+      -- `frame_return` and the parent-slot write below are the only parts that need a caller,
+      -- and at depth 0 there is none.  Matches the spec's division: the processor deposits, the
+      -- caller pushes the result.  The restore of the RETURN triple is on the depth-0 side of
+      -- the test only, so the depth-1+ path emits and executes exactly what it did before.
+      "  la t0, evm_call_depth; ld t0, 0(t0); bnez t0, .Lrr_nottop_" ++ toString kind ++ "\n" ++
+      "  la t1, rr_halt_ret_save; ld x13, 0(t1); ld x14, 8(t1); ld x15, 16(t1)\n" ++
+      "  j .Lrr_halt_" ++ toString kind ++ "\n" ++
+      ".Lrr_nottop_" ++ toString kind ++ ":\n" ++
       "  li a0, 1\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       -- v0.6.0 (C11): no target-alive success refund -- an alive target
@@ -261,6 +316,22 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
       dispatchContinueRet ++ "\n" ++
       ".Lrr_crinv_" ++ toString kind ++ ":\n" ++
+      -- ⛔ GH #10938 / #11057: THE REFILL BELOW NOW RUNS AT DEPTH 0 TOO, AND ONLY BECAUSE THE
+      -- DEPTH-0 SNAPSHOT EXISTS. It reads `632(x20)`/`760(x20)`; at depth 0 those are written by
+      -- the gated snapshot at `.Lrr_depth_ok_*` above. Before that snapshot existed, reading them
+      -- here was a WIPE in the `.data`-baked variant and an INPUT-DERIVED SEED in the other, and
+      -- neither faults — so this arm could not be enabled at depth 0 until the pair was written.
+      -- The spec refills at every depth (`vm/interpreter.py:234`, and `refill_frame_state_gas`
+      -- credits `state_gas_spilled` back to the frame's OWN `gas_left`, which at depth 0 is the
+      -- transaction's), so running it here is the spec's shape rather than an extension of it.
+      --
+      -- What depth 0 still cannot do is `frame_return`: that is "the caller pushes the result",
+      -- and there is no caller. It reads the PARENT env (`ld t0, 568(s4)`, `frame_return+0x49c`),
+      -- so the depth-0 exit sits immediately before it — the same split as the success path.
+      -- Witnessed, not predicted: with the exit any later,
+      -- `eip7954_increase_max_contract_size/eip_mainnet/over_max_code_size_mainnet.json` — a
+      -- `to == null` creation whose deployed code exceeds the limit, oracle succ bit 1, so the
+      -- block is VALID — faults with `mcause=0x5 mtval=0x238 mepc=0x80048870`, i.e. `s4 = 0`.
       -- bbow4.2.5.1: invalid deployed code / code-deposit OOG is an
       -- exceptional CREATE failure. execution-specs process_create_message
       -- restores the child state snapshot and sets child gas_left = 0 before
@@ -290,6 +361,32 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  ld t0, 760(x20); la t1, evm_state_gas_spilled; sd t0, 0(t1)\n" ++
       "  sd x0, 568(x20)\n" ++
       createFailedStateGasRefundStashAsm ++
+      -- GH #10938: the depth-0 exit, immediately before `frame_return` and after every
+      -- depth-agnostic part of the failure handling has run. The triple is restored because
+      -- `.Lrr_halt_*` and `.Lrr_createcap_*` read `x13 + x14` / `x15`, and the recorder calls
+      -- above clobber `a3`/`a4`/`a5`. ⚠️ `createFailedStateGasRefundAsm` below is deliberately
+      -- NOT reached at depth 0: it credits `generic_create`'s NEW_ACCOUNT charge back on CHILD
+      -- error and is gated on the by-depth alive flag stashed just above, so it has no depth-0
+      -- counterpart — the transaction-level settle path owns that gas.
+      (if kind == 1 then
+        "  la t0, evm_call_depth; ld t0, 0(t0); bnez t0, .Lrr_crinv_nottop_" ++ toString kind ++ "\n" ++
+        -- GH #10938: PUBLISH the depth-0 deposit failure so the creation stage still reaches its
+        -- own exception/settle arm.  The stage used to learn this by running the validator
+        -- itself; with that removed it has to be told.  ⛔ The channel is
+        -- `top_level_creation_returndata_status`, NOT output byte 32: the halt tail below writes
+        -- `li x17, kind` / `sd x17, 32(x16)` at its end, so any halt-kind stamp set here would be
+        -- overwritten before the stage could read it.  ⛔ NOR can it be
+        -- `top_level_creation_returndata_status`: `.Lrr_createcap_*` also runs AFTER the halt
+        -- label and writes that cell unconditionally — 1 when the return fits the capture buffer,
+        -- 2 when it does not — so a failure published there is clobbered, and in the
+        -- fits-the-buffer case clobbered with 1, which the stage reads as SUCCESS.  Measured:
+        -- 0x800517ac wrote 3, 0x80051a44 then wrote 2, and the stage read 2.  So this needs a
+        -- cell nothing on the halt path writes.
+        "  la t1, create_deposit_failed_flag; li t2, 1; sd t2, 0(t1)\n" ++
+        "  la t1, rr_halt_ret_save; ld x13, 0(t1); ld x14, 8(t1); ld x15, 16(t1)\n" ++
+        "  j .Lrr_halt_" ++ toString kind ++ "\n" ++
+        ".Lrr_crinv_nottop_" ++ toString kind ++ ":\n"
+       else "") ++
       "  li a0, 0\n  li a1, 0\n  li a2, 0\n" ++
       "  jal ra, frame_return\n" ++
       createFailedStateGasRefundAsm ("invalid_" ++ toString kind) ++

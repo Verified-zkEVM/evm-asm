@@ -401,6 +401,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- oversized RETURN (2), so the later deposit step can reject rather than
   -- silently treating an unsupported output as empty code.
   "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_failed_flag; sd zero, 0(t0)\n" ++
   "  la t0, top_level_creation_returndata_len; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
@@ -539,38 +540,29 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- existing conservative failure edge rather than using an unverified code
   -- hash or silently omitting the state-gas charge.
   "  li t0, 0xa0010000; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
-  "  la t0, top_level_creation_returndata_status; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lbvcr_deposit_validate\n" ++
+  -- GH #10938: the SURVIVOR now deposits at depth 0 (`NoopHalt.returnRevertTail`), so this
+  -- stage no longer validates, charges or records — it only SETTLES.  Status 1 means the
+  -- survivor deposited successfully, so fall through to `.Lbvcr_deposit_done`; status 3 is the
+  -- survivor's depth-0 deposit FAILURE and joins status 2 (oversized capture) on the existing
+  -- exception edge.  Every other status keeps the pre-existing conservative `.Lbvcr_ret`.
+  -- ⛔ THE FAILURE FLAG IS CHECKED FIRST, BEFORE the status cell, because `.Lrr_createcap_*`
+  -- rewrites that status AFTER the survivor published its failure: 1 when the returned code fits
+  -- the capture buffer, 2 when it does not.  Reading the status first would therefore mask a
+  -- failed deposit as `status == 1` and settle it as a success.
+  "  la t0, create_deposit_failed_flag; ld t1, 0(t0); bnez t1, .Lbvcr_deposit_exception\n" ++
+  "  la t0, top_level_creation_returndata_status; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lbvcr_deposit_done\n" ++
   -- A return larger than the fixed EIP-170 retention buffer is exactly the
   -- over-max-code deployment failure: it is still a valid block with a failed
   -- receipt, not an unsupported shape.  Other non-return statuses retain the
   -- existing conservative edge until their individual semantics are wired.
   "  li t2, 2; beq t1, t2, .Lbvcr_deposit_exception; j .Lbvcr_ret\n" ++
-  ".Lbvcr_deposit_validate:\n" ++
-  "  la a0, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a1, 0(t0); jal ra, create_deployed_code_valid; bnez a0, .Lbvcr_deposit_exception\n" ++
-  -- Hash gas = 6 * ceil32(code_len)/32, charged against the top-level frame.
-  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, " ++ toString amsterdamKeccak256PerWord ++ "; mul t0, t0, t1\n" ++
-  "  la t1, evm_env; ld t2, 568(t1); bltu t2, t0, .Lbvcr_ret; sub t2, t2, t0; sd t2, 568(t1)\n" ++
-  -- Code-deposit state gas = 1530 * code_len.  This is the same reservoir /
-  -- spill fold used by the nested CREATE RETURN tail, with the top-level env
-  -- as the regular-gas source.
-  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, " ++ toString amsterdamCostPerStateByte ++ "; mul t0, t0, t1\n" ++
-  "  la t1, evm_state_gas_left; ld t2, 0(t1); bgeu t2, t0, .Lbvcr_csg_res\n" ++
-  "  sub t3, t0, t2; la t4, evm_env; ld t5, 568(t4); bltu t5, t3, .Lbvcr_ret\n" ++
-  "  sd zero, 0(t1); sub t5, t5, t3; sd t5, 568(t4); la t1, evm_state_gas_spilled; ld t2, 0(t1); add t2, t2, t3; sd t2, 0(t1); j .Lbvcr_csg_used\n" ++
-  ".Lbvcr_csg_res:\n" ++
-  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
-  ".Lbvcr_csg_used:\n" ++
-  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n" ++
-  "  la a0, bv_create_addr; la a1, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a2, 0(t0); jal ra, create_record_code_effect; bnez a0, .Lbvcr_ret\n" ++
-  -- Publish the full created-account snapshot immediately after the code
-  -- deposit.  The code writer intentionally leaves balance/nonce unknown;
-  -- this companion is the top-level analogue of NoopHalt's child-CREATE
-  -- publication and supplies the live final balance plus final nonce.
-  "  la t0, evm_env; addi t1, t0, 63; la t2, nse_create_post_bal; li t3, 32\n" ++
-  ".Lbvcr_created_post_balance:\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, -1; bnez t3, .Lbvcr_created_post_balance\n" ++
-  "  la a0, bv_create_addr; jal ra, create_creator_nonce_current; mv t4, a0\n" ++
-  "  la a0, bv_create_addr; la a1, nse_zero_bal; la a2, nse_create_post_bal; li a3, 0; mv a4, t4; jal ra, record_nonstorage_effect; bnez a0, .Lbvcr_ret; j .Lbvcr_deposit_done\n" ++
+  -- GH #10938: the stage's deposit PROCESSING is gone — validator, hash gas, code-deposit
+  -- state gas, `create_record_code_effect` and the created-account publication all now run
+  -- once, in the survivor, at every depth (`vm/interpreter.py:215-241` is one depth-agnostic
+  -- block reached through the `process_message` delegation at `:212`).  Keeping them here as
+  -- well double-charged code-deposit state gas on every row that reached this point, which
+  -- is an OVER-charge and rejects a valid block.  What remains below is settlement and the
+  -- exception edge, for which the survivor has no counterpart.
   -- `process_create_message` treats an invalid returned code (or a deposit
   -- charge OOG) as an ExceptionalHalt of the top-level CREATE, not as an
   -- unsupported execution shape: it restores the creation snapshot, burns

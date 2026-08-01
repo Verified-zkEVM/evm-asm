@@ -2238,6 +2238,24 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "top_level_creation_returndata:\n" ++
   "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
+  -- GH #10938: the depth-0 RETURN triple (x13 mem base / x14 offset / x15 size), stashed
+  -- before the CREATE deposit block runs.  The deposit calls create_record_code_effect and
+  -- record_nonstorage_effect, both of which clobber a3/a4/a5 == x13/x14/x15; at depth 1+
+  -- that is harmless because frame_return is passed an explicit a1/a2, but the depth-0 halt
+  -- tail and `.Lrr_createcap_*` read the triple directly, so it must be restored there.
+  ".balign 8\n" ++
+  "rr_halt_ret_save:\n" ++
+  "  .zero 32\n" ++
+  -- GH #10938: the depth-0 CREATE deposit FAILED, published by `.Lrr_crinv_*` for
+  -- `BlockVerdictCreationStage` to route into its exception/settle arm.  ⛔ This cannot live in
+  -- `top_level_creation_returndata_status`: `.Lrr_createcap_*` runs AFTER `.Lrr_halt_*` and
+  -- writes that cell unconditionally on every depth-0 creation RETURN (1 when the return fits
+  -- the capture buffer, 2 when it does not), so a failure published there is overwritten before
+  -- the stage reads it — and the fits-the-buffer case would be overwritten with 1, settling a
+  -- FAILED deposit as a successful one.  Nothing on the halt path writes this flag.
+  ".balign 8\n" ++
+  "create_deposit_failed_flag:\n" ++
+  "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -3694,6 +3712,24 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "top_level_creation_returndata:\n" ++
   "  .zero " ++ toString topLevelCreationReturndataMaxBytes ++ "\n" ++
+  -- GH #10938: the depth-0 RETURN triple (x13 mem base / x14 offset / x15 size), stashed
+  -- before the CREATE deposit block runs.  The deposit calls create_record_code_effect and
+  -- record_nonstorage_effect, both of which clobber a3/a4/a5 == x13/x14/x15; at depth 1+
+  -- that is harmless because frame_return is passed an explicit a1/a2, but the depth-0 halt
+  -- tail and `.Lrr_createcap_*` read the triple directly, so it must be restored there.
+  ".balign 8\n" ++
+  "rr_halt_ret_save:\n" ++
+  "  .zero 32\n" ++
+  -- GH #10938: the depth-0 CREATE deposit FAILED, published by `.Lrr_crinv_*` for
+  -- `BlockVerdictCreationStage` to route into its exception/settle arm.  ⛔ This cannot live in
+  -- `top_level_creation_returndata_status`: `.Lrr_createcap_*` runs AFTER `.Lrr_halt_*` and
+  -- writes that cell unconditionally on every depth-0 creation RETURN (1 when the return fits
+  -- the capture buffer, 2 when it does not), so a failure published there is overwritten before
+  -- the stage reads it — and the fits-the-buffer case would be overwritten with 1, settling a
+  -- FAILED deposit as a successful one.  Nothing on the halt path writes this flag.
+  ".balign 8\n" ++
+  "create_deposit_failed_flag:\n" ++
+  "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   (if includeSharedHelperData then storageAccessGasData else "") ++
