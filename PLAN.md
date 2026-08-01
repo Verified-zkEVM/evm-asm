@@ -4801,6 +4801,62 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   per-field moves and shared-emitter extractions rather than as a single unification
   of the two creation processors.
 
+  - **#10938 piece 3 + #11054 are PR #11095; #10874 is PR #11099, stacked on it**
+    (2026-08-01). Piece 3 deletes `top_level_creation_returndata` and its `_len` — piece 2
+    removed their only consumer. ⚠️ The length cell had a **writer and a clear and no
+    load**: a clear is a write, so a reference count reads it as live. The deletion is
+    justified by the absence of a **load**, not by a low write count. #11054 deletes
+    `bal_sort_{account,storage}_writes`; the `.globl` count guard was **updated 4→2, not
+    deleted**. Converted-routine artifact classes now measured at **eight**, two of them
+    outside `EvmAsm/` (`scripts/asm-fixtures/MANIFEST.tsv`, an `asm_to_program.py`
+    exemption), which is why a Lean-tree grep reports the deletion complete when it is not.
+
+  - **#10874 is NOT the deletion the issue describes, and deleting the four gates would
+    have made it worse.** Zeroing them does not make reads demand-driven — it makes all
+    four predeploys execute against **cold zero**, because `h_SLOAD` had no witness path
+    at all (`Storage.lean`: cold reads of non-preloaded slots returned `original = 0`).
+    The enumerating shape is **three sites, not four gates**, and one of them
+    (`seed_callee_storage`) is **universal** — it enumerates every non-recipient BAL
+    account. So the fix is at the **read**, not at the enumerators. `h_SLOAD` now resolves
+    a log miss through the same **three-tier** chain `h_SSTORE` already used: per-tx log →
+    block-committed map (`BlockState.storage_writes`) → witness by key → zero. ⚠️ Tier 2 is
+    why `sload_at_header_state_root` must **not** be wired: it resolves the witness tier
+    alone, so it would return the **pre-block** value wherever a prior tx in the block
+    already wrote the slot. That routine is now dead (one `jal`, inside its own probe unit;
+    absent from the guest asm) and is a follow-up deletion.
+    - The extraction is **proven** neutral: the emitted `h_SSTORE` body is
+      **byte-identical** before and after (349 lines, empty diff). A pre-existing `sp`
+      imbalance on its out-of-gas path was preserved verbatim so that diff would be empty.
+    - Gas and the read set are unchanged **by construction**, from emitted instruction
+      order: `storage_read_record` at instruction **14** (env + key only, no value
+      argument, and the 64-B entry has no value field), the access charge at **23**, the
+      value resolution at **87/99**.
+    - ⛔ **The read was REMOVED and PR #11099 rescoped to the extraction alone** — whole
+      emitted image byte-identical to base (ELF `c1c92b00…` both sides). Two random-200
+      nulls (seeds 1914030346 / 1221680070, positionally identical) turned out to be the
+      **dead-code** case: measured on the **parent**, every `SLOAD` HITS the log (16/16/18
+      hits, **0** misses) because the preload stages every slot a block reads. The coupling
+      is exact — short-circuit the preload and those same reads become **16 misses**, one
+      for one, with 2 tx-level hits surviving as a control.
+    - ⛔ **And the witness tier is UNEXERCISABLE, not merely unexercised (GH #11105).** When
+      reached it returns **status 4 on 16/16 calls**; three operand sources failed
+      identically. The cause is documented in-tree twice
+      (`BlockVerdictDispatchTx.lean:124`, `BlockVerdictDataSection.lean:555`): *"the witness
+      MPT walk returns absent if run mid-EVM-execution"*. Opcode handlers run
+      mid-execution **by definition**, so a demand-driven witness read from `h_SLOAD` cannot
+      work. ⇒ `seed_callee_storage` / `callee_balance_table` /
+      `stage_predeploy_storage_preload` are the **required** design, not an incidental echo.
+    - **Constructive path for #10874, needing neither a demand-driven read nor #11105:** the
+      request predeploys' queue slots are **fixed constants** in EIP-7002/7251/8282, so the
+      preload can stage those constant slots from the witness in the existing pre-execution
+      phase and drop `bal_find_account_by_address` and the declared-BAL slot set entirely.
+    - ⚠️ **Method lessons, both of which produced wrong published claims.** (a) A seed-commit
+      counter firing 16× was published twice as proof the new path fired — it was counting
+      **hits**; count *both* sides of a branch in one run. (b) Diagnosing existing behaviour
+      on the **candidate** turned my own guard bug into an issue filed against the codebase
+      (#11101, closed as false). Instrument the **parent** to characterise existing
+      behaviour. See `feedback_counter_on_one_side_of_a_branch`.
+
   - **#10938 cut 4 landed as PR #10990**, byte-identity measured on the `.s` **and**
     the `.elf`. It is a **deduplication, not a placement move**: the nested transfer
     record and log already sat after `create_frame_descend` and before the initcode,
