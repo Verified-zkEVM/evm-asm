@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.Selfdestruct
@@ -783,11 +784,19 @@ def haltHandlers (depthAware : Bool) (sparseWindows : Bool := false) : List Opco
                  returnRevertMemoryGasAsm "revert" sparseWindows
     , body    := []
     , tail    := .custom <|
+        -- GH #10981: REVERT restores log cursors from the per-depth body slab
+        -- (offsets +40 persistent, +56 event — bodyStateCaptureCursorsAsm), not
+        -- from env+456/+480. Those cells duplicated the slab; CallFrameReturn
+        -- already reads the slab. Transient zero at 464 is unchanged (prior
+        -- behaviour). Depth d = evm_call_depth (still the reverting frame).
         returnRevertTail 2
-          ("  ld x17, 456(x20)\n" ++
+          ("  la t0, evm_call_depth; ld t0, 0(t0); " ++
+           bodyStateSlabStrideOps "t0" "t1" "t2" ++
+           "; la t2, body_state_snapshot_by_depth; add t2, t2, t1\n" ++
+           "  ld x17, 40(t2)\n" ++
            "  sd x17, 448(x20)\n" ++
            "  sd x0, 464(x20)\n" ++
-           "  ld x17, 480(x20)\n" ++
+           "  ld x17, 56(t2)\n" ++
            "  sd x17, 472(x20)\n") depthAware sparseWindows }
   , { label := "h_INVALID", opcodes := [0xfe]
     , body := []

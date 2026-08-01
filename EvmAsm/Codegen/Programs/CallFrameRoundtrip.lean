@@ -58,8 +58,8 @@ def callFrameRoundtripPrologue : String :=
   "  la x21, rt_parent_code\n" ++
   "  li t0, 1000000\n  sd t0, 568(x20)\n" ++       -- parent gasRemaining
   "  li t0, 20\n  sd t0, 496(x20)\n" ++             -- parent codeSize
-  "  sd x0, 448(x20); sd x0, 456(x20); sd x0, 464(x20)\n" ++
-  "  sd x0, 472(x20); sd x0, 480(x20)\n" ++
+  "  sd x0, 448(x20); sd x0, 464(x20)\n" ++
+  "  sd x0, 472(x20)\n" ++
   "  la t0, evm_call_depth; sd x0, 0(t0)\n" ++
   -- Build the call descriptor for the manual descend (child = rt_child_code).
   "  la t2, rt_cd_desc\n" ++

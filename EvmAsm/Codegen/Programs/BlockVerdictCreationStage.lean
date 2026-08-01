@@ -573,7 +573,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- execution effects/logs are rolled back to the pre-dispatch snapshots while
   -- the access rows are TRUNCATED to the pre-dispatch snapshot (GH #10654).
   ".Lbvcr_deposit_exception:\n" ++
-  "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0); sd zero, 480(t0)\n" ++
+  "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0)\n" ++
   "  la t0, evm_log_data_used; sd zero, 0(t0); la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
   -- Roll back every body-written arena to the shared pre-dispatch mark.  In
   -- particular this deliberately leaves the read sets intact: the spec's
@@ -613,7 +613,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- endowment Transfer re-emitted before initcode.  Match the normal
   -- top-level dispatch path before taking this transaction's log snapshot.
   "  bnez s3, .Lbvcr_tl7708_snapshot\n" ++
-  "  la t0, evm_env; sd x0, 472(t0); sd x0, 480(t0)\n" ++
+  "  la t0, evm_env; sd x0, 472(t0)\n" ++
   ".Lbvcr_tl7708_snapshot:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
 

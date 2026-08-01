@@ -51,8 +51,8 @@ def storageMultiContractPrologue : String :=
   "  li t0, 0xAA\n  sd t0, 0(x20)\n" ++
   "  sd x0, 8(x20); sd x0, 16(x20); sd x0, 24(x20)\n" ++
   -- log-state cells (checkpoint / transient / event / memsize), all 0.
-  "  sd x0, 456(x20); sd x0, 464(x20)\n" ++
-  "  sd x0, 472(x20); sd x0, 480(x20); sd x0, 488(x20)\n" ++
+  "  sd x0, 464(x20)\n" ++
+  "  sd x0, 472(x20); sd x0, 488(x20)\n" ++
   -- pre-seed the persistent log with two prior cross-contract writes.
   "  li t1, 0xa0630000\n" ++
   -- log[0] = (addrHash B 0xBB, slotKey 7, original 0, current 0x99).
