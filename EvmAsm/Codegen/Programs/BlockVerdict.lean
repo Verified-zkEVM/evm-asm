@@ -441,7 +441,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
-  blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
+  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
@@ -456,15 +456,11 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
-  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
-  eip7702AuthorityStateFindFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
-  b1Eip7702ApplyTxFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
-  eip7702NonceReuseGuardFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   ".Lv2_pdone:"
 
