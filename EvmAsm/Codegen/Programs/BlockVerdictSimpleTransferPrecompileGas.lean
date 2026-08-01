@@ -32,10 +32,8 @@ private def blockVerdictModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) :
 def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  # Active precompile recipients have empty state-trie code but still execute. Detect them\n" ++
   "  # before the zero-value EOA shortcut so their execution gas reaches the exact gas arena.\n" ++
-  "  mv t0, t2; addi t0, t0, 72\n" ++
-  -- MTx enters this named interior selector with `t0` holding its lane
-  -- sentinel. Keep the root-only address setup outside that ABI entry.
   ".Lbv_tx_gas_precharge_pc0_prefix:\n" ++
+  "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc0" "t0" "t3" "t1" "t4" ++
   "  beqz t3, .Lbv_tx_gas_precharge_value_check\n" ++
   "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
@@ -75,7 +73,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  # no state-trie code hash; skip this 21k-only verifier for them too.\n" ++
   "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc" "t0" "t3" "t1" "t4" ++
-  "  beqz t3, .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  beqz t3, .Lbv_mtx_precompile_not_active\n" ++
   "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
   "  li t4, 2; beq t3, t4, .Lbv_simple_transfer_precompile_sha256\n" ++
   "  li t4, 3; beq t3, t4, .Lbv_simple_transfer_precompile_ripemd160\n" ++
@@ -94,7 +92,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  li t4, 16; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g1\n" ++
   "  li t4, 17; beq t3, t4, .Lbv_simple_transfer_precompile_bls_map_g2\n" ++
   "  li t4, 256; beq t3, t4, .Lbv_simple_transfer_precompile_p256\n" ++
-  "  j .Lbv_tx_gas_precharge_not_precompile\n" ++
+  "  j .Lbv_mtx_precompile_not_active\n" ++
   ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
   -- At depth zero the precompile's returndata is intentionally not materialized:
   -- execution-specs stores it only in `evm.output`/`MessageCallOutput.return_data`,

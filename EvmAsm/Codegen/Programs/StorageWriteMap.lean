@@ -101,6 +101,15 @@ namespace EvmAsm.Codegen
     cannot overflow before its read counterpart does. -/
 def storageWritesCapacity : Nat := 16384
 
+/-- Undo journal capacity. SSTORE caps writes at `storageWritesCapacity` (W);
+    each write pushes one undo. `destroy_storage` pushes a second undo per
+    converted row (D ≤ W), so the shared journal needs W + D ≤ 2W records.
+    See `STORAGE_WRITES_UNDO_AREA` sizing note. -/
+def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
+
+#guard storageWritesUndoCapacity == 32768
+#guard storageWritesUndoCapacity * 160 == 0x500000
+
 /-! ## `storage_write_record`
 
     Mirrors `set_storage` (`state_tracker.py:489`):
@@ -387,8 +396,15 @@ def storageWritesBlockUpsertFunction : String :=
     which is what makes the journal a faithful stand-in for `take_snapshot`'s
     dict copy (`state_tracker.py:800-806`).
 
-      a3 = entryIndex, a4 = wasAbsent (0/1), a5 = prevValue ptr (32 B; ignored
-      when a4 = 1)
+      a3 = entryIndex
+      a4 = wasAbsent (0 = overwrite, 1 = append, 2 = destroy_storage drop)
+      a5 = payload ptr:
+           wasAbsent=0 → prevValue (32 B)
+           wasAbsent=1 → ignored
+           wasAbsent=2 → full map row (128 B)
+
+    Record stride is 160 B so wasAbsent=2 can journal the full row (review fix
+    for the parked-tail overwrite hole when a later append reuses the slot).
 
     Preserves `t0`-`t6` so the caller's scan state survives the call.
 
@@ -401,13 +417,22 @@ def storageWritesUndoPushFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable: see the docstring
+  "  li t2, " ++ toString storageWritesUndoCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable under W+D ≤ 2W derivation
   "  li t3, 0xa23a0000\n" ++                 -- STORAGE_WRITES_UNDO_AREA
-  "  slli t4, t1, 6; add t4, t3, t4\n" ++    -- 64 B stride
+  "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
   "  sd a3, 0(t4)\n" ++
   "  sd a4, 8(t4)\n" ++
-  "  bnez a4, .Lswup_bump\n" ++              -- appended key: prevValue unused
+  "  beqz a4, .Lswup_prevval\n" ++
+  "  li t5, 2; bne a4, t5, .Lswup_bump\n" ++ -- wasAbsent=1: no payload
+  -- wasAbsent=2: copy full 128 B map row from a5 to undo+32
+  "  li t2, 0\n" ++
+  ".Lswup_row:\n" ++
+  "  li t5, 128; beq t2, t5, .Lswup_bump\n" ++
+  "  add t5, a5, t2; ld t6, 0(t5)\n" ++
+  "  add t5, t4, t2; sd t6, 32(t5)\n" ++
+  "  addi t2, t2, 8; j .Lswup_row\n" ++
+  ".Lswup_prevval:\n" ++
   "  ld t5, 0(a5);  sd t5, 32(t4)\n" ++
   "  ld t5, 8(a5);  sd t5, 40(t4)\n" ++
   "  ld t5, 16(a5); sd t5, 48(t4)\n" ++
@@ -456,8 +481,9 @@ def writeSetsRestoreFrameFunction : String :=
   ".Lswrf_loop:\n" ++
   "  bleu t1, a0, .Lswrf_done\n" ++                         -- cursor <= mark -> finished
   "  addi t1, t1, -1\n" ++
-  "  slli t4, t1, 6; add t4, t3, t4\n" ++                   -- &undo[cursor]
+  "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
   "  ld t2, 8(t4)\n" ++                                     -- wasAbsent
+  "  li t5, 2; beq t2, t5, .Lswrf_reappend\n" ++            -- destroy_storage drop
   "  bnez t2, .Lswrf_unappend\n" ++
   -- Overwrite: restore prevValue into entry[index].value (+64).
   "  ld t2, 0(t4); slli t5, t2, 7; add t5, t6, t5\n" ++
@@ -473,12 +499,90 @@ def writeSetsRestoreFrameFunction : String :=
   "  beqz t5, .Lswrf_loop\n" ++
   "  addi t5, t5, -1; sd t5, 0(t2)\n" ++
   "  j .Lswrf_loop\n" ++
+  ".Lswrf_reappend:\n" ++
+  -- Inverse of destroy_storage drop: memcpy journaled 128 B row to map[count],
+  -- then count++. Full-row journal (not bare count++) so a later append that
+  -- reused the parked tail slot cannot corrupt the restored row (#10645 review).
+  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
+  "  slli t0, t5, 7; add t0, t6, t0\n" ++                   -- dest = &map[count]
+  "  sd t0, 56(sp)\n" ++
+  "  li t2, 0\n" ++
+  ".Lswrf_re_cp:\n" ++
+  "  li t5, 128; beq t2, t5, .Lswrf_re_cnt\n" ++
+  "  add t5, t4, t2; ld t5, 32(t5)\n" ++
+  "  ld t0, 56(sp); add t0, t0, t2; sd t5, 0(t0)\n" ++
+  "  addi t2, t2, 8; j .Lswrf_re_cp\n" ++
+  ".Lswrf_re_cnt:\n" ++
+  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
+  "  addi t5, t5, 1; sd t5, 0(t2)\n" ++
+  "  j .Lswrf_loop\n" ++
   ".Lswrf_done:\n" ++
   "  la t0, storage_writes_undo_count; sd a0, 0(t0)\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret\n"
+
+/-! ## `destroy_storage` (GH #10645)
+
+    Spec `state_tracker.py:560-580`: if `address` is in `tx_state.storage_writes`,
+    add every key to `storage_reads`, then delete the address's write map.
+
+    ONE shared conversion for every guest site that mirrors a `destroy_storage`
+    caller (`process_create_message`, `clear_account_preserving_balance` /
+    EIP-6780 delete commit). Do not copy this body into call sites.
+
+    Calling convention:
+      a0 = rowAddress ptr (32 B) — same keying as `storage_write_record` /
+           `storage_read_record` (frame `env.ADDRESS` LE stack-word form)
+      ra = return; no result register
+
+    Rollback: each removed row is swapped to the map tail then dropped with an
+    undo record `wasAbsent = 2` that journals the **full 128 B row** (not a bare
+    count bump). `write_sets_restore_frame` memcpy's the row back to `map[count]`
+    then increments. Existing `0`/`1` undo codes are unchanged.
+-/
+def destroyStorageFunction : String :=
+  "destroy_storage:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd a0, 48(sp)\n" ++
+  "  sd t0, 56(sp); sd t1, 64(sp); sd t2, 72(sp); sd t3, 80(sp); sd t4, 88(sp); sd t5, 96(sp); sd t6, 104(sp)\n" ++
+  "  la t0, tx_storage_writes_count; ld s0, 0(t0)\n" ++
+  "  li s1, 0xa21a0000\n" ++
+  "  li s2, 0\n" ++
+  ".Lds_loop:\n" ++
+  "  bgeu s2, s0, .Lds_done\n" ++
+  "  slli t0, s2, 7; add s3, s1, t0\n" ++
+  "  ld a0, 48(sp)\n" ++
+  "  ld t0, 0(s3);  ld t1, 0(a0);  bne t0, t1, .Lds_next\n" ++
+  "  ld t0, 8(s3);  ld t1, 8(a0);  bne t0, t1, .Lds_next\n" ++
+  "  ld t0, 16(s3); ld t1, 16(a0); bne t0, t1, .Lds_next\n" ++
+  "  ld t0, 24(s3); ld t1, 24(a0); bne t0, t1, .Lds_next\n" ++
+  "  ld a0, 48(sp); addi a1, s3, 32; jal ra, storage_read_record\n" ++
+  "  addi s4, s0, -1\n" ++
+  "  beq s2, s4, .Lds_drop\n" ++
+  "  slli t0, s4, 7; add t0, s1, t0\n" ++
+  "  li t1, 0\n" ++
+  ".Lds_swap:\n" ++
+  "  li t2, 128; beq t1, t2, .Lds_drop\n" ++
+  "  add t3, s3, t1; ld t4, 0(t3); add t5, t0, t1; ld t6, 0(t5); sd t6, 0(t3); sd t4, 0(t5); addi t1, t1, 8; j .Lds_swap\n" ++
+  ".Lds_drop:\n" ++
+  -- Journal full row at tail (destroyed content after swap), then drop count.
+  "  slli t0, s4, 7; add a5, s1, t0\n" ++
+  "  mv a3, s4; li a4, 2; jal ra, storage_writes_undo_push\n" ++
+  "  mv s0, s4; la t0, tx_storage_writes_count; sd s0, 0(t0)\n" ++
+  "  j .Lds_loop\n" ++
+  ".Lds_next:\n" ++
+  "  addi s2, s2, 1; j .Lds_loop\n" ++
+  ".Lds_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  ld a0, 48(sp); ld t0, 56(sp); ld t1, 64(sp); ld t2, 72(sp); ld t3, 80(sp); ld t4, 88(sp); ld t5, 96(sp); ld t6, 104(sp)\n" ++
+  "  addi sp, sp, 112; ret\n"
+
+#guard (destroyStorageFunction.splitOn "destroy_storage:").length == 2
+#guard (destroyStorageFunction.splitOn "jal ra, storage_read_record").length == 2
+#guard (destroyStorageFunction.splitOn "li a4, 2").length == 2
 
 /-! ## `write_sets_discard_tx`
 

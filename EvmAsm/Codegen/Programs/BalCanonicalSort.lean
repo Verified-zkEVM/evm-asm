@@ -381,7 +381,12 @@ theorem balCanonicalSortFunction_eq_prog :
     rows untouched, giving 1, 2, 3, 4. That is exactly the failure this catches.
 
     a0 = a scratch arena of at least 4 * 128 bytes, 8-aligned.
-    a0 (out) = 0 on the expected order, else 1. -/
+    a0 (out) = 0 on the expected order, else 1.
+
+    Probe-only: not linked into `stateless_guest`. The Program's jalOff pc-base is
+    a local placeholder (emitProgramR emits a symbolic `jal` via the reloc table);
+    do not re-add a `GuestAddrs` entry unless the self-test is re-linked into the guest. -/
+private def balCanonicalSortSelftestPc : Nat := 0x80000000
 def balCanonicalSortSelftest_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -419,7 +424,7 @@ def balCanonicalSortSelftest_prog : Program :=
     .LUI .x13 (1 : BitVec 20),
     .ADDIW .x13 .x13 (1024 : BitVec 12),
     .LI .x14 (1 : Word),
-    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_canonical_sort_selftest + 144)),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 144)),
     .BNE .x10 .x0 (72 : BitVec 13),
     .LBU .x6 .x8 (64 : BitVec 12),
     .LI .x7 (2 : Word),
@@ -468,21 +473,20 @@ def balCanonicalSortDataSection : String :=
   "bal_sort_ranges:\n  .zero " ++
     toString (balSortRangeStackCapacity * balSortRangeFrameBytes) ++ "\n"
 
-/-- All routines, in emission order. `bal_sort_*` call `bal_canonical_sort`, so
-    they must be emitted together.
+/-- Guest aggregate: production sort routines only (`bal_sort_*` call
+    `bal_canonical_sort`). The self-test stays defined for the
+    `zisk_bal_selftests` probe and is intentionally NOT linked into
+    `stateless_guest` (name-unreferenced dead text; R3 deadness census).
 
     **The `"\n"` separators are load-bearing.** `emitProgramR` does not terminate
     its last line, so each converted Function's string ends at its final `jalr`
-    with no newline -- unlike the hand-written strings these replaced, which ended
-    `"  ret\n"`. Concatenating without a separator puts the next routine's `.globl`
-    on the same line as the previous return and the whole block FAILS TO ASSEMBLE.
-
-    A per-function `.text` byte compare cannot see this: the gate assembles one
-    function at a time and never assembles the concatenation. Found by review on
-    #11046 while checking a different property of the same deviation. -/
+    with no newline. Concatenating without a separator puts the next routine's
+    `.globl` on the same line as the previous return and the whole block fails
+    to assemble. -/
 def balCanonicalSortFunctions : String :=
-  balCanonicalSortFunction ++ "\n" ++
-  balCanonicalSortSelftestFunction ++ "\n"
+  -- Production only: #11054 deleted unreachable bal_sort_*; R3 unlinked selftest
+  -- (probe-only via balCanonicalSortSelftestFunction).
+  balCanonicalSortFunction ++ "\n"
 
 /-! ## The builder's key descriptors, pinned as constants
 
@@ -540,14 +544,19 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- a link error and these guards are the only thing that would catch it. The label
 -- line survives the conversion because it stays in each Function's string prefix.
 #guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort:").length == 2
-#guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort_selftest:").length == 2
+-- Self-test is probe-only (not in the guest aggregate). #11054 deleted bal_sort_*.
+#guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort_selftest:").length == 1
+#guard (balCanonicalSortSelftestFunction.splitOn "bal_canonical_sort_selftest:").length == 2
+#guard (balCanonicalSortFunctions.splitOn "bal_sort_storage_writes:").length == 1
+#guard (balCanonicalSortFunctions.splitOn "bal_sort_account_writes:").length == 1
 -- ...and `.globl` for each, which `emitProgramR` cannot emit and which therefore
 -- has to be re-checked rather than inherited from the conversion. Symbol BINDING
 -- is invisible to a `.text` compare -- a symbol demoted GLOBAL -> LOCAL, or dropped,
 -- leaves `.text` byte-identical -- so these guards are the only mechanical check on
 -- the one part of the emitted text the conversion does not establish.
 #guard (balCanonicalSortFunctions.splitOn ".globl bal_canonical_sort\n").length == 2
-#guard (balCanonicalSortFunctions.splitOn ".globl bal_canonical_sort_selftest").length == 2
+#guard (balCanonicalSortFunctions.splitOn ".globl bal_canonical_sort_selftest").length == 1
+#guard (balCanonicalSortSelftestFunction.splitOn ".globl bal_canonical_sort_selftest").length == 2
 
 -- Instruction counts, so a dropped or duplicated instruction is caught even where
 -- no guard below names the instruction in question.
@@ -562,12 +571,9 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- cannot detect.
 #guard (balCanonicalSortFunctions.splitOn "(x1)  .globl").length == 1
 #guard !balCanonicalSortFunction.endsWith "\n"
--- ...and every `.globl` therefore begins a line: three preceded by a newline, plus
--- the first, which starts the aggregate.
--- GH #11054: was 4 when `bal_sort_storage_writes` / `bal_sort_account_writes` were still
--- emitted; both were unreachable and are now deleted, so the aggregate carries TWO globls.
--- ⚠️ UPDATED rather than removed: it is a live check on the surviving routines.
-#guard (balCanonicalSortFunctions.splitOn "\n  .globl").length == 2
+-- Sole guest routine is bal_canonical_sort: only the leading .globl (no "\n  .globl").
+-- #11054 dropped bal_sort_*; R3 dropped selftest from the guest aggregate.
+#guard (balCanonicalSortFunctions.splitOn "\n  .globl").length == 1
 #guard balCanonicalSortFunctions.startsWith "  .globl bal_canonical_sort\n"
 
 /-! ### Guards restated over the `Program`s

@@ -35,7 +35,6 @@ import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
-import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
@@ -542,6 +541,22 @@ def statelessVerdictV2Function : String :=
   -- tolerates). s0=NPR base, s3=er offset survive (callees preserve s-regs). The predeploy code
   -- is resolved at the PRE-state (parent header). witness.state = svf_witness_section+off0 ..
   -- svf_codes_ptr; witness.codes = svf_codes_ptr/len.
+  -- GH #11105: `bv_witness_state_ptr` / `_len` read ZERO here. Their only writer is
+  -- `block_verdict` (`BlockVerdictFunction.lean`, from `params+80`), and the four request
+  -- predeploys below run through the EVM dispatcher BEFORE that has happened -- so every
+  -- consumer of those cells reached from an opcode handler sees a null witness.
+  --
+  -- Measured: `slot_at_header_state_root` called from `h_SLOAD`'s cold path returned status 4
+  -- (header parse / state_root size fail) on 16 of 16 calls, because a null witness makes
+  -- `witness_lookup_by_hash` yield nothing and the following RLP walk run on a non-list buffer.
+  -- With these two stores the same 16 calls return ABSENT (status 1/5) and zero errors.
+  --
+  -- ⚠️ The source is `svf_witness`, which THIS STAGE ALREADY USES SUCCESSFULLY: its own
+  -- `code_at_header_state_root` calls below pass exactly these two globals and resolve the
+  -- predeploy code. The witness was always here; the cells the STORAGE path reads were simply
+  -- never populated from it.
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
   "  la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t2, bv_system_storage_log_count; sd zero, 0(t2)\n" ++

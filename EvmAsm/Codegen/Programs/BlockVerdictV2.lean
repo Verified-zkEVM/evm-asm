@@ -143,6 +143,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- reason as the read recorders above -- this unit has its own `.elf`, so an
     -- omission here surfaces only as a link error inside an A/B leg.
     storageWriteRecordFunction ++ "\n" ++
+    destroyStorageFunction ++ "\n" ++
     storageWritesBlockUpsertFunction ++ "\n" ++
     writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
@@ -562,6 +563,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- every comparator still reads the exec-log arenas, so this cannot move a
   -- verdict.  S3/S4 wire the comparators over.
   storageWriteRecordFunction ++ "\n" ++
+    destroyStorageFunction ++ "\n" ++
   storageWritesBlockUpsertFunction ++ "\n" ++
   writeSetsIncorporateTxFunction ++ "\n" ++
     writeSetsDiscardTxFunction ++ "\n" ++
@@ -635,7 +637,6 @@ def statelessVerdictV2GuestClosure : String :=
   -- already in this closure; only the EIP-8037 state-gas bodies are new.
   eip8037TxStateGasFunction ++ "\n" ++
   txIntrinsicStateGasFunction ++ "\n" ++
-  blockVerdictEip7702AuthorityReplayMaterializeFunction ++ "\n" ++
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txExtractNonceAndGasFunction ++ "\n" ++
@@ -672,17 +673,14 @@ def statelessVerdictV2GuestClosure : String :=
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
   eip7702AuthNonstorageEffectsFunction ++ "\n" ++
   blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
+  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
-  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
-  eip7702AuthorityStateFindFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++
-  b1Eip7702ApplyTxFunction ++ "\n" ++
   addressFromPubkeyFunction ++ "\n" ++
   addressComputeCreateFunction ++ "\n" ++
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
-  eip7702NonceReuseGuardFunction ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: link dispatcher_capture_exec_state_gas so the verdict can
   -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
   -- for the EIP-7778 2D state-dim; the array is filled but not yet read by eip8037_state_used_before_tx).

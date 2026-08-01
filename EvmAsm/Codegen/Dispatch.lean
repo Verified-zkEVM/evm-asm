@@ -74,13 +74,6 @@ def systemCallReturndataMaxBytes : Nat := 12288
 
 #guard systemCallReturndataMaxBytes = 12288
 
-/-- EIP-170's Amsterdam deployed-code limit.  Top-level creation retains a
-    successful initcode RETURN in a fixed buffer of exactly this size before
-    applying the code-deposit rules. -/
-def topLevelCreationReturndataMaxBytes : Nat := 65536
-
-#guard topLevelCreationReturndataMaxBytes = 65536
-
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
 
