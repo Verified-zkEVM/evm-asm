@@ -190,7 +190,12 @@ def accountWriteRecordFunction : String :=
   ".Lawr_store:\n" ++
   "  ld t2, 112(sp); andi t3, t2, 1; beqz t3, .Lawr_no_balance; ld t3, 72(sp); ld t4, 0(t3); sd t4, 32(t5); ld t4, 8(t3); sd t4, 40(t5); ld t4, 16(t3); sd t4, 48(t5); ld t4, 24(t3); sd t4, 56(t5)\n" ++
   ".Lawr_no_balance:\n" ++
-  "  andi t3, t2, 2; beqz t3, .Lawr_no_nonce; ld t3, 80(sp); sd t3, 64(t5)\n" ++
+  -- Nonce changes are reduced by maximum in execution-specs
+  -- (`block_access_lists.py:440-447`).  A transaction can publish its
+  -- inclusion nonce before an EIP-7702 authorization, then publish a later
+  -- balance/refund record whose nonce is lower.  Keep the authenticated
+  -- higher nonce instead of letting that later row erase it.
+  "  andi t3, t2, 2; beqz t3, .Lawr_no_nonce; ld t3, 80(sp); ld t4, 64(t5); bltu t3, t4, .Lawr_no_nonce; sd t3, 64(t5)\n" ++
   ".Lawr_no_nonce:\n" ++
   "  andi t3, t2, 4; beqz t3, .Lawr_no_code; ld t3, 88(sp); sd t3, 80(t5); ld t3, 96(sp); sd t3, 88(t5)\n" ++
   ".Lawr_no_code:\n" ++
