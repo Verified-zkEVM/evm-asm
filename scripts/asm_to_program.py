@@ -419,7 +419,12 @@ def _resolve(asm):
             raise ConvError(f"secondary non-.L label {it[1]!r}: multi-entry bundle, "
                             f"cross-function entry point stripped by emitProgram "
                             f"(MULTI-ENTRY-BUNDLE)")
-    entry_addr = SYMMAP.get(entry)   # None if this def is not linked into the guest
+    # Linked guest entry uses the real TSV address.  Probe-only conversions
+    # (entry absent from the guest image / TSV) still need a stable PC base so
+    # cross-function `jal`/`la` can resolve; match the Lean-side placeholder
+    # convention (balCanonicalSortSelftestPc := 0x80000000).  GuestAddrs
+    # generation already skips these entries (_collect_guest_addr_syms).
+    entry_addr = SYMMAP.get(entry, 0x80000000)
     # assign byte address to each insn; record label -> address
     label_addr = {}
     addr = 0
@@ -1072,14 +1077,18 @@ def _collect_guest_addr_syms():
             entry,entry_addr,out,externals,relocs=_resolve(open(fp).read())
         except ConvError:
             continue
-        if entry in SYMMAP:
-            # every linked converted function's entry: the guest-image CodeReq
-            # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
-            # must exist even for straight-line (reloc-free) functions.
-            # Unlinked conversions (entry absent from the TSV) are skipped.
-            need.add(entry)
+        if entry not in SYMMAP:
+            # Unlinked conversions (entry absent from the TSV) are skipped
+            # entirely — including those with reloc externals.  A probe-only
+            # converted self-test must not force a GuestAddrs entry for a
+            # symbol the guest no longer defines.
+            continue
+        # every linked converted function's entry: the guest-image CodeReq
+        # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
+        # must exist even for straight-line (reloc-free) functions.
+        need.add(entry)
         if externals:                      # reloc-using functions also need addrs
-            need.add(entry); need.update(externals)
+            need.update(externals)
     missing=sorted(s for s in need if s not in SYMMAP)
     if missing:
         raise ConvError(f"GuestAddrs: symbols absent from address table: {missing}")
@@ -1209,13 +1218,18 @@ def check_file(path, funcs, rendered=None):
             #     link produces for the symbolic form (fixture linked at the
             #     guest entry with the externals `--defsym`'d). Ties `_prog`'s
             #     baked immediates to the actual guest layout.
+            # Probe-only (entry not in the guest TSV): skip — there is no guest
+            # link site; Lean uses a local PC placeholder, not GuestAddrs.entry.
             ckey=fn+"#c"
-            if ckey not in rendered:
+            if _e not in SYMMAP:
+                pass  # safety gate (a) already covers symbolic emit
+            elif ckey not in rendered:
                 problems.append(f"{fn}: no concrete Lean render captured"); continue
-            cons_ok,_,_=assemble_cmp(asm, rendered[ckey], _ea, _ext)
-            if not cons_ok:
-                problems.append(f"{fn}: concrete verification Program does NOT match the guest-linked "
-                                f"`la`/`jal` (laHi/laLo/jalOff immediate wrong for this layout)"); continue
+            else:
+                cons_ok,_,_=assemble_cmp(asm, rendered[ckey], _ea, _ext)
+                if not cons_ok:
+                    problems.append(f"{fn}: concrete verification Program does NOT match the guest-linked "
+                                    f"`la`/`jal` (laHi/laLo/jalOff immediate wrong for this layout)"); continue
         else:
             # Straight-line / local-only: emitted == Program render; plain assemble.
             real_ok,_,_=assemble_cmp(asm, rendered[fn])
