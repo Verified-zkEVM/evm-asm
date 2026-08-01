@@ -523,6 +523,12 @@ private def selfdestructTailAsm : String :=
   "  sub t0, t0, t1\n" ++
   "  sd t0, 568(x20)\n" ++
   ".L_selfdestruct_access_floor_done:\n" ++
+  -- `selfdestruct` unconditionally performs the tracked beneficiary read after
+  -- the access-gas check (`system.py:654-669`).  The warm/cold table above is
+  -- separate from the BAL `account_reads` set, so record precompile and other
+  -- all-empty beneficiaries even when the access charge was already warm.
+  "  la a0, evm_selfdestruct_beneficiary\n" ++
+  "  jal ra, account_read_record\n" ++
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
   "  addi sp, sp, 32\n" ++
