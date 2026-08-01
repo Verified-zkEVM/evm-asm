@@ -232,11 +232,43 @@ def frameReturnFunction : String :=
   "  addi t2, t2, 8\n" ++
   "  addi t3, t3, -1\n" ++
   "  j .Lfr_bloom_restore_loop\n" ++
-  ".Lfr_bloom_restore_done:\n" ++
-  ".Lfr_sgas_done:\n" ++
-  -- Capture child leftover gas after possible state-gas LIFO refill; held in
-  -- s7 across the x20 repoint for the EIP-150 merge below.
-  "  ld s7, 568(x20)\n" ++
+   ".Lfr_bloom_restore_done:\n" ++
+   ".Lfr_sgas_done:\n" ++
+   -- GH #11001: value-CALL/CREATE debit parent env+32 BEFORE the child snapshot
+   -- while record_message_value_transfer is AFTER it. On child fail the BAL
+   -- record is dropped (correct) but live SELFBALANCE stayed short. If this
+   -- child depth was marked at the debit site, re-credit parent env+32 by the
+   -- child CALLVALUE (endowment for CREATE) and clear the mark. Success keeps
+   -- the debit (transfer committed). Empty-code CALL clears the mark without
+   -- descending (ChildFrameHandlers). x20 is still the child env here.
+   "  la t0, evm_call_depth\n  ld t1, 0(t0)\n" ++
+   "  slli t2, t1, 3\n  la t0, live_balance_debited_by_depth\n  add t0, t0, t2\n" ++
+   "  ld t3, 0(t0)\n  sd x0, 0(t0)\n" ++
+   "  beqz t3, .Lfr_livebal_done\n" ++
+   "  bnez s0, .Lfr_livebal_done\n" ++
+   "  la t0, frame_parent_bases\n  slli t2, t1, 4\n  add t0, t0, t2\n  ld s3, 8(t0)\n" ++
+   "  addi t0, x20, 127\n  la t1, cd_value_be\n  li t2, 32\n" ++
+   ".Lfr_livebal_cv_rev:\n" ++
+   "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lfr_livebal_cv_rev\n" ++
+   "  la t0, cd_value_be\n" ++
+   "  ld t1, 0(t0)\n  ld t2, 8(t0)\n  or t1, t1, t2\n" ++
+   "  ld t2, 16(t0)\n  or t1, t1, t2\n" ++
+   "  ld t2, 24(t0)\n  or t1, t1, t2\n" ++
+   "  beqz t1, .Lfr_livebal_done\n" ++
+   "  addi t0, s3, 63\n  la t1, cd_caller_newbal\n  li t2, 32\n" ++
+   ".Lfr_livebal_pb_rev:\n" ++
+   "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lfr_livebal_pb_rev\n" ++
+   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x11, 8(sp)\n  sd x12, 16(sp)\n" ++
+   "  la a0, cd_caller_newbal\n  la a1, cd_value_be\n  la a2, cd_caller_newbal\n" ++
+   "  jal ra, u256_add_be\n" ++
+   "  ld x10, 0(sp)\n  ld x11, 8(sp)\n  ld x12, 16(sp)\n  addi sp, sp, 32\n" ++
+   "  la t0, cd_caller_newbal\n  addi t1, s3, 63\n  li t2, 32\n" ++
+   ".Lfr_livebal_pb_wb:\n" ++
+   "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lfr_livebal_pb_wb\n" ++
+   ".Lfr_livebal_done:\n" ++
+   -- Capture child leftover gas after possible state-gas LIFO refill; held in
+   -- s7 across the x20 repoint for the EIP-150 merge below.
+   "  ld s7, 568(x20)\n" ++
   -- Load the saved call-context for the CURRENT (child) depth.
   "  la t0, evm_call_depth\n" ++
   "  ld t1, 0(t0)                   # t1 = child depth d\n" ++
@@ -817,6 +849,9 @@ def ziskFrameReturnPrologue : String :=
   "  j .Lfr_done\n" ++
   frameReturnFunction ++ "\n" ++
   createCreatorNonceUseFunction ++ "\n" ++
+  -- GH #11001: frame_return may jal u256_add_be on the fail+debited path; probe
+  -- never sets live_balance_debited_by_depth so this is unreached, but must link.
+  "u256_add_be:\n  li a0, 0\n  ret\n" ++
   ".Lfr_done:"
 
 /-- Data stubs so the probe links standalone (the real symbols live in the guest's
@@ -869,6 +904,12 @@ def ziskFrameReturnDataSection : String :=
   "fr_pstack2:\n  .zero 256\n" ++
   "fr_out:\n  .zero 64\n" ++
   "fr_ret:\n  .zero 512\n" ++
+  -- GH #11001 live-balance debit mark + BE scratch used by frame_return recredit.
+  ".balign 8\n" ++
+  "live_balance_debited_by_depth:\n  .zero 8200\n" ++
+  ".balign 32\n" ++
+  "cd_value_be:\n  .zero 32\n" ++
+  "cd_caller_newbal:\n  .zero 32\n" ++
   createNonceTableData
 
 def ziskFrameReturnProbeUnit : BuildUnit := {

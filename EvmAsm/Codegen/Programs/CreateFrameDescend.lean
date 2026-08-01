@@ -152,6 +152,9 @@ def createFrameDescendData : String :=
   "create_address_word:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "create_frame_flag:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
+  -- GH #11001: set when CALL/CREATE actually debited parent env+32 before descend;
+  -- frame_return re-credits parent env+32 on child fail when this is set, then clears.
+  "live_balance_debited_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
   "create_target_alive_flag:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
   "create_address_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
   "create_sender_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
