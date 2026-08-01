@@ -207,6 +207,147 @@ def sstoreValueTransitionGasAsm : String :=
   "  sd x16, 0(x15)\n" ++
   ".Lsstore_gas_done:\n"
 
+/-- GH #10874: reverse scan of the persistent storage log for the executing
+    frame's `(env.ADDRESS, stack key)`, setting `x18 = &found.original`
+    (`entry+64`) or leaving it `0` on a miss.
+
+    Extracted verbatim from `h_SSTORE`'s inline scan so `h_SLOAD` determines
+    "absent from the log" the SAME way rather than by a second implementation.
+    Numeric local labels (`1:`/`2:`/`3:`) are unique-per-use, so both
+    instantiations coexist without a prefix parameter.
+
+    Register convention -- identical at both sites, which is what makes this
+    shareable at all: `x20` = env base (`env.ADDRESS` at `+0..32`, log length at
+    `+448`), `x12` = stack pointer with the 32-byte slot key at `[x12+0..32]`.
+    Clobbers `x14`-`x18`; falls through to `2:` in both the hit and miss case. -/
+def storagePersistentLogFindAsm : String :=
+  "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
+  "  ld x15, 448(x20)\n" ++         -- x15 = log_length
+  "  beqz x15, 2f\n" ++             -- empty log → skip scan
+  "  li x14, 0xa0630000\n" ++       -- x14 = log base
+  "  slli x16, x15, 7\n" ++
+  "  add x14, x14, x16\n" ++        -- x14 = past last entry
+  "1:\n" ++                         -- scan loop iter
+  "  addi x14, x14, -128\n" ++
+  -- Per-frame addrHash compare: isolate this contract's slots.
+  "  ld x16, 0(x14)\n" ++
+  "  ld x17, 0(x20)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 8(x14)\n" ++
+  "  ld x17, 8(x20)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 16(x14)\n" ++
+  "  ld x17, 16(x20)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 24(x14)\n" ++
+  "  ld x17, 24(x20)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 32(x14)\n" ++
+  "  ld x17, 0(x12)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 40(x14)\n" ++
+  "  ld x17, 8(x12)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 48(x14)\n" ++
+  "  ld x17, 16(x12)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  "  ld x16, 56(x14)\n" ++
+  "  ld x17, 24(x12)\n" ++
+  "  bne x16, x17, 3f\n" ++
+  -- Match: x18 = &found.original (= x14 + 64)
+  "  addi x18, x14, 64\n" ++
+  "  j 2f\n" ++
+  "3:\n" ++                         -- no match this entry — advance
+  "  addi x15, x15, -1\n" ++
+  "  bnez x15, 1b\n" ++
+  "2:\n"
+
+/-- GH #10874: resolve a persistent-log MISS to its authenticated pre-state
+    value, in the THREE-TIER order execution-specs requires. Entered with
+    `x18 = 0` (miss) or nonzero (hit, in which case it is a no-op); on success
+    sets `x18` to a 64-byte `(original, current)` pair in LE-limb order.
+
+    The tiers, and why the order is load-bearing:
+
+    1. the per-tx persistent log — already decided by the caller's scan;
+    2. `bv_mtx_committed_chunked_latest_value`, which is execution-specs'
+       `BlockState.storage_writes`: a prior successful transaction's committed
+       value is the next transaction's `original` AND `current` alike;
+    3. `slot_at_header_state_root` against the PARENT header — the witness,
+       read BY KEY on demand, matching `WitnessState.get_storage`;
+    4. otherwise zero (an absent account or slot is implicitly zero).
+
+    ⚠️ Skipping tier 2 and going straight to the witness would return the
+    PRE-BLOCK value wherever a prior transaction in this block already wrote the
+    slot. That is why `h_SLOAD` reuses this chain instead of calling
+    `sload_at_header_state_root`, which resolves the witness tier ALONE.
+
+    `p` prefixes the named labels so both handlers can instantiate it.
+    `out` is a 64-byte scratch buffer, also used to stage the canonical
+    big-endian address and key the witness lookup needs.
+
+    Returns via `x18`; clobbers `x14`-`x17` and `a0`-`a7`. The caller must save
+    `x1`/`x10`/`x12`/`x13`/`x19` around it (there are `jal`s inside). -/
+def storagePrestateResolveAsm (p : String) (out : String) : String :=
+  ".L" ++ p ++ "_prestate_normal:\n" ++
+  -- A persistent-log miss is not necessarily an all-zero pre-state slot: an
+  -- untouched nonzero slot need not occur in the BAL-derived seed set, yet the
+  -- read still needs its authenticated value. Resolve the cold value from the
+  -- block-committed map, then the parent-state witness, before falling back to
+  -- zero. An absent account/slot or an unresolved witness preimage retains the
+  -- existing cold-zero behavior.
+  "  bnez x18, .L" ++ p ++ "_prestate_done\n" ++
+  "  addi sp, sp, -40\n" ++
+  "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x19, 32(sp)\n" ++
+  -- env.ADDRESS is the EVM little-endian stack-word representation;
+  -- slot_at_header_state_root takes a canonical 20-byte big-endian address.
+  "  la x15, " ++ out ++ "; sd zero, 0(x15); sd zero, 8(x15); sd zero, 16(x15); sd zero, 24(x15)\n" ++
+  "  addi x14, x20, 19; la x15, " ++ out ++ "; li x16, 20\n" ++
+  ".L" ++ p ++ "_prestate_addr_rev:\n" ++
+  "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_addr_rev\n" ++
+  -- The stack key is likewise little-endian; use the adjacent scratch as the
+  -- canonical big-endian lookup key.
+  "  addi x14, x12, 31; la x15, " ++ out ++ "; addi x15, x15, 32; li x16, 32\n" ++
+  ".L" ++ p ++ "_prestate_key_rev:\n" ++
+  "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_key_rev\n" ++
+  -- Tier 2: the block-committed map (execution-specs' BlockState.storage_writes).
+  "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
+  "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
+  "  mv a0, x20; la a1, " ++ out ++ "; addi a1, a1, 32\n" ++
+  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  -- ⚠️ Pre-existing and deliberately PRESERVED: this leaves for `.exit_outofgas`
+  -- with `sp` still 40 bytes low. Harmless because that exit terminates the
+  -- frame, and kept verbatim so the extraction is byte-identical at the SSTORE
+  -- site rather than "behaviour-neutral as far as I can tell".
+  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
+  "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
+  ".L" ++ p ++ "_committed_done:\n" ++
+  "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .L" ++ p ++ "_prestate_header\n" ++
+  "  la x14, sstore_committed_current; la x15, " ++ out ++ "\n" ++
+  "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
+  "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
+  "  la x18, " ++ out ++ "; j .L" ++ p ++ "_prestate_restore\n" ++
+  -- Tier 3: the witness, BY KEY, against the parent header.
+  ".L" ++ p ++ "_prestate_header:\n" ++
+  "  ld a0, 576(x20); ld a1, 584(x20); la a2, " ++ out ++ "; addi a3, a2, 32\n" ++
+  "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
+  "  jal ra, slot_at_header_state_root\n" ++
+  "  beqz a0, .L" ++ p ++ "_prestate_found\n" ++
+  "  j .L" ++ p ++ "_prestate_zero\n" ++
+  ".L" ++ p ++ "_prestate_found:\n" ++
+  -- sahsr_u256 is canonical big-endian. Materialize both original and current
+  -- in the exec-log's little-endian-limb order in the pair buffer.
+  "  la x14, sahsr_u256; la x15, " ++ out ++ "; addi x15, x15, 31; li x16, 32\n" ++
+  ".L" ++ p ++ "_prestate_value_rev:\n" ++
+  "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, 1; addi x15, x15, -1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_value_rev\n" ++
+  "  la x15, " ++ out ++ "; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
+  "  la x18, " ++ out ++ "\n" ++
+  ".L" ++ p ++ "_prestate_zero:\n" ++
+  ".L" ++ p ++ "_prestate_restore:\n" ++
+  "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
+  ".L" ++ p ++ "_prestate_done:\n"
+
 /-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
   [ -- M24 real SLOAD. Scan persistent log from end (last-write-
@@ -252,7 +393,60 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 2\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  li x15, 3\n" ++
-        "  beq x14, x15, .exit_outofgas\n"
+        "  beq x14, x15, .exit_outofgas\n" ++
+        -- GH #10874: DEMAND-DRIVEN COLD READ. Until now an SLOAD of a slot absent
+        -- from the persistent log returned 0 unconditionally, so the only way a
+        -- predeploy or a nested callee could read its real storage was for
+        -- something to have PRELOADED the slot first -- and the slot SET came from
+        -- the declared BAL (`stage_predeploy_storage_preload`,
+        -- `seed_callee_storage`). That is a BAL echo into readable state: what the
+        -- oracle omitted, the guest could not read.
+        --
+        -- execution-specs has no slot enumerator and needs none.
+        -- `WitnessState.get_storage` walks the witness node DB BY KEY and returns
+        -- zero when the leaf is absent, so a demand-driven miss path IS the spec
+        -- model. Resolve the miss here, through the SAME three-tier chain h_SSTORE
+        -- already uses, then SEED the resolved value into the log so the verified
+        -- scan core below finds it.
+        --
+        -- Seeding rather than patching the returned value is what keeps the
+        -- verified body untouched: `evm_sload` is witnessed at tier `.conditional`
+        -- and pinned byte-identical by the `#guard`, so the miss cannot be handled
+        -- inside it. The seeded entry has original == current (no net change),
+        -- exactly the shape `seed_callee_storage` already appends.
+        storagePersistentLogFindAsm ++
+        -- x11 = a1 is clobbered by the resolve chain's calls and is live here (the
+        -- storage_read_record call above saves it for the same reason). The chain
+        -- saves x1/x10/x12/x13/x19 itself.
+        "  addi sp, sp, -8\n" ++
+        "  sd x11, 0(sp)\n" ++
+        storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
+        "  ld x11, 0(sp); addi sp, sp, 8\n" ++
+        "  beqz x18, .Lsload_seed_done\n" ++
+        -- Capacity: 16384 entries of 128 B in [0xa0630000, 0xa0830000).
+        -- ⚠️ Deliberately NOT h_SSTORE's `.exit_outofgas` halt. An SSTORE MUST
+        -- append -- dropping a write corrupts state -- but a SLOAD seed is only a
+        -- cache of an authenticated read, so on a full log we skip the seed and
+        -- degrade to the previous cold-zero behavior instead of killing the block.
+        "  ld x15, 448(x20)\n" ++
+        "  li x14, 16384\n" ++
+        "  bgeu x15, x14, .Lsload_seed_done\n" ++
+        "  li x14, 0xa0630000\n" ++
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++          -- x14 = &new entry
+        -- addrHash = env.ADDRESS (env+0..32), keyed exactly as the scan compares.
+        "  ld x16, 0(x20); sd x16, 0(x14); ld x16, 8(x20); sd x16, 8(x14)\n" ++
+        "  ld x16, 16(x20); sd x16, 16(x14); ld x16, 24(x20); sd x16, 24(x14)\n" ++
+        -- slotKey = stack[0..32]
+        "  ld x16, 0(x12); sd x16, 32(x14); ld x16, 8(x12); sd x16, 40(x14)\n" ++
+        "  ld x16, 16(x12); sd x16, 48(x14); ld x16, 24(x12); sd x16, 56(x14)\n" ++
+        -- original = pair[0..32], current = pair[32..64] (both LE-limb)
+        "  ld x16, 0(x18); sd x16, 64(x14); ld x16, 8(x18); sd x16, 72(x14)\n" ++
+        "  ld x16, 16(x18); sd x16, 80(x14); ld x16, 24(x18); sd x16, 88(x14)\n" ++
+        "  ld x16, 32(x18); sd x16, 96(x14); ld x16, 40(x18); sd x16, 104(x14)\n" ++
+        "  ld x16, 48(x18); sd x16, 112(x14); ld x16, 56(x18); sd x16, 120(x14)\n" ++
+        "  addi x15, x15, 1; sd x15, 448(x20)\n" ++
+        ".Lsload_seed_done:\n"
       -- Verified reverse-scan core (byte-identical re-encoding of the former
       -- inline label-based scan on the persistent log; see the `#guard` pin
       -- below). Witnessed at tier `.conditional` by
@@ -345,46 +539,9 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- current value established by an earlier same-transaction write.
         "  li x14, 1; la x16, sstore_created_original_zero; sd x14, 0(x16); j .Lsstore_created_original_scan\n" ++
         ".Lsstore_created_original_scan:\n" ++
-        "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
-        "  ld x15, 448(x20)\n" ++         -- x15 = log_length
-        "  beqz x15, 2f\n" ++             -- empty log → skip scan, append with original=0
-        "  li x14, 0xa0630000\n" ++       -- x14 = log base
-        "  slli x16, x15, 7\n" ++
-        "  add x14, x14, x16\n" ++        -- x14 = past last entry
-        "1:\n" ++                         -- scan loop iter
-        "  addi x14, x14, -128\n" ++
-        -- Per-frame addrHash compare (see SLOAD): isolate this contract's slots.
-        "  ld x16, 0(x14)\n" ++
-        "  ld x17, 0(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 8(x14)\n" ++
-        "  ld x17, 8(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 16(x14)\n" ++
-        "  ld x17, 16(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 24(x14)\n" ++
-        "  ld x17, 24(x20)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 32(x14)\n" ++
-        "  ld x17, 0(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 40(x14)\n" ++
-        "  ld x17, 8(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 48(x14)\n" ++
-        "  ld x17, 16(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        "  ld x16, 56(x14)\n" ++
-        "  ld x17, 24(x12)\n" ++
-        "  bne x16, x17, 3f\n" ++
-        -- Match: x18 = &found.original (= x14 + 64), break to append
-        "  addi x18, x14, 64\n" ++
-        "  j 2f\n" ++
-        "3:\n" ++                         -- no match this entry — advance
-        "  addi x15, x15, -1\n" ++
-        "  bnez x15, 1b\n" ++
-        "2:\n" ++                         -- append step
+        -- GH #10874: shared with h_SLOAD's miss determination (see
+        -- `storagePersistentLogFindAsm`). Falls through to the append step at `2:`.
+        storagePersistentLogFindAsm ++
         -- `created_accounts` changes only get_storage_original. When this
         -- exact created account already has a log row, synthesize
         -- {original = 0, current = row.current}; a first touch retains {0,0}.
@@ -393,65 +550,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  la x14, sstore_prestate_pair; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
         "  ld x15, 32(x18); sd x15, 32(x14); ld x15, 40(x18); sd x15, 40(x14); ld x15, 48(x18); sd x15, 48(x14); ld x15, 56(x18); sd x15, 56(x14)\n" ++
         "  la x18, sstore_prestate_pair; j .Lsstore_created_original_done\n" ++
-        ".Lsstore_prestate_normal:\n" ++
-        -- A persistent-log miss is not necessarily an all-zero pre-state slot:
-        -- an untouched nonzero slot need not occur in the BAL-derived seed set,
-        -- yet an SSTORE still needs its authenticated original/current value for
-        -- Amsterdam state-gas classification. Resolve that cold value from the
-        -- parent-state witness before falling back to zero. An absent account/slot
-        -- or an unresolved witness preimage retains the existing cold-zero behavior;
-        -- a successful authenticated lookup supplies the otherwise-missing nonzero
-        -- pre-state value.
-        "  bnez x18, .Lsstore_prestate_done\n" ++
-        "  addi sp, sp, -40\n" ++
-        "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x19, 32(sp)\n" ++
-        -- env.ADDRESS is the EVM little-endian stack-word representation;
-        -- slot_at_header_state_root takes a canonical 20-byte big-endian address.
-        "  la x15, sstore_prestate_pair; sd zero, 0(x15); sd zero, 8(x15); sd zero, 16(x15); sd zero, 24(x15)\n" ++
-        "  addi x14, x20, 19; la x15, sstore_prestate_pair; li x16, 20\n" ++
-        ".Lsstore_prestate_addr_rev:\n" ++
-        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_addr_rev\n" ++
-        -- The stack key is likewise little-endian; use the adjacent env scratch
-        -- as the canonical big-endian lookup key.
-        "  addi x14, x12, 31; la x15, sstore_prestate_pair; addi x15, x15, 32; li x16, 32\n" ++
-        ".Lsstore_prestate_key_rev:\n" ++
-        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_key_rev\n" ++
-        -- The block-committed map is execution-specs' `BlockState.storage_writes`.
-        -- On a cold per-tx log miss it is the winning source for *both*
-        -- `get_storage_original` and `get_storage`: a prior successful tx's
-        -- committed value is the next tx's original and current alike.
-        "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
-        "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .Lsstore_committed_done\n" ++
-        "  mv a0, x20; la a1, sstore_prestate_pair; addi a1, a1, 32\n" ++
-        "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-        "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
-        "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
-        "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
-        ".Lsstore_committed_done:\n" ++
-        "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .Lsstore_prestate_header\n" ++
-        "  la x14, sstore_committed_current; la x15, sstore_prestate_pair\n" ++
-        "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
-        "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
-        "  la x18, sstore_prestate_pair; j .Lsstore_prestate_restore\n" ++
-        ".Lsstore_prestate_header:\n" ++
-        "  ld a0, 576(x20); ld a1, 584(x20); la a2, sstore_prestate_pair; addi a3, a2, 32\n" ++
-        "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
-        "  jal ra, slot_at_header_state_root\n" ++
-        "  beqz a0, .Lsstore_prestate_found\n" ++
-        "  j .Lsstore_prestate_zero\n" ++
-        ".Lsstore_prestate_found:\n" ++
-        -- sahsr_u256 is canonical big-endian. Materialize both original and
-        -- current in the exec-log's little-endian-limb order in the dedicated
-        -- original/current pair buffer.
-        "  la x14, sahsr_u256; la x15, sstore_prestate_pair; addi x15, x15, 31; li x16, 32\n" ++
-        ".Lsstore_prestate_value_rev:\n" ++
-        "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, 1; addi x15, x15, -1; addi x16, x16, -1; bnez x16, .Lsstore_prestate_value_rev\n" ++
-        "  la x15, sstore_prestate_pair; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
-        "  la x18, sstore_prestate_pair\n" ++
-        ".Lsstore_prestate_zero:\n" ++
-        ".Lsstore_prestate_restore:\n" ++
-        "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
-        ".Lsstore_prestate_done:\n" ++
+        -- GH #10874: shared three-tier cold resolution, now also used by h_SLOAD
+        -- (see `storagePrestateResolveAsm`). SSTORE needs the authenticated
+        -- original/current for Amsterdam state-gas classification.
+        storagePrestateResolveAsm "sstore" "sstore_prestate_pair" ++
         ".Lsstore_created_original_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
