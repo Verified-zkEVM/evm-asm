@@ -431,14 +431,10 @@ def schemeAAnchors : List GuestRegion :=
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
     it was pointed at; enumerating the pattern found the other one.
 
-    Grew by `0xc` on main (GH #10870's coinbase accumulator) and by `0xd0` -- 208
-    bytes -- here for GH #10866: the N+1 storage phase,
-    `replay_system_storage_writes_at_bai` plus its call and incorporate at BOTH
-    post-exec sites (they are mutually exclusive at run time, so both must carry
-    it).  ELF-MEASURED, not summed: `0x067318 + 0xd0` is the obvious arithmetic and
-    is NOT how this literal was set.  The value is an INPUT to emission, so a
-    hand-computed one gets reflected back by the next relink and looks confirmed --
-    an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
+    Grew by `0xc` on main (GH #10870's coinbase accumulator).  The former GH #10866
+    side-arena replay compensation was retired when the four checked request calls
+    moved into the common post-user-loop phase; the resulting size is measured by
+    the relink gate below. -/
 -- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
 -- change, #10911's guarded post-static-check CALL target account-read
 -- restoration, #10913's creation-stage running creator nonce fix,
@@ -446,7 +442,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x067b74
+def textSizeBytes : Nat := 0x067b0c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
