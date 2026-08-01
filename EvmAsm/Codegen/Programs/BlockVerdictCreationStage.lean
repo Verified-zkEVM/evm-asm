@@ -426,21 +426,17 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl7708_staged:\n" ++
   -- The creation path enters the callable dispatcher directly, rather than
   -- through the ordinary post-preparation seam.  Preserve that seam's order:
-  -- materialize gas/blob first, capture the body state, then publish the two
-  -- value-transfer halves.  The transfer helper is harmless when this route
-  -- has no staged recipient credit, but keeping the call makes the ordering
-  -- contract explicit for every top-level message route.  This capture is
+  -- materialize gas/blob first, capture the body state, then publish the
+  -- value-transfer record from the shared post-capture hook.  The CREATE
+  -- producer is intentionally not called here: the gas seed below must first
+  -- materialise `bv_pending_upfront_sender_post` (execution-specs
+  -- `fork.py:1105-1108`) before `move_ether` consumes it.
+  -- This capture is
   -- paired with the failure restore below in this routine; the ordinary route
   -- pairs its capture in `Dispatch.lean` with the caller-side restore in
   -- `BlockVerdictDispatchTx.lean`.
   -- Save `ra`: the dispatcher uses its caller return address to resume after
   -- initcode, while both helpers and the mark are calls.
-  -- Top-level CREATE is intentionally not wired to record_message_value_transfer
-  -- yet: #10944 must first authenticate bv_create_addr's pre-balance.  The
-  -- current nse_zero_bal records below are not a valid substitute because a
-  -- deployable pre-existing account may hold ether.  Keep the existing path
-  -- unchanged while the shared producer serves the four callers that can name
-  -- both pre-balances.
   -- GH #10784 cut 2: `mark_account_created` is a PRE-BODY event.  execution-specs
   -- `process_create_message` marks the target at `vm/interpreter.py:208` — after
   -- `destroy_storage` (:202), before `increment_nonce` (:210) and before
@@ -473,7 +469,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++
-  -- GH #10944: publish the top-level CREATE endowment through the SHARED recorder.
+  -- GH #10944: stage the top-level CREATE endowment for the SHARED recorder.
   --
   -- execution-specs has ONE `move_ether` for calls and creations alike, because
   -- `process_create_message` DELEGATES to `process_message` (`vm/interpreter.py:212`) and the
@@ -517,9 +513,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  addi t0, s0, 96; la t1, bvcr_endow_val_be; li t2, 32\n" ++
   ".Lbvcr_endow_val_cp:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_endow_val_cp\n" ++
-  recordMessageValueTransferAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
-    "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
-    (recipientPreAdjust := "addi a5, a5, 8") ++
+  -- The descriptor is consumed by `dispatcher_seed_pending_value_transfer`
+  -- after the sender gas seed and body snapshot.  Calling the producer here
+  -- would observe the still-zero sender-post scratch and underflow exactly as
+  -- seen on 00078 (execution-specs `interpreter.py:380-390`).
   ".Lbvcr_endow_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
