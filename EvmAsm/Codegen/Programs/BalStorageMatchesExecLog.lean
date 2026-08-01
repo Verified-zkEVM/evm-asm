@@ -88,7 +88,7 @@ def balStorageMatchesExecLogFunction : String :=
   -- Same 128-byte row layout (addrHash@0, slotKey@32, original@64, current@96). In the
   -- focused probes bv_system_storage_log_count = 0, so this scan is inert there.
   "  la t0, bv_system_storage_log_count; ld t2, 0(t0)\n" ++
-  "  beqz t2, .Lbsme_uarena_scan # no captured system rows -> user side arena\n" ++
+  "  beqz t2, .Lbsme_user_scan # no captured system rows -> load user/live-log choice\n" ++
   "  la t1, bv_system_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last system entry\n" ++
   ".Lbsme_sys_scan:\n" ++
   "  addi t3, t3, -128\n" ++
@@ -115,8 +115,9 @@ def balStorageMatchesExecLogFunction : String :=
   -- These rows precede the end-of-block system writes (block_access_index 1..N <
   -- N+1), so this scan runs only after the system scan missed. Same 128-byte row
   -- layout. On single-tx lanes the count is 0 (never populated) and this is inert.
+  ".Lbsme_user_scan:\n" ++
   "  la t0, bv_user_storage_log_count; ld t2, 0(t0)\n" ++
-  "  beqz t2, .Lbsme_user_scan    # no captured user rows -> live exec log\n" ++
+  "  beqz t2, .Lbsme_live_scan     # no captured user rows -> live exec log\n" ++
   "  la t1, bv_user_storage_log; slli t3, t2, 7; add t3, t1, t3   # past last user entry\n" ++
   ".Lbsme_uarena_scan:\n" ++
   "  addi t3, t3, -128\n" ++
@@ -138,7 +139,7 @@ def balStorageMatchesExecLogFunction : String :=
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .Lbsme_uarena_scan  # not this row -> earlier user row\n" ++
   -- Scan the user exec log from the end (last write wins) for (addrHash==s0, key==krev).
-  ".Lbsme_user_scan:\n" ++
+  ".Lbsme_live_scan:\n" ++
   "  mv t2, s2\n" ++
   "  beqz t2, .Lbsme_mismatch     # empty log but BAL claims a change\n" ++
   "  slli t3, t2, 7; add t3, s1, t3      # past last entry\n" ++
