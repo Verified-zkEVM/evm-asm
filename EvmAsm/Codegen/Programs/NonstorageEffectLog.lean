@@ -93,7 +93,15 @@ def nonstorageEffectHasNonce : Nat := 2
     `record_nonstorage_effect_nonce_only_after_account_state` is the EIP-7702
     authorization variant.  It carries an honest nonce-only raw mask while
     retaining the AccountWrite publication at the authorization's current BAI;
-    the authorization already owns the AccountState mutation. -/
+    the authorization already owns the AccountState mutation.
+
+    Raw component mask (byte 20) is derived from actual pre/post deltas — the same
+    rule AccountWrite already used — so balance-only producers that pass equal
+    dummy nonces (notably `record_message_value_transfer` with a3=a4=0) do not
+    publish a stale nonce-0 component.  Mixing those with a later real nonce
+    record used to make `nonstorage_effect_aggregate` report a phantom nonce
+    change (first pre=0, max post=real) and trip bv_fail=44 on BAL-empty
+    accounts (Class B selfdestructing_initcode_preserves_balance post_send SD). -/
 def recordNonstorageEffectFunction : String :=
   "record_nonstorage_effect:\n  li a5, 0\n  j .Lrnse_entry\n" ++
   "record_nonstorage_effect_after_account_state:\n  li a5, 1\n" ++
@@ -116,7 +124,20 @@ def recordNonstorageEffectFunction : String :=
   "  beqz t6, .Lrnse_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lrnse_cpa\n" ++
   ".Lrnse_cpa_d:\n" ++
-  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; li t5, 2; bne a5, t5, .Lrnse_mask_ready; li t4, " ++ toString nonstorageEffectHasNonce ++ "\n" ++
+  -- a5=2: force nonce-only (EIP-7702 auth). Else derive mask from real deltas so
+  -- balance-only callers that pass equal dummy nonces do not set hasNonce.
+  "  li t5, 2; beq a5, t5, .Lrnse_mask_nonce_only\n" ++
+  "  li t4, 0\n" ++
+  "  ld t0, 0(s1); ld t1, 0(s2); bne t0, t1, .Lrnse_mask_bal\n" ++
+  "  ld t0, 8(s1); ld t1, 8(s2); bne t0, t1, .Lrnse_mask_bal\n" ++
+  "  ld t0, 16(s1); ld t1, 16(s2); bne t0, t1, .Lrnse_mask_bal\n" ++
+  "  ld t0, 24(s1); ld t1, 24(s2); beq t0, t1, .Lrnse_mask_nonce\n" ++
+  ".Lrnse_mask_bal:\n" ++
+  "  ori t4, t4, " ++ toString nonstorageEffectHasBalance ++ "\n" ++
+  ".Lrnse_mask_nonce:\n" ++
+  "  beq s3, s4, .Lrnse_mask_ready; ori t4, t4, " ++ toString nonstorageEffectHasNonce ++ "; j .Lrnse_mask_ready\n" ++
+  ".Lrnse_mask_nonce_only:\n" ++
+  "  li t4, " ++ toString nonstorageEffectHasNonce ++ "\n" ++
   ".Lrnse_mask_ready:\n" ++
   "  sb t4, 20(t3)\n" ++
   "  ld t4, 0(s1); sd t4, 32(t3); ld t4, 8(s1); sd t4, 40(t3); ld t4, 16(s1); sd t4, 48(t3); ld t4, 24(s1); sd t4, 56(t3)\n" ++  -- pre_balance
@@ -450,9 +471,9 @@ def nonstorageEffectAggregateFunction : String :=
   "  sd zero, 104(sp)\n" ++
   -- The raw record's byte 20 independently marks balance and nonce. Fold the
   -- run component-wise: first valid pre / last balance post / maximum nonce
-  -- post. `record_nonstorage_effect` carries a nonce word on every value
-  -- record, including balance-only records with a stale zero, so nonce cannot
-  -- use last-post semantics (execution-specs block_access_lists.py:440-447).
+  -- post. Nonce uses max-post (execution-specs block_access_lists.py:440-447);
+  -- hasNonce is set only when pre_nonce != post_nonce at record time, so
+  -- balance-only producers with equal dummy nonces do not supply a stale pre=0.
   "  sb zero, 20(s11); mv t6, s8\n" ++
   ".Lnea_emit_component_loop:\n" ++
   "  bgeu t6, s10, .Lnea_emit_component_done; li t0, 112; mul t0, t6, t0; add t0, s5, t0; lbu t1, 20(t0)\n" ++
