@@ -1313,6 +1313,16 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "4:\n" ++
   "  j .dispatch_loop\n" ++
   s!"{label}_top:\n" ++
+  -- A transaction-aware caller may stage a process_transaction debit before
+  -- entering the callable dispatcher. An exceptional halt can occur in the
+  -- shared preparation prefix, so give that caller one optional hook to
+  -- materialize its already-authenticated pending transition. The pointer is
+  -- zero for standalone dispatches and callers with no staged debit.
+  "  la x5, runtime_tx_oog_hook\n" ++
+  "  ld x6, 0(x5)\n" ++
+  s!"  beqz x6, {label}_hook_done\n" ++
+  "  jalr ra, x6, 0\n" ++
+  s!"{label}_hook_done:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
   "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
   "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
@@ -3520,6 +3530,11 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_post_preparation_reached:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_post_top_frame_fn:\n" ++
+  "  .zero 8\n" ++
+  -- Optional transaction-boundary exceptional-halt hook. Kept in the
+  -- zero-initialized dispatcher data so it is in `.bss`, not address-pinned
+  -- `.data`; MTx arms it only while a staged sender debit may need publishing.
+  "runtime_tx_oog_hook:\n" ++
   "  .zero 8\n" ++
   -- Split-call controls.  `prepare_only` is one-shot and is consumed only
   -- after the auth/preparation gas boundary succeeds; `resume_code_ptr` is
