@@ -600,6 +600,21 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- published combined gas+state left (no post-settle constant adjustment).
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  -- `process_message` restores the transaction snapshot after an initcode
+  -- REVERT/exception (`vm/interpreter.py:429`), not only after a code-deposit
+  -- failure.  The top-level CREATE wrapper receives that status from the
+  -- shared settlement fold, so restore the captured body state here before
+  -- publishing any receipt/effect data.  In particular this replays the
+  -- storage-writes undo journal captured by `dispatcher_capture_body_state`;
+  -- without it, a reverted constructor's SSTORE rows survive into the BAL.
+  "  bnez a2, .Lbvcr_body_state_kept\n" ++
+  "  jal ra, dispatcher_restore_body_state\n" ++
+  -- Keep the transaction-level discard explicit at the top-level boundary as
+  -- well.  The wrapper can be entered by both single- and multi-transaction
+  -- callers, and neither caller may promote a failed constructor's leftover
+  -- tx map on its next incorporation (`fork.py:832,879-881`).
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbvcr_body_state_kept:\n" ++
   "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
   -- A failed top-level creation rolls back all logs, including the staged
