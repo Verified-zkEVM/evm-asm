@@ -30,14 +30,15 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## bal_all_accounts_storage_consistent
+/-! ## bal_all_accounts_storage_consistent_skip_list
 
     Calling convention:
       a0 = BAL section RLP ptr (list of AccountChanges)
       a1 = BAL section RLP length
       a2 = exec storage-log base
       a3 = exec storage-log length (entry count)
-      a4 = recipient 20-byte big-endian address ptr (SKIPPED — checked elsewhere)
+      a4 = skip-list ptr (32-byte-strided 20-byte big-endian entries)
+      a5 = skip-list entry count
       ra = return
       a0 (output) :
         0 : every non-recipient BAL account's storage_changes are both reproduced
@@ -47,9 +48,6 @@ open EvmAsm.Rv64
     A BAL account whose address item is not exactly 20 bytes is skipped (system /
     malformed entries are not callee storage accounts). -/
 def balAllAccountsStorageConsistentFunction : String :=
-  "bal_all_accounts_storage_consistent:\n" ++
-  "  li a5, 1                    # legacy ABI: one skipped recipient\n" ++
-  "  j bal_all_accounts_storage_consistent_skip_list\n" ++
   "bal_all_accounts_storage_consistent_skip_list:\n" ++
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -119,20 +117,21 @@ def balAllAccountsStorageConsistentFunction : String :=
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length
       bytes 16..24 : exec log entry count
-      bytes 24..56 : recipient address (20B BE in the low bytes, padded to 32)
+      bytes 24..56 : one skip-list entry (recipient address, 20B BE in the low bytes, padded to 32)
       bytes 56..    : exec log (count * 128B), then the BAL section
     Output:
       bytes 0..8 : status (0 consistent / 1 mismatch) -/
 def ziskBalAllAccountsStorageConsistentPrologue : String :=
   "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # BAL section len\n" ++
-  "  ld a3, 16(a5)               # exec log entry count\n" ++
-  "  addi a4, a5, 24             # recipient ptr\n" ++
-  "  addi a2, a5, 56             # exec log base\n" ++
+  "  li t6, 0x40000000\n" ++
+  "  ld a1, 8(t6)                # BAL section len\n" ++
+  "  ld a3, 16(t6)               # exec log entry count\n" ++
+  "  li a5, 1                    # one skip-list entry\n" ++
+  "  addi a4, t6, 24             # skip-list base\n" ++
+  "  addi a2, t6, 56             # exec log base\n" ++
   "  slli t0, a3, 7              # count * 128\n" ++
   "  add a0, a2, t0              # BAL section ptr = log_base + 128*count\n" ++
-  "  jal ra, bal_all_accounts_storage_consistent\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)\n" ++
   "  j .Lc2baas_pdone\n" ++
@@ -145,7 +144,7 @@ def ziskBalAllAccountsStorageConsistentPrologue : String :=
   rlpWalkHelpersClosure ++ "\n" ++
   ".Lc2baas_pdone:"
 
-/-- Scratch for `bal_all_accounts_storage_consistent` (account-loop state + the LE
+/-- Scratch for `bal_all_accounts_storage_consistent_skip_list` (account-loop state + the LE
     per-account exec-log key). Shared by the probe data section and the verdict data
     section so the verdict can link the wrapper (single source of truth). -/
 def balAllAccountsStorageConsistentData : String :=
