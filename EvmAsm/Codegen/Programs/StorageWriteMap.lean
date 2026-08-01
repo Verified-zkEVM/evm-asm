@@ -101,6 +101,15 @@ namespace EvmAsm.Codegen
     cannot overflow before its read counterpart does. -/
 def storageWritesCapacity : Nat := 16384
 
+/-- Undo journal capacity. SSTORE caps writes at `storageWritesCapacity` (W);
+    each write pushes one undo. `destroy_storage` pushes a second undo per
+    converted row (D ≤ W), so the shared journal needs W + D ≤ 2W records.
+    See `STORAGE_WRITES_UNDO_AREA` sizing note. -/
+def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
+
+#guard storageWritesUndoCapacity == 32768
+#guard storageWritesUndoCapacity * 160 == 0x500000
+
 /-! ## `storage_write_record`
 
     Mirrors `set_storage` (`state_tracker.py:489`):
@@ -408,8 +417,8 @@ def storageWritesUndoPushFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable: see the docstring
+  "  li t2, " ++ toString storageWritesUndoCapacity ++ "\n" ++
+  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable under W+D ≤ 2W derivation
   "  li t3, 0xa23a0000\n" ++                 -- STORAGE_WRITES_UNDO_AREA
   "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
   "  sd a3, 0(t4)\n" ++

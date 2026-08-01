@@ -102,10 +102,10 @@
   | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 2.5 MiB     |
-  | `ACCOUNT_WRITES_AREA`        | `0xa2620000`     | 2.5 MiB     |
-  | `TX_ACCOUNT_WRITES_AREA`     | `0xa28a0000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2aa0000`     | 2 MiB       |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 5 MiB       |
+  | `ACCOUNT_WRITES_AREA`        | `0xa28a0000`     | 2.5 MiB     |
+  | `TX_ACCOUNT_WRITES_AREA`     | `0xa2b20000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2d20000`     | 2 MiB       |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -356,10 +356,23 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
     undoes them — mirroring `frame_return`'s merge-on-success cursor
     discipline. -/
 
-/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 16384 × 160 B = 2.5 MiB.
+/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 32768 × 160 B = 5 MiB.
 
-    Stride grew from 64 B to 160 B so `wasAbsent = 2` (`destroy_storage` drop)
-    can journal the full 128 B map row. Layout:
+    **Sizing (derived, not corpus-chosen):**
+    - SSTORE hard-caps the exec log at 16384 rows (`Storage.lean`), so a tx
+      performs at most `W ≤ 16384` storage writes. Each write pushes one undo
+      (`wasAbsent` 0 or 1).
+    - `destroy_storage` converts map keys to reads and drops them with a second
+      undo (`wasAbsent` 2). Max destroy-converted rows per tx is `D ≤ 16384`
+      (each drop removes a key that entered via some prior append; appends ≤ W;
+      re-append-after-destroy still costs an SSTORE against the same W bound).
+    - Shared journal therefore needs `W + D ≤ 32768` records. The pre-destroy
+      arena was 16384 × 64 B = 1 MiB under a 1:1 write:undo assumption; with
+      destroy_storage that assumption is false, so capacity is 2× the SSTORE
+      cap. Stride is 160 B so `wasAbsent = 2` journals the full 128 B map row
+      (not a bare count++): 32768 × 160 = 5 MiB.
+
+    Layout:
 
         +0   entryIndex (8 B)
         +8   wasAbsent  (8 B)   0 = overwrite, 1 = append, 2 = destroy drop
@@ -399,15 +412,16 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
     state from an account whose balance, nonce and code hash are all zero. -/
 
 /-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
-    20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound. -/
-def ACCOUNT_WRITES_AREA      : Word := 0xa2620000
+    20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound.
+    Base follows `STORAGE_WRITES_UNDO_AREA` (5 MiB) at `0xa23a0000 + 0x500000`. -/
+def ACCOUNT_WRITES_AREA      : Word := 0xa28a0000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
-def TX_ACCOUNT_WRITES_AREA   : Word := 0xa28a0000
+def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
 /-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB.
 
-    Same rationale as `STORAGE_WRITES_UNDO_AREA`: the spec rolls a frame back by
-    copying the dict, which is unaffordable at capacity × call depth, so the
-    bounded equivalent is a reverse-replayed journal. Entry layout (128 B):
+    Same frame-rollback rationale as storage undo (dict copy unaffordable at
+    capacity × call depth). Account side has no destroy-style second undo, so
+    capacity stays 1:1 with the tx map (16384). Entry layout (128 B):
 
         +0   entryIndex   (8 B)   index into the tx-level map this write touched
         +8   wasAbsent    (8 B)   1 if the write APPENDED a new key, else 0
@@ -416,7 +430,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xa28a0000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2aa0000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2d20000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
