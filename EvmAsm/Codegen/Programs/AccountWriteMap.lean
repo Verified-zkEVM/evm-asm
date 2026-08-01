@@ -309,6 +309,26 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xa2720000; li s3, 0\n" ++
   ".Laweb_loop:\n" ++
   "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
+  -- Same-tx-created SELFDESTRUCT entries are tracked by the producer.  A
+  -- distinct-beneficiary clear is access-only in the BAL; self-destruction to
+  -- self preserves the live balance, so only its nonce/code are suppressed.
+  -- Byte 20 is producer metadata; overflow leaves the conservative path.
+  "  sd zero, 96(sp)\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Laweb_destroyed_done\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Laweb_destroyed_done\n" ++
+  "  la t2, evm_selfdestruct_destroyed_table\n" ++
+  ".Laweb_destroyed_scan:\n" ++
+  "  mv t3, t2; mv t4, s4; li t5, 20\n" ++
+  ".Laweb_destroyed_cmp:\n" ++
+  "  beqz t5, .Laweb_destroyed_hit\n" ++
+  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Laweb_destroyed_next\n" ++
+  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Laweb_destroyed_cmp\n" ++
+  ".Laweb_destroyed_next:\n" ++
+  "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Laweb_destroyed_scan\n" ++
+  "  j .Laweb_destroyed_done\n" ++
+  ".Laweb_destroyed_hit:\n" ++
+  "  lbu t0, 20(t2); addi t0, t0, 1; sd t0, 96(sp)\n" ++
+  ".Laweb_destroyed_done:\n" ++
   -- Find this address in the block-cumulative map.  A hit may still lack an
   -- individual field, in which case that component keeps the pre-state base.
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa24a0000; li t3, 0; li s5, 0\n" ++
@@ -333,6 +353,7 @@ def accountWritesEmitBuilderTxFunction : String :=
   -- account_resolve_pre_state's fixed account scratch output.
   "  mv a0, s4; la a1, account_builder_pre_account; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
   "  ld s8, 112(s4)\n" ++
+  "  ld t0, 96(sp); li t1, 1; beq t0, t1, .Laweb_advance\n" ++
   -- Balance: the resolver has already materialised the block/durable/header
   -- precedence into the shared account scratch.
   "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
@@ -370,6 +391,7 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
   -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
+  "  ld t0, 96(sp); li t1, 2; beq t0, t1, .Laweb_advance\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
   ".Laweb_nonce_have:\n" ++
   -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here

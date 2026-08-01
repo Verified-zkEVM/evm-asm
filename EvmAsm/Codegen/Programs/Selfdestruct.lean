@@ -675,12 +675,16 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- self-destruct-to-self it remains the live balance in sp+32, matching
   -- `clear_account_preserving_balance`.
   "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-  "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
+  "  sd zero, 224(sp); la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
   ".L_sdbn_clear_self_cmp:\n" ++
   "  beqz t2, .L_sdbn_clear_self\n" ++
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .L_sdbn_clear_distinct\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_clear_self_cmp\n" ++
   ".L_sdbn_clear_self:\n" ++
+  -- Existing destroyed-table readers consume only the first 20 bytes.  Keep
+  -- byte 20 as metadata so the BAL consumer can preserve self-transfer
+  -- balance while suppressing stale CREATE fields for a distinct beneficiary.
+  "  li t0, 1; sd t0, 224(sp)\n" ++
   "  addi a1, sp, 32; mv a2, a1; j .L_sdbn_record_clear\n" ++
   ".L_sdbn_clear_distinct:\n" ++
   "  mv a1, sp; mv a2, sp\n" ++
@@ -698,6 +702,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  beqz t5, .L_sdbn_destroyed_copied\n" ++
   "  lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .L_sdbn_destroyed_copy\n" ++
   ".L_sdbn_destroyed_copied:\n" ++
+  "  ld t5, 224(sp); sb t5, 0(t3)\n" ++
   "  addi t1, t1, 1; sd t1, 0(t0); j .L_sdbn_destroyed_done\n" ++
   ".L_sdbn_destroyed_overflow:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; li t1, 1; sd t1, 0(t0)\n" ++
