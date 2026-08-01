@@ -326,15 +326,17 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    -- bbow4.2.5.1: a zero-endowment CREATE still increments the creator's
-    -- nonce even when the child later REVERTs / exceptionally halts. The
+    -- bbow4.2.5.1: generic_create increments the creator's nonce before the
+    -- child exists, for every deployable CREATE/CREATE2 attempt (including a
+    -- nonzero endowment and a child that later REVERTs / exceptionally halts;
+    -- execution-specs/amsterdam vm/instructions/system.py:118,132). The
     -- deposit-time creator record only runs on successful CREATE, and records
     -- appended after create_frame_descend are rolled back by frame_return on
-    -- child failure. Emit the zero-value nonce-only effect in the parent before
-    -- descent so the all-accounts non-storage check can match the BAL.
+    -- child failure. Emit the nonce-only effect in the parent before descent
+    -- so the all-accounts non-storage check sees every attempt. The same
+    -- pre-balance scratch is used for zero- and nonzero-endowment records;
+    -- equal balance operands make the record's mask balance-only.
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-    "  bnez t1, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++

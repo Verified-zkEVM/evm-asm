@@ -30,6 +30,33 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/- Shared single-transaction sender-upfront staging.  The ordinary and
+   top-level CREATE paths both feed the same dispatcher producer; keep the
+   effective debit arithmetic in one place (`fork.py:1105-1108`). -/
+private def blockVerdictStageSingleTxSenderUpfront : String :=
+  "block_verdict_stage_single_tx_sender_upfront:\n" ++
+  "  la a0, bv_fee_egp_scratch; la t0, bv_simple_transfer_tx; ld a1, 40(t0); la a2, bv_upfront_cost; jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_stx_stage_blob_done\n" ++
+  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct; jal ra, tx_eip4844_decode\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0); la t3, bv_simple_transfer_tx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count; jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_stx_stage_fail; li t2, 6; bgtu a1, t2, .Lbv_stx_stage_fail; slli a1, a1, 17\n" ++
+  "  la a0, bsg_blob_price_be; la a2, bv_upfront_blob_cost; jal ra, u256_mul_u64_be\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost; jal ra, u256_add_be\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  ".Lbv_stx_stage_blob_done:\n" ++
+  "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post; jal ra, u256_sub_be\n" ++
+  "  bnez a0, .Lbv_stx_stage_fail\n" ++
+  "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); sd zero, 24(t1)\n" ++
+  "  la t0, bv_stx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  "  la t0, bv_stx_sender_acct; ld t2, 0(t0); la t1, bv_pending_upfront_sender_nonce; sd t2, 0(t1); li t2, 1; la t1, bv_pending_upfront_balance_flag; sd t2, 0(t1)\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lbv_stx_stage_fail:\n" ++
+  "  li a0, 1; ret\n"
+
 
 /-! ## block_verdict -- step2_verdict with the FULL (system + withdrawal) recompute.
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
@@ -299,6 +326,13 @@ def blockVerdictFunction : String :=
   "  la t0, bv_mtx_i; sd zero, 0(t0); la t2, bv_simple_transfer_tx; ld a0, 8(t2); ld a1, 16(t2); ld a2, 176(t2); ld a3, 184(t2); la a4, bv_stx_sender_addr; ld a5, 160(t2); li a6, 0; jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
   "  bnez a0, .Lbv_after_tx_gas_precharge\n" ++
   "  la t2, bv_simple_transfer_tx\n" ++
+  -- Fee validity/effective price is transaction-wide, including CREATE.
+  "  ld a0, 8(t2); ld a1, 16(t2); ld a2, 32(t2)\n" ++
+  "  la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
+  "  jal ra, tx_effective_gas_pricing\n" ++
+  "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++
+  "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++
+  "  la t2, bv_simple_transfer_tx\n" ++
   "  la t2, bv_simple_transfer_tx; ld t0, 48(t2); bnez t0, .Lbv_creation_dispatch\n" ++
   -- bmvmx.5 (fee-validity hoist, single-tx): the spec check_transaction fee-validity
   -- pre-conditions -- max_fee_per_gas >= base_fee_per_gas (InsufficientMaxFeePerGasError)
@@ -316,12 +350,6 @@ def blockVerdictFunction : String :=
   -- (never newly false-reject). A valid block never carries such a tx, so this only ADDS
   -- rejects the spec also makes -- strictly sound, no false-reject. (Multi-tx loop fee gate
   -- + the nonce-eligibility/upfront-balance hoists are bmvmx.5 follow-ups.)
-  "  la t2, bv_simple_transfer_tx\n" ++
-  "  ld a0, 8(t2); ld a1, 16(t2); ld a2, 32(t2)\n" ++           -- tx ptr, tx len, base_fee_per_gas ptr
-  "  la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch\n" ++
-  "  jal ra, tx_effective_gas_pricing\n" ++
-  "  li t1, 2; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- priority_fee > max_fee -> reject
-  "  li t1, 3; beq a0, t1, .Lbv_fee_invalid_fail\n" ++          -- max_fee < base_fee -> reject
   "  la t2, bv_simple_transfer_tx\n" ++                         -- restore t2 (jal clobbered it) for the code-hash route below
   -- evm-asm-fhsxz.2.4.2.57.11.6.4.3.2: route a contract recipient (non-empty code)
   -- to the execution-derived contract dispatch; EOA (empty-code) recipients fall
@@ -780,11 +808,6 @@ def blockVerdictFunction : String :=
   -- counterparts, so once the max-based check passed these cannot overflow; any
   -- unreachable decode/count miss skips the staging rather than rejecting a
   -- valid block.
-  "  la a0, bv_fee_egp_scratch\n" ++
-  "  la t0, bv_simple_transfer_tx; ld a1, 40(t0)\n" ++
-  "  la a2, bv_upfront_cost\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
   -- GH #10892: NO `tx.value` TERM HERE.  The value add that used to sit on this
   -- line (`addi a1, t0, 96`) was the CHECK's term, not the DEBIT's.
   -- `process_transaction` debits `effective_gas_fee + blob_gas_fee` and NOTHING
@@ -798,46 +821,8 @@ def blockVerdictFunction : String :=
   -- The sufficiency CHECK above is untouched and still uses the full worst-case sum
   -- INCLUDING the value; it consumes `bv_upfront_cost` at `:758-759`, before this
   -- block overwrites it -- verified in EMITTED ASM, not from source order.
-  "  la t0, bv_simple_transfer_tx; ld t1, 160(t0); li t2, 3; bne t1, t2, .Lbv_stx_restage_blob_done\n" ++
-  "  ld a0, 176(t0); ld a1, 184(t0); la a2, tcbg_struct\n" ++
-  "  jal ra, tx_eip4844_decode\n" ++
+  "  jal ra, block_verdict_stage_single_tx_sender_upfront\n" ++
   "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  "  la t0, tcbg_struct; lwu t1, 168(t0); lwu t2, 172(t0)\n" ++
-  "  la t3, bv_simple_transfer_tx; ld t3, 176(t3); add a0, t3, t1; mv a1, t2; la a2, bv_upfront_blob_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  "  la t0, bv_upfront_blob_count; ld a1, 0(t0); beqz a1, .Lbv_stx_pending_upfront_done\n" ++
-  "  li t2, 6; bgtu a1, t2, .Lbv_stx_pending_upfront_done\n" ++
-  "  slli a1, a1, 17\n" ++
-  "  la a0, bsg_blob_price_be; la a2, bv_upfront_blob_cost\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  "  la a0, bv_upfront_cost; la a1, bv_upfront_blob_cost; la a2, bv_upfront_cost\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-  ".Lbv_stx_restage_blob_done:\n" ++
-  -- Stage sender.balance at execution start for runtime BALANCE(ORIGIN). The
-  -- dispatcher consumes this after its setup resets and records it in the live
-  -- nonstorage log; it is one-shot and harmless for contracts that never query
-  -- the sender balance.
-    "  la a0, bv_stx_sender_acct; addi a0, a0, 8; la a1, bv_upfront_cost; la a2, bv_pending_upfront_sender_post\n" ++
-    "  jal ra, u256_sub_be\n" ++
-    "  bnez a0, .Lbv_stx_pending_upfront_done\n" ++
-    -- bv_upfront_cost already holds effective_gas_price*gas_limit +
-    -- blob_gas_price*blob_gas + value (recomputed @807-831, PR #9482), so
-    -- bv_pending_upfront_sender_post is now the correct execution-start sender
-    -- balance. The (max_fee-eff_price) and (max_blob-blob_gas_price) refund
-    -- deltas that previously followed here were a double-correction: they assumed
-    -- bv_upfront_cost was still max-fee-based, but the recompute above already
-    -- replaced it with the eff-price-based cost, so adding the deltas back made
-    -- BALANCE(ORIGIN) too high by ~max_fee_gap*gas_limit -> bv_fail=34
-    -- (bal_storage_mismatch) on the gasUsed=195840 blob_gas_subtraction_tx cases.
-    "  la t0, bv_stx_sender_addr; la t1, bv_pending_upfront_sender_addr\n" ++
-  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); sd zero, 24(t1)\n" ++
-  "  la t0, bv_stx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre\n" ++
-  "  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
-  "  la t0, bv_stx_sender_acct; ld t2, 0(t0); la t1, bv_pending_upfront_sender_nonce; sd t2, 0(t1)\n" ++
-  "  li t2, 1; la t1, bv_pending_upfront_balance_flag; sd t2, 0(t1)\n" ++
   ".Lbv_stx_pending_upfront_done:\n" ++
   ".Lbv_stx_checks_done:\n" ++
   -- #10695: stamp block_access_index = 1 explicitly for the single-tx lane's only user tx
@@ -1434,6 +1419,7 @@ def blockVerdictFunction : String :=
   "  la t0, bv_simple_transfer_recipient; ld t0, 0(t0); li t1, 32; beq t0, t1, .Lbv_recipient_bal_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
 
-  blockVerdictFunctionTail
+  blockVerdictFunctionTail ++ "\n" ++
+  blockVerdictStageSingleTxSenderUpfront
 
 end EvmAsm.Codegen
