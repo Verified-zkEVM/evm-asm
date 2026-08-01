@@ -618,12 +618,15 @@ def balSerializerMeasureCodeFunction : String :=
   "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
   "  beqz a0, .Lbsmc_next\n" ++
   "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
+  -- The scalar BAI length must survive `bal_rlp_measure_into_throwaway`, whose
+  -- emitter call may clobber every caller-saved temporary (including t5).  Keep
+  -- it in this frame rather than relying on a caller-saved register.
+  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 48(sp)\n" ++
   "  la a0, bal_serializer_throwaway_ctx\n" ++
   "  la a1, bal_rlp_emit_bytes\n" ++
   "  ld a2, 32(s4); ld a3, 40(s4); la a4, bal_serializer_hdr_scratch\n" ++
   "  jal ra, bal_rlp_measure_into_throwaway\n" ++
-  "  add t5, t5, a0\n" ++
+  "  ld t5, 48(sp); add t5, t5, a0\n" ++
   "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
   "  add s2, s2, t5\n" ++
   ".Lbsmc_next:\n" ++
