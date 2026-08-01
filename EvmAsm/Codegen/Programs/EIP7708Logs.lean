@@ -443,8 +443,8 @@ def messageValueTransferFunction : String :=
   "  la s5, message_value_transfer_sender_post\n" ++
   ".Lrmvt_recipient_pre:\n" ++
   "  mv a0, s5; mv a1, s2; la a2, message_value_transfer_recipient_post; jal ra, u256_add_be; bnez a0, .Lrmvt_done\n" ++
-  -- Equal nonce inputs make `record_nonstorage_effect` derive an honest
-  -- balance-only AccountWrite mask rather than asserting a nonce component.
+  -- Equal dummy nonces: record_nonstorage_effect derives balance-only raw mask
+  -- and AccountWrite bits (pre_nonce == post_nonce clears hasNonce).
   "  mv a0, s0; mv a1, s4; la a2, message_value_transfer_sender_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
   "  mv a0, s1; mv a1, s5; la a2, message_value_transfer_recipient_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
   ".Lrmvt_done:\n" ++
