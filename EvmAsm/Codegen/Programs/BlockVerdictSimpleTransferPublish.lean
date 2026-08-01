@@ -10,6 +10,10 @@ namespace EvmAsm.Codegen
 
 def blockVerdictSimpleTransferPublishAsm : String :=
   ".Lbv_simple_transfer_precompile_fail:\n" ++
+  -- Mode 2 has already paid the transaction-level intrinsic/upfront gas in
+  -- the shared dispatcher.  Jump straight to its exceptional-halt join and
+  -- avoid the legacy direct-publication wrapper.
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); li t1, 2; beq t0, t1, .Ldtrc_mtx_precompile_failure\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
   -- An exceptional top-frame halt burns regular gas, but
@@ -64,6 +68,9 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  jal ra, block_log_window_snapshot\n" ++
   "  j .Lbv_simple_transfer_after_log_snapshot\n" ++
   ".Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge:\n" ++
+  -- The shared dispatcher owns intrinsic gas, state-gas rollback, and the
+  -- final MTx publication for mode 2; only the selector's cost in t6 is new.
+  "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); li t1, 2; beq t0, t1, .Ldtrc_mtx_precompile_success\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
