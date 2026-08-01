@@ -71,6 +71,10 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  la t0, bv_tx_status_arr; ld t1, 0(t0); bnez t1, .Lbv_eoa_storage_tx_ready\n" ++
   "  jal ra, write_sets_discard_tx\n" ++
   ".Lbv_eoa_storage_tx_ready:\n" ++
+  -- The account-write incorporate above only flushes balance/nonce/code fields.
+  -- Preserve the successful EOA transaction's storage map before the deferred
+  -- system calls begin a fresh transaction and replace the pending map.
+  "  jal ra, write_sets_incorporate_tx\n" ++
   -- The checked EIP-7002/EIP-7251/EIP-8282 calls are one post-user-loop
   -- phase. Their own write-set incorporates run at N+1, so no side-arena
   -- replay compensation is needed.
