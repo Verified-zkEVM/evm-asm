@@ -2370,12 +2370,15 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
   ".runtime_tx_auth_checkpoint_done:\n" ++
-  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
+  -- MTx passes the live regular gas remainder in a4; the callback returns
+  -- its updated value.  This makes state-dependent authorization charging a
+  -- per-auth boundary rather than a post-loop aggregate boundary.
+  "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11); la x11, runtime_tx_auth_state_charged; sd x0, 0(x11)\n" ++
   "  la x11, runtime_tx_auth_exec_fn; ld x9, 0(x11); beqz x9, .runtime_tx_auth_exec_done\n" ++
   "  addi sp, sp, -56; sd ra, 0(sp); sd x5, 8(sp); sd x6, 16(sp); sd x7, 24(sp); sd x10, 32(sp); sd x20, 40(sp); sd x21, 48(sp)\n" ++
-  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13)\n" ++
+  "  la x11, runtime_tx_auth_inner_ptr; ld x10, 0(x11); la x11, runtime_tx_auth_inner_len; ld x11, 0(x11); la x12, runtime_tx_auth_sender_ptr; ld x12, 0(x12); la x13, runtime_tx_auth_type; ld x13, 0(x13); mv a4, x6\n" ++
   "  jalr ra, x9, 0; mv x9, x10\n" ++
-  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56\n" ++
+  "  ld ra, 0(sp); ld x5, 8(sp); ld x6, 16(sp); ld x7, 24(sp); ld x10, 32(sp); ld x20, 40(sp); ld x21, 48(sp); addi sp, sp, 56; mv x6, a4\n" ++
   "  bnez x9, .runtime_tx_auth_phase_oog\n" ++
   "  j .runtime_tx_auth_exec_done\n" ++
   ".runtime_tx_auth_phase_oog:\n" ++
@@ -2387,6 +2390,9 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x9, 0(x11)\n" ++
   "  la x11, runtime_tx_state_gas_ptr; ld x8, 0(x11); ld x7, 0(x8); add x7, x7, x9; sd x7, 0(x8)\n" ++
+  -- The callback has already consumed the reservoirs per authorization;
+  -- retain this fold only as the transaction state-gas accounting cell.
+  "  la x11, runtime_tx_auth_state_charged; ld x11, 0(x11); bnez x11, .runtime_tx_auth_state_refund_done\n" ++
   "  la x11, evm_state_gas_left\n" ++
   "  ld x8, 0(x11)\n" ++
   "  bltu x8, x9, .runtime_tx_auth_state_spill\n" ++
@@ -3522,6 +3528,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_state_charge:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_charged:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
   "  .zero 8\n" ++

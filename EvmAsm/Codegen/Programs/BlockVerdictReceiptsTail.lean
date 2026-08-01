@@ -123,14 +123,17 @@ def blockVerdictReceiptsTail : String :=
   "  j .Lbv_receipts_accept\n" ++
   ".Lbv_receipt_logs_helper_status:\n" ++
   "  j .Lbv_receipts_helper_fail\n" ++
-  ".Lbv_receipts_accept:\n" ++
-  -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
-  -- conservative bail; the single-tx destroyed-empty detector may replace a
-  -- successful result with 62.  Every nonzero route bypasses the single-tx
-  -- all-account storage/tuple comparators, so none may accept based only on a
-  -- matching attacker-chosen receipts root.
-  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_bal_storage_omit_fail\n" ++
-  "  li a0, 1; j .Lbv_ret\n" ++
+   ".Lbv_receipts_accept:\n" ++
+   -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
+   -- conservative bail; the single-tx destroyed-empty detector may replace a
+   -- successful result with 62.  Every nonzero route bypasses the single-tx
+   -- all-account storage/tuple comparators, so none may accept based only on a
+   -- matching attacker-chosen receipts root.
+   -- #11119: this is a DISPATCH-status bail, not a storage-omit comparator.
+   -- Formerly jumped to .Lbv_bal_storage_omit_fail (bv_fail=36), which lied
+   -- about the cause.  Omit property stays CONTAINER_DEPENDENT under 37.
+   "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_dispatch_runtime_status_fail\n" ++
+   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
@@ -224,10 +227,17 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_recipient_field_fail:\n" ++    -- bmvmx.1.6.3: recipient BAL nonce/code claims a change execution didn't make
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5: recipient BAL omits a storage change execution made
-  "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
-  "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+   ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5: recipient BAL omits a storage change execution made
+   -- #11119: sink retained for the named property; currently unreachable from
+   -- the verdict path (sole former reacher was the dispatch-status bail above,
+   -- now on .Lbv_dispatch_runtime_status_fail / code 64).  Real reverse storage
+   -- coverage lives inside allaccounts (37).  Standalone 36 waits on container
+   -- convergence (#10765 CONTAINER_DEPENDENT).
+   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+   ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
+   "  li t0, 64; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+   ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
+   "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_reads_fail:\n" ++              -- bmvmx.1.6.7: recipient BAL storage_read slot never accessed in execution
   "  li t0, 38; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
