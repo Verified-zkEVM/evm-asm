@@ -551,8 +551,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "csce_addrkey:\n  .zero 32\n" ++
   "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (matches the gas-derived bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
   -- 1ipxd.1: pre-resolved per-account balance table for nested-frame SELFBALANCE.
-  -- seed_callee_storage fills it (clean pre-execution context, where the witness MPT walk
-  -- works — it returns absent mid-EVM-execution); call_frame_descend reads it to stage a
+  -- seed_callee_storage fills it (clean pre-execution context). ⚠️ This used to add "where the
+  -- witness MPT walk works — it returns absent mid-EVM-execution"; GH #11105 refuted that as an
+  -- inherent restriction (the ACCOUNT walk resolved mid-execution from h_SSTORE's tier 3; it is
+  -- the SLOT walk that fails, 64 of 64, in every phase). call_frame_descend reads it to stage a
   -- child frame's env+32. Entry = 64 B: canonical-BE 20-byte address (zero-padded to 32) @0,
   -- balance @32 in LE-limb (stack-word) order so the descend copies it verbatim to the LE
   -- EVM stack via h_SELFBALANCE (odq06 byte-order lesson). 128 cap. csce_bal_struct = the
