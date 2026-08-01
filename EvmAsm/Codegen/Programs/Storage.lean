@@ -420,6 +420,13 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- inside it. The seeded entry has original == current (no net change),
         -- exactly the shape `seed_callee_storage` already appends.
         storagePersistentLogFindAsm ++
+        -- ⚠️ This guard MUST test the SCAN result, before the resolve runs. On a log HIT
+        -- the scan leaves x18 = &found.original, and the resolve chain self-skips on
+        -- `bnez x18` — so a guard placed AFTER it cannot tell "resolve succeeded" from
+        -- "scan already found it", and the append below would duplicate the found entry
+        -- on every hit. Measured when it was wrong: 16 seed commits on an ordinary row
+        -- with ZERO calls to either resolution tier, and the log growing 4 -> 8.
+        "  bnez x18, .Lsload_seed_done\n" ++
         -- x11 = a1 is clobbered by the resolve chain's calls and is live here (the
         -- storage_read_record call above saves it for the same reason). The chain
         -- saves x1/x10/x12/x13/x19 itself.
