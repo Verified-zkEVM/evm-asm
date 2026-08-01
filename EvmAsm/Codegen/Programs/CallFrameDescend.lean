@@ -361,13 +361,11 @@ def callFrameDescendFunction : String :=
   -- logs from the parent's current length (so child writes append and a child REVERT
   -- rolls back to here), and reset the child's memory size to 0 (fresh 128 KiB).
   "  ld t0, 448(s3); sd t0, 448(s9)   # persistentLogLength (continue global log)\n" ++
-  -- env+456/+480 remain live REVERT-tail checkpoints (NoopHalt reads them).
-  -- They deliberately duplicate the canonical depth-indexed body snapshot below;
-  -- a future NoopHalt retarget can retire them as its own behavioral change.
-  "  sd t0, 456(s9)                    # persistentLogCheckpoint = current (REVERT point)\n" ++
+  -- GH #10981: env+456/+480 REVERT checkpoints retired. NoopHalt REVERT reads
+  -- body_state_snapshot_by_depth[d] (+40 persistent, +56 event) instead; the
+  -- slab capture below is the sole checkpoint source.
   "  ld t0, 464(s3); sd t0, 464(s9)   # transientLogLength\n" ++
   "  ld t0, 472(s3); sd t0, 472(s9)   # eventLogLength\n" ++
-  "  sd t0, 480(s9)                    # eventLogCheckpoint = current\n" ++
   "  sd x0, 488(s9)                    # activeMemorySize = 0 (fresh child memory)\n" ++
   -- 8b2 (1ipxd): inherit the tx/block-constant env fields (txOrigin@128 .. chainId@384,
   -- a contiguous 288-byte block env+128..415) from the parent. call_frame_set_call_env

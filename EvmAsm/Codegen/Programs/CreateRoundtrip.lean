@@ -54,8 +54,8 @@ def createRoundtripPrologue : String :=
   "  la x21, cr_parent_code\n" ++
   "  li t0, 1000000\n  sd t0, 568(x20)\n" ++        -- gasRemaining
   "  li t0, 21\n  sd t0, 496(x20)\n" ++             -- codeSize (2-CREATE verify)
-  "  sd x0, 448(x20); sd x0, 456(x20); sd x0, 464(x20)\n" ++   -- storage log length etc.
-  "  sd x0, 472(x20); sd x0, 480(x20)\n" ++
+  "  sd x0, 448(x20); sd x0, 464(x20)\n" ++   -- storage log length etc.
+  "  sd x0, 472(x20)\n" ++
   "  sd x0, 584(x20)\n" ++                          -- no account-witness ctx -> clean CREATE path
   "  la t0, evm_call_depth; sd x0, 0(t0)\n" ++
   -- Pre-load the 10-byte init code into evm_memory[0..10].

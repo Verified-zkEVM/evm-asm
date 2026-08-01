@@ -64,8 +64,8 @@ def callBalanceGatePrologue : String :=
   "  li t0, 1000000\n  sd t0, 568(x20)\n" ++   -- gasRemaining
   "  li t0, 10\n  sd t0, 496(x20)\n" ++          -- codeSize (10-byte parent program)
   "  sd x0, 448(x20)\n" ++                       -- persistentLogLength = 0
-  "  sd x0, 456(x20); sd x0, 464(x20)\n" ++
-  "  sd x0, 472(x20); sd x0, 480(x20); sd x0, 488(x20)\n" ++
+  "  sd x0, 464(x20)\n" ++
+  "  sd x0, 472(x20); sd x0, 488(x20)\n" ++
   "  la t0, evm_call_depth; sd x0, 0(t0)\n" ++
   -- CALL stack: 7 args at x12 = evm_stack_top - 224 (gas@0, to@32, value@64, ...).
   "  la x12, evm_stack_top\n" ++
