@@ -285,15 +285,52 @@ def storagePersistentLogFindAsm : String :=
     slot. That is why a demand-driven `h_SLOAD` must reuse this chain rather than
     call `sload_at_header_state_root`, which resolves the witness tier ALONE.
 
-    ⛔ AND TIER 3 DOES NOT WORK. `slot_at_header_state_root` returns status 4
-    (header parse / state_root size fail) on EVERY call from this chain -- measured
-    16 for 16 the first time anything reached it (GH #11105). Three operand sources
-    were tried, including the verbatim operands the two working callers pass, and
-    all three failed identically, so the cause is the frame/phase rather than the
-    arguments. This chain has never executed in production because the preload
-    means SSTORE never sees a cold miss either. Do not build on tier 3 until #11105
-    is fixed, and note that every non-zero status is flattened to value 0 -- so a
-    broken authenticated read is indistinguishable from an absent slot.
+    ⛔ AND TIER 3 DOES NOT WORK -- BUT NOT WHERE THIS DOCSTRING USED TO SAY.
+    The failure is total and it is in the SLOT WALK, not the header. Measured on
+    `main` at `d97788890` over two rows that both have a NONZERO pre-state slot
+    (`00000_test_sstore_xto_y_...d4-g0__b0`, `00163_test_sstore_xto_x_...d1-g0__b0`),
+    with the preload starved so cold misses actually occur, counting every internal
+    exit of `slot_at_header_state_root` and pooling all callers. Identical on both
+    rows (GH #11105):
+
+    | | count |
+    |---|---|
+    | total calls | 82 |
+    | died in `header_extract_state_root` (status 4) | 16 |
+    | reached `account_at_address` -- header OK | 66 |
+    | died in `account_at_address` | 2 |
+    | reached `slot_at_index` -- header AND account resolved | 64 |
+    | died in `slot_at_index` | **64** |
+    | succeeded | **0** |
+
+    One level down, all 64 fail inside `mpt_lookup_by_key` and ZERO reach
+    `slot_decode_u256`: the trie walk finds no key, ever. The attribution is forced
+    rather than plausible -- `h_SSTORE` makes 32 calls of which exactly 16 load a
+    ZERO header length, matching the status-4 count exactly, and
+    16 + 34 (`bal_emit_storage_changes`) + 16 (`predeploy_preload`) = 66 = the
+    header-OK count with nothing left over. `h_SSTORE`'s other 16 calls carry a
+    well-formed header (len `0x27c`) and a witness pointer at header+len, and they
+    still fail.
+
+    ⚠️ THREE CLAIMS WERE REFUTED BY THAT MEASUREMENT and are recorded here so nobody
+    re-derives them:
+    * that status 4 comes back on EVERY call -- it is 16 of 82;
+    * that `seed_callee_storage` / `stage_predeploy_storage_preload` are WORKING
+      callers -- `seed_callee_storage` made ZERO calls on both rows, so the phrase
+      had no evidence behind it and no caller of this routine is known to succeed;
+    * that the raw slot key needs keccak-hashing first -- `mpt_lookup_by_key` calls
+      `zkvm_keccak256` itself, and `account_at_address` reaches the trie through the
+      SAME routine and succeeds at least 64 times in the same run.
+
+    That last one is also the control: 168 `mpt_lookup_by_key` calls in one run, 64
+    via `slot_at_index` with ZERO successes and 104 elsewhere with at least 64.
+    Same routine, same run, same hashing -- differing only in root and node
+    container.
+
+    Do not build on tier 3. Note that every non-zero status is flattened to value 0,
+    so a broken authenticated read is indistinguishable from an absent slot; and
+    that this chain never executes in production anyway, because the preload means
+    SSTORE never sees a cold miss.
 
     `p` prefixes the named labels so both handlers can instantiate it.
     `out` is a 64-byte scratch buffer, also used to stage the canonical
