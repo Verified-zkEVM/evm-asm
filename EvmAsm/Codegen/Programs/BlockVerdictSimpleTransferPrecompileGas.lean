@@ -32,10 +32,8 @@ private def blockVerdictModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) :
 def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  # Active precompile recipients have empty state-trie code but still execute. Detect them\n" ++
   "  # before the zero-value EOA shortcut so their execution gas reaches the exact gas arena.\n" ++
-  "  mv t0, t2; addi t0, t0, 72\n" ++
-  -- MTx enters this named interior selector with `t0` holding its lane
-  -- sentinel. Keep the root-only address setup outside that ABI entry.
   ".Lbv_tx_gas_precharge_pc0_prefix:\n" ++
+  "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc0" "t0" "t3" "t1" "t4" ++
   "  beqz t3, .Lbv_tx_gas_precharge_value_check\n" ++
   "  li t4, 1; beq t3, t4, .Lbv_simple_transfer_precompile_ecrecover\n" ++
