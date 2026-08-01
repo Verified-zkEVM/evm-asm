@@ -358,93 +358,6 @@ theorem balCanonicalSortFunction_eq_prog :
     which key width belongs to which arena — the misuse the status codes 2 and 4
     exist to catch is not reachable from these. -/
 
--- REACHABILITY (measured 2026-07-31 on ed50a5dbb): ZERO callers. No jal/jalr/la/call/
--- tail/auipc materialisation of `bal_sort_storage_writes` anywhere in the 2,124,874-byte
--- emitted guest stream (it appears only as its own `.globl` + label); no external
--- `GuestAddrs.bal_sort_storage_writes` reference outside this module. The EIP-7928 BAL
--- canonical ordering (incl. the address-major/slot-minor slot order this produces) is
--- already achieved by the live path and proven correct by the #11016 correspondence
--- (1149/1149 records: account / slot / per-index orders). So this routine is UNUSED — the
--- ordering obligation is met without it. Kept, not deleted, because its address is pinned
--- in `GuestAddrs.lean` (removal would force a repin cascade across GuestAddrs / the region
--- map / address-pinned proofs). See #11017.
-/-- Sort the block-level `storage_writes` map into address-major, slot-minor
-    order. a0 = 0 on success, else the `bal_canonical_sort` status. -/
-def balSortStorageWrites_prog : Program :=
-  [ .ADDI .x2 .x2 (-16 : BitVec 12),
-    .SD .x2 .x1 (0 : BitVec 12),
-    .LUI .x10 (5 : BitVec 20),
-    .ADDIW .x10 .x10 (253 : BitVec 12),
-    .SLLI .x10 .x10 (17 : BitVec 6),
-    .AUIPC .x5 (laHi GuestAddrs.storage_writes_count (GuestAddrs.bal_sort_storage_writes + 20)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_count (GuestAddrs.bal_sort_storage_writes + 20)),
-    .LD .x11 .x5 (0 : BitVec 12),
-    .LI .x12 (128 : Word),
-    .LUI .x13 (131585 : BitVec 20),
-    .ADDIW .x13 .x13 (1024 : BitVec 12),
-    .LI .x14 (2 : Word),
-    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_sort_storage_writes + 48)),
-    .LD .x1 .x2 (0 : BitVec 12),
-    .ADDI .x2 .x2 (16 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-/-- Reloc side-table for `balSortStorageWrites_prog`. -/
-def balSortStorageWrites_relocs : RelocTable :=
-  [ (5, .la .x5 "storage_writes_count"),
-    (12, .jal .x1 "bal_canonical_sort") ]
-
-def balSortStorageWritesFunction : String :=
-  "  .globl bal_sort_storage_writes\n" ++
-  "bal_sort_storage_writes:\n" ++ emitProgramR balSortStorageWrites_prog balSortStorageWrites_relocs
-
-/-- Kernel-checked drift guard; guest byte-identity verified by assemble+cmp:
-    64 vs 64 bytes, IDENTICAL. -/
-theorem balSortStorageWritesFunction_eq_prog :
-    balSortStorageWritesFunction = "  .globl bal_sort_storage_writes\n" ++
-      "bal_sort_storage_writes:\n" ++ emitProgramR balSortStorageWrites_prog balSortStorageWrites_relocs := rfl
-
-
--- REACHABILITY (measured 2026-07-31 on ed50a5dbb): ZERO callers. No jal/jalr/la/call/
--- tail/auipc materialisation of `bal_sort_account_writes` anywhere in the 2,124,874-byte
--- emitted guest stream (it appears only as its own `.globl` + label); no external
--- `GuestAddrs.bal_sort_account_writes` reference outside this module. The EIP-7928 BAL
--- canonical ordering (incl. the account order this produces) is already achieved by the
--- live path and proven correct by the #11016 correspondence (1149/1149 records: account /
--- slot / per-index orders). So this routine is UNUSED — the ordering obligation is met
--- without it. Kept, not deleted, because its address is pinned in `GuestAddrs.lean`
--- (removal would force a repin cascade across GuestAddrs / the region map / address-pinned
--- proofs). See #11017.
-/-- Sort the block-level `account_writes` map into address order. -/
-def balSortAccountWrites_prog : Program :=
-  [ .ADDI .x2 .x2 (-16 : BitVec 12),
-    .SD .x2 .x1 (0 : BitVec 12),
-    .LUI .x10 (5 : BitVec 20),
-    .ADDIW .x10 .x10 (293 : BitVec 12),
-    .SLLI .x10 .x10 (17 : BitVec 6),
-    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.bal_sort_account_writes + 20)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.bal_sort_account_writes + 20)),
-    .LD .x11 .x5 (0 : BitVec 12),
-    .LI .x12 (128 : Word),
-    .LUI .x13 (9 : BitVec 20),
-    .ADDIW .x13 .x13 (1024 : BitVec 12),
-    .LI .x14 (1 : Word),
-    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_sort_account_writes + 48)),
-    .LD .x1 .x2 (0 : BitVec 12),
-    .ADDI .x2 .x2 (16 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-/-- Reloc side-table for `balSortAccountWrites_prog`. -/
-def balSortAccountWrites_relocs : RelocTable :=
-  [ (5, .la .x5 "account_writes_count"),
-    (12, .jal .x1 "bal_canonical_sort") ]
-
-def balSortAccountWritesFunction : String :=
-  "  .globl bal_sort_account_writes\n" ++
-  "bal_sort_account_writes:\n" ++ emitProgramR balSortAccountWrites_prog balSortAccountWrites_relocs
-
-/-- Kernel-checked drift guard; guest byte-identity verified by assemble+cmp:
-    64 vs 64 bytes, IDENTICAL. -/
-theorem balSortAccountWritesFunction_eq_prog :
-    balSortAccountWritesFunction = "  .globl bal_sort_account_writes\n" ++
-      "bal_sort_account_writes:\n" ++ emitProgramR balSortAccountWrites_prog balSortAccountWrites_relocs := rfl
 
 
 /-! ## `bal_canonical_sort_selftest`
@@ -571,23 +484,22 @@ def balCanonicalSortDataSection : String :=
     `.globl` on the same line as the previous return and the whole block fails
     to assemble. -/
 def balCanonicalSortFunctions : String :=
-  balCanonicalSortFunction ++ "\n" ++
-  balSortStorageWritesFunction ++ "\n" ++
-  balSortAccountWritesFunction ++ "\n"
+  -- Production only: #11054 deleted unreachable bal_sort_*; R3 unlinked selftest
+  -- (probe-only via balCanonicalSortSelftestFunction).
+  balCanonicalSortFunction ++ "\n"
 
 /-! ## The builder's key descriptors, pinned as constants
 
     Confirmed with the agent building the builder arenas, and recorded here rather
     than left in a message so the two sides can be checked against each other.
 
-    These are the BUILDER's descriptors, and no entry point declares them: the two
-    that exist (`bal_sort_storage_writes`, `bal_sort_account_writes`) serve the
-    write containers and are pinned separately below. The `#guard`s here decode the
-    constants rather than the code. (This paragraph previously said the entry points
-    were "NOT added yet: the arenas do not exist" — the write-container arenas do
-    exist and both entry points link, as `GuestAddrs.bal_sort_storage_writes` and
-    `bal_sort_account_writes` now record. What is still absent is a *builder-list*
-    entry point, which is what the descriptors above are for.)
+    These are the BUILDER's descriptors and NO entry point declares them. ⚠️ GH #11054:
+    this paragraph used to point at `bal_sort_storage_writes` / `bal_sort_account_writes`
+    as the two that exist and link — both were measured UNREACHABLE (zero callers, no
+    `la`/`tail`/`auipc` materialisation anywhere in the emitted stream) and have now been
+    DELETED, so there is no longer any sort entry point at all. The `#guard`s here decode
+    the constants rather than the code, and that is all they ever did. What is absent is
+    still a *builder-list* entry point, which is what the descriptors above are for.
 
     Row shapes, keys listed most to least significant:
 
@@ -632,19 +544,17 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- a link error and these guards are the only thing that would catch it. The label
 -- line survives the conversion because it stays in each Function's string prefix.
 #guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort:").length == 2
-#guard (balCanonicalSortFunctions.splitOn "bal_sort_storage_writes:").length == 2
-#guard (balCanonicalSortFunctions.splitOn "bal_sort_account_writes:").length == 2
--- Self-test is probe-only (not in the guest aggregate).
+-- Self-test is probe-only (not in the guest aggregate). #11054 deleted bal_sort_*.
 #guard (balCanonicalSortFunctions.splitOn "bal_canonical_sort_selftest:").length == 1
 #guard (balCanonicalSortSelftestFunction.splitOn "bal_canonical_sort_selftest:").length == 2
+#guard (balCanonicalSortFunctions.splitOn "bal_sort_storage_writes:").length == 1
+#guard (balCanonicalSortFunctions.splitOn "bal_sort_account_writes:").length == 1
 -- ...and `.globl` for each, which `emitProgramR` cannot emit and which therefore
 -- has to be re-checked rather than inherited from the conversion. Symbol BINDING
 -- is invisible to a `.text` compare -- a symbol demoted GLOBAL -> LOCAL, or dropped,
 -- leaves `.text` byte-identical -- so these guards are the only mechanical check on
 -- the one part of the emitted text the conversion does not establish.
 #guard (balCanonicalSortFunctions.splitOn ".globl bal_canonical_sort\n").length == 2
-#guard (balCanonicalSortFunctions.splitOn ".globl bal_sort_storage_writes").length == 2
-#guard (balCanonicalSortFunctions.splitOn ".globl bal_sort_account_writes").length == 2
 #guard (balCanonicalSortFunctions.splitOn ".globl bal_canonical_sort_selftest").length == 1
 #guard (balCanonicalSortSelftestFunction.splitOn ".globl bal_canonical_sort_selftest").length == 2
 
@@ -652,8 +562,6 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- no guard below names the instruction in question.
 #guard balCanonicalDigit_prog.length == 28
 #guard balCanonicalSort_prog.length == 147
-#guard balSortStorageWrites_prog.length == 16
-#guard balSortAccountWrites_prog.length == 16
 #guard balCanonicalSortSelftest_prog.length == 61
 
 -- Each converted Function ends at its last instruction with NO trailing newline, so
@@ -663,9 +571,9 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- cannot detect.
 #guard (balCanonicalSortFunctions.splitOn "(x1)  .globl").length == 1
 #guard !balCanonicalSortFunction.endsWith "\n"
--- ...and every `.globl` therefore begins a line: two preceded by a newline, plus
--- the first, which starts the aggregate (three production routines; self-test excluded).
-#guard (balCanonicalSortFunctions.splitOn "\n  .globl").length == 3
+-- Sole guest routine is bal_canonical_sort: only the leading .globl (no "\n  .globl").
+-- #11054 dropped bal_sort_*; R3 dropped selftest from the guest aggregate.
+#guard (balCanonicalSortFunctions.splitOn "\n  .globl").length == 1
 #guard balCanonicalSortFunctions.startsWith "  .globl bal_canonical_sort\n"
 
 /-! ### Guards restated over the `Program`s
@@ -764,15 +672,9 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 -- materialised as LUI + ADDIW, so the guard is restated over that pair AND tied back
 -- to the descriptor arithmetically, rather than pinning two opaque immediates.
 -- a3 = x13, a4 = x14, a2 = x12.
-#guard balSortInfixCount [.LUI .x13 (131585 : BitVec 20),
-  .ADDIW .x13 .x13 (1024 : BitVec 12)] balSortStorageWrites_prog == 1
 #guard 131585 * 4096 + 1024 == 0x20201400
-#guard balSortInfixCount [.LUI .x13 (9 : BitVec 20),
-  .ADDIW .x13 .x13 (1024 : BitVec 12)] balSortAccountWrites_prog == 1
 #guard 9 * 4096 + 1024 == 0x9400
 -- Segment counts (was `li a4, 2` / `li a4, 1`).
-#guard balSortInfixCount [.LI .x14 (2 : Word)] balSortStorageWrites_prog == 1
-#guard balSortInfixCount [.LI .x14 (1 : Word)] balSortAccountWrites_prog == 1
 -- Both address segments must be (offset 0, width 20); only the endianness BIT may
 -- differ, because the two containers store the address differently while both must
 -- yield the same canonical ORDER. Comparing the whole descriptors would now fail by
@@ -800,7 +702,5 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 
 -- The strides must match the two containers' actual record strides (was
 -- `li a2, 128`; a2 = x12). Both containers use stride 128.
-#guard balSortInfixCount [.LI .x12 (128 : Word)] balSortStorageWrites_prog == 1
-#guard balSortInfixCount [.LI .x12 (128 : Word)] balSortAccountWrites_prog == 1
 
 end EvmAsm.Codegen

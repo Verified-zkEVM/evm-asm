@@ -1101,7 +1101,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- after settlement has classified the top-level tx status. A failed top-level
   -- transaction rolls back all LOGs, even logs committed by successful child calls.
   "  bnez s2, .Ldtrc_snapshot_logs\n" ++
-  "  la t0, evm_env; sd x0, 472(t0); sd x0, 480(t0)\n" ++
+  -- GH #10981: failed top-level tx clears live event cursor only; env+480 retired.
+  "  la t0, evm_env; sd x0, 472(t0)\n" ++
   ".Ldtrc_snapshot_logs:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
   "  mv t3, s0                    # effective gas_left\n" ++

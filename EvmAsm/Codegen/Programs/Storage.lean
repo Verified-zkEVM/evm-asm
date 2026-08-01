@@ -22,7 +22,7 @@
 
   Log lengths live in env:
     env+448  persistentLogLengthOff  (live counter; SSTORE increments)
-    env+456  persistentLogCheckpointOff  (set at prologue end; restored on REVERT)
+    env+456  retired (GH #10981; REVERT reads body_state_snapshot slab +40)
     env+464  transientLogLengthOff  (live counter; TSTORE increments; reset on REVERT)
 
   ## Semantics
