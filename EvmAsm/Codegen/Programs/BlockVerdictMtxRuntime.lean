@@ -104,6 +104,15 @@ private def blockVerdictMtxRecordSenderRefund : String :=
 private def blockVerdictMtxOogMaterialize : String :=
   "block_verdict_mtx_oog_materialize:\n" ++
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  -- Preparation ExceptionalHalt takes the dispatcher-unsupported path before
+  -- the normal effects-kept postlude.  Re-enter the one shared finalizer
+  -- first, so it restores the auth snapshot and append-only effect cursors;
+  -- then restore the transaction account map to the mark taken after sender
+  -- inclusion.  The ordinary OOG path has no auth snapshot to roll back.
+  "  la t0, runtime_tx_auth_phase_halted; ld t1, 0(t0); beqz t1, .Lbv_mtx_oog_normal\n" ++
+  "  la t0, bv_mtx_i; ld a0, 0(t0); li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
+  "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
+  ".Lbv_mtx_oog_normal:\n" ++
   "  la t0, bv_pending_upfront_balance_flag; ld t1, 0(t0); beqz t1, .Lbv_mtx_oog_done\n" ++
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
   "  jal ra, account_state_commit_pending\n" ++
