@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+import EvmAsm.Codegen.Programs.PrecompileRuntime
 
 namespace EvmAsm.Codegen
 
@@ -27,6 +28,27 @@ def blockVerdictMtxPrecompileSettlement : String :=
   ".Lbv_mtx_precompile_sender_copy:\n" ++
   "  beqz t2, .Lbv_mtx_precompile_kernel; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_precompile_sender_copy\n" ++
   ".Lbv_mtx_precompile_kernel:\n" ++
-  "  la t0, bv_mtx_precompile_lane; li t1, 1; sd t1, 0(t0); la t2, bv_simple_transfer_tx; j .Lbv_tx_gas_precharge_pc0_prefix\n"
+  -- The adapter is reached from the delegation-aware MTx classifier, not
+  -- exclusively from active precompile recipients.  Classify the copied
+  -- recipient before arming the shared one-shot hook; ordinary recipients
+  -- must take the existing contract/EOA path without installing mode 2.
+  "  la t0, bv_simple_transfer_tx; addi t0, t0, 72\n" ++
+  precompileAddressClassifyAsm "bv_mtx_adapter" "t0" "t3" "t1" "t4" ++
+  "  beqz t3, .Lbv_mtx_precompile_adapter_fallback\n" ++
+  -- Mode 2 means that the precompile selector is entered by the shared
+  -- transaction dispatcher.  Lane 1 has no writer: the old direct sentinel
+  -- is retired, while the shared publish joins below remain reachable for
+  -- lane 2 finalization.
+  "  la t0, bv_mtx_precompile_lane; li t1, 2; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; li t1, 3; sd t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; la t1, .Lbv_mtx_precompile_dispatch_hook; sd t1, 0(t0)\n" ++
+  "  j .Lbv_mtx_is_contract\n" ++
+  ".Lbv_mtx_precompile_adapter_fallback:\n" ++
+  "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
+  "  j .Lbv_mtx_is_contract\n" ++
+  ".Lbv_mtx_precompile_dispatch_hook:\n" ++
+  "  la t2, bv_simple_transfer_tx; j .Lbv_tx_gas_precharge_pc0_prefix\n"
 
 end EvmAsm.Codegen

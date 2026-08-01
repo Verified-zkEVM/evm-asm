@@ -447,6 +447,7 @@ def nonstorageEffectAggregateFunction : String :=
   "  add t3, s9, t2; lbu t4, 0(t3); add t3, s11, t2; sb t4, 0(t3)\n" ++
   "  addi t2, t2, 1; j .Lnea_emit_copy\n" ++
   ".Lnea_emit_post:\n" ++
+  "  sd zero, 104(sp)\n" ++
   -- The raw record's byte 20 independently marks balance and nonce. Fold the
   -- run component-wise: first valid pre / last balance post / maximum nonce
   -- post. `record_nonstorage_effect` carries a nonce word on every value
@@ -471,6 +472,42 @@ def nonstorageEffectAggregateFunction : String :=
   ".Lnea_emit_component_next:\n" ++
   "  addi t6, t6, 1; j .Lnea_emit_component_loop\n" ++
   ".Lnea_emit_component_done:\n" ++
+  -- A same-transaction CREATE followed by SELFDESTRUCT is finalized by the
+  -- spec as an empty account (block_access_lists.py:478-489; fork.py:1201-1204),
+  -- even though the execution log necessarily contains the transient CREATE
+  -- nonce and balance records.  The producer records the destroyed address and
+  -- byte-20 metadata in `evm_selfdestruct_destroyed_table`: 0 means a distinct
+  -- beneficiary clear (drop balance and nonce), 1 means self-destruction to
+  -- self (preserve the balance component, but still drop nonce).  Normalize the
+  -- aggregate after its ordinary component fold so both BAL->exec and
+  -- exec->BAL comparators see the block-final account rather than the transient
+  -- frame history.  The overflow latch keeps the conservative pre-existing path.
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lnea_destroyed_norm_done\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lnea_destroyed_norm_done\n" ++
+  "  la t2, evm_selfdestruct_destroyed_table; mv t3, s11\n" ++
+  ".Lnea_destroyed_norm_scan:\n" ++
+  "  beqz t1, .Lnea_destroyed_norm_done\n" ++
+  "  mv t4, t2; mv t5, t3; li t6, 20\n" ++
+  ".Lnea_destroyed_norm_cmp:\n" ++
+  "  beqz t6, .Lnea_destroyed_norm_hit\n" ++
+  "  lbu a0, 0(t4); lbu a1, 0(t5); bne a0, a1, .Lnea_destroyed_norm_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lnea_destroyed_norm_cmp\n" ++
+  ".Lnea_destroyed_norm_next:\n" ++
+  "  addi t2, t2, 32; addi t1, t1, -1; j .Lnea_destroyed_norm_scan\n" ++
+  ".Lnea_destroyed_norm_hit:\n" ++
+  "  lbu t0, 20(t2); addi t0, t0, 2; sd t0, 104(sp)\n" ++
+  ".Lnea_destroyed_norm_done:\n" ++
+  "  ld t0, 104(sp); li t1, 2; beq t0, t1, .Lnea_destroyed_norm_distinct\n" ++
+  "  li t1, 3; bne t0, t1, .Lnea_destroyed_norm_continue\n" ++
+  -- Self-destruction to self preserves the balance component but clears the
+  -- account's nonce/code at the block boundary.
+  "  ld t0, 96(s11); sd t0, 104(s11); lbu t0, 20(s11); andi t0, t0, 1; sb t0, 20(s11); j .Lnea_destroyed_norm_continue\n" ++
+  ".Lnea_destroyed_norm_distinct:\n" ++
+  -- A distinct-beneficiary clear removes the originator's final account; no
+  -- balance or nonce component survives into the BAL.
+  "  ld t0, 32(s11); sd t0, 64(s11); ld t0, 40(s11); sd t0, 72(s11); ld t0, 48(s11); sd t0, 80(s11); ld t0, 56(s11); sd t0, 88(s11)\n" ++
+  "  ld t0, 96(s11); sd t0, 104(s11); sb zero, 20(s11)\n" ++
+  ".Lnea_destroyed_norm_continue:\n" ++
   "  addi s7, s7, 1\n" ++
   "  mv s8, s10; j .Lnea_run_loop\n" ++
   ".Lnea_done:\n" ++
