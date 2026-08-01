@@ -60,31 +60,171 @@ Run one block: `scripts/spike/spike_run <guest.elf> <input> <output>`
 EEST backend: `EEST_BACKEND=spike scripts/codegen-eest-stateless-check.sh --limit 1000 --jobs 4`
 Parity gate: `scripts/spike/parity-check.sh 8 1`
 
-## Debugging: per-instruction commit log
+## Debugging the guest (recipe)
 
-`spike_run` supports an env-gated commit log for EVM-faithfulness / gas-model
-debugging. Set `SPIKE_COMMITLOG=<file>` and spike writes its standard per-instruction
-trace (RV64 `pc`, instruction word, register and memory writes) to that file.
-Unset, behavior is byte-identical to before (zero impact on parity/CI runs).
+### Headline: `hits=0` means nothing wrote here
+
+`SPIKE_COMMITLOG` is a **trace of writes**. It is structurally blind to the
+**absence** of a write — the correct-but-unfed class (global stays zero because
+no store ever targeted it). The fleet hit that class twice in one day; once it
+cost **~two hours of commitlog archaeology** to learn that `bsbd_deleg_target`
+held 24 zero bytes on a child path because nothing ever wrote it.
+
+`SPIKE_WATCH` is the cheap instrument for that question. Point it at a guest
+global on a **real fixture**. If the run ends with `hits=0`, you have the
+answer in one shot — stop hunting for a clobber and look for a missing store.
+
+**Worked example (known answer, real guest+fixture — not a toy):**
 
 ```bash
-SPIKE_COMMITLOG=/tmp/cl.log scripts/spike/spike_run <guest.elf> <input> /tmp/out
+# guest sha256 7c630c93fb53684b1c0f25d3a7873307bfdfe47fa9180c3ed87e4d8d30491337
+# run-20260801T112401Z-2945520 / 00000 selfdestructing_initcode…
+# nm: bsbd_deleg_target @ 0xbaeaa268  (re-nm after every rebuild)
+ELF=gen-out/eest-run/run-20260801T112401Z-2945520/stateless_guest.elf
+IN=gen-out/eest-run/run-20260801T112401Z-2945520/00000_*.input
+
+SPIKE_WATCH=0xbaeaa268 \
+  scripts/spike/spike_run "$ELF" "$IN" /tmp/out 2>/tmp/watch.log
 ```
 
-The guest\'s EVM-bytecode interpreter has a single dispatch loop; its opcode
-fetch is the `lbu t0, 0(a0)` at the `.dispatch_loop` label (a0/x10 = EVM PC,
-t0/x5 = opcode byte). To extract the executed EVM bytecodes from the log, find
-that fetch instruction\'s address (e.g. via `riscv64-unknown-elf-objdump -d
-<guest.elf> | grep -A2 .dispatch_loop`) and filter:
+Actual stderr from that run:
+
+```
+spike_run: SPIKE_WATCH=0xbaeaa268 initial=0x0000000000000000
+spike_run: SPIKE_WATCH done hits=0 final=0x0000000000000000
+```
+
+`hits=0` = the two-hour answer, in one command. A new instrument proved against
+a **known** fleet answer is trustworthy in a way one proved only on unknowns
+never is.
+
+Unset every debug env var and `spike_run` is **byte-identical** to the
+pre-tooling path (`cmp` matched the prior 256-byte output on the same fixture).
+
+### Tool map
+
+| Tool | Best for | Cost |
+|------|----------|------|
+| `SPIKE_WATCH` | **"did anything write this address?"** (`hits=0` / who wrote) | steps 1 insn at a time; full guest slower but finishes |
+| `SPIKE_DEBUG_CMD` | break at PC/symbol, dump regs/mem, value-match `until mem` | headless; ~normal wall if breakpoint hits early |
+| `SPIKE_BREAK_PC` | one-shot reg dump at a PC, then continue | step-1 until hit, then batch |
+| `SPIKE_COMMITLOG` | "what writes happened?" archaeology | huge files (~0.5 GB/fixture) |
+
+### 0. Resolve addresses
+
+```bash
+ELF=gen-out/eest-run/<run>/stateless_guest.elf   # or whatever guest you built
+IN=gen-out/eest-run/<run>/00000_*.input
+riscv64-unknown-elf-nm "$ELF" | rg 'h_CREATE$|bsbd_deleg_target|create_balance_be'
+# addresses move every rebuild — always re-nm before watching
+```
+
+### 1. True write-watch (`SPIKE_WATCH`)
+
+Watches one **8-byte LE** cell. On any change, prints `pc`, old/new, and a
+useful register subset. End-of-run `hits=0` is the absence signal.
+
+```bash
+SPIKE_WATCH=0xbaeaa268 \
+  scripts/spike/spike_run "$ELF" "$IN" /tmp/out 2>/tmp/watch.log
+
+# Stop on first hit (don't wait for halt):
+SPIKE_WATCH=0xbaeaa268 SPIKE_WATCH_STOP=1 \
+  scripts/spike/spike_run "$ELF" "$IN" /tmp/out 2>/tmp/watch.log
+```
+
+### 2. Headless breakpoints (`SPIKE_DEBUG_CMD`)
+
+Stock spike's `-d` / `--debug-cmd` only run inside `sim.run()` → `idle()` →
+`interactive()`. Our driver **bypasses** that path (custom `p->step` loop +
+`HALT_FLAG` at `0x60008000`), so stock flags do nothing on `spike_run`.
+`SPIKE_DEBUG_CMD` is the harness-native replacement (same command shapes).
+
+```bash
+cat > /tmp/dbg.cmd <<'EOF'
+# stop at h_CREATE entry (re-nm the address!)
+until pc 0x80053704
+pc
+reg          # all XPR
+reg s4       # env base in many handlers
+mem 0xbd79d600   # create_balance_be (re-nm)
+until halt
+quit
+EOF
+SPIKE_DEBUG_CMD=/tmp/dbg.cmd \
+  scripts/spike/spike_run "$ELF" "$IN" /tmp/out 2>/tmp/dbg.log
+# worked example:
+#   until pc 0x80053704 …
+#   stopped pc=0x80053704
+#   s4 = factory env, etc.
+```
+
+Commands (one per line; `#` comments ok):
+
+| cmd | meaning |
+|-----|---------|
+| `pc` | print PC |
+| `reg` / `reg <name>` | all XPR, or one (`a0`, `s4`, `x10`, …) |
+| `mem <hex>` | print 8-byte LE at physical addr |
+| `until pc <hex>` | run until PC equals |
+| `until mem <hex> <hex>` | run until cell **equals** value (not a write watch!) |
+| `until reg <r> <hex>` | run until XPR equals |
+| `until halt` / `rs` / `run` | run until `HALT_FLAG != 0` |
+| `step [n]` | single-step |
+| `quit` | end script; driver still dumps the 256 B output |
+
+**Value-match vs write-watch:** stock spike and our `until mem ADDR VAL` only
+stop when the cell becomes `VAL`. They cannot prove "nothing wrote". Use
+`SPIKE_WATCH` for that.
+
+```bash
+# value-match: stop when halt flag becomes 1 (works)
+until mem 0x60008000 0x1
+```
+
+### 3. One-shot PC log (`SPIKE_BREAK_PC`)
+
+Logs regs once when PC equals the address, then continues to halt (no script):
+
+```bash
+SPIKE_BREAK_PC=0x80053704 \
+  scripts/spike/spike_run "$ELF" "$IN" /tmp/out 2>/tmp/brk.log
+# → SPIKE_BREAK_PC hit pc=0x80053704 + full reg dump
+```
+
+### 4. Commit log (existing)
+
+```bash
+SPIKE_COMMITLOG=/tmp/cl.log scripts/spike/spike_run "$ELF" "$IN" /tmp/out
+```
+
+Per-instruction trace (pc, insn word, reg/mem writes). Great for "show me the
+store that produced this value" once you know a write happened. Bad for absence.
+
+EVM opcode stream (dispatch fetch is `lbu t0, 0(a0)` at `.dispatch_loop`):
 
 ```bash
 rg "<fetch-addr> \(0x00054283\)" /tmp/cl.log \
   | rg -o 'x5\s+0x([0-9a-f]+)\s+mem\s+0x([0-9a-f]+)' -r '$1 $2'
-# column 1 = opcode/operand byte, column 2 = EVM PC (memory address)
+# col1 = opcode/operand byte, col2 = EVM PC address
 ```
 
-This gives the executed-EVM-byte sequence (count includes PUSH operand bytes),
-useful for diffing guest vs execution-specs per-opcode traces (`ethereum.trace`).
+### What does NOT work (honest)
+
+| Approach | Status |
+|----------|--------|
+| Stock `spike -d` / `--debug-cmd=FILE` on our guest | **No** — no input preload, no zisk accel CSRs wired that way, no `HALT_FLAG` contract. Use `spike_run` env vars above. |
+| Stock `spike --halted --rbb-port=N` + gdb | **Impractical here today.** Needs OpenOCD (`openocd` not installed on this host) + a three-process dance (spike / openocd / gdb-multiarch). `spike_run` also does not expose `--rbb-port`. If someone installs OpenOCD later, wire rbb into `spike_run` and revisit; until then `SPIKE_WATCH` + `SPIKE_DEBUG_CMD` cover the fleet need. |
+| Hardware-style "break on any write" via stock interactive | **No** — stock only has value-match `until mem`. Our `SPIKE_WATCH` is the true write watch. |
+| Watching wider than 8 bytes with one `SPIKE_WATCH` | **No** — watches one dword. For a 24-byte buffer watch three addresses or the first dword (enough for "anything touched this object"). |
+| Fast full-run watch | **Slow** — watch/break force `step(1)`. Acceptable for one fixture; don't put it in CI. |
+
+### Rebuild after editing `spike_run.cc`
+
+```bash
+SPIKE_SRC=/path/to/riscv-isa-sim scripts/spike/build.sh
+# produces scripts/spike/spike_run
+```
 
 ## The guest's runtime contract (see ../../../.claude/plans for full map)
 - Memory: header `0x7ffff000`, `.text 0x80000000`, `.data 0xa3000000`,

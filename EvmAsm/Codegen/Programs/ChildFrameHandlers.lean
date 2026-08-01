@@ -400,6 +400,10 @@ def callDescendFallThrough
       "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lcd_sbwb_" ++ tag ++ ":\n" ++
       "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
+      -- GH #11001: mark upcoming child depth so frame_return can re-credit parent
+      -- env+32 if the child reverts (debit is pre-snapshot; rmv is post-snapshot).
+      "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  addi t0, t0, 1\n" ++
+      "  slli t0, t0, 3\n  la t1, live_balance_debited_by_depth\n  add t1, t1, t0\n  li t2, 1\n  sd t2, 0(t1)\n" ++
       -- The committing child must still update its live env balance here.  The
       -- paired balance-effect records are published below by the shared
       -- `record_message_value_transfer` producer, using this site-resolved
@@ -954,15 +958,19 @@ def callDescendFallThrough
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
      ".Lcd_empty_noval_" ++ tag ++ ":\n"
    else "") ++
-  -- An empty-code CALL still enters `process_message`: after its body snapshot,
-  -- `move_ether` commits the paired debit and credit even though no child frame
-  -- is needed to execute bytecode.  Every arrival here (CodeState non-live,
-  -- both delegation status-2 paths, absent header account, and EMPTY_CODE_HASH)
-  -- bypasses `.Lcd_descend`, the only other balance-effect publisher.  Publish
-  -- the already-resolved descriptors once before the successful empty-call return.
-  (if mode != 0 then "" else
-    recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
-      "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
+   -- An empty-code CALL still enters `process_message`: after its body snapshot,
+   -- `move_ether` commits the paired debit and credit even though no child frame
+   -- is needed to execute bytecode.  Every arrival here (CodeState non-live,
+   -- both delegation status-2 paths, absent header account, and EMPTY_CODE_HASH)
+   -- bypasses `.Lcd_descend`, the only other balance-effect publisher.  Publish
+   -- the already-resolved descriptors once before the successful empty-call return.
+   -- GH #11001: transfer commits here (no child frame_return) — clear the
+   -- pre-descend debit mark so a later failing sibling cannot re-credit it.
+   (if mode != 0 then "" else
+     "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  addi t0, t0, 1\n" ++
+     "  slli t0, t0, 3\n  la t1, live_balance_debited_by_depth\n  add t1, t1, t0\n  sd x0, 0(t1)\n" ++
+     recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+       "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
   -- fva3w: empty callee runs nothing and cannot revert, so the value transfer (and its
   -- EIP-7708 log) is committed. Emit the deferred log in the PARENT env (x20 unchanged here).
   -- x12 still = parent stack top; emitPendingXferLog saves/restores it before the pop below.
