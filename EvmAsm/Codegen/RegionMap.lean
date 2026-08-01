@@ -47,6 +47,7 @@
 -/
 
 import EvmAsm.Codegen.CallFrameLayout
+import EvmAsm.Codegen.Emit
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen.RegionMap
@@ -428,8 +429,24 @@ def schemeAAnchors : List GuestRegion :=
     `BlockVerdictCreationStage.lean`. Its own comment said it mirrored the
     depth-zero abort cleanup, and it did -- identical shape, identical retired
     justification, identical `0x40` saving as #10641's. That PR fixed the clause
-    it was pointed at; enumerating the pattern found the other one. -/
-def textSizeBytes : Nat := 0x064dc8
+    it was pointed at; enumerating the pattern found the other one.
+
+    Grew by `0xc` on main (GH #10870's coinbase accumulator) and by `0xd0` -- 208
+    bytes -- here for GH #10866: the N+1 storage phase,
+    `replay_system_storage_writes_at_bai` plus its call and incorporate at BOTH
+    post-exec sites (they are mutually exclusive at run time, so both must carry
+    it).  ELF-MEASURED, not summed: `0x067318 + 0xd0` is the obvious arithmetic and
+    is NOT how this literal was set.  The value is an INPUT to emission, so a
+    hand-computed one gets reflected back by the next relink and looks confirmed --
+    an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
+-- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
+-- change, #10911's guarded post-static-check CALL target account-read
+-- restoration, #10913's creation-stage running creator nonce fix,
+-- #10930's top-level creation-target account-read
+-- (`utils/message.py:71`), and #10931's durable upfront-balance
+-- publish plus credit-path guard removal, then #10957's shared
+-- body-state snapshot slab migration.
+def textSizeBytes : Nat := 0x067830
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -455,8 +472,19 @@ def dataSizeBytes : Nat := 0x5370
     from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
     CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
     capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
-    state table (address, nonce delta, and header-delegated bit). -/
-def bssSizeBytes : Nat := 0x1b77b540
+    state table (address, nonce delta, and header-delegated bit). Grew by
+    `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab, then `0x2000`
+    for GH #10619's fourteenth slab field (`storage_writes_undo_count`).
+
+    ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
+    the eight-byte remainder is absorbed by the `.balign 32` that already followed the
+    slab. Derived from the emitted addresses, not from arithmetic —
+    `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
+    `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
+    `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
+    the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
+    removal absorbs in the same direction (#10986, #10988). -/
+def bssSizeBytes : Nat := 0x1c0fd020
 
 /-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
     storage map. It is kept outside `.data` so zero initialization does not
@@ -477,13 +505,21 @@ def outputRegion : GuestRegion :=
 /-- `.text` section (`-Ttext=0x80000000`). -/
 def textRegion : GuestRegion :=
   { name := ".text", base := 0x80000000, size := textSizeBytes, mode := .rx, zone := .text,
+    -- GH #10619: the two ELF-measured sizes below INTERPOLATE their pins rather than
+    -- restating them.  The `.bss` string hardcoded `0x1c105000` and had gone stale by
+    -- THREE merged PRs: #10979 shrank the pin and left the prose, then #10986 and #10988
+    -- shrank it again, leaving the string `0xa020` bytes wrong.  Updating the digit would
+    -- only re-stale it on the next repin — and note the `.text` evidence just above never
+    -- went stale precisely because it states NO NUMBER.  The `.data` string was correct
+    -- when this change was made and is interpolated anyway: a literal duplicating a named
+    -- value with no tripwire is the exposure, whether or not it currently agrees.
     evidence := "ELF -Ttext=0x80000000; size link-dependent (drift guard)" }
 
 /-- `.data` section (`-Tdata=0xa3000000`). Contains every static/verdict arena,
     including the `call_frame_arena` union family enumerated in `dataUnionArenas`. -/
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; 0x5370-byte PROGBITS extent" }
+    evidence := "ELF -Tdata=0xa3000000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
 
 /-- Fixed-size cross-transaction committed-storage map
     (`--section-start=.committed_storage=0xa2000000`). -/
@@ -492,10 +528,15 @@ def committedStorageRegion : GuestRegion :=
     size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
     evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
 
-/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa4000000`). -/
+/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa3110000`). The
+    base moved down from `0xa4000000` into the `.data` slack (`.data` uses
+    only 21,360 B of its 16 MiB reservation) to make room for the GH #10836
+    BAL-arena resize; the `.data`/`.bss` sum budget proved at
+    `CallFrameLayout.lean` (`≤ sszScratchBase - dataBase = 0x1c980000`) is
+    unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
-  { name := ".bss", base := 0xa4000000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa4000000; 0x1b20b120-byte NOBITS extent" }
+  { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.bss=0xa3110000; 0x" ++ natToHex bssSizeBytes ++ "-byte NOBITS extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
@@ -548,7 +589,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xa3005310`, `.bss` ends `0xbe318fc0`,
+    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbf215000`,
     both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
     is expanded — as its own inventory —

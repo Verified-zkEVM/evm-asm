@@ -217,6 +217,8 @@ import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeUintBeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
@@ -507,6 +509,7 @@ import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogSpec
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLogScan
+import EvmAsm.Codegen.Programs.BalStorageReadsExecLogLink
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsSpec
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsLoop

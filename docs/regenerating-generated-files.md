@@ -73,8 +73,11 @@ guest change, a regen step above was missed or RegionMap's sizes are stale.
 
 ## Notes
 
-- **Do not use `scripts/regen-cycle.sh`** — it is broken (hardcoded dead scratch path + an
-  uncommitted helper). Use the commands above.
+- **`scripts/regen-cycle.sh` was removed** (#10746). It hardcoded a dead scratch path and
+  invoked an uncommitted helper (`remap_sasm.py`, which exists in no tree) — and with a
+  missing scratch directory its clean-test `[ ! -s "$S/failpass.txt" ]` was satisfied by the
+  *absence* of the file it had failed to write, so it printed `REGEN_CLEAN pass=1` and exited
+  0 regardless of actual drift. Use the commands above.
 - Step 2 (`GuestAddrs.lean`) is the file that churns on essentially every layout change: the
   per-function `_prog` defs reference its constants by name (`AsmReloc.{laHi,laLo,jalOff}`), so a
   size change only requires regenerating the TSV + `GuestAddrs.lean`, never the hundreds of
@@ -129,3 +132,64 @@ seed them from the side with the superset of symbols (normally `origin/main`), r
 reflexively taking `--ours`, so the tree can build far enough to run step 1. In one incident an
 `--ours` placeholder lacked `block_access_list_hash_core` and prevented codegen from building.
 The subsequent regen remains authoritative, but it can only run from a buildable placeholder.
+
+### `Main.lean` is not the only chain that needs breaking
+
+The hatch above breaks the *forced-check* import chain — `Main.lean` imports the
+`EvmAsm.Codegen.Proofs.*` modules only so they get checked, so commenting them is free. But the
+deadlock can also sit in a module the emitter **genuinely needs**, and then that hatch does not
+help.
+
+Observed while batching three branches where one *deleted* code (shrinking `.text`) and another
+*added* it. `lake exe codegen` would not link:
+
+```
+error: EvmAsm/Codegen/Programs/RlpSpliceHelperSpec.lean:697:73: Tactic `decide` proved that the
+  proposition rlpItemSizeBase = 2147503412 is false
+```
+
+Same chicken-and-egg as above — a `decide`-pinned guest PC checked against a stale
+`GuestAddrs.lean` — but `RlpSpliceHelperSpec` reaches the exe via
+`Programs/Imports.lean` → `Programs/Registry.lean`, which `Cli`/`Driver` really do need. Commenting
+`Main.lean`'s `Proofs.*` imports leaves that path intact, so the exe still fails.
+
+The lower cut is the two `*Spec` imports in `EvmAsm/Codegen/Programs/Imports.lean`. The Spec
+modules contribute theorems, not emitted programs, so the emitter does not need them:
+
+```bash
+# 1. Comment ONLY the failing `*Spec` imports in EvmAsm/Codegen/Programs/Imports.lean
+#    (plus Main.lean's Proofs.* imports if GuestImage is also implicated).
+# 2. scripts/gen-symbol-addresses.py --build     # now links; TSV is authoritative
+# 3. Read the true addresses for the pinned symbols out of the fresh TSV:
+#      grep -E '\brlp_item_span\b|\brlp_item_size\b' scripts/asm-fixtures/symbol-addresses.tsv
+# 4. Restore BOTH files, then run the full 4-step procedure and repin.
+```
+
+**The linked image is the arbiter for a pinned address, not either branch.** In that incident the
+pins the merge already carried (`0x80004dc0` / `0x80004d34`, from the deleting branch) turned out to
+be *correct* for the combined layout, and the older values on the sibling branches were the stale
+ones — so no pin needed editing at all, and "fixing" the mismatch by reverting to a sibling's
+literal would have broken the build. Read the relinked ELF before changing any pin.
+
+Verify the bootstrap was free the same way as above: `git diff --quiet` on **both**
+`EvmAsm/Codegen/Programs/Imports.lean` and `Main.lean` before committing.
+
+### Iterate to a fixpoint, and check exit codes rather than file stability
+
+When one branch shrinks `.text` and another grows it, a single regen pass is not enough — the size
+change moves addresses, which changes the emitted `la`/`jal` encodings, which changes the size
+again. Iterate steps 1–3 until the TSV stops changing.
+
+Do **not** decide convergence by comparing the TSV before and after a pass. A failed
+`gen-symbol-addresses.py` leaves the file untouched, and "unchanged" then looks exactly like
+"converged" — a loop written that way reports a fixpoint over a failed regen. Check every step's
+exit status first, and only then treat a stable TSV as convergence:
+
+```bash
+scripts/gen-symbol-addresses.py --build          || { echo "step 1 FAILED"; exit 1; }
+python3 scripts/asm_to_program.py guest-addrs    || { echo "step 2 FAILED"; exit 1; }
+python3 scripts/guest_image_coverage.py --emit-lean || { echo "step 3 FAILED"; exit 1; }
+```
+
+A stale pin fails late and behind a cached `.olean`, so the first symptom is often an unrelated
+module rather than the pin itself.

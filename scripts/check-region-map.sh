@@ -4,6 +4,11 @@
 # Cross-checks EvmAsm/Codegen/RegionMap.lean (and the .9.3 linker-facts TSV)
 # against the linked stateless_guest ELF -- the final arbiter. Two tiers:
 #
+#   SCOPE: this guard validates the stateless_guest ELF ONLY. Since GH #10836
+#     the `.bss` section-start is PER UNIT (guest 0xa3110000, probe/test units
+#     0xa3d10000, see Driver.assembleAndLink / Cli.emitAndLink); probe ELFs are
+#     deliberately NOT checked here and RegionMap describes the guest's layout.
+#
 #   STRUCTURAL (hard fail): facts that must NEVER drift silently --
 #     * section bases (.text/.data/.bss/.sszscratch) == the -Ttext/-Tdata/
 #       --section-start flags and RegionMap constants;
@@ -73,7 +78,7 @@ echo "== structural (must never drift) =="
 check ".text base"       "0000000080000000" "$TEXT_BASE"
 check ".committed_storage base" "00000000a2000000" "$COMMITTED_BASE"
 check ".data base"       "00000000a3000000" "$DATA_BASE"
-check ".bss base"        "00000000a4000000" "$BSS_BASE"
+check ".bss base"        "00000000a3110000" "$BSS_BASE"
 check ".sszscratch base" "00000000bf980000" "$SSZ_BASE"
 
 # emitted-reality anchors the section table omits (guest stack top + ZisK MTVEC).
@@ -97,8 +102,8 @@ BSS_END=$(python3 -c "print('%x' % (0x$BSS_BASE + 0x$BSS_SIZE))")
 python3 - "$DATA_END" "$BSS_END" <<'PY' || fail=1
 import sys
 data_end, bss_end = [int(x, 16) for x in sys.argv[1:]]
-ok = data_end <= 0xa4000000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
-print(f"  {'OK  ' if ok else 'DRIFT'} .data end 0x{data_end:x} <= .bss base 0xa4000000")
+ok = data_end <= 0xa3110000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
+print(f"  {'OK  ' if ok else 'DRIFT'} .data end 0x{data_end:x} <= .bss base 0xa3110000")
 print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf980000 and < RAM ceiling 0xc0000000")
 sys.exit(0 if ok else 1)
 PY

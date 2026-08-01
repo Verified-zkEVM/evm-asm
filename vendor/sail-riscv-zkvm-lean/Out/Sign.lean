@@ -130,6 +130,7 @@ open f_bin_f_op_H
 open f_bin_f_op_D
 open extension
 open exception
+open csrop
 open cregidx
 open cfregidx
 open cbop_zicbop
@@ -148,6 +149,7 @@ open VectorHalf
 open TrapVectorMode
 open TrapCause
 open Step
+open Splittability
 open Software_Check_Code
 open Signedness
 open SWCheckCodes
@@ -155,6 +157,7 @@ open SATPMode
 open Reservability
 open Register
 open RV32ZdinxOddRegisterReservedBehavior
+open Privileged_ISA_Version
 open Privilege
 open PointerMaskingMode
 open PmpWriteOnlyReservedBehavior
@@ -165,11 +168,11 @@ open PM_Ext
 open OOBVstartReservedBehavior
 open MemoryRegionType
 open MemoryAccessType
-open IsaVersion
 open InterruptType
 open IllegalVtypeReservedBehavior
 open ISA_Format
 open HartState
+open FflagsDirtyPolicy
 open FetchResult
 open FetchBytes_Result
 open FeatureEnabledResult
@@ -185,11 +188,11 @@ open AtomicSupport
 open Architecture
 open AmocasOddRegisterReservedBehavior
 
-/-- Type quantifiers: k_ex249631_ : Nat, k_ex249631_ ∈ {16, 32, 64, 128} -/
-def float_is_positive (op : (BitVec k_ex249631_)) : Bool :=
+/-- Type quantifiers: k_ex475993_ : Nat, k_ex475993_ ∈ {16, 32, 64, 128} -/
+def float_is_positive (op : (BitVec k_ex475993_)) : Bool :=
   (is_highest_zero op)
 
-/-- Type quantifiers: k_ex249633_ : Nat, k_ex249633_ ∈ {16, 32, 64, 128} -/
-def float_is_negative (op : (BitVec k_ex249633_)) : Bool :=
+/-- Type quantifiers: k_ex475995_ : Nat, k_ex475995_ ∈ {16, 32, 64, 128} -/
+def float_is_negative (op : (BitVec k_ex475995_)) : Bool :=
   (is_highest_one op)
 

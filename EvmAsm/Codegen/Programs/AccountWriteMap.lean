@@ -118,6 +118,11 @@ def blockAccountWritesCapacity : Nat := 20480
     lives in GH #10680; raw nonstorage rows (38460) are not distinct map keys. -/
 def accountWritesCallKeyBound : Nat := 1 + 200000000 / (3000 + 10300)
 
+/-- The AccountState scan capacity is defined in CreateCodeEffectLog.lean.
+    Keep the resolver's emitted bound explicit here and pin it against that
+    shared definition in NonstorageEffectLog, which imports both modules. -/
+def accountStateResolverCapacity : Nat := 38460
+
 /-- Per-row component-valid bits. A set bit says this transaction observed a
     final value for the component; it does not by itself mean the value differs
     from the transaction's baseline. -/
@@ -185,7 +190,12 @@ def accountWriteRecordFunction : String :=
   ".Lawr_store:\n" ++
   "  ld t2, 112(sp); andi t3, t2, 1; beqz t3, .Lawr_no_balance; ld t3, 72(sp); ld t4, 0(t3); sd t4, 32(t5); ld t4, 8(t3); sd t4, 40(t5); ld t4, 16(t3); sd t4, 48(t5); ld t4, 24(t3); sd t4, 56(t5)\n" ++
   ".Lawr_no_balance:\n" ++
-  "  andi t3, t2, 2; beqz t3, .Lawr_no_nonce; ld t3, 80(sp); sd t3, 64(t5)\n" ++
+  -- Nonce changes are reduced by maximum in execution-specs
+  -- (`block_access_lists.py:440-447`).  A transaction can publish its
+  -- inclusion nonce before an EIP-7702 authorization, then publish a later
+  -- balance/refund record whose nonce is lower.  Keep the authenticated
+  -- higher nonce instead of letting that later row erase it.
+  "  andi t3, t2, 2; beqz t3, .Lawr_no_nonce; ld t3, 80(sp); ld t4, 64(t5); bltu t3, t4, .Lawr_no_nonce; sd t3, 64(t5)\n" ++
   ".Lawr_no_nonce:\n" ++
   "  andi t3, t2, 4; beqz t3, .Lawr_no_code; ld t3, 88(sp); sd t3, 80(t5); ld t3, 96(sp); sd t3, 88(t5)\n" ++
   ".Lawr_no_code:\n" ++
@@ -317,26 +327,62 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  bnez s5, .Laweb_parent\n" ++
   ".Laweb_parent:\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s4; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_builder_pre_account; jal ra, account_at_header_state_root; sd a0, 80(sp)\n" ++
+  -- The resolver is the single balance/nonce baseline implementation.  The
+  -- local scan below remains only to select the block-map code hash record;
+  -- code has a different variable-width representation and is not part of
+  -- account_resolve_pre_state's fixed account scratch output.
+  "  mv a0, s4; la a1, account_builder_pre_account; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
   "  ld s8, 112(s4)\n" ++
-  -- Balance: baseline is block balance on a valid hit, otherwise header+8.
+  -- Balance: the resolver has already materialised the block/durable/header
+  -- precedence into the shared account scratch.
   "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
   ".Laweb_balance_have:\n" ++
-  "  beqz s5, .Laweb_balance_header; ld t0, 112(s5); andi t0, t0, 1; beqz t0, .Laweb_balance_header; addi s6, s5, 32; j .Laweb_balance_cmp\n" ++
-  ".Laweb_balance_header:\n" ++
+  -- Diagnostic cell (bald_*): the producer bit as OBSERVED here, one increment
+  -- per account-loop iteration whose mask carries balance.  Placed past the
+  -- label so it is inside the block the branch selects; t0/t1 are dead (t0 held
+  -- the `andi` result already consumed by the `bnez`).
+  "  la t0, bald_bal_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la s6, account_builder_pre_account; addi s6, s6, 8\n" ++
   ".Laweb_balance_cmp:\n" ++
-  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
+  -- The final `beq` is RELABELLED to the witness block rather than having a probe
+  -- spliced into the equal path: the branch already exists, so relabelling cannot
+  -- change which comparisons are made, and `bit_set = eq + ne` is the built-in
+  -- check that the relabel did not lose a path.
+  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_bal_eq\n" ++
   ".Laweb_balance_emit:\n" ++
+  -- Diagnostic cell: the compare found inequality, so the append is CALLED.
+  -- bit_set minus differs is exactly the "compare found equality" population
+  -- (cause 2); differs minus builder_count is an append that did not land.
+  "  la t0, bald_bal_differs; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, bald_bal_ne_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
   "  mv a0, s4; mv a1, s7; addi a2, s4, 32; jal ra, bal_builder_append_balance\n" ++
-  -- Nonce: baseline is block nonce on a valid hit, otherwise header+0.
+  -- Jump over the witness block; falling through would run it on the append path.
+  "  j .Laweb_nonce\n" ++
+  ".Laweb_bal_eq:\n" ++
+  "  la t0, bald_bal_eq_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s6); la t0, bald_bal_eq_val_lo; sd t1, 0(t0); ld t1, 24(s6); la t0, bald_bal_eq_val_hi; sd t1, 0(t0)\n" ++
+  "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
+  -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
   ".Laweb_nonce_have:\n" ++
-  "  beqz s5, .Laweb_nonce_header; ld t0, 112(s5); andi t0, t0, 2; beqz t0, .Laweb_nonce_header; ld t0, 64(s5); j .Laweb_nonce_cmp\n" ++
-  ".Laweb_nonce_header:\n" ++
+  -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here
+  -- and is reloaded by `.Laweb_nonce_cmp` below.
+  "  la t0, bald_non_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, account_builder_pre_account; ld t0, 0(t0)\n" ++
   ".Laweb_nonce_cmp:\n" ++
-  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  -- The nonce differs-cell must sit AFTER the skip-on-equal branch, so it counts
+  -- appends and not bit-set accounts.  t5/t6 rather than t0/t1: t0 carries the
+  -- resolver's pre-state nonce and t1 the post value passed as a2.
+  "  ld t1, 64(s4); beq t0, t1, .Laweb_non_eq; la t5, bald_non_differs; ld t6, 0(t5); addi t6, t6, 1; sd t6, 0(t5); la t5, bald_non_ne_bai_mask; ld t6, 0(t5); li t3, 1; sll t3, t3, s7; or t6, t6, t3; sd t6, 0(t5); mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
+  "  j .Laweb_code\n" ++
+  -- Witness block for the equal path.  t0 is the resolver's pre nonce and t1 the
+  -- post read from 64(s4); both are published even though they are equal here,
+  -- because the pair distinguishes "both zero, so the post was never staged" from
+  -- "the pre side already carries the post value".
+  ".Laweb_non_eq:\n" ++
+  "  la t2, bald_non_eq_bai_mask; ld t3, 0(t2); li t4, 1; sll t4, t4, s7; or t3, t3, t4; sd t3, 0(t2)\n" ++
+  "  la t2, bald_non_eq_val_pre; sd t0, 0(t2); la t2, bald_non_eq_val_post; sd t1, 0(t2)\n" ++
   -- Code compares hashes, never code pointer/length identity.  The header
   -- reader zeroes its output on authenticated absence, so select the canonical
   -- EMPTY_CODE_HASH in that one case.
@@ -382,6 +428,75 @@ def accountWritesIncorporateTxFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret\n"
 
+/-! ## account_resolve_pre_state
+
+    Resolve one account's pre-transaction balance/nonce with the same
+    precedence as execution-specs' `_get_pre_tx_account`: the block-cumulative
+    `account_writes` map first, then the durable AccountState overlay, then the
+    authenticated parent-state witness. The block map is authoritative for
+    fields it carries; fieldwise rows may leave the other component unknown.
+
+    a0 = canonical address (20 B), a1 = output account scratch (nonce@0,
+    balance@8), a2/a3 = parent header RLP ptr/len, a4/a5 = witness ptr/len.
+    Returns a0 = 0 on a resolved account (including authenticated absence,
+    represented as zero nonce/balance), or 1 on malformed lookup/error. -/
+def accountResolvePreStateFunction : String :=
+  "account_resolve_pre_state:\n" ++
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0\n" ++
+  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
+  -- First source: block-cumulative account_writes. It is the pre-tx
+  -- baseline for the current transaction, not the immutable parent account.
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa24a0000; li t3, 0\n" ++
+  ".Larp_block_scan:\n" ++
+  "  bgeu t3, t1, .Larp_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
+  ".Larp_block_cmp:\n" ++
+  "  beqz t6, .Larp_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Larp_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Larp_block_cmp\n" ++
+  ".Larp_block_next:\n" ++
+  "  addi t3, t3, 1; j .Larp_block_scan\n" ++
+  ".Larp_block_hit:\n" ++
+  "  mv s6, t5; ld t0, 112(s6); andi t1, t0, 1; beqz t1, .Larp_block_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
+  ".Larp_block_nonce:\n" ++
+  "  andi t1, t0, 2; beqz t1, .Larp_block_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  ".Larp_block_done:\n" ++
+  -- There is NO second source.  `_get_pre_tx_account`
+  -- (`block_access_lists.py:583-598`) has exactly TWO tiers -- the cumulative
+  -- `pre_tx_accounts` map, then `pre_state.get_account_optional(address)` -- and
+  -- `pre_state` is the IMMUTABLE PRE-BLOCK state.
+  --
+  -- This routine used to consult the durable `AccountState` overlay in between.
+  -- That overlay is LIVE MUTATED STATE: `update_builder_from_tx` runs at the
+  -- transaction boundary, by which point the sender's gas debit and nonce
+  -- increment have already been applied to it.  So for an account with NO
+  -- block-map row -- i.e. its first touch in the block -- the overlay returned the
+  -- POST value as the "pre" value, the caller's change-compare found equality,
+  -- and the row was silently dropped.  Measured on six EIP-7928 fixtures: the
+  -- nonce deficit equalled the number of distinct senders on all six, and on
+  -- multi-tx-same-sender blocks the sender's LATER rows appended correctly
+  -- (`ne_bai_mask = {2,3}`) because from the second transaction on the block map
+  -- hits and supplies a genuine pre value.  See GH #10799.
+  --
+  -- Falling straight through to the authenticated parent witness is what the spec
+  -- says and is also correct on its own terms: if no earlier transaction in this
+  -- block touched the account, its pre-transaction state IS the parent state.
+  ".Larp_header_done:\n" ++
+  "  li t0, 3; beq s7, t0, .Larp_ok\n" ++
+  -- Final source: authenticated parent witness. Absence is a valid zero
+  -- account; only malformed lookup errors fail closed.
+  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; la a6, account_builder_pre_account; jal ra, account_at_header_state_root_tracked\n" ++
+  "  li t0, 1; bgtu a0, t0, .Larp_fail; beqz a0, .Larp_header_found; j .Larp_ok\n" ++
+  ".Larp_header_found:\n" ++
+  "  andi t1, s7, 1; bnez t1, .Larp_header_nonce; la t0, account_builder_pre_account; ld t1, 8(t0); sd t1, 8(s1); ld t1, 16(t0); sd t1, 16(s1); ld t1, 24(t0); sd t1, 24(s1); ld t1, 32(t0); sd t1, 32(s1); ori s7, s7, 1\n" ++
+  ".Larp_header_nonce:\n" ++
+  "  andi t1, s7, 2; bnez t1, .Larp_ok; la t0, account_builder_pre_account; ld t1, 0(t0); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  ".Larp_ok:\n" ++
+  "  li a0, 0; j .Larp_ret\n" ++
+  ".Larp_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Larp_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 96; ret\n"
+
 /-! ## `account_writes_discard_tx`
 
     A transaction that fails contributes nothing to the block. The spec reaches
@@ -412,8 +527,26 @@ def accountWritesDiscardTxFunction : String :=
     the journal inherits the exec log's already-enforced 16384-row cap. -/
 def accountWritesUndoPushFunction : String :=
   "account_writes_undo_push:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp)\n" ++
+  -- GH #10810: save t5/t6 as well, so this routine's CONTRACT matches what its callers
+  -- already assume.  `account_write_record`'s hit path holds the target row address in t5
+  -- ACROSS this call and then stores every field through it -- balance at 32(t5), nonce at
+  -- 64(t5), the valid mask at 112(t5) -- without re-establishing it, while the append path
+  -- DOES recompute t5 afterwards.  That asymmetry is evidence someone already knew the call
+  -- is not t5-safe.  The hit path was correct only because this body happens to use t0..t4
+  -- exclusively, whereas the prologue promised only t0..t4 -- i.e. t5 was documented as
+  -- clobberable and merely accidentally preserved.
+  --
+  -- The failure mode if that accident ever ended: a stale t5 sends the fieldwise stores,
+  -- INCLUDING the valid-mask `or` at 112(t5), into a DIFFERENT 128-byte row -- one account's
+  -- balance or nonce written onto another account's record, and a mask bit set on an account
+  -- that never had that component written, with no trap and no error code.  That is the
+  -- wrong-row class only a whole-structure hash catches.
+  --
+  -- Fixing the CALLEE rather than recomputing t5 at the one call site is deliberate: it
+  -- protects every future caller instead of leaving the next one to rediscover the hazard.
+  -- Frame grows 48 -> 64 to hold the two extra saves (still 16-byte aligned).
+  "  addi sp, sp, -64\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, 0xa2920000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
@@ -429,8 +562,8 @@ def accountWritesUndoPushFunction : String :=
   "  ld t2, 96(t4);  sd t2, 80(t3); ld t2, 104(t4); sd t2, 88(t3); ld t2, 112(t4); sd t2, 96(t3); ld t2, 120(t4); sd t2, 104(t3)\n" ++
   ".Lawu_appended:\n" ++
   "  addi t1, t1, 1; la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret\n"
 
 /-! ## `account_writes_restore_frame`
@@ -483,18 +616,23 @@ def accountWriteMapDataSection : String :=
   "tx_account_writes_overflow:\n  .zero 8\n" ++
   "account_writes_undo_count:\n  .zero 8\n"
 
-/-- The per-frame undo marks are runtime-zeroed NOBITS, not ordinary `.data`.
-    Keeping this array out of the address-pinned PROGBITS section is essential:
-    it is an execution journal, while fixed Bn254 proof anchors live later in
-    `.data`. -/
+/-- Runtime-zeroed NOBITS storage used by the account-write map. -/
 def accountWriteMapBssSection : String :=
   ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
-  -- Per-depth transaction-map undo mark.  A child REVERT restores account
-  -- writes, unlike storage reads: reverted balance, nonce, and code mutations
-  -- are not BAL events at all.  Kept alongside the storage-write checkpoint
-  -- rather than in the packed frame ABI.
-  "account_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
+  -- EIP-7702 authorization code is represented by a 23-byte delegation
+  -- designator.  Transaction/account-write rows retain a pointer to those
+  -- bytes until the later BAL builder pass, so this must be a block-lifetime
+  -- NOBITS arena, not a reusable per-auth scratch.  One slot per possible
+  -- authorization tuple is bounded by the regular-gas admission floor.
+  "eip7702_auth_code_next:\n  .zero 8\n" ++
+  ".balign 8\n" ++
+  "eip7702_auth_code_slots:\n  .zero " ++ toString (bvEip7702AuthEntryCapacity * 24) ++ "\n" ++
+  -- Mark immediately before authorization preparation.  A preparation
+  -- ExceptionalHalt drops accepted auth mutations but retains sender inclusion
+  -- and the already-staged transaction debit; a body revert uses the later
+  -- body mark and keeps the authorization phase.
+  "account_writes_auth_prepare_mark:\n  .zero 8\n" ++
   -- Transaction-boundary builder-walk scratch.  This stays in BSS: it is
   -- runtime-only comparison state, and a data-section addition would shift the
   -- pinned descriptor area for no semantic benefit.
@@ -514,7 +652,8 @@ def accountWriteMapFunctions : String :=
   accountWritesIncorporateTxFunction ++
   accountWritesDiscardTxFunction ++
   accountWritesUndoPushFunction ++
-  accountWritesRestoreFrameFunction
+  accountWritesRestoreFrameFunction ++
+  accountResolvePreStateFunction
 
 /-! ## Structural guards
 
@@ -556,8 +695,14 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
+-- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
+-- target row address in t5 ACROSS this call. Pin the save AND the restore: a prologue-only save
+-- would leave the register clobbered on return and read as a fix.
+#guard (accountWritesUndoPushFunction.splitOn "sd t5, 40(sp); sd t6, 48(sp)").length == 2
+#guard (accountWritesUndoPushFunction.splitOn "ld t5, 40(sp); ld t6, 48(sp)").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_resolve_pre_state:").length == 2
 
 -- The clear in `incorporate` must reset the undo journal too: its entries index
 -- the tx-level map, so a retained mark would unwind the NEXT transaction's writes

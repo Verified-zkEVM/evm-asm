@@ -8,6 +8,9 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.ArenaCapacities
+import EvmAsm.Codegen.GasConstants
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -15,16 +18,16 @@ open EvmAsm.Rv64
 
 /-! ## stage_creation_runtime_payload
 
-    Stage the first conservative top-level creation runtime payload shape.
-    The transaction initcode is executable bytecode, not calldata, so this is
-    intentionally separate from `stage_runtime_payload_code`, which copies the
-    context data section into the calldata segment for normal message calls.
+    Legacy one-byte-STOP creation staging.  The live arbitrary-initcode route
+    below uses `stage_runtime_payload_code`; it must explicitly split the
+    creation frame's empty calldata from the transaction's initcode, which is
+    charged as transaction data but executed as frame code.
 
     This slice supports only one-byte STOP initcode. That is the narrow shape
-    whose execution does not observe ADDRESS/CALLER/ORIGIN/CALLVALUE, so the
-    later integration can run it before the created-address/creator-env
-    substrate exists. Broader constructors must stay gated until those fields
-    are staged soundly.
+    whose execution does not observe ADDRESS/CALLER/ORIGIN/CALLVALUE. These
+    constraints apply only to this legacy probe: they do not gate production
+    creation. `blockVerdictCreationRuntimeFunction` below stages the created
+    address and creator environment before dispatching arbitrary initcode.
 
     Calling convention:
       a0 = context record ptr (192-byte simple_transfer/multi_tx_nth_context
@@ -292,55 +295,43 @@ def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
 -/
 def blockVerdictCreationRuntimeFunction : String :=
   "block_verdict_creation_runtime:\n" ++
-  "  addi sp, sp, -40\n" ++
+  "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0\n" ++
   "  la t0, bv_creation_ctx_ptr; sd s0, 0(t0)  # stable across runtime dispatcher\n" ++
   "  mv s1, a1\n" ++
-  -- A top-level CREATE runs its transaction data as initcode.  Use the common
-  -- arbitrary-code payload stager rather than the old one-byte STOP-only
-  -- layout so the callable runtime receives the real initcode bytes both as
-  -- code and as transaction calldata for intrinsic-gas accounting.
+  -- A top-level CREATE runs transaction data as initcode, but its EVM frame
+  -- has empty calldata.  The common stager models normal message calls, where
+  -- ctx.data is both transaction data and frame calldata, so temporarily hide
+  -- the context length while it builds the frame and restore it immediately.
+  -- The dispatcher receives the restored ptr/len separately for transaction
+  -- intrinsic gas; this keeps CALLDATALOAD/CALLDATACOPY empty while CODECOPY
+  -- still sees initcode (execution-specs: vm/instructions/system.py:134-143).
   -- The callable runtime may resolve code for nested CALL/STATICCALL targets.
   -- Reserve room for its authenticated M31 context before the common stager
-  -- writes the code/calldata prefix: two padded initcode copies plus the
+  -- writes the code/calldata prefix: one padded initcode copy plus the
   -- pre-header, state witness, codes witness, and fixed trailer must fit the
   -- same bounded payload buffer as the normal contract path.
-  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8; slli t1, t1, 1\n" ++
+  "  ld t1, 64(s0); addi t1, t1, 7; andi t1, t1, -8\n" ++
   "  la t0, sv_pre_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  la t0, bv_witness_state_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Lbvcr_payload_unsupported\n" ++
+  "  ld t0, 64(s0); sd t0, 40(sp); sd zero, 64(s0)\n" ++
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
-  "  ld a3, 56(s0); ld a4, 64(s0)\n" ++
+  "  ld a3, 56(s0); ld a4, 40(sp)\n" ++
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
+  "  ld t0, 40(sp); sd t0, 64(s0)\n" ++
+  "  la t1, runtime_tx_intrinsic_data_ptr; ld t2, 56(s0); sd t2, 0(t1)\n" ++
+  "  la t1, runtime_tx_intrinsic_data_len; ld t2, 64(s0); sd t2, 0(t1)\n" ++
   "  bnez a0, .Lbvcr_ret\n" ++
-  -- Match the normal contract-dispatch M31 trailer.  The common stager only
+  -- Match the normal contract-dispatch witness trailer.  The common stager
   -- constructs code, calldata, and env words; nested account/code lookups
-  -- require this authenticated pre-transaction header/witness context.
-  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1\n" ++
-  "  la t1, sv_pre_rlp_len; ld t2, 0(t1); sd t2, 472(t0)\n" ++
-  "  la t1, bv_witness_state_len; ld t3, 0(t1); sd t3, 480(t0)\n" ++
-  "  la t1, svf_codes_len; ld t4, 0(t1); sd t4, 488(t0)\n" ++
-  "  addi t5, t0, 496\n" ++
-  "  la t1, sv_pre_rlp_ptr; ld t1, 0(t1); mv t6, t2\n" ++
-  ".Lbvcr_ctx_hdr_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_state_copy_start\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_hdr_copy\n" ++
-  ".Lbvcr_ctx_state_copy_start:\n" ++
-  "  la t1, bv_witness_state_ptr; ld t1, 0(t1); mv t6, t3\n" ++
-  ".Lbvcr_ctx_state_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_codes_copy_start\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_state_copy\n" ++
-  ".Lbvcr_ctx_codes_copy_start:\n" ++
-  "  la t1, svf_codes_ptr; ld t1, 0(t1); mv t6, t4\n" ++
-  ".Lbvcr_ctx_codes_copy:\n" ++
-  "  beqz t6, .Lbvcr_ctx_done\n" ++
-  "  lbu a0, 0(t1); sb a0, 0(t5); addi t1, t1, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lbvcr_ctx_codes_copy\n" ++
-  ".Lbvcr_ctx_done:\n" ++
+  -- additionally require authenticated pre-transaction header/state/code.
+  "  la a0, bv_runtime_payload; la a1, sv_pre_rlp_ptr; ld a1, 0(a1); la a2, sv_pre_rlp_len; ld a2, 0(a2); la a3, bv_witness_state_ptr; ld a3, 0(a3); la a4, bv_witness_state_len; ld a4, 0(a4); la a5, svf_codes_ptr; ld a5, 0(a5); la a6, svf_codes_len; ld a6, 0(a6); jal ra, stage_runtime_payload_witness_context\n" ++
   -- `stage_runtime_payload_code` normally takes ADDRESS from ctx+72 (the
   -- transaction recipient).  A top-level CREATE has no recipient: its frame
   -- address is the CREATE(sender, nonce) address already derived by the
@@ -398,6 +389,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  add t3, t1, t2; lbu t4, 0(t3); add t3, t0, t2; sb t4, 0(t3); addi t2, t2, 1; j .Lbvcr_create_address_copy\n" ++
   ".Lbvcr_create_address_copy_done:\n" ++
   "  la t1, create_address_by_depth; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
+  -- `utils/message.py:56-71` derives a top-level creation target and adds it
+  -- to `accessed_addresses` before any execution.  Record the same derived
+  -- CREATE(sender, nonce) target after it exists and before the dispatcher
+  -- begins the corresponding create frame; it remains a read even when
+  -- initcode later halts or reverts.
+  "  la a0, bv_create_addr; jal ra, account_read_record\n" ++
   "  ld s2, 48(s0)               # save is_creation before dispatcher clobbers caller state\n" ++
   -- Retain only the depth-zero RETURN in a distinct EIP-170-sized fixed
   -- buffer.  Its status distinguishes STOP (0), captured RETURN (1), and an
@@ -427,6 +424,101 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl_val_d:\n" ++
   "  li t1, 1; la t0, eip7708_tl_typed_avail; sd t1, 0(t0); la t0, bv_pending_tl_flag; sd t1, 0(t0)\n" ++
   ".Lbvcr_tl7708_staged:\n" ++
+  -- The creation path enters the callable dispatcher directly, rather than
+  -- through the ordinary post-preparation seam.  Preserve that seam's order:
+  -- materialize gas/blob first, capture the body state, then publish the
+  -- value-transfer record from the shared post-capture hook.  The CREATE
+  -- producer is intentionally not called here: the gas seed below must first
+  -- materialise `bv_pending_upfront_sender_post` (execution-specs
+  -- `fork.py:1105-1108`) before `move_ether` consumes it.
+  -- This capture is
+  -- paired with the failure restore below in this routine; the ordinary route
+  -- pairs its capture in `Dispatch.lean` with the caller-side restore in
+  -- `BlockVerdictDispatchTx.lean`.
+  -- Save `ra`: the dispatcher uses its caller return address to resume after
+  -- initcode, while both helpers and the mark are calls.
+  -- GH #10784 cut 2: `mark_account_created` is a PRE-BODY event.  execution-specs
+  -- `process_create_message` marks the target at `vm/interpreter.py:208` — after
+  -- `destroy_storage` (:202), before `increment_nonce` (:210) and before
+  -- `process_message` (:212) runs the initcode.  The nested CREATE route already
+  -- honours that: `create_frame_descend` inserts at descent.  The top-level creation
+  -- route enters the callable dispatcher directly (see the seam comment above), so it
+  -- had no descent to mark at and was left marking only inside
+  -- `create_record_code_effect`, i.e. AFTER the initcode and only on a successful
+  -- deposit.  `bv_create_addr` is fully staged by this point (the copy above, and the
+  -- `account_read_record` call already consumes it).
+  --
+  -- Placed AFTER `dispatcher_capture_body_state` while the spec marks BEFORE its
+  -- snapshot, and the two are equivalent here for a checkable reason rather than by
+  -- assumption: `account_state_created_count` is NOT one of the thirteen fields of
+  -- `body_state_snapshot_by_depth` (`BlockVerdictDispatchTx.lean:492-505`, offsets
+  -- 0..96), so the restore cannot roll the mark back.  GH #10979 is what made that
+  -- true — it removed `account_state_created_checkpoint` — and it matches the spec,
+  -- where `copy_tx_state` leaves `created_accounts` shared and `restore_tx_state`
+  -- (`state_tracker.py:823-826`) restores only four other fields.
+  --
+  -- a0-a3 are dead across the two lines below (they set up t4/t5 and the dispatcher
+  -- takes its input through `runtime_dispatcher_input_ptr`), and
+  -- `code_state_address_set_insert` preserves every s-register, so s0 survives.
+  -- Overflow is fail-closed exactly as at the descent site: set
+  -- `account_state_overflow`, which both consumers turn into `bv_fail_code = 58`.
+  -- The callable dispatcher performs the root sender-debit seed after its
+  -- per-transaction setup reset.  Calling that one-shot producer here would
+  -- consume the tuple before the live AccountState overlay can survive setup.
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, dispatcher_capture_body_state\n" ++
+  "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbvcr_created_marked:\n" ++
+  -- GH #10944: stage the top-level CREATE endowment for the SHARED recorder.
+  --
+  -- execution-specs has ONE `move_ether` for calls and creations alike, because
+  -- `process_create_message` DELEGATES to `process_message` (`vm/interpreter.py:212`) and the
+  -- transfer lives at `:384-390` inside that shared body.  So this route must REACH the
+  -- existing recorder, not acquire a second call site.
+  --
+  -- ⚠️ THE PRE-BALANCE IS AUTHENTICATED, NOT ASSUMED.  `nse_zero_bal` is wrong as an
+  -- unconditional default and right only as a lookup RESULT: a deployable pre-existing account
+  -- may hold ether.  `account_at_header_state_root_tracked` returns three outcomes and each is
+  -- honoured exactly as the nested sites honour them (`CreateFrameDescend`):
+  --   * 0 FOUND     -> use the looked-up balance, 32B BE at `create_prebalance_acct+8`;
+  --   * 1 ABSENT    -> not in the header state, so the pre-balance IS zero.  An ESTABLISHED
+  --                    zero, which the buffer already holds because the lookup zeroes it;
+  --   * >=2 MALFORMED -> set `create_prebalance_lookup_status`.  This route ALREADY CONSUMES
+  --                    that status (`.Lbvcr_payload_unsupported` below) with nothing on it
+  --                    setting the flag; supplying the setter is part of the fix.
+  --
+  -- Gated on the endowment being nonzero, reusing the test the route already computed for the
+  -- EIP-7708 staging above -- the spec gates `move_ether` and `emit_transfer_log` in ONE
+  -- conditional structure, so one guard is correct rather than two.
+  --
+  -- Placed after `dispatcher_capture_body_state`, matching `process_message`'s
+  -- snapshot-then-transfer order (`:380` then `:384`), so a failing body discards the record.
+  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbvcr_endow_done\n" ++
+  "  la t0, create_prebalance_acct; li t1, 128\n" ++
+  ".Lbvcr_endow_zero:\n" ++
+  "  sb x0, 0(t0); addi t0, t0, 1; addi t1, t1, -1; bnez t1, .Lbvcr_endow_zero\n" ++
+  -- The top-level route has no populated header/witness tuple in `evm_env`:
+  -- its header length is zero there.  Query the authenticated parent header and
+  -- witnessed state directly, as the sibling top-level BALANCE staging does.
+  "  la t5, svf_parent_rlp; ld a0, 0(t5); la t5, svf_parent_rlp_len; ld a1, 0(t5); la a2, bv_create_addr; li a3, 20; la t5, bv_witness_state_ptr; ld a4, 0(t5); la t5, bv_witness_state_len; ld a5, 0(t5); la a6, create_prebalance_acct\n" ++
+  "  jal ra, account_at_header_state_root_tracked; mv t6, a0\n" ++
+  "  beqz t6, .Lbvcr_endow_pre_ready\n" ++
+  "  li t0, 1; beq t6, t0, .Lbvcr_endow_pre_ready\n" ++
+  "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lbvcr_endow_done\n" ++
+  ".Lbvcr_endow_pre_ready:\n" ++
+  -- The context record holds the endowment as 32B BE at +96 (the EIP-7708 staging above
+  -- reverses it DOWNWARD from +127 into the log's LE stack word, which fixes the direction).
+  -- The recorder takes pointers to BE buffers, so copy it forward, unreversed.
+  "  addi t0, s0, 96; la t1, bvcr_endow_val_be; li t2, 32\n" ++
+  ".Lbvcr_endow_val_cp:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_endow_val_cp\n" ++
+  -- The descriptor is consumed by `dispatcher_seed_pending_value_transfer`
+  -- after the sender gas seed and body snapshot.  Calling the producer here
+  -- would observe the still-zero sender-post scratch and underflow exactly as
+  -- seen on 00078 (execution-specs `interpreter.py:380-390`).
+  ".Lbvcr_endow_done:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has
@@ -456,12 +548,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_deposit_validate:\n" ++
   "  la a0, top_level_creation_returndata; la t0, top_level_creation_returndata_len; ld a1, 0(t0); jal ra, create_deployed_code_valid; bnez a0, .Lbvcr_deposit_exception\n" ++
   -- Hash gas = 6 * ceil32(code_len)/32, charged against the top-level frame.
-  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, 6; mul t0, t0, t1\n" ++
+  "  la t0, top_level_creation_returndata_len; ld t0, 0(t0); addi t0, t0, 31; srli t0, t0, 5; li t1, " ++ toString amsterdamKeccak256PerWord ++ "; mul t0, t0, t1\n" ++
   "  la t1, evm_env; ld t2, 568(t1); bltu t2, t0, .Lbvcr_ret; sub t2, t2, t0; sd t2, 568(t1)\n" ++
   -- Code-deposit state gas = 1530 * code_len.  This is the same reservoir /
   -- spill fold used by the nested CREATE RETURN tail, with the top-level env
   -- as the regular-gas source.
-  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, 1530; mul t0, t0, t1\n" ++
+  "  la t1, top_level_creation_returndata_len; ld t0, 0(t1); li t1, " ++ toString amsterdamCostPerStateByte ++ "; mul t0, t0, t1\n" ++
   "  la t1, evm_state_gas_left; ld t2, 0(t1); bgeu t2, t0, .Lbvcr_csg_res\n" ++
   "  sub t3, t0, t2; la t4, evm_env; ld t5, 568(t4); bltu t5, t3, .Lbvcr_ret\n" ++
   "  sd zero, 0(t1); sub t5, t5, t3; sd t5, 568(t4); la t1, evm_state_gas_spilled; ld t2, 0(t1); add t2, t2, t3; sd t2, 0(t1); j .Lbvcr_csg_used\n" ++
@@ -491,26 +583,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_deposit_exception:\n" ++
   "  la t0, evm_env; sd zero, 568(t0); sd zero, 472(t0); sd zero, 480(t0)\n" ++
   "  la t0, evm_log_data_used; sd zero, 0(t0); la t0, evm_log_data_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_count; ld t1, 0(t0); la t0, exec_nonstorage_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_ns_overflow; ld t1, 0(t0); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_count; ld t1, 0(t0); la t0, exec_code_effect_count; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_next; ld t1, 0(t0); la t0, exec_code_effect_next; sd t1, 0(t0)\n" ++
-  "  la t0, bv_tx_effect_snap_code_overflow; ld t1, 0(t0); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
-  -- GH #10654: TRUNCATE the aborted deposit's storage exec-log rows, completing the
-  -- net-zero deletion #10641 made on the depth-zero abort path this mirrors.
-  --
-  -- The loop that stood here set `current := original` per row and KEPT the rows, for
-  -- two reasons. The rows were net-zeroed so the change comparators see no change for a
-  -- touched-but-aborted account -- STILL LIVE, and why this is a truncation rather than
-  -- a bare deletion. And they were kept rather than truncated so the slots stayed
-  -- "accessed" for the recipient `storage_reads` check -- DEAD as of #10641, which
-  -- re-pointed `bal_storage_reads_in_exec_log` at the `storage_reads` container that
-  -- rollback does not touch.
-  --
-  -- Truncation discharges the surviving reason more directly (no rows, no changes) and
-  -- mirrors `restore_tx_state` (state_tracker.py:809-826), which restores only the WRITE
-  -- structures and leaves the read sets alone.
-  "  la t0, bv_tx_effect_snap_storage_count; ld t1, 0(t0); la t0, evm_env; sd t1, 448(t0)\n" ++
+  -- Roll back every body-written arena to the shared pre-dispatch mark.  In
+  -- particular this deliberately leaves the read sets intact: the spec's
+  -- `restore_tx_state` restores writes but preserves reads.
+  "  jal ra, dispatcher_restore_body_state\n" ++
   ".Lbvcr_deposit_exception_settle:\n" ++
   "  li t0, 0xa0010000; li t1, 6; sd t1, 32(t0)\n" ++
   ".Lbvcr_deposit_done:\n" ++
@@ -524,6 +600,21 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- published combined gas+state left (no post-settle constant adjustment).
   "  la t4, bv_runtime_gas_left; sd a0, 0(t4)\n" ++
   "  la t4, bv_runtime_refund_counter; sd a1, 0(t4)\n" ++
+  -- `process_message` restores the transaction snapshot after an initcode
+  -- REVERT/exception (`vm/interpreter.py:429`), not only after a code-deposit
+  -- failure.  The top-level CREATE wrapper receives that status from the
+  -- shared settlement fold, so restore the captured body state here before
+  -- publishing any receipt/effect data.  In particular this replays the
+  -- storage-writes undo journal captured by `dispatcher_capture_body_state`;
+  -- without it, a reverted constructor's SSTORE rows survive into the BAL.
+  "  bnez a2, .Lbvcr_body_state_kept\n" ++
+  "  jal ra, dispatcher_restore_body_state\n" ++
+  -- Keep the transaction-level discard explicit at the top-level boundary as
+  -- well.  The wrapper can be entered by both single- and multi-transaction
+  -- callers, and neither caller may promote a failed constructor's leftover
+  -- tx map on its next incorporation (`fork.py:832,879-881`).
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbvcr_body_state_kept:\n" ++
   "  snez t0, s3; la t4, bv_tx_status_arr; sd t0, 0(t4)\n" ++
   "  la t4, bv_tx_is_creation_arr; sd s2, 0(t4)\n" ++
   -- A failed top-level creation rolls back all logs, including the staged
@@ -534,15 +625,45 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_tl7708_snapshot:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
 
-  -- Successful top-level STOP creation makes the created account alive with
-  -- the transaction value as balance and nonce 1. Record that execution-derived
-  -- effect before BAL all-account non-storage comparisons run.
+  -- A successful top-level creation normally leaves the new account alive with
+  -- the transaction value and its running creator nonce. EIP-6780 is the
+  -- exception: a constructor can SELFDESTRUCT its own just-created account,
+  -- and the dispatcher records that deferred deletion in `account_state_delete`
+  -- before returning here. execution-specs clears that account before
+  -- `incorporate_tx_into_block` derives the BAL, so publishing the nonce after
+  -- the dispatcher would resurrect an account whose final fields are all zero.
+  --
+  -- Do not use `evm_selfdestruct_created_in_tx` here: it is reset only at the
+  -- next SELFDESTRUCT and is not a transaction-final membership query. The
+  -- active +24 flag in the address-keyed delete set is the durable deferred-
+  -- delete fact. A malformed count deliberately falls through to the
+  -- established publication path rather than suppressing an effect.
   "  beqz s3, .Lbvcr_created_effect_done\n" ++
+  "  la t0, account_state_delete_count; ld t1, 0(t0); li t2, " ++ toString accountStateDeleteCapacity ++ "; bgtu t1, t2, .Lbvcr_created_effect_live; li t2, 0; la t3, account_state_delete\n" ++
+  ".Lbvcr_created_effect_delete_scan:\n" ++
+  "  bgeu t2, t1, .Lbvcr_created_effect_live; ld t4, 24(t3); beqz t4, .Lbvcr_created_effect_delete_next; li t4, 0\n" ++
+  ".Lbvcr_created_effect_delete_cmp:\n" ++
+  "  li t5, 20; beq t4, t5, .Lbvcr_created_effect_done; la t5, bv_create_addr; add t5, t5, t4; lbu t6, 0(t5); add t5, t3, t4; lbu t5, 0(t5); bne t6, t5, .Lbvcr_created_effect_delete_next; addi t4, t4, 1; j .Lbvcr_created_effect_delete_cmp\n" ++
+  ".Lbvcr_created_effect_delete_next:\n" ++
+  "  addi t3, t3, 32; addi t2, t2, 1; j .Lbvcr_created_effect_delete_scan\n" ++
+  ".Lbvcr_created_effect_live:\n" ++
+  -- `update_builder_from_tx` compares the final transaction account state,
+  -- not the original endowment.  The dispatcher has returned to the live
+  -- depth-zero environment, whose LE balance word at +32 was updated by every
+  -- constructor value movement.  Reverse it into the BE nonstorage ABI here;
+  -- do not read either post-dispatch overlay, because both have been reset by
+  -- this boundary.
+  "  la t0, evm_env; addi t0, t0, 63; la t1, nse_create_post_bal; li t2, 32\n" ++
+  ".Lbvcr_created_final_balance:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_created_final_balance\n" ++
+  -- The initcode may have performed CREATE/CREATE2 attempts.  Its creator
+  -- nonce is therefore the running table value, not always EIP-161's initial
+  -- nonce 1; use the same lookup as the ordinary top-level creation deposit.
+  "  la a0, bv_create_addr\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
   "  la a0, bv_create_addr\n" ++
   "  la a1, nse_zero_bal\n" ++
-  "  la a2, bv_creation_ctx_ptr; ld a2, 0(a2); addi a2, a2, 96\n" ++
+  "  la a2, nse_create_post_bal\n" ++
   "  li a3, 0\n" ++
-  "  li a4, 1\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
   ".Lbvcr_created_effect_done:\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
@@ -584,9 +705,13 @@ def blockVerdictCreationRuntimeFunction : String :=
   ".Lbvcr_payload_unsupported:\n" ++
   "  li a0, 5\n" ++
   ".Lbvcr_ret:\n" ++
+  -- The intrinsic-data override is creation-local.  Clear it on every return
+  -- path, including an unsupported staging result before dispatch.
+  "  la t0, runtime_tx_intrinsic_data_ptr; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_intrinsic_data_len; sd zero, 0(t0)\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
+  "  addi sp, sp, 48\n" ++
   "  ret"
 
 end EvmAsm.Codegen

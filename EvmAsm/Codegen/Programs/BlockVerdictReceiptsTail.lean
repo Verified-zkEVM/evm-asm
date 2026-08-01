@@ -166,7 +166,15 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_block_rlp_limit_fail:\n" ++
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
+  -- This tail encodes only the documented eip8037_tx_gas_gate statuses 1..3
+  -- as codes 8..10.  Two MTx creation-prefix callers currently arrive with
+  -- raw header.gas_limit in a0; retain their reject but make that contract
+  -- violation explicit as sentinel 63 rather than aliasing a normal gas code.
+  "  li t2, 1; bltu a0, t2, .Lbv_eip8037_gas_invalid_status\n" ++
+  "  li t2, 3; bgtu a0, t2, .Lbv_eip8037_gas_invalid_status\n" ++
   "  addi t0, a0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eip8037_gas_invalid_status:\n" ++
+  "  li t0, 63; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip7702_nonce_reuse_fail:\n" ++
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blockhash_headers_fail:\n" ++
@@ -204,7 +212,10 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_block_state_gas_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used < block_state_gas floor
   "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_gas_used_over_fail:\n" ++   -- g8zeq.1.4.2: header.gas_used > max(block_regular, block_state) (over-claim)
-  "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- Keep this upper-bound failure distinct from the recipient / BAL code-41
+  -- family.  The terminal route and verdict are unchanged; this only gives
+  -- OUTPUT+112 a stable diagnostic identity for the gas-over arm.
+  "  li t0, 62; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_mtx_recipient_unresolvable_fail:\n" ++   -- fhsxz.2.4.2.57.11.6.5.4 (e): mtx tx recipient unresolvable at pre-state root (incomplete witness)
   "  li t0, 47; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
@@ -254,8 +265,89 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
+  -- Shadow-only rebuilt-BAL digest comparison.  It runs after every granular
+  -- verdict path has reached its terminal result; its status is exported for
+  -- diagnosis only and never selects a verdict branch.  Preserve the original
+  -- a0 verdict across the serializer, which mutates builder order in place.
+  "  sd a0, 40(sp)\n" ++
+  -- Inputs that never passed the BAL decoding/gas gate have no valid slice to
+  -- inspect.  Use the same structural reachability condition as the granular
+  -- comparators, not a hand-rolled nonzero-pointer test.
+  "  li t0, 3; la t1, bv_bal_shadow_status; sd t0, 0(t1); la t1, bv_bal_shadow_ready; ld t1, 0(t1); beqz t1, .Lbv_shadow_done\n" ++
+  -- The block body has already materialized NPR = SSZ_BASE + 16.  Use that
+  -- stable cell rather than an ambient register at this late terminal seam.
+  "  la t0, bv_bal_shadow_emit_storage_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_storage_reads; sd zero, 0(t0); la t0, bv_bal_shadow_emit_balance_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_nonce_changes; sd zero, 0(t0); la t0, bv_bal_shadow_emit_code_changes; sd zero, 0(t0)\n" ++
+  "  la t0, bv_npr_p; ld a0, 0(t0); addi a0, a0, -16; la a1, bv_bal_shadow_scratch; jal ra, bal_serializer_verify\n" ++
+  "  la t0, bv_bal_shadow_status; sd a0, 0(t0)\n" ++
+  -- `verify`'s rebuild has measured the outer payload.  Add the outer RLP
+  -- header to obtain the whole rebuilt BAL byte length, and retain the input
+  -- slice length beside it; neither value is a verdict input.
+  "  la t0, bal_serializer_outer_payload; ld a0, 0(t0); jal ra, bal_rlp_list_header_len; la t0, bal_serializer_outer_payload; ld t1, 0(t0); add a0, a0, t1; la t0, bv_bal_shadow_rebuilt_len; sd a0, 0(t0)\n" ++
+  "  la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)\n" ++
+  ".Lbv_shadow_done:\n" ++
+  "  ld a0, 40(sp)\n" ++
+  -- GH #10680: bind the rebuilt-BAL digest into the verdict.  The comparison
+  -- itself is unchanged -- `bal_serializer_verify` above already rebuilds from the
+  -- producer arenas, hashes the supplied BAL, and returns 0 match / 1 differ /
+  -- 2 rebuild-failed.  This only makes that existing return participate.
+  --
+  -- THE BINDING CONTRACT, which is what makes the FR delta attributable:
+  --   * bind ONLY when the original verdict is ACCEPT (`a0 == 1`) and
+  --     `bv_bal_shadow_ready == 1`.  Every existing `a0 == 0` reject flows through
+  --     untouched, so NO existing fail code changes meaning and every current test
+  --     expectation survives.
+  --   * therefore the change can only ever convert an ACCEPT into a REJECT.  IT
+  --     CANNOT CREATE A FALSE ACCEPT -- there is no path by which it raises FA.
+  --   * `a0` is compared against 1 rather than tested nonzero: an accept route that
+  --     ever returned some other nonzero value would be UNDER-bound (fewer new
+  --     rejects), which is the safe direction and shows up as an FR delta below the
+  --     predicted 832 rather than as a silent behaviour change.
+  --
+  -- TWO codes, not one.  60 is a genuine BAL mismatch; 61 is a rebuild failure,
+  -- which covers canonical-sort failure and arena overflow.  Status 2 measures ZERO
+  -- across the whole BAL corpus today so 61 should never fire -- but collapsing them
+  -- would make a capacity limit indistinguishable from a wrong BAL the first time it
+  -- does.  Neither reuses the gaps at 8, 9 or 18: a gap may be a retired code, and
+  -- this codebase has already been bitten by one code serving two conditions.
+  --
+  -- Deliberately does NOT retire any granular BAL check.  Those carry skip lists
+  -- that are accommodations for producer gaps, so retiring them is a SECOND and
+  -- separately unpredictable FR event -- one variable at a time.
+  "  li t0, 1; bne a0, t0, .Lbv_bal_digest_bound\n" ++
+  "  la t0, bv_bal_shadow_ready; ld t0, 0(t0); beqz t0, .Lbv_bal_digest_bound\n" ++
+  "  la t0, bv_bal_shadow_status; ld t0, 0(t0)\n" ++
+  "  li t1, 1; beq t0, t1, .Lbv_bal_digest_mismatch\n" ++
+  "  li t1, 2; beq t0, t1, .Lbv_bal_digest_rebuild_fail\n" ++
+  "  j .Lbv_bal_digest_bound\n" ++
+  ".Lbv_bal_digest_mismatch:\n" ++
+  "  li t0, 60; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0; j .Lbv_bal_digest_bound\n" ++
+  ".Lbv_bal_digest_rebuild_fail:\n" ++
+  "  li t0, 61; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0\n" ++
+  ".Lbv_bal_digest_bound:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
+
+-- GH #10680 binding contract, pinned so a later edit cannot loosen it silently.
+-- The ACCEPT-only guard is the whole reason the FR delta is attributable and the
+-- reason no false accept is possible; the two distinct codes are the reason a
+-- capacity limit stays distinguishable from a wrong BAL.
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 1; bne a0, t0, .Lbv_bal_digest_bound").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "la t0, bv_bal_shadow_ready; ld t0, 0(t0); beqz t0, .Lbv_bal_digest_bound").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 60; la t1, bv_fail_code").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 61; la t1, bv_fail_code").length == 2
+-- GH #10848: this tail is a status encoder, not a raw-value sink.  The two
+-- guards pin both sides of its documented 1..3 domain; the sentinel makes an
+-- out-of-contract caller observable without changing its reject verdict.
+#guard (blockVerdictReceiptsTail.splitOn "li t2, 1; bltu a0, t2, .Lbv_eip8037_gas_invalid_status").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t2, 3; bgtu a0, t2, .Lbv_eip8037_gas_invalid_status").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 63; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+-- Each code must also DROP THE VERDICT in the same breath as recording itself: a
+-- fail code stored without `li a0, 0` would report a mismatch while still accepting
+-- the block, which is the one failure mode of this change that no test would catch.
+-- (Non-collision with the codes already in use is NOT checkable here -- those are
+-- stored from other modules -- so it is established in the PR body, not by a guard.)
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 60; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 61; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
 
 end EvmAsm.Codegen

@@ -535,10 +535,24 @@ def emit_program_text(entry, asm):
 # --------------------------------------------------------------------------- #
 # assemble + compare .text                                                    #
 # --------------------------------------------------------------------------- #
-AS = shutil.which('riscv64-unknown-elf-as') or 'riscv64-unknown-elf-as'
-OBJCOPY = (shutil.which('riscv64-unknown-elf-objcopy') or
-           'riscv64-unknown-elf-objcopy')
-LD = shutil.which('riscv64-unknown-elf-ld') or 'riscv64-unknown-elf-ld'
+def _riscv_tool(env_var, tool):
+    """Resolve a RISC-V binutils tool across both triple spellings.
+
+    Same convention as `resolve_riscv_tool` in
+    `scripts/codegen-eest-stateless-check.sh` and the two-triple probes in
+    `check-region-map.sh` / `check-opcode-tables.sh`: CI installs
+    `binutils-riscv64-unknown-elf`, but Homebrew ships the identical GNU
+    binutils as `riscv64-elf-*`.  Without the fallback every byte-identity
+    check silently skips on macOS, which reads as "verified" when nothing ran.
+    """
+    return (os.environ.get(env_var) or
+            shutil.which(f'riscv64-unknown-elf-{tool}') or
+            shutil.which(f'riscv64-elf-{tool}') or
+            f'riscv64-unknown-elf-{tool}')
+
+AS = _riscv_tool('RISCV_AS', 'as')
+OBJCOPY = _riscv_tool('RISCV_OBJCOPY', 'objcopy')
+LD = _riscv_tool('RISCV_LD', 'ld')
 
 def _text_bytes(asm_text, d, tag='a'):
     """Assemble a snippet and return its raw `.text` (assemble-only; used for
@@ -578,8 +592,34 @@ def _linked_text_bytes(asm_text, d, tag, entry_addr, externals):
                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     return open(b,'rb').read()
 
-READELF = (shutil.which('riscv64-unknown-elf-readelf') or
+READELF = (os.environ.get('RISCV_READELF') or
+           shutil.which('riscv64-unknown-elf-readelf') or
+           shutil.which('riscv64-elf-readelf') or
            shutil.which('readelf') or 'readelf')
+def symbol_binding(asm_text, sym):
+    """Assemble `asm_text` and return `sym`'s ELF binding ('GLOBAL' / 'LOCAL'),
+    or None if the symbol is absent from the object.
+
+    Exists because `.text` byte-comparison is STRUCTURALLY BLIND to symbol
+    binding: a symbol demoted GLOBAL -> LOCAL, or dropped entirely, leaves the
+    `.text` bytes identical. Any conversion whose Lean string carries a `.globl`
+    therefore has a property no other leg of `check_file` can see -- `.globl` is
+    a directive with no `Instr` constructor, so it lives in the string prefix
+    rather than in the `Program`, and nothing else re-checks it. (GH #11046.)
+    """
+    with tempfile.TemporaryDirectory() as d:
+        s=os.path.join(d,'b.s'); o=os.path.join(d,'b.o')
+        open(s,'w').write(".text\n"+asm_text+"\n")
+        r=subprocess.run([AS,'-march=rv64im','-mno-relax','-o',o,s],
+                         stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        if r.returncode!=0: return None
+        out=subprocess.run([READELF,'-sW',o],check=True,
+                           capture_output=True,text=True).stdout
+        for ln in out.splitlines():
+            c=ln.split()
+            if len(c)>=8 and c[7]==sym: return c[4]
+    return None
+
 def emitted_reloc_count(asm_text):
     """Assemble `asm_text` and count RISC-V PC-relative / call / jump
     relocations in the object. A reloc-bearing function's EMITTED (symbolic)
@@ -616,6 +656,16 @@ def lean_camel(entry):
     # entry label like rlp_walk_init -> rlpWalkInit
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
+
+def layout_leaf_path(path, root=""):
+    # GH #10753 layout split: a converted module `<Name>.lean` (the bridge)
+    # has its generated program blocks in the leaf `<Name>Prog.lean` next to
+    # it.  Return the leaf path (same relative/absolute flavour as `path`)
+    # when it exists, else None.  `root` is prepended for the existence
+    # test only, so both repo-relative and absolute callers work.  Shared
+    # by check_file's layout detection and guest_image_coverage.py.
+    leaf=path[:-len(".lean")]+"Prog.lean"
+    return leaf if os.path.exists(os.path.join(root,leaf)) else None
 
 def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
@@ -672,6 +722,82 @@ theorem {func_name}_eq_prog :
 #guard {func_name}.startsWith "{entry}:\\n"
 #guard {prog_name}.length = {n}
 '''
+
+def gen_lean_layout(entry, renders, func_name, prog_name, relocs=None):
+    """GH #10753 layout-parameterised conversion. Returns (leaf_block, bridge_block).
+
+    Leaf block (`Programs/<Name>Prog.lean`, imports GuestLayout, NOT
+    GuestAddrs): `def {prog}_of (L : GuestLayout) : Program` with every
+    `GuestAddrs.X` in the renders rewritten to `L.X` (or `_L` when the
+    generated body has no layout references); the emission view
+    (`{func_name}`, `_eq_prog`, `#guard`s) is applied at `.zero`, which is
+    sound because `emitProgramR` keeps `la`/`jal` symbolic via the reloc
+    side-table, so the emitted string and the length facts are independent
+    of the layout.
+
+    Bridge block (`Programs/<Name>.lean`, the manifest path, unchanged):
+    `def {prog} : Program := {prog}_of guestLayout` — the ORIGINAL name and
+    type, so all consumers compile untouched.  The concrete immediates are
+    tied to the real link by the `{fn}#c` concrete-render gate against the
+    bridge's applied program.
+    """
+    lrenders=[r.replace('GuestAddrs.','L.') for r in renders]
+    # Lean's conventional unused binder spelling keeps layout-independent
+    # leaves warning-free.  Keep the source-drift generator canonical for
+    # both shapes: only a body with linked-address references needs `L`.
+    layout_binder='L' if any('L.' in r for r in lrenders) else '_L'
+    body=",\n    ".join(lrenders)
+    n=len(renders)
+    bridge=f"def {prog_name} : Program := {prog_name}_of guestLayout\n"
+    if not relocs:
+        leaf=f'''def {prog_name}_of ({layout_binder} : GuestLayout) : Program :=
+  [ {body} ]
+
+def {func_name} : String :=
+  "{entry}:\\n" ++ emitProgram ({prog_name}_of .zero)
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `{prog_name}_of .zero` rendered under its label (layout-parameterised
+    per GH #10753; emission is layout-independent, mechanical conversion by
+    `scripts/asm_to_program.py`). -/
+theorem {func_name}_eq_prog :
+    {func_name} = "{entry}:\\n" ++ emitProgram ({prog_name}_of .zero) := rfl
+
+#guard {func_name}.startsWith "{entry}:\\n"
+#guard ({prog_name}_of .zero).length = {n}
+'''
+        return leaf, bridge
+    reloc_kind={'la':'la','jal':'jal'}
+    rel_body=",\n    ".join(
+        f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
+    reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
+    leaf=f'''def {prog_name}_of ({layout_binder} : GuestLayout) : Program :=
+  [ {body} ]
+
+/-- Reloc side-table for `{prog_name}_of`: the `la`/cross-`jal` instruction
+    indices kept SYMBOLIC in the emitted image text (`emitProgramR`), while
+    the Program above carries the layout-parameterised immediates
+    (`laHi`/`laLo`/`jalOff L.…`) for verification. -/
+def {reloc_name} : RelocTable :=
+  [ {rel_body} ]
+
+def {func_name} : String :=
+  "{entry}:\\n" ++ emitProgramR ({prog_name}_of .zero) {reloc_name}
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `{prog_name}_of .zero` rendered under its label with the
+    `la`/`jal` relocs kept symbolic (layout-parameterised per GH #10753;
+    emission is layout-independent, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp
+    over the bridge's `{prog_name}` (`_of guestLayout`). -/
+theorem {func_name}_eq_prog :
+    {func_name} = "{entry}:\\n" ++ emitProgramR ({prog_name}_of .zero) {reloc_name} := rfl
+
+#guard {func_name}.startsWith "{entry}:\\n"
+#guard ({prog_name}_of .zero).length = {n}
+'''
+    return leaf, bridge
 
 # --------------------------------------------------------------------------- #
 # CLI                                                                         #
@@ -1010,6 +1136,22 @@ SOURCE_DRIFT_ALLOW = {
     # This helper is an intentional hand-composed wrapper around a mechanically
     # converted core, so its source is not one generated literal block.
     'committedStorageChunkedSnapshotUpsertFunction',
+    # The four BAL sort routines (GH #10817). Two deviations from the generated
+    # block shape, both deliberate and both maintainer-approved:
+    #   1. They are the first converted defs that are also EXPORTED, so each
+    #      keeps `"  .globl <sym>\n"` ahead of the label. `.globl` is a directive
+    #      with no `Instr` constructor, so it cannot live in a `Program` and
+    #      `emitProgramR` does not emit it.
+    #   2. `balCanonicalSort_prog` is `head ++ balCanonicalDigit_prog ++ tail`
+    #      rather than one flat literal, because the module's four anti-drift
+    #      `#guard`s on the digit extractor have to be restatable over just that
+    #      fragment. The split is a SLICE of one conversion (indices 67..94), so
+    #      the branch offsets are still the ones resolved against the whole.
+    # Legs (a) and (c) -- the byte-identity checks -- still run on all four.
+    'balCanonicalSortFunction',
+    'balSortStorageWritesFunction',
+    'balSortAccountWritesFunction',
+    'balCanonicalSortSelftestFunction',
 }
 
 def check_file(path, funcs, rendered=None):
@@ -1026,6 +1168,17 @@ def check_file(path, funcs, rendered=None):
     `rendered` may be a precomputed {func: lean-string} map (so a batch caller
     runs the Lean elaborator once). Returns a list of problem strings."""
     text=open(path).read(); problems=[]
+    # GH #10753 layout-parameterised conversion: a manifest file <Name>.lean
+    # that has been split into a leaf <Name>Prog.lean (abstract `_prog_of`
+    # (L : GuestLayout)) + a bridge <Name>.lean (`_prog := _prog_of
+    # guestLayout`) is detected by the leaf's existence.  The drift gate then
+    # pins the LEAF block verbatim in the leaf and the BRIDGE def verbatim in
+    # the manifest file; the render gates above are unchanged (the bridge
+    # re-exposes every name, so `lean_render` over the manifest modules sees
+    # both the symbolic `{fn}` and the concrete `{fn}#c` views).
+    leaf_path=layout_leaf_path(path)
+    layout_mode=leaf_path is not None
+    leaf_text=open(leaf_path).read() if layout_mode else None
     if rendered is None:
         rendered=lean_render({fn:os.path.relpath(os.path.abspath(path),
                      os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) for fn in funcs})
@@ -1071,11 +1224,31 @@ def check_file(path, funcs, rendered=None):
             if not real_ok:
                 problems.append(f"{fn}: LEAN-RENDERED string does NOT assemble identically to fixture "
                                 f"(emitInstr/py_emit divergence or guest-binary change)"); continue
+        # (d) SYMBOL BINDING — only for conversions whose Lean string declares
+        #     `.globl`. `.text` identity cannot see a lost or demoted export, and
+        #     `.globl` is the one part of the emitted text the conversion does not
+        #     establish (no `Instr` constructor, so it is not in the `Program`).
+        if f".globl {entry}" in rendered[fn]:
+            b=symbol_binding(rendered[fn], entry)
+            if b is None:
+                problems.append(f"{fn}: declares `.globl {entry}` but {entry} is absent from the "
+                                f"assembled object (or the render no longer assembles)")
+            elif b!='GLOBAL':
+                problems.append(f"{fn}: {entry} is {b}, not GLOBAL — the `.globl` was lost or "
+                                f"demoted; `.text` bytes are unchanged, so no other leg sees this")
         # source drift
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
-        if fn not in SOURCE_DRIFT_ALLOW and block not in text:
-            problems.append(f"{fn}: generated block not found verbatim (source drift)")
+        if layout_mode:
+            leaf_block,bridge_block=gen_lean_layout(entry,renders,fn,prog,relocs)
+            if leaf_block.rstrip() not in leaf_text:
+                problems.append(f"{fn}: generated LEAF block not found verbatim in "
+                                f"{os.path.basename(leaf_path)} (source drift)")
+            if bridge_block.rstrip() not in text:
+                problems.append(f"{fn}: generated BRIDGE def not found verbatim (source drift)")
+        elif fn not in SOURCE_DRIFT_ALLOW:
+            block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
+            if block not in text:
+                problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
 REPO=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

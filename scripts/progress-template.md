@@ -111,7 +111,8 @@ column is the typed `cpsTripleWithin N` step bound (cost surrogate); see C.1.
 |---|---|
 | Reference fork | Frontier/Shanghai (most opcodes); Amsterdam draft fork referenced for SDIV/SMOD |
 | Pin | `ethereum/execution-specs@ec23140` (gitlink in `.gitmodules`) |
-| Per-opcode reference-link audit | manual; `EvmWord.<op>` defs cite Python files in their docstrings (not yet machine-checked) |
+| Reference-link audit | machine-checked by [`scripts/check-spec-refs.sh`](scripts/check-spec-refs.sh): every `execution-specs/<path>.py` citation in `EvmAsm/**` must resolve at the pinned rev, and a `function \`name\`` anchor must name a real `def`/`class`. Blocking; known-stale entries burn down in [`scripts/spec-refs-allow.txt`](scripts/spec-refs-allow.txt) |
+| Spec-correspondence audit | see **F.2** below — per-routine verdict + basis from the kernel-checked registry in [`EvmAsm/Progress/Correspondence.lean`](EvmAsm/Progress/Correspondence.lean); RLP model differential replayed in CI by `lake exe correspondence-check rlp` |
 | EEST fixture pass rate | ✗ harness not yet wired (parking-lot dependency on D obligations 3 + 4) |
 | RPC block replay | ✗ not started |
 

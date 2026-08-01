@@ -9,10 +9,12 @@
 -/
 
 import EvmAsm.Progress
+import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
 
 open EvmAsm.Progress
 open EvmAsm.Progress.Obligations
+open EvmAsm.Progress.Correspondence (countVerdict countBasis)
 
 private def tierLabel : ProofTier → String
   | .proven      => "proven"
@@ -116,6 +118,84 @@ which fails the build if any opcode blocker stops naming a real registry entry).
 "
 
 /-! ## DRIFT.md — TCB / "what is NOT proven" ledger (Phase 2, R-C3 / G3.3) -/
+
+
+/-! ### Correspondence (axis F)
+
+    Rendered from `EvmAsm/Progress/Correspondence.lean`, which answers a
+    different question from the tier registry above: not "how deep is this
+    proven?" but "does the spec it is proven against match the reference?".
+    The `basis` column is the load-bearing part — a verdict without a stated
+    basis is an unverified claim. -/
+
+private def verdictLabel : EvmAsm.Progress.Correspondence.Verdict → String
+  | .agrees => "agrees"
+  | .domainRestricted => "domain-restricted"
+  | .stricter => "stricter ⚠"
+  | .looser => "**looser — false-accept**"
+  | .noCounterpart => "no counterpart"
+  | .unproven => "n/a — unproven"
+
+private def basisLabel : EvmAsm.Progress.Correspondence.Basis → String
+  | .diff => "diff"
+  | .bridged => "bridged"
+  | .machineOnly => "machine-only"
+  | .inspection => "inspection"
+  | .none => "—"
+
+private def kindLabel : EvmAsm.Progress.Correspondence.Layer → String
+  | .guest => "guest"
+  | .model => "model"
+
+private def fmtCorrRow (e : EvmAsm.Progress.Correspondence.Entry) : String :=
+  let spec := match e.spec with | some t => s!"`{t}`" | none => "—"
+  s!"| `{e.family}` | {kindLabel e.kind} | `{e.routine}` | {spec} | {verdictLabel e.verdict} | {basisLabel e.basis} | {e.reference} |"
+
+private def renderCorrespondence : String :=
+  let rows := String.intercalate "\n" (EvmAsm.Progress.Correspondence.registry.map fmtCorrRow)
+  s!"## F.2 — Spec-correspondence audit
+
+Does a proven routine prove the *right* thing? A whole-routine triple ties
+RISC-V to the Lean spec beside it and says nothing about whether that spec
+matches the external reference. Emitted from the kernel-checked registry in
+[`EvmAsm/Progress/Correspondence.lean`](EvmAsm/Progress/Correspondence.lean),
+which also proves `no_looser_verdicts` (no audited routine accepts input the
+reference rejects) and `verdict_requires_spec`.
+
+Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.md).
+
+| Verdict | Count |
+|---|---|
+| agrees | {countVerdict EvmAsm.Progress.Correspondence.Verdict.agrees} |
+| domain-restricted | {countVerdict EvmAsm.Progress.Correspondence.Verdict.domainRestricted} |
+| stricter | {countVerdict EvmAsm.Progress.Correspondence.Verdict.stricter} |
+| **looser** | {countVerdict EvmAsm.Progress.Correspondence.Verdict.looser} |
+| no counterpart | {countVerdict EvmAsm.Progress.Correspondence.Verdict.noCounterpart} |
+| n/a — unproven | {countVerdict EvmAsm.Progress.Correspondence.Verdict.unproven} |
+
+| Basis | Count | Meaning |
+|---|---|---|
+| diff | {countBasis EvmAsm.Progress.Correspondence.Basis.diff} | backed by `lake exe correspondence-check` |
+| bridged | {countBasis EvmAsm.Progress.Correspondence.Basis.bridged} | tied to the shared model, inherits the differential |
+| machine-only | {countBasis EvmAsm.Progress.Correspondence.Basis.machineOnly} | spec restates the rules locally; differential does NOT transfer |
+| inspection | {countBasis EvmAsm.Progress.Correspondence.Basis.inspection} | read both sides; no executable backing |
+| — | {countBasis EvmAsm.Progress.Correspondence.Basis.none} | no verdict to support |
+
+`diff` is 0 at *routine* granularity by construction: the differential validates
+the shared **model** (`EL.RLP` vs the pinned reference, 0 divergences), and
+routines inherit that through `bridged`. A `machine-only` row does **not**
+inherit it — its spec restates the reference's rules locally, so a drift between
+predicate and model would be invisible to both the differential and the proof.
+
+A **model** row is a pure Lean function whose evidence is the executable
+differential; a **guest** row is a RISC-V routine whose evidence is a
+whole-routine spec. A family where the model agrees but every guest row is
+`unproven` is reporting exactly that: the semantics are right, and whether the
+assembly implements them is the open obligation.
+
+| Family | Layer | Routine / function | Spec | Verdict | Basis | Reference |
+|---|---|---|---|---|---|---|
+{rows}"
 
 private def opcodeNamesAtTier (t : ProofTier) : List String :=
   (registry.filter (fun e => e.tier == t)).map (·.name)
@@ -260,3 +340,5 @@ def main (args : List String) : IO Unit := do
     IO.println "### Per-opcode registry"
     IO.println ""
     IO.println renderRegistry
+    IO.println ""
+    IO.println renderCorrespondence

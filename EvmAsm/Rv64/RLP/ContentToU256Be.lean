@@ -506,6 +506,48 @@ theorem copyN_length (dst src : List (BitVec 8)) (di si n : Nat) :
   | zero => rfl
   | succ k ih => rw [copyN_succ, ih, List.length_set]
 
+/-- `copyN` splits: copying `n` in-range bytes overwrites exactly the window
+    `[di, di + n)` of `dst` with `src[si, si + n)`.
+
+    Lives here beside `copyN` rather than in a caller: both
+    `Evm64/AccountAccessorSpec.lean` (u256 right-alignment) and
+    `Codegen/Programs/RlpEncodeUintBeComposeSAsm.lean` (the RLP encoder's
+    payload copy) need it, and neither should import the other. -/
+theorem copyN_eq_append (dst src : List (BitVec 8)) (di si n : Nat)
+    (hd : di + n ≤ dst.length) (hs : si + n ≤ src.length) :
+    copyN dst src di si n
+      = dst.take di ++ ((src.drop si).take n ++ dst.drop (di + n)) := by
+  induction n generalizing dst di si with
+  | zero =>
+    rw [copyN_zero]
+    simp
+  | succ k ih =>
+    have hdi : di < dst.length := by omega
+    have hsi : si < src.length := by omega
+    rw [copyN_succ,
+      ih (dst.set di (getByteAt src si)) (di + 1) (si + 1)
+        (by rw [List.length_set]; omega) (by omega)]
+    have hb : getByteAt src si = src[si]'hsi := by simp [getByteAt, hsi]
+    rw [hb, List.set_eq_take_cons_drop _ hdi]
+    have hlt : (dst.take di).length = di := by rw [List.length_take]; omega
+    -- take (di+1) of `take di ++ src[si] :: drop (di+1)` is `take di ++ [src[si]]`
+    have hT1 : (dst.take di ++ src[si]'hsi :: dst.drop (di + 1)).take (di + 1)
+        = dst.take di ++ [src[si]'hsi] := by
+      rw [List.take_append, hlt, List.take_of_length_le (by rw [hlt]; omega),
+        show di + 1 - di = 1 from by omega, List.take_succ_cons, List.take_zero]
+    -- drop (di+1+k) of the same list is `dst.drop (di+1+k)`
+    have hT3 : (dst.take di ++ src[si]'hsi :: dst.drop (di + 1)).drop (di + 1 + k)
+        = dst.drop (di + 1 + k) := by
+      rw [List.drop_append, hlt, List.drop_eq_nil_of_le (by rw [hlt]; omega),
+        show di + 1 + k - di = k + 1 from by omega, List.drop_succ_cons,
+        List.drop_drop, List.nil_append,
+        show di + 1 + k = k + (di + 1) from by omega]
+    rw [hT1, hT3]
+    -- right-hand side: expose the head of the copied window
+    rw [List.drop_eq_getElem_cons hsi, List.take_succ_cons,
+      show di + (k + 1) = di + 1 + k from by omega]
+    simp [List.append_assoc]
+
 /-- The 4-dword zeroed output buffer equals the byte region of 32 zeros. -/
 theorem bytesRegion_replicate32_zero (base : Word) :
     bytesRegion base (List.replicate 32 (0 : BitVec 8))

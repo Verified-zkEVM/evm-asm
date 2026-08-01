@@ -29,7 +29,11 @@ cd "$ROOT"
 
 PROVENANCE="sail-import/PROVENANCE.toml"
 VENDOR_DIR="vendor/sail-riscv-zkvm-lean"
-CONFIG_FILE="sail-import/riscv64im_zicclsm.json"
+# Resolved from PROVENANCE's own `config_file` field rather than hardcoded here —
+# a hardcoded copy silently kept hashing the OLD config after a regen changed the
+# recorded one, making config_sha256 a pin on the wrong file. One source of truth.
+CONFIG_FILE="$(grep -m1 -E '^[[:space:]]*config_file[[:space:]]*=' "$PROVENANCE" | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/')"
+[[ -n "$CONFIG_FILE" ]] || { echo "check-sail-pin: could not read config_file from $PROVENANCE" >&2; exit 1; }
 
 mode="check"
 case "${1:-}" in

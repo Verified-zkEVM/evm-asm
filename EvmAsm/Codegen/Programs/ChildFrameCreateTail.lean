@@ -9,6 +9,7 @@
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.CreateRuntime
+import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.CreateSameTxCollision
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Rv64.Program
@@ -308,6 +309,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi t0, x20, 63\n  la t1, create_creator_newbal\n  li t2, 32\n" ++
     ".Lcr_sbrev_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbrev_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- Preserve the caller's site-resolved BE pre-balance before the live
+    -- env debit overwrites create_creator_newbal.  The shared move_ether
+    -- producer must receive this authenticated/live operand rather than infer
+    -- it from a different state overlay.
+    "  la t0, create_creator_newbal\n  la t1, message_value_transfer_sender_pre\n  ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
     "  la a0, create_creator_newbal\n" ++               -- a0 = creator LIVE balance, now BE
     "  la a1, create_value_be\n" ++                      -- a1 = endowment (BE)
     "  la a2, create_creator_newbal\n" ++                -- a2 = out (in place = balance - endowment, BE)
@@ -320,15 +326,17 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_deb_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    -- bbow4.2.5.1: a zero-endowment CREATE still increments the creator's
-    -- nonce even when the child later REVERTs / exceptionally halts. The
+    -- bbow4.2.5.1: generic_create increments the creator's nonce before the
+    -- child exists, for every deployable CREATE/CREATE2 attempt (including a
+    -- nonzero endowment and a child that later REVERTs / exceptionally halts;
+    -- execution-specs/amsterdam vm/instructions/system.py:118,132). The
     -- deposit-time creator record only runs on successful CREATE, and records
     -- appended after create_frame_descend are rolled back by frame_return on
-    -- child failure. Emit the zero-value nonce-only effect in the parent before
-    -- descent so the all-accounts non-storage check can match the BAL.
+    -- child failure. Emit the nonce-only effect in the parent before descent
+    -- so the all-accounts non-storage check sees every attempt. The same
+    -- pre-balance scratch is used for zero- and nonzero-endowment records;
+    -- equal balance operands make the record's mask balance-only.
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-    "  bnez t1, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -452,6 +460,15 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- The two pre-balances are now explicit at this site: the creator value
+    -- was captured before its parent-env debit, while nse_create_pre_bal is
+    -- the child target's staged pre-state balance.  Record the shared
+    -- move_ether pair after the child snapshot, so frame_return discards it
+    -- with a reverting initcode.  Log scheduling remains below at this caller.
+    -- GH #10938: shared setup with the value-CALL descend site — one `move_ether` in the
+    -- spec, because `process_create_message` delegates to `process_message` (`:212`).
+    recordMessageValueTransferAsm "create_sender_be" "create_address_be" "create_value_be"
+      "ld a3, 584(x20)" "message_value_transfer_sender_pre" "nse_create_pre_bal" ++
     -- coc3g.6 CAUSE 3: EIP-7708 transfer log for the CREATE endowment value move. Spec
     -- interpreter.py:307-316 emits Transfer(caller, current_target, value) at EVERY message-call
     -- frame entry with should_transfer_value and value!=0 and caller!=current_target, AFTER the
@@ -472,50 +489,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  beqz t1, .Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- value == 0: no log
-    "  addi sp, sp, -128\n  sd x10, 96(sp)\n  sd x12, 104(sp)\n  sd x13, 112(sp)\n" ++
-    -- from_sw = [reverse(create_sender_be) low 20][12 zero] (sp+0)
-    "  sd zero, 0(sp); sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp)\n" ++
-    "  la t0, create_sender_be; addi t0, t0, 19; addi t1, sp, 0; li t2, 20\n" ++
-    ".Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    -- to_sw = [reverse(create_address_be) low 20][12 zero] (sp+32)
-    "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
-    "  la t0, create_address_be; addi t0, t0, 19; addi t1, sp, 32; li t2, 20\n" ++
-    ".Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    -- val_sw = reverse(create_value_be) = LE 32 bytes (sp+64)
-    "  la t0, create_value_be; addi t0, t0, 31; addi t1, sp, 64; li t2, 32\n" ++
-    ".Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  addi a0, sp, 0\n  addi a1, sp, 32\n  addi a2, sp, 64\n" ++   -- from = from_sw, to = to_sw, amount = val_sw
-    "  jal ra, eip7708_append_transfer_log\n" ++
-    "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n" ++
+    -- GH #10938 cut 4: the operand staging is the shared `eip7708TransferLogStageAsm`,
+    -- which the value-CALL frame-entry site also uses.  from_sw is
+    -- [reverse(create_sender_be) low 20][12 zero] at sp+0, to_sw the same for
+    -- create_address_be at sp+32, val_sw = reverse(create_value_be) (LE 32B) at sp+64.
+    -- The ctx gate and the value != 0 test above stay here: they are this site's guard.
+    eip7708TransferLogStageAsm "create_sender_be" "create_address_be" "create_value_be"
+      (".Lcr_tl_from_" ++ (if hasSalt then "f5" else "f0"))
+      (".Lcr_tl_to_" ++ (if hasSalt then "f5" else "f0"))
+      (".Lcr_tl_val_" ++ (if hasSalt then "f5" else "f0")) ++
     ".Lcr_tl_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
-    -- drj99.1 (initcode_calls_with_value bv_fail=44): record the created account's endowment-credit
-    -- as its FIRST non-storage effect, so the all-accounts comparator's first-pre = block-pre. The
-    -- existing created-account record fires only at the CREATE deposit (RETURN handler, NoopHalt),
-    -- which runs AFTER the initcode. When the initcode itself makes an outgoing value-CALL, that CALL's
-    -- caller-debit record (ChildFrameHandlers .Lcd_deb_done: pre = endowment, post = endowment-out)
-    -- lands BEFORE the deposit record, so nonstorage_effect_aggregate's first-pre for the created
-    -- account = the MID-execution balance (endowment) instead of its block-pre (0). The BAL records
-    -- the created-then-spent account as net-zero (balanceChanges:[]), so the agg first-pre=endowment vs
-    -- BAL block-pre=0 mismatched -> bv_fail=44. Appending (create_address_be, pre=block-pre balance,
-    -- post=endowment, pre_nonce=0, post_nonce=1) HERE -- after create_frame_descend switched x20 to the
-    -- CHILD env (post-snapshot: env+656 already captured the pre-descend count, so frame_return ROLLS
-    -- THIS BACK when the child reverts/fails) and BEFORE the initcode runs -- makes it the first record
-    -- for the created address. pre = nse_create_pre_bal (the staged block-pre balance captured above);
-    -- post = endowment (create_value_be, BE); nonce 0->1 (EIP-161 new-account nonce, matching the
-    -- deposit record and the BAL's postNonce). Gated on the account-witness ctx (env+584, so
-    -- create_value_be is valid) + value!=0 (a zero-endowment CREATE has no caller-debit to precede the
-    -- deposit, and the deposit's pre=0 already gives first-pre=0). On the common CREATE-with-value path
-    -- (initcode does NOT spend the endowment) this record has the same pre(0)/post(endowment) as the
-    -- deposit, so first-pre/last-post are unchanged -- no regression. a0/a2/a3 alias x10/x12/x13 ->
-    -- save/restore around record_nonstorage_effect.
+    -- The shared producer above is this CREATE frame's sole balance-transfer
+    -- recorder.  Keep the independent EIP-161 nonce transition here, but give
+    -- it equal balance operands from the producer's recipient post buffer so it
+    -- cannot overwrite a pre-existing target balance with bare endowment.
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  la t0, create_value_be\n  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  beqz t1, .Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++   -- endowment == 0: deposit record suffices
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, create_address_be\n  la a1, nse_create_pre_bal\n  la a2, create_value_be\n  li a3, 0\n  li a4, 1\n" ++
+    "  la a0, create_address_be\n  la a1, message_value_transfer_recipient_post\n  la a2, message_value_transfer_recipient_post\n  li a3, 0\n  li a4, 1\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     ".Lcr_nse_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++

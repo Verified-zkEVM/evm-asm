@@ -21,6 +21,8 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Stateless.SpecRef.Gas
 
@@ -129,7 +131,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, callee_balance_count; ld t1, 0(t0); li t2, 512; bgeu t1, t2, .Lscs_bal_done\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la t0, csce_addrp; ld a2, 0(t0); li a3, 20; mv a4, s0; mv a5, s1; la a6, csce_bal_struct\n" ++
-  "  jal ra, account_at_header_state_root_tracked\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lscs_bal_done\n" ++                  -- absent/error -> skip (descend default 0)
   "  la t0, callee_balance_count; ld t1, 0(t0); slli t2, t1, 6; la t3, callee_balance_table; add t3, t3, t2\n" ++
   -- addr (canonical BE, csce_addrp) -> entry+0..19, zero-pad +20..31
@@ -474,16 +476,61 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ret\n" ++
   "\n" ++
   -- Same-block delegation already selected the exact target code before the
-  -- runtime is staged.  It still needs the identical post-seed access charge,
-  -- but no second code materialization.
+  -- runtime is staged.  It still needs the post-seed access charge, but no
+  -- second code materialization.  `prepare_dispatch` reads the selected
+  -- delegate after that charge, so record that target here as well: the root
+  -- path otherwise warms it without adding the all-empty BAL account-read.
   "dtrc_charge_deferred_delegation:\n" ++
   -- `delegationAccessChargeAsm` contains a nested `jal`; preserve the
   -- dispatcher continuation before invoking the charge-only callback.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   delegationAccessChargeAsm "dtrc_deleg_target" ++
+  "  la a0, dtrc_deleg_target; jal ra, account_read_record\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  ret\n" ++
   "\n" ++
+  -- Shared `process_message` body checkpoint.  It is entered only after the
+  -- dispatcher has finished preparation and before it can execute a precompile
+  -- or bytecode; both MTx and the one-tx verdict caller therefore share it.
+  "dispatcher_capture_body_state:\n" ++
+  "  la t2, body_state_snapshot_by_depth\n" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_count" "t2" 0 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_nonstorage_effect_overflow" "t2" 8 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_count" "t2" 16 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_next" "t2" 24 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t2" 32 "t0" "t1" ++
+  bodyStateCaptureCursorsAsm "  la t0, evm_env; " "t0" "t2" "t1" ++
+  bodyStateCaptureScalarAsm "account_writes_undo_count" "t2" 64 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_pending_count" "t2" 72 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_delete_count" "t2" 80 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "account_state_overflow" "t2" 88 "t0" "t1" ++
+  bodyStateCaptureScalarAsm "create_nonce_undo_count" "t2" 96 "t0" "t1" ++
+  -- GH #10619: the storage-writes undo cursor is transaction state exactly as
+  -- `account_writes_undo_count` (offset 64) and `create_nonce_undo_count` (offset 96) are.
+  -- execution-specs `restore_tx_state` (`state_tracker.py:823-826`) restores FOUR write
+  -- structures, `storage_writes` among them; the guest captured the other two marks here
+  -- and left this one to the whole-transaction `write_sets_discard_tx`, which is a commit
+  -- predicate rather than a body rollback.
+  bodyStateCaptureScalarAsm "storage_writes_undo_count" "t2" 104 "t0" "t1" ++
+  "  ret\n" ++
+  "dispatcher_restore_body_state:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la t2, body_state_snapshot_by_depth\n" ++
+  "  ld t1, 0(t2); la t0, exec_nonstorage_effect_count; sd t1, 0(t0); ld t1, 8(t2); la t0, exec_nonstorage_effect_overflow; sd t1, 0(t0)\n" ++
+  "  ld t1, 16(t2); la t0, exec_code_effect_count; sd t1, 0(t0); ld t1, 24(t2); la t0, exec_code_effect_next; sd t1, 0(t0); ld t1, 32(t2); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
+  "  la t0, evm_env; ld t1, 40(t2); sd t1, 448(t0); ld t1, 48(t2); sd t1, 464(t0); ld t1, 56(t2); sd t1, 472(t0)\n" ++
+  "  ld a0, 64(t2); jal ra, account_writes_restore_frame\n" ++
+  "  la t2, body_state_snapshot_by_depth; ld t1, 72(t2); la t0, account_state_pending_count; sd t1, 0(t0); ld t1, 80(t2); la t0, account_state_delete_count; sd t1, 0(t0); ld t1, 88(t2); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
+  "  ld a0, 96(t2); jal ra, create_creator_nonce_undo_to\n" ++
+  -- Replay the storage-writes undo journal to the captured mark, the same way the two
+  -- marks above are replayed.  `write_sets_restore_frame` takes the mark in a0, walks the
+  -- journal in REVERSE so nested overwrites land on the earliest recorded value, and
+  -- resets `storage_writes_undo_count` to the mark; `CallFrameReturn` already uses it for
+  -- child frames off the per-frame checkpoint array.  `t2` is reloaded because the call
+  -- above clobbers it.
+  "  la t2, body_state_snapshot_by_depth; ld a0, 104(t2); jal ra, write_sets_restore_frame\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  ret\n" ++
   "dispatch_tx_runtime_code:\n" ++
   "  addi sp, sp, -80\n" ++
   "  sd ra, 0(sp)\n" ++
@@ -530,6 +577,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- Keep the runtime code lookup's status contract aligned with
+  -- `TxIntrinsicStateGas`: status 1 is an absent account and status 5 is an
+  -- empty-code witness miss.  Both execute the same zero-byte body.  Other
+  -- nonzero statuses remain unsupported; in particular status 2 still names
+  -- a malformed/unresolvable code lookup rather than an empty recipient.
+  "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  "  li t0, 5; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  -- The MTx wrapper reserves status 2 for the top-level deferred-witness
+  -- continuation.  It still needs this common setup so `prepare_only` can
+  -- distinguish prefix OOG from a completed prefix whose code witness is
+  -- missing.  Other callers keep the ordinary unsupported status-2 result.
+  "  li t0, 2; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_same_block_empty_code\n" ++
+  ".Ldtrc_code_lookup_status_done:\n" ++
   "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
   -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
   -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
@@ -808,30 +869,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  add t4, t1, t2; lbu t5, 0(t4); li t3, 31; sub t3, t3, t2; add t4, t0, t3; sb t5, 0(t4)\n" ++
   "  addi t2, t2, 1; j .Ldtrc_blobbasefee_rev\n" ++
   ".Ldtrc_blobbasefee_done:\n" ++
-  -- bmvmx/gcylw: stage the same account-witness context used by the top-level
-  -- recipient lookup into the callable runtime trailer, so nested CALL/EXTCODE
-  -- lookups read the pre-header/state/codes context instead of zero lengths.
-  "  la t0, bv_runtime_payload\n" ++
-  "  la t5, srpc_env_base; ld t1, 0(t5); add t0, t0, t1\n" ++
-  "  la t2, dtrc_hdr_len; ld t3, 0(t2); sd t3, 472(t0)\n" ++
-  "  sd s1, 480(t0)\n" ++
-  "  la t2, svf_codes_len; ld t4, 0(t2); sd t4, 488(t0)\n" ++
-  "  addi t5, t0, 496\n" ++
-  "  la t2, dtrc_hdr_ptr; ld t2, 0(t2); mv t6, t3\n" ++
-  ".Ldtrc_ctx_hdr_copy:\n" ++
-  "  beqz t6, .Ldtrc_ctx_state_copy_start\n" ++
-  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_hdr_copy\n" ++
-  ".Ldtrc_ctx_state_copy_start:\n" ++
-  "  mv t2, s0; mv t6, s1\n" ++
-  ".Ldtrc_ctx_state_copy:\n" ++
-  "  beqz t6, .Ldtrc_ctx_codes_copy_start\n" ++
-  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_state_copy\n" ++
-  ".Ldtrc_ctx_codes_copy_start:\n" ++
-  "  la t2, svf_codes_ptr; ld t2, 0(t2); mv t6, t4\n" ++
-  ".Ldtrc_ctx_codes_copy:\n" ++
-  "  beqz t6, .Ldtrc_ctx_done\n" ++
-  "  lbu a0, 0(t2); sb a0, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Ldtrc_ctx_codes_copy\n" ++
-  ".Ldtrc_ctx_done:\n" ++
+  -- Stage the same account-witness context used by the top-level recipient
+  -- lookup, so nested CALL/EXTCODE lookups receive authenticated header,
+  -- state, and code bytes rather than zero lengths.
+  "  la a0, bv_runtime_payload; la a1, dtrc_hdr_ptr; ld a1, 0(a1); la a2, dtrc_hdr_len; ld a2, 0(a2); mv a3, s0; mv a4, s1; la a5, svf_codes_ptr; ld a5, 0(a5); la a6, svf_codes_len; ld a6, 0(a6); jal ra, stage_runtime_payload_witness_context\n" ++
   -- 3vc2p.1: stage CALLER (env+64) + ORIGIN (env+128) = tx'sender into the runtime
   -- payload's env words, so CALLER/ORIGIN resolve once 3vc2p.4 activates them (for a
   -- top-level tx, CALLER == ORIGIN == tx'sender). The sender is derived from the
@@ -1059,9 +1100,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
   "  la t4, ecrecover_backend_ptr; la t5, secp256k1_recover_pubkey_staged; sd t5, 0(t4)\n" ++
-  -- EIP-7702 preparation ran at the common MTx transaction boundary before
-  -- recipient routing; do not invoke a second writer in this contract arm.
-  "  la t4, runtime_tx_create_state_charge; sd zero, 0(t4)\n" ++
+  -- The caller owns `runtime_tx_create_state_charge`: an ordinary MTx stages
+  -- its top-level value-recipient charge immediately before this call, while
+  -- the single-tx caller clears the cell before entering.  Do not clear it
+  -- here: the dispatcher gas fold below consumes this staged component.
   "  la t4, current_block_access_index; ld t5, 0(t4); beqz t5, .Ldtrc_auth_predelegated_stored\n" ++
   "  addi t5, t5, -1; slli t5, t5, 3\n" ++
   "  la t4, bvgr_tx_predelegated_auth_count; add t4, t4, t5\n" ++
@@ -1077,10 +1119,26 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t4, 64(s2); bne t3, t4, .Ldtrc_stage_unsupported\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp)\n" ++
-  "  jal ra, runtime_dispatcher_call\n" ++
+  -- Status-2 MTx lookup deferral shares all setup above, but stops at the
+  -- dispatcher preparation seam.  The wrapper consumes the tri-state below:
+  -- completed preparation is a missing-witness verdict failure; prefix OOG
+  -- continues through the ordinary transaction settlement.
+  "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_dispatch_prepare_only\n" ++
+  "  jal ra, runtime_dispatcher_call; j .Ldtrc_dispatch_returned\n" ++
+  ".Ldtrc_dispatch_prepare_only:\n" ++
+  "  jal ra, runtime_dispatcher_prepare_only\n" ++
+  ".Ldtrc_dispatch_returned:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
+  "  la t4, bv_mtx_recipient_lookup_deferred; ld t5, 0(t4); beqz t5, .Ldtrc_deferred_lookup_done\n" ++
+  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 2; beq t5, t6, .Ldtrc_deferred_lookup_unresolvable\n" ++
+  "  li t6, 1; bne t5, t6, .Ldtrc_code_lookup_unsupported\n" ++
+  "  la t4, bv_mtx_recipient_lookup_deferred; sd zero, 0(t4)\n" ++
+  "  j .Ldtrc_deferred_lookup_done\n" ++
+  ".Ldtrc_deferred_lookup_unresolvable:\n" ++
+  "  li a0, 8; j .Ldtrc_ret\n" ++
+  ".Ldtrc_deferred_lookup_done:\n" ++
   -- A CREATE child whose authenticated pre-balance lookup parse/decode failed
   -- cannot safely execute with zero.  This sticky flag is set by
   -- create_frame_descend and is consumed here into the ordinary nonzero
@@ -1101,6 +1159,20 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv s1, a1                    # effective refund_counter (v0.6.0: no auth regular-refund credit)\n" ++
   "  mv s2, a2                    # tx success bit (receipt status, .63.1.6.2.1)\n" ++
   "  la t4, runtime_tx_calldata_floor; ld s3, 0(t4)\n" ++
+  -- Cross-routine pairing: `Dispatch.lean`'s callable-dispatch setup invokes
+  -- `dispatcher_capture_body_state` before interpreter entry.  This caller
+  -- restores that mark only after the dispatcher returns and settlement has
+  -- classified a failed body.
+  -- The shared body-state restore is deliberately placed after this pure
+  -- settlement fold: Python restores at interpreter.py:429, but this guest
+  -- obtains the status bit here.  This ordering is sound only while
+  -- `dispatcher_tx_gas_settle` writes no captured arena.  The root slab holds
+  -- nonstorage/code counts and overflow flags, persistent/transient/event-log
+  -- cursors, account-write/state undo checkpoints, state overflow, and the
+  -- create-nonce checkpoint; settlement's only error stores zero the separate
+  -- `evm_state_gas_used` and `evm_state_gas_spilled` counters.
+  "  bnez s2, .Ldtrc_body_state_kept; jal ra, dispatcher_restore_body_state\n" ++
+  ".Ldtrc_body_state_kept:\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
   -- after settlement has classified the top-level tx status. A failed top-level
   -- transaction rolls back all LOGs, even logs committed by successful child calls.

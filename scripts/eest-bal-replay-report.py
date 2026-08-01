@@ -195,7 +195,11 @@ def summarize(
         "other_changed": 0,
         "storage_slots": 0,
         "storage_writes": 0,
+        # This is the block-wide BAL total, including read-only AccountChanges.
+        # A read-only account is still a declared storage-read row and must not
+        # disappear when this summary is compared with guest-side totals.
         "storage_reads": 0,
+        "readonly_storage_reads": 0,
         "balance_changes": 0,
         "nonce_changes": 0,
         "code_changes": 0,
@@ -244,13 +248,15 @@ def summarize(
     for row, account_changes in enumerate(bal):
         address = bytes(account_changes.address).hex()
         changed = is_changed(account_changes)
+        storage_reads = len(account_changes.storage_reads)
+        summary["storage_reads"] += storage_reads
         if not changed:
             summary["readonly_rows"] += 1
+            summary["readonly_storage_reads"] += storage_reads
             continue
 
         storage_slots = len(account_changes.storage_changes)
         storage_writes = count_storage_writes(account_changes)
-        storage_reads = len(account_changes.storage_reads)
         balance_changes = len(account_changes.balance_changes)
         nonce_changes = len(account_changes.nonce_changes)
         code_changes = len(account_changes.code_changes)
@@ -260,7 +266,6 @@ def summarize(
         summary["changed_rows"] += 1
         summary["storage_slots"] += storage_slots
         summary["storage_writes"] += storage_writes
-        summary["storage_reads"] += storage_reads
         summary["balance_changes"] += balance_changes
         summary["nonce_changes"] += nonce_changes
         summary["code_changes"] += code_changes
@@ -386,6 +391,7 @@ def main() -> int:
         "storage_slots",
         "storage_writes",
         "storage_reads",
+        "readonly_storage_reads",
         "balance_changes",
         "nonce_changes",
         "code_changes",
@@ -468,8 +474,8 @@ def main() -> int:
             parts = line.rstrip("\n").split("\t")
             if len(parts) == 6:
                 label, input_file, expected_hex, _succ_bit, _input_len, relpath = parts
-            elif len(parts) == 7:
-                label, input_file, expected_hex, _succ_bit, _input_len, _gas_limit, relpath = parts
+            elif len(parts) >= 7:
+                label, input_file, expected_hex, _succ_bit, _input_len, _gas_limit, relpath = parts[:7]
             else:
                 raise SystemExit(f"bad manifest row with {len(parts)} columns: {line!r}")
             if args.filter and args.filter not in label and args.filter not in relpath:

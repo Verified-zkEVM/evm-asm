@@ -61,8 +61,39 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
+
+/-! ## `exec_log_addr_to_bal_canonical`
+
+    Convert the 32-byte address key carried by the execution storage log into
+    the builder's canonical 20-byte big-endian address.
+
+    Both live `storage_read_record` callers pass `x20`, the frame's
+    `env.ADDRESS`.  The top-level runtime stager writes it as a little-endian
+    stack word, and `call_frame_set_call_env` copies that same form for nested
+    frames.  Thus this producer has one representation at every depth: reverse
+    its low 20 bytes into the builder's BE20 key.  The representation belongs
+    to the producing call site, not to call depth; a wrong form merely creates
+    a silent zero-match in the BAL, which is why this convention has one named
+    helper.
+
+    Calling convention:
+      a0 = 32-byte exec-log address key
+      a1 = writable 20-byte canonical-BE output
+
+    Leaf; clobbers `t0`-`t4`. -/
+def execLogAddrToBalCanonicalFunction : String :=
+  "exec_log_addr_to_bal_canonical:\n" ++
+  "  li t0, 0\n" ++
+  ".Lelatbc_loop:\n" ++
+  "  li t1, 20; beq t0, t1, .Lelatbc_done\n" ++
+  "  li t2, 19; sub t2, t2, t0; add t2, a0, t2; lbu t3, 0(t2)\n" ++
+  "  add t4, a1, t0; sb t3, 0(t4)\n" ++
+  "  addi t0, t0, 1; j .Lelatbc_loop\n" ++
+  ".Lelatbc_done:\n" ++
+  "  ret\n"
 
 /-! ## `storage_read_record`
 
@@ -73,7 +104,13 @@ namespace EvmAsm.Codegen
       ra = return
       no result register.
 
-    Clobbers **nothing** the caller can see: `t0`-`t6` are saved and restored, so
+    After inserting (or finding) the read, it interns the same account in the
+    block access-list builder.  This mirrors `add_storage_read` ensuring the
+    account at read-record time, so a reverted transaction's read still has an
+    account entry independently of the transaction-promotion boundary.
+
+    Clobbers **nothing** the caller can see: input registers `a0`-`a2`,
+    `t0`-`t6`, and `ra` are saved and restored, so
     this is safe to call from a handler `preBody` that is holding live dispatcher
     state in caller-saved registers. That matters because the SLOAD handler's body
     is a *verified* Program (`EvmAsm.Evm64.Storage.evm_sload`, witnessed by
@@ -81,9 +118,18 @@ namespace EvmAsm.Codegen
     read from `preBody` leaves that proof untouched instead of invalidating it. -/
 def storageReadRecordFunction : String :=
   "storage_read_record:\n" ++
-  "  addi sp, sp, -64\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
+  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
+  -- System calls execute through the ordinary SLOAD handler but are not part of
+  -- a user transaction. `storage_reads` is block-lifetime in the spec, so route
+  -- those keys directly to the block-level set instead of leaving them in the
+  -- transaction-local arena with no promotion boundary. The block recorder
+  -- performs the same canonicalisation and set deduplication.
+  "  la t0, system_call_mode; ld t0, 0(t0); beqz t0, .Lsrr_tx\n" ++
+  "  jal ra, storage_read_record_block; j .Lsrr_done\n" ++
+  ".Lsrr_tx:\n" ++
   "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Lsrr_overflow\n" ++
@@ -102,7 +148,7 @@ def storageReadRecordFunction : String :=
   "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrr_next\n" ++
   "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrr_next\n" ++
   "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrr_next\n" ++
-  "  j .Lsrr_done\n" ++                                       -- already in the set
+  "  j .Lsrr_intern_account\n" ++                             -- already in the set
   ".Lsrr_next:\n" ++
   "  addi t4, t4, 1; j .Lsrr_scan\n" ++
   ".Lsrr_append:\n" ++
@@ -116,13 +162,80 @@ def storageReadRecordFunction : String :=
   "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
   "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
   "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrr_intern_account:\n" ++
+  "  addi a1, sp, 64\n" ++
+  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
+  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
   "  j .Lsrr_done\n" ++
   ".Lsrr_overflow:\n" ++
   "  la t0, tx_storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lsrr_done:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
+  "  ret\n"
+
+/-! ## `storage_read_record_block`
+
+    Insert an execution-keyed storage read directly into the block-level set.
+    Modeled system calls have no user-transaction promotion boundary, so their
+    `storage_reads` must not enter the transaction-local arena first.
+
+    Calling convention and address representation match `storage_read_record`:
+      a0 = 32-byte little-endian execution address key
+      a1 = 32-byte little-endian execution slot key
+
+    The builder performs read/write suppression later. This helper records only
+    the block-lifetime read set. -/
+def storageReadRecordBlockFunction : String :=
+  "storage_read_record_block:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
+  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
+  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
+  "  la t0, storage_reads_count; ld t1, 0(t0)\n" ++
+  "  li t2, 16384\n" ++
+  "  bgeu t1, t2, .Lsrrb_overflow\n" ++
+  "  li t3, 0xa1ba0000\n" ++
+  "  li t4, 0\n" ++
+  ".Lsrrb_scan:\n" ++
+  "  bgeu t4, t1, .Lsrrb_append\n" ++
+  "  slli t5, t4, 6; add t5, t3, t5\n" ++
+  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrrb_next\n" ++
+  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrrb_next\n" ++
+  "  j .Lsrrb_intern_account\n" ++
+  ".Lsrrb_next:\n" ++
+  "  addi t4, t4, 1; j .Lsrrb_scan\n" ++
+  ".Lsrrb_append:\n" ++
+  "  slli t5, t1, 6; add t5, t3, t5\n" ++
+  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
+  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
+  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
+  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
+  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
+  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
+  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
+  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrrb_intern_account:\n" ++
+  "  addi a1, sp, 64\n" ++
+  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
+  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
+  "  j .Lsrrb_done\n" ++
+  ".Lsrrb_overflow:\n" ++
+  "  la t0, storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lsrrb_done:\n" ++
+  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
+  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
+  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret\n"
 
 /-! ## `account_state_promote_delete_reads`
@@ -137,14 +250,18 @@ def storageReadRecordFunction : String :=
     constructor that self-destructs is the depth-0/top-frame exception and can
     leave the address in canonical big-endian form, so both forms are checked.
     This routine is called before `read_sets_incorporate_tx`, while the
-    transaction read set is still live.  Its caller is the successful
-    `account_state_commit_pending` boundary; reverted transactions never reach
-    it and therefore cannot contribute reads.
+    transaction read set is still live.  The ordinary call is the successful
+    `account_state_commit_pending` boundary.  MTx also calls that helper after
+    recording the transaction's non-revertible coinbase fee, including its
+    preparation-halt arm.  That arm explicitly clears `account_state_delete_count`
+    before the shared tail, so this loop exits immediately with a zero bound and
+    cannot promote a reverted transaction's deletion reads.  This safety relies
+    on that explicit clear, not on the helper being unreachable after a revert.
 -/
 def accountStatePromoteDeleteReadsFunction : String :=
   "account_state_promote_delete_reads:\n" ++
   "  addi sp, sp, -224; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, 8192; bgtu s0, t0, .Laspdr_over\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Laspdr_over\n" ++
   "  la t0, evm_env; ld s2, 448(t0); li t0, 16384; bgtu s2, t0, .Laspdr_over\n" ++
   "  li s1, 0\n" ++
   ".Laspdr_delete:\n" ++

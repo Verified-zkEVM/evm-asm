@@ -32,6 +32,59 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  la t2, bv_bal_start; ld a3, 0(t2)\n  la t2, bv_bal_len; ld a4, 0(t2)\n  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
   "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
   "  jal ra, block_verdict_withdrawal_nonstorage_effects\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_fail\n"
+  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  -- EIP-7928: the post-transaction boundary runs at `block_access_index =
+  -- ulen(transactions) + 1` (`fork.py:917-919`), and `process_withdrawals`
+  -- incorporates there like any other producer (`fork.py:921` → `:1226`).
+  -- `BlockVerdictMtxRuntime` already does exactly this after `.Lbv_mtx_done`;
+  -- THIS call site did not, so on a block with **no transactions** the
+  -- withdrawal credit was recorded into the nonstorage effect log by
+  -- `record_nonstorage_effect` and then nothing ever walked it into the
+  -- builder.  Same recorder, two callers, one contract silently different.
+  --
+  -- Measured by PC on one guest ELF (sha d191c0e4e299): the two call sites are
+  -- MUTUALLY EXCLUSIVE — exactly one fires per block across 0, 1 and 5
+  -- transactions (00566 takes this one and emitted ZERO balance rows; 00565 and
+  -- 23725 take the MtxRuntime one and emitted 4 and 15).  So feeding the
+  -- builder here cannot double-feed the `ntx >= 1` path; 00565 staying at 350
+  -- is the canary for that.
+  --
+  -- With zero transactions `bv_tx_count + 1` is 1, which is the index the
+  -- declared BALs of these blocks actually carry.
+  "  la t0, bv_tx_count; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  "  la t0, account_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- GH #10866 / GH #10701: the STORAGE half of the N+1 boundary, and it must be at
+  -- BOTH post-exec sites.  This one and the `.Lbv_mtx_done` block in
+  -- `BlockVerdictMtxRuntime` are MUTUALLY EXCLUSIVE -- the paragraph above measured
+  -- exactly one firing per block -- so a single site would cover only one arm.
+  -- That is the same one-recorder-two-sites shape as GH #10875 and GH #10880, which
+  -- is why it is written here at the same time rather than after a fixture shows the
+  -- gap: 23100 reaches THIS site, 23725 reaches the other one.
+  --
+  -- See the sibling comment for why the baseline forces this position rather than
+  -- the requests phase where the writes are actually made.
+  -- A failed single transaction has already restored its execution snapshot in
+  -- the spec (`vm/interpreter.py:217,301`), so none of its storage writes may
+  -- reach the later system replay. The guest reuses the transaction arena and
+  -- reaches this common postlude with the failed SSTORE row still present;
+  -- discard it by the authoritative receipt status before replaying the
+  -- end-of-block system writes. Successful transactions retain their writes
+  -- for the normal incorporate below. This mirrors `process_transaction`'s
+  -- fresh TransactionState (`fork.py:870`) and final incorporation (`:974`)
+  -- without touching the read set, whose rollback semantics are separate.
+  "  la t0, bv_tx_status_arr; ld t1, 0(t0); bnez t1, .Lbv_eoa_storage_tx_ready\n" ++
+  "  jal ra, write_sets_discard_tx\n" ++
+  ".Lbv_eoa_storage_tx_ready:\n" ++
+  "  jal ra, replay_system_storage_writes_at_bai\n" ++
+  "  jal ra, write_sets_incorporate_tx\n" ++
+  "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"
+
+-- Both post-exec sites carry the storage half; a bare count of the pair across the
+-- two modules cannot be written here, so each module pins its own occurrence.
+#guard (blockVerdictEoaBodyEffectReconcile.splitOn
+  "  jal ra, replay_system_storage_writes_at_bai\n  jal ra, write_sets_incorporate_tx\n").length == 2
 
 end EvmAsm.Codegen

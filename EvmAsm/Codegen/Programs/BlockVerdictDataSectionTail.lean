@@ -7,11 +7,13 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.CallFrameLayout
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
 import EvmAsm.Codegen.Programs.BalSlotTupleSequence
 import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+import EvmAsm.Codegen.Programs.EIP7708Logs
 
 namespace EvmAsm.Codegen
 
@@ -454,15 +456,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_mtx_skip_count:\n  .zero 8\n" ++
   "bv_mtx_skip_idx:\n  .zero 8\n" ++
   "bv_mtx_skip_ctx:\n  .zero 192\n" ++
-  -- EIP-8037 current-state aliveness for the multi-tx EOA shortcut.
-  -- top-level value transfers pay NEW_ACCOUNT state gas only when the recipient
-  -- is not alive in the transaction's current state. The header-state lookup is
-  -- not enough after an earlier tx in the same block creates/funds that recipient,
-  -- so the shortcut records recipients whose NEW_ACCOUNT charge has already been
-  -- paid and suppresses repeats. 32-byte stride, 20-byte BE address prefix.
-  ".balign 8\n" ++
-  "bv_mtx_created_recipient_count:\n  .zero 8\n" ++
-  "bv_mtx_created_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
   -- Effective recipient for each settled MTx item. Unlike the raw context
   -- recipient, this holds the derived CREATE address for a creation tx.
   ".balign 8\n" ++
@@ -485,15 +478,18 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- REVERT / OOG at depth 0) takes .exit_*_top with NO frame_return -> the effects survived,
   -- and the all-accounts non-storage comparator then saw a value change the BAL (correctly,
   -- net-zero) omitted -> bv_fail=44 (bal_aborted_account_access invalid/revert-call/callcode).
-  -- Snapshot before the tx runtime dispatch; truncate back to it when the tx errored (status 0).
+  -- Shared process_message body checkpoint.  The one canonical, depth-indexed
+  -- slab has 1025 records (depths 0..1024), each with thirteen u64 words:
+  -- nonstorage count/overflow; code count/next/overflow; persistent/transient/
+  -- event cursors; account-write undo; AccountState pending/delete/overflow;
+  -- and CREATE-nonce undo.  Root uses every word in record 0; a child uses
+  -- record depth for the fields it already restores (the overflow word stays
+  -- root-only to preserve the pre-existing child restore semantics).
+  -- These zero-only declarations are promoted to `.bss` by
+  -- `Layout.moveZeroDataLines`, preserving fixed `.data` addresses (in
+  -- particular bnf_le_a).
   ".balign 8\n" ++
-  "bv_tx_effect_snap_ns_count:\n  .zero 8\n" ++
-  "bv_tx_effect_snap_ns_overflow:\n  .zero 8\n" ++
-  "bv_tx_effect_snap_code_count:\n  .zero 8\n" ++
-  "bv_tx_effect_snap_code_next:\n  .zero 8\n" ++
-  "bv_tx_effect_snap_code_overflow:\n  .zero 8\n" ++
-  "bv_tx_effect_snap_storage_count:\n  .zero 8\n" ++   -- bbow4.2: storage exec-log count (evm_env+448) snapshot for tx-error truncation
-  "bv_tx_effect_snap_account_writes_undo:\n  .zero 8\n" ++ -- account-write undo cursor at the same pre-body boundary
+  "body_state_snapshot_by_depth:\n  .zero " ++ toString bodyStateSlabBytes ++ "\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
   -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
@@ -693,6 +689,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- `nea_sort_a`; later gas replays use that set as their order-insensitive
   -- input and may reuse both sort buffers without a second large arena.
   ".balign 8\n" ++
-  "bv_eip7702_authority_counts:\n  .zero 2048\n"
+  "bv_eip7702_authority_counts:\n  .zero 2048\n" ++
+  messageValueTransferScratchData
 
 end EvmAsm.Codegen

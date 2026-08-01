@@ -95,9 +95,10 @@ def iter_manifest(path: Path) -> Iterable[tuple[str, Path, str, str, int, int, s
     for raw in path.read_text().splitlines():
         if not raw:
             continue
-        label, input_file, expected_hex, succ_bit, input_len, gas_limit, relpath = raw.split(
-            "\t", 6
-        )
+        fields = raw.split("\t")
+        if len(fields) < 7:
+            raise ValueError(f"bad manifest row with {len(fields)} columns: {raw!r}")
+        label, input_file, expected_hex, succ_bit, input_len, gas_limit, relpath = fields[:7]
         yield (
             label,
             Path(input_file),

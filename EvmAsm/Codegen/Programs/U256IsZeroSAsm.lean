@@ -25,7 +25,8 @@
   Spec-only module (no emitted-code change) — no EEST A/B required.
 -/
 
-import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.Programs.U256Prog
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -64,9 +65,12 @@ def u256IsZero_verified : Program :=
 #guard u256IsZeroBody.flatten 0 = u256IsZeroBody.flatten 0x80000000
 
 -- Byte-identity to the emitted routine: the 8 body instructions plus the
--- calling-convention `ret` epilogue reproduce `u256IsZero_prog` exactly.
-#guard u256IsZeroBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
-  = u256IsZero_prog
+-- calling-convention `ret` epilogue reproduce `u256IsZero_prog_of L` for an
+-- ARBITRARY layout `L` — the body cannot reference the layout (`rfl`; a
+-- future layout reference would make this fail).
+theorem u256IsZeroBody_flatten (L : GuestLayout) :
+    u256IsZeroBody.flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
+      = u256IsZero_prog_of L := rfl
 
 private theorem se12_0 : signExtend12 (0#12 : BitVec 12) = (0 : Word) := by decide
 private theorem se12_8 : signExtend12 (8#12 : BitVec 12) = (8 : Word) := by decide

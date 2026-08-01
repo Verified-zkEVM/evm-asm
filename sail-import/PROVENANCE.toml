@@ -19,7 +19,7 @@
 # lakefile.toml + lake-manifest.json. See [target] for the authoritative pins.
 source          = "vendor/sail-riscv-zkvm-lean"   # local path require (package "out", lib "Out")
 lean_sail_rev   = "79b4d08505af29d88b3918f32d29840fae1fa191"   # = lean-sail v4; pinned by the vendored package's lakefile
-scope           = ["main", "I_insts", "M_insts"]   # scoped RV64IM (113 Lean files)
+scope           = ["main", "I_insts", "M_insts", "Zicsr_insts"]   # RV64IM + Zicsr (116 Lean files; Zicsr_insts restores currentlyEnabled's Ext_Zicsr arm — #10688)
 project_toolchain = "leanprover/lean4:v4.30.0-rc1"
 notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out). AXIOM FOOTPRINT (corrected 2026-06-25 adversarial review, docs/agents/sail-adversarial-review.md F1): pure-ALU lemmas reduce to {propext, Classical.choice, Quot.sound}; memory lemmas additionally carry Sail PLATFORM axioms {plat_term_write, load_reservation, match_reservation, sys_enable_experimental_extensions} (host/LR-SC/experimental-ext boundary). The earlier '3 classical only' note was inaccurate for mem ops. (F2 RESOLVED: the model_sha256 below is correct; only its recipe was underspecified — pinned reproducibly at the hash line.)"
 
@@ -36,21 +36,34 @@ notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sai
 # (The 0.19.1 / sail-riscv 1760ee2 path the spike first explored is ABANDONED.)
 sail_compiler_version = "0.20.2"   # latest on opam: `opam install sail.0.20.2` — ships sail_lean_backend (no build-from-source)
 ocaml_min_version = "5.2"   # !! REQUIRED: build Sail on OCaml >=5.2 (we used 5.4.1). On 4.14.2 the Lean backend stack-overflows on the sail-riscv model — rems-project/sail#1674.
-sail_riscv_tag    = "2026-06-22-b5a2182"   # latest sail-riscv RELEASE tag (requires Sail >=0.20.1). Generation validated on main @ e123b61 (~equivalent).
+sail_riscv_tag    = "2026-07-27-9901550"   # latest sail-riscv RELEASE tag (bumped 2026-07-28 during the #10688 fix, see below)
+# HISTORY (2026-07-28, #10715): the previous pin (2026-06-22-b5a2182 with
+# riscv64im_zicclsm.json) did NOT reproduce the then-vendored model. Two defects:
+# (1) the config predated the tag's schema (no base.mstatus.*) so generation
+# aborted in validate_config; (2) with the correct reference config
+# (rv64d_v256_e64.json, identified from the vendored vlen_exp=8/elen_exp=6),
+# 30/113 files still differed SEMANTICALLY (e.g. AMO ctor arity, mem_write_ea
+# signature) — the old note "validated on main @ e123b61 (~equivalent)" was the
+# tell: the artifact came from a commit that no longer exists upstream, not from
+# the tag. Since no recorded source reproduced the model, the regen REPLACED it
+# at the latest tag rather than extending it. The upstream handwritten
+# RiscvExtras.lean at this tag carries `open THE_MODULE_NAME.Defs` targeting an
+# unreleased Sail backend; regen-sail-model.sh strips that line for 0.20.2
+# (top-level declarations), see the comment there.
 lean_sail_rev     = "v4"   # = 79b4d08, HEAD of rems-project/lean-sail. The MATCHED runtime Sail 0.20.2 emits as the lakefile `require`. Model imports EXTERNAL Sail (no inline runtime).
 project_toolchain = "leanprover/lean4:v4.30.0-rc1"   # UNCHANGED — verified the matched pair builds here (see toolchain note)
-z3_version        = "4.15.3"   # required by Sail's typechecker; not on PATH by default (nix store path in regen-sail-model.sh)
+z3_version        = "4.15.4"   # what the 2026-07-28 regen used (homebrew); typechecker-side only
 # lean flags MUST match sail-riscv's cmake target — all THREE --lean-non-beq-type
 # (instruction, ExecutionResult, Step); omitting the latter two => ExecutionResult
 # fails to derive BEq. Generation cost: ~9-13 min / ~7 GB (one-time; --memo-z3 helps).
 # Module selection is POSITIONAL after the project file (no --module flag even in
 # 0.20.2). sail-riscv main/tags ALSO expose -DSAIL_MODULES as a cmake cache var.
-sail_modules = ["main", "I_insts", "M_insts"]   # scoped RV64IM; see "scoping" open question in the spike report
-config_file = "sail-import/riscv64im_zicclsm.json"   # NOTE: produced against 1760ee2; P2 must REGENERATE/REVALIDATE against the tag's config schema + tighten (single flat RAM; justify extension set; actually run validate_config)
-config_sha256 = "7dd1fa11db135e5b20e981499e172e48aa25d2b1f61f44afe6597eda13057e81"
+sail_modules = ["main", "I_insts", "M_insts", "Zicsr_insts"]   # RV64IM + Zicsr. Zicsr_insts restores the scattered currentlyEnabled(Ext_Zicsr) clause the old scope dropped, which made execute_JALR fault in every state (#10688). Other clauses are still dropped (the catch-all remains) — audit before relying on a new extension gate.
+config_file = "sail-import/rv64d_v256_e64.json"   # the tag's own cmake-generated reference config (config/config.json.in, XLEN=64 VLEN=256 ELEN=64 — matches the vendored vlen_exp/elen_exp). riscv64im_zicclsm.json is SUPERSEDED: it was never actually applied to any vendored model (the old artifact carried default-config hartSupports values) and predates current schemas; kept only as a record of the unimplemented RV64IM-restriction intent.
+config_sha256 = "a3b545eb174247f5552a27dbb60f32c4ee95af85bdc8ea92ce0661254fbff674"
 arch = "rv64d"   # generator names the arch rv64d; scoped content is RV64IM. Renaming cosmetic.
 vendor_path  = "vendor/sail-riscv-zkvm-lean"   # P2 step 2: model VENDORED here (113 .lean files; package "out", lib "Out" kept verbatim from the proven artifact). lakefile git-pins lean-sail at the rev below.
-model_sha256 = "3a49ffa5cfc3a46e52686d56f43d3923567242bf616cdf3e2f19a4b8859a76e0"
+model_sha256 = "8f4c2e69976ccbed453a1e0560a8b7f1c6db9d637fd82a32a57022fc60e8d9f5"
 # REPRODUCIBLE RECIPE (pinned 2026-06-25 after review F2 — the old one-liner was
 # underspecified re: CWD/locale/.lake and did NOT reproduce this hash). Run EXACTLY:
 #   cd vendor/sail-riscv-zkvm-lean && \

@@ -8,6 +8,10 @@
 import EvmAsm.Codegen.Programs.EvmTinyInterp
 import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.StorageReadLog
+import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
@@ -208,6 +212,9 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bv_tx_status_arr:\n  .zero 8192\n" ++
     "bv_tx_is_creation_arr:\n  .zero 8192\n" ++
     "bv_create_addr:\n  .zero 32\n" ++
+  -- GH #10944: the top-level CREATE endowment in canonical 32-byte BE, copied from the
+  -- context record so the shared `record_message_value_transfer` can take a pointer to it.
+  "bvcr_endow_val_be:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "bv_creation_ctx_ptr:\n  .zero 8\n" ++
     "bv_tx_log_window:\n  .zero 16\n" ++
@@ -373,9 +380,6 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     "callee_balance_table:\n  .zero " ++ toString (128 * 64) ++ "\n" ++
     ".balign 8\n" ++
     "cd_xfer_gas_precharged:\n  .zero 8\n" ++
-    "cd_nse_presnap_armed:\n  .zero 8\n" ++
-    "cd_nse_presnap_count:\n  .zero 8\n" ++
-    "cd_nse_presnap_overflow:\n  .zero 8\n" ++
     ".balign 32\n" ++
     "cahsr_state_root:\n  .zero 32\n" ++
     ".balign 8\n" ++
@@ -421,8 +425,10 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     "  lbu t2, 0(a0); sd t2, 24(t0)                   # returndata[0]\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- tinyInterpRegistry's CREATE handler descends via create_frame_descend, which pulls
     -- in the full frame-helper chain (none defined by the plain-STOP callable epilogue for
     -- this registry). Bundle them for a standalone emit (mirrors createRoundtripUnit).
@@ -453,6 +459,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -518,8 +525,10 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
@@ -548,6 +557,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -611,8 +621,10 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- same frame-helper closure the system-call probe bundles (CREATE handler descent chain)
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
@@ -641,6 +653,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -723,8 +736,10 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     deriveWithdrawalRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
     requestsHashVerifyFunction ++ "\n" ++
     assembleExecutionRequestsFunction ++ "\n" ++
@@ -760,6 +775,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -833,8 +849,13 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
+    accountReadRecordFunction ++ "\n" ++
+    readSetsMergeOneFunction ++ "\n" ++
+    readSetsIncorporateTxFunction ++ "\n" ++
+    readSetsDiscardTxFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
     frameDepthPopFunction ++ "\n" ++
@@ -862,6 +883,10 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
     "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
+    accountReadLogDataSection ++
+    storageReadLogDataSection ++
+    codeReadLogDataSection ++
+    readSetsBlockDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
     "  .byte 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff\n" ++
@@ -962,6 +987,7 @@ def ziskSstoreClearGasProbeUnit : BuildUnit := {
     ".Lscgp_done:\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
     frameDepthPopFunction ++ "\n" ++

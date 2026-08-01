@@ -427,9 +427,8 @@ def storageWritesUndoPushFunction : String :=
 
     The frame's mark is the journal cursor at descend. It is captured INLINE in
     `call_frame_descend`, into a per-depth slot, rather than through a named
-    helper — mirroring `create_nonce_undo_checkpoint`, which is the same
-    mechanism for the CREATE nonce journal and does it the same way. Taking a
-    mark copies nothing, which is the whole point of the journal.
+    helper. Taking a mark copies nothing, which is the whole point of the
+    journal.
 
     `write_sets_restore_frame` takes that mark in `a0` and replays the journal
     backwards down to it: an overwrite has its previous value written back, an
@@ -530,10 +529,9 @@ def storageWriteMapDataSection : String :=
   "tx_storage_writes_count:\n  .zero 8\n" ++
   "tx_storage_writes_overflow:\n  .zero 8\n" ++
   "storage_writes_undo_count:\n  .zero 8\n" ++
-  -- Per-depth journal high-water mark, exactly mirroring
-  -- `create_nonce_undo_checkpoint` (CreateCreatorNonce.lean): one 8-byte
-  -- slot per call depth, written at descend and replayed to on child
-  -- failure.  1025 slots for depths 0..1024.
+  -- Per-depth journal high-water mark: one 8-byte slot per call depth,
+  -- written at descend and replayed to on child failure. 1025 slots cover
+  -- depths 0..1024.
   "storage_writes_undo_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n"
 
 end EvmAsm.Codegen

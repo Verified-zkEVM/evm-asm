@@ -38,6 +38,7 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.EvmMemoryGas
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
 
@@ -90,8 +91,7 @@ def frameReturnFunction : String :=
   -- Revert every CREATE nonce-table mutation made since this child frame's
   -- entry checkpoint.  This is a journal replay, not a count truncation: it
   -- restores in-place advances of an existing creator as well as new entries.
-  "  la t0, evm_call_depth; ld t1, 0(t0); slli t1, t1, 3\n" ++
-  "  la t0, create_nonce_undo_checkpoint; add t0, t0, t1; ld a0, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0); " ++ bodyStateSlabStrideOps "t1" "t2" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 96(t0)\n" ++
   "  jal ra, create_creator_nonce_undo_to\n" ++
   -- r59nm S5a: same replay for the storage write map.  restore_tx_state
   -- (state_tracker.py:809-826) restores the WRITE structures and leaves the
@@ -103,8 +103,7 @@ def frameReturnFunction : String :=
   -- The account-writes mirror is transaction state too: replay its undo journal
   -- on REVERT so a reverted child cannot contribute a balance, nonce, or code
   -- change to the transaction-level BAL source.
-  "  la t0, evm_call_depth; ld t1, 0(t0); slli t1, t1, 3\n" ++
-  "  la t0, account_writes_undo_checkpoint; add t0, t0, t1; ld a0, 0(t0)\n" ++
+  "  la t0, evm_call_depth; ld t1, 0(t0); " ++ bodyStateSlabStrideOps "t1" "t2" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t2; ld a0, 64(t0)\n" ++
   "  jal ra, account_writes_restore_frame\n" ++
   -- On child error, execution-specs `refill_frame_state_gas` returns the
   -- child state-gas allocation in LIFO order: the portion that spilled into
@@ -179,24 +178,37 @@ def frameReturnFunction : String :=
   -- back accessed_storage_keys). The keys array beyond the count is stale but a
   -- future cold access overwrites slot[count]. Success leaves it (warmth
   -- propagates up per incorporate_child_on_success).
+  --
+  -- EQUIVALENCE CONDITION, and it is latent: the spec rolls warmth back by
+  -- DISCARDING A COPY (`system.py:367-368` hands the child
+  -- `accessed_storage_keys.copy()`; `incorporate_child_on_error`,
+  -- `vm/__init__.py:302-304`, reabsorbs only the gas fields), while this restores
+  -- a COUNT.  A count is a high-water mark: it undoes APPENDS but cannot undo an
+  -- in-place edit of an entry below the mark.  The two agree only while this table
+  -- is APPEND-ONLY -- true for a membership set with no mutable per-entry payload.
+  -- Giving warmth entries a mutable field would break the equivalence with no
+  -- assertion anywhere to catch it.
   "  ld t0, 648(x20); la t1, evm_storage_access_count; sd t0, 0(t1)\n" ++
   -- EIP-2929 accessed_addresses has the same rollback rule as accessed_storage_keys:
   -- a reverted child does not propagate accounts it warmed to the parent.
+  -- The append-only equivalence condition stated at the storage-warmth restore
+  -- above applies identically here (`system.py:149-150` / `:367-368` copy this set
+  -- per child; the error path does not merge it back).
   "  ld t0, 720(x20); la t1, evm_access_account_count; sd t0, 0(t1)\n" ++
   -- i3djw/reverted-CREATE rollback: truncate global effect logs to the
   -- pre-child snapshots captured by call_frame_descend. Successful child frames
   -- keep their CREATE/CALL value effects; reverted child frames discard them.
-  "  ld t0, 656(x20); la t1, exec_nonstorage_effect_count; sd t0, 0(t1)\n" ++
-  "  ld t0, 664(x20); la t1, exec_nonstorage_effect_overflow; sd t0, 0(t1)\n" ++
-  "  ld t0, 672(x20); la t1, exec_code_effect_count; sd t0, 0(t1)\n" ++
-  "  ld t0, 680(x20); la t1, exec_code_effect_next; sd t0, 0(t1)\n" ++
-  "  ld t0, 688(x20); la t1, exec_code_effect_overflow; sd t0, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
+  "  ld t2, 0(t0); la t1, exec_nonstorage_effect_count; sd t2, 0(t1)\n" ++
+  "  ld t2, 8(t0); la t1, exec_nonstorage_effect_overflow; sd t2, 0(t1)\n" ++
+  "  ld t2, 16(t0); la t1, exec_code_effect_count; sd t2, 0(t1)\n" ++
+  "  ld t2, 24(t0); la t1, exec_code_effect_next; sd t2, 0(t1)\n" ++
+  "  ld t2, 32(t0); la t1, exec_code_effect_overflow; sd t2, 0(t1)\n" ++
   -- Restore this child's CodeState high-water marks on REVERT/exceptional
   -- return.  The current depth still names the child at this point.
-  "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
-  "  la t0, account_state_pending_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
-  "  la t0, account_state_created_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_created_count; sd t3, 0(t1)\n" ++
-  "  la t0, account_state_delete_checkpoint; add t0, t0, t2; ld t3, 0(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
+  "  ld t3, 72(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
+  "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1; ld t3, 80(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
   "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_selfdestruct_seen_overflow_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_overflow; sd t3, 0(t1)\n" ++
@@ -306,11 +318,18 @@ def frameReturnFunction : String :=
   "  la t0, evm_cur_stack_low; la t2, evm_stack_low; sd t2, 0(t0)\n" ++
   "  j 5f\n" ++
   "4:\n" ++
-  "  addi t2, t1, -1               # (parent_depth - 1)\n" ++
+  -- ⚠️ This block OPEN-CODES `frame_base` rather than calling it, and it used to carry the
+  -- same `depth - 1` skew.  `frame_base` no longer skews (depth 0 owns slot 0), so this copy
+  -- must not either.
+  --
+  -- **THE SPELLING-INDEPENDENT INSTRUMENT FOR FINDING EVERY SITE LIKE THIS IS
+  -- `la <reg>, call_frame_arena`** — any site computing a frame address must materialise the
+  -- arena base by symbol.  A grep for `0x19000` misses five further sites in `Dispatch.lean`
+  -- that render the stride through `s!` interpolation, i.e. in DECIMAL (`102400`).
   "  li t3, 0x19000               # FRAME_STRIDE\n" ++
-  "  mul t2, t2, t3\n" ++
+  "  mul t2, t1, t3               # parent_depth * FRAME_STRIDE (no skew)\n" ++
   "  la t3, call_frame_arena\n" ++
-  "  add t2, t3, t2               # frame_base(parent_depth)\n" ++
+  "  add t2, t3, t2               # = frame_base(parent_depth), open-coded\n" ++
   -- Frame-relative stack bounds: restore the guards to the parent frame's stack.
   "  li t3, 0x8200\n" ++
   "  add t3, t2, t3               # parent stack top = frame_base + frameStackTopOff\n" ++

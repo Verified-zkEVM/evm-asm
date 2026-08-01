@@ -100,6 +100,10 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_2935; li a1, 20\n" ++
   "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
   "  la a5, bsr_sys_acct\n" ++
+  -- `process_unchecked_system_transaction` obtains the target account even when
+  -- it is absent or has empty code.  Mirror that unconditional `get_account`
+  -- in the BAL read set before deciding whether the modeled EIP-2935 call writes.
+  "  jal ra, account_read_record\n" ++
   "  jal ra, account_at_address\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_2935_absent\n" ++
   "  bnez a0, .Lbsr_cons_sys2935\n" ++
@@ -114,6 +118,10 @@ def blockStateRootFunction : String :=
   "  la a0, bsr_addr_4788; li a1, 20\n" ++
   "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
   "  la a5, bsr_sys_acct\n" ++
+  -- The EIP-4788 branch has the same unchecked-system contract read.  It is
+  -- recorded even for `bal_4788_absent_contract`: the spec reads the absent
+  -- account, observes no code, and emits a touched-only account entry.
+  "  jal ra, account_read_record\n" ++
   "  jal ra, account_at_address\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_4788_absent\n" ++
   "  bnez a0, .Lbsr_cons_sys4788\n" ++
@@ -126,6 +134,14 @@ def blockStateRootFunction : String :=
   "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
   "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
   ".Lbsr_4788_gated:\n" ++
+  -- The two startup calls each have their own transaction read set in the
+  -- spec.  They precede user transactions, so merge-and-clear their reads here
+  -- before the BAL builder consumes the block-level container.
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  -- Live across the BAI-0 tuple/builder helper and modeled-system changes:
+  -- s3 = withdrawal descriptors, s4 = descriptor count, s5 = output root,
+  -- s1 = state-change counter after its initialization below.  The helper's
+  -- builder JAL may clobber a0-a4, so each modeled-state-root call reloads them.
   "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
   "  li s1, 0                     # change counter\n" ++
   "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_skip_2935\n" ++
@@ -141,6 +157,7 @@ def blockStateRootFunction : String :=
   "  mv a4, s1\n" ++
   "  la t0, bsr_sys_slot_4788; sd s1, 0(t0)\n" ++
   "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
+  "  jal ra, record_modeled_eip4788_storage_reads\n" ++
   "  addi s1, s1, 1\n" ++
   ".Lbsr_skip_4788:\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
@@ -698,7 +715,12 @@ def statelessVerdictV2Function : String :=
   ".Lc1_bd_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
   "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Lv2_requests_hash_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_bd_call\n" ++
   ".Lc1_bd_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
-  ".Lc1_bd_call:\n  la t0, c1_bd_code_ptr; ld a0, 0(t0); la t0, c1_bd_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_deposit_requests\n" ++
+  -- `process_checked_system_transaction` first reads this account through a
+  -- throwaway TransactionState, so the earlier code check intentionally remains raw.
+  -- `stage_system_call` records the matching real-state read at the actual dispatch
+  -- seam below, shared by all four request predeploys.
+  ".Lc1_bd_call:\n" ++
+  "  la t0, c1_bd_code_ptr; ld a0, 0(t0); la t0, c1_bd_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_deposit_requests\n" ++
   "  bnez a2, .Lv2_requests_hash_fail; la t0, dbsr_bdlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bdbody; mv t3, a1\n" ++
   ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
   ".Lc1_bd_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
@@ -707,6 +729,11 @@ def statelessVerdictV2Function : String :=
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
+  -- The checked-system transaction's real state is incorporated after execution in
+  -- the spec.  Merge (then clear) this synthetic transaction's read sets now, before
+  -- beginning the independent builder-exit transaction; the existing block-level
+  -- account-read walk emits the touched-only entry from the merged set.
+  "  jal ra, read_sets_incorporate_tx\n" ++
   -- Builder exit.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  bnez a0, .Lc1_be_derive_ready\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lv2_requests_hash_fail\n" ++
@@ -723,6 +750,53 @@ def statelessVerdictV2Function : String :=
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  -- The four end-of-block system calls above run the predeploys through the
+  -- dispatcher, so their SSTOREs go through the ordinary `storage_write_record`
+  -- and are sitting in the TRANSACTION-level write map right now.  In the spec
+  -- these calls run LAST -- `process_withdrawals` (`fork.py:921`, incorporating
+  -- at `:1226`) and `process_general_purpose_requests` (`:923`, incorporating at
+  -- `:858-859`) both follow the transaction loop, at
+  -- `block_access_index = ulen(transactions) + 1` (`:917-919`).  Here they run
+  -- FIRST, against a `stage_predeploy_storage_preload` snapshot instead of
+  -- sequentially-evolved state, and nothing clears the map before the loop
+  -- starts -- so transaction 1's `write_sets_incorporate_tx` sweeps them up and
+  -- stamps them with ITS index.
+  --
+  -- Measured on 23100 (`test_withdrawal_requests`, 1 tx): 16 system writes then
+  -- 20 transaction writes, ONE incorporate, and all 36 promoted at BAI 1 -- the
+  -- withdrawal queue-pointer row is declared at BAI 2 and emitted at BAI 1.  On
+  -- 00578 (0 tx) there is no incorporate at all and the 16 are stranded.
+  --
+  -- Dropping them here is the SPEC-FAITHFUL state, not merely a safe one: in
+  -- spec order the block-level map must not contain these slots while the
+  -- transactions run.  Their BAL contribution at N+1 is a separate, missing
+  -- phase; this only stops them being attributed to a transaction.  Every
+  -- reader of the tx map is accounted for -- `storage_write_record`,
+  -- `write_sets_incorporate_tx`, `write_sets_restore_frame` and
+  -- `bal_emit_storage_changes` -- and no consistency check reads it (the
+  -- exec-row side capture above keeps its own `bv_system_storage_log`).
+  --
+  -- Register safety: `write_sets_discard_tx` touches only `t0` and `ra`, and
+  -- both are DEAD across this call -- the next line opens `la t0, aer_bd_ptr`
+  -- (a write) and `ra` is next written by the `jal` at the `bgv_u32le` call.
+  --
+  -- ⛔ DO NOT EMIT THE N+1 STORAGE CHANGES HERE.  GH #10866's phase belongs after
+  -- the transaction loop, and this looks like the obvious home because the writes
+  -- are in the tx map at exactly this point.  MEASURED, both directions:
+  -- `bal_emit_storage_changes` with N+1 in `a0` on this line adds 1 of 3 declared
+  -- N+1 rows on 23100 and 0 of 8 on 23725.  The reason is the NET-ZERO BASELINE,
+  -- not the index: the emit compares each write against the BLOCK container, which
+  -- is empty here because the requests phase runs BEFORE the transactions.  Every
+  -- N+1 row in both fixtures is `pre=0 -> post=0` WITH A TRANSACTION PARTNER
+  -- writing 1 to the same slot first, so against a pre-state baseline they are all
+  -- net-zero and all filtered; the single row that did appear (23100 slot 0) is the
+  -- only N+1 slot with no transaction partner.  A correct BAI stamp on a row
+  -- computed against the wrong baseline is not a correct row.  The phase is
+  -- therefore in `blockVerdictEoaBodyEffectReconcile`, which runs after the loop
+  -- (measured by commit order, not by label position: post-exec at 5,785,396
+  -- against the loop's incorporate at 5,469,302 on 23100).
+  "  jal ra, write_sets_discard_tx\n" ++
   "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   -- 8uld3.2.3.3.1 Fix3: reload s0/s3 clobbered by the derives' dispatcher runs (see save above).
   -- fhsxz.2.4.2.66: RE-DERIVE s0/s3 instead of reloading c1_saved_s0/s3. The system-call
@@ -843,5 +917,11 @@ def statelessVerdictV2Function : String :=
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret"
+
+-- GH #10866: NEGATIVE guard -- this phase must NOT emit storage changes here.  The
+-- placement was tried, measured at 1-of-3 and 0-of-8, and reverted; see the
+-- comment at the discard.  Pinned so the obvious-looking home cannot be reoccupied
+-- silently.
+#guard (statelessVerdictV2Function.splitOn "jal ra, bal_emit_storage_changes").length == 1
 
 end EvmAsm.Codegen

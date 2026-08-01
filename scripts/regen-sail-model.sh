@@ -29,7 +29,7 @@ set -euo pipefail
 MODE="${1:---plan}"
 
 # --- Pins (mirror sail-import/PROVENANCE.toml [target]) ------------------------
-SAIL_RISCV_TAG="2026-06-22-b5a2182"   # latest sail-riscv RELEASE tag (requires Sail >=0.20.1); validated on main @ e123b61 (~equiv)
+SAIL_RISCV_TAG="${SAIL_RISCV_TAG_ENV:-2026-07-27-9901550}"   # latest sail-riscv RELEASE tag (see #10788); overridable for scope/tag experiments
 SAIL_SWITCH="${SAIL_SWITCH:-sail5}"   # opam switch with sail 0.20.2 built on OCaml >= 5.2 (NOT the 4.14.2 default!)
 # Mirrors PROVENANCE.toml's `sail_compiler_version` pin, NOT the tag's ">= 0.20.1"
 # floor. Reproducibility is the point of this script: a regen on a different
@@ -69,7 +69,9 @@ else
   SAIL_MODULES=(main I_insts M_insts)
 fi
 
-CONFIG_FILE="sail-import/riscv64im_zicclsm.json"   # NOTE: produced vs old 1760ee2 schema; P2 must REGENERATE/REVALIDATE against the tag's schema
+# Repo-relative by default; absolute paths are honoured. Overridable via
+# CONFIG_FILE_ENV so a candidate config can be trialled before it is committed.
+CONFIG_FILE="${CONFIG_FILE_ENV:-sail-import/rv64d_v256_e64.json}"
 
 # Lean backend flags — EXACTLY mirroring sail-riscv model/CMakeLists.txt's lean target.
 lean_flags() {
@@ -132,7 +134,7 @@ EOF
 do_run() {
   local outdir="${1:?usage: $0 --run <out-dir>}"
   local repo_root; repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-  local cfg="${repo_root}/${CONFIG_FILE}"
+  local cfg; case "$CONFIG_FILE" in /*) cfg="$CONFIG_FILE" ;; *) cfg="${repo_root}/${CONFIG_FILE}" ;; esac
   [[ -f "$cfg" ]] || { echo "ERROR: config not found: $cfg" >&2; exit 2; }
 
   export PATH="${Z3_BIN_DIR}:${SAIL_BIN_DIR}:${PATH}"
@@ -149,6 +151,17 @@ do_run() {
 
   echo ">> cmake configure (no build)" >&2
   cmake -S "${work}/sail-riscv" -B "${work}/sail-riscv/build" -DCMAKE_BUILD_TYPE=Release >/dev/null
+
+  # Upstream's handwritten_support/RiscvExtras.lean gained `open THE_MODULE_NAME.Defs`
+  # (tag 2026-07-27-9901550), written for an UNRELEASED Sail Lean backend that wraps
+  # generated declarations in a namespace. Released Sail 0.20.2 emits top-level
+  # declarations, so after placeholder substitution the line becomes
+  # `open Out.Defs` -> "unknown namespace" and the model cannot build. Strip it at
+  # generation time (equivalent to using the previous tag's support file, whose only
+  # difference is this line). Drop this once SAIL_REQUIRED_VER moves to a release
+  # whose backend namespaces its output.
+  sed -i.bak '/^open THE_MODULE_NAME\.Defs$/d' "${work}/sail-riscv/handwritten_support/RiscvExtras.lean" \
+    && rm -f "${work}/sail-riscv/handwritten_support/RiscvExtras.lean.bak"
 
   mkdir -p "$outdir"
   echo ">> generating scoped Lean model: ${SAIL_MODULES[*]} (~9-13 min)" >&2

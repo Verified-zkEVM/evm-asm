@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
@@ -117,7 +118,8 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 def accountStateEntryBytes : Nat := 128
 def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
-def accountStateCreatedCapacity : Nat := 8192
+-- `accountStateCreatedCapacity` moved to `EvmAsm.Codegen.ArenaCapacities` (imported
+-- above) so the two sites that mark `created_accounts` can both name it; unchanged at 8192.
 
 /-! AccountState entry layout (all fields are fixed-width and 8-byte aligned):
 
@@ -222,23 +224,21 @@ def accountStateUpsertDurableFunction : String :=
     next transaction sees the durable tombstone. -/
 def accountStateCommitPendingFunction : String :=
   "account_state_commit_pending:\n" ++
-  -- GH #10619 gate 3: this is the guest's incorporate_tx_into_block for the
-  -- account/code overlay, so it is where the READ sets are promoted too --
-  -- merge the three tx-level sets up and clear them (state_tracker.py:832,
-  -- merge :858-861, clear :879-881).  Ordered BEFORE the write merge below,
-  -- matching the spec: update_builder_from_tx and the read merges run before
-  -- account_writes/storage_writes are folded into the block.
+  -- The generic read-set promotion is deliberately NOT here.  The spec
+  -- incorporates storage/account/code reads for every transaction, including
+  -- a preparation failure that bypasses this AccountState commit; MTxRuntime
+  -- owns that unconditional transaction-boundary call.
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   -- GH #10645: SELFDESTRUCT storage rows are execution reads too.  Promote
   -- them while the tx-level read set is still live; this helper is reached only
   -- from successful transaction finalization.
   "  jal ra, account_state_promote_delete_reads\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
   -- r59nm: the STORAGE half of the merge is NOT here.  This function is called
   -- on a commit predicate that also fires for a FAILED body when the
   -- post-preparation coverage point was reached, which is correct for
   -- AccountState and wrong for storage_writes.  The storage decision is made on
-  -- tx status alone in BlockVerdictMtxRuntime.  Reads stay here.
+  -- tx status alone in BlockVerdictMtxRuntime.  Generic read promotion is at
+  -- that routine's unconditional transaction-boundary join.
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
   "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
@@ -248,7 +248,7 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_loop\n" ++
   ".Lascp_clear:\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateCreatedCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
+  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_delete_loop:\n" ++
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
   -- EIP-161 preserves an empty account whose final balance is nonzero.  The
@@ -287,8 +287,8 @@ def accountStateCommitPendingFunction : String :=
     Adapt the existing non-storage producer ABI to a complete AccountState
     snapshot.  The raw producer remains the comparison trace; this helper is
     the execution-state mirror of the same transition.  It clones an existing
-    pending/durable snapshot when available, then overwrites only the balance
-    and nonce supplied by the producer.  Thus a balance mutation preserves the
+    pending/durable snapshot when available, then overwrites the balance and
+    merges the supplied nonce monotonically.  Thus a balance mutation preserves the
     code/existence fields written by CREATE, and vice versa.
 
     a0 = address, a1 = pre-balance (comparison-only), a2 = post-balance,
@@ -317,10 +317,12 @@ def accountStateRecordNonstorageFunction : String :=
   -- A later non-storage producer may change only balance (notably the
   -- sender-is-coinbase fee credit).  Preserve an already-authoritative nonce
   -- when that producer's nonce is unchanged, but seed the producer's nonce
-  -- when this is the first authoritative snapshot for the address.
+  -- when this is the first authoritative snapshot for the address.  Nonces
+  -- only advance during a transaction, so a later publisher carrying a stale
+  -- transition must not overwrite an already-recorded authorization increment.
   "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
-  "  sd s2, 64(t0)\n" ++
+  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_unchanged; sd s2, 64(t0)\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
   "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
@@ -475,13 +477,20 @@ def accountStateLatestNonceFunction : String :=
   -- GH #10619: record the account READ (unconditional, state_tracker.py:139).
   -- Hooked INSIDE the accessor so every caller is covered and the recording
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
+  -- Only bit 6 (64) says that the nonce field is authoritative.  Bit 5 (32)
+  -- is balance-present; testing `flags & 96` would treat a balance-only
+  -- AccountState entry as a nonce hit and overwrite the authenticated
+  -- pre-state nonce with its zero-initialised nonce field.  That is precisely
+  -- the CREATE address defect on 00091 (execution-specs state_tracker.py's
+  -- write-through read must preserve the account's nonce, not infer one from
+  -- an unrelated balance update).
   "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
   "  jal ra, account_read_record\n" ++
   "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 96; bnez t0, .Lasln_hit\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 64; bnez t0, .Lasln_hit\n" ++
   ".Lasln_durable:\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 96; beqz t0, .Lasln_miss\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 64; beqz t0, .Lasln_miss\n" ++
   ".Lasln_hit:\n" ++
   "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasln_ret\n" ++
   ".Lasln_miss:\n" ++
@@ -780,14 +789,6 @@ def codeStateData : String :=
   "code_state_bal_bytes:\n  .zero 32\n" ++
   "code_state_bal_nonce:\n  .zero 32\n" ++
   "code_state_pre_acct:\n  .zero 48\n" ++
-  -- Frame-local high-water marks for the transaction overlay.  The execution
-  -- journal is nested: a reverted child must discard only changes made below
-  -- its own entry, never its parent's pending CREATE or SELFDESTRUCT work.
-  -- The depth is capped at 1024 by the EVM frame gate, hence 1025 slots
-  -- including depth zero.  These are counts, not input-sized allocations.
-  "account_state_pending_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_created_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
-  "account_state_delete_checkpoint:\n  .zero " ++ toString (1025 * 8) ++ "\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
@@ -843,17 +844,66 @@ def createRecordCodeEffectFunction : String :=
   "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
   ".Lcrce_account_state_ok:\n" ++
-  -- This successful deposit is also a transaction-local `created_accounts`
-  -- event for AccountState.  Empty deployed code still reaches this path.
-  "  mv a0, s0; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcrce_account_created_ok\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_account_created_ok:\n" ++
-  -- A successful later CREATE at the same address is the latest transaction
-  -- state and cancels an earlier same-transaction EIP-6780 delete request.
-  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
+  -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
+  -- pre-body position the spec uses (`vm/interpreter.py:208`, before `process_message`
+  -- at :212).  Both live callers now mark before the initcode runs — the nested route
+  -- in `create_frame_descend`, the top-level route in `BlockVerdictCreationStage` —
+  -- so an insert here was redundant on one path and too late on the other.  The
+  -- population is two: `jal ra, create_record_code_effect` occurs exactly twice in
+  -- `gen-out/regionmap/stateless_guest.s` (the self-test call sites at the bottom of
+  -- this file are not emitted).  A successful deposit is still an AccountState code
+  -- event, which is the `account_state_record_code` call above and is unchanged.
+  -- ⚠️ GH #10976: THIS CALL IS A NO-OP TODAY AND IS KEPT DELIBERATELY.  It runs on every
+  -- successful deposit and its miss return is ignored, so it will never show up as
+  -- unexecuted in a coverage or reachability analysis — only the precondition finds it.
+  --
+  -- Its stated purpose is that a successful later CREATE at the same address is the latest
+  -- transaction state and cancels an earlier same-transaction EIP-6780 delete request.
+  -- **That CREATE cannot succeed.**  `account_deployable` requires nonce 0 and empty code;
+  -- SELFDESTRUCT clears neither mid-transaction (the clearing is at `fork.py:1201`, after
+  -- execution); and the `modify_state` destroy-cascade that might otherwise have rescued it
+  -- needs nonce 0 too (`account_exists_and_is_empty`).  So there is never a delete row here
+  -- to cancel, and the flag-clear always misses.
+  --
+  -- WHY IT STAYS RATHER THAN BEING DELETED.  The delete set is an IN-PLACE editor whose
+  -- rollback is a HIGH-WATER MARK, which is the one cell of the append-versus-in-place ×
+  -- mark-versus-journal grid that is actually unsound (GH #10966).  This call is the only
+  -- barrier between a future reachability change and that combination: if anything ever makes
+  -- a same-transaction re-CREATE at a destroyed address succeed, the cancel must already be
+  -- here or a stale delete request survives into commit.  One instruction on the
+  -- successful-deposit path is a fair price for that, and unlike a dead SYMBOL a no-op CALL
+  -- does not pollute any allocation census.
+  --
+  -- WHAT WOULD MAKE IT LIVE: any change that lets `account_deployable` admit an address with a
+  -- pending same-transaction delete — e.g. clearing nonce/code at SELFDESTRUCT time rather than
+  -- at `fork.py:1201`, or a destroy-cascade that no longer requires nonce 0.  If you are
+  -- editing either, this line is load-bearing and its miss return should start being checked.
+  "  mv a0, s0; la a1, account_state_delete; la a2, account_state_delete_count; li a3, " ++ toString accountStateDeleteCapacity ++ "; li a4, 0; jal ra, code_state_address_set_flag\n" ++
   -- CREATE writes code, existence, and nonce=1 into the transaction-local map.
   -- Balance remains absent here: value flow owns its own nonstorage record.
-  "  mv a0, s0; li a1, 0; li a2, 1; mv a3, s1; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
+  --
+  -- GH #10887: THE CODE POINTER IS THE RETAINED HEAP COPY, NOT `s1`.  `s1` is
+  -- `create_child_code` — the reusable create-child scratch, which lives in
+  -- `evm_memory_pool` — and the `account_state_record_code` call above already says
+  -- in as many words to publish "from the retained heap copy, never from the
+  -- reusable create-child scratch".  This call did not, and the account-write row
+  -- carries its `a3` straight through to `bal_builder_append_code`
+  -- (`AccountWriteMap.lean` `+80`/`+88`), so the BAL's `code_changes` value was a
+  -- pointer into EVM memory.
+  --
+  -- MEASURED, on 12925: the bytes ARE written there (`extcodecopy_at_header_state_root`
+  -- stores `30 60 00 52 60 20 60 00 f3`), then `h_STATICCALL` zeroes the window when
+  -- the next call frame clears its memory — correct EVM behaviour — and the
+  -- serializer reads nine zeros 590k commits later.  The length was always right
+  -- because the length is copied by value; only the bytes were aliased.
+  --
+  -- The heap copy is the one the module's header requires: "the BAL's
+  -- `CodeChange.new_code` must copy those bytes unchanged", and `AccountState`
+  -- already retains pointers into it, which is why it may not be reused or deleted.
+  -- Same expression as the sibling call, recomputed rather than carried because
+  -- `account_state_record_code` and the two set helpers between them may clobber
+  -- `t0`; `s3` is the entry offset and survives (callees preserve `s`).
+  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   ".Lcrce_overflow:\n" ++
@@ -862,6 +912,25 @@ def createRecordCodeEffectFunction : String :=
   ".Lcrce_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld ra, 32(sp); addi sp, sp, 40\n" ++
   "  ret"
+
+-- The two guards below sit HERE, beside the routine they constrain, and NOT after
+-- `findCodeEffectByAddressFunction` where I first put them: that def, its
+-- correspondence theorem and its own guards are ONE GENERATED BLOCK that
+-- `scripts/asm_to_program.py` matches VERBATIM, so inserting anything between them
+-- is source drift.  `lake build` passes either way -- the drift check is a separate
+-- CI gate -- which is exactly why the placement has to be deliberate.
+--
+-- GH #10887: NEGATIVE guard.  The code pointer handed to `account_write_record`
+-- must NOT be `s1` -- that is the reusable create-child scratch in
+-- `evm_memory_pool`, and the BAL's `code_changes` value is this pointer.  Pinned
+-- negatively because `mv a3, s1` is well-formed, produces a correct LENGTH, and
+-- fails only in the bytes, 590k commits later, at equal serialized length.
+#guard (createRecordCodeEffectFunction.splitOn "mv a3, s1").length == 1
+-- And positively that it is the retained heap copy, pinned WITH the offset: the
+-- record's bytes start at +48, so a pointer to the record base would serialize the
+-- 20-byte address and the length fields as if they were code.
+#guard (createRecordCodeEffectFunction.splitOn
+  "la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48").length == 2
 
 /-! ## find_code_effect_by_address
 

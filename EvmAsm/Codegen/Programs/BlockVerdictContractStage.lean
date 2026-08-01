@@ -223,6 +223,39 @@ def stageRuntimePayloadCodeFunction : String :=
   "  addi sp, sp, 72\n" ++
   "  ret"
 
+/-- Stage the authenticated account-witness trailer shared by the top-level
+    creation and ordinary contract-dispatch routes.  Both routes already use
+    `stage_runtime_payload_code` for the common code/calldata/environment
+    prefix; this leaf owns only the three witness lengths and their contiguous
+    byte ranges at `env_base + 472` onward.
+
+    Calling convention:
+      a0 = payload, a1/a2 = header ptr/len, a3/a4 = state ptr/len,
+      a5/a6 = codes ptr/len.
+    Clobbers t0-t6 conservatively (the current body writes t0-t3); it has no
+    result. -/
+def stageRuntimePayloadWitnessContextFunction : String :=
+  "stage_runtime_payload_witness_context:\n" ++
+  "  la t0, srpc_env_base; ld t1, 0(t0); add t0, a0, t1\n" ++
+  "  sd a2, 472(t0); sd a4, 480(t0); sd a6, 488(t0)\n" ++
+  "  addi t2, t0, 496\n" ++
+  "  mv t0, a1; mv t1, a2\n" ++
+  ".Lsrpwc_header:\n" ++
+  "  beqz t1, .Lsrpwc_state_start\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_header\n" ++
+  ".Lsrpwc_state_start:\n" ++
+  "  mv t0, a3; mv t1, a4\n" ++
+  ".Lsrpwc_state:\n" ++
+  "  beqz t1, .Lsrpwc_codes_start\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_state\n" ++
+  ".Lsrpwc_codes_start:\n" ++
+  "  mv t0, a5; mv t1, a6\n" ++
+  ".Lsrpwc_codes:\n" ++
+  "  beqz t1, .Lsrpwc_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_codes\n" ++
+  ".Lsrpwc_done:\n" ++
+  "  ret"
+
 /-- `zisk_stage_runtime_payload_code`: layout-validation probe. Builds a
     synthetic context + exec payload + a 5-byte code blob (all in writable
     `.data` scratch), stages the payload, and writes diagnostics to OUTPUT:
@@ -270,6 +303,7 @@ def ziskStageRuntimePayloadCodePrologue : String :=
   "  lbu t1, 288(t2); sd t1, 48(s0)\n" ++
   "  j .Lsrpcp_done\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsrpcp_done:"
 
 /-- `zisk_stage_runtime_payload_code_m29`: 3vc2p.3b — same synthetic staging as the
@@ -314,6 +348,7 @@ def ziskStageRuntimePayloadCodeM29Prologue : String :=
   "  lbu t1, 288(t2); sd t1, 48(s0)\n" ++                          -- PREVRANDAO low byte (expect 0x55)
   "  j .Lsrpcm29_done\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsrpcm29_done:"
 
 def ziskStageRuntimePayloadCodeDataSection : String :=
@@ -380,6 +415,7 @@ def ziskStageRuntimePayloadCodeStoragePrologue : String :=
   "  lbu t1, 0(t2); sd t1, 40(s0)\n" ++
   "  j .Lsrpcsp_done\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsrpcsp_done:"
 
 def ziskStageRuntimePayloadCodeStorageDataSection : String :=
@@ -441,6 +477,7 @@ def ziskStageRuntimePayloadCodeCalldataPrologue : String :=
   "  lbu t1, 0(t2); sd t1, 40(s0)\n" ++
   "  j .Lsrpccp_done\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsrpccp_done:"
 
 def ziskStageRuntimePayloadCodeCalldataDataSection : String :=

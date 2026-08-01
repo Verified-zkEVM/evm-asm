@@ -20,43 +20,44 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.RLP
 namespace BalStorageReadsExecLogSpec
 
 /-- Dword slot `k` of log entry `t`: the log region's dword at index
-    `16 * t + k` (128-byte entries = 16 dwords). -/
-def entryDword (logBytes : List (BitVec 8)) (t k : Nat) : Word :=
-  packBytes ((logBytes.drop (8 * (16 * t + k))).take 8)
+    `D * t + k`, where an entry is `8 * D` bytes (`D` dwords): `D = 16` for the
+    128-byte exec log, `D = 8` for the 64-byte `storage_reads` container. -/
+def entryDword (D : Nat) (logBytes : List (BitVec 8)) (t k : Nat) : Word :=
+  packBytes ((logBytes.drop (8 * (D * t + k))).take 8)
 
 /-- The 8-dword comparison the cascade implements: addrHash dwords 0–3
     against the addr region, slotKey dwords 4–7 against the krev region.
     (Equivalent to the byte-slice `entryMatches` via
     `bytes_eq_of_dwordSlots_eq` — bridged separately.) -/
-def entryMatchesD (logBytes addrBytes key32 : List (BitVec 8)) (t : Nat) : Prop :=
+def entryMatchesD (D : Nat) (logBytes addrBytes key32 : List (BitVec 8)) (t : Nat) : Prop :=
   (∀ k, k < 4 →
-    entryDword logBytes t k = packBytes ((addrBytes.drop (8 * k)).take 8)) ∧
+    entryDword D logBytes t k = packBytes ((addrBytes.drop (8 * k)).take 8)) ∧
   (∀ k, k < 4 →
-    entryDword logBytes t (4 + k) = packBytes ((key32.drop (8 * k)).take 8))
+    entryDword D logBytes t (4 + k) = packBytes ((key32.drop (8 * k)).take 8))
 
 /-- Scan invariant at the loop head (slot 68), after `j` entries checked
     (from the log's END): the cursor sits at the past-end boundary of entry
     `count - j - 1`, and no entry with index ≥ count - j matches. -/
-def scanInv (logBase addrPtr krevBase : Word)
+def scanInv (D : Nat) (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat)
     (F : Assertion) (j : Nat) : Assertion :=
-  ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+  ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 ((8 * D) * (count - j)))) **
   ((.x8 : Reg) ↦ᵣ addrPtr) **
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+  ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
   bytesRegion krevBase key32 **
   (⌜∀ t, count - j ≤ t → t < count →
-      ¬ entryMatchesD logBytes addrBytes key32 t⌝ : Assertion) **
+      ¬ entryMatchesD D logBytes addrBytes key32 t⌝ : Assertion) **
   F
 
 /-- **FOUND exit** (`base + 388`, the advance join at slot 97): some entry
     of the exec log matches; the cursor and compare scratch are released. -/
-def scanFound (logBase addrPtr krevBase : Word)
+def scanFound (D : Nat) (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat)
     (F : Assertion) : Assertion :=
   regOwn .x28 **
@@ -64,17 +65,17 @@ def scanFound (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+  ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
   bytesRegion krevBase key32 **
-  (⌜∃ t, t < count ∧ entryMatchesD logBytes addrBytes key32 t⌝ : Assertion) **
+  (⌜∃ t, t < count ∧ entryMatchesD D logBytes addrBytes key32 t⌝ : Assertion) **
   F
 
 /-- **ABSENT exit** (`base + 400`, the reject stub at slot 100): the whole
     log has been scanned and no entry matches. -/
-def scanAbsent (logBase addrPtr krevBase : Word)
+def scanAbsent (D : Nat) (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat)
     (F : Assertion) : Assertion :=
   regOwn .x28 **
@@ -82,29 +83,29 @@ def scanAbsent (logBase addrPtr krevBase : Word)
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+  ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
   regOwn .x29 ** regOwn .x30 **
   bytesRegion logBase logBytes **
   bytesRegion addrPtr addrBytes **
   bytesRegion krevBase key32 **
-  (⌜∀ t, t < count → ¬ entryMatchesD logBytes addrBytes key32 t⌝ : Assertion) **
+  (⌜∀ t, t < count → ¬ entryMatchesD D logBytes addrBytes key32 t⌝ : Assertion) **
   F
 
 /-! ### §5.1  Round-state shape, address/counter bridges -/
 
 /-- The register/region state inside a scan round (between the head `ADDI`
     and the scan-next station): the cursor pinned at entry `t`
-    (`8 * (16 * t)` is the `ld_cursor` dword-slot form of `128 * t`), the
+    (`8 * (D * t)` is the `ld_cursor` dword-slot form of `(8 * D) * t`), the
     compare scratch holding arbitrary values. -/
-private def scanRegs (logBase addrPtr krevBase : Word)
+private def scanRegs (D : Nat) (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (t : Nat) (F : Assertion)
     (v29 v30 : Word) : Assertion :=
-  ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
+  ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
   ((.x8 : Reg) ↦ᵣ addrPtr) **
   ((.x9 : Reg) ↦ᵣ logBase) **
   ((.x31 : Reg) ↦ᵣ krevBase) **
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-  ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+  ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
   ((.x29 : Reg) ↦ᵣ v29) **
   ((.x30 : Reg) ↦ᵣ v30) **
   bytesRegion logBase logBytes **
@@ -131,6 +132,13 @@ private def scanRegs (logBase addrPtr krevBase : Word)
     variables). It is removed by eliminating the `Nat` subtraction first
     (`count - j = m + 1`) and then generalising the product, after which the goal is
     linear and `bv_omega` closes it. -/
+
+/-- Monotonicity of the stride bound in the entry count.  `omega` cannot derive
+    this (the stride `8 * D` times a variable count is nonlinear), so it is
+    factored out once instead of being re-argued at each use. -/
+private theorem stride_bound_le (D count m : Nat) (hm : m ≤ count)
+    (hcnt : (8 * D) * count < 2 ^ 64) : (8 * D) * m < 2 ^ 64 :=
+  Nat.lt_of_le_of_lt (Nat.mul_le_mul_left _ hm) hcnt
 
 /-- Stride-generic form of `scan_cursor_step`. -/
 private theorem scan_cursor_step_gen (logBase : Word) (S D count j : Nat)
@@ -169,33 +177,46 @@ private theorem scan_cursor_ne_gen (logBase : Word) (S D T : Nat)
 
 /-- The head `SUB x28, x28, x21` steps the past-end cursor of entry `count - j`
     down to the base of entry `count - j - 1`, with the stride register `x21`
-    holding the exec log's 128.
+    holding `8 * D`.
 
-    Instantiates `scan_cursor_step_gen` at `S = 128, D = 16` and bridges its
-    ADDI-immediate form to the register-subtract the routine now uses. The
-    bridge is a single concrete `decide` (`signExtend12 (-128) = -(128 : Word)`),
-    which is why the generic lemma did NOT need reshaping to a subtract form:
-    the `signExtend12` hypothesis is discharged once per stride either way. -/
-private theorem scan_cursor_step (logBase : Word) (count j : Nat)
-    (hj : j < count) (hcnt : 128 * count < 2 ^ 64) :
-    logBase + BitVec.ofNat 64 (128 * (count - j)) - (128 : Word)
-      = logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) := by
-  have h := scan_cursor_step_gen logBase 128 16 count j (-128) (by omega)
-    (by decide) hj hcnt
-  rw [show signExtend12 (-128 : BitVec 12) = -(128 : Word) from by decide] at h
-  rw [← h]; bv_omega
+    **Register-subtract form, so no `signExtend12` appears at all.**  The
+    routine subtracts the stride *register* rather than an ADDI immediate, so
+    the sign-extension obstacle documented above simply does not arise here and
+    this is proved directly, generically in `D` — no per-stride `decide`.  The
+    only obstacle left is the nonlinearity `D * m`, removed the same way
+    `scan_cursor_step_gen` removes it: eliminate the `Nat` subtraction first
+    (`count - j = m + 1`), then generalise the products so the goal is linear. -/
+private theorem scan_cursor_step (logBase : Word) (D count j : Nat)
+    (hj : j < count) (hcnt : (8 * D) * count < 2 ^ 64) :
+    logBase + BitVec.ofNat 64 ((8 * D) * (count - j)) - BitVec.ofNat 64 (8 * D)
+      = logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))) := by
+  obtain ⟨m, hm⟩ : ∃ m, count - j = m + 1 := ⟨count - j - 1, by omega⟩
+  rw [hm, Nat.add_sub_cancel]
+  have hSm : 8 * (D * m) = (8 * D) * m := by rw [Nat.mul_assoc]
+  have hsplit : (8 * D) * (m + 1) = (8 * D) * m + (8 * D) := Nat.mul_succ _ m
+  rw [hsplit, hSm]
+  have hb : (8 * D) * m + (8 * D) < 2 ^ 64 := by
+    have h1 : (8 * D) * (m + 1) ≤ (8 * D) * count := Nat.mul_le_mul_left _ (by omega)
+    rw [Nat.mul_succ] at h1
+    omega
+  -- Both products are nonlinear; name them so the goal is linear in `P`/`S`.
+  generalize hP : (8 * D) * m = P at hb ⊢
+  generalize hS : 8 * D = S at hb ⊢
+  bv_omega
 
 /-- While entries remain (`1 ≤ T`), the stepped cursor differs from the log
-    base — no wraparound thanks to the log-size bound. -/
-private theorem scan_cursor_ne (logBase : Word) (T : Nat)
-    (h1 : 1 ≤ T) (h2 : 128 * T < 2 ^ 64) :
-    logBase + BitVec.ofNat 64 (8 * (16 * T)) ≠ logBase :=
-  scan_cursor_ne_gen logBase 128 16 T (by omega) (by omega) h1 h2
+    base — no wraparound thanks to the log-size bound.  `0 < D` is genuinely
+    required (at `D = 0` the stride is zero and the claim is false). -/
+private theorem scan_cursor_ne (logBase : Word) (D T : Nat)
+    (hD : 0 < D) (h1 : 1 ≤ T) (h2 : (8 * D) * T < 2 ^ 64) :
+    logBase + BitVec.ofNat 64 (8 * (D * T)) ≠ logBase :=
+  scan_cursor_ne_gen logBase (8 * D) D T rfl hD h1 h2
 
 /-- At the first entry (`T = 0`) the stepped cursor IS the log base. Stride-free:
     the cursor offset is `0` whatever the entry width. -/
-private theorem scan_cursor_eq_zero (logBase : Word) :
-    logBase + BitVec.ofNat 64 (8 * (16 * 0)) = logBase := by
+private theorem scan_cursor_eq_zero (logBase : Word) (D : Nat) :
+    logBase + BitVec.ofNat 64 (8 * (D * 0)) = logBase := by
+  rw [Nat.mul_zero, Nat.mul_zero]
   bv_omega
 
 /-! ### §5.2  One compare station (generic) and the station merge -/
@@ -211,7 +232,7 @@ private theorem bsre_stationBr_spec {CR : CodeReq} (A : Word) (boff : BitVec 13)
     (logBase tgtBase : Word) (logBytes tgtBytes : List (BitVec 8))
     (rt : Reg) (t qL qT : Nat) (v29 v30 : Word)
     (G : Assertion) (hG : G.pcFree)
-    (hqL : 8 * (16 * t + qL) < logBytes.length)
+    (hqL : 8 * (D * t + qL) < logBytes.length)
     (hqT : 8 * qT < tgtBytes.length)
     (himmL : 8 * qL < 2 ^ 11) (himmT : 8 * qT < 2 ^ 11)
     (hmem1 : ∀ a i,
@@ -224,27 +245,27 @@ private theorem bsre_stationBr_spec {CR : CodeReq} (A : Word) (boff : BitVec 13)
       CodeReq.singleton (A + 8) (.BNE .x29 .x30 boff) a = some i →
       CR a = some i) :
     cpsBranchWithin 3 A CR
-      (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
+      (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
         (rt ↦ᵣ tgtBase) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
         bytesRegion logBase logBytes ** bytesRegion tgtBase tgtBytes ** G)
       (A + 8 + signExtend13 boff)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)
           ≠ packBytes ((tgtBytes.drop (8 * qT)).take 8)⌝ : Assertion) **
-        ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
+        ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
         (rt ↦ᵣ tgtBase) **
-        ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)) **
+        ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)) **
         ((.x30 : Reg) ↦ᵣ packBytes ((tgtBytes.drop (8 * qT)).take 8)) **
         bytesRegion logBase logBytes ** bytesRegion tgtBase tgtBytes ** G)
       (A + 12)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)
           = packBytes ((tgtBytes.drop (8 * qT)).take 8)⌝ : Assertion) **
-        ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
+        ((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
         (rt ↦ᵣ tgtBase) **
-        ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)) **
+        ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)) **
         ((.x30 : Reg) ↦ᵣ packBytes ((tgtBytes.drop (8 * qT)).take 8)) **
         bytesRegion logBase logBytes ** bytesRegion tgtBase tgtBytes ** G) := by
   have hld1 := liftCode (cr' := CR)
-    (bytesRegion_ld_cursor_imm_within .x29 .x28 logBase v29 A logBytes (16 * t) qL
+    (bytesRegion_ld_cursor_imm_within .x29 .x28 logBase v29 A logBytes (D * t) qL
       (by decide) hqL himmL) hmem1
   have hld2 := liftCode (cr' := CR)
     (bytesRegion_ld_within .x30 rt tgtBase v30 (A + 4) tgtBytes qT
@@ -252,19 +273,19 @@ private theorem bsre_stationBr_spec {CR : CodeReq} (A : Word) (boff : BitVec 13)
   rw [show A + 4 + 4 = A + 8 from by bv_omega] at hld2
   have hbne := cpsBranchWithin_extend_code (cr' := CR)
     (h := bne_spec_gen_within .x29 .x30 boff
-      (packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8))
+      (packBytes ((logBytes.drop (8 * (D * t + qL))).take 8))
       (packBytes ((tgtBytes.drop (8 * qT)).take 8)) (A + 8))
     (hmono := hmem3)
   have hld1F := cpsTripleWithin_frameR
     ((rt ↦ᵣ tgtBase) ** ((.x30 : Reg) ↦ᵣ v30) ** bytesRegion tgtBase tgtBytes ** G)
     (by pcf; exact hG) hld1
   have hld2F := cpsTripleWithin_frameR
-    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
-      ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)) **
+    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
+      ((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)) **
       bytesRegion logBase logBytes ** G)
     (by pcf; exact hG) hld2
   have hbneF := cpsBranchWithin_frameR
-    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
+    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
       (rt ↦ᵣ tgtBase) **
       bytesRegion logBase logBytes ** bytesRegion tgtBase tgtBytes ** G)
     (by pcf; exact hG) hbne
@@ -304,18 +325,18 @@ private theorem bsre_stationMerge {n m : Nat} {A tgtT tgtF ret hdr : Word}
     base — no wraparound by the log-size bound), re-establishing the
     invariant at `j + 1` with the freshly refuted entry recorded. -/
 private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
-    (hF : F.pcFree) (hcnt : 128 * count < 2 ^ 64)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hD : 8 ≤ D) (hcnt : (8 * D) * count < 2 ^ 64)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (j : Nat) (hj : j + 1 < count)
     (hprev : ∀ t', count - j ≤ t' → t' < count →
-      ¬ entryMatchesD logBytes addrBytes key32 t')
-    (hnm : ¬ entryMatchesD logBytes addrBytes key32 (count - j - 1))
+      ¬ entryMatchesD D logBytes addrBytes key32 t')
+    (hnm : ¬ entryMatchesD D logBytes addrBytes key32 (count - j - 1))
     (v29 v30 : Word) :
     cpsTripleWithin 3 (base + 376) (base + 272) (CodeReq.ofProg base bsreProg)
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32
         (count - j - 1) F v29 v30)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
   set CR := CodeReq.ofProg base bsreProg with hCR
   -- MV x29, x9
   have hmv := liftCode (cr' := CR)
@@ -324,17 +345,17 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
       rfl (by decide +kernel) (by decide +kernel) hbound)
   rw [show base + 376 + 4 = base + 380 from by bv_omega] at hmv
   have hmvF := cpsTripleWithin_frameR
-    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
       ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x31 : Reg) ↦ᵣ krevBase) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hmv
   -- BNE x28, x29, -108 — the back-edge
   have hbne := cpsBranchWithin_extend_code (cr' := CR)
     (h := bne_spec_gen_within .x28 .x29 (-108 : BitVec 13)
-      (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1)))) logBase (base + 380))
+      (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1)))) logBase (base + 380))
     (hmono := CodeReq.ofProg_mem_at base (base + 380) bsreProg 95
       (.BNE .x28 .x29 (-108 : BitVec 13))
       rfl (by decide +kernel) (by decide +kernel) hbound)
@@ -345,36 +366,39 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
   have hbneF := cpsBranchWithin_frameR
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
       ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       ((.x30 : Reg) ↦ᵣ v30) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hbne
   -- taken arm entails the invariant at j + 1
   have hent : ∀ h,
-      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion) h →
-      scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1) h := by
+      scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1) h := by
     intro h hp
     unfold scanInv
     have hpure : ∀ t', count - (j + 1) ≤ t' → t' < count →
-        ¬ entryMatchesD logBytes addrBytes key32 t' := by
+        ¬ entryMatchesD D logBytes addrBytes key32 t' := by
       intro t' h1 h2
       by_cases he : t' = count - j - 1
       · exact he ▸ hnm
       · exact hprev t' (by omega) h2
-    rw [show (128 : Nat) * (count - (j + 1)) = 8 * (16 * (count - j - 1)) from by omega]
+    -- `omega` cannot close this generically (the product `D * _` is nonlinear); the
+    -- subtraction normalisation plus associativity does it without arithmetic search.
+    rw [show (8 * D) * (count - (j + 1)) = 8 * (D * (count - j - 1)) from by
+          rw [show count - (j + 1) = count - j - 1 from by omega, Nat.mul_assoc]]
     have hp1 : ((((.x29 : Reg) ↦ᵣ logBase) **
         (((.x30 : Reg) ↦ᵣ v30) **
-          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+            ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F))) : Assertion) h := by
       xperm_hyp hp
@@ -383,42 +407,42 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
     have hp3 := (sepConj_pure_left h).mpr ⟨hpure, hp2⟩
     xperm_hyp hp3
   have hident : cpsTripleWithin 0 (base + 272) (base + 272) CR
-      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) hent ?_
     exact fun R hR s hcr hPR hpc => ⟨0, Nat.le_refl 0, s, rfl, hpc, hPR⟩
   have hstation := retJoinStation_spec (m := 1)
-    (cond := (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))) ≠ logBase))
-    (PT := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+    (cond := (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))) ≠ logBase))
+    (PT := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
-    (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+    (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     hbneF
     (fun h hq => by xperm_hyp hq)
     (fun h hq => by
-      have hq1 : ((⌜logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1)))
+      have hq1 : ((⌜logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1)))
             = logBase⌝ : Assertion) **
-          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * (count - j - 1))))) **
+          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * (count - j - 1))))) **
             ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
             ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+            ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F)) h := by
         xperm_hyp hq
@@ -426,7 +450,8 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
       exact (sepConj_pure_left h).mpr ⟨fun hne => hne h2.1, h2.2⟩)
     (fun _ => cpsTripleWithin_mono_nSteps (by omega) hident)
     (fun hnc => absurd
-      (scan_cursor_ne logBase (count - j - 1) (by omega) (by omega)) hnc)
+      (scan_cursor_ne logBase D (count - j - 1) (by omega) (by omega)
+        (stride_bound_le D count _ (by omega) hcnt)) hnc)
   refine cpsTripleWithin_weaken ?_ (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmvF hstation)
   exact fun h hp => by unfold scanRegs at hp; xperm_hyp hp
@@ -436,21 +461,21 @@ private theorem bsre_scanNextIter_spec (base logBase addrPtr krevBase : Word)
     `BNE x28, x29` back-edge FALLS THROUGH and slot 96's `JAL` exits to the
     reject stub — the whole log has been scanned, the slot is absent. -/
 private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
     (hF : F.pcFree)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (j : Nat) (hj : j + 1 = count)
     (hprev : ∀ t', count - j ≤ t' → t' < count →
-      ¬ entryMatchesD logBytes addrBytes key32 t')
-    (hnm : ¬ entryMatchesD logBytes addrBytes key32 (count - j - 1))
+      ¬ entryMatchesD D logBytes addrBytes key32 t')
+    (hnm : ¬ entryMatchesD D logBytes addrBytes key32 (count - j - 1))
     (v29 v30 : Word) :
     cpsTripleWithin 3 (base + 376) (base + 400) (CodeReq.ofProg base bsreProg)
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32
         (count - j - 1) F v29 v30)
-      (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+      (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
   set CR := CodeReq.ofProg base bsreProg with hCR
   rw [show count - j - 1 = 0 from by omega]
-  have hnm0 : ¬ entryMatchesD logBytes addrBytes key32 0 := by
+  have hnm0 : ¬ entryMatchesD D logBytes addrBytes key32 0 := by
     rw [show (0 : Nat) = count - j - 1 from by omega]
     exact hnm
   -- MV x29, x9
@@ -460,17 +485,17 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
       rfl (by decide +kernel) (by decide +kernel) hbound)
   rw [show base + 376 + 4 = base + 380 from by bv_omega] at hmv
   have hmvF := cpsTripleWithin_frameR
-    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+    (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
       ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x31 : Reg) ↦ᵣ krevBase) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hmv
   -- BNE x28, x29, -108 — falls through (cursor = log base)
   have hbne := cpsBranchWithin_extend_code (cr' := CR)
     (h := bne_spec_gen_within .x28 .x29 (-108 : BitVec 13)
-      (logBase + BitVec.ofNat 64 (8 * (16 * 0))) logBase (base + 380))
+      (logBase + BitVec.ofNat 64 (8 * (D * 0))) logBase (base + 380))
     (hmono := CodeReq.ofProg_mem_at base (base + 380) bsreProg 95
       (.BNE .x28 .x29 (-108 : BitVec 13))
       rfl (by decide +kernel) (by decide +kernel) hbound)
@@ -481,7 +506,7 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
   have hbneF := cpsBranchWithin_frameR
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
       ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       ((.x30 : Reg) ↦ᵣ v30) **
       bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
       bytesRegion krevBase key32 ** F)
@@ -495,38 +520,38 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
     rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]
     bv_omega] at hjal
   have hjalF := cpsTripleWithin_frameR
-    ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+    ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
     (by pcf; exact hF) hjal
-  have hpure : ∀ t', t' < count → ¬ entryMatchesD logBytes addrBytes key32 t' := by
+  have hpure : ∀ t', t' < count → ¬ entryMatchesD D logBytes addrBytes key32 t' := by
     intro t' h2
     by_cases he : t' = 0
     · exact he ▸ hnm0
     · exact hprev t' (by omega) h2
   have hfall : cpsTripleWithin 1 (base + 384) (base + 400) CR
-      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+      ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F) : Assertion)
-      (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+      (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
     refine cpsTripleWithin_weaken
       (fun h hp => by rw [sepConj_emp_left']; exact hp) (fun h hq => ?_) hjalF
     rw [sepConj_emp_left'] at hq
     unfold scanAbsent
-    have hq1 : ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+    have hq1 : ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
         (((.x29 : Reg) ↦ᵣ logBase) **
           (((.x30 : Reg) ↦ᵣ v30) **
             (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
               ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-              ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+              ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
               bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
               bytesRegion krevBase key32 ** F)))) : Assertion) h := by
       xperm_hyp hq
@@ -536,36 +561,36 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
     have hq3 := (sepConj_pure_left h).mpr ⟨hpure, hq2⟩
     xperm_hyp hq3
   have hstation := retJoinStation_spec (m := 1)
-    (cond := (logBase + BitVec.ofNat 64 (8 * (16 * 0)) ≠ logBase))
-    (PT := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+    (cond := (logBase + BitVec.ofNat 64 (8 * (D * 0)) ≠ logBase))
+    (PT := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
-    (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+    (PF := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
         ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
         ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-        ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+        ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
         bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
         bytesRegion krevBase key32 ** F))
     hbneF
     (fun h hq => by xperm_hyp hq)
     (fun h hq => by
-      have hq1 : ((⌜logBase + BitVec.ofNat 64 (8 * (16 * 0)) = logBase⌝ : Assertion) **
-          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * 0)))) **
+      have hq1 : ((⌜logBase + BitVec.ofNat 64 (8 * (D * 0)) = logBase⌝ : Assertion) **
+          (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * 0)))) **
             ((.x29 : Reg) ↦ᵣ logBase) ** ((.x8 : Reg) ↦ᵣ addrPtr) **
             ((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ v30) **
-            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+            ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F)) h := by
         xperm_hyp hq
       have h2 := (sepConj_pure_left h).mp hq1
       exact (sepConj_pure_left h).mpr ⟨fun hne => hne h2.1, h2.2⟩)
-    (fun hc => absurd (scan_cursor_eq_zero logBase) hc)
+    (fun hc => absurd (scan_cursor_eq_zero logBase D) hc)
     (fun _ => hfall)
   refine cpsTripleWithin_weaken ?_ (fun _ hq => hq)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmvF hstation)
@@ -579,8 +604,8 @@ private theorem bsre_scanNextLast_spec (base logBase addrPtr krevBase : Word)
 private theorem bsre_stationA_spec {CR : CodeReq}
     (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (F : Assertion) (hF : F.pcFree)
-    (A : Word) (boff : BitVec 13) (t q : Nat) (v29 v30 : Word)
-    (hqL : 8 * (16 * t + q) < logBytes.length)
+    (A : Word) (boff : BitVec 13) (D t q : Nat) (v29 v30 : Word)
+    (hqL : 8 * (D * t + q) < logBytes.length)
     (hqT : 8 * q < addrBytes.length) (himm : 8 * q < 2 ^ 11)
     (hmem1 : ∀ a i,
       CodeReq.singleton A (.LD .x29 .x28 (BitVec.ofNat 12 (8 * q))) a = some i →
@@ -592,23 +617,23 @@ private theorem bsre_stationA_spec {CR : CodeReq}
       CodeReq.singleton (A + 8) (.BNE .x29 .x30 boff) a = some i →
       CR a = some i) :
     cpsBranchWithin 3 A CR
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
       (A + 8 + signExtend13 boff)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + q))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + q))).take 8)
           ≠ packBytes ((addrBytes.drop (8 * q)).take 8)⌝ : Assertion) **
-        scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-          (packBytes ((logBytes.drop (8 * (16 * t + q))).take 8))
+        scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+          (packBytes ((logBytes.drop (8 * (D * t + q))).take 8))
           (packBytes ((addrBytes.drop (8 * q)).take 8)))
       (A + 12)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + q))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + q))).take 8)
           = packBytes ((addrBytes.drop (8 * q)).take 8)⌝ : Assertion) **
-        scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-          (packBytes ((logBytes.drop (8 * (16 * t + q))).take 8))
+        scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+          (packBytes ((logBytes.drop (8 * (D * t + q))).take 8))
           (packBytes ((addrBytes.drop (8 * q)).take 8))) := by
   have hst := bsre_stationBr_spec (CR := CR) A boff logBase addrPtr
     logBytes addrBytes .x8 t q q v29 v30
     (((.x9 : Reg) ↦ᵣ logBase) ** ((.x31 : Reg) ↦ᵣ krevBase) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       bytesRegion krevBase key32 ** F)
     (by pcf; exact hF) hqL hqT himm himm hmem1 hmem2 hmem3
   refine cpsBranchWithin_weaken ?_ ?_ ?_ hst
@@ -621,8 +646,8 @@ private theorem bsre_stationA_spec {CR : CodeReq}
 private theorem bsre_stationK_spec {CR : CodeReq}
     (logBase addrPtr krevBase : Word)
     (logBytes addrBytes key32 : List (BitVec 8)) (F : Assertion) (hF : F.pcFree)
-    (A : Word) (boff : BitVec 13) (t qL qT : Nat) (v29 v30 : Word)
-    (hqL : 8 * (16 * t + qL) < logBytes.length)
+    (A : Word) (boff : BitVec 13) (D t qL qT : Nat) (v29 v30 : Word)
+    (hqL : 8 * (D * t + qL) < logBytes.length)
     (hqT : 8 * qT < key32.length)
     (himmL : 8 * qL < 2 ^ 11) (himmT : 8 * qT < 2 ^ 11)
     (hmem1 : ∀ a i,
@@ -635,23 +660,23 @@ private theorem bsre_stationK_spec {CR : CodeReq}
       CodeReq.singleton (A + 8) (.BNE .x29 .x30 boff) a = some i →
       CR a = some i) :
     cpsBranchWithin 3 A CR
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
       (A + 8 + signExtend13 boff)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)
           ≠ packBytes ((key32.drop (8 * qT)).take 8)⌝ : Assertion) **
-        scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-          (packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8))
+        scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+          (packBytes ((logBytes.drop (8 * (D * t + qL))).take 8))
           (packBytes ((key32.drop (8 * qT)).take 8)))
       (A + 12)
-      ((⌜packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8)
+      ((⌜packBytes ((logBytes.drop (8 * (D * t + qL))).take 8)
           = packBytes ((key32.drop (8 * qT)).take 8)⌝ : Assertion) **
-        scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-          (packBytes ((logBytes.drop (8 * (16 * t + qL))).take 8))
+        scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+          (packBytes ((logBytes.drop (8 * (D * t + qL))).take 8))
           (packBytes ((key32.drop (8 * qT)).take 8))) := by
   have hst := bsre_stationBr_spec (CR := CR) A boff logBase krevBase
     logBytes key32 .x31 t qL qT v29 v30
     (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
       bytesRegion addrPtr addrBytes ** F)
     (by pcf; exact hF) hqL hqT himmL himmT hmem1 hmem2 hmem3
   refine cpsBranchWithin_weaken ?_ ?_ ?_ hst
@@ -666,29 +691,34 @@ private theorem bsre_stationK_spec {CR : CodeReq}
     8/8-match path exits at `base + 388` (slot 93's `JAL`, the advance
     join) with the FOUND post. -/
 private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
-    (hF : F.pcFree) (hlog : logBytes.length = 128 * count)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hD : 8 ≤ D) (hlog : logBytes.length = (8 * D) * count)
     (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (t : Nat) (ht : t < count) (v29 v30 : Word)
     (ret : Word) (Q : Assertion)
-    (hnext : ∀ v29' v30', ¬ entryMatchesD logBytes addrBytes key32 t →
+    (hnext : ∀ v29' v30', ¬ entryMatchesD D logBytes addrBytes key32 t →
       cpsTripleWithin 3 (base + 376) ret (CodeReq.ofProg base bsreProg)
-        (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F v29' v30')
+        (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F v29' v30')
         Q) :
     cpsBranchWithin 27 (base + 276) (CodeReq.ofProg base bsreProg)
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F v29 v30)
       ret Q
       (base + 388)
-      (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+      (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
   set CR := CodeReq.ofProg base bsreProg with hCR
-  have hlen : ∀ k : Nat, k < 8 → 8 * (16 * t + k) < logBytes.length := by
+  have hlen : ∀ k : Nat, k < 8 → 8 * (D * t + k) < logBytes.length := by
     intro k hk
     rw [hlog]
+    -- entry `t` ends at `(8*D)*(t+1) ≤ (8*D)*count`, and the 8 dwords the cascade
+    -- reads fit inside it precisely because `8 ≤ D`.
+    have hstep : (8 * D) * (t + 1) ≤ (8 * D) * count := Nat.mul_le_mul_left _ (by omega)
+    have hexp : (8 * D) * (t + 1) = 8 * (D * t) + 8 * D := by
+      rw [Nat.mul_succ, Nat.mul_assoc]
     omega
   -- the eight station branch specs
   have hst1 := bsre_stationA_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 276) (92 : BitVec 13) t 0 v29 v30
+    logBytes addrBytes key32 F hF (base + 276) (92 : BitVec 13) D t 0 v29 v30
     (hlen 0 (by omega)) (by rw [haddr]; omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 276) bsreProg 69
       (.LD .x29 .x28 (BitVec.ofNat 12 (8 * 0)))
@@ -704,8 +734,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 276 + 12 = base + 288 from by bv_omega] at hst1
   have hst2 := bsre_stationA_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 288) (80 : BitVec 13) t 1
-    (packBytes ((logBytes.drop (8 * (16 * t + 0))).take 8))
+    logBytes addrBytes key32 F hF (base + 288) (80 : BitVec 13) D t 1
+    (packBytes ((logBytes.drop (8 * (D * t + 0))).take 8))
     (packBytes ((addrBytes.drop (8 * 0)).take 8))
     (hlen 1 (by omega)) (by rw [haddr]; omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 288) bsreProg 72
@@ -722,8 +752,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 288 + 12 = base + 300 from by bv_omega] at hst2
   have hst3 := bsre_stationA_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 300) (68 : BitVec 13) t 2
-    (packBytes ((logBytes.drop (8 * (16 * t + 1))).take 8))
+    logBytes addrBytes key32 F hF (base + 300) (68 : BitVec 13) D t 2
+    (packBytes ((logBytes.drop (8 * (D * t + 1))).take 8))
     (packBytes ((addrBytes.drop (8 * 1)).take 8))
     (hlen 2 (by omega)) (by rw [haddr]; omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 300) bsreProg 75
@@ -740,8 +770,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 300 + 12 = base + 312 from by bv_omega] at hst3
   have hst4 := bsre_stationA_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 312) (56 : BitVec 13) t 3
-    (packBytes ((logBytes.drop (8 * (16 * t + 2))).take 8))
+    logBytes addrBytes key32 F hF (base + 312) (56 : BitVec 13) D t 3
+    (packBytes ((logBytes.drop (8 * (D * t + 2))).take 8))
     (packBytes ((addrBytes.drop (8 * 2)).take 8))
     (hlen 3 (by omega)) (by rw [haddr]; omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 312) bsreProg 78
@@ -758,8 +788,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 312 + 12 = base + 324 from by bv_omega] at hst4
   have hst5 := bsre_stationK_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 324) (44 : BitVec 13) t 4 0
-    (packBytes ((logBytes.drop (8 * (16 * t + 3))).take 8))
+    logBytes addrBytes key32 F hF (base + 324) (44 : BitVec 13) D t 4 0
+    (packBytes ((logBytes.drop (8 * (D * t + 3))).take 8))
     (packBytes ((addrBytes.drop (8 * 3)).take 8))
     (hlen 4 (by omega)) (by rw [hkey]; omega) (by omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 324) bsreProg 81
@@ -776,8 +806,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 324 + 12 = base + 336 from by bv_omega] at hst5
   have hst6 := bsre_stationK_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 336) (32 : BitVec 13) t 5 1
-    (packBytes ((logBytes.drop (8 * (16 * t + 4))).take 8))
+    logBytes addrBytes key32 F hF (base + 336) (32 : BitVec 13) D t 5 1
+    (packBytes ((logBytes.drop (8 * (D * t + 4))).take 8))
     (packBytes ((key32.drop (8 * 0)).take 8))
     (hlen 5 (by omega)) (by rw [hkey]; omega) (by omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 336) bsreProg 84
@@ -794,8 +824,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 336 + 12 = base + 348 from by bv_omega] at hst6
   have hst7 := bsre_stationK_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 348) (20 : BitVec 13) t 6 2
-    (packBytes ((logBytes.drop (8 * (16 * t + 5))).take 8))
+    logBytes addrBytes key32 F hF (base + 348) (20 : BitVec 13) D t 6 2
+    (packBytes ((logBytes.drop (8 * (D * t + 5))).take 8))
     (packBytes ((key32.drop (8 * 1)).take 8))
     (hlen 6 (by omega)) (by rw [hkey]; omega) (by omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 348) bsreProg 87
@@ -812,8 +842,8 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
         bv_omega,
       show base + 348 + 12 = base + 360 from by bv_omega] at hst7
   have hst8 := bsre_stationK_spec (CR := CR) logBase addrPtr krevBase
-    logBytes addrBytes key32 F hF (base + 360) (8 : BitVec 13) t 7 3
-    (packBytes ((logBytes.drop (8 * (16 * t + 6))).take 8))
+    logBytes addrBytes key32 F hF (base + 360) (8 : BitVec 13) D t 7 3
+    (packBytes ((logBytes.drop (8 * (D * t + 6))).take 8))
     (packBytes ((key32.drop (8 * 2)).take 8))
     (hlen 7 (by omega)) (by rw [hkey]; omega) (by omega) (by omega)
     (CodeReq.ofProg_mem_at base (base + 360) bsreProg 90
@@ -863,7 +893,7 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
       (hnext _ _ (fun hm => hne (hm.2 3 (by omega))))
   intro heq7
   -- all 8 dwords matched: slot 93's JAL to the advance join, FOUND
-  have hmatch : entryMatchesD logBytes addrBytes key32 t := by
+  have hmatch : entryMatchesD D logBytes addrBytes key32 t := by
     constructor
     · intro k hk
       match k, hk with
@@ -887,33 +917,33 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
     rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]
     bv_omega] at hjal
   have hjalF := cpsTripleWithin_frameR
-    (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-      (packBytes ((logBytes.drop (8 * (16 * t + 7))).take 8))
+    (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+      (packBytes ((logBytes.drop (8 * (D * t + 7))).take 8))
       (packBytes ((key32.drop (8 * 3)).take 8)))
     (by unfold scanRegs; pcf; exact hF) hjal
   have hfound : cpsTripleWithin 1 (base + 372) (base + 388) CR
-      (scanRegs logBase addrPtr krevBase logBytes addrBytes key32 t F
-        (packBytes ((logBytes.drop (8 * (16 * t + 7))).take 8))
+      (scanRegs D logBase addrPtr krevBase logBytes addrBytes key32 t F
+        (packBytes ((logBytes.drop (8 * (D * t + 7))).take 8))
         (packBytes ((key32.drop (8 * 3)).take 8)))
-      (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+      (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
     refine cpsTripleWithin_weaken
       (fun h hp => by rw [sepConj_emp_left']; exact hp) (fun h hq => ?_) hjalF
     rw [sepConj_emp_left'] at hq
     unfold scanRegs at hq
     unfold scanFound
-    have hq1 : ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (16 * t)))) **
-        (((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (16 * t + 7))).take 8)) **
+    have hq1 : ((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (8 * (D * t)))) **
+        (((.x29 : Reg) ↦ᵣ packBytes ((logBytes.drop (8 * (D * t + 7))).take 8)) **
           (((.x30 : Reg) ↦ᵣ packBytes ((key32.drop (8 * 3)).take 8)) **
             (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
               ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-              ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+              ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
               bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
               bytesRegion krevBase key32 ** F)))) : Assertion) h := by
       xperm_hyp hq
     have hq2 := sepConj_mono (regIs_to_regOwn .x28 _)
       (sepConj_mono (regIs_to_regOwn .x29 _)
         (sepConj_mono (regIs_to_regOwn .x30 _) (fun _ hh => hh))) h hq1
-    have hex : ∃ t', t' < count ∧ entryMatchesD logBytes addrBytes key32 t' :=
+    have hex : ∃ t', t' < count ∧ entryMatchesD D logBytes addrBytes key32 t' :=
       ⟨t, ht, hmatch⟩
     have hq3 := (sepConj_pure_left h).mpr ⟨hex, hq2⟩
     xperm_hyp hq3
@@ -927,41 +957,41 @@ private theorem bsre_cascade_spec (base logBase addrPtr krevBase : Word)
     head (`base + 272`, slot 68) the round either exits FOUND at
     `base + 388` or loops back to the head with the invariant advanced. -/
 theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
-    (hF : F.pcFree) (hlog : logBytes.length = 128 * count)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hD : 8 ≤ D) (hlog : logBytes.length = (8 * D) * count)
     (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
-    (hcnt : 128 * count < 2 ^ 64)
+    (hcnt : (8 * D) * count < 2 ^ 64)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (j : Nat) (hj : j + 1 < count) :
     cpsBranchWithin 28 (base + 272) (CodeReq.ofProg base bsreProg)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F j)
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F j)
       (base + 388)
-      (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F)
       (base + 272)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
   set CR := CodeReq.ofProg base bsreProg with hCR
   have hmain : ∀ _hprev : (∀ t', count - j ≤ t' → t' < count →
-        ¬ entryMatchesD logBytes addrBytes key32 t'),
+        ¬ entryMatchesD D logBytes addrBytes key32 t'),
       cpsBranchWithin 28 (base + 272) CR
-        (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+        (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 ((8 * D) * (count - j)))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+            ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F) ** regOwn .x29) ** regOwn .x30)
         (base + 388)
-        (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F)
+        (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F)
         (base + 272)
-        (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
+        (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1)) := by
     intro hprev
     apply cpsBranchWithin_of_forall_regIs_to_regOwn
     intro v30
     refine cpsBranchWithin_weaken ?_ (fun _ hq => hq) (fun _ hq => hq)
       (cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x29)
-        (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+        (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 ((8 * D) * (count - j)))) **
           ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
           ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+          ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
           bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
           bytesRegion krevBase key32 ** F) ** ((.x30 : Reg) ↦ᵣ v30))
         (fun v29 => ?_))
@@ -969,12 +999,12 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
     -- the head ADDI steps the cursor to entry `count - j - 1`
     have haddi := liftCode (cr' := CR)
       (sub_spec_gen_rd_eq_rs1_within .x28 .x21
-        (logBase + BitVec.ofNat 64 (128 * (count - j))) (128 : Word)
+        (logBase + BitVec.ofNat 64 ((8 * D) * (count - j))) (BitVec.ofNat 64 (8 * D))
         (base + 272) (by decide))
       (CodeReq.ofProg_mem_at base (base + 272) bsreProg 68
         (.SUB .x28 .x28 .x21)
         rfl (by decide +kernel) (by decide +kernel) hbound)
-    rw [scan_cursor_step logBase count j (by omega) hcnt,
+    rw [scan_cursor_step logBase D count j (by omega) hcnt,
         show base + 272 + 4 = base + 276 from by bv_omega] at haddi
     have haddiF := cpsTripleWithin_frameR
       (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
@@ -984,11 +1014,11 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
         bytesRegion krevBase key32 ** F)
       (by pcf; exact hF) haddi
     have hcas := bsre_cascade_spec base logBase addrPtr krevBase logBytes addrBytes
-      key32 count F hF hlog haddr hkey hbound (count - j - 1) (by omega) v29 v30
+      key32 D count F hF hD hlog haddr hkey hbound (count - j - 1) (by omega) v29 v30
       (base + 272)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1))
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F (j + 1))
       (fun v29' v30' hnm => bsre_scanNextIter_spec base logBase addrPtr krevBase
-        logBytes addrBytes key32 count F hF hcnt hbound j hj hprev hnm v29' v30')
+        logBytes addrBytes key32 D count F hF hD hcnt hbound j hj hprev hnm v29' v30')
     have hcomp := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by unfold scanRegs; xperm_hyp hp) haddiF hcas
     refine cpsBranchWithin_weaken ?_ (fun _ hq => hq) (fun _ hq => hq)
@@ -1003,53 +1033,53 @@ theorem bsre_scanIter_spec (base logBase addrPtr krevBase : Word)
     log base): the round either exits FOUND at `base + 388` or falls out to
     the ABSENT exit at `base + 400` with the whole log refuted. -/
 theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
-    (hF : F.pcFree) (hlog : logBytes.length = 128 * count)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hD : 8 ≤ D) (hlog : logBytes.length = (8 * D) * count)
     (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
-    (hcnt : 128 * count < 2 ^ 64)
+    (hcnt : (8 * D) * count < 2 ^ 64)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (j : Nat) (hj : j + 1 = count) :
     cpsBranchWithin 28 (base + 272) (CodeReq.ofProg base bsreProg)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F j)
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F j)
       (base + 388)
-      (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F)
       (base + 400)
-      (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+      (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
   set CR := CodeReq.ofProg base bsreProg with hCR
   have hmain : ∀ _hprev : (∀ t', count - j ≤ t' → t' < count →
-        ¬ entryMatchesD logBytes addrBytes key32 t'),
+        ¬ entryMatchesD D logBytes addrBytes key32 t'),
       cpsBranchWithin 28 (base + 272) CR
-        (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+        (((((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 ((8 * D) * (count - j)))) **
             ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
             ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+            ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
             bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
             bytesRegion krevBase key32 ** F) ** regOwn .x29) ** regOwn .x30)
         (base + 388)
-        (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F)
+        (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F)
         (base + 400)
-        (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
+        (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F) := by
     intro hprev
     apply cpsBranchWithin_of_forall_regIs_to_regOwn
     intro v30
     refine cpsBranchWithin_weaken ?_ (fun _ hq => hq) (fun _ hq => hq)
       (cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x29)
-        (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 (128 * (count - j)))) **
+        (P := (((.x28 : Reg) ↦ᵣ (logBase + BitVec.ofNat 64 ((8 * D) * (count - j)))) **
           ((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
           ((.x31 : Reg) ↦ᵣ krevBase) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          ((.x21 : Reg) ↦ᵣ (128 : Word)) **
+          ((.x21 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * D)) **
           bytesRegion logBase logBytes ** bytesRegion addrPtr addrBytes **
           bytesRegion krevBase key32 ** F) ** ((.x30 : Reg) ↦ᵣ v30))
         (fun v29 => ?_))
     · exact fun h hp => by xperm_hyp hp
     have haddi := liftCode (cr' := CR)
       (sub_spec_gen_rd_eq_rs1_within .x28 .x21
-        (logBase + BitVec.ofNat 64 (128 * (count - j))) (128 : Word)
+        (logBase + BitVec.ofNat 64 ((8 * D) * (count - j))) (BitVec.ofNat 64 (8 * D))
         (base + 272) (by decide))
       (CodeReq.ofProg_mem_at base (base + 272) bsreProg 68
         (.SUB .x28 .x28 .x21)
         rfl (by decide +kernel) (by decide +kernel) hbound)
-    rw [scan_cursor_step logBase count j (by omega) hcnt,
+    rw [scan_cursor_step logBase D count j (by omega) hcnt,
         show base + 272 + 4 = base + 276 from by bv_omega] at haddi
     have haddiF := cpsTripleWithin_frameR
       (((.x8 : Reg) ↦ᵣ addrPtr) ** ((.x9 : Reg) ↦ᵣ logBase) **
@@ -1059,11 +1089,11 @@ theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
         bytesRegion krevBase key32 ** F)
       (by pcf; exact hF) haddi
     have hcas := bsre_cascade_spec base logBase addrPtr krevBase logBytes addrBytes
-      key32 count F hF hlog haddr hkey hbound (count - j - 1) (by omega) v29 v30
+      key32 D count F hF hD hlog haddr hkey hbound (count - j - 1) (by omega) v29 v30
       (base + 400)
-      (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F)
       (fun v29' v30' hnm => bsre_scanNextLast_spec base logBase addrPtr krevBase
-        logBytes addrBytes key32 count F hF hbound j hj hprev hnm v29' v30')
+        logBytes addrBytes key32 D count F hF hbound j hj hprev hnm v29' v30')
     have hcomp := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (fun h hp => by unfold scanRegs; xperm_hyp hp) haddiF hcas
     refine cpsBranchWithin_weaken ?_ (fun _ hq => hq) (fun _ hq => hq)
@@ -1079,25 +1109,25 @@ theorem bsre_scanLast_spec (base logBase addrPtr krevBase : Word)
     `base + 388` (some entry matches) or ABSENT at `base + 400` (no entry
     matches). -/
 theorem bsre_scanLoop_spec (base logBase addrPtr krevBase : Word)
-    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
-    (hF : F.pcFree) (hlog : logBytes.length = 128 * count)
+    (logBytes addrBytes key32 : List (BitVec 8)) (D count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hD : 8 ≤ D) (hlog : logBytes.length = (8 * D) * count)
     (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
-    (hcnt : 128 * count < 2 ^ 64)
+    (hcnt : (8 * D) * count < 2 ^ 64)
     (hbound : 4 * bsreProg.length < 2 ^ 64)
     (hcount : 0 < count) :
     cpsBranchWithin ((count - 1) * 28 + 28) (base + 272)
       (CodeReq.ofProg base bsreProg)
-      (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F 0)
+      (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F 0)
       (base + 388)
-      (scanFound logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (scanFound D logBase addrPtr krevBase logBytes addrBytes key32 count F)
       (base + 400)
-      (scanAbsent logBase addrPtr krevBase logBytes addrBytes key32 count F) :=
+      (scanAbsent D logBase addrPtr krevBase logBytes addrBytes key32 count F) :=
   twoExitRetLoopBottom_spec (count - 1) 28 28
-    (scanInv logBase addrPtr krevBase logBytes addrBytes key32 count F)
+    (scanInv D logBase addrPtr krevBase logBytes addrBytes key32 count F)
     (fun j hjN => bsre_scanIter_spec base logBase addrPtr krevBase logBytes
-      addrBytes key32 count F hF hlog haddr hkey hcnt hbound j (by omega))
+      addrBytes key32 D count F hF hD hlog haddr hkey hcnt hbound j (by omega))
     (bsre_scanLast_spec base logBase addrPtr krevBase logBytes addrBytes key32
-      count F hF hlog haddr hkey hcnt hbound (count - 1) (by omega))
+      D count F hF hD hlog haddr hkey hcnt hbound (count - 1) (by omega))
 
 
 /-! ### §5.6  The dword↔byte-slice bridge (spec-side)
@@ -1121,7 +1151,7 @@ private theorem dwordSlot_logSlice (logBytes : List (BitVec 8)) (t off k : Nat)
 theorem entryMatchesD_iff_slices (logBytes addrBytes key32 : List (BitVec 8))
     (t count : Nat) (hlog : logBytes.length = 128 * count) (ht : t < count)
     (haddr : addrBytes.length = 32) (hkey : key32.length = 32) :
-    entryMatchesD logBytes addrBytes key32 t
+    entryMatchesD 16 logBytes addrBytes key32 t
       ↔ entryMatches logBytes t addrBytes key32 := by
   have hslice0 : (logSlice logBytes t 0 32).length = 32 := by
     unfold logSlice
@@ -1168,260 +1198,65 @@ theorem entryMatchesD_iff_slices (logBytes addrBytes key32 : List (BitVec 8))
       exact hd.symm
 
 
-/-! ## §6  Concrete linkage: code requirement, call-site adapters, `la` pairs
+/-! ### §5.7  The two live instantiations
 
-    Everything below is at the CONCRETE linked base
-    (`GuestAddrs.bal_storage_reads_in_exec_log`) — the walker callees live at
-    fixed entries, so the `jal` offsets, code-range disjointness, and `la`
-    resolutions are all kernel-decided. -/
+    `bal_storage_reads_in_exec_log` is called at three sites with **two different
+    strides**, and before GH #10644 the scan theorems above were stated at 128
+    only — so they covered the two probes and **not** the production caller.
+    Nothing was false; the coverage had simply moved.
 
-/-- Concrete routine/callee entries. -/
-abbrev B : Word := (GuestAddrs.bal_storage_reads_in_exec_log : Word)
-abbrev WI : Word := (GuestAddrs.rlp_walk_init : Word)
-abbrev WN : Word := (GuestAddrs.rlp_walk_next : Word)
+    Both strides are now instantiations of one theorem and **neither is
+    privileged**, which is what stops the coverage lapsing this way again: a
+    future re-point cannot silently fall outside the stated stride, because no
+    stride is stated.
 
-/-- The routine's full code requirement: its own bytes plus the two verified
-    walker callees at their linked entries. -/
-def bsreCR : CodeReq :=
-  (CodeReq.ofProg B bsreProg).union
-    ((rlp_walk_init_code WI).union (rlp_walk_next_code WN))
+    | call site | stride arg | `D` |
+    |---|---|---|
+    | `zisk_bal_storage_reads_in_exec_log` probes (×2) | `li a5, 128` | 16 |
+    | production, `block_verdict_function` | `li a5, 64` | 8 |
 
-/-- The routine's bytes never shadow the walkers (separated code ranges). -/
-theorem bsre_prog_disj_walkInit :
-    (CodeReq.ofProg B bsreProg).Disjoint (rlp_walk_init_code WI) :=
-  CodeReq.Disjoint.ofProg_ranges _ _ _ _
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    `8 ≤ D` is the genuine side condition, not bookkeeping: the compare cascade
+    reads eight dwords (bytes 0..63) per entry, so an entry narrower than 64
+    bytes would have the comparator reading past its own end. Both live strides
+    satisfy it, `D = 8` exactly. -/
 
-theorem bsre_prog_disj_walkNext :
-    (CodeReq.ofProg B bsreProg).Disjoint (rlp_walk_next_code WN) :=
-  CodeReq.Disjoint.ofProg_ranges _ _ _ _
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+/-- **Exec log, 128-byte entries** — the stride the two probe call sites pass. -/
+theorem bsre_scanLoop_spec_execLog (base logBase addrPtr krevBase : Word)
+    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hlog : logBytes.length = 128 * count)
+    (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
+    (hcnt : 128 * count < 2 ^ 64)
+    (hbound : 4 * bsreProg.length < 2 ^ 64)
+    (hcount : 0 < count) :
+    cpsBranchWithin ((count - 1) * 28 + 28) (base + 272)
+      (CodeReq.ofProg base bsreProg)
+      (scanInv 16 logBase addrPtr krevBase logBytes addrBytes key32 count F 0)
+      (base + 388)
+      (scanFound 16 logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (base + 400)
+      (scanAbsent 16 logBase addrPtr krevBase logBytes addrBytes key32 count F) :=
+  bsre_scanLoop_spec base logBase addrPtr krevBase logBytes addrBytes key32 16 count
+    F hF (by omega) hlog haddr hkey hcnt hbound hcount
 
-/-- The two walkers occupy separated ranges. -/
-theorem bsre_walkInit_disj_walkNext :
-    (rlp_walk_init_code WI).Disjoint (rlp_walk_next_code WN) :=
-  CodeReq.Disjoint.ofProg_ranges _ _ _ _
-    (by decide +kernel) (by decide +kernel) (by decide +kernel)
-
-/-- Call-site adapter for the `jal rlp_walk_init` at slot 15 (`B + 60`). -/
-theorem bsre_callSite15_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WI ((B + 60 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_init_code WI) ((.x1 ↦ᵣ (B + 60 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 60) (B + 60 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 60) (calleeEntry := WI) (vOld := vRa)
-    (calleeCode := rlp_walk_init_code WI) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 60))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 60) bsreProg 15 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkInit
-      (fun a i h => CodeReq.union_mono_left a i h) a i h
-
-
-/-- Call-site adapter for the `jal rlp_walk_next` at slot 18 (`B + 72`). -/
-theorem bsre_callSite18_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WN ((B + 72 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_next_code WN) ((.x1 ↦ᵣ (B + 72 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 72) (B + 72 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 72) (calleeEntry := WN) (vOld := vRa)
-    (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 72))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 72) bsreProg 18 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkNext
-      (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
-        (fun _ _ hh => hh) a i h) a i h
-
-
-/-- Call-site adapter for the `jal rlp_walk_next` at slot 21 (`B + 84`). -/
-theorem bsre_callSite21_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WN ((B + 84 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_next_code WN) ((.x1 ↦ᵣ (B + 84 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 84) (B + 84 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 84) (calleeEntry := WN) (vOld := vRa)
-    (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 84))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 84) bsreProg 21 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkNext
-      (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
-        (fun _ _ hh => hh) a i h) a i h
-
-
-/-- Call-site adapter for the `jal rlp_walk_next` at slot 24 (`B + 96`). -/
-theorem bsre_callSite24_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WN ((B + 96 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_next_code WN) ((.x1 ↦ᵣ (B + 96 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 96) (B + 96 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 96) (calleeEntry := WN) (vOld := vRa)
-    (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 96))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 96) bsreProg 24 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkNext
-      (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
-        (fun _ _ hh => hh) a i h) a i h
-
-
-/-- Call-site adapter for the `jal rlp_walk_init` at slot 28 (`B + 112`). -/
-theorem bsre_callSite28_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WI ((B + 112 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_init_code WI) ((.x1 ↦ᵣ (B + 112 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 112) (B + 112 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 112) (calleeEntry := WI) (vOld := vRa)
-    (calleeCode := rlp_walk_init_code WI) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 112))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 112) bsreProg 28 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkInit
-      (fun a i h => CodeReq.union_mono_left a i h) a i h
-
-
-/-- Call-site adapter for the `jal rlp_walk_next` at slot 35 (`B + 140`). -/
-theorem bsre_callSite35_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
-    (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WN ((B + 140 + 4) &&& ~~~(1 : Word))
-      (rlp_walk_next_code WN) ((.x1 ↦ᵣ (B + 140 + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (B + 140) (B + 140 + 4) bsreCR
-      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
-  have hcall := WP.cpsCallWithin
-    (nSteps := n) (callerPC := B + 140) (calleeEntry := WN) (vOld := vRa)
-    (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 140))
-    (by decide) (by decide) hPrest
-    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
-    hcallee
-  refine cpsTripleWithin_extend_code
-    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
-  · exact CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 140) bsreProg 35 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h)
-  · exact CodeReq.mono_union_right bsre_prog_disj_walkNext
-      (fun a i h => CodeReq.mono_union_right bsre_walkInit_disj_walkNext
-        (fun _ _ hh => hh) a i h) a i h
-
-
-/-- The `la t0, bsr_krev` pair at slots 45–46: AUIPC+ADDI resolve
-    to the linked scratch address. -/
-theorem bsre_la_krev1_spec (vOld : Word) :
-    cpsTripleWithin 2 (B + 180) (B + 188) bsreCR
-      ((.x5 : Reg) ↦ᵣ vOld)
-      ((.x5 : Reg) ↦ᵣ (GuestAddrs.bsr_krev : Word)) := by
-  have hau := liftCode (cr' := bsreCR)
-    (auipc_spec_gen_within .x5 vOld
-      (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180))
-      (B + 180) (by decide))
-    (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 180) bsreProg 45 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h))
-  rw [show (B + 180) + 4 = B + 184 from by decide] at hau
-  have haddi := liftCode (cr' := bsreCR)
-    (addi_spec_gen_same_within .x5
-      ((B + 180) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 180)).zeroExtend 32
-            <<< 12).signExtend 64))
-      (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180))
-      (B + 184) (by decide))
-    (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 184) bsreProg 46 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h))
-  rw [show (B + 184) + 4 = B + 188 from by decide,
-      show (B + 180) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 180)).zeroExtend 32
-            <<< 12).signExtend 64)
-        + signExtend12 (laLo GuestAddrs.bsr_krev
-            (GuestAddrs.bal_storage_reads_in_exec_log + 180))
-        = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
-  exact cpsTripleWithin_seq_same_cr hau haddi
-
-
-/-- The `la x31, bsr_krev` pair at slots 66–67: AUIPC+ADDI resolve
-    to the linked scratch address. -/
-theorem bsre_la_krev2_spec (vOld : Word) :
-    cpsTripleWithin 2 (B + 264) (B + 272) bsreCR
-      ((.x31 : Reg) ↦ᵣ vOld)
-      ((.x31 : Reg) ↦ᵣ (GuestAddrs.bsr_krev : Word)) := by
-  have hau := liftCode (cr' := bsreCR)
-    (auipc_spec_gen_within .x31 vOld
-      (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264))
-      (B + 264) (by decide))
-    (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 264) bsreProg 66 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h))
-  rw [show (B + 264) + 4 = B + 268 from by decide] at hau
-  have haddi := liftCode (cr' := bsreCR)
-    (addi_spec_gen_same_within .x31
-      ((B + 264) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 264)).zeroExtend 32
-            <<< 12).signExtend 64))
-      (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264))
-      (B + 268) (by decide))
-    (fun a i h => CodeReq.union_mono_left a i
-      (CodeReq.ofProg_mem_at B (B + 268) bsreProg 67 _
-        (by decide +kernel) (by decide +kernel) (by decide +kernel)
-        (by decide +kernel) a i h))
-  rw [show (B + 268) + 4 = B + 272 from by decide,
-      show (B + 264) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 264)).zeroExtend 32
-            <<< 12).signExtend 64)
-        + signExtend12 (laLo GuestAddrs.bsr_krev
-            (GuestAddrs.bal_storage_reads_in_exec_log + 264))
-        = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
-  exact cpsTripleWithin_seq_same_cr hau haddi
-
+/-- **`storage_reads` container, 64-byte entries** — the stride the PRODUCTION
+    call site passes (`BlockVerdictFunction.lean`, `li a5, 64`). This is the
+    instantiation GH #10644 exists to add. -/
+theorem bsre_scanLoop_spec_container (base logBase addrPtr krevBase : Word)
+    (logBytes addrBytes key32 : List (BitVec 8)) (count : Nat) (F : Assertion)
+    (hF : F.pcFree) (hlog : logBytes.length = 64 * count)
+    (haddr : addrBytes.length = 32) (hkey : key32.length = 32)
+    (hcnt : 64 * count < 2 ^ 64)
+    (hbound : 4 * bsreProg.length < 2 ^ 64)
+    (hcount : 0 < count) :
+    cpsBranchWithin ((count - 1) * 28 + 28) (base + 272)
+      (CodeReq.ofProg base bsreProg)
+      (scanInv 8 logBase addrPtr krevBase logBytes addrBytes key32 count F 0)
+      (base + 388)
+      (scanFound 8 logBase addrPtr krevBase logBytes addrBytes key32 count F)
+      (base + 400)
+      (scanAbsent 8 logBase addrPtr krevBase logBytes addrBytes key32 count F) :=
+  bsre_scanLoop_spec base logBase addrPtr krevBase logBytes addrBytes key32 8 count
+    F hF (by omega) hlog haddr hkey hcnt hbound hcount
 
 
 end BalStorageReadsExecLogSpec

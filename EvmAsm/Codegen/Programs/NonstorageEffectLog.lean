@@ -64,6 +64,12 @@ open EvmAsm.Rv64
     the _covers covered[] bitmap are all sized from this cap, so they scale automatically. -/
 def nonstorageEffectLogCap : Nat := 38460
 
+/-- The resolver in AccountWriteMap emits the same AccountState capacity as
+    CreateCodeEffectLog. Keep the cross-module fact kernel-checked so a future
+    capacity change cannot silently leave the resolver's scan bound stale. -/
+theorem accountStateResolverCapacity_eq :
+    accountStateResolverCapacity = accountStateEntryCapacity := by decide
+
 /-! The 32-byte address field stores a 20-byte address followed by twelve
 padding bytes. Byte 20 is a component-validity mask: it is outside the key
 used by every address comparison and radix pass, so the fixed 112-byte layout
@@ -77,9 +83,22 @@ def nonstorageEffectHasNonce : Nat := 2
     a0 = 20-byte big-endian address ptr   a1 = pre_balance ptr (32B BE)
     a2 = post_balance ptr (32B BE)        a3 = pre_nonce (u64)   a4 = post_nonce (u64)
     Returns a0 = 0 appended / 1 overflow (not written; exec_nonstorage_effect_overflow set).
-    Clobbers t0-t6, a0; preserves s-regs (saved). -/
+    Clobbers t0-t6, a0; preserves s-regs (saved).
+
+    `record_nonstorage_effect_after_account_state` is the companion entry for a
+    caller that has already performed the AccountState mutation and needs only
+    the raw effect plus AccountWrite publications.  It avoids a second pending
+    AccountState append while retaining the same output records.
+
+    `record_nonstorage_effect_nonce_only_after_account_state` is the EIP-7702
+    authorization variant.  It carries an honest nonce-only raw mask while
+    retaining the AccountWrite publication at the authorization's current BAI;
+    the authorization already owns the AccountState mutation. -/
 def recordNonstorageEffectFunction : String :=
-  "record_nonstorage_effect:\n" ++
+  "record_nonstorage_effect:\n  li a5, 0\n  j .Lrnse_entry\n" ++
+  "record_nonstorage_effect_after_account_state:\n  li a5, 1\n" ++
+  "record_nonstorage_effect_nonce_only_after_account_state:\n  li a5, 2\n" ++
+  ".Lrnse_entry:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd ra, 40(sp)\n" ++
   "  mv s0, a0                   # addr ptr\n" ++
@@ -97,7 +116,9 @@ def recordNonstorageEffectFunction : String :=
   "  beqz t6, .Lrnse_cpa_d\n" ++
   "  lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lrnse_cpa\n" ++
   ".Lrnse_cpa_d:\n" ++
-  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; sb t4, 20(t3)\n" ++
+  "  li t4, " ++ toString (nonstorageEffectHasBalance + nonstorageEffectHasNonce) ++ "; li t5, 2; bne a5, t5, .Lrnse_mask_ready; li t4, " ++ toString nonstorageEffectHasNonce ++ "\n" ++
+  ".Lrnse_mask_ready:\n" ++
+  "  sb t4, 20(t3)\n" ++
   "  ld t4, 0(s1); sd t4, 32(t3); ld t4, 8(s1); sd t4, 40(t3); ld t4, 16(s1); sd t4, 48(t3); ld t4, 24(s1); sd t4, 56(t3)\n" ++  -- pre_balance
   "  ld t4, 0(s2); sd t4, 64(t3); ld t4, 8(s2); sd t4, 72(t3); ld t4, 16(s2); sd t4, 80(t3); ld t4, 24(s2); sd t4, 88(t3)\n" ++  -- post_balance
   "  sd s3, 96(t3)               # pre_nonce\n" ++
@@ -107,11 +128,20 @@ def recordNonstorageEffectFunction : String :=
   -- journal.  The legacy record remains intact for the BAL comparator until
   -- the final comparison-materialization switch; a bounded journal failure
   -- fails closed through this producer's established overflow path.
-  "  mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  "  bnez a5, .Lrnse_account_state_done; mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
+  ".Lrnse_account_state_done:\n" ++
   -- Preserve this successful execution effect in the transaction-local map.
-  -- The mask says what was written; a later BAL builder compares final values
-  -- to the block-cumulative baseline to decide whether to emit changes.
-  "  mv a0, s0; mv a1, s2; mv a2, s4; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasBalance + accountWriteHasNonce) ++ "; jal ra, account_write_record\n" ++
+  -- It is a fieldwise overlay: a balance-only effect must not overwrite a
+  -- prior nonce increment merely because this generic record also carries a
+  -- nonce word. The builder still decides emission from its block-cumulative
+  -- baseline; these bits only select components whose post differs here.
+  "  li a6, 0; ld t0, 0(s1); ld t1, 0(s2); bne t0, t1, .Lrnse_aw_balance; ld t0, 8(s1); ld t1, 8(s2); bne t0, t1, .Lrnse_aw_balance; ld t0, 16(s1); ld t1, 16(s2); bne t0, t1, .Lrnse_aw_balance; ld t0, 24(s1); ld t1, 24(s2); beq t0, t1, .Lrnse_aw_nonce\n" ++
+  ".Lrnse_aw_balance:\n" ++
+  "  ori a6, a6, " ++ toString accountWriteHasBalance ++ "\n" ++
+  ".Lrnse_aw_nonce:\n" ++
+  "  beq s3, s4, .Lrnse_aw_record; ori a6, a6, " ++ toString accountWriteHasNonce ++ "\n" ++
+  ".Lrnse_aw_record:\n" ++
+  "  mv a0, s0; mv a1, s2; mv a2, s4; li a3, 0; li a4, 0; li a5, 0; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
   ".Lrnse_overflow:\n" ++
@@ -308,9 +338,11 @@ def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
     Linear (radix-sort + run-compress) replacement for the O(raw*distinct)
     `.Lbv_agg_loop` per-account aggregation in blockVerdictMtxValidationTail.
     Groups 112-byte effect records by their 20-byte address (rec+0), keeping the
-    FIRST-seen record's {addr, pre_balance@32, pre_nonce@96} and the LAST-seen
-    record's {post_balance@64, post_nonce@104} — identical semantics to the inline
-    loop (first-pre / last-post), but O(20*N) instead of O(N^2), so the effect-log
+    FIRST-seen record's {addr, pre_balance@32, pre_nonce@96}, the LAST-seen
+    post_balance@64, and the MAXIMUM post_nonce@104. BAL nonce changes are reduced
+    by maximum in execution-specs, so a trailing balance-only record carrying a
+    stale nonce cannot erase an earlier creation/auth nonce increment. This is
+    O(20*N) instead of O(N^2), so the effect-log
     cap can be lifted toward the 200M worst-case without a step-budget blowup.
 
     Determinism: a STABLE LSB-first counting radix sort over address bytes 19..0,
@@ -416,9 +448,10 @@ def nonstorageEffectAggregateFunction : String :=
   "  addi t2, t2, 1; j .Lnea_emit_copy\n" ++
   ".Lnea_emit_post:\n" ++
   -- The raw record's byte 20 independently marks balance and nonce. Fold the
-  -- run component-wise: first valid pre, last valid post. This is the same
-  -- shape as execution-specs' independent field emission, so a nonce-only
-  -- record never writes or overwrites a balance component.
+  -- run component-wise: first valid pre / last balance post / maximum nonce
+  -- post. `record_nonstorage_effect` carries a nonce word on every value
+  -- record, including balance-only records with a stale zero, so nonce cannot
+  -- use last-post semantics (execution-specs block_access_lists.py:440-447).
   "  sb zero, 20(s11); mv t6, s8\n" ++
   ".Lnea_emit_component_loop:\n" ++
   "  bgeu t6, s10, .Lnea_emit_component_done; li t0, 112; mul t0, t6, t0; add t0, s5, t0; lbu t1, 20(t0)\n" ++
@@ -429,7 +462,12 @@ def nonstorageEffectAggregateFunction : String :=
   ".Lnea_emit_nonce:\n" ++
   "  andi t2, t1, " ++ toString nonstorageEffectHasNonce ++ "; beqz t2, .Lnea_emit_component_next; lbu t2, 20(s11); andi t3, t2, " ++ toString nonstorageEffectHasNonce ++ "; bnez t3, .Lnea_emit_nonce_post; ld t3, 96(t0); sd t3, 96(s11)\n" ++
   ".Lnea_emit_nonce_post:\n" ++
-  "  ld t3, 104(t0); sd t3, 104(s11); lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasNonce ++ "; sb t2, 20(s11)\n" ++
+  "  ld t3, 104(t0); lbu t2, 20(s11); andi t2, t2, " ++ toString nonstorageEffectHasNonce ++ "; beqz t2, .Lnea_emit_nonce_take\n" ++
+  "  ld t4, 104(s11); bgeu t4, t3, .Lnea_emit_nonce_keep\n" ++
+  ".Lnea_emit_nonce_take:\n" ++
+  "  sd t3, 104(s11)\n" ++
+  ".Lnea_emit_nonce_keep:\n" ++
+  "  lbu t2, 20(s11); ori t2, t2, " ++ toString nonstorageEffectHasNonce ++ "; sb t2, 20(s11)\n" ++
   ".Lnea_emit_component_next:\n" ++
   "  addi t6, t6, 1; j .Lnea_emit_component_loop\n" ++
   ".Lnea_emit_component_done:\n" ++

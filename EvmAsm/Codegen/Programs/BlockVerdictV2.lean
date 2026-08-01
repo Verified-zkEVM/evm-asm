@@ -99,6 +99,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     balRecipientStorageKeysFunction ++ "\n" ++
     balRecipientStorageReadsKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
+    stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
     -- emit its body here too so this debug verdict ELF links (mirrors the guest closure).
     dispatchTxRuntimeCodeFunction ++ "\n" ++
@@ -135,7 +136,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- the byte-tie sees it. It surfaced as a link error buried inside an A/B leg.
     -- Same class as the earlier code_reads constant (a6c31440a) -- an emit is only
     -- verified once the `.elf` EXISTS, and this unit has its own `.elf`.
+    execLogAddrToBalCanonicalFunction ++ "\n" ++
     storageReadRecordFunction ++ "\n" ++
+    storageReadRecordBlockFunction ++ "\n" ++
     -- r59nm S2: the WRITE-side counterpart.  Mirrored into this unit for the same
     -- reason as the read recorders above -- this unit has its own `.elf`, so an
     -- omission here surfaces only as a link error inside an A/B leg.
@@ -432,7 +435,9 @@ def statelessVerdictV2GuestClosure : String :=
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   captureSystemStorageExecRowsFunction ++ "\n" ++
+  replaySystemStorageWritesAtBaiFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
+  recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
@@ -509,6 +514,7 @@ def statelessVerdictV2GuestClosure : String :=
   balRecipientStorageKeysFunction ++ "\n" ++
   balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
   -- block_verdict so the multi-tx dispatch loop can reuse it.
@@ -549,7 +555,9 @@ def statelessVerdictV2GuestClosure : String :=
   -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
   -- handler preBody so the verified evm_sload body stays byte-identical.
+  execLogAddrToBalCanonicalFunction ++ "\n" ++
   storageReadRecordFunction ++ "\n" ++
+  storageReadRecordBlockFunction ++ "\n" ++
   -- r59nm S2: producer and promotion boundary for the storage_writes MAP (spec
   -- dict semantics, two levels, upsert rather than append).  Not yet consulted --
   -- every comparator still reads the exec-log arenas, so this cannot move a

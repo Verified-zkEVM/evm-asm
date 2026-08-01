@@ -125,6 +125,13 @@ def stageSystemCallFunction : String :=
   -- on the stack. Non-reentrant, which is fine (the dispatched predeploy never re-enters).
   "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
   "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
+  -- `process_checked_system_transaction` reads its target through the real
+  -- TransactionState before it calls `process_unchecked_system_transaction`.
+  -- Its four request-predeploy callers enter this shared dispatch seam with the
+  -- canonical 20-byte target in a0, so record the matching access here rather than
+  -- duplicating four per-predeploy hooks.  t1 is restored by account_read_record,
+  -- preserving the target for the staging ABI.
+  "  mv t1, a0; jal ra, account_read_record; mv a0, t1\n" ++
   "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
   -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
   -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN within
@@ -322,6 +329,10 @@ def deriveBlockSystemRequestsFunction : String :=
   ".Ldbsr_wcopy:\n" ++
   "  beqz t3, .Ldbsr_wcopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_wcopy\n" ++
   ".Ldbsr_wcopy_d:\n" ++
+  -- Each system predeploy is its own TransactionState.  Merge and clear this
+  -- completed withdrawal call before beginning consolidation, exactly as
+  -- incorporate_tx_into_block does for ordinary transactions.
+  "  jal ra, read_sets_incorporate_tx\n" ++
   -- derive consolidation: derive_consolidation_requests(a0=ccode, a1=clen, a2=exec, a3=staging)
   "  la t0, dbsr_ccode; ld a0, 0(t0); la t0, dbsr_in_clen; ld a1, 0(t0)\n" ++
   "  la t0, dbsr_exec; ld a2, 0(t0); la t0, dbsr_staging; ld a3, 0(t0)\n" ++
@@ -332,6 +343,7 @@ def deriveBlockSystemRequestsFunction : String :=
   ".Ldbsr_ccopy:\n" ++
   "  beqz t3, .Ldbsr_ccopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_ccopy\n" ++
   ".Ldbsr_ccopy_d:\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
   "  li a0, 0; j .Ldbsr_ret\n" ++
   ".Ldbsr_fail:\n" ++
   "  li a0, 1\n" ++
@@ -390,6 +402,7 @@ def ziskStageSystemCallPayloadPrologue : String :=
   "  j .Lsccp_done\n" ++
   stageSystemCallPayloadFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
+  stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   ".Lsccp_done:"
 
 def ziskStageSystemCallPayloadDataSection : String :=

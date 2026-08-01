@@ -23,6 +23,9 @@ def blockVerdictCreateCollisionBranch : String :=
   ".Lbv_creation_dispatch:\n" ++
   "  la t0, bvgr_tx_state_refund; sd zero, 0(t0)\n" ++
   "  la t0, bv_simple_transfer_tx; ld a0, 24(t0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
+  -- CREATE addresses consume the creator nonce immediately before this
+  -- creation's increment. `sttc_nonce` already stores that pre-increment tx
+  -- nonce; unlike execution-specs' stored-post-nonce route, do not subtract 1.
   "  la t0, sttc_nonce; ld a1, 0(t0); la a0, bmvmx_sender_addr; la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0)\n" ++
   "  jal ra, has_code_or_nonce_at_header_state_root\n" ++
@@ -111,6 +114,21 @@ def blockVerdictCreateCollisionBranch : String :=
   "  la t1, bsg_access_len; ld t2, 0(t1); la t0, runtime_tx_access_list_len; sd t2, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
   ".Lbv_creation_access_done:\n" ++
+  -- Top-level CREATE reaches the shared dispatcher without passing through the
+  -- ordinary contract sender-staging block.  Feed the same effective
+  -- gas/blob debit tuple before the dispatcher consumes it, so the sender's
+  -- BAI=1 balance/nonce row survives into the builder.
+  "  la t0, bmvmx_sender_addr; la t1, bv_stx_sender_addr; li t2, 20\n" ++
+  ".Lbv_creation_sender_addr_copy:\n" ++
+  "  beqz t2, .Lbv_creation_sender_addr_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1\n" ++
+  "  j .Lbv_creation_sender_addr_copy\n" ++
+  ".Lbv_creation_sender_addr_done:\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_stx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_stx_sender_acct\n" ++
+  "  jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_creation_unsupported\n" ++
+  "  jal ra, block_verdict_stage_single_tx_sender_upfront\n" ++
+  "  bnez a0, .Lbv_creation_unsupported\n" ++
   "  la a0, bv_simple_transfer_tx; la t0, bv_exec_p; ld a1, 0(t0); jal ra, block_verdict_creation_runtime\n" ++
   "  beqz a0, .Lbv_after_tx_gas_precharge\n.Lbv_creation_unsupported:\n"
 

@@ -83,6 +83,9 @@ def balAllAccountsStorageConsistentFunction : String :=
   -- carries their storage rows, so comparing them here vs the (legitimately exec-log-absent) per-tx
   -- log would false-reject the instant contract-recipient dispatch succeeds. SOUND: the explicit
   -- replay independently pins their storage (mirrors BalAccountRecordArray's bara_skip_modeled_system).
+  -- CONVERGENCE DEPENDENCY (#10765): this skip is load-bearing until a rebuilt BAL has
+  -- BAI-0 system rows. Do not retire it independently: a digest built only from per-tx
+  -- rows cannot replace the explicit system replay that currently validates these accounts.
   -- s7/s9 = AccountChanges ptr/len. The helper preserves saved registers and uses its own
   -- bams_* scratch, so s10 stays valid for the recipient compare below.
   "  mv a0, s7; mv a1, s9\n" ++

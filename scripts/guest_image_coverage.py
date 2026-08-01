@@ -22,6 +22,8 @@ import re
 import sys
 from collections import defaultdict
 
+from asm_to_program import layout_leaf_path
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
 MANIFEST = os.path.join(ROOT, "scripts/asm-fixtures/MANIFEST.tsv")
@@ -72,27 +74,57 @@ def read_manifest():
     return out
 
 
+def with_layout_leaves(files):
+    """Expand manifest paths with their GH-#10753 layout leaves
+    (`<Name>Prog.lean` next to `<Name>.lean`), where converted modules keep
+    their Function defs and `#guard` length pins.  Same existence rule as
+    asm_to_program.check_file's layout detection, via the shared helper."""
+    out = set(files)
+    for p in files:
+        leaf = layout_leaf_path(p, ROOT)
+        if leaf:
+            out.add(leaf)
+    return out
+
+
+_IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
+
+
 def read_prog_lengths(files):
     """prog def name -> instruction count, from the kernel-checked
-    `#guard <prog>.length = N` pins in the manifest's Lean files."""
+    `#guard <prog>.length = N` pins in the manifest's Lean files.
+
+    GH #10753 leaf awareness: a converted bridge module keeps the pins in
+    its leaf `<Name>Prog.lean`, in the layout-independent applied form
+    `#guard (<prog>_of .zero).length = N`; those are normalised to the
+    bridge's concrete `<prog>` def name (strip the `_of` application)."""
     lens = {}
-    pat = re.compile(r"#guard\s+(\S+)\.length\s*=\s*(\d+)")
+    pat = re.compile(
+        r"#guard\s+(?:\((\w+)_of\s+\.zero\)|(\w+))\.length\s*(?:==|=)\s*(\d+)")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):
-            lens[m.group(1)] = int(m.group(2))
+            lens[m.group(1) or m.group(2)] = int(m.group(3))
     return lens
 
 
 def read_function_bindings(files):
     """FunctionName -> (entry_label, prog_name), parsed from the generated
-    `def <func> : String := "<entry>:\\n" ++ emitProgram(R) <prog>` defs."""
+    `def <func> : String := "<entry>:\\n" ++ emitProgram(R) <prog>` defs,
+    allowing an optional assembler directive prefix such as
+    `.globl <entry>\\n" ++` before the label string.
+
+    GH #10753 leaf awareness: the applied form
+    `emitProgramR (<prog>_of .zero)` in a leaf is normalised to the
+    bridge's concrete `<prog>` def name."""
     out = {}
     pat = re.compile(
-        r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*"([\w.]+):\\n"\s*\+\+\s*'
-        r"emitProgramR?\s+(\w+)")
+        r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*'
+        r'(?:"\s*\.globl\s+[\w.]+\\n"\s*\+\+\s*)?'
+        r'"([\w.]+):\\n"\s*\+\+\s*'
+        r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|(\w+))")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):
-            out[m.group(1)] = (m.group(2), m.group(3))
+            out[m.group(1)] = (m.group(2), m.group(3) or m.group(4))
     return out
 
 
@@ -144,9 +176,24 @@ def main():
     text_end = TEXT_BASE + text_size
     syms = read_text_symbols()
     manifest = read_manifest()
-    prog_lens = read_prog_lengths(manifest.values())
+    src_files = with_layout_leaves(manifest.values())
+    prog_lens = read_prog_lengths(src_files)
 
-    bindings = read_function_bindings(manifest.values())
+    bindings = read_function_bindings(src_files)
+
+    # Anti-mis-parser asserts (GH #10753): the parse must be EXACT — every
+    # manifest row bound, every bound program a plain identifier.  (Files
+    # legitimately define extra non-manifest Functions — callExtraGas,
+    # eip8037TxStateGas, rlpItemSize, rlpItemSpan — so the check is the
+    # manifest SUBSET, not total count equality.)  A stale
+    # GuestImageEntries that still compiles is worse than a loud exit, so
+    # fail here rather than emit a silently wrong table.
+    n_bound = sum(1 for f in manifest if f in bindings)
+    if n_bound != len(manifest):
+        missing = sorted(set(manifest) - set(bindings))[:5]
+        sys.exit(f"only {n_bound}/{len(manifest)} manifest rows have a "
+                 f"parsed Function binding (missing e.g. {missing}) — "
+                 "refusing to emit (possible mis-parse)")
 
     # entry symbol -> (prog def name, prog byte length, lean file)
     converted = {}
@@ -154,6 +201,10 @@ def main():
         if func not in bindings:
             sys.exit(f"could not parse Function def for {func} in {path}")
         entry, prog = bindings[func]
+        if not _IDENT.fullmatch(prog):
+            sys.exit(f"parsed program name {prog!r} for {func} is not a "
+                     "plain identifier — refusing to emit (possible "
+                     "mis-parse)")
         if prog not in prog_lens:
             sys.exit(f"no `#guard {prog}.length = N` pin found "
                      f"(manifest entry {func} in {path})")

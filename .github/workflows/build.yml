@@ -27,6 +27,10 @@ jobs:
         run: scripts/check-file-size.sh
       - name: Unimported-file check
         run: scripts/check-unimported.sh
+      - name: Correspondence-harness import budget (keeps the oracle gate cheap)
+        run: |
+          scripts/check-correspondence-deps.sh --self-test
+          scripts/check-correspondence-deps.sh
       - name: Round-trip coverage fence (every Instr ctor has a #guard)
         run: scripts/check-roundtrip-coverage.sh
       - name: EEST sampler span check (negative control on the --random guard)
@@ -88,7 +92,21 @@ jobs:
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check
+        run: lake build codegen progress-report arith-diff-check correspondence-check
+
+      # Replays the committed oracle corpora against their Lean models — the
+      # evidence behind the verdicts in docs/*-spec-correspondence.md and the
+      # registry in EvmAsm/Progress/Correspondence.lean. No Python needed here:
+      # corpora are generated locally and committed (some references, e.g.
+      # ethereum_rlp, are external PyPI packages and are not vendored).
+      # Self-tests for EVERY registered family run first, so a checker that
+      # cannot catch a planted violation fails loudly rather than passing
+      # vacuously. Method: docs/agents/spec-correspondence.md
+      - name: Spec-correspondence (oracle replay)
+        run: |
+          lake exe correspondence-check --self-test
+          lake exe correspondence-check rlp
+          lake exe correspondence-check bal
 
       - name: Install RISC-V binutils for codegen link checks
         run: |

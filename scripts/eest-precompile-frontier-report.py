@@ -205,8 +205,8 @@ def read_manifest(path: Path) -> Iterable[tuple[str, str, str]]:
             parts = line.rstrip("\n").split("\t")
             if len(parts) == 6:
                 label, _input_file, expected_hex, _succ_bit, _input_len, relpath = parts
-            elif len(parts) == 7:
-                label, _input_file, expected_hex, _succ_bit, _input_len, _gas_limit, relpath = parts
+            elif len(parts) >= 7:
+                label, _input_file, expected_hex, _succ_bit, _input_len, _gas_limit, relpath = parts[:7]
             else:
                 raise SystemExit(f"bad manifest row with {len(parts)} columns: {line!r}")
             rows.append((label, expected_hex, relpath))

@@ -114,10 +114,14 @@ def captureSystemStorageExecRowsFunction : String :=
       original @64 = zero (covered startup descriptor rows are insert-like)
       current @96 = minimal BE descriptor value expanded/reversed to 32-byte LE
 
+    The same expanded LE32 current field is also passed directly to the BAL
+    storage-event builder at BAI 0.  Keeping the conversion here gives the
+    tuple comparator and future rebuilt BAL one byte-order authority.
+
     a0 (output) = 0 appended / 2 side arena overflow. -/
 def appendModeledSystemStorageTupleRowsFunction : String :=
   "append_modeled_system_storage_tuple_rows:\n" ++
-  "  addi sp, sp, -56\n" ++
+  "  addi sp, sp, -64\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
   "  la s0, bv_system_storage_log_count; ld s1, 0(s0)\n" ++
@@ -163,6 +167,12 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  addi t1, a3, -1; sub t1, t1, t0; add t1, s5, t1; lbu t2, 0(t1); addi t3, s2, 96; add t3, t3, t0; sb t2, 0(t3)\n" ++
   "  addi t0, t0, 1; j .Lamsr_value_rev\n" ++
   ".Lamsr_finish_one:\n" ++
+  "  # Reuse current@96: the sole minimal-BE -> LE32 conversion for BAI-0 rows.\n" ++
+  "  # a0=addr BE20, a1=0 BAI, a2=slot BE32, a3=current LE32.\n" ++
+  "  # .Lamsr_append_one is a local call: preserve its return PC over the builder JAL.\n" ++
+  "  sd ra, 56(sp); mv a2, a1; mv a0, s4; li a1, 0; addi a3, s2, 96\n" ++
+  "  jal ra, bal_builder_record_storage_change\n" ++
+  "  ld ra, 56(sp)\n" ++
   "  addi s1, s1, 1; sd s1, 0(s0)\n" ++
   ".Lamsr_one_ok:\n" ++
   "  li a0, 0; ret\n" ++
@@ -171,8 +181,116 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   ".Lamsr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
+  "  addi sp, sp, 64\n" ++
   "  ret"
+
+-- The one shared builder call runs through three conversion-helper invocations:
+-- EIP-2935 once and EIP-4788 twice (timestamp and parent-root slots).  Dropping
+-- either EIP-4788 invocation would silently omit a distinct BAI-0 BAL row.
+#guard (appendModeledSystemStorageTupleRowsFunction.splitOn "jal ra, .Lamsr_append_one").length == 4
+#guard (appendModeledSystemStorageTupleRowsFunction.splitOn "la a0, bsr_addr_4788").length == 3
+
+/-! ## replay_system_storage_writes_at_bai
+
+    GH #10866 / GH #10701: give the post-execution phase its `storage_changes`.
+
+    THE PROBLEM THIS SOLVES IS AN ORDERING ONE, and the shape of the routine is a
+    consequence of it. `fork.py:917-919` runs the end-of-block system calls at
+    `block_access_index = ulen(transactions) + 1`; this guest runs them EARLY, in
+    the requests phase, and discards their tx-map rows there so they are not
+    attributed to transaction 1 (GH #10875). Emitting at that point instead does
+    NOT work, and the failure is quiet: `bal_emit_storage_changes` filters
+    net-zero writes against the BLOCK container, which is still empty before the
+    loop, so every N+1 write whose slot a transaction also writes is compared
+    against the block PRE-STATE and dropped. Measured: 1 of 3 declared N+1 rows on
+    23100, 0 of 8 on 23725 -- and the rows that did survive were exactly the slots
+    with no transaction writing them.
+
+    So the writes have to be re-presented AFTER the loop. `bv_system_storage_log`
+    already holds them, stamped with N+1 by `capture_system_storage_exec_rows` --
+    that side arena's whole purpose is to be the durable record, since the caller
+    restores the live log count. This replays the rows carrying the CURRENT
+    `block_access_index` back into the tx-level map, at a point where the block
+    container holds the transactions' writes and the net-zero comparison is
+    therefore against the right baseline.
+
+    a0..: none. Reads `current_block_access_index`, so the caller sets N+1 once and
+    both the replay and the following emit agree by construction rather than by two
+    copies of the same arithmetic.
+
+    THE ROWS NEED NO CONVERSION. The side arena uses the runtime exec-log layout
+    (address LE32 at +0, slot LE32 at +32, current LE32 at +96) and
+    `storage_write_record` keys on exactly that form -- the same keying
+    `storage_read_record` uses. The pointers are passed straight into the row.
+
+    `a6 = 0` (no captured baseline). That is not a shortcut: +96 of a tx row is read
+    by nothing today, and the emit this feeds derives its baseline from the block
+    container, which is the whole point of running here. Passing a fabricated
+    baseline would put a second, disagreeing answer into the row. -/
+def replaySystemStorageWritesAtBaiFunction : String :=
+  "replay_system_storage_writes_at_bai:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, current_block_access_index; ld s3, 0(t0)\n" ++        -- s3 = target BAI
+  "  la t0, bv_system_storage_log_count; ld s1, 0(t0)\n" ++       -- s1 = side row count
+  "  li s0, 0\n" ++                                              -- s0 = i
+  ".Lrsswb_loop:\n" ++
+  "  bgeu s0, s1, .Lrsswb_done\n" ++
+  "  la t0, bv_system_storage_txindex; slli t1, s0, 3; add t0, t0, t1; ld t0, 0(t0)\n" ++
+  "  bne t0, s3, .Lrsswb_next\n" ++
+  "  la t0, bv_system_storage_log; slli t1, s0, 7; add s2, t0, t1\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; li a6, 0\n" ++
+  "  jal ra, storage_write_record\n" ++
+  ".Lrsswb_next:\n" ++
+  "  addi s0, s0, 1; j .Lrsswb_loop\n" ++
+  ".Lrsswb_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
+-- The BAI comes from the global, never from a second `+1` -- two copies of that
+-- arithmetic is how a row gets a correct-looking index that disagrees with the
+-- emit's.  Pinned WITH its load so a later edit cannot swap in a recomputation.
+#guard (replaySystemStorageWritesAtBaiFunction.splitOn
+  "  la t0, current_block_access_index; ld s3, 0(t0)\n").length == 2
+-- The filter is the point of the routine: without the txindex compare it would
+-- replay the BAI-0 modelled rows too, and those are already in the builder.
+#guard (replaySystemStorageWritesAtBaiFunction.splitOn "bne t0, s3, .Lrsswb_next").length == 2
+
+/-! ## record_modeled_eip4788_storage_reads
+
+    The EIP-4788 system transaction is a real `TransactionState` in
+    execution-specs: each SSTORE reads its slot before deciding whether its
+    write changes state, then `incorporate_tx_into_block` promotes those reads.
+    Thus a zero-over-zero parent-root write has no `storage_changes` row but
+    still has a `storage_reads` row.
+
+    This runs only after the modeled beacon call completed. It writes both
+    SSTORE keys directly to the existing block-level recorder, avoiding a
+    transaction-boundary clear from this post-transaction phase. The timestamp
+    read is normally filtered later by its storage change; the parent-root read
+    survives when net-equal.
+    `bsr_kbuf` and `bsr_delta` are dead after `bsr_beacon_change` returns, so
+    they supply the two LE32 recorder keys without a new data allocation. -/
+def recordModeledEip4788StorageReadsFunction : String :=
+  "record_modeled_eip4788_storage_reads:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la a0, bsr_addr_4788; la a1, bsr_kbuf; jal ra, bal_addr_to_exec_log_key\n" ++
+  "  la t0, swd_4788_slot; addi t0, t0, 31; la t1, bsr_delta; li t2, 32\n" ++
+  ".Lrmesr_timestamp_slot:\n" ++
+  "  beqz t2, .Lrmesr_timestamp_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmesr_timestamp_slot\n" ++
+  ".Lrmesr_timestamp_done:\n" ++
+  "  la a0, bsr_kbuf; la a1, bsr_delta; jal ra, storage_read_record_block\n" ++
+  "  la t0, swd_4788_root_slot; addi t0, t0, 31; la t1, bsr_delta; li t2, 32\n" ++
+  ".Lrmesr_root_slot:\n" ++
+  "  beqz t2, .Lrmesr_root_done\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmesr_root_slot\n" ++
+  ".Lrmesr_root_done:\n" ++
+  "  la a0, bsr_kbuf; la a1, bsr_delta; jal ra, storage_read_record_block\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
+
+#guard (recordModeledEip4788StorageReadsFunction.splitOn "jal ra, storage_read_record_block").length == 3
 
 /-- `zisk_capture_system_storage_exec_rows`: focused side-arena copy probe.
     Copies source rows [1,3), so output checks that two rows were appended,

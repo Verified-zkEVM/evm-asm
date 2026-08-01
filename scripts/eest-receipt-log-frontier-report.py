@@ -47,11 +47,14 @@ def read_manifest(path: Path, strict: bool) -> list[ManifestRow]:
         if not line.strip():
             continue
         fields = line.split("\t")
-        if len(fields) != 6:
+        if len(fields) == 6:
+            label, input_path, expected_hex, succ_bit, input_len, relpath = fields
+        elif len(fields) >= 7:
+            label, input_path, expected_hex, succ_bit, input_len, _gas_limit, relpath = fields[:7]
+        else:
             if strict:
-                raise SystemExit(f"{path}:{line_no}: expected 6 TSV fields, got {len(fields)}")
+                raise SystemExit(f"{path}:{line_no}: expected at least 6 TSV fields, got {len(fields)}")
             continue
-        label, input_path, expected_hex, succ_bit, input_len, relpath = fields
         rows.append(
             ManifestRow(
                 label=label,
