@@ -94,7 +94,24 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
   "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect_after_account_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_sr_done:\n"
+".Lbv_mtx_sr_done:\n"
+
+/- Materialize the process_transaction sender debit when the shared callable
+   dispatcher halts exceptionally before its normal pending-seed and MTx
+   postlude. The tuple is already authenticated and computed by
+   blockVerdictMtxStageSenderUpfront; this helper performs no second fee
+   calculation. -/
+private def blockVerdictMtxOogMaterialize : String :=
+  "block_verdict_mtx_oog_materialize:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  la t0, bv_pending_upfront_balance_flag; ld t1, 0(t0); beqz t1, .Lbv_mtx_oog_done\n" ++
+  "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
+  "  jal ra, account_state_commit_pending\n" ++
+  "  bnez a0, .Lbv_mtx_oog_done\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
+  ".Lbv_mtx_oog_done:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
 
 /-- Gated multi-transaction runtime-gas loop fragment.  Every block falls
     through to the MTx loop, which iterates zero times on an empty block;
@@ -257,7 +274,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- CodeState is the sole execution code/existence model for every block,
   -- including the one-transaction case.  The immutable witness is consulted
   -- only after its pending and durable overlays miss.
-  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_committed_count; sd zero, 0(t0); la t0, bv_mtx_committed_overflow; sd zero, 0(t0)  # empty legacy cross-tx committed table/status\n" ++
   "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
@@ -833,7 +850,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_bail:\n" ++
   bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
-  "  j .Lbv_after_tx_gas_precharge\n"
+  "  j .Lbv_after_tx_gas_precharge\n" ++
+  blockVerdictMtxOogMaterialize
 
 /-- Rebuild S1 immediately before the gas replay from authenticated immutable
     transaction data. `nea_sort_a` is only the immediate input to the radix
