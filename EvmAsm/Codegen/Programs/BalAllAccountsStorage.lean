@@ -77,21 +77,6 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  bnez a1, .Lc2baas_fail\n" ++
   "  li t2, 20; bne a2, t2, .Lc2baas_next   # not 20B -> skip\n" ++
   "  sub s10, a0, a2              # addr ptr (20B BE)\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.1: skip the EIP-2935 (history) / EIP-4788 (beacon-roots) system
-  -- contracts. Their storage is written by the block-level system calls and verified by the
-  -- verdict's explicit EIP-2935/4788 replay, NOT the per-tx exec log; every Amsterdam block's BAL
-  -- carries their storage rows, so comparing them here vs the (legitimately exec-log-absent) per-tx
-  -- log would false-reject the instant contract-recipient dispatch succeeds. SOUND: the explicit
-  -- replay independently pins their storage (mirrors BalAccountRecordArray's bara_skip_modeled_system).
-  -- CONVERGENCE DEPENDENCY (#10765): this skip is load-bearing until a rebuilt BAL has
-  -- BAI-0 system rows. Do not retire it independently: a digest built only from per-tx
-  -- rows cannot replace the explicit system replay that currently validates these accounts.
-  -- s7/s9 = AccountChanges ptr/len. The helper preserves saved registers and uses its own
-  -- bams_* scratch, so s10 stays valid for the recipient compare below.
-  "  mv a0, s7; mv a1, s9\n" ++
-  "  jal ra, bal_account_is_modeled_system\n" ++
-  "  li t0, 1; beq a0, t0, .Lc2baas_next       # EIP-2935 history row -> skip\n" ++
-  "  li t0, 2; beq a0, t0, .Lc2baas_next       # EIP-4788 beacon-roots row -> skip\n" ++
   "  li t4, 0                    # skip-list index\n" ++
   ".Lc2baas_skip_outer:\n" ++
   "  beq t4, s8, .Lc2baas_check  # not in skip-list -> check it\n" ++

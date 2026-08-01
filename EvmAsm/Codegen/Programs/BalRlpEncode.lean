@@ -478,7 +478,9 @@ def balRlpListHeaderLenFunction : String :=
   ".Lbrlhl_counted:\n" ++
   "  addi a0, t1, 1; ret\n"
 
-/-- All encoders, in emission order. -/
+/-- Guest aggregate: production encoders only. `bal_rlp_encode_selftest` stays
+    defined for the `zisk_bal_selftests` probe and is not linked into
+    `stateless_guest` (name-unreferenced dead text; R3 deadness census). -/
 def balRlpEncodeFunctions : String :=
   balRlpScalarLenFunction ++
   balRlpEmitScalarFunction ++
@@ -487,8 +489,7 @@ def balRlpEncodeFunctions : String :=
   balRlpEmitBytesFunction ++
   balRlpEmitListHeaderFunction ++
   balRlpScalarRlpLenFunction ++
-  balRlpListHeaderLenFunction ++
-  balRlpEncodeSelftestFunction
+  balRlpListHeaderLenFunction
 
 /-! ## Anti-drift guards on the emitted text
 
@@ -546,7 +547,9 @@ def balRlpEncodeFunctions : String :=
 -- `bal_rlp_encode_selftest` and its expected length to the per-case assertions, THEN
 -- bump this. Bumping it alone restores the build and removes the only thing that
 -- would have told you.
-#guard (balRlpEncodeFunctions.splitOn "  .globl bal_rlp_").length == 8
+-- Seven production encoders (self-test is probe-only, not in this aggregate).
+#guard (balRlpEncodeFunctions.splitOn "  .globl bal_rlp_").length == 7
+#guard (balRlpEncodeSelftestFunction.splitOn "  .globl bal_rlp_encode_selftest").length == 2
 
 -- THE INVARIANT THAT HAS NO ESCAPE HATCH. The count above can be silenced by bumping
 -- a number, which makes it a tripwire rather than a check. This one cannot: EVERY
