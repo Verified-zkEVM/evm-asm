@@ -504,13 +504,26 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
     "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_capz_" ++ toString kind ++ "\n" ++
     ".Lrr_createcap_" ++ toString kind ++ ":\n" ++
+    -- GH #10938 piece 3: the captured BYTES and their LENGTH are gone.  Piece 2 moved the deposit
+    -- into the survivor and deleted the creation stage's deposit block, which was the only reader
+    -- of `top_level_creation_returndata` and `..._len`; the capture outlived its consumer.  What
+    -- survives is the STATUS, which `BlockVerdictCreationStage` still loads to route the depth-0
+    -- creation RETURN (1 -> settle, 2 -> exception).  Three cells shared one prefix and had three
+    -- fates: the buffer had a writer and no reader, the length had a writer AND A CLEAR and no
+    -- load — ⚠️ a clear is a write, so four references read as "live" and were not — and only the
+    -- status has a real consumer.
+    --
+    -- ⚠️ `topLevelCreationReturndataMaxBytes` therefore remains as a THRESHOLD WITH NO BUFFER
+    -- BEHIND IT.  It is deliberately NOT folded into the deposit validator's limit even though
+    -- both are currently 65536: the validator enforces the EIP-7907 deployed-code limit
+    -- (`CreateDeployedCodeValid`'s own probe pins 65536 valid / 65537 invalid), and this is a
+    -- capture bound.  They are EQUAL BY COINCIDENCE, not by construction, so status 2 and
+    -- `create_deposit_failed_flag` fire together today and would separate the moment either
+    -- constant moved.  Collapsing them is GH #10938 piece 4 and needs that equality promoted to a
+    -- stated invariant or removed — not assumed.
     "  li t1, " ++ toString topLevelCreationReturndataMaxBytes ++ "\n  bltu t1, x15, .Lrr_createcap_over_" ++ toString kind ++ "\n" ++
     "  la t1, top_level_creation_returndata_status\n  li t5, 1\n  sd t5, 0(t1)\n" ++
-    "  la t1, top_level_creation_returndata_len\n  sd x15, 0(t1)\n" ++
-    "  add t2, x13, x14\n  la t3, top_level_creation_returndata\n  mv t4, x15\n" ++
-    ".Lrr_createcap_copy_" ++ toString kind ++ ":\n" ++
-    "  beqz t4, .Lrr_nocap_" ++ toString kind ++ "\n" ++
-    "  lbu t5, 0(t2)\n  sb t5, 0(t3)\n  addi t2, t2, 1\n  addi t3, t3, 1\n  addi t4, t4, -1\n  j .Lrr_createcap_copy_" ++ toString kind ++ "\n" ++
+    "  j .Lrr_nocap_" ++ toString kind ++ "\n" ++
     ".Lrr_createcap_over_" ++ toString kind ++ ":\n" ++
     "  la t1, top_level_creation_returndata_status\n  li t5, 2\n  sd t5, 0(t1)\n" ++
     ".Lrr_nocap_" ++ toString kind ++ ":\n"
