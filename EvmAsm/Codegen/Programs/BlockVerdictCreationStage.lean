@@ -541,20 +541,24 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  li t0, 0xa0010000; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
   -- GH #10938: the SURVIVOR now deposits at depth 0 (`NoopHalt.returnRevertTail`), so this
   -- stage no longer validates, charges or records — it only SETTLES.  Status 1 means the
-  -- survivor deposited successfully, so fall through to `.Lbvcr_deposit_done`; status 3 is the
-  -- survivor's depth-0 deposit FAILURE and joins status 2 (oversized capture) on the existing
-  -- exception edge.  Every other status keeps the pre-existing conservative `.Lbvcr_ret`.
+  -- survivor saw a depth-0 creation RETURN, so fall through to `.Lbvcr_deposit_done`.  Every
+  -- other status keeps the pre-existing conservative `.Lbvcr_ret`.
   -- ⛔ THE FAILURE FLAG IS CHECKED FIRST, BEFORE the status cell, because `.Lrr_createcap_*`
-  -- rewrites that status AFTER the survivor published its failure: 1 when the returned code fits
-  -- the capture buffer, 2 when it does not.  Reading the status first would therefore mask a
-  -- failed deposit as `status == 1` and settle it as a success.
+  -- writes that status AFTER the survivor published its failure.  Reading the status first would
+  -- therefore mask a failed deposit as `status == 1` and settle it as a success.
+  --
+  -- GH #10938 piece 4: THE STATUS-2 EDGE IS GONE.  Piece 3 had left status 2 meaning "oversized
+  -- capture" for a capture it had already deleted, gated on
+  -- `topLevelCreationReturndataMaxBytes` (deleted with this change) — a threshold with no buffer behind it, equal to
+  -- `maxDeployedCodeSize` only BY COINCIDENCE.  The survivor no longer computes it, so nothing
+  -- writes 2 and this edge became unreachable.  The oversized-code case it existed for reaches
+  -- this same exception arm by the authoritative route instead: the deposit validator rejects
+  -- `len(code) > MAX_CODE_SIZE`, diverts through `.Lrr_crinv_*`, and sets
+  -- `create_deposit_failed_flag`, which the line above reads FIRST.  One limit, one enforcer,
+  -- and the two constants are now free to diverge.
   "  la t0, create_deposit_failed_flag; ld t1, 0(t0); bnez t1, .Lbvcr_deposit_exception\n" ++
   "  la t0, top_level_creation_returndata_status; ld t1, 0(t0); li t2, 1; beq t1, t2, .Lbvcr_deposit_done\n" ++
-  -- A return larger than the fixed EIP-170 retention buffer is exactly the
-  -- over-max-code deployment failure: it is still a valid block with a failed
-  -- receipt, not an unsupported shape.  Other non-return statuses retain the
-  -- existing conservative edge until their individual semantics are wired.
-  "  li t2, 2; beq t1, t2, .Lbvcr_deposit_exception; j .Lbvcr_ret\n" ++
+  "  j .Lbvcr_ret\n" ++
   -- GH #10938: the stage's deposit PROCESSING is gone — validator, hash gas, code-deposit
   -- state gas, `create_record_code_effect` and the created-account publication all now run
   -- once, in the survivor, at every depth (`vm/interpreter.py:215-241` is one depth-agnostic
