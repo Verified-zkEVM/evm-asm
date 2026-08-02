@@ -430,6 +430,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
