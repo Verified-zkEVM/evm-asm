@@ -743,7 +743,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, block_verdict_deferred_system_requests\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); beqz t0, .Lbv_mtx_publish\n" ++
+  -- Both ordinary and deposit-capture-only blocks must publish the terminal
+  -- post-state root after all system effects.  The capture-only lane still
+  -- needs its existing runtime-array setup below, so it rejoins that setup
+  -- after the shared root publication rather than bypassing `.Lbv_mtx_publish`.
+  "  j .Lbv_mtx_publish\n" ++
+  ".Lbv_mtx_capture_only_post_root:\n" ++
   "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
   -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
   -- them to the common exact-gas/EIP-7778 and receipt gates just like the
@@ -755,6 +760,23 @@ def blockVerdictMtxRuntimeLoop : String :=
   bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_mtx_publish:\n" ++
+  -- Terminal state-root replay.  `.Lbv_mtx_done` has already run every
+  -- user/system read-set and write-set incorporation; no storage-map writer
+  -- follows this label before validation and gas settlement.  The mode bit is
+  -- therefore a placement fact, not a readiness guard: a zero map count means
+  -- the block genuinely has no committed storage rows.
+  "  li t0, 1; la t1, bsr_storage_from_map; sd t0, 0(t1)\n" ++
+  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
+  "  la t0, bsr_wds_p; ld a3, 0(t0); la t0, bsr_wds_n; ld a4, 0(t0); la a5, sv_recomputed\n" ++
+  "  la t0, bsr_ssz_p; ld a6, 0(t0); jal ra, block_state_root\n" ++
+  "  mv s2, a0; la t0, bv_state_status; sd s2, 0(t0); bnez s2, .Lbv_state_fail\n" ++
+  "  la t0, sv_recomputed; la t1, bsr_header_state_root_p; ld t1, 0(t1); li t2, 32\n" ++
+  ".Lbv_terminal_root_cmp:\n" ++
+  "  beqz t2, .Lbv_terminal_root_ok\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_cmp_mismatch\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_terminal_root_cmp\n" ++
+  ".Lbv_terminal_root_ok:\n" ++
+  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); bnez t0, .Lbv_mtx_capture_only_post_root\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
