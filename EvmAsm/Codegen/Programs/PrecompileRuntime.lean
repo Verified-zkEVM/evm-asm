@@ -45,6 +45,32 @@ def precompileAddressClassifyAsm
   "  li " ++ resultReg ++ ", 0\n" ++
   ".L" ++ tag ++ "_precompile_done:\n"
 
+/-- Emit the selector-to-handler branch table shared by root and child
+    precompile dispatchers.  Classification owns the numeric selector; this
+    helper only emits caller-owned targets, so output, success, continuation,
+    and gas-allotment policy remain at each call site. -/
+def precompileSelectorBranchesAsm
+    (selectorReg scratchReg : String) (inline : Bool) : List (String × String) → String
+  | [] => ""
+  | (selector, target) :: rest =>
+      (if inline then
+        "  li " ++ scratchReg ++ ", " ++ selector ++ "; beq " ++
+          selectorReg ++ ", " ++ scratchReg ++ ", " ++ target ++ "\n"
+       else
+        "  li " ++ scratchReg ++ ", " ++ selector ++ "\n" ++
+          "  beq " ++ selectorReg ++ ", " ++ scratchReg ++ ", " ++ target ++ "\n") ++
+      precompileSelectorBranchesAsm selectorReg scratchReg inline rest
+
+/-- Call a precompile validity kernel and branch on its status. The optional
+    post-call text is for caller-local ABI restoration (the child path saves
+    its dispatch registers around LP64 kernels); it deliberately does not
+    encode output, success, continuation, or gas-allotment policy. -/
+def precompileKernelCallAsm
+    (linkReg kernel statusReg failLabel afterCall callPrefix : String) : String :=
+  callPrefix ++ "jal " ++ linkReg ++ ", " ++ kernel ++ "\n" ++
+  afterCall ++
+  "  bnez " ++ statusReg ++ ", " ++ failLabel ++ "\n"
+
 private def precompileGasRemainingOff : Nat := 568
 
 def chargePrecompileGasAsm (costReg remainingReg : String) : String :=
