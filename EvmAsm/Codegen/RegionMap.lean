@@ -159,8 +159,13 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout CODE_DB_BUCKETS; 1 MiB slab" },
     { name := "state_tracker_area",     base := 0xa0630000, size := 0x400000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout STATE_TRACKER_AREA; 4 MiB slab. LIVE in emitted guest: "
-        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows) — the ONLY "
-        ++ "scheme-A anchor the current stateless_guest references (see FINDING in docs)" },
+        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows). "
+        ++ "⚠️ NOT the only live one: measured 2026-08-02, 13 of these 23 anchors have their "
+        ++ "base constant present in the emitted guest — this one plus the six r59nm read "
+        ++ "containers and the six write/undo containers below. The earlier ONLY claim was "
+        ++ "stale by twelve. Those 13 are addressed by absolute `li` and are therefore NOT "
+        ++ "covered by guestRegionMap's zone/disjointness theorems, only by "
+        ++ "schemeAAnchors_pairwise_disjoint" },
     { name := "evm_frame_stack",        base := 0xa0a30000, size := 0x40000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
     { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
@@ -215,12 +220,40 @@ def schemeAAnchors : List GuestRegion :=
         ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
     -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
-    -- a per-frame copy would cost capacity x call depth.  Bounded by the SSTORE
-    -- handler's own 16384-row cap, so it needs no overflow path.
+    -- a per-frame copy would cost capacity x call depth.
+    --
+    -- ⛔ GH #11189: THIS REGION IS UNDERSIZED AND ITS OVERFLOW IS FAIL-OPEN.  The
+    -- previous note here claimed it was "bounded by the SSTORE handler's own
+    -- 16384-row cap, so it needs no overflow path".  THAT IS FALSE, and the error is
+    -- CAPACITY-versus-FLOW: the 16384 cap bounds LIVE ROWS in the write map, not the
+    -- NUMBER OF WRITES.  destroy_storage DECREMENTS tx_storage_writes_count as it
+    -- drops rows (.Lds_drop), so each destruction frees map capacity that the next
+    -- write refills -- a slot can be written, destroyed, written, destroyed, pushing
+    -- one undo every time while live rows never exceed 16384.
+    --
+    -- MEASURED: fixture 00192 reaches storage_writes_undo_count = 32768 exactly (the
+    -- capacity), so the guard fires on a non-adversarial block today.  DERIVED bound:
+    -- per-transaction regular gas is capped at TX_MAX_GAS_LIMIT = 16,777,216
+    -- (transactions.py:63, fork.py:1098-1100) and the cheapest journal-pushing write
+    -- costs WARM_ACCESS = 100, so up to 167,772 entries are reachable -- 5.1x this
+    -- region.  At the current 160 B stride that is 25.6 MiB; at the 40 B achievable
+    -- width (GH #11189 row audit) 6.4 MiB.
+    --
+    -- ⚠️ AND THE OVERFLOW IS SILENT: storage_writes_undo_push does
+    -- `bgeu t1, t2, .Lswup_done`, skipping the push AND not bumping the count, so
+    -- write_sets_restore_frame leaves a reverted write applied.  Its unappend arm also
+    -- decrements tx_storage_writes_count per kind-1 entry, so past the cap the count
+    -- is inconsistent with the contents -- the guard must REJECT at the push; making
+    -- the omission observable afterwards is not sufficient.
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x500000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 5 MiB = 32768x160 "
         ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
-        ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2" },
+        ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2. "
+        ++ "⛔ UNDERSIZED 5.1x (167772 reachable per tx) AND FAIL-OPEN on overflow -- GH #11189. "
+        ++ "Row audit: 16 B of the 160 (offsets 16..31) are never written and never read; "
+        ++ "kind 0/1 need 40 B (32 B value + packed index/kind, 8-aligned), only kind 2 "
+        ++ "needs the 128 B payload and it is bounded by distinct written slots, so "
+        ++ "segregating by kind gives a 40 B hot array" },
     -- #10695/#10699: the NONSTORAGE half of the same two levels -- BlockState
     -- .account_writes (state_tracker.py:75) and TransactionState.account_writes
     -- (:102).  Same shape as the storage trio above and for the same reasons, so the
