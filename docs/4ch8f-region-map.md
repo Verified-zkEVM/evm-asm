@@ -169,6 +169,15 @@ The top RW `LOAD` segment ends at `.bss` end `0xbdd7c900`, comfortably below the
 
 ### Predicate-readiness audit (input to the proof lane)
 
+**Companion (filled shapes for structures that stay):**
+[`docs/4ch8f-predicate-shapes.md`](4ch8f-predicate-shapes.md) — uniform template
+(base as input, capacity×stride, entry fields, count vs high-water, lifetime,
+disjointness/unions, slot-nine init, build unit). Covers `call_frame_arena`,
+union children, `baap_storage_values` (`#11222`), `evm_memory_pool`,
+`callee_seed_table`, `teer_success_table`, and the DJ-* dispatch journals
+(with `docs/4ch8f-dispatch-journal-initialization.md`). Unclean structures are
+named as findings, not gaps.
+
 The map currently establishes byte extents, selected offsets, and the one
 intentional aliasing inventory. That is not yet a separation-logic vocabulary
 for every buffer. Before a predicate is written, each region needs a settled
