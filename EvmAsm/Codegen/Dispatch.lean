@@ -2957,8 +2957,14 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
+  -- GH #11147: preserve destroyed_count/overflow across system re-entry
+  -- (stage_system_call sets system_call_mode=1 before jal runtime_dispatcher_call).
+  -- nonstorage_effect_aggregate destroyed-norm runs AFTER deferred system requests
+  -- and needs the user-body table. Other journals still zero every entry (#11152).
+  "  la x5, system_call_mode; ld x6, 0(x5); bnez x6, .Lrtdc_destroyed_kept\n" ++
   "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_destroyed_kept:\n" ++
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
