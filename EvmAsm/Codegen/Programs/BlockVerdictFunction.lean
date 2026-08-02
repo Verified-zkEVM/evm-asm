@@ -88,19 +88,15 @@ def blockVerdictFunction : String :=
   "  bnez a0, .Lbv_withdrawals_root_fail\n" ++
   "  beqz a1, .Lbv_withdrawals_root_fail\n" ++
   blockVerdictBmvMxPrecomputePrefix ++
+  -- The compact `sv_params` record stores the SSZ payload pointer at +0;
+  -- the payload's state-root field is at +52.  Keep the expected-root pointer
+  -- in the payload, not at +52 inside the params record itself.
+  "  la t0, bsr_header_state_root_p; ld t1, 0(s0); addi t1, t1, 52; sd t1, 0(t0)\n" ++
   "  ld a0, 24(s0); ld a1, 80(s0); ld a2, 88(s0); ld a3, 64(s0); ld a4, 72(s0)\n" ++
   "  la a5, sv_recomputed; mv a6, s3\n" ++
-  "  jal ra, block_state_root\n" ++
-  "  mv s2, a0\n" ++
-  "  la t0, bv_state_status; sd s2, 0(t0)\n" ++
-  "  la t0, sv_recomputed; ld t1, 0(s0); addi t1, t1, 52; li t2, 32\n" ++
-  ".Lbv_cmp:\n" ++
-  "  beqz t2, .Lbv_cmpok\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_cmp_mismatch\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_cmp\n" ++
-  ".Lbv_cmpok:\n" ++
+  "  jal ra, block_state_root_pre_accounts\n" ++
+  "  bnez a0, .Lbv_state_fail\n" ++
   "  bnez s1, .Lbv_header_fail\n" ++
-  "  bnez s2, .Lbv_state_fail\n" ++
   "  # NO-TRANSACTION gate: this verdict does NOT validate transactions, so it can\n" ++
   "  # only soundly judge no-tx blocks. A tx-bearing INVALID block whose invalid tx\n" ++
   "  # is rejected (no state change) would otherwise match the recompute -> false\n" ++
@@ -279,8 +275,8 @@ def blockVerdictFunction : String :=
   -- The MTx precompile hook enters this shared selector directly.  The old
   -- single-transaction contract/creation route is retired; these are the live
   -- MTx precompile fragments that remain reachable from the loop hook.
-  blockVerdictSimpleTransferPrecompileGasAsm ++
-  blockVerdictSimpleTransferPublishAsm ++
+  blockVerdictSimpleTransferPrecompileGasAsmFor "bv_mtx_ctx" ++
+  blockVerdictSimpleTransferPublishAsmFor "bv_mtx_ctx" ++
   blockVerdictFunctionTail ++ "\n"
 
 end EvmAsm.Codegen

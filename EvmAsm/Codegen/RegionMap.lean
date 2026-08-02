@@ -144,6 +144,58 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
+/-! ## Bounded storage structures: caps, failure modes, derivations, lifetimes
+
+    GH #11187 / #11189. Recorded here because these facts were being carried in
+    issue comments and messages, and because a stale rationale in this file cost a
+    correct finding an hour: the undo-journal note below used to claim it "needs no
+    overflow path".
+
+    | structure | cap | enforced at | AT THE CAP |
+    |---|---|---|---|
+    | persistent exec log | 16,384 rows | `h_SSTORE` (`li x14, 16384; bgeu x15, x14, .exit_outofgas`) | ⭐ **FAILS CLOSED** — rejects |
+    | storage-write undo journal | 32,768 entries | `storage_writes_undo_push` (`bgeu t1, t2, .Lswup_done`) | ⛔ **FAILS OPEN** — skips the push, does not bump the count |
+
+    ⭐ **THAT ASYMMETRY IS THE SINGLE MOST IMPORTANT FACT ABOUT THESE TWO BUFFERS.**
+    Only the journal can be exceeded silently, and past its cap
+    `write_sets_restore_frame` leaves a reverted write applied.
+
+    **LIFETIMES — both per-transaction, but established by different mechanisms**,
+    which is why one figure is block-derived and the other is not:
+    * exec-log count is **re-initialised from the staged payload**, not zeroed —
+      `sd t1, 448(...)` in `runtime_dispatcher_call`, from the payload's `slot_count`,
+      validated against 16,384. ⚠️ An absence test for `sd zero` MISSES this; a reset
+      by assignment is still a reset.
+    * journal count is **zeroed** by `write_sets_incorporate_tx` and
+      `write_sets_discard_tx` — both the commit and the discard path.
+
+    ⛔ **THE SIZING TRAP, which cost two analyses on 2026-08-02:**
+    **`bound = min(gas-derived count, hard cap enforced upstream)`. Where a
+    fail-closed cap exists, THE CAP IS THE BOUND** — a gas divisor alone
+    systematically over-reserves. `BlockVerdictParams.lean:248-268` already records
+    this, rejecting a former gas-derived 600,000-row reservation as *unreachable*
+    because the 100-gas divisor ignored the 16,384-row fail-closed source cap.
+
+    ⚠️ **And the converse trap, which is how the journal note went wrong:** a
+    capacity cap bounds OCCUPANCY, not FLOW. `destroy_storage` decrements
+    `tx_storage_writes_count`, so freed rows are refilled and the journal's inflow
+    is not bounded by the map's size. **Do not bound a flow with a capacity.**
+
+    ⛔ **OVER-RESERVING IS NOT FREE HERE.** The old 76.8 MiB gas-derived reservation
+    was unioned into `call_frame_arena`'s front and **physically zeroed** by per-tx
+    dispatch frames at depth ≥ 221 before the BAL validators read it — the `4ch8f.73`
+    clobber, whose un-unioning this file documents at the `bv_system_storage_log`
+    standalone-placement section below. ⇒ an unreachable gas bound is not merely
+    wasteful; it has already produced one real defect.
+
+    ⚠️ **OPEN, NOT SETTLED — do not read this section as complete.** Whether a
+    *legitimate* 200M-gas block can EXCEED either cap is unresolved: the log cap is
+    fail-closed so exceeding it is sound but false-rejects, while the journal cap is
+    fail-open so exceeding it is a state divergence. Journal side is known to be
+    reachable (fixture `00192` hits 32,768 exactly); the log side's realistic peak is
+    still being quantified.
+-/
+
 /-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
     the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
@@ -159,8 +211,13 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout CODE_DB_BUCKETS; 1 MiB slab" },
     { name := "state_tracker_area",     base := 0xa0630000, size := 0x400000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout STATE_TRACKER_AREA; 4 MiB slab. LIVE in emitted guest: "
-        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows) — the ONLY "
-        ++ "scheme-A anchor the current stateless_guest references (see FINDING in docs)" },
+        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows). "
+        ++ "⚠️ NOT the only live one: measured 2026-08-02, 13 of these 23 anchors have their "
+        ++ "base constant present in the emitted guest — this one plus the six r59nm read "
+        ++ "containers and the six write/undo containers below. The earlier ONLY claim was "
+        ++ "stale by twelve. Those 13 are addressed by absolute `li` and are therefore NOT "
+        ++ "covered by guestRegionMap's zone/disjointness theorems, only by "
+        ++ "schemeAAnchors_pairwise_disjoint" },
     { name := "evm_frame_stack",        base := 0xa0a30000, size := 0x40000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
     { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
@@ -215,13 +272,40 @@ def schemeAAnchors : List GuestRegion :=
         ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
     -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
-    -- a per-frame copy would cost capacity x call depth.  The bounded journal
-    -- now fails closed at its push when this derived capacity is exhausted;
-    -- it must never silently skip a record and let a reverted write survive.
+    -- a per-frame copy would cost capacity x call depth.
+    --
+    -- ⛔ GH #11189: THIS REGION IS UNDERSIZED AND ITS OVERFLOW IS FAIL-OPEN.  The
+    -- previous note here claimed it was "bounded by the SSTORE handler's own
+    -- 16384-row cap, so it needs no overflow path".  THAT IS FALSE, and the error is
+    -- CAPACITY-versus-FLOW: the 16384 cap bounds LIVE ROWS in the write map, not the
+    -- NUMBER OF WRITES.  destroy_storage DECREMENTS tx_storage_writes_count as it
+    -- drops rows (.Lds_drop), so each destruction frees map capacity that the next
+    -- write refills -- a slot can be written, destroyed, written, destroyed, pushing
+    -- one undo every time while live rows never exceed 16384.
+    --
+    -- MEASURED: fixture 00192 reaches storage_writes_undo_count = 32768 exactly (the
+    -- capacity), so the guard fires on a non-adversarial block today.  DERIVED bound:
+    -- per-transaction regular gas is capped at TX_MAX_GAS_LIMIT = 16,777,216
+    -- (transactions.py:63, fork.py:1098-1100) and the cheapest journal-pushing write
+    -- costs WARM_ACCESS = 100, so up to 167,772 entries are reachable -- 5.1x this
+    -- region.  At the current 160 B stride that is 25.6 MiB; at the 40 B achievable
+    -- width (GH #11189 row audit) 6.4 MiB.
+    --
+    -- ⚠️ AND THE OVERFLOW IS SILENT: storage_writes_undo_push does
+    -- `bgeu t1, t2, .Lswup_done`, skipping the push AND not bumping the count, so
+    -- write_sets_restore_frame leaves a reverted write applied.  Its unappend arm also
+    -- decrements tx_storage_writes_count per kind-1 entry, so past the cap the count
+    -- is inconsistent with the contents -- the guard must REJECT at the push; making
+    -- the omission observable afterwards is not sufficient.
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x500000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 5 MiB = 32768x160 "
         ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
-        ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2" },
+        ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2. "
+        ++ "⛔ UNDERSIZED 5.1x (167772 reachable per tx) AND FAIL-OPEN on overflow -- GH #11189. "
+        ++ "Row audit: 16 B of the 160 (offsets 16..31) are never written and never read; "
+        ++ "kind 0/1 need 40 B (32 B value + packed index/kind, 8-aligned), only kind 2 "
+        ++ "needs the 128 B payload and it is bounded by distinct written slots, so "
+        ++ "segregating by kind gives a 40 B hot array" },
     -- #10695/#10699: the NONSTORAGE half of the same two levels -- BlockState
     -- .account_writes (state_tracker.py:75) and TransactionState.account_writes
     -- (:102).  Same shape as the storage trio above and for the same reasons, so the
@@ -448,7 +532,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x063d5c
+def textSizeBytes : Nat := 0x064004
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -486,7 +570,7 @@ def dataSizeBytes : Nat := 0x5370
     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
     removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1b6c2be0
+def bssSizeBytes : Nat := 0x1b6c2ca0
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

@@ -63,12 +63,9 @@ def statelessGuestUnit : BuildUnit := {
     statelessGuestEpilogue ++ "\n" ++
     "  j .Lstateless_guest_halt_after_runtime_dispatcher\n" ++
     emitRuntimeDispatcherCallableCoreSharedHelpers callFrameGuestRegistry evmAddEpilogue ++ "\n" ++
-    -- 8uld3.2.3.1 (A): link the EIP-7002/7251 system-call request-derivation harness into the
-    -- verdict guest so it can be wired into the requests_hash path (.2.3.C). The dispatcher core
-    -- + call-frame helpers above (callFrameGuestRegistry) already resolve the harness's runtime_
-    -- dispatcher_call / call-descend deps; stage_runtime_payload_code + code_at_header_state_root
-    -- are in the verdict closure (statelessGuestEpilogue). Additive — unused until .C calls it.
-    deriveBlockSystemRequestsFunction ++ "\n" ++
+    -- 8uld3.2.3.1 (A): EIP-7002/7251 request-derivation leaves. The combined glue
+    -- `derive_block_system_requests` is probe-only (#11156): the guest inlines the
+    -- same sequence in deferred system-request staging and never jals the wrapper.
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     deriveBuilderDepositRequestsFunction ++ "\n" ++

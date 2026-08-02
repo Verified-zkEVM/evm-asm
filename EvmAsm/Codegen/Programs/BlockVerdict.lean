@@ -398,6 +398,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
+  blockStateRootPreAccountsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -426,7 +427,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
-  balGasValidFunction ++ "\n" ++
+  -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++

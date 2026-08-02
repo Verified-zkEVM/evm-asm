@@ -296,22 +296,20 @@ def deriveBuilderExitRequestsFunction : String :=
   "  la a0, builder_exit_contract_addr\n" ++
   "  j stage_system_call\n"
 
-/-! ## derive_block_system_requests (8uld3.2.3/8uld3.4 verdict glue)
+/-! ## derive_block_system_requests (probe-only glue; #11156)
 
-    Run BOTH system-call request derivations for a block — withdrawal (EIP-7002) then
-    consolidation (EIP-7251) — and copy each return_data body to a STABLE buffer. Necessary
-    because `system_call_returndata` is a single shared buffer the dispatcher overwrites per
-    call, so the verdict (which needs both bodies live at once to feed assemble/requests_hash)
-    must copy the first body out before the second system call clobbers it.
+    Historical combined wrapper: run BOTH system-call request derivations — withdrawal
+    (EIP-7002) then consolidation (EIP-7251) — and copy each return_data body to a STABLE
+    buffer (`dbsr_*`). The live guest no longer jals this symbol: deferred system-request
+    staging inlines the same sequence (and also deposits/exits). Kept for the
+    `zisk_derive_block_system_requests` probe unit only. **KEEP** `deriveBlockSystemRequestsData`
+    — `dbsr_wbody`/`dbsr_cbody`/… are still written by the inlined guest path and read by
+    `requests_hash_verify`.
       a0 = withdrawal predeploy code ptr   a1 = wcode len
       a2 = consolidation predeploy code ptr a3 = ccode len
       a4 = block exec payload ptr           a5 = staging output buffer ptr (reused per call)
-    Writes: dbsr_wbody (withdrawal body) + dbsr_wlen; dbsr_cbody (consolidation body) + dbsr_clen.
-    Returns a0 = 0 ok / 1 = a system call's staging was unsupported.
-    Non-reentrant (saves ra + the consolidation args in globals across the dispatcher runs,
-    which clobber sp/s-regs — same constraint as stage_system_call). The two calls are
-    independent: the dispatcher re-initialises env per call. Deposits derive separately
-    (parse_deposit_requests over receipts); the verdict composes all three. -/
+    Writes: dbsr_wbody + dbsr_wlen; dbsr_cbody + dbsr_clen.
+    Returns a0 = 0 ok / 1 = a system call's staging was unsupported. -/
 def deriveBlockSystemRequestsFunction : String :=
   "derive_block_system_requests:\n" ++
   "  la t0, dbsr_saved_ra; sd ra, 0(t0)\n" ++

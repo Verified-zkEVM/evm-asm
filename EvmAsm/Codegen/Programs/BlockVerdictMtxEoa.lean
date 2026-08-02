@@ -20,19 +20,13 @@ namespace EvmAsm.Codegen
     recipients do not enter this adapter. -/
 def blockVerdictMtxPrecompileSettlement : String :=
   ".Lbv_mtx_precompile_entry:\n" ++
-  "  la t0, bv_mtx_ctx; la t1, bv_simple_transfer_tx; li t2, 24\n" ++
-  ".Lbv_mtx_precompile_ctx_copy:\n" ++
-  "  beqz t2, .Lbv_mtx_precompile_sender_init; ld t3, 0(t0); sd t3, 0(t1); addi t0, t0, 8; addi t1, t1, 8; addi t2, t2, -1; j .Lbv_mtx_precompile_ctx_copy\n" ++
-  ".Lbv_mtx_precompile_sender_init:\n" ++
-  "  la t0, bv_mtx_sender_addr; la t1, bmvmx_sender_addr; li t2, 20\n" ++
-  ".Lbv_mtx_precompile_sender_copy:\n" ++
-  "  beqz t2, .Lbv_mtx_precompile_kernel; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_precompile_sender_copy\n" ++
   ".Lbv_mtx_precompile_kernel:\n" ++
-  -- The adapter is reached from the delegation-aware MTx classifier, not
-  -- exclusively from active precompile recipients.  Classify the copied
-  -- recipient before arming the shared one-shot hook; ordinary recipients
-  -- must take the existing contract/EOA path without installing mode 2.
-  "  la t0, bv_simple_transfer_tx; addi t0, t0, 72\n" ++
+  -- The adapter receives the complete context in `bv_mtx_ctx`; the shared
+  -- selector and publication helpers consume that same context directly.
+  -- Keep the context and sender copies out of this adapter: the former is
+  -- already the live MTx record, while `simple_transfer_intrinsic_gas`
+  -- refreshes the sender scalar from its +24 field before any consumer.
+  "  la t0, bv_mtx_ctx; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_mtx_adapter" "t0" "t3" "t1" "t4" ++
   "  beqz t3, .Lbv_mtx_precompile_adapter_fallback\n" ++
   -- Mode 2 means that the precompile selector is entered by the shared
@@ -49,6 +43,6 @@ def blockVerdictMtxPrecompileSettlement : String :=
   "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
   "  j .Lbv_mtx_is_contract\n" ++
   ".Lbv_mtx_precompile_dispatch_hook:\n" ++
-  "  la t2, bv_simple_transfer_tx; j .Lbv_tx_gas_precharge_pc0_prefix\n"
+  "  la t2, bv_mtx_ctx; j .Lbv_tx_gas_precharge_pc0_prefix\n"
 
 end EvmAsm.Codegen

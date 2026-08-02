@@ -178,7 +178,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
-  execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
+  -- #11178: exec_log_latest_value unlinked (probe-only; 0 guest refs)
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
@@ -212,7 +212,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- bodies that block_verdict now reaches inside the embedded guest closure. The
     -- standalone debug ELF does not include statelessGuestUnit.epilogueAsm, so these
     -- symbols must be emitted here as well.
-    deriveBlockSystemRequestsFunction ++ "\n" ++
+    -- `derive_block_system_requests` probe-only (#11156); dbsr_* data stays below.
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     deriveBuilderDepositRequestsFunction ++ "\n" ++
@@ -433,6 +433,7 @@ def statelessVerdictV2GuestClosure : String :=
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
+  blockStateRootPreAccountsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
@@ -482,7 +483,7 @@ def statelessVerdictV2GuestClosure : String :=
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
-  balGasValidFunction ++ "\n" ++
+  -- #11172: bal_gas_valid (RLP walker) unlinked; KEEP from_builder + bgv_* helpers
   balGasValidFromBuilderFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
@@ -538,7 +539,7 @@ def statelessVerdictV2GuestClosure : String :=
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
-  execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
+  -- #11178: exec_log_latest_value unlinked (probe-only; 0 guest refs)
   storageWritesBlockLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++

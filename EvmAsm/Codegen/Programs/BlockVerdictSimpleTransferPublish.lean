@@ -8,20 +8,20 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 
 namespace EvmAsm.Codegen
 
-def blockVerdictSimpleTransferPublishAsm : String :=
+def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   ".Lbv_simple_transfer_precompile_fail:\n" ++
   -- Mode 2 has already paid the transaction-level intrinsic/upfront gas in
   -- the shared dispatcher.  Jump straight to its exceptional-halt join and
   -- avoid the legacy direct-publication wrapper.
   "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); li t1, 2; beq t0, t1, .Ldtrc_mtx_precompile_failure\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n" ++
-  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
+  "  la a0, " ++ ctxLabel ++ "; jal ra, simple_transfer_intrinsic_gas\n  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n  sd a2, 24(sp)\n  jal ra, block_log_window_snapshot\n" ++
   -- An exceptional top-frame halt burns regular gas, but
   -- `refill_frame_state_gas` restores the whole state reservoir.  The
   -- shortcut publishes one effective gas-left scalar, so retain exactly the
   -- reservoir carved out above TX_MAX_GAS_LIMIT (the intrinsic-regular term
   -- cancels from `execution_gas - regular_gas`).
-  "  la t4, bv_simple_transfer_tx; ld t5, 40(t4); li t6, 16777216\n" ++
+  "  la t4, " ++ ctxLabel ++ "; ld t5, 40(t4); li t6, 16777216\n" ++
   "  bleu t5, t6, .Lbv_simple_transfer_precompile_fail_no_reservoir\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_precompile_fail_have_gas_left\n" ++
   ".Lbv_simple_transfer_precompile_fail_no_reservoir:\n  li t5, 0\n" ++
@@ -54,15 +54,15 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
   ".Lbv_simple_transfer_no_log_then_after_tx_gas_precharge:\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
-  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  la a0, " ++ ctxLabel ++ "; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
   "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
-  topLevelValueRecipientStateGasAsm "bv_st_publish_pre_no_log" "bv_simple_transfer_tx" ++
+  topLevelValueRecipientStateGasAsm "bv_st_publish_pre_no_log" ctxLabel ++
   "  sd t0, 40(sp)\n" ++
   "  beqz t0, .Lbv_simple_transfer_no_log_state_pre_ok\n" ++
   "  ld t6, 8(sp); ld t4, 16(sp); ld t3, 32(sp); ld t0, 40(sp)\n" ++
-  "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
+  "  la t5, " ++ ctxLabel ++ "; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_state_oog_no_log\n" ++
   ".Lbv_simple_transfer_no_log_state_pre_ok:\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
@@ -72,15 +72,15 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   -- final MTx publication for mode 2; only the selector's cost in t6 is new.
   "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); li t1, 2; beq t0, t1, .Ldtrc_mtx_precompile_success\n" ++
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
-  "  la a0, bv_simple_transfer_tx; jal ra, simple_transfer_intrinsic_gas\n" ++
+  "  la a0, " ++ ctxLabel ++ "; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
   "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
-  topLevelValueRecipientStateGasAsm "bv_st_publish_pre_emit" "bv_simple_transfer_tx" ++
+  topLevelValueRecipientStateGasAsm "bv_st_publish_pre_emit" ctxLabel ++
   "  sd t0, 40(sp)\n" ++
   "  beqz t0, .Lbv_simple_transfer_emit_state_pre_ok\n" ++
   "  ld t6, 8(sp); ld t4, 16(sp); ld t3, 32(sp); ld t0, 40(sp)\n" ++
-  "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
+  "  la t5, " ++ ctxLabel ++ "; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_state_oog_no_log\n" ++
   ".Lbv_simple_transfer_emit_state_pre_ok:\n" ++
   "  jal ra, bv_emit_single_tx_tl7708\n" ++
@@ -91,7 +91,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  la t0, tgbpv_skip_value; li t1, 1; sd t1, 0(t0)\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
   ".Lbv_simple_transfer_after_log_snapshot:\n" ++
-  topLevelValueRecipientStateGasAsm "bv_st" "bv_simple_transfer_tx" ++
+  topLevelValueRecipientStateGasAsm "bv_st" ctxLabel ++
   "  sd t0, 40(sp)\n" ++
   "  ld t6, 8(sp)\n" ++
   "  ld t4, 16(sp)\n" ++
@@ -102,7 +102,7 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   "  li t5, 0; j .Lbv_simple_transfer_gas_have_left\n" ++
   ".Lbv_simple_transfer_state_publish_ok:\n" ++
   "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
-  "  la t5, bv_simple_transfer_tx; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
+  "  la t5, " ++ ctxLabel ++ "; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_gas_have_left\n" ++
   ".Lbv_simple_transfer_gas_exhausted:\n" ++
@@ -153,5 +153,8 @@ def blockVerdictSimpleTransferPublishAsm : String :=
   ".Lbv_simple_transfer_runtime_publish_fail:\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
+
+def blockVerdictSimpleTransferPublishAsm : String :=
+  blockVerdictSimpleTransferPublishAsmFor "bv_simple_transfer_tx"
 
 end EvmAsm.Codegen
