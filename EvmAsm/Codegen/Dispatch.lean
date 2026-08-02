@@ -3515,6 +3515,11 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_phase_halted:\n" ++
   "  .zero 8\n" ++
+  -- Recipient pre-dispatch balance lookup uses account_state_latest_balance,
+  -- whose internal tracked read is suppressed only while that lookup runs.
+  -- Ordinary post-dispatch account_read_record remains enabled.
+  "runtime_tx_account_read_suppress:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_state_gas_ptr:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_inner_ptr:\n" ++

@@ -220,6 +220,23 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "sstore_committed_current:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "sstore_committed_hit:\n  .zero 8\n" ++
+  -- GH #10874 prerequisite: the tier-3 witness read flattens EVERY non-zero
+  -- `slot_at_header_state_root` status to value 0, so an ABSENT LEAF and a
+  -- WITNESS-INTEGRITY FAILURE are the same observable. Only the first is what
+  -- execution-specs' `get_storage` flattens -- the spec has no error path that
+  -- returns zero, because its witness is authenticated by construction. These
+  -- separate the two AT THE POINT THEY ARE PRODUCED. Counters only: no caller
+  -- consumes them yet, and what the guest should DO on an integrity failure is
+  -- a soundness-policy question, deliberately not decided here.
+  --   status 5 = absent leaf   (mpt_lookup_by_key "not found" 1, +4)
+  --   status 6 = witness parse error (mpt "parse error" 2, +4)
+  --   status 7 = slot_decode_u256 failure (3, +4)
+  --   status 4 = header_extract_state_root failure
+  -- Zero-only, so `Layout.moveZeroDataLines` promotes them to `.bss` and the
+  -- fixed `.data` addresses are unperturbed.
+  "sstore_witness_absent:\n  .zero 8\n" ++
+  "sstore_witness_integrity_fail:\n  .zero 8\n" ++
+  "sstore_witness_last_status:\n  .zero 8\n" ++
   -- code_at_header_state_root scratch:
   ".balign 32\n" ++
   "cahsr_state_root:\n  .zero 32\n" ++
@@ -326,13 +343,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- layout has only a narrow fixed headroom, while the map is zero-initialized
   -- and must not bloat the emitted ELF as a 13 MiB PROGBITS payload.
   ".balign 8\n" ++
-  "bv_mtx_committed_count:\n  .zero 8\n" ++
-  "bv_mtx_committed_overflow:\n  .zero 8\n" ++
   "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
   "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
   ".section .committed_storage, \"aw\", @nobits\n" ++
   ".balign 32\n" ++
-  "bv_mtx_committed:\n  .zero " ++ toString bvMtxCommittedBytes ++ "\n" ++
   "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   ".section .bss, \"aw\", @nobits\n" ++
   -- Per-transaction auth-preparation outcome.  A receipt status cannot carry
