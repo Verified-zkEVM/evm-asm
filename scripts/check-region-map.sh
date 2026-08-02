@@ -14,7 +14,7 @@
 #       --section-start flags and RegionMap constants;
 #     * the top RW LOAD segment stays below the 0xc0000000 RAM ceiling;
 #     * .data ends below .sszscratch;
-#     * the call_frame_arena union: call_frame_arena == basr_values, the six
+#     * the call_frame_arena union: call_frame_arena == basr_values, the five
 #       coalesced children sit at the RegionMap arena-relative offsets, the arena
 #       is fully inside .bss, and its extent == frameArrayBytes.
 #
@@ -28,19 +28,37 @@
 #     See docs/regenerating-generated-files.md. This keeps the Lean map matching
 #     the ELF (the .6 contract) instead of quietly diverging.
 #
-# Skips gracefully (exit 0) when the RISC-V toolchain is absent, mirroring
-# scripts/check-asm-to-program.sh.
+# This is a blocking drift guard.  Missing tooling is a configuration error,
+# not a reason to report success: a guard that cannot inspect the ELF must fail
+# loudly instead of silently becoming inert in CI.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 && ! command -v riscv64-elf-as >/dev/null 2>&1; then
-  echo "check-region-map: riscv64 cross toolchain not found; skipping (install to enable)"
-  exit 0
+die_missing() {
+  echo "check-region-map: missing required command: $1" >&2
+  exit 2
+}
+
+for required_cmd in lake python3 awk grep sed sort comm paste mktemp diff; do
+  command -v "$required_cmd" >/dev/null 2>&1 || die_missing "$required_cmd"
+done
+
+if command -v riscv64-unknown-elf-as >/dev/null 2>&1; then
+  :
+elif command -v riscv64-elf-as >/dev/null 2>&1; then
+  :
+else
+  echo "check-region-map: missing required RISC-V cross assembler (riscv64-unknown-elf-as or riscv64-elf-as)" >&2
+  exit 2
 fi
-READELF="$(command -v readelf || command -v riscv64-unknown-elf-readelf || true)"
-if [[ -z "$READELF" ]]; then
-  echo "check-region-map: readelf not found; skipping"
-  exit 0
+
+if command -v readelf >/dev/null 2>&1; then
+  READELF="$(command -v readelf)"
+elif command -v riscv64-unknown-elf-readelf >/dev/null 2>&1; then
+  READELF="$(command -v riscv64-unknown-elf-readelf)"
+else
+  echo "check-region-map: missing required readelf (readelf or riscv64-unknown-elf-readelf)" >&2
+  exit 2
 fi
 
 ELF_DIR="${ELF_DIR:-gen-out/regionmap}"
@@ -110,7 +128,81 @@ PY
 
 # --- union arena (soundness-critical placement) ---
 echo "== call_frame_arena union =="
-symaddr() { "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n {print $2; exit}'; }
+symaddr() {
+  # Consume all readelf output: an early awk exit makes readelf receive
+  # SIGPIPE, which is fatal under this script's `pipefail` setting.
+  "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n && !found {print $2; found=1}'
+}
+
+# Absolute link-dependent pins are part of the map contract too. Keep this
+# check next to the relative union checks: a relative extent can remain valid
+# after every symbol moves while an absolute RegionMap pin silently goes stale.
+LEAN_MAP="EvmAsm/Codegen/RegionMap.lean"
+lean_def_hex() {
+  sed -nE "s/^def $1 : Nat := 0x([0-9a-fA-F]+)$/\1/p" "$LEAN_MAP" | head -n 1
+}
+check_link_pin() {
+  local desc="$1" def_name="$2" symbol="$3" map_hex actual expected
+  map_hex="$(lean_def_hex "$def_name")"
+  actual="$(symaddr "$symbol")"
+  if [[ -z "$map_hex" || -z "$actual" ]]; then
+    note "DRIFT $desc: RegionMap def or ELF symbol is missing (map=$map_hex elf=$actual)"
+    fail=1
+    return
+  fi
+  printf -v expected '%016x' "$((16#$map_hex))"
+  check "$desc" "$expected" "$actual"
+}
+check_link_pin "RegionMap.callFrameArenaBase" callFrameArenaBase call_frame_arena
+check_link_pin "RegionMap.evmMemoryPoolBase" evmMemoryPoolBase evm_memory_pool
+check_link_pin "RegionMap.syslogBase" syslogBase bv_system_storage_log
+
+# The union inventory is a closed set for this emitted guest. Checking only
+# the three symbols used by the relative arithmetic would let a phantom map
+# child survive indefinitely, so check the map's names and every ELF symbol.
+map_union_names="$(awk '
+  /^def dataUnionChildren/ {inside=1; next}
+  inside && /name :=/ {
+    line=$0; sub(/^.*name := "/, "", line); sub(/".*$/, "", line); print line
+  }
+  inside && /^$/ {exit}
+' "$LEAN_MAP" | sort | paste -sd' ' -)"
+expected_union_names="baap_storage_desc baap_storage_paths baap_storage_values basr_accounts basr_values"
+if [[ "$map_union_names" == "$expected_union_names" ]]; then
+  note "OK   RegionMap.dataUnionChildren names = $expected_union_names"
+else
+  note "DRIFT RegionMap.dataUnionChildren names: expected $expected_union_names, map has $map_union_names"
+  fail=1
+fi
+for union_name in $expected_union_names; do
+  union_addr="$(symaddr "$union_name")"
+  if [[ -n "$union_addr" ]]; then
+    note "OK   union symbol $union_name = $union_addr"
+  else
+    note "DRIFT union symbol $union_name is absent from ELF"
+    fail=1
+  fi
+done
+
+# GuestAddrs.lean is generated from the linked symbol table and is consumed by
+# handwritten proof/relocation code. Check the whole generated symbol set
+# against this ELF, not only the five union children above. This makes a name
+# that exists only in Lean fail as a phantom instead of silently becoming a
+# proof subject with no emitted storage.
+GUEST_ADDRS="EvmAsm/Codegen/GuestAddrs.lean"
+guest_addrs_missing="$(comm -23 \
+  <(grep -E '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS" |
+      sed -E 's/^def ([A-Za-z0-9_]+) : Nat := 0x.*/\1/' | sort -u) \
+  <("$READELF" -sW "$ELF" |
+      awk 'NF >= 8 && $7 != "UND" && $4 != "SECTION" && $4 != "FILE" && $8 !~ /^\$/ {print $8}' |
+      sort -u))"
+if [[ -z "$guest_addrs_missing" ]]; then
+  guest_addrs_count="$(grep -cE '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS")"
+  note "OK   GuestAddrs symbols all exist in ELF ($guest_addrs_count names)"
+else
+  note "DRIFT GuestAddrs names absent from ELF: $guest_addrs_missing"
+  fail=1
+fi
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
   "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
   "$(symaddr baap_storage_values)" \

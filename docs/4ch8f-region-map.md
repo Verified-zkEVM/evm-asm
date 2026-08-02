@@ -4,17 +4,24 @@ This document reconciles the two memory-layout schemes the stateless guest has
 carried unreconciled, records the evidence for every region's extent, and gives
 the machine-checked overlap inventory for the one intentional aliasing.
 
-> **Status update (2026-07-05, bead `.6` CLOSED):** the phase-ownership proof
+> **Status update (2026-08-02, bead `.6` CLOSED):** the phase-ownership proof
 > this doc originally deferred is DELIVERED — `EvmAsm/Rv64/SAsm/PhaseSplit.lean`
 > + `EvmAsm/Codegen/CallFramePhase.lean` (#9724, one-resource/two-views model),
 > plus the soundness audits in `docs/4ch8f-callframe-audit.md` (#9851). The
-> audits found and led to fixing the stride/geometry divergence (beads
-> `.71`/`.74`, fixed by #9852 — `CallFrameLayout` re-pinned to the emitted
-> `0x39000`/128 KiB geometry, arena resized). Two residual bugs remain open:
-> `.72` (child env 552/560) and `.73` (`bv_system_storage_log` is read
-> POST-dispatch — the "Phase-H-only" liveness claim below is FALSE for that one
-> child; see the audit doc). Numeric snapshot tables in this file may lag the
-> ELF — `RegionMap.lean` + `scripts/check-region-map.sh` are the live authority.
+> current emitted geometry is `frameStride = 0x19000`,
+> `frameArrayBytes = 104,960,000 B` (about 100.1 MiB), with a 96 MiB
+> `evm_memory_pool` immediately after the frame arena. The union has exactly
+> five children (`basr_values`, `basr_accounts`, `baap_storage_desc`,
+> `baap_storage_paths`, `baap_storage_values`); `bv_system_storage_log` is
+> standalone because it is read post-dispatch. The absolute pins and closed
+> union inventory are now checked by `scripts/check-region-map.sh`; historical
+> seven-child/`0x39000` snapshots below are retained only as history.
+
+> **Current linked snapshot:** `.text` is `0x80000000..0x806338c`, `.data` is
+> `0xa3000000..0xa3005370`, `.bss` is `0xa3110000..0xbdd7c900`, and
+> `.sszscratch` starts at `0xbf980000`. `call_frame_arena` is `0xad3dd5e0`,
+> `evm_memory_pool` is `0xb37f65e0`, and `bv_system_storage_log` is
+> `0xab07a640` in the checked guest artifact.
 
 Source of truth, in order of authority:
 
@@ -39,7 +46,7 @@ lake build EvmAsm.Codegen.RegionMap  # the disjointness/fit/overlap theorems
 | | Scheme A (working-RAM anchors) | Scheme B (linked sections) |
 |---|---|---|
 | Where | `EvmAsm/Stateless/MemoryLayout.lean` | `-Ttext/-Tdata/--section-start` + `.data` labels |
-| Window | `0xa0020000 .. 0xa1ba0000` (working RAM below `.data`) | `.text` `0x80000000`; `.data` `0xa3000000`; `.sszscratch` `0xbf500000` |
+| Window | `0xa0020000 .. 0xa1ba0000` (working RAM below `.data`) | `.text` `0x80000000`; `.data` `0xa3000000`; `.sszscratch` `0xbf980000` |
 | Consumer | the **verified stateless port** under `EvmAsm/Stateless/` (the 4ch8f epic target) | the **currently-emitted** `stateless_guest` (Dispatch.lean + BlockVerdict) |
 | Prior proof | **none** (sizes implicit in anchor gaps) | fit lemmas for the 3 giant arenas only |
 
@@ -58,32 +65,30 @@ inside Scheme A's `execution_witness_area`. So the map is split into two lists:
   separate, proved internally consistent (`schemeAAnchors_pairwise_disjoint`) but
   NOT merged into the emitted map, because it collides with the stack (§3.1).
 
-### FINDING — Scheme A is almost entirely unreferenced by the emitted guest
+### FINDING — Scheme A is still aspirational and only partly referenced by the emitted guest
 
 A literal + `lui`-immediate scan of the emitted `stateless_guest.s` for each
 Scheme-A anchor address:
 
 | anchor | address | refs in emitted guest |
 |---|---|---|
-| `STATE_TRACKER_AREA` | `0xa0630000` | **17** (live: "persistent/live storage log base") |
-| all ten others (`SSZ_INPUT_DECODED`, `EXECUTION_WITNESS_AREA`, `NODE_DB_BUCKETS`, `CODE_DB_BUCKETS`, `EVM_FRAME_STACK`, `EVM_VALUE_STACK`, `EVM_MEMORY_AREA`, `KECCAK/ECRECOVER/SHA256_SCRATCH`) | `0xa0…` | **0** |
+| `STATE_TRACKER_AREA` | `0xa0630000` | **14** (live storage-log/transaction-state references) |
+| six read containers (`STORAGE_READS_AREA`, `ACCOUNT_READS_AREA`, `CODE_READS_AREA`, and the three `TX_*_READS_AREA`) | `0xa1…` | **referenced** |
+| six write/undo containers (`STORAGE_WRITES_AREA`, `TX_STORAGE_WRITES_AREA`, `STORAGE_WRITES_UNDO_AREA`, and the three account-write areas) | `0xa1…`/`0xa2…` | **referenced** |
+| remaining ten Scheme-A anchors | `0xa0…` | **0** |
 
-Only `STATE_TRACKER_AREA` is wired into the current guest, and it uses a **2 MiB**
-window `0xa0630000..0xa0830000` (16384×128 storage-log rows — confirmed by the
-2 refs to `0xa0830000` and the `BlockVerdictParams` comment), not the 4 MiB slab
-budgeted in `MemoryLayout.lean`. The current guest's actual EVM memory / stack /
-opcode tables live in the linked `.data`, not the anchors:
-`evm_memory@0xb796dac0`, `evm_stack_low@0xb8938040`, `lp64_stack@0xb88f7e40`,
-`opcode_handlers@0xb8945270`.
+The current audit finds **13 of 23** Scheme-A anchors referenced by absolute
+address in the emitted guest: this state-tracker anchor, the six read
+containers, and the six write/undo containers. The remaining ten anchors are
+still aspirational. This is not a soundness claim for those 13 regions: they
+are intentionally kept in the separate `schemeAAnchors` list and are not
+included in `guestRegionMap`'s emitted-reality disjointness theorem.
 
-This is **not a soundness bug** — `MemoryLayout.lean` states it is the contract
-for the `Stateless/` port, which does not yet drive the emit. It IS a
-doc/reality gap worth flagging: `guestRegionMap` (emitted reality) uses the one
-live anchor's real 2 MiB window (`state_tracker_live`); the ten unused anchors
-stay in the separate aspirational `schemeAAnchors` list. The current guest's
-actual EVM memory / stack / opcode tables live in the linked `.data`, not the
-anchors: `evm_memory@0xb796dac0`, `evm_stack_low@0xb8938040`,
-`lp64_stack@0xb88f7e40`, `opcode_handlers@0xb8945270`.
+This is **not a soundness bug** by itself — `MemoryLayout.lean` states that it
+is the contract for the `Stateless/` port, while the emitted-reality map is
+kept separate. It is a doc/reality boundary that must remain explicit until
+the verified port drives the emit. The current guest's EVM memory, stack, and
+opcode tables are linked `.bss` symbols, not Scheme-A anchors.
 
 ### FINDING — two realities the section/anchor lists omit (added after review)
 
@@ -124,9 +129,10 @@ carries `guestRegionMap_pairwise_disjoint` (no exceptions):
 | OUTPUT | `0xa0010000` | `0x10000` | `Programs OUTPUT_ADDR` | STABLE |
 | `guest_stack` | `0xa0020000` | `0x30000` | `_start li sp,0xa0050000` (grows down) | top STABLE; depth unguarded |
 | `state_tracker_live` | `0xa0630000` | `0x200000` | emitted storage-log window `..0xa0830000` | STABLE |
-| `.text` | `0x80000000` | `0x58150` | `readelf -S` | **LINK-DEPENDENT** |
-| `.data` | `0xa3000000` | `0x15945a70` (ends `0xb8945a70`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
-| `.sszscratch` | `0xbf500000` | `0x680000` | `readelf -S`; `MemoryLayout SSZ_SCRATCH_*` | STABLE |
+| `.text` | `0x80000000` | `0x6338c` | `readelf -S` | **LINK-DEPENDENT** |
+| `.data` | `0xa3000000` | `0x5370` (ends `0xa3005370`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
+| `.bss` | `0xa3110000` | `0x1ac6c900` (ends `0xbdd7c900`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
+| `.sszscratch` | `0xbf980000` | linker NOBITS scratch | `readelf -S`; `MemoryLayout SSZ_SCRATCH_*` | STABLE |
 
 **Aspirational scheme-A anchors (`schemeAAnchors`)** — the port contract; size =
 gap to next anchor (reserved slab). `schemeA_matches_layout` pins each base to
@@ -158,28 +164,78 @@ and move whenever any function or data object changes
 size; `RegionMap.textSizeBytes`/`dataSizeBytes` record the current ELF values and
 `check-region-map.sh` re-derives them (regenerate on drift — see §5).
 
-The top RW `LOAD` segment ends at `.data` end `0xb8945a70`, comfortably below the
+The top RW `LOAD` segment ends at `.bss` end `0xbdd7c900`, comfortably below the
 `0xc0000000` ziskemu RAM ceiling (`readelf -lW`; checked structurally).
+
+### Predicate-readiness audit (input to the proof lane)
+
+The map currently establishes byte extents, selected offsets, and the one
+intentional aliasing inventory. That is not yet a separation-logic vocabulary
+for every buffer. Before a predicate is written, each region needs a settled
+entry shape (fields, offsets, widths, and exact capacity × stride), count
+semantics (live count or high-water mark), entry invariant, ownership/reset
+lifetime, and aliasing rule. The findings below are deliberately structural:
+they identify where the shape must be settled before proof work can start.
+
+Absolute addresses are image-specific drift-guard inputs, not predicate
+parameters. A separation-logic predicate must quantify `arena_base` and prove
+the structural slot relation `slot(d) = arena_base + (d - 1) * 0x19000` for
+`1 ≤ d ≤ 1024` (depth zero has no overlay slot), together with the 1,025-slot
+extent. `callFrameArenaBase = 0xad3dd5e0` below is therefore only the pin for
+this linked ELF; another image may move the arena while satisfying the same
+parametric predicate.
+
+| region | currently pinned | predicate-readiness finding |
+|---|---|---|
+| INPUT, OUTPUT, `zisk_system`, `guest_stack`, `.text`, `.data`, `.bss`, `.sszscratch` | byte ranges and section/linker bases | Ready only for byte-region predicates; these have no per-entry invariant. |
+| `state_tracker_live` / storage log | 16,384 × 128-byte rows = 2 MiB; the runtime cursor is at `env + 448` | Capacity and row width are exact, but the predicate must settle whether the cursor is a live-entry count or high-water mark and identify every reset/truncation boundary. |
+| `call_frame_arena` | 1,025 × `0x19000` frame slots; current absolute base is ELF-guarded | Slot stride is pinned, but the complete field/ownership predicate and interaction with frame lifetime still need one common shape. |
+| `evm_memory_pool` | 96 MiB immediately after the frame arena | No entry schema or cursor invariant is recorded here; pool LIFO/cursor semantics are a separate active investigation and are not duplicated by this audit. |
+| five `dataUnionChildren` | exact arena-relative offsets, extents, and pairwise disjointness; `baap_storage_values` is 6,400,000 bytes in this `stateless_guest` image | This is an extent/aliasing inventory, not yet an entry predicate. Fields, count/reset protocol, initialization invariant, and Phase-H ownership must be settled per child. Other build units report different `baap_storage_values` symbol sizes; they are not substituted for this linked image. |
+| `bv_system_storage_log` | standalone 4 MiB region, 16,384 × 128-byte rows, outside the frame arena | Row geometry is pinned, but the live-count invariant and pre-dispatch write/post-dispatch read lifetime must be made explicit in its predicate. |
+| Scheme-A anchors | 23 base constants and anchor-gap slabs; only 13 are currently reached by emitted absolute addresses | Not predicate-ready: anchor gaps do not define entry fields, counts, initialization, lifetime, or aliasing. The 10 aspirational anchors must not be treated as emitted buffers. |
+| `baap_storage_delete_paths` | no current ELF symbol and no current `RegionMap.dataUnionChildren` entry | Finding, not a predicate gap. The former proof-list consumer was removed; the probe-only emitter and historical docs still need an explicit lifecycle decision before this name can return. |
+
+The current image qualification matters: `baap_storage_values` is 6,400,000
+bytes in the linked `stateless_guest` map above. A predicate cannot silently
+reuse that extent for another build unit whose symbol has a different size.
+
+The artefact dependency classes are also part of the audit:
+
+| class | examples | repair cost / rule |
+|---|---|---|
+| no current emitted consumer | the removed `baap_storage_delete_paths` image entry | Free to remove from the emitted map, but a probe emitter must settle its shape before reintroducing it. |
+| generated consumers | `symbol-addresses.tsv`, `GuestAddrs.lean`, `GuestImageEntries.lean` | Regenerate cheaply, provided the generator derives link-dependent values from the ELF and the guard checks the generated result. |
+| handwritten proof consumers | `GuestImage.lean`'s `SatWithin` literals and `guestScratch_matches_regionMap`; `CallFramePhase.lean`'s union tiling; RegionMap's `decide` fit/disjointness theorems | Expensive proof repair. The six-child `CallFramePhase` proof typechecked while naming the nonexistent `baap_storage_delete_paths`; removing the phantom forced the proof to be repaired to the five real children. This is why structural shape precedes predicate authoring. |
+
+The generator pins are now corrected to the linked `.bss` (`0xa3110000`) and
+`.sszscratch` (`0xbf980000`) bases and include all six write/undo Scheme-A
+anchors. The checked-in generated table remains ELF-derived: no committed
+generated value was sourced from the stale literals, so regeneration changes
+classification authority rather than fabricating a new address.
 
 ---
 
 ## 3. Overlap inventory (the `call_frame_arena` union) — the ONLY aliasing
 
 The guest has exactly one intentional physical overlap. `call_frame_arena`
-(~228 MiB EVM call-frame overlay, `frameArrayBytes = 1025 × 0x39000`) coalesces
-**seven** execution-dead Phase-H arenas into its front. ELF ground truth
+(about 100.1 MiB, `frameArrayBytes = 1025 × 0x19000`) coalesces **five**
+execution-dead Phase-H arenas into its front. ELF ground truth
 (`readelf -s`, this build) — all offsets confirmed by `check-region-map.sh`:
 
 | symbol | address | arena-relative offset | size |
 |---|---|---|---|
-| `call_frame_arena` == `basr_values` | `0xac44d520` | `0` | `S` = 25,604,608 |
-| `basr_accounts` | `0xadcb8720` | `S` | `S` |
-| `bv_system_storage_log` | `0xaf523920` | `2S` | `L` = 76,800,000 |
-| `baap_storage_desc` | `0xb3e61920` | `2S+L` | 4,000,000 |
-| `baap_storage_paths` | `0xb4232220` | `2S+L+desc` | 6,400,000 |
-| `baap_storage_delete_paths` | `0xb484ca20` | `+path` | 6,400,000 |
-| `baap_storage_values` | `0xb4e67220` | `+2·path` | 6,400,000 |
-| `call_frame_arena_end` | `0xb6876520` | `frameArrayBytes` | — |
+| `call_frame_arena` == `basr_values` | `0xad3dd5e0` | `0` | `S` = 25,604,608 |
+| `basr_accounts` | `0xaec487e0` | `S` | `S` |
+| `baap_storage_desc` | `0xb04b39e0` | `2S` | 4,000,000 |
+| `baap_storage_paths` | `0xb08842e0` | `2S+desc` | 6,400,000 |
+| `baap_storage_values` | `0xb0e9eae0` | `2S+desc+path` | 6,400,000 |
+| `call_frame_arena_end` | `0xb37f65e0` | `frameArrayBytes` | — |
+
+`bv_system_storage_log` is deliberately **not** a union child: it is a
+standalone 4 MiB region at `0xab07a640`, below the frame arena, because the
+post-dispatch BAL validators read it after frame zeroing. The 96 MiB
+`evm_memory_pool` begins at `0xb37f65e0`, immediately after the frame arena.
 
 where `S = bsrMaxStateChanges·bsrEncodedAccountBytes`,
 `L = bvSystemStorageLogBytes` (`BlockVerdictParams.lean`).
@@ -188,24 +244,24 @@ Machine-checked in `RegionMap.lean`:
 
 - `aliasedPairs` — the exhaustive list of overlapping pairs, each
   `(call_frame_arena, <child>)`; `aliasedPairs_shape` fixes it to exactly the
-  seven above.
+  five children above.
 - `aliasedPairs_overlap_ranges` — the precise overlap RANGE (arena-relative
   `[off, off+size)`) of every aliased pair, as a machine-checked table.
-- `dataUnionChildren_pairwise_disjoint` — the seven children own **mutually
+- `dataUnionChildren_pairwise_disjoint` — the five children own **mutually
   disjoint** sub-ranges (no self-corruption *among the coalesced arenas*).
 - `dataUnionChildren_fit_arena` + `callFrameArena_within_data` — the union stays
   inside `call_frame_arena`, which stays inside `.data`.
 
 These reproduce, at the region-map level, the fit gates already in
-`CallFrameLayout.lean` (`frameArray_unions_basr_syslog_baap`), now anchored to
-the actual ELF addresses.
+`CallFrameLayout.lean` (`frameArray_unions_basr_baap`), now anchored to the
+actual ELF addresses.
 
 **Design note (judgment call).** `guestRegionMap` is kept at *section/anchor*
 granularity, where it is genuinely disjoint with **no** exception list — the one
 aliasing lives entirely inside the single `.data` member and is expanded as its
 own inventory (`dataUnionChildren`/`aliasedPairs`). This is cleaner than folding
 the union arenas into `guestRegionMap` and carrying a mixed containment+aliasing
-exception list, and keeps the soundness-relevant overlap set (the seven pairs)
+exception list, and keeps the soundness-relevant overlap set (the five pairs)
 unmuddied. `callFrameArena_within_data` composes the two views.
 
 ---
@@ -214,7 +270,7 @@ unmuddied. `callFrameArena_within_data` composes the two views.
 
 The overlaps above are documented, **not** proven safe. The current safety
 argument (`CallFrameLayout.lean:99-120`, `docs/call-frame-memory-layout.md` §5)
-is a prose phase-liveness claim: the seven coalesced arenas are **Phase-H**
+is a prose phase-liveness claim: the five coalesced arenas are **Phase-H**
 scratch (built and consumed entirely within the pre-dispatch `block_state_root`
 recompute — `BalAccountStateRoot`/`BlockVerdictStateRoot`/`BalAccountApplyPostFields`/
 `BlockVerdictSysChange`), while `call_frame_arena` is **Phase-D** scratch
@@ -229,9 +285,9 @@ separation-logic / phase-ownership model:
 1. A formal notion of the two live windows (Phase-H state-root recompute vs
    Phase-D dispatch) over the guest's control flow.
 2. A proof that no Phase-D reader/writer of `call_frame_arena` is reachable while
-   any of the seven arenas is live, and vice versa (the `#8513` execution-dead
+   any of the five arenas is live, and vice versa (the `#8513` execution-dead
    gate, made kernel-checked instead of a grep).
-3. A guard that any future post-`block_state_root` read of the seven arenas
+3. A guard that any future post-`block_state_root` read of the five arenas
    breaks the model loudly (the union is otherwise a silent corruption vector).
 
 This overlap inventory (`aliasedPairs` + the `_overlap` theorems + the mutual
