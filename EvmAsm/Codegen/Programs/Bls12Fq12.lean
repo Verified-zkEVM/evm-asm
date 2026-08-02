@@ -541,10 +541,11 @@ theorem bls12Fq12PowFunction_eq_prog :
 
 #guard bls12Fq12PowFunction.startsWith "blq_pow:\n"
 #guard blqPow_prog.length = 48
-/-- The FQ12 machine suite. -/
+
+/-- The FQ12 machine suite. Guest-linked BLS12 FQ12: `blq_add` unlinked
+    (never-ref; mul ends `ret`); KEEP mul/sub/smul/copy/zero/set_one/eq/is_zero/pow. -/
 def bls12Fq12CommonFunctions : String :=
   bls12Fq12MulFunction ++ "\n" ++
-  bls12Fq12AddFunction ++ "\n" ++
   bls12Fq12SubFunction ++ "\n" ++
   bls12Fq12SMulFunction ++ "\n" ++
   bls12Fq12CopyFunction ++ "\n" ++
