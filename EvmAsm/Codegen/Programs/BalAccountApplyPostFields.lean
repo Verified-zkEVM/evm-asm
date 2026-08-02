@@ -290,6 +290,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  j .Lbaap_code_last_loop\n" ++
   ".Lbaap_code_last_done:\n" ++
   "  beqz s10, .Lbaap_storage_gate\n" ++
+  "  la t0, bsr_account_from_map; ld t0, 0(t0); bnez t0, .Lbaap_storage_gate\n" ++
   "  la t0, baap_code_item_ptr; ld a0, 0(t0); la t0, baap_item_len; ld a1, 0(t0)\n" ++
   "  jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbaap_fail\n" ++
@@ -312,6 +313,13 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # Apply one BAL storage change first when present. Storage-only user-tx\n" ++
   "  # writes still affect the post-state account even without balance/nonce\n" ++
   "  # changes; an empty storage_changes list falls through unchanged.\n" ++
+  "  la t0, bsr_account_from_map; ld t0, 0(t0); beqz t0, .Lbaap_try_storage\n" ++
+  "  la t1, bsr_account_row; ld t1, 0(t1); lbu t2, 112(t1); andi t2, t2, 4; beqz t2, .Lbaap_try_storage\n" ++
+  "  ld a0, 80(t1); ld a1, 88(t1); la a2, baap_code_hash; jal ra, zkvm_keccak256\n" ++
+  "  la a0, baap_code_hash; li a1, 32; la a2, aab_enc; la a3, aab_enc_len; jal ra, rlp_encode_bytes\n" ++
+  "  mv a0, s6; mv a1, s7; li a2, 3; la a3, aab_enc; la t0, aab_enc_len; ld a4, 0(t0); la a5, baap_tmp3; la a6, baap_tmp3_len\n" ++
+  "  jal ra, mpt_splice_slot; bnez a0, .Lbaap_fail\n" ++
+  "  la s6, baap_tmp3; la t0, baap_tmp3_len; ld s7, 0(t0)\n" ++
   ".Lbaap_try_storage:\n" ++
   "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbaap_fail\n" ++
@@ -331,7 +339,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a1, .Lbaap_fail\n" ++
   "  mv s8, a0; addi s10, s10, 1; j .Lbaap_sc_count_loop\n" ++
   ".Lbaap_sc_count_done:\n" ++
-  "  la t0, baap_sc_count; sd s10, 0(t0); beqz s10, .Lbaap_nonce\n" ++
+  "  la t0, baap_sc_count; sd s10, 0(t0); la t0, bsr_storage_from_map; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbaap_map_storage; beqz s10, .Lbaap_nonce\n" ++
   "  la t0, baap_sc_ptr; ld a0, 0(t0); la t0, baap_sc_len; ld a1, 0(t0); jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbaap_fail\n" ++
   "  mv s8, a0; mv s9, a1\n" ++
@@ -373,28 +381,28 @@ def balAccountApplyPostFieldsFunction : String :=
   "  lbu t5, 0(t1); sb t5, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, 1; j .Lbaap_map_addr_rev\n" ++
   ".Lbaap_map_addr_done:\n" ++
   "  la t0, baap_storage_values; la t1, baap_storage_value_cursor; sd t0, 0(t1)\n" ++
+  -- Step 1 of #10651: the execution map is the candidate-set authority.  The
+  -- BAL item still supplies the account identity for this invocation, but the
+  -- slot loop below walks every canonical block-map row and filters by that
+  -- account.  A storage_writes row omitted from BAL is therefore visited by
+  -- the same post-state replay path once the root driver enumerates its owner.
+  "  la t0, storage_writes_count; ld t1, 0(t0); la t0, baap_sc_count; sd t1, 0(t0)\n" ++
   "  la t0, baap_sc_index; sd zero, 0(t0); la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
   ".Lbaap_map_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1); beq t0, t1, .Lbaap_map_apply\n" ++
-  "  li t2, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
-  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbaap_fail; mv s8, a0; sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1)\n" ++
-  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbaap_fail; mv s10, a1; mv a1, s10; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbaap_fail; sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
-  "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
-  "  la t1, baap_slot; li t2, 0\n" ++
-  ".Lbaap_map_slot_zero:\n" ++
-  "  li t3, 32; beq t2, t3, .Lbaap_map_slot_copy\n" ++
-  "  add t4, t1, t2; sb zero, 0(t4); addi t2, t2, 1; j .Lbaap_map_slot_zero\n" ++
+  "  li t2, " ++ toString storageWritesCapacity ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  slli t2, t0, 7; li t3, 0xa1fa0000; add t2, t2, t3\n" ++
+  "  la t3, baap_map_addr; li t4, 0\n" ++
+  ".Lbaap_map_addr_cmp:\n" ++
+  "  li t5, 20; beq t4, t5, .Lbaap_map_row_hit\n" ++
+  "  add t5, t2, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lbaap_map_next\n" ++
+  "  addi t4, t4, 1; j .Lbaap_map_addr_cmp\n" ++
+  ".Lbaap_map_row_hit:\n" ++
+  "  la t3, baap_slot; addi t4, t2, 63; li t5, 32\n" ++
   ".Lbaap_map_slot_copy:\n" ++
-  "  la t0, baap_val_len; ld t0, 0(t0); li t2, 32; sub t2, t2, t0; la t3, baap_val_ptr; ld t3, 0(t3); la t4, baap_slot; add t4, t4, t2\n" ++
-  ".Lbaap_map_slot_copy_loop:\n" ++
-  "  beqz t0, .Lbaap_map_slot_ready\n" ++
-  "  lbu t5, 0(t3); sb t5, 0(t4); addi t3, t3, 1; addi t4, t4, 1; addi t0, t0, -1; j .Lbaap_map_slot_copy_loop\n" ++
-  ".Lbaap_map_slot_ready:\n" ++
-  "  la a0, baap_map_addr; la a1, baap_slot; li a2, 0xa1fa0000; la t0, storage_writes_count; ld a3, 0(t0); li a4, " ++ toString storageWritesCapacity ++ "; la a5, baap_map_value; la a6, baap_map_recip_scratch; la a7, baap_map_slot_scratch\n" ++
-  "  jal ra, storage_writes_block_latest_value; li t0, 2; beq a0, t0, .Lbaap_fail; beqz a0, .Lbaap_map_next\n" ++
+  "  beqz t5, .Lbaap_map_slot_done; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, -1; addi t3, t3, 1; addi t5, t5, -1; j .Lbaap_map_slot_copy\n" ++
+  ".Lbaap_map_slot_done:\n" ++
+  "  la t3, baap_map_value; ld t4, 64(t2); sd t4, 0(t3); ld t4, 72(t2); sd t4, 8(t3); ld t4, 80(t2); sd t4, 16(t3); ld t4, 88(t2); sd t4, 24(t3)\n" ++
   "  la a0, baap_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
   "  la t0, baap_sc_out_count; ld t0, 0(t0); li t1, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t1, .Lbaap_fail; slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
   "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
@@ -417,8 +425,10 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_map_value_nonzero:\n" ++
   "  sub t3, t3, t2; add a0, t1, zero; mv a1, t3; la t4, baap_storage_value_cursor; ld a2, 0(t4); la a3, aab_enc_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_map_insert\n" ++
   "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0); la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1; li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len\n" ++
   "  jal ra, mpt_walk; beqz a0, .Lbaap_map_modify; li t0, 1; bne a0, t0, .Lbaap_fail; li t5, 1; j .Lbaap_map_desc\n" ++
+  ".Lbaap_map_insert:\n  li t5, 1; j .Lbaap_map_desc\n" ++
   ".Lbaap_map_modify:\n  li t5, 0\n" ++
   ".Lbaap_map_desc:\n" ++
   "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
@@ -604,13 +614,45 @@ def balAccountApplyPostFieldsFunction : String :=
   "  # Apply nonce first if present.\n" ++
   "  j .Lbaap_nonce\n" ++
   ".Lbaap_nonce:\n" ++
+  "  la t0, bsr_account_from_map; ld t0, 0(t0); bnez t0, .Lbaap_map_nonce\n" ++
   "  la t0, baap_nonce_len; ld t0, 0(t0); li t1, -1; beq t0, t1, .Lbaap_balance\n" ++
   "  mv a0, s6; mv a1, s7; li a2, 0\n" ++
   "  la a3, baap_nonce; mv a4, t0; la a5, baap_tmp; la a6, baap_tmp_len\n" ++
   "  jal ra, account_set_uint_field\n" ++
   "  bnez a0, .Lbaap_fail_nonce\n" ++
   "  la s6, baap_tmp; la t0, baap_tmp_len; ld s7, 0(t0)\n" ++
+  "  j .Lbaap_balance\n" ++
+  ".Lbaap_map_nonce:\n" ++
+  "  la t1, bsr_account_row; ld t1, 0(t1); lbu t2, 112(t1); andi t2, t2, 2; beqz t2, .Lbaap_balance\n" ++
+  "  ld t0, 64(t1); la t2, baap_map_value_be; addi t3, t2, 8; li t4, 8\n" ++
+  ".Lbaap_map_nonce_bytes:\n" ++
+  "  beqz t4, .Lbaap_map_nonce_strip; addi t3, t3, -1; andi t5, t0, 255; sb t5, 0(t3); srli t0, t0, 8; addi t4, t4, -1; j .Lbaap_map_nonce_bytes\n" ++
+  ".Lbaap_map_nonce_strip:\n" ++
+  "  la t1, baap_map_value_be; li t2, 0\n" ++
+  ".Lbaap_map_nonce_strip_loop:\n" ++
+  "  li t3, 8; beq t2, t3, .Lbaap_map_nonce_zero; lbu t4, 0(t1); bnez t4, .Lbaap_map_nonce_nonzero; addi t1, t1, 1; addi t2, t2, 1; j .Lbaap_map_nonce_strip_loop\n" ++
+  ".Lbaap_map_nonce_zero:\n" ++
+  "  la a3, baap_map_value_be; li a4, 0; j .Lbaap_map_nonce_apply\n" ++
+  ".Lbaap_map_nonce_nonzero:\n" ++
+  "  li t3, 8; sub a4, t3, t2; mv a3, t1\n" ++
+  ".Lbaap_map_nonce_apply:\n" ++
+  "  mv a0, s6; mv a1, s7; li a2, 0; la a5, baap_tmp; la a6, baap_tmp_len; jal ra, account_set_uint_field\n" ++
+  "  bnez a0, .Lbaap_fail_nonce; la s6, baap_tmp; la t0, baap_tmp_len; ld s7, 0(t0)\n" ++
   ".Lbaap_balance:\n" ++
+  "  la t0, bsr_account_from_map; ld t0, 0(t0); beqz t0, .Lbaap_legacy_balance\n" ++
+  "  la t1, bsr_account_row; ld t1, 0(t1); lbu t2, 112(t1); andi t2, t2, 1; beqz t2, .Lbaap_copy_current\n" ++
+  "  la t2, baap_map_value_be; ld t3, 32(t1); sd t3, 0(t2); ld t3, 40(t1); sd t3, 8(t2); ld t3, 48(t1); sd t3, 16(t2); ld t3, 56(t1); sd t3, 24(t2)\n" ++
+  "  la t1, baap_map_value_be; li t2, 0\n" ++
+  ".Lbaap_map_balance_strip_loop:\n" ++
+  "  li t3, 32; beq t2, t3, .Lbaap_map_balance_zero; lbu t4, 0(t1); bnez t4, .Lbaap_map_balance_nonzero; addi t1, t1, 1; addi t2, t2, 1; j .Lbaap_map_balance_strip_loop\n" ++
+  ".Lbaap_map_balance_zero:\n" ++
+  "  la a3, baap_map_value_be; li a4, 0; j .Lbaap_map_balance_apply\n" ++
+  ".Lbaap_map_balance_nonzero:\n" ++
+  "  li t3, 32; sub a4, t3, t2; mv a3, t1\n" ++
+  ".Lbaap_map_balance_apply:\n" ++
+  "  mv a0, s6; mv a1, s7; li a2, 1; mv a5, s4; mv a6, s5; jal ra, account_set_uint_field\n" ++
+  "  bnez a0, .Lbaap_fail_balance; j .Lbaap_ret\n" ++
+  ".Lbaap_legacy_balance:\n" ++
   "  # Apply balance if present; otherwise copy the current account to the final output.\n" ++
   "  la t0, baap_bal_len; ld t0, 0(t0); li t1, -1; beq t0, t1, .Lbaap_copy_current\n" ++
   "  mv a0, s6; mv a1, s7; li a2, 1\n" ++
@@ -779,6 +821,8 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_force_storage_clear:\n  .zero 8\n" ++
   "bsr_storage_from_map:\n  .zero 8\n" ++
+  "bsr_account_from_map:\n  .zero 8\n" ++
+  "bsr_account_row:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++

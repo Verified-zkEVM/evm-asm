@@ -134,6 +134,14 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_exec_p:\n  .zero 8\n" ++
   "bsr_tx_off:\n  .zero 8\n" ++
   "bsr_pathp:\n  .zero 8\n" ++
+  -- Step 1 #10651 scratch: a synthetic AccountChanges item with the map
+  -- address and empty BAL field lists.  It lets map-only addresses reuse the
+  -- existing account-path/post-account machinery while Step 2 switches the
+  -- account fields themselves to account_writes values.
+  ".balign 8\n" ++
+  "bsr_map_path:\n  .zero 64\n" ++
+  "bsr_map_item:\n" ++
+  "  .zero 27\n" ++
   "bsr_acct_len:\n  .zero 8\n" ++
   "bsr_tmplen:\n  .zero 8\n" ++
   "bsr_prev_desc:\n  .zero 8\n" ++
@@ -177,6 +185,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_builder_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
+  "bsr_account_from_map:\n  .zero 8\n" ++
+  "bsr_account_row:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bsr_changed_accounts:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++

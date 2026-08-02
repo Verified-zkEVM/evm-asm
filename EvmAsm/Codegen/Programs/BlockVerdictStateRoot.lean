@@ -109,6 +109,123 @@ def blockStateRootPreAccountsFunction : String :=
   ".Lbsr_pre_ret:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
 
+/-! ## execution_map_state_changes -- Step 1 of the #10651 authority switch
+
+    Enumerate the union of the execution `account_writes` and
+    `storage_writes` maps. BAL account rows remain a cross-check, but they no
+    longer define the candidate set: every map-only address is visited and
+    receives a descriptor. Account-map rows also provide the post-account
+    fields needed by those map-only descriptors; this keeps the enumeration
+    and value authority coherent in one switch.
+
+    a0 = descriptor-count pointer
+    a1 = BAL-derived account-address table
+    a2 = number of entries in that table
+    a0 (output) = 0 on success / 1 on malformed map or witness replay. -/
+def executionMapStateChangesFunction : String :=
+  "execution_map_state_changes:\n" ++
+  "  addi sp, sp, -112\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
+  "  la t0, bsr_map_item; li t1, 0xda; sb t1, 0(t0); li t1, 0x94; sb t1, 1(t0); li t1, 0xc0; sb t1, 22(t0); sb t1, 23(t0); sb t1, 24(t0); sb t1, 25(t0); sb t1, 26(t0)\n" ++
+  "  mv s0, a0                   # descriptor count pointer\n" ++
+  "  mv s1, a1                   # BAL address table\n" ++
+  "  mv s2, a2                   # BAL address count\n" ++
+  "  la t0, account_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa28a0000; li s6, 0\n" ++
+  ".Lem_account_loop:\n" ++
+  "  bgeu s4, s9, .Lem_storage_init\n" ++
+  "  slli t0, s4, 7; add s3, s5, t0\n" ++
+  "  la t0, bsr_map_item; addi t0, t0, 2; mv t1, s3; li t2, 20\n" ++
+  ".Lem_account_addr_copy:\n" ++
+  "  beqz t2, .Lem_account_bal_scan_init\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lem_account_addr_copy\n" ++
+  ".Lem_account_bal_scan_init:\n" ++
+  "  li t0, 0\n" ++
+  ".Lem_account_bal_scan:\n" ++
+  "  bgeu t0, s2, .Lem_account_process\n" ++
+  "  slli t1, t0, 5; add t1, s1, t1; la t2, bsr_map_item; addi t2, t2, 2; li t3, 20\n" ++
+  ".Lem_account_bal_cmp:\n" ++
+  "  beqz t3, .Lem_account_next\n" ++
+  "  lbu t4, 0(t2); lbu t5, 0(t1); bne t4, t5, .Lem_account_bal_next\n" ++
+  "  addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lem_account_bal_cmp\n" ++
+  ".Lem_account_bal_next:\n" ++
+  "  addi t0, t0, 1; j .Lem_account_bal_scan\n" ++
+  ".Lem_account_process:\n" ++
+  "  li s6, 0; li t0, 1; la t1, bsr_account_from_map; sd t0, 0(t1); la t1, bsr_account_row; sd s3, 0(t1); j .Lem_process_address\n" ++
+  ".Lem_storage_init:\n" ++
+  "  la t0, storage_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa1fa0000; li s6, 1\n" ++
+  ".Lem_storage_loop:\n" ++
+  "  bgeu s4, s9, .Lem_done\n" ++
+  "  slli t0, s4, 7; add s3, s5, t0\n" ++
+  "  la t0, bsr_map_item; addi t0, t0, 2; addi t1, s3, 19; li t2, 20\n" ++
+  ".Lem_storage_addr_copy:\n" ++
+  "  beqz t2, .Lem_storage_bal_scan_init\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; j .Lem_storage_addr_copy\n" ++
+  ".Lem_storage_bal_scan_init:\n" ++
+  "  li t0, 0\n" ++
+  ".Lem_storage_bal_scan:\n" ++
+  "  bgeu t0, s2, .Lem_storage_account_scan_init\n" ++
+  "  slli t1, t0, 5; add t1, s1, t1; la t2, bsr_map_item; addi t2, t2, 2; li t3, 20\n" ++
+  ".Lem_storage_bal_cmp:\n" ++
+  "  beqz t3, .Lem_storage_next\n" ++
+  "  lbu t4, 0(t2); lbu t5, 0(t1); bne t4, t5, .Lem_storage_bal_next\n" ++
+  "  addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lem_storage_bal_cmp\n" ++
+  ".Lem_storage_bal_next:\n" ++
+  "  addi t0, t0, 1; j .Lem_storage_bal_scan\n" ++
+  ".Lem_storage_account_scan_init:\n" ++
+  "  li t0, 0; li t6, 0xa28a0000\n" ++
+  ".Lem_storage_account_scan:\n" ++
+  "  la t1, account_writes_count; ld t1, 0(t1); bgeu t0, t1, .Lem_storage_prior_scan_init\n" ++
+  "  slli t2, t0, 7; add t2, t6, t2; la t3, bsr_map_item; addi t3, t3, 2; li t4, 20\n" ++
+  ".Lem_storage_account_cmp:\n" ++
+  "  beqz t4, .Lem_storage_next\n" ++
+  "  lbu t5, 0(t2); lbu t1, 0(t3); bne t5, t1, .Lem_storage_account_next\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lem_storage_account_cmp\n" ++
+  ".Lem_storage_account_next:\n" ++
+  "  addi t0, t0, 1; j .Lem_storage_account_scan\n" ++
+  ".Lem_storage_prior_scan_init:\n" ++
+  "  li t0, 0\n" ++
+  ".Lem_storage_prior_scan:\n" ++
+  "  bgeu t0, s4, .Lem_storage_process\n" ++
+  "  slli t1, t0, 7; add t1, s5, t1; mv t2, s3; li t3, 20\n" ++
+  ".Lem_storage_prior_cmp:\n" ++
+  "  beqz t3, .Lem_storage_next\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lem_storage_prior_next\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lem_storage_prior_cmp\n" ++
+  ".Lem_storage_prior_next:\n" ++
+  "  addi t0, t0, 1; j .Lem_storage_prior_scan\n" ++
+  ".Lem_storage_process:\n" ++
+  "  li s6, 1; li t0, 1; la t1, bsr_storage_from_map; sd t0, 0(t1); la t0, bsr_account_from_map; sd zero, 0(t0); la t0, bsr_account_row; sd zero, 0(t0)\n" ++
+  ".Lem_process_address:\n" ++
+  "  ld t0, 0(s0); li t1, " ++ toString bsrMaxStateChanges ++ "; bgeu t0, t1, .Lem_fail\n" ++
+  "  la a0, bsr_map_item; li a1, 27; la a2, bsr_map_path; jal ra, bal_account_path\n" ++
+  "  bnez a0, .Lem_fail\n" ++
+  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0); la a3, bsr_map_path; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
+  "  jal ra, mpt_walk; mv s8, a0; beqz a0, .Lem_pre_found; li t0, 1; bne a0, t0, .Lem_fail\n" ++
+  "  la s7, bsr_empty_account; li s10, 70; j .Lem_pre_ready\n" ++
+  ".Lem_pre_found:\n" ++
+  "  la s7, bsr_acct; la t0, bsr_acct_len; ld s10, 0(t0)\n" ++
+  ".Lem_pre_ready:\n" ++
+  "  ld t0, 0(s0); slli t1, t0, 6; la t2, basr_paths; add a4, t2, t1; slli t1, t0, 8; la t2, basr_values; add a5, t2, t1\n" ++
+  "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, bal_account_change_value\n" ++
+  "  bnez a0, .Lem_fail\n" ++
+  "  ld t0, 0(s0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, bsr_changes; add t1, t2, t1\n" ++
+  "  slli t2, t0, 6; la t3, basr_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
+  "  slli t2, t0, 8; la t3, basr_values; add t2, t3, t2; sd t2, 16(t1); la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1); sd s8, 32(t1)\n" ++
+  "  addi t0, t0, 1; sd t0, 0(s0)\n" ++
+  "  beqz s6, .Lem_account_next\n" ++
+  ".Lem_storage_next:\n" ++
+  "  addi s4, s4, 1; j .Lem_storage_loop\n" ++
+  ".Lem_account_next:\n" ++
+  "  addi s4, s4, 1; j .Lem_account_loop\n" ++
+  ".Lem_fail:\n" ++
+  "  li a0, 1; j .Lem_ret\n" ++
+  ".Lem_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lem_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp); addi sp, sp, 112; ret\n"
+
 /-! ## block_state_root -- post-state root after system writes + withdrawals.
     a0 = pre-state root ptr   a1 = witness   a2 = witness_len
     a3 = wds descriptors   a4 = n_wds   a5 = out_root   a6 = SSZ_BASE
@@ -271,6 +388,13 @@ def blockStateRootFunction : String :=
   ".Lbsr_bal_copy_system4788:\n  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_4788; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
   ".Lbsr_bal_done:\n" ++
+  "  # Step 1 #10651: extend the candidate set with execution-map accounts.\n" ++
+  "  # BAL remains the cross-check table; the helper appends map-only accounts\n" ++
+  "  # and derives their account fields from the execution maps in the same\n" ++
+  "  # authority switch.\n" ++
+  "  la t0, bsr_change_count; sd s1, 0(t0); mv a0, t0; la a1, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a2, 0(t0)\n" ++
+  "  jal ra, execution_map_state_changes; bnez a0, .Lbsr_cons_map\n" ++
+  "  la t0, bsr_change_count; ld s1, 0(t0)\n" ++
   "  # NORMALIZATION BOUNDARY: bsr_changes contains committed, value-bearing\n" ++
   "  # mutations only (BAL final post-fields plus modeled system/withdrawals).\n" ++
   "  # Runtime account/storage access outcomes are mode=3 no-ops: they provide\n" ++
@@ -364,6 +488,8 @@ def blockStateRootFunction : String :=
   "  li t0, 112; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_bal_desc:\n" ++
   "  li t0, 113; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
+  ".Lbsr_cons_map:\n" ++
+  "  la t1, bsr_fail_code; ld t2, 0(t1); bnez t2, .Lbsr_cons; li t0, 116; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_account_access:\n" ++
   "  li t0, 114; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_storage_access:\n" ++
