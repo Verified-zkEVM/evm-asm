@@ -279,8 +279,8 @@ def blockVerdictFunction : String :=
   -- The MTx precompile hook enters this shared selector directly.  The old
   -- single-transaction contract/creation route is retired; these are the live
   -- MTx precompile fragments that remain reachable from the loop hook.
-  blockVerdictSimpleTransferPrecompileGasAsm ++
-  blockVerdictSimpleTransferPublishAsm ++
+  blockVerdictSimpleTransferPrecompileGasAsmFor "bv_mtx_ctx" ++
+  blockVerdictSimpleTransferPublishAsmFor "bv_mtx_ctx" ++
   blockVerdictFunctionTail ++ "\n"
 
 end EvmAsm.Codegen
