@@ -509,16 +509,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 4 multi-tx dispatch unsupported, 5 multi-tx generic bail. Nonzero is debug-only.
   "bv_runtime_completeness_status:\n  .zero 8\n" ++
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
+  -- GH #11176: bvcd_keys (3,200,000 B) and bvcd_preload (6,400,000 B) plus the
+  -- bvcd_key_count / bvcd_sc_count / bvcd_i cursors are GONE with the eager recipient
+  -- storage preload -- 9,600,024 B = 9.155 MiB of .bss. bvcd_acct_ptr / bvcd_acct_len
+  -- REMAIN: bal_find_account_by_address still writes them for the parse-validity bail.
   ".balign 8\n" ++
   "bvcd_code_ptr:\n  .zero 8\n" ++
   "bvcd_code_len:\n  .zero 8\n" ++
   "bvcd_acct_ptr:\n  .zero 8\n" ++
   "bvcd_acct_len:\n  .zero 8\n" ++
-  "bvcd_key_count:\n  .zero 8\n" ++
-  "bvcd_sc_count:\n  .zero 8\n" ++
-  "bvcd_i:\n  .zero 8\n" ++
-  "bvcd_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++     -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (bal_recipient_storage_keys caps at the gas-derived bsrAccountSlotCap; the dispatch-tx caller still bails >128 — bvcd_preload stays 128-sized — but the keys the helper writes before that bail must fit)
-  "bvcd_preload:\n  .zero " ++ toString (bsrAccountSlotCap * 64) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: bsrAccountSlotCap x 64-byte (key,value) pairs, matching bvcd_keys (was 128*64=8192). The dispatch-tx caller no longer bails >128 storage slots.
   -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
   -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
   balStorageChangeValuesData ++
