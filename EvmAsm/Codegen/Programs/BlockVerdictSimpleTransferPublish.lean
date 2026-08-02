@@ -83,7 +83,8 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  la t5, " ++ ctxLabel ++ "; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_state_oog_no_log\n" ++
   ".Lbv_simple_transfer_emit_state_pre_ok:\n" ++
-  "  jal ra, bv_emit_single_tx_tl7708\n" ++
+  -- #10685 PR2: bv_emit_single_tx_tl7708 deleted (never-written bv_simple_transfer_tx;
+  -- mode-2 bypass; early-exit no-op). Live TL staging is MTx/CREATE → eip7708_tl_*.
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
   "  jal ra, block_log_window_snapshot\n" ++
   "  j .Lbv_simple_transfer_after_log_snapshot\n" ++

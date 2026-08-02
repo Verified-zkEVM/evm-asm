@@ -132,79 +132,9 @@ def modexpPrecompileGasAsm
   modexpReadLengthAsm suffix 0 "x5" ++
   modexpReadLengthAsm suffix 32 "x22" ++
   modexpReadLengthAsm suffix 64 "x23" ++
-  "  mv x24, x5\n" ++
-  "  bgeu x24, x23, .Lmodexp_max_done_" ++ suffix ++ "\n" ++
-  "  mv x24, x23\n" ++
-  ".Lmodexp_max_done_" ++ suffix ++ ":\n" ++
-  "  addi x25, x24, 7
-  srli x25, x25, 3
-  li x31, 32
-" ++
-  "  bltu x31, x24, .Lmodexp_complex_large_" ++ suffix ++ "\n" ++
-  "  li x26, 16\n" ++
-  "  j .Lmodexp_complex_done_" ++ suffix ++ "\n" ++
-  ".Lmodexp_complex_large_" ++ suffix ++ ":\n" ++
-  "  mul x26, x25, x25
-  slli x26, x26, 1
-" ++
-  ".Lmodexp_complex_done_" ++ suffix ++ ":\n" ++
-  "  li x27, 0
-  li x30, 0
-  mv x28, x22
-  li x31, 32
-" ++
-  "  bgeu x31, x28, .Lmodexp_head_len_done_" ++ suffix ++ "\n" ++
-  "  mv x28, x31\n" ++
-  ".Lmodexp_head_len_done_" ++ suffix ++ ":\n" ++
-  "  li x29, 0\n" ++
-  ".Lmodexp_head_loop_" ++ suffix ++ ":\n" ++
-  "  beq x29, x28, .Lmodexp_head_done_zero_" ++ suffix ++ "\n" ++
-  "  addi x31, x5, 96
-  add x31, x31, x29
-" ++
-  "  bgeu x31, x17, .Lmodexp_head_missing_" ++ suffix ++ "\n" ++
-  "  add x31, x18, x31
-  lbu x16, 0(x31)
-" ++
-  "  j .Lmodexp_head_have_byte_" ++ suffix ++ "\n" ++
-  ".Lmodexp_head_missing_" ++ suffix ++ ":\n" ++
-  "  li x16, 0\n" ++
-  ".Lmodexp_head_have_byte_" ++ suffix ++ ":\n" ++
-  "  bnez x16, .Lmodexp_head_nonzero_" ++ suffix ++ "\n" ++
-  "  addi x29, x29, 1\n" ++
-  "  j .Lmodexp_head_loop_" ++ suffix ++ "\n" ++
-  ".Lmodexp_head_nonzero_" ++ suffix ++ ":\n" ++
-  "  li x30, 1
-  sub x27, x28, x29
-  addi x27, x27, -1
-  slli x27, x27, 3
-" ++
-  modexpByteLog2Asm suffix ++
-  ".Lmodexp_head_done_zero_" ++ suffix ++ ":\n" ++
-  ".Lmodexp_log_done_" ++ suffix ++ ":\n" ++
-  "  li x31, 32\n" ++
-  "  bltu x31, x22, .Lmodexp_iter_large_exp_" ++ suffix ++ "\n" ++
-  "  beqz x30, .Lmodexp_iter_zero_head_" ++ suffix ++ "\n" ++
-  "  mv x28, x27\n" ++
-  "  j .Lmodexp_iter_max_" ++ suffix ++ "\n" ++
-  ".Lmodexp_iter_large_exp_" ++ suffix ++ ":\n" ++
-  "  addi x28, x22, -32
-  slli x28, x28, 4
-  add x28, x28, x27
-" ++
-  "  j .Lmodexp_iter_max_" ++ suffix ++ "\n" ++
-  ".Lmodexp_iter_zero_head_" ++ suffix ++ ":\n" ++
-  "  li x28, 0\n" ++
-  ".Lmodexp_iter_max_" ++ suffix ++ ":\n" ++
-  "  bnez x28, .Lmodexp_iter_done_" ++ suffix ++ "\n" ++
-  "  li x28, 1\n" ++
-  ".Lmodexp_iter_done_" ++ suffix ++ ":\n" ++
-  "  mul x16, x26, x28
-  li x31, 500
-" ++
-  "  bgeu x16, x31, .Lmodexp_cost_done_" ++ suffix ++ "\n" ++
-  "  mv x16, x31\n" ++
-  ".Lmodexp_cost_done_" ++ suffix ++ ":\n" ++
+  "  la x16, precompile_shared_status\n  ld x16, 0(x16)\n" ++
+  "  bnez x16, .L" ++ suffix ++ "_bn254_fail_allot\n" ++
+  "  la x16, precompile_shared_cost\n  ld x16, 0(x16)\n" ++
   chargePrecompileGasAsm "x16" "x31" ++
   "  or x24, x5, x23
   beqz x24, 7b
