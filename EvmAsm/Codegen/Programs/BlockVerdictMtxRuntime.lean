@@ -932,9 +932,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxOogMaterialize
 
 -- The N+1 system-request phase is pinned at the post-user-loop boundary.  The
--- sibling occurrence is guarded in `BlockVerdictEoaBodyEffectReconcile`; the two
--- sites are mutually exclusive at run time, so both must exist and neither may
--- be doubled.
+-- universal MTx loop is now the sole live post-user-loop site; the former
+-- single-transaction reconciliation definition was source-only dead and is
+-- removed, so there is no sibling occurrence to duplicate.
 #guard (blockVerdictMtxRuntimeLoop.splitOn
   "  jal ra, block_verdict_deferred_system_requests\n").length == 2
 

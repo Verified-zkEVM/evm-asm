@@ -17,13 +17,11 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasGatePrelude
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.BlockVerdictMtxRuntime
 import EvmAsm.Codegen.Programs.BlockVerdictEip7702SenderAuth
-import EvmAsm.Codegen.Programs.BlockVerdictCreateCollision
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPrecompileGas
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferPublish
 import EvmAsm.Codegen.Programs.BlockVerdictBmvMx
 import EvmAsm.Codegen.Programs.BlockVerdictWithdrawalEffects
-import EvmAsm.Codegen.Programs.BlockVerdictEoaBodyEffectReconcile
 import EvmAsm.Codegen.Programs.BlockVerdictFunctionTail
 namespace EvmAsm.Codegen
 
