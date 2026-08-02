@@ -654,6 +654,16 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld t2, 0(t2)\n" ++
   "  beqz t2, .Lbv_mtx_storage_drop\n" ++
+  -- `clear_account_preserving_balance` / `destroy_account` converts the
+  -- transaction's storage_writes for a deleted account into storage_reads
+  -- (`state_tracker.py:556-579`) BEFORE `incorporate_tx_into_block` updates
+  -- the BAL builder (`:855-858`).  Keep that ordering here: the guest's
+  -- account-state commit helper also performs this conversion, but it is
+  -- reached below the storage merge.  Running the idempotent conversion once
+  -- while the tx map is still live prevents a deleted account's slot from
+  -- being emitted as a spurious storage_change; the later call is a no-op for
+  -- rows already removed and still owns the durable account commit.
+  "  jal ra, account_state_promote_delete_reads\n" ++
   "  jal ra, write_sets_incorporate_tx; j .Lbv_mtx_storage_done\n" ++
   ".Lbv_mtx_storage_drop:\n" ++
   "  jal ra, write_sets_discard_tx\n" ++
