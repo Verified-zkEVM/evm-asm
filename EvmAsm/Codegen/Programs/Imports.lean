@@ -337,7 +337,6 @@ import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Codegen.Programs.BlockVerdictEip7702AuthNonstorageEffectsArray
-import EvmAsm.Codegen.Programs.BlockVerdictEoaBodyEffectReconcile
 import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
 import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose

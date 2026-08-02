@@ -387,8 +387,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountAccessOutcomeDescriptorsFunction ++ "\n" ++
-  balStorageAccessOutcomeDescriptorsFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
@@ -458,7 +456,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
-  balAccountNonceBeforeIndexFunction ++ "\n" ++
   eip7702AuthorityAsOfFunction ++ "\n" ++
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++

@@ -24,7 +24,6 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
-import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
@@ -38,7 +37,6 @@ import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalModeledSystem
-import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -277,8 +275,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.baap_delete_single_leaf_storage, baapDeleteSingleLeafStorage_prog),
   (GuestAddrs.bal_account_change_value, balAccountChangeValue_prog),
   (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
-  (GuestAddrs.bal_account_access_outcome_descriptors, balAccountAccessOutcomeDescriptors_prog),
-  (GuestAddrs.bal_storage_access_outcome_descriptors, balStorageAccessOutcomeDescriptors_prog),
   (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
   (GuestAddrs.bal_account_is_modeled_system, balAccountIsModeledSystem_prog),
   (GuestAddrs.bsr_sys_change, bsrSysChange_prog),
@@ -330,17 +326,13 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secf_get_bit_lsb, secfGetBitLsb_prog),
   (GuestAddrs.secf_is_zero32, secfIsZero32_prog),
   (GuestAddrs.secf_eq32, secfEq32_prog),
-  (GuestAddrs.secf_cmp_p, secfCmpP_prog),
   (GuestAddrs.secf_reduce_once, secfReduceOnce_prog),
   (GuestAddrs.secf_add_mod_p, secfAddModP_prog),
-  (GuestAddrs.secf_sub_mod_p, secfSubModP_prog),
   (GuestAddrs.secf_mul_mod_p, secfMulModP_prog),
   (GuestAddrs.secf_square_mod_p, secfSquareModP_prog),
   (GuestAddrs.secf_pow_mod_p, secfPowModP_prog),
-  (GuestAddrs.secf_inv_mod_p, secfInvModP_prog),
   (GuestAddrs.secf_sqrt_mod_p, secfSqrtModP_prog),
   (GuestAddrs.secf_reduce_once_n, secfReduceOnceN_prog),
-  (GuestAddrs.secf_add_mod_n, secfAddModN_prog),
   (GuestAddrs.secf_mul_mod_n, secfMulModN_prog),
   (GuestAddrs.secf_square_mod_n, secfSquareModN_prog),
   (GuestAddrs.secf_pow_mod_n, secfPowModN_prog),
@@ -450,7 +442,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bnp_fp_mul, bnpFpMul_prog),
   (GuestAddrs.bnp_fp_add, bnpFpAdd_prog),
   (GuestAddrs.bnp_fp_pow, bnpFpPow_prog),
-  (GuestAddrs.bnp_fp2_inv, bnpFp2Inv_prog),
   (GuestAddrs.bnq_smul, bnqSmul_prog),
   (GuestAddrs.bnq_copy, bnqCopy_prog),
   (GuestAddrs.bnq_zero, bnqZero_prog),
@@ -513,6 +504,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 354
+#guard guestImageEntries.length = 347
 
 end EvmAsm.Codegen

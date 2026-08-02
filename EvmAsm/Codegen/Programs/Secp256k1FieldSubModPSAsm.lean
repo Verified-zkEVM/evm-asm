@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
+import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.SAsm.RetForwardJoin
 
@@ -25,23 +26,23 @@ def secfSubModPBody : List Instr :=
   [ .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x18 .x12,
-    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (GuestAddrs.secf_sub_mod_p + 40)),
-    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (GuestAddrs.secf_sub_mod_p + 40)),
+    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (secfSubModPPc + 40)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (secfSubModPPc + 40)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x19,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 60)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 60)),
     .MV .x20 .x10,
     .BEQ .x20 .x0 (28 : BitVec 13),
     .MV .x10 .x19,
-    .AUIPC .x11 (laHi GuestAddrs.secp256k1_c_be (GuestAddrs.secf_sub_mod_p + 76)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_c_be (GuestAddrs.secf_sub_mod_p + 76)),
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_c_be (secfSubModPPc + 76)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_c_be (secfSubModPPc + 76)),
     .MV .x12 .x18,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 88)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 88)),
     .JAL .x0 (16 : BitVec 21),
     .MV .x10 .x19,
     .MV .x11 .x18,
-    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_sub_mod_p + 104)),
+    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (secfSubModPPc + 104)),
     .LI .x10 (0 : Word) ]
 
 theorem secfSubModP_prog_eq :
@@ -53,7 +54,7 @@ theorem secfSubModP_prog_eq :
 
 def secfSubModPCr : CodeReq :=
   Secp256k1FieldReduceOnceSAsm.secfReduceOnceCr.union
-    (CodeReq.ofProg (GuestAddrs.secf_sub_mod_p : Word) secfSubModP_prog)
+    (CodeReq.ofProg (secfSubModPPc : Word) secfSubModP_prog)
 
 def secfSubModPVals (ret s0 s1 s2 s3 s4 : Word) : Reg → Word := fun r =>
   match r with
@@ -74,8 +75,8 @@ def secp256k1CBytes : List (BitVec 8) :=
 #guard secp256k1CBytes.length = 32
 
 private theorem setup_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 : Word) :
-    cpsTripleWithin 8 (GuestAddrs.secf_sub_mod_p + 28 : Word)
-      (GuestAddrs.secf_sub_mod_p + 60 : Word) secfSubModPCr
+    cpsTripleWithin 8 (secfSubModPPc + 28 : Word)
+      (secfSubModPPc + 60 : Word) secfSubModPCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
         ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
@@ -86,46 +87,46 @@ private theorem setup_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 : Word) :
         ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret)) := by
   have hmv8 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x8 .x10 aPtr v8
-      (GuestAddrs.secf_sub_mod_p + 28 : Word) (by decide))
+      (secfSubModPPc + 28 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 28 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 32 : Word) from by decide] at hmv8
+  rw [show (secfSubModPPc + 28 : Word) + 4 =
+      (secfSubModPPc + 32 : Word) from by decide] at hmv8
   have hmv9 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x9 .x11 bPtr v9
-      (GuestAddrs.secf_sub_mod_p + 32 : Word) (by decide))
+      (secfSubModPPc + 32 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 32 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 36 : Word) from by decide] at hmv9
+  rw [show (secfSubModPPc + 32 : Word) + 4 =
+      (secfSubModPPc + 36 : Word) from by decide] at hmv9
   have hmv18 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x18 .x12 outPtr v18
-      (GuestAddrs.secf_sub_mod_p + 36 : Word) (by decide))
+      (secfSubModPPc + 36 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 36 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 40 : Word) from by decide] at hmv18
+  rw [show (secfSubModPPc + 36 : Word) + 4 =
+      (secfSubModPPc + 40 : Word) from by decide] at hmv18
   have hla := la_materialize_within .x19 v19
-    (GuestAddrs.secf_sub_mod_p + 40 : Word) (GuestAddrs.secf_tmp0 : Word)
+    (secfSubModPPc + 40 : Word) (GuestAddrs.secf_tmp0 : Word)
     (cr := secfSubModPCr) (by decide) (by decide)
     (by unfold secfSubModPCr; code_mem) (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 40 : Word) + 8 =
-      (GuestAddrs.secf_sub_mod_p + 48 : Word) from by decide] at hla
+  rw [show (secfSubModPPc + 40 : Word) + 8 =
+      (secfSubModPPc + 48 : Word) from by decide] at hla
   have hmv10 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x10 .x8 aPtr aPtr
-      (GuestAddrs.secf_sub_mod_p + 48 : Word) (by decide))
+      (secfSubModPPc + 48 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 48 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 52 : Word) from by decide] at hmv10
+  rw [show (secfSubModPPc + 48 : Word) + 4 =
+      (secfSubModPPc + 52 : Word) from by decide] at hmv10
   have hmv11 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x11 .x9 bPtr bPtr
-      (GuestAddrs.secf_sub_mod_p + 52 : Word) (by decide))
+      (secfSubModPPc + 52 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 52 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 56 : Word) from by decide] at hmv11
+  rw [show (secfSubModPPc + 52 : Word) + 4 =
+      (secfSubModPPc + 56 : Word) from by decide] at hmv11
   have hmv12 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x12 .x19 (GuestAddrs.secf_tmp0 : Word) outPtr
-      (GuestAddrs.secf_sub_mod_p + 56 : Word) (by decide))
+      (secfSubModPPc + 56 : Word) (by decide))
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 56 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 60 : Word) from by decide] at hmv12
+  rw [show (secfSubModPPc + 56 : Word) + 4 =
+      (secfSubModPPc + 60 : Word) from by decide] at hmv12
   have h1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     (cpsTripleWithin_frameR
       (((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
@@ -305,8 +306,8 @@ private theorem setupFirstCall_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : Wo
     cpsTripleWithin
       (8 + (1 + u256SubSteps aPtr bPtr (GuestAddrs.secf_tmp0 : Word)
         aBytes bBytes tmpOrig))
-      (GuestAddrs.secf_sub_mod_p + 28 : Word)
-      (GuestAddrs.secf_sub_mod_p + 64 : Word) secfSubModPCr
+      (secfSubModPPc + 28 : Word)
+      (secfSubModPPc + 64 : Word) secfSubModPCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
         ((.x20 : Reg) ↦ᵣ v20) ** ((.x10 : Reg) ↦ᵣ aPtr) **
@@ -320,7 +321,7 @@ private theorem setupFirstCall_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : Wo
         ((.x18 : Reg) ↦ᵣ outPtr) **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x20 : Reg) ↦ᵣ v20) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 64 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 64 : Word)) **
         ((.x10 : Reg) ↦ᵣ U256SubBeSAsm.u256SubBeBorrow aBytes bBytes tmpOrig) **
         regOwns retScratch ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         bytesRegion (GuestAddrs.secf_tmp0 : Word)
@@ -336,11 +337,11 @@ private theorem setupFirstCall_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : Wo
       globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes)
     (by pcf) hsetup
   have hcallee := u256SubBorrowFlat_spec
-    (GuestAddrs.secf_sub_mod_p + 64 : Word) aPtr bPtr
+    (secfSubModPPc + 64 : Word) aPtr bPtr
     (GuestAddrs.secf_tmp0 : Word) aBytes bBytes tmpOrig hrwTmp hroA hroB
     hlenA hlenB hlenTmp hovA hovB (by decide) hdA hdB (by decide)
-  rw [show (GuestAddrs.secf_sub_mod_p + 64 : Word) =
-      (GuestAddrs.secf_sub_mod_p + 60 : Word) + 4 from by decide] at hcallee
+  rw [show (secfSubModPPc + 64 : Word) =
+      (secfSubModPPc + 60 : Word) + 4 from by decide] at hcallee
   have hcall := callWithin_spec (cr := secfSubModPCr)
     (P := (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
       ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) ** regOwns subScratch **
@@ -350,13 +351,13 @@ private theorem setupFirstCall_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : Wo
       regOwns retScratch ** bytesRegion (GuestAddrs.secf_tmp0 : Word)
         (U256SubBeSAsm.u256SubBeBytes aBytes bBytes tmpOrig) **
       bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes))
-    (GuestAddrs.secf_sub_mod_p + 60 : Word) (GuestAddrs.u256_sub_be : Word) ret
-    (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 60))
+    (secfSubModPPc + 60 : Word) (GuestAddrs.u256_sub_be : Word) ret
+    (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 60))
     (u256SubSteps aPtr bPtr (GuestAddrs.secf_tmp0 : Word) aBytes bBytes tmpOrig)
     (by decide) (by unfold secfSubModPCr secfReduceOnceCr; code_mem) (by pcf)
     hcallee
-  rw [show (GuestAddrs.secf_sub_mod_p + 60 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 64 : Word) from by decide] at hcall
+  rw [show (secfSubModPPc + 60 : Word) + 4 =
+      (secfSubModPPc + 64 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     (((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ bPtr) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
@@ -372,35 +373,35 @@ private theorem setupFirstCall_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : Wo
 
 private theorem saveBorrowBranch_spec (borrow old20 : Word)
     (P : Assertion) (hP : P.pcFree) :
-    cpsBranchWithin 2 (GuestAddrs.secf_sub_mod_p + 64 : Word) secfSubModPCr
+    cpsBranchWithin 2 (secfSubModPPc + 64 : Word) secfSubModPCr
       (((.x20 : Reg) ↦ᵣ old20) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)
-      (GuestAddrs.secf_sub_mod_p + 96 : Word)
+      (secfSubModPPc + 96 : Word)
       (((.x20 : Reg) ↦ᵣ borrow) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜borrow = 0⌝ ** P)
-      (GuestAddrs.secf_sub_mod_p + 72 : Word)
+      (secfSubModPPc + 72 : Word)
       (((.x20 : Reg) ↦ᵣ borrow) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜borrow ≠ 0⌝ ** P) := by
   have hmv := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x20 .x10 borrow old20
-      (GuestAddrs.secf_sub_mod_p + 64 : Word) (by decide))
+      (secfSubModPPc + 64 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 64 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 68 : Word) from by decide] at hmv
+  rw [show (secfSubModPPc + 64 : Word) + 4 =
+      (secfSubModPPc + 68 : Word) from by decide] at hmv
   have hmvF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) ** P) (by exact pcFree_sepConj (by pcf) hP) hmv
   have hbr := cpsBranchWithin_frameR (((.x10 : Reg) ↦ᵣ borrow) ** P)
     (pcFree_sepConj (by pcf) hP)
     (cpsBranchWithin_extend_code (cr' := secfSubModPCr)
       (h := beq_spec_gen_within .x20 .x0 (28 : BitVec 13) borrow (0 : Word)
-        (GuestAddrs.secf_sub_mod_p + 68 : Word))
+        (secfSubModPPc + 68 : Word))
       (hmono := by unfold secfSubModPCr secfReduceOnceCr; code_mem))
-  rw [show (GuestAddrs.secf_sub_mod_p + 68 : Word) + signExtend13 (28 : BitVec 13) =
-      (GuestAddrs.secf_sub_mod_p + 96 : Word) from by
+  rw [show (secfSubModPPc + 68 : Word) + signExtend13 (28 : BitVec 13) =
+      (secfSubModPPc + 96 : Word) from by
         rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]
         decide,
-    show (GuestAddrs.secf_sub_mod_p + 68 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 72 : Word) from by decide] at hbr
+    show (secfSubModPPc + 68 : Word) + 4 =
+      (secfSubModPPc + 72 : Word) from by decide] at hbr
   have hc := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun _ hp => by xperm_hyp hp) hmvF hbr
   exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -423,8 +424,8 @@ private theorem copyScratch_split :
   simp only [copyScratch, copyRest, regOwns_cons, regOwns_nil]
 
 private theorem copySetup_spec (tmpPtr outPtr ret old10 old11 : Word) :
-    cpsTripleWithin 2 (GuestAddrs.secf_sub_mod_p + 96 : Word)
-      (GuestAddrs.secf_sub_mod_p + 104 : Word) secfSubModPCr
+    cpsTripleWithin 2 (secfSubModPPc + 96 : Word)
+      (secfSubModPPc + 104 : Word) secfSubModPCr
       (((.x19 : Reg) ↦ᵣ tmpPtr) ** ((.x18 : Reg) ↦ᵣ outPtr) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ old11) **
         ((.x1 : Reg) ↦ᵣ ret))
@@ -433,16 +434,16 @@ private theorem copySetup_spec (tmpPtr outPtr ret old10 old11 : Word) :
         ((.x1 : Reg) ↦ᵣ ret)) := by
   have hmv10 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x10 .x19 tmpPtr old10
-      (GuestAddrs.secf_sub_mod_p + 96 : Word) (by decide))
+      (secfSubModPPc + 96 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 96 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 100 : Word) from by decide] at hmv10
+  rw [show (secfSubModPPc + 96 : Word) + 4 =
+      (secfSubModPPc + 100 : Word) from by decide] at hmv10
   have hmv11 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x11 .x18 outPtr old11
-      (GuestAddrs.secf_sub_mod_p + 100 : Word) (by decide))
+      (secfSubModPPc + 100 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 100 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 104 : Word) from by decide] at hmv11
+  rw [show (secfSubModPPc + 100 : Word) + 4 =
+      (secfSubModPPc + 104 : Word) from by decide] at hmv11
   have h1 := cpsTripleWithin_frameR
     (((.x18 : Reg) ↦ᵣ outPtr) ** ((.x11 : Reg) ↦ᵣ old11) **
       ((.x1 : Reg) ↦ᵣ ret)) (by pcf) hmv10
@@ -456,8 +457,8 @@ private theorem copySetup_spec (tmpPtr outPtr ret old10 old11 : Word) :
 private theorem copyArm_spec (outPtr ret borrow : Word)
     (tmpBytes outOrig : List (BitVec 8))
     (hlenTmp : tmpBytes.length = 32) (hlenOut : outOrig.length = 32) :
-    cpsTripleWithin 13 (GuestAddrs.secf_sub_mod_p + 96 : Word)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+    cpsTripleWithin 13 (secfSubModPPc + 96 : Word)
+      (secfSubModPPc + 112 : Word) secfSubModPCr
       ((((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns copyScratch **
@@ -465,7 +466,7 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
         bytesRegion outPtr outOrig) ** regOwn .x11)
       (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 108 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 108 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
         regOwns copyScratch **
         bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
@@ -478,7 +479,7 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
         bytesRegion outPtr outOrig)
       (Q := ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 108 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 108 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
         regOwns copyScratch **
         bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
@@ -489,15 +490,15 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
   have hsetupF := cpsTripleWithin_frameR
     (regOwns copyScratch ** bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
       bytesRegion outPtr outOrig) (by pcf) hsetup
-  have hcopy0 := secfCopy32Direct_spec (GuestAddrs.secf_sub_mod_p + 108 : Word)
+  have hcopy0 := secfCopy32Direct_spec (secfSubModPPc + 108 : Word)
     (GuestAddrs.secf_tmp0 : Word) outPtr tmpBytes outOrig hlenTmp hlenOut (by decide)
   have hcopy := liftCode (cr' := secfSubModPCr) hcopy0
     (by
       intro a i h
       unfold secfSubModPCr
       simp only [CodeReq.union, h])
-  rw [show (GuestAddrs.secf_sub_mod_p + 108 : Word) =
-      (GuestAddrs.secf_sub_mod_p + 104 : Word) + 4 from by decide] at hcopy
+  rw [show (secfSubModPPc + 108 : Word) =
+      (secfSubModPPc + 104 : Word) + 4 from by decide] at hcopy
   have hcall := callWithin_spec (cr := secfSubModPCr)
     (P := (((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x11 : Reg) ↦ᵣ outPtr) ** regOwn .x5 **
@@ -505,12 +506,12 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
     (Q := (((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x11 : Reg) ↦ᵣ outPtr) ** regOwn .x5 **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes ** bytesRegion outPtr tmpBytes))
-    (GuestAddrs.secf_sub_mod_p + 104 : Word) (GuestAddrs.secf_copy32 : Word) ret
-    (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_sub_mod_p + 104)) 9
+    (secfSubModPPc + 104 : Word) (GuestAddrs.secf_copy32 : Word) ret
+    (jalOff GuestAddrs.secf_copy32 (secfSubModPPc + 104)) 9
     (by decide) (by unfold secfSubModPCr secfReduceOnceCr; code_mem) (by pcf)
     hcopy
-  rw [show (GuestAddrs.secf_sub_mod_p + 104 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 108 : Word) from by decide] at hcall
+  rw [show (secfSubModPPc + 104 : Word) + 4 =
+      (secfSubModPPc + 108 : Word) from by decide] at hcall
   rw [copyScratch_split] at hsetupF
   have hcallF := cpsTripleWithin_frameR
     (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
@@ -519,14 +520,14 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
     hsetupF hcallF
   have hli := liftCode (cr' := secfSubModPCr)
     (li_spec_gen_within .x10 (GuestAddrs.secf_tmp0 : Word) (0 : Word)
-      (GuestAddrs.secf_sub_mod_p + 108 : Word) (by decide))
+      (secfSubModPPc + 108 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 108 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) from by decide] at hli
+  rw [show (secfSubModPPc + 108 : Word) + 4 =
+      (secfSubModPPc + 112 : Word) from by decide] at hli
   have hliF := cpsTripleWithin_frameR
     (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
-      ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 108 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 108 : Word)) **
       ((.x11 : Reg) ↦ᵣ outPtr) ** regOwn .x5 ** regOwns copyRest **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
       bytesRegion outPtr tmpBytes) (by pcf) hli
@@ -535,8 +536,8 @@ private theorem copyArm_spec (outPtr ret borrow : Word)
     (fun _ hq => by xperm_hyp hq) hc2
 
 private theorem borrowSetup_spec (outPtr ret old10 old11 old12 : Word) :
-    cpsTripleWithin 4 (GuestAddrs.secf_sub_mod_p + 72 : Word)
-      (GuestAddrs.secf_sub_mod_p + 88 : Word) secfSubModPCr
+    cpsTripleWithin 4 (secfSubModPPc + 72 : Word)
+      (secfSubModPPc + 88 : Word) secfSubModPCr
       (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ old10) **
         ((.x11 : Reg) ↦ᵣ old11) ** ((.x12 : Reg) ↦ᵣ old12) **
@@ -548,23 +549,23 @@ private theorem borrowSetup_spec (outPtr ret old10 old11 old12 : Word) :
         ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret)) := by
   have hmv10 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x10 .x19 (GuestAddrs.secf_tmp0 : Word) old10
-      (GuestAddrs.secf_sub_mod_p + 72 : Word) (by decide))
+      (secfSubModPPc + 72 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 72 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 76 : Word) from by decide] at hmv10
+  rw [show (secfSubModPPc + 72 : Word) + 4 =
+      (secfSubModPPc + 76 : Word) from by decide] at hmv10
   have hla := la_materialize_within .x11 old11
-    (GuestAddrs.secf_sub_mod_p + 76 : Word) (GuestAddrs.secp256k1_c_be : Word)
+    (secfSubModPPc + 76 : Word) (GuestAddrs.secp256k1_c_be : Word)
     (cr := secfSubModPCr) (by decide) (by decide)
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 76 : Word) + 8 =
-      (GuestAddrs.secf_sub_mod_p + 84 : Word) from by decide] at hla
+  rw [show (secfSubModPPc + 76 : Word) + 8 =
+      (secfSubModPPc + 84 : Word) from by decide] at hla
   have hmv12 := liftCode (cr' := secfSubModPCr)
     (mv_spec_gen_within .x12 .x18 outPtr old12
-      (GuestAddrs.secf_sub_mod_p + 84 : Word) (by decide))
+      (secfSubModPPc + 84 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 84 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 88 : Word) from by decide] at hmv12
+  rw [show (secfSubModPPc + 84 : Word) + 4 =
+      (secfSubModPPc + 88 : Word) from by decide] at hmv12
   have h1 := cpsTripleWithin_frameR
     (((.x18 : Reg) ↦ᵣ outPtr) ** ((.x11 : Reg) ↦ᵣ old11) **
       ((.x12 : Reg) ↦ᵣ old12) ** ((.x1 : Reg) ↦ᵣ ret)) (by pcf) hmv10
@@ -597,8 +598,8 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
     cpsTripleWithin
       (4 + (1 + u256SubSteps (GuestAddrs.secf_tmp0 : Word)
         (GuestAddrs.secp256k1_c_be : Word) outPtr tmpBytes secp256k1CBytes outOrig) + 2)
-      (GuestAddrs.secf_sub_mod_p + 72 : Word)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+      (secfSubModPPc + 72 : Word)
+      (secfSubModPPc + 112 : Word) secfSubModPCr
       (((((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x1 : Reg) ↦ᵣ ret) ** regOwns subScratch **
@@ -607,7 +608,7 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
         bytesRegion outPtr outOrig) ** regOwn .x12) ** regOwn .x11)
       (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
         bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
         globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes **
@@ -622,7 +623,7 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
       bytesRegion outPtr outOrig) ** regOwn .x12)
     (Q := ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
-      ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
       globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes **
@@ -639,7 +640,7 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
       bytesRegion outPtr outOrig) ** ((.x11 : Reg) ↦ᵣ old11))
     (Q := ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
-      ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
       globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes **
@@ -652,12 +653,12 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
       globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes **
       bytesRegion outPtr outOrig) (by pcf) hsetup
   unfold globalConst at hsetupF ⊢
-  have hcallee := u256SubBorrowFlat_spec (GuestAddrs.secf_sub_mod_p + 92 : Word)
+  have hcallee := u256SubBorrowFlat_spec (secfSubModPPc + 92 : Word)
     (GuestAddrs.secf_tmp0 : Word) (GuestAddrs.secp256k1_c_be : Word) outPtr
     tmpBytes secp256k1CBytes outOrig hrwOut hroTmp hroC hlenTmp (by decide)
     hlenOut (by decide) (by decide) hovOut hdTmp hdC (by decide)
-  rw [show (GuestAddrs.secf_sub_mod_p + 92 : Word) =
-      (GuestAddrs.secf_sub_mod_p + 88 : Word) + 4 from by decide] at hcallee
+  rw [show (secfSubModPPc + 92 : Word) =
+      (secfSubModPPc + 88 : Word) + 4 from by decide] at hcallee
   have hcall := callWithin_spec (cr := secfSubModPCr)
     (P := (((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_c_be : Word)) **
@@ -670,14 +671,14 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
         (U256SubBeSAsm.u256SubBeBytes tmpBytes secp256k1CBytes outOrig) **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
       bytesRegion (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes)
-    (GuestAddrs.secf_sub_mod_p + 88 : Word) (GuestAddrs.u256_sub_be : Word) ret
-    (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 88))
+    (secfSubModPPc + 88 : Word) (GuestAddrs.u256_sub_be : Word) ret
+    (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 88))
     (u256SubSteps (GuestAddrs.secf_tmp0 : Word)
       (GuestAddrs.secp256k1_c_be : Word) outPtr tmpBytes secp256k1CBytes outOrig)
     (by decide) (by unfold secfSubModPCr secfReduceOnceCr; code_mem) (by pcf)
     hcallee
-  rw [show (GuestAddrs.secf_sub_mod_p + 88 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 92 : Word) from by decide] at hcall
+  rw [show (secfSubModPPc + 88 : Word) + 4 =
+      (secfSubModPPc + 92 : Word) from by decide] at hcall
   have hcallF := cpsTripleWithin_frameR
     (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr)) (by pcf) hcall
@@ -685,16 +686,16 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
     hsetupF hcallF
   have hjal := liftCode (cr' := secfSubModPCr)
     (jal_x0_spec_gen_within (16 : BitVec 21)
-      (GuestAddrs.secf_sub_mod_p + 92 : Word))
+      (secfSubModPPc + 92 : Word))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 92 : Word) + signExtend21 (16 : BitVec 21) =
-      (GuestAddrs.secf_sub_mod_p + 108 : Word) from by
+  rw [show (secfSubModPPc + 92 : Word) + signExtend21 (16 : BitVec 21) =
+      (secfSubModPPc + 108 : Word) from by
         rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]
         decide] at hjal
   have hjalF := cpsTripleWithin_frameR
     (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
-      ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
       ((.x10 : Reg) ↦ᵣ U256SubBeSAsm.u256SubBeBorrow
         tmpBytes secp256k1CBytes outOrig) ** regOwns retScratch **
       bytesRegion outPtr
@@ -706,14 +707,14 @@ private theorem borrowArm_spec (outPtr ret borrow : Word)
   have hli := liftCode (cr' := secfSubModPCr)
     (li_spec_gen_within .x10
       (U256SubBeSAsm.u256SubBeBorrow tmpBytes secp256k1CBytes outOrig) (0 : Word)
-      (GuestAddrs.secf_sub_mod_p + 108 : Word) (by decide))
+      (secfSubModPPc + 108 : Word) (by decide))
     (by unfold secfSubModPCr secfReduceOnceCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 108 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) from by decide] at hli
+  rw [show (secfSubModPPc + 108 : Word) + 4 =
+      (secfSubModPPc + 112 : Word) from by decide] at hli
   have hliF := cpsTripleWithin_frameR
     (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
-      ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
       regOwns retScratch ** bytesRegion outPtr
         (U256SubBeSAsm.u256SubBeBytes tmpBytes secp256k1CBytes outOrig) **
       bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
@@ -754,7 +755,7 @@ private theorem copyArm_to_join (aPtr bPtr outPtr borrow : Word)
         globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 108 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 108 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
         regOwns copyScratch **
         bytesRegion (GuestAddrs.secf_tmp0 : Word)
@@ -764,7 +765,7 @@ private theorem copyArm_to_join (aPtr bPtr outPtr borrow : Word)
   intro h hp
   unfold subJoinPost secfSubModPBytes
   simp only [← h_eq, if_pos h_borrow]
-  have hp0 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 108 : Word)) **
+  have hp0 : ((((.x1 : Reg) ↦ᵣ (secfSubModPPc + 108 : Word)) **
         ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ bPtr) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
@@ -779,7 +780,7 @@ private theorem copyArm_to_join (aPtr bPtr outPtr borrow : Word)
       Assertion) h := by
     xperm_hyp hp
   have hp1 := sepConj_mono_left
-    (regIs_to_regOwn .x1 (GuestAddrs.secf_sub_mod_p + 108 : Word)) h hp0
+    (regIs_to_regOwn .x1 (secfSubModPPc + 108 : Word)) h hp0
   have hp1' : (regOwn .x1 ** (((.x11 : Reg) ↦ᵣ outPtr) **
       ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ bPtr) **
       ((.x18 : Reg) ↦ᵣ outPtr) **
@@ -807,7 +808,7 @@ private theorem borrowArm_to_join (aPtr bPtr outPtr borrow : Word)
         bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
-        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
         bytesRegion (GuestAddrs.secf_tmp0 : Word)
           (U256SubBeSAsm.u256SubBeBytes aBytes bBytes tmpOrig) **
@@ -819,7 +820,7 @@ private theorem borrowArm_to_join (aPtr bPtr outPtr borrow : Word)
   intro h hp
   unfold subJoinPost secfSubModPBytes
   simp only [← h_eq, if_neg h_borrow]
-  have hp0 : ((((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_sub_mod_p + 92 : Word)) **
+  have hp0 : ((((.x1 : Reg) ↦ᵣ (secfSubModPPc + 92 : Word)) **
         ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ bPtr) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
@@ -834,7 +835,7 @@ private theorem borrowArm_to_join (aPtr bPtr outPtr borrow : Word)
           secp256k1CBytes outOrig)) : Assertion) h := by
     xperm_hyp hp
   have hp1 := sepConj_mono_left
-    (regIs_to_regOwn .x1 (GuestAddrs.secf_sub_mod_p + 92 : Word)) h hp0
+    (regIs_to_regOwn .x1 (secfSubModPPc + 92 : Word)) h hp0
   xperm_hyp hp1
 
 private theorem branchTail_spec (aPtr bPtr outPtr ret old20 : Word)
@@ -854,8 +855,8 @@ private theorem branchTail_spec (aPtr bPtr outPtr ret old20 : Word)
     cpsTripleWithin
       (2 + (13 + (4 + (1 + u256SubSteps (GuestAddrs.secf_tmp0 : Word)
         (GuestAddrs.secp256k1_c_be : Word) outPtr tmp secp256k1CBytes outOrig) + 2)))
-      (GuestAddrs.secf_sub_mod_p + 64 : Word)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+      (secfSubModPPc + 64 : Word)
+      (secfSubModPPc + 112 : Word) secfSubModPCr
       (((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ bPtr) **
         ((.x18 : Reg) ↦ᵣ outPtr) **
         ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
@@ -882,8 +883,8 @@ private theorem branchTail_spec (aPtr bPtr outPtr ret old20 : Word)
   have hjoin : cpsTripleWithin
       (2 + (13 + (4 + (1 + u256SubSteps (GuestAddrs.secf_tmp0 : Word)
         (GuestAddrs.secp256k1_c_be : Word) outPtr tmp secp256k1CBytes outOrig) + 2)))
-      (GuestAddrs.secf_sub_mod_p + 64 : Word)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+      (secfSubModPPc + 64 : Word)
+      (secfSubModPPc + 112 : Word) secfSubModPCr
       (((.x20 : Reg) ↦ᵣ old20) ** ((.x10 : Reg) ↦ᵣ borrow) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx)
       (subJoinPost aPtr bPtr outPtr borrow aBytes bBytes outOrig tmpOrig) := by
@@ -901,8 +902,8 @@ private theorem branchTail_spec (aPtr bPtr outPtr ret old20 : Word)
           bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes **
           globalConst (GuestAddrs.secp256k1_c_be : Word) secp256k1CBytes)
         (by pcf) hc0
-      have hcJ : cpsTripleWithin 13 (GuestAddrs.secf_sub_mod_p + 96 : Word)
-          (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+      have hcJ : cpsTripleWithin 13 (secfSubModPPc + 96 : Word)
+          (secfSubModPPc + 112 : Word) secfSubModPCr
           (((.x20 : Reg) ↦ᵣ borrow) ** ((.x10 : Reg) ↦ᵣ borrow) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx)
           (subJoinPost aPtr bPtr outPtr borrow aBytes bBytes outOrig tmpOrig) := by
@@ -924,8 +925,8 @@ private theorem branchTail_spec (aPtr bPtr outPtr ret old20 : Word)
       have hsJ : cpsTripleWithin
           (4 + (1 + u256SubSteps (GuestAddrs.secf_tmp0 : Word)
             (GuestAddrs.secp256k1_c_be : Word) outPtr tmp secp256k1CBytes outOrig) + 2)
-          (GuestAddrs.secf_sub_mod_p + 72 : Word)
-          (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+          (secfSubModPPc + 72 : Word)
+          (secfSubModPPc + 112 : Word) secfSubModPCr
           (((.x20 : Reg) ↦ᵣ borrow) ** ((.x10 : Reg) ↦ᵣ borrow) **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx)
           (subJoinPost aPtr bPtr outPtr borrow aBytes bBytes outOrig tmpOrig) := by
@@ -987,8 +988,8 @@ private theorem secfSubModPBody_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : W
         (GuestAddrs.secp256k1_c_be : Word) outPtr
         (U256SubBeSAsm.u256SubBeBytes aBytes bBytes tmpOrig)
         secp256k1CBytes outOrig) + 2))))
-      (GuestAddrs.secf_sub_mod_p + 28 : Word)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) secfSubModPCr
+      (secfSubModPPc + 28 : Word)
+      (secfSubModPPc + 112 : Word) secfSubModPCr
       (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
         ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
         ((.x20 : Reg) ↦ᵣ v20) ** ((.x1 : Reg) ↦ᵣ ret) **
@@ -1000,7 +1001,7 @@ private theorem secfSubModPBody_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 v20 : W
     aBytes bBytes outOrig tmpOrig hrwTmp hroA hroB hlenA hlenB hlenTmp
     hovA hovB hdATmp hdBTmp
   have htail := branchTail_spec aPtr bPtr outPtr
-    (GuestAddrs.secf_sub_mod_p + 64 : Word) v20 aBytes bBytes outOrig tmpOrig
+    (secfSubModPPc + 64 : Word) v20 aBytes bBytes outOrig tmpOrig
     hrwOut hroTmp hroC hlenTmp' hlenOut hovOut hdTmpOut hdCOut
   have hc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hfirst htail
@@ -1012,7 +1013,7 @@ private theorem secfSubModPRestore_spec (sp0 ret aPtr bPtr outPtr s0 s1 s2 s3 s4
     (aBytes bBytes outOrig tmpOrig : List (BitVec 8))
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin (secfSubModPFrame.length + 1 + 1)
-      (GuestAddrs.secf_sub_mod_p + 112 : Word) ret secfSubModPCr
+      (secfSubModPPc + 112 : Word) ret secfSubModPCr
       (((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
         frameSlotsSaved secfSubModPFrame (sp0 + signExtend12 (-48 : BitVec 12))
           (secfSubModPVals ret s0 s1 s2 s3 s4) **
@@ -1054,31 +1055,31 @@ private theorem secfSubModPRestore_spec (sp0 ret aPtr bPtr outPtr s0 s1 s2 s3 s4
     (secfSubModPVals ret s0 s1 s2 s3 s4)
     (secfSubModPVals v1 aPtr bPtr outPtr (GuestAddrs.secf_tmp0 : Word)
       (U256SubBeSAsm.u256SubBeBorrow aBytes bBytes tmpOrig))
-    (GuestAddrs.secf_sub_mod_p + 112 : Word) (by decide) (by decide)
+    (secfSubModPPc + 112 : Word) (by decide) (by decide)
   have hload := liftCode (cr' := secfSubModPCr) hload0
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 112 : Word) +
+  rw [show (secfSubModPPc + 112 : Word) +
       BitVec.ofNat 64 (4 * secfSubModPFrame.length) =
-      (GuestAddrs.secf_sub_mod_p + 136 : Word) from by decide] at hload
+      (secfSubModPPc + 136 : Word) from by decide] at hload
   have hloadF := cpsTripleWithin_frameR
     R
     (by pcf) hload
   have hdealloc0 := addi_spec_gen_same_within .x2 newSp (48 : BitVec 12)
-    (GuestAddrs.secf_sub_mod_p + 136 : Word) (by decide)
+    (secfSubModPPc + 136 : Word) (by decide)
   rw [show newSp + signExtend12 (48 : BitVec 12) = sp0 from by
       rw [hnewSp]; exact sext_frameRestore sp0 (-48 : BitVec 12) (48 : BitVec 12) (by decide)]
     at hdealloc0
   have hdealloc := liftCode (cr' := secfSubModPCr) hdealloc0
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 136 : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 140 : Word) from by decide] at hdealloc
+  rw [show (secfSubModPPc + 136 : Word) + 4 =
+      (secfSubModPPc + 140 : Word) from by decide] at hdealloc
   have hdeallocF := cpsTripleWithin_frameR
     (regsAt secfSubModPFrame (secfSubModPVals ret s0 s1 s2 s3 s4) **
       frameSlotsSaved secfSubModPFrame newSp (secfSubModPVals ret s0 s1 s2 s3 s4) **
       R)
     (by pcf) hdealloc
   have hret0 := EvmAsm.Evm64.ret_spec_within'
-    (GuestAddrs.secf_sub_mod_p + 140 : Word) ret
+    (secfSubModPPc + 140 : Word) ret
   rw [halign] at hret0
   have hret := liftCode (cr' := secfSubModPCr) hret0
     (by unfold secfSubModPCr; code_mem)
@@ -1176,7 +1177,7 @@ theorem secfSubModP_spec
       (1 + secfSubModPFrame.length +
         secfSubModPBodySteps aPtr bPtr outPtr aBytes bBytes outOrig tmpOrig +
         (secfSubModPFrame.length + 1 + 1))
-      (GuestAddrs.secf_sub_mod_p : Word) ret secfSubModPCr
+      (secfSubModPPc : Word) ret secfSubModPCr
       (((.x2 : Reg) ↦ᵣ sp0) **
         regsAt secfSubModPFrame (secfSubModPVals ret s0 s1 s2 s3 s4) **
         frameSlotsOwn secfSubModPFrame (sp0 + signExtend12 (-48 : BitVec 12)) **
@@ -1188,12 +1189,12 @@ theorem secfSubModP_spec
         secfSubModPCallerPost aPtr bPtr outPtr aBytes bBytes outOrig tmpOrig) := by
   set newSp := sp0 + signExtend12 (-48 : BitVec 12) with hnewSp
   have halloc0 := addi_spec_gen_same_within .x2 sp0 (-48 : BitVec 12)
-    (GuestAddrs.secf_sub_mod_p : Word) (by decide)
+    (secfSubModPPc : Word) (by decide)
   rw [← hnewSp] at halloc0
   have halloc := liftCode (cr' := secfSubModPCr) halloc0
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p : Word) + 4 =
-      (GuestAddrs.secf_sub_mod_p + 4 : Word) from by decide] at halloc
+  rw [show (secfSubModPPc : Word) + 4 =
+      (secfSubModPPc + 4 : Word) from by decide] at halloc
   have hallocF := cpsTripleWithin_frameR
     (regsAt secfSubModPFrame (secfSubModPVals ret s0 s1 s2 s3 s4) **
       frameSlotsOwn secfSubModPFrame newSp **
@@ -1201,12 +1202,12 @@ theorem secfSubModP_spec
     (by pcf) halloc
   have hstore0 := storeSeq_spec secfSubModPFrame newSp
     (secfSubModPVals ret s0 s1 s2 s3 s4)
-    (GuestAddrs.secf_sub_mod_p + 4 : Word) (by decide)
+    (secfSubModPPc + 4 : Word) (by decide)
   have hstore := liftCode (cr' := secfSubModPCr) hstore0
     (by unfold secfSubModPCr; code_mem)
-  rw [show (GuestAddrs.secf_sub_mod_p + 4 : Word) +
+  rw [show (secfSubModPPc + 4 : Word) +
       BitVec.ofNat 64 (4 * secfSubModPFrame.length) =
-      (GuestAddrs.secf_sub_mod_p + 28 : Word) from by decide] at hstore
+      (secfSubModPPc + 28 : Word) from by decide] at hstore
   have hstoreF := cpsTripleWithin_frameR
     (secfSubModPCallerPre aPtr bPtr outPtr aBytes bBytes outOrig tmpOrig)
     (by pcf) hstore
