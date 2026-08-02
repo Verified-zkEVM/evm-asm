@@ -144,6 +144,58 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     records the *measured* live extent where the emitted guest actually
     references the anchor, which may be smaller than the reserved slab. -/
 
+/-! ## Bounded storage structures: caps, failure modes, derivations, lifetimes
+
+    GH #11187 / #11189. Recorded here because these facts were being carried in
+    issue comments and messages, and because a stale rationale in this file cost a
+    correct finding an hour: the undo-journal note below used to claim it "needs no
+    overflow path".
+
+    | structure | cap | enforced at | AT THE CAP |
+    |---|---|---|---|
+    | persistent exec log | 16,384 rows | `h_SSTORE` (`li x14, 16384; bgeu x15, x14, .exit_outofgas`) | ⭐ **FAILS CLOSED** — rejects |
+    | storage-write undo journal | 32,768 entries | `storage_writes_undo_push` (`bgeu t1, t2, .Lswup_done`) | ⛔ **FAILS OPEN** — skips the push, does not bump the count |
+
+    ⭐ **THAT ASYMMETRY IS THE SINGLE MOST IMPORTANT FACT ABOUT THESE TWO BUFFERS.**
+    Only the journal can be exceeded silently, and past its cap
+    `write_sets_restore_frame` leaves a reverted write applied.
+
+    **LIFETIMES — both per-transaction, but established by different mechanisms**,
+    which is why one figure is block-derived and the other is not:
+    * exec-log count is **re-initialised from the staged payload**, not zeroed —
+      `sd t1, 448(...)` in `runtime_dispatcher_call`, from the payload's `slot_count`,
+      validated against 16,384. ⚠️ An absence test for `sd zero` MISSES this; a reset
+      by assignment is still a reset.
+    * journal count is **zeroed** by `write_sets_incorporate_tx` and
+      `write_sets_discard_tx` — both the commit and the discard path.
+
+    ⛔ **THE SIZING TRAP, which cost two analyses on 2026-08-02:**
+    **`bound = min(gas-derived count, hard cap enforced upstream)`. Where a
+    fail-closed cap exists, THE CAP IS THE BOUND** — a gas divisor alone
+    systematically over-reserves. `BlockVerdictParams.lean:248-268` already records
+    this, rejecting a former gas-derived 600,000-row reservation as *unreachable*
+    because the 100-gas divisor ignored the 16,384-row fail-closed source cap.
+
+    ⚠️ **And the converse trap, which is how the journal note went wrong:** a
+    capacity cap bounds OCCUPANCY, not FLOW. `destroy_storage` decrements
+    `tx_storage_writes_count`, so freed rows are refilled and the journal's inflow
+    is not bounded by the map's size. **Do not bound a flow with a capacity.**
+
+    ⛔ **OVER-RESERVING IS NOT FREE HERE.** The old 76.8 MiB gas-derived reservation
+    was unioned into `call_frame_arena`'s front and **physically zeroed** by per-tx
+    dispatch frames at depth ≥ 221 before the BAL validators read it — the `4ch8f.73`
+    clobber, whose un-unioning this file documents at the `bv_system_storage_log`
+    standalone-placement section below. ⇒ an unreachable gas bound is not merely
+    wasteful; it has already produced one real defect.
+
+    ⚠️ **OPEN, NOT SETTLED — do not read this section as complete.** Whether a
+    *legitimate* 200M-gas block can EXCEED either cap is unresolved: the log cap is
+    fail-closed so exceeding it is sound but false-rejects, while the journal cap is
+    fail-open so exceeding it is a state divergence. Journal side is known to be
+    reachable (fixture `00192` hits 32,768 exactly); the log side's realistic peak is
+    still being quantified.
+-/
+
 /-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
     the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
