@@ -21,10 +21,11 @@
   `TransactionState(parent=block_env.state)` and incorporates at `:858`, regular
   transactions incorporate at `:1204`, and withdrawals (`wd_state`) at `:1226`.
 
-  The guest's split into `bv_system_storage_log` (38 refs, plus a six-symbol
-  capture family) and `bv_user_storage_log` (16 refs) therefore mirrors nothing —
-  **two arenas where the spec has one map is itself the shape defect**,
-  independently of any lifetime question. These two areas replace both.
+  The guest keeps `bv_user_storage_log` for the current transaction and
+  `STORAGE_WRITES_AREA` for the cumulative block map. The persistent
+  `bv_system_storage_log` remains a provenance/capture log for system-effect
+  validators; it is not a third state map. This separates the two spec
+  lifetimes without making the provenance log pretend to be `BlockState`.
 
   Note that unifying the *container* must not unify the *timing*: the spec still
   applies system writes at block boundaries and user writes inside transactions.
@@ -69,12 +70,12 @@
   dropped write is not FA-safe: it leaves a BAL change with no exec-log support,
   which reads downstream as a genuine mismatch rather than as a capacity event.
 
-  ## Not yet consulted
+  ## Readers
 
-  Nothing reads these containers in this slice. The recorder and the promotion
-  boundary are written and linked, but every existing comparator still reads the
-  exec-log arenas, so this slice cannot change any verdict. Wiring the
-  comparators over is S3 (forward) and S4 (reverse).
+  `storagePrestateResolveAsm` and the block-verdict dispatch preload now scan
+  this canonical map through `storage_writes_block_latest_value`. The BAL
+  serializer consumes the same map through `bal_emit_storage_changes`; no
+  separately populated committed-storage cache is retained.
 
   ## Rollback (r59nm S5a)
 
@@ -140,9 +141,9 @@ def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
     no per-slot work today), it is captured at write time into the row's spare 32
     bytes at +96, because the EVM ALREADY HAS IT: `original_value` under EIP-2200
     and EIP-3529 is the transaction-start value, and the SSTORE path resolves it via
-    `bv_mtx_committed_chunked_latest_value` against the committed log with a
-    prestate-header fallback — which is `_get_pre_tx_storage` by another name. The
-    committed log is snapshotted only at the per-transaction commit boundary, never
+    `storage_writes_block_latest_value` against the canonical block map with a
+    prestate-header fallback — which is `_get_pre_tx_storage` by another name.
+    The block map is updated only at the per-transaction commit boundary, never
     inside a transaction, so the value is transaction-scoped rather than
     frame-scoped: a slot written in a reverted inner frame and again at top level
     sees the same baseline both times.

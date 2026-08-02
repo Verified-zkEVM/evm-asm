@@ -53,7 +53,7 @@ Summary table (details per section):
 | `mptNodeIs` (MptAssertions) | `SpecRef.MutableNode` / `trieLookup` | **sketched** (`αnode`; kind/path/projection lemmas proven) |
 | `accountRlpIs` / `accountDecodedIs` (AccountAssertions) | `SpecRef.Account` (+ `storageRoot`) | **proven** (`decode_account_from_leaf_accountRlp`, `bytesBEtoNat_beBytes32`) |
 | `evmMemoryIs` (StateAssertions) | Tier 2: `EvmState.memory/memSize`; SpecRef: none | **sketched** (`αmem`; read side proven vs MLOAD via `evmMemoryReadWord`) |
-| `storageSlotIs`/`storageLogIs`/`committedStorageIs` (StorageAssertions) | Tier 2: `WorldState.storage` (map); SpecRef: none | **sketched** (`αlog` = last-write-wins replay — the log-vs-map crux, §7) |
+| `storageSlotIs`/`storageLogIs` (StorageAssertions) plus the Codegen `storage_writes` map | Tier 2: `WorldState.storage` (map); SpecRef: none | **sketched** (`αlog` = last-write-wins replay; canonical block rows carry the flat key/value map, §7) |
 | `callFrameIs`/phase model (Codegen/CallFrame*) | none (implementation scaffolding below the refinement) | n/a (§8) |
 | `evmStackIs` (Stack.lean, pre-existing) | `EvmState.stack : List EvmWord` | **in use** (already consumed by `evmStateIs` and every opcode triple) |
 
@@ -306,7 +306,7 @@ divergence (bead `.71` cluster) has to be resolved first; (c) endianness is
 already internalized (`dwordAt` little-endian cells vs big-endian EVM words —
 `evmMemoryReadWord` does the flip, proven).
 
-## 7. `storageLogIs` / `committedStorageIs` → (Tier 2) `WorldState.storage` — **the log-vs-map crux**
+## 7. `storageLogIs` / canonical `storage_writes` map → (Tier 2) `WorldState.storage` — **the log-vs-map crux**
 
 **Counterpart.** **SpecRef has no storage state** (below the seam). The
 map-shaped abstract layers that exist: `EL.WorldState.storage : Address →
@@ -346,12 +346,11 @@ Correspondence statements this induces (all sketches):
    correspond to `σ` (the base map), giving the invariant
    `e.original = (mapOf σ (entriesBefore e)) (e.addrHash, e.slotKey)`-style
    coherence; needed only by the gas refinement, keep it out of the core α.
-5. **`committedStorageIs`** (the `bv_mtx_committed*` table): same entry
-   shape re-keyed by tx recipient; its abstract meaning is the *sequence of
-   per-tx post-maps* (`mapOf` snapshots at tx boundaries) used to preload the
-   next tx — correspondence: "snapshot at tx end = `mapOf` of that tx's
-   final log", which is `exec_log_latest_value`'s contract
-   (`CommittedStorageLookup` chain). Bead `.42` owns the routine specs.
+5. **Canonical `storage_writes`** (`STORAGE_WRITES_AREA`): the cumulative
+   `BlockState.storageWrites` map, with one flat row per `(recipient, slot)`.
+   `write_sets_incorporate_tx` populates it and
+   `storage_writes_block_latest_value` supplies current-value preload reads;
+   it is not a separately maintained per-transaction snapshot table.
 
 **Who performs the replay in the guest**: nobody materializes the map — the
 scan-from-end lookups (`exec_log_latest_value`, the SLOAD handler, the
@@ -462,8 +461,8 @@ REVERT's `take`, §7(3)); `evmMemoryIs`'s reserved-capacity tail.
 Tier-2 α's are written to survive either, but `guestStateCorresponds`'s
 final types wait on it. (2) The preload `addrHash = 0` key normalization
 (§7a): confirm the dispatcher's seeding convention before fixing the α's
-embed. (3) Whether `committedStorageIs`'s chunked variant (512-entry pages)
-needs its own assertion parameters or is a pure re-basing of the flat one.
+embed. (3) Whether the canonical `storage_writes` rows should gain a
+dedicated assertion wrapper or remain covered by the Codegen map contract.
 (4) The inlined-child MPT extension (§4b) — needed for tries with < 32-byte
 subtrees; frequency in real witnesses unknown.
 
