@@ -65,10 +65,12 @@
 
   ## Overflow is recorded, never silently dropped
 
-  On a full arena the recorder sets `tx_storage_writes_overflow` instead of
-  discarding the write, mirroring `storage_read_record`'s posture. A silently
-  dropped write is not FA-safe: it leaves a BAL change with no exec-log support,
-  which reads downstream as a genuine mismatch rather than as a capacity event.
+  On a full arena the recorder sets `tx_storage_writes_overflow` and fails closed
+  instead of discarding the write, mirroring `storage_read_record`'s posture. A
+  silently dropped write is not FA-safe: it leaves a BAL change with no exec-log
+  support, which reads downstream as a genuine mismatch rather than as a capacity
+  event. The undo helper also latches the block-level overflow flag so callers that
+  do not consume its result still reject before the truncated map can be published.
 
   ## Readers
 
@@ -86,8 +88,11 @@
   **Forcing constraint:** no dynamic allocation, so the spec's per-frame copy of
   a keyed map would cost capacity × call depth (16384 × 1024), four orders of
   magnitude beyond what can be reserved. The journal is bounded by the number of
-  writes instead, and needs no overflow path of its own because the SSTORE
-  handler already exits on the 16385th exec-log append.
+  writes instead. The journal's live-row map cap is 16384, but that is not a
+  bound on pushes: a slot can be written, reverted, and rewritten while the
+  live map count stays flat. A valid quadratic-complexity fixture reached the
+  32768-entry journal cap, so the push itself must fail closed rather than
+  silently skip the rollback record.
 
   This is the *reasoned-to-be-the-same* form rather than the *looking-the-same*
   form, which is why the constraint is named rather than assumed.
@@ -172,7 +177,7 @@ def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
     to leave the verified `evm_sstore` Program untouched. -/
 def storageWriteRecordFunction : String :=
   "storage_write_record:\n" ++
-  "  addi sp, sp, -96\n" ++
+  "  addi sp, sp, -112\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   -- r59nm S5a: no longer a leaf (it journals before mutating), so ra must
@@ -180,9 +185,10 @@ def storageWriteRecordFunction : String :=
   -- handler across this call, so they are saved too and the
   -- clobbers-nothing-visible contract in the docstring still holds.
   "  sd ra, 56(sp); sd a3, 64(sp); sd a4, 72(sp); sd a5, 80(sp)\n" ++
-  -- a6 (the baseline ptr) must survive storage_writes_undo_push; slot 88 of the
-  -- existing 96-byte frame was already spare, so no frame growth.
-  "  sd a6, 88(sp)\n" ++
+  -- a6 (the baseline ptr) and a0 (the source row ptr) must survive
+  -- storage_writes_undo_push; the status return uses a0, so keep both in this
+  -- 112-byte caller frame.
+  "  sd a6, 88(sp); sd a0, 96(sp)\n" ++
   "  la t0, tx_storage_writes_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t3, 0xa21a0000\n" ++                                     -- t3 = TX_STORAGE_WRITES_AREA
   "  li t4, 0\n" ++                                              -- t4 = i
@@ -203,6 +209,8 @@ def storageWriteRecordFunction : String :=
   -- undo{entryIndex = t4, wasAbsent = 0, prevValue = entry[64..96]}.
   "  mv a3, t4; li a4, 0; addi a5, t5, 64\n" ++
   "  jal ra, storage_writes_undo_push\n" ++
+  "  bnez a0, .Lswr_overflow\n" ++
+  "  ld a0, 96(sp)\n" ++
   "  j .Lswr_store\n" ++                                         -- then overwrite in place
   ".Lswr_next:\n" ++
   "  addi t4, t4, 1; j .Lswr_scan\n" ++
@@ -215,6 +223,8 @@ def storageWriteRecordFunction : String :=
   -- invent a written-zero slot where the spec has no key at all.
   "  mv a3, t1; li a4, 1; li a5, 0\n" ++
   "  jal ra, storage_writes_undo_push\n" ++
+  "  bnez a0, .Lswr_overflow\n" ++
+  "  ld a0, 96(sp)\n" ++
   "  slli t5, t1, 7; add t5, t3, t5\n" ++                        -- t5 = &entry[count]
   "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
   "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
@@ -244,13 +254,13 @@ def storageWriteRecordFunction : String :=
   "  ld t2, 24(a2); sd t2, 88(t5)\n" ++
   "  j .Lswr_done\n" ++
   ".Lswr_overflow:\n" ++
-  "  la t0, tx_storage_writes_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_storage_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, storage_writes_overflow; sd t1, 0(t0)\n" ++
   ".Lswr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
   "  ld ra, 56(sp); ld a3, 64(sp); ld a4, 72(sp); ld a5, 80(sp)\n" ++
-  "  ld a6, 88(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
+  "  ld a6, 88(sp); ld a0, 96(sp)\n" ++
+  "  addi sp, sp, 112\n" ++
   "  ret\n"
 
 /-! ## `write_sets_incorporate_tx`
@@ -320,6 +330,7 @@ def writeSetsIncorporateTxFunction : String :=
 #guard (storageWriteRecordFunction.splitOn "sd t2, 96(t5)").length == 2
 #guard (storageWriteRecordFunction.splitOn ".Lswr_base_zero").length == 3
 #guard (storageWriteRecordFunction.splitOn "beqz a6, .Lswr_base_zero").length == 2
+#guard (storageWriteRecordFunction.splitOn "bnez a0, .Lswr_overflow").length == 3
 #guard
   (storageWriteRecordFunction.splitOn ".Lswr_base_done:").head!.length
     < (storageWriteRecordFunction.splitOn ".Lswr_store:").head!.length
@@ -409,9 +420,9 @@ def storageWritesBlockUpsertFunction : String :=
 
     Preserves `t0`-`t6` so the caller's scan state survives the call.
 
-    No overflow path, and that is a derived fact rather than an omission: the
-    SSTORE handler exits on the 16385th exec-log append, so a transaction cannot
-    perform more writes than this arena holds. -/
+    The capacity is intentionally bounded. If the journal is full, return
+    `a0 = 1` and latch `storage_writes_overflow`; callers must reject rather than
+    mutate without a rollback record. Success returns `a0 = 0`. -/
 def storageWritesUndoPushFunction : String :=
   "storage_writes_undo_push:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -419,7 +430,7 @@ def storageWritesUndoPushFunction : String :=
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, " ++ toString storageWritesUndoCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswup_done\n" ++          -- unreachable under W+D ≤ 2W derivation
+  "  bgeu t1, t2, .Lswup_fail\n" ++          -- bounded journal: fail closed at the push
   "  li t3, 0xa23a0000\n" ++                 -- STORAGE_WRITES_UNDO_AREA
   "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
   "  sd a3, 0(t4)\n" ++
@@ -439,7 +450,12 @@ def storageWritesUndoPushFunction : String :=
   "  ld t5, 16(a5); sd t5, 48(t4)\n" ++
   "  ld t5, 24(a5); sd t5, 56(t4)\n" ++
   ".Lswup_bump:\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  addi t1, t1, 1; sd t1, 0(t0); li a0, 0; j .Lswup_done\n" ++
+  ".Lswup_fail:\n" ++
+  -- The block latch covers destroy_storage and any future producer that does
+  -- not inspect the return value; the transaction latch is consumed at the
+  -- current-tx boundary. No journal bytes are written on this path.
+  "  li a0, 1; la t3, tx_storage_writes_overflow; sd a0, 0(t3); la t3, storage_writes_overflow; sd a0, 0(t3)\n" ++
   ".Lswup_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
   "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
@@ -477,7 +493,7 @@ def writeSetsRestoreFrameFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++   -- t1 = cursor
-  "  li t3, 0xa23a0000\n" ++                                -- undo area
+  "  li t3, 0xa23a0000\n" ++                                -- STORAGE_WRITES_UNDO_AREA
   "  li t6, 0xa21a0000\n" ++                                -- tx map area
   ".Lswrf_loop:\n" ++
   "  bleu t1, a0, .Lswrf_done\n" ++                         -- cursor <= mark -> finished
@@ -502,8 +518,8 @@ def writeSetsRestoreFrameFunction : String :=
   "  j .Lswrf_loop\n" ++
   ".Lswrf_reappend:\n" ++
   -- Inverse of destroy_storage drop: memcpy journaled 128 B row to map[count],
-  -- then count++. Full-row journal (not bare count++) so a later append that
-  -- reused the parked tail slot cannot corrupt the restored row (#10645 review).
+  -- then count++. Full-row journal (not bare count++) prevents a later append
+  -- that reused the parked tail slot from corrupting fail-restore.
   "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
   "  slli t0, t5, 7; add t0, t6, t0\n" ++                   -- dest = &map[count]
   "  sd t0, 56(sp)\n" ++
@@ -560,6 +576,11 @@ def destroyStorageFunction : String :=
   "  ld t0, 8(s3);  ld t1, 8(a0);  bne t0, t1, .Lds_next\n" ++
   "  ld t0, 16(s3); ld t1, 16(a0); bne t0, t1, .Lds_next\n" ++
   "  ld t0, 24(s3); ld t1, 24(a0); bne t0, t1, .Lds_next\n" ++
+  -- Reject before the read-set append, swap, or map-count mutation when the
+  -- shared undo journal has no slot. The helper's guard is still authoritative,
+  -- but this earlier check keeps every destroy side effect behind the capacity
+  -- decision, including the non-tail swap.
+  "  la t0, storage_writes_undo_count; ld t1, 0(t0); li t2, " ++ toString storageWritesUndoCapacity ++ "; bgeu t1, t2, .Lds_overflow\n" ++
   "  ld a0, 48(sp); addi a1, s3, 32; jal ra, storage_read_record\n" ++
   "  addi s4, s0, -1\n" ++
   "  beq s2, s4, .Lds_drop\n" ++
@@ -572,10 +593,13 @@ def destroyStorageFunction : String :=
   -- Journal full row at tail (destroyed content after swap), then drop count.
   "  slli t0, s4, 7; add a5, s1, t0\n" ++
   "  mv a3, s4; li a4, 2; jal ra, storage_writes_undo_push\n" ++
+  "  bnez a0, .Lds_overflow\n" ++
   "  mv s0, s4; la t0, tx_storage_writes_count; sd s0, 0(t0)\n" ++
   "  j .Lds_loop\n" ++
   ".Lds_next:\n" ++
   "  addi s2, s2, 1; j .Lds_loop\n" ++
+  ".Lds_overflow:\n" ++
+  "  li t1, 1; la t0, tx_storage_writes_overflow; sd t1, 0(t0); la t0, storage_writes_overflow; sd t1, 0(t0); j .Lds_done\n" ++
   ".Lds_done:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  ld a0, 48(sp); ld t0, 56(sp); ld t1, 64(sp); ld t2, 72(sp); ld t3, 80(sp); ld t4, 88(sp); ld t5, 96(sp); ld t6, 104(sp)\n" ++
@@ -584,6 +608,8 @@ def destroyStorageFunction : String :=
 #guard (destroyStorageFunction.splitOn "destroy_storage:").length == 2
 #guard (destroyStorageFunction.splitOn "jal ra, storage_read_record").length == 2
 #guard (destroyStorageFunction.splitOn "li a4, 2").length == 2
+#guard (storageWritesUndoPushFunction.splitOn ".Lswup_fail:").length == 2
+#guard (storageWritesUndoPushFunction.splitOn "bgeu t1, t2, .Lswup_fail").length == 2
 
 /-! ## `write_sets_discard_tx`
 

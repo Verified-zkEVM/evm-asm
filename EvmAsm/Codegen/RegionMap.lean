@@ -215,8 +215,9 @@ def schemeAAnchors : List GuestRegion :=
         ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
     -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
-    -- a per-frame copy would cost capacity x call depth.  Bounded by the SSTORE
-    -- handler's own 16384-row cap, so it needs no overflow path.
+    -- a per-frame copy would cost capacity x call depth.  The bounded journal
+    -- now fails closed at its push when this derived capacity is exhausted;
+    -- it must never silently skip a record and let a reverted write survive.
     { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x500000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 5 MiB = 32768x160 "
         ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
@@ -447,7 +448,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x063c9c
+def textSizeBytes : Nat := 0x063d1c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
