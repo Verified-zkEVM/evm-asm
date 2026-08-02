@@ -283,11 +283,11 @@ def baapApplyBlockStorageMapFunction : String :=
   ".Lbaap_map_scan:\n" ++
   "  bgeu s6, s5, .Lbaap_map_apply\n" ++
   "  li t0, 0xa1fa0000; slli t1, s6, 7; add s8, t0, t1\n" ++
-  "  li t0, 20; mv t1, s8; addi t2, s2, 19\n" ++
+  "  li t0, 32; mv t1, s8; la t2, baap_address\n" ++
   ".Lbaap_map_addr_cmp:\n" ++
   "  beqz t0, .Lbaap_map_addr_match\n" ++
   "  lbu t3, 0(t1); lbu t4, 0(t2); bne t3, t4, .Lbaap_map_next\n" ++
-  "  addi t1, t1, 1; addi t2, t2, -1; addi t0, t0, -1; j .Lbaap_map_addr_cmp\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t0, t0, -1; j .Lbaap_map_addr_cmp\n" ++
   ".Lbaap_map_addr_match:\n" ++
   "  addi s7, s7, 1\n" ++
   "  la t0, baap_slot; li t1, 32; addi t2, s8, 63\n" ++
@@ -435,16 +435,16 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a0, .Lbaap_fail\n" ++
   "  la s6, baap_tmp3; la t0, baap_tmp3_len; ld s7, 0(t0)\n" ++
   ".Lbaap_storage_gate:\n" ++
-  "  # Derive the canonical BE20 address from AccountChanges for the flat-map scan.\n" ++
+  "  # Derive the canonical LE32 stack-word address from AccountChanges for the flat-map scan.\n" ++
   "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
   "  bnez a2, .Lbaap_fail\n" ++
   "  mv s8, a0; mv s9, a1; mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lbaap_fail\n" ++
   "  li t0, 20; bne a2, t0, .Lbaap_fail\n" ++
-  "  sub t1, a0, a2; la t2, baap_address; li t3, 20\n" ++
+  "  sub t1, a0, a2; la t2, baap_address; sd zero, 16(t2); sd zero, 24(t2); addi t2, t2, 19; li t3, 20\n" ++
   ".Lbaap_address_copy:\n" ++
   "  beqz t3, .Lbaap_address_ready\n" ++
-  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbaap_address_copy\n" ++
+  "  lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, -1; addi t3, t3, -1; j .Lbaap_address_copy\n" ++
   ".Lbaap_address_ready:\n" ++
   "  mv a0, s6; mv a1, s7; la a2, baap_address; la a3, baap_tmp2; la a4, baap_tmp2_len\n" ++
   "  jal ra, baap_apply_block_storage_map\n" ++
