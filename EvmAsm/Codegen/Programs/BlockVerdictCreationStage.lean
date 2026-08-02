@@ -499,8 +499,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   --
   -- Placed after `dispatcher_capture_body_state`, matching `process_message`'s
   -- snapshot-then-transfer order (`:380` then `:384`), so a failing body discards the record.
-  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-  "  beqz t1, .Lbvcr_endow_done\n" ++
+  -- GH #11164: the lookup runs for EVERY top-level creation, not only a nonzero-endowment
+  -- one, because its result also feeds the post-body final-state record below.  A NONZERO
+  -- endowment makes `post != pre`, so the recorded pre value cannot change whether a
+  -- `balance_changes` row is emitted; the spurious-row case needs `pre == post`, i.e. a
+  -- ZERO endowment -- exactly the case the old gate skipped.  So the endowment test now
+  -- guards only the transfer staging, and has moved below the lookup.
   "  la t0, create_prebalance_acct; li t1, 128\n" ++
   ".Lbvcr_endow_zero:\n" ++
   "  sb x0, 0(t0); addi t0, t0, 1; addi t1, t1, -1; bnez t1, .Lbvcr_endow_zero\n" ++
@@ -513,6 +517,19 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  li t0, 1; beq t6, t0, .Lbvcr_endow_pre_ready\n" ++
   "  li t0, 1; la t1, create_prebalance_lookup_status; sd t0, 0(t1); j .Lbvcr_endow_done\n" ++
   ".Lbvcr_endow_pre_ready:\n" ++
+  -- GH #11164: capture the AUTHENTICATED pre-balance (32B BE at `create_prebalance_acct+8`)
+  -- into a dedicated buffer NOW, before the dispatcher runs.  `create_prebalance_acct` is
+  -- also written by `call_frame_descend` and `create_frame_descend`, both reachable from
+  -- `runtime_dispatcher_call` below, so any CALL/CREATE the constructor performs clobbers it
+  -- before the post-body final-state record can read it -- a writer between the store and
+  -- the read.  `bvcr_created_pre_bal` has no writer inside the dispatcher.
+  "  la t0, create_prebalance_acct; addi t0, t0, 8; la t1, bvcr_created_pre_bal; li t2, 32\n" ++
+  ".Lbvcr_pre_bal_cp:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_pre_bal_cp\n" ++
+  -- The endowment staging stays gated: a zero endowment means there is no transfer to
+  -- record, and the spec gates `move_ether`/`emit_transfer_log` together.
+  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
+  "  beqz t1, .Lbvcr_endow_done\n" ++
   -- The context record holds the endowment as 32B BE at +96 (the EIP-7708 staging above
   -- reverses it DOWNWARD from +127 into the log's LE stack word, which fixes the direction).
   -- The recorder takes pointers to BE buffers, so copy it forward, unreversed.
@@ -662,7 +679,12 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- nonce 1; use the same lookup as the ordinary top-level creation deposit.
   "  la a0, bv_create_addr\n  jal ra, create_creator_nonce_current\n  mv a4, a0\n" ++
   "  la a0, bv_create_addr\n" ++
-  "  la a1, nse_zero_bal\n" ++
+  -- GH #11164: the AUTHENTICATED pre-balance, captured before the dispatcher ran.  A
+  -- hardcoded `nse_zero_bal` is wrong here for the reason this file already states above
+  -- (":485"): a deployable pre-existing account may hold ether, and `balance_changes`
+  -- stores only the POST value, so `pre` is used solely for the net-equal filter -- a
+  -- hardcoded zero can therefore only emit a row the spec does not (never suppress one).
+  "  la a1, bvcr_created_pre_bal\n" ++
   "  la a2, nse_create_post_bal\n" ++
   "  li a3, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
