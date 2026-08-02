@@ -34,9 +34,18 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- Probe-only entry PC for `bal_gas_valid` (#11172). Unlinked from
+    `stateless_guest`; concrete `jalOff` immediates in `balGasValid_prog` use this
+    placeholder. Emitting uses `balGasValid_relocs` (symbolic). Do NOT invent a
+    guest-linked offset — drift is covered by `balGasValidFunction_eq_prog`. -/
+def balGasValidPc : Nat := 0x80000000
+
 /-! ## bal_gas_valid
     a0 = BAL RLP ptr   a1 = BAL RLP length   a2 = block_gas_limit
-    a0 (output) = 0 (valid) / 1 (gas-limit exceeded) / 2 (parse error). -/
+    a0 (output) = 0 (valid) / 1 (gas-limit exceeded) / 2 (parse error).
+
+    #11172: unlinked from guest (superseded by `bal_gas_valid_from_builder`).
+    Kept for `zisk_bal_gas_valid` probe + verified Program. -/
 def balGasValid_prog : Program :=
   [ .ADDI .x2 .x2 (-112 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -57,14 +66,14 @@ def balGasValid_prog : Program :=
     .MV .x18 .x12,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 76)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balGasValidPc + 76)),
     .BNE .x12 .x0 (280 : BitVec 13),
     .MV .x19 .x10,
     .MV .x21 .x11,
     .LI .x20 (0 : Word),
     .MV .x10 .x19,
     .MV .x11 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 104)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 104)),
     .LI .x5 (2 : Word),
     .BEQ .x11 .x5 (220 : BitVec 13),
     .BNE .x11 .x0 (244 : BitVec 13),
@@ -74,27 +83,27 @@ def balGasValid_prog : Program :=
     .ADDI .x20 .x20 (1 : BitVec 12),
     .MV .x10 .x22,
     .MV .x11 .x23,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 144)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balGasValidPc + 144)),
     .BNE .x12 .x0 (212 : BitVec 13),
     .MV .x24 .x10,
     .MV .x25 .x11,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 160)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 160)),
     .BNE .x11 .x0 (196 : BitVec 13),
     .MV .x24 .x10,
     .MV .x10 .x24,
     .MV .x11 .x25,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 180)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 180)),
     .BNE .x11 .x0 (176 : BitVec 13),
     .MV .x24 .x10,
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 200)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balGasValidPc + 200)),
     .BNE .x12 .x0 (156 : BitVec 13),
     .MV .x26 .x10,
     .MV .x27 .x11,
     .MV .x10 .x26,
     .MV .x11 .x27,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 224)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 224)),
     .LI .x5 (2 : Word),
     .BEQ .x11 .x5 (20 : BitVec 13),
     .BNE .x11 .x0 (124 : BitVec 13),
@@ -103,18 +112,18 @@ def balGasValid_prog : Program :=
     .JAL .x0 (-32 : BitVec 21),
     .MV .x10 .x24,
     .MV .x11 .x25,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 260)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 260)),
     .BNE .x11 .x0 (96 : BitVec 13),
     .MV .x24 .x10,
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_gas_valid + 280)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balGasValidPc + 280)),
     .BNE .x12 .x0 (76 : BitVec 13),
     .MV .x26 .x10,
     .MV .x27 .x11,
     .MV .x10 .x26,
     .MV .x11 .x27,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_gas_valid + 304)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balGasValidPc + 304)),
     .LI .x5 (2 : Word),
     .BEQ .x11 .x5 (-216 : BitVec 13),
     .BNE .x11 .x0 (44 : BitVec 13),
@@ -195,7 +204,7 @@ theorem balGasValidFunction_eq_prog :
     a0 (out) = 0 valid / 1 exceeded
 
     PRE: `bal_serializer_rebuild_hash` returned 0 (builder incorporated + sorted).
-    The RLP walker `bal_gas_valid` remains for probes and declared-byte diagnostics. -/
+    #11172: RLP walker `bal_gas_valid` is probe-only (unlinked from guest). -/
 def balGasValidFromBuilderFunction : String :=
   "bal_gas_valid_from_builder:\n" ++
   -- Frame 96 B: saves 0..56 + BE20 scratch at 64..83 (must not overflow into caller).

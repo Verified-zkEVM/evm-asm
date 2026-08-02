@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.EvmAccessGas
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.EIP7708Logs
@@ -3633,7 +3634,9 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "callee_seed_table:\n" ++
-  "  .zero 12288\n" ++   -- up to 128 entries × 96 B
+  "  .zero " ++ toString calleeSeedTableBytes ++ "\n" ++
+  -- #11157: size = calleeSeedTableCap × calleeSeedEntryBytes (BlockVerdictParams).
+  -- Do not hardcode 12288; the seed loop's table-full guard derives from the same cap.
   -- bmvmx.1.6.3 refund accumulation (claude-c1's lane per c2 split). evm_refund_acc is
   -- the running per-tx EIP-3529 refund counter (signed i64): the SSTORE handler adds each
   -- SSTORE's refund delta (from sstore_gas_refund_outcome) on append; reset to 0 at
