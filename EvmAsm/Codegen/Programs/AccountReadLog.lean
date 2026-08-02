@@ -86,6 +86,7 @@ def accountReadRecordFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
+  "  la t0, runtime_tx_account_read_suppress; ld t1, 0(t0); bnez t1, .Larr_done\n" ++
   "  la t0, tx_account_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Larr_overflow\n" ++

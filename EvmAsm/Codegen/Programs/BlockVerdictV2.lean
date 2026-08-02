@@ -544,8 +544,6 @@ def statelessVerdictV2GuestClosure : String :=
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
   execLogLatestValueFunction ++ "\n" ++   -- fhsxz.2.4.2.57.11.6.3.2: cross-tx storage threading lookup
-  committedStorageSnapshotUpsertFunction ++ "\n" ++
-  committedStorageLatestValueFunction ++ "\n" ++
   committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
   committedStorageChunkedLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++

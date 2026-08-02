@@ -879,7 +879,14 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi a2, s2, 72\n" ++                       -- recipient addr (ctx+72)
   "  li a3, 20; mv a4, s0; mv a5, s1\n" ++       -- addr len + witness state ptr/len
   "  la a6, csce_bal_struct\n" ++
-  "  jal ra, account_at_header_state_root_tracked\n" ++
+  -- Resolve the recipient before the shared dispatcher so SELFBALANCE and
+  -- value staging have their pre-state value.  Do not record this lookup yet:
+  -- the dispatcher runs EIP-7702 authorization first, and an authorization
+  -- phase OOG returns before `prepare_message` touches the top-level target
+  -- (execution-specs state_tracker.py:139,199; block_access_lists.py:695-697).
+  -- The account read is therefore published after dispatch only when the
+  -- message preparation actually proceeds.
+  "  jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Ldtrc_selfbal_base_zero\n" ++       -- lookup miss/error -> start from zero
   "  la t0, bv_runtime_payload\n" ++
   "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++                -- 3vc2p.5: env_base from stage_runtime_payload_code
@@ -914,7 +921,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_selfbal_addr_copy\n" ++
   ".Ldtrc_selfbal_addr_done:\n" ++
   "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
+  "  la t0, runtime_tx_account_read_suppress; li t1, 1; sd t1, 0(t0)\n" ++
   "  jal ra, account_state_latest_balance\n" ++
+  "  la t0, runtime_tx_account_read_suppress; sd zero, 0(t0)\n" ++
   "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
   "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
   "  la t3, bv_pending_recipient_pre; addi t3, t3, 31; mv t4, t2; li t5, 32\n" ++
@@ -1061,6 +1070,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_dispatch_returned:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
+  -- `prepare_message` unconditionally records its target after the
+  -- authorization phase.  On authorization-phase OOG it never reaches that
+  -- point, so omit only this pre-dispatch raw lookup; all ordinary message
+  -- outcomes (including body OOG/revert) retain the target touch.
+  "  la t4, runtime_tx_auth_phase_halted; ld t5, 0(t4); bnez t5, .Ldtrc_recipient_read_done\n" ++
+  "  addi a0, s2, 72; jal ra, account_read_record\n" ++
+  ".Ldtrc_recipient_read_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, bv_mtx_recipient_lookup_deferred; ld t5, 0(t4); beqz t5, .Ldtrc_deferred_lookup_done\n" ++
   "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 2; beq t5, t6, .Ldtrc_deferred_lookup_unresolvable\n" ++

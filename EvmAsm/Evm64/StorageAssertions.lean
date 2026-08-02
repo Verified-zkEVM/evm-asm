@@ -46,11 +46,12 @@
 
   The cross-transaction committed-storage table
   (`Codegen/Programs/CommittedStorageSnapshot.lean` /
-  `CommittedStorageLookup.lean`, params in `BlockVerdictParams.lean:105`)
+  `CommittedStorageLookup.lean`, params in `BlockVerdictParams.lean`)
   uses the **same 128-byte entry shape** (with `addrHash` holding the
-  zero-padded 20-byte tx recipient instead of the frame address), so its
+  zero-padded 20-byte account address instead of the frame address), so its
   assertion is the same log predicate at a different base/capacity
-  (`bvMtxCommittedEntryBytes = 128`, chunk capacity 512).
+  (`bvMtxCommittedEntryBytes = 128`, with capacity derived from the block gas
+  bound).
 
   Like the account routines, the storage handlers are inline-asm codegen
   programs with no functional `cpsTripleWithin` specs yet; this module
