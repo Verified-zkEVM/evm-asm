@@ -337,39 +337,53 @@ def eip7708SyntheticLogFunctions : String :=
   "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
   "  sd x20, 128(sp)\n" ++
   -- The sender gas debit was materialised before the mark.  A top-level CREATE
-  -- must consume that same authenticated sender-post together with the
-  -- authenticated target pre-balance; this branch is deliberately before the
-  -- ordinary CALL sender-pointer test so CREATE does not fall through to a
-  -- null `runtime_tx_auth_sender_ptr`.
-  "  la t0, system_call_mode; ld t0, 0(t0); li t1, 2; bne t0, t1, .Ldpub_call\n" ++
-  "  la t0, create_prebalance_lookup_status; ld t0, 0(t0); bnez t0, .Ldpub_done\n" ++
-  recordMessageValueTransferCoreAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
-    "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
-    (recipientPreAdjust := "addi a5, a5, 8") ++
-  "  j .Ldpub_done\n" ++
-  ".Ldpub_call:\n" ++
-  -- Do not use recipient_credit_flag as a gate: it was a non-self log/credit
-  -- staging flag, while `move_ether` also executes for self-transfers.
-  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
-  -- A successful lookup supplies the current post-gas sender balance required
-  -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
-  -- skip rather than falling through to the reused scratch cell.
-  "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; beqz a0, .Ldpub_done\n" ++
-  -- The runtime CALLVALUE word is an EVM stack word (LE limbs), while the
-  -- generic producer calls `u256_sub_be`; reverse it at this ABI boundary.
-  "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 127\n" ++
-  "  la t1, bv_pending_value_be; li t2, 32\n" ++
-  ".Ldpub_value_be:\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldpub_value_be\n" ++
-  "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0)\n" ++
-  "  la a1, bv_pending_recipient_addr\n" ++
-  "  la a2, bv_pending_value_be\n" ++
-  "  li a3, 1\n" ++
-  "  la a4, bv_pending_value_sender_pre\n" ++
-  "  la a5, bv_pending_recipient_pre\n" ++
-  "  jal ra, record_message_value_transfer\n" ++
-  "  la t0, bv_pending_recipient_credit_flag; sd x0, 0(t0)\n" ++
-  ".Ldpub_done:\n" ++
+   -- must consume that same authenticated sender-post together with the
+   -- authenticated target pre-balance; this branch is deliberately before the
+   -- ordinary CALL sender-pointer test so CREATE does not fall through to a
+   -- null `runtime_tx_auth_sender_ptr`.
+   --
+   -- system_call_mode:
+   --   0 = user message (CALL path below)
+   --   1 = deferred system predeploy (`stage_system_call` → runtime_dispatcher_call)
+   --   2 = top-level CREATE endowment path
+   -- Mode 1 MUST NOT take the CALL path: it still holds the user-tx
+   -- `runtime_tx_auth_sender_ptr` + `bv_pending_recipient_*`, while
+   -- `srpc_env_base` has been retargeted for the system out-buffer.  Reading
+   -- `bv_runtime_payload + srpc_env_base + 127` then reverse-copies a neighbouring
+   -- field (measured: sender gas-debit quantity 485029388215221) as CALLVALUE and
+   -- invents a late factory credit → bv_fail=44 (#11148 / #11115).
+   "  la t0, system_call_mode; ld t0, 0(t0); li t1, 2; beq t0, t1, .Ldpub_create\n" ++
+   "  bnez t0, .Ldpub_done\n" ++
+   ".Ldpub_call:\n" ++
+   -- Do not use recipient_credit_flag as a gate: it was a non-self log/credit
+   -- staging flag, while `move_ether` also executes for self-transfers.
+   "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0); beqz a0, .Ldpub_done\n" ++
+   -- A successful lookup supplies the current post-gas sender balance required
+   -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
+   -- skip rather than falling through to the reused scratch cell.
+   "  la a1, bv_pending_value_sender_pre; jal ra, account_state_latest_balance; beqz a0, .Ldpub_done\n" ++
+   -- The runtime CALLVALUE word is an EVM stack word (LE limbs), while the
+   -- generic producer calls `u256_sub_be`; reverse it at this ABI boundary.
+   "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 127\n" ++
+   "  la t1, bv_pending_value_be; li t2, 32\n" ++
+   ".Ldpub_value_be:\n" ++
+   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Ldpub_value_be\n" ++
+   "  la t0, runtime_tx_auth_sender_ptr; ld a0, 0(t0)\n" ++
+   "  la a1, bv_pending_recipient_addr\n" ++
+   "  la a2, bv_pending_value_be\n" ++
+   "  li a3, 1\n" ++
+   "  la a4, bv_pending_value_sender_pre\n" ++
+   "  la a5, bv_pending_recipient_pre\n" ++
+   "  jal ra, record_message_value_transfer\n" ++
+   "  la t0, bv_pending_recipient_credit_flag; sd x0, 0(t0)\n" ++
+   "  j .Ldpub_done\n" ++
+   ".Ldpub_create:\n" ++
+   "  la t0, create_prebalance_lookup_status; ld t0, 0(t0); bnez t0, .Ldpub_done\n" ++
+   recordMessageValueTransferCoreAsm "bmvmx_sender_addr" "bv_create_addr" "bvcr_endow_val_be"
+     "li a3, 1" "bv_pending_upfront_sender_post" "create_prebalance_acct"
+     (recipientPreAdjust := "addi a5, a5, 8") ++
+   ".Ldpub_done:\n" ++
+
   "  ld ra, 0(sp)\n" ++
   "  ld t0, 8(sp); ld t1, 16(sp); ld t2, 24(sp); ld t3, 32(sp); ld t4, 40(sp); ld t5, 48(sp); ld t6, 56(sp)\n" ++
   "  ld a0, 64(sp); ld a1, 72(sp); ld a2, 80(sp); ld a3, 88(sp); ld a4, 96(sp); ld a5, 104(sp); ld a6, 112(sp); ld a7, 120(sp)\n" ++
