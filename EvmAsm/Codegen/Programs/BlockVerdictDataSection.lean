@@ -385,13 +385,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 0 success, 1 receipts-root helper failure, 2 receipts-root mismatch,
   -- 3 logs-bloom helper failure, 4 logs-bloom mismatch.
   "bv_receipts_validator_status:\n  .zero 8\n" ++
-  -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch (these labels were
-  -- probe-only in ziskReceiptRecordsEncodeNoLogsDataSection before the tx-bearing un-gate linked
-  -- the encoder into the guest). re_payload_buf / rle_payload_buf are the per-receipt
-  -- and list payload scratch; rle_empty_logs/rle_zero_bloom are the no-log receipt constants.
+  -- .63.1.6.2.3: receipt_encode + receipt_records_encode_no_logs scratch.
+  -- Live materialize uses brr_control/brr_records below. Old rle_control/rle_records
+  -- twin was never referenced from production (migration leftover; probe
+  -- ReceiptList.lean keeps local rle_*). KEEP encoder scratch below.
   ".balign 8\n" ++
-  "rle_control:\n  .zero 24\n" ++
-  "rle_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
   "rle_field_len:\n  .zero 8\n" ++
   "rle_prefix_len:\n  .zero 8\n" ++
   "re_field_len:\n  .zero 8\n" ++
@@ -445,6 +443,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "llba_offset:\n  .zero 8\n" ++
   "llba_length:\n  .zero 8\n" ++
   "llba_count:\n  .zero 8\n" ++
+  -- KEEP-list brr_*: live receipt materialize (block_receipt_records_materialize).
   "brr_control:\n  .zero 24\n" ++
   ".balign 8\n" ++
   "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes ++ "\n" ++
@@ -455,7 +454,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvwri_computed_root:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "itr_empty_witness:\n  .zero 8\n" ++
-  "itr_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16) ++ "\n" ++
+  -- itr_value_descs was probe-only; production uses external descs + itr_paths/changes.
+  -- Probe MptIndexedTrieRoot.lean keeps a local itr_value_descs.
   "itr_paths:\n  .zero " ++ toString (itrIndexedEntryCapacity * 8) ++ "\n" ++
   "itr_changes:\n  .zero " ++ toString (itrIndexedEntryCapacity * 40) ++ "\n" ++
   "itr_sort_ranges:\n  .zero " ++ toString (itrIndexedSortRangeStackCapacity * 32) ++ "\n" ++
@@ -589,11 +589,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- xbi56.1: exact net EIP-8037 tx_state_gas = intrinsic + executed - refund,
   -- with transaction error rules applied. Populated after runtime gas results.
   "bvgr_tx_total_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
-  -- xbi56.2: EIP-8037 state-refund input to the net state-gas materializer.
-  -- Current block-verdict runtime paths do not yet expose nonzero state refunds;
-  -- this zero-initialized array keeps the exact block gas check honest for rows
-  -- with no state refund and leaves refund plumbing as explicit follow-up debt.
-  "bvgr_tx_state_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- xbi56.2: EIP-8037 state-refund input was never wired from production text
+  -- (full bvMtxU64ArenaBytes twin of bvgr_tx_state_gas was orphaned). KEEP other
+  -- bvgr_*: block_gas_increments, tx_state_gas, tx_exec_state_gas, tx_total_state_gas,
+  -- tx_predelegated_auth_count, receipt_gas_increments, before/applied_refund.
+  -- CreateCollision.lean still names a scalar cell under this label when that
+  -- branch is linked; keep an 8-byte placeholder so the name resolves.
+  "bvgr_tx_state_refund:\n  .zero 8\n" ++
   -- Per-tx count of EIP-7702 authorities whose pre-state code was already a
   -- delegation marker. The inline transaction-boundary helper uses this
   -- accounting context when materializing auth state gas.
@@ -739,6 +741,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- current behavior. Capture those erased rows here with txindex=0 for the
   -- follow-up tuple-merge comparator.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
+  -- Set only around the pre-user descriptor pass: reuse the row conversion
+  -- without emitting a duplicate side-log/BAL event before terminal replay.
+  "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
   -- 4ch8f.73: bv_system_storage_log is a STANDALONE .data region (NOT unioned into
   -- call_frame_arena). The former ~77 MiB union placement was UNSOUND: the audit's

@@ -115,10 +115,13 @@ def captureSystemStorageExecRowsFunction : String :=
       current @96 = minimal BE descriptor value expanded/reversed to 32-byte LE
 
     The same expanded LE32 current field is also passed directly to the BAL
-    storage-event builder at BAI 0.  Keeping the conversion here gives the
-    tuple comparator and future rebuilt BAL one byte-order authority.
+    storage-event builder at BAI 0 and to the block-level storage map consumed
+    by h_SLOAD.  Keeping the conversion here gives the tuple comparator, the
+    execution resolver, and the rebuilt BAL one byte-order authority.  The
+    pre-user MTx setup reuses this row builder in seed-only mode: it populates
+    the map without publishing a duplicate side-log row or BAL event.
 
-    a0 (output) = 0 appended / 2 side arena overflow. -/
+    a0 (output) = 0 appended / 2 side arena or block-map overflow. -/
 def appendModeledSystemStorageTupleRowsFunction : String :=
   "append_modeled_system_storage_tuple_rows:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -167,17 +170,34 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  addi t1, a3, -1; sub t1, t1, t0; add t1, s5, t1; lbu t2, 0(t1); addi t3, s2, 96; add t3, t3, t0; sb t2, 0(t3)\n" ++
   "  addi t0, t0, 1; j .Lamsr_value_rev\n" ++
   ".Lamsr_finish_one:\n" ++
+  "  sd ra, 56(sp)\n" ++
+  "  la t0, bv_system_storage_map_seed_only; ld t0, 0(t0); bnez t0, .Lamsr_seed_map\n" ++
   "  # Reuse current@96: the sole minimal-BE -> LE32 conversion for BAI-0 rows.\n" ++
   "  # a0=addr BE20, a1=0 BAI, a2=slot BE32, a3=current LE32.\n" ++
-  "  # .Lamsr_append_one is a local call: preserve its return PC over the builder JAL.\n" ++
-  "  sd ra, 56(sp); mv a2, a1; mv a0, s4; li a1, 0; addi a3, s2, 96\n" ++
+  "  # .Lamsr_append_one is a local call: preserve its return PC over the builder and map JALs.\n" ++
+  "  mv a2, a1; mv a0, s4; li a1, 0; addi a3, s2, 96\n" ++
   "  jal ra, bal_builder_record_storage_change\n" ++
+  "  # The modeled startup write must be visible to later h_SLOAD resolution.\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96\n" ++
+  "  jal ra, storage_writes_block_upsert\n" ++
+  "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
   "  ld ra, 56(sp)\n" ++
   "  addi s1, s1, 1; sd s1, 0(s0)\n" ++
+  "  j .Lamsr_one_ok\n" ++
+  ".Lamsr_seed_map:\n" ++
+  "  # Pre-user mode publishes only the canonical map row; the terminal call\n" ++
+  "  # remains responsible for the side log and BAI-0 BAL builder event.\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96\n" ++
+  "  jal ra, storage_writes_block_upsert\n" ++
+  "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
+  "  ld ra, 56(sp)\n" ++
+  "  j .Lamsr_one_ok\n" ++
   ".Lamsr_one_ok:\n" ++
   "  li a0, 0; ret\n" ++
   ".Lamsr_one_overflow:\n" ++
   "  li a0, 2; ret\n" ++
+  ".Lamsr_map_overflow:\n" ++
+  "  li a0, 2; j .Lamsr_ret\n" ++
   ".Lamsr_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
@@ -188,6 +208,8 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
 -- EIP-2935 once and EIP-4788 twice (timestamp and parent-root slots).  Dropping
 -- either EIP-4788 invocation would silently omit a distinct BAI-0 BAL row.
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "jal ra, .Lamsr_append_one").length == 4
+#guard (appendModeledSystemStorageTupleRowsFunction.splitOn "jal ra, storage_writes_block_upsert").length == 3
+#guard (appendModeledSystemStorageTupleRowsFunction.splitOn "la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow").length == 3
 #guard (appendModeledSystemStorageTupleRowsFunction.splitOn "la a0, bsr_addr_4788").length == 3
 
 /-! The former post-loop replay helper was retired with the request-phase move.
