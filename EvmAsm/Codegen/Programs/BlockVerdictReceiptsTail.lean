@@ -294,6 +294,16 @@ def blockVerdictReceiptsTail : String :=
   -- slice length beside it; neither value is a verdict input.
   "  la t0, bal_serializer_outer_payload; ld a0, 0(t0); jal ra, bal_rlp_list_header_len; la t0, bal_serializer_outer_payload; ld t1, 0(t0); add a0, a0, t1; la t0, bv_bal_shadow_rebuilt_len; sd a0, 0(t0)\n" ++
   "  la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)\n" ++
+  -- #11120 gas-on-built: after rebuild_hash the builder is incorporated+sorted.
+  -- Count bal_items from builder (shape C); reject ACCEPT paths that exceed.
+  -- Skip when rebuild failed (status 2) — no well-formed built list.
+  "  la t0, bv_bal_shadow_status; ld t0, 0(t0)\n" ++
+  "  li t1, 2; beq t0, t1, .Lbv_shadow_done\n" ++
+  "  la t0, bv_block_gas_limit; ld a0, 0(t0)\n" ++
+  "  jal ra, bal_gas_valid_from_builder\n" ++
+  "  beqz a0, .Lbv_shadow_done\n" ++
+  "  ld t0, 40(sp); li t1, 1; bne t0, t1, .Lbv_shadow_done\n" ++
+  "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); sd zero, 40(sp)\n" ++
   ".Lbv_shadow_done:\n" ++
   "  ld a0, 40(sp)\n" ++
   -- GH #10680: bind the rebuilt-BAL digest into the verdict.  The comparison
