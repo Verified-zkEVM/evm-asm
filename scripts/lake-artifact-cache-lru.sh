@@ -39,25 +39,23 @@
 #   lake-artifact-cache-lru.sh [--cache DIR] [--cap-gb N] [--target-gb N] [--dry-run]
 #     --cache DIR     cache directory (default: $LAKE_CACHE_DIR, else the
 #                     per-toolchain elan cache <toolchain>/lake/cache)
-#     --cap-gb N      high-water: only evict when the cache exceeds this (default 60)
-#     --target-gb N   low-water: evict down to about this (default 40)
+#     --cap-gb N      high-water: only evict when the cache exceeds this (default 120)
+#     --target-gb N   low-water: evict down to about this (default 80)
 #     --dry-run       print what would be removed; delete nothing
 #
-# Intended to run from cron. deps: bash, du, find, sort, awk, rm, elan (only
-# for default-cache discovery when --cache / $LAKE_CACHE_DIR are absent).
+# Intended to run from cron. deps: bash, du, find, sort, awk, rm.
 set -euo pipefail
+
+DEFAULT_CACHE=/home/yoichi-bkp/.cache/lake-artifact-cache
 
 default_cache() {
   if [ -n "${LAKE_CACHE_DIR:-}" ]; then printf '%s\n' "$LAKE_CACHE_DIR"; return; fi
-  local lake; lake=$(command -v lake || true)
-  [ -n "$lake" ] || { echo "cannot locate lake for default cache dir" >&2; return 1; }
-  local tcdir; tcdir=$(dirname "$(dirname "$(readlink -f "$lake")")")
-  printf '%s/lake/cache\n' "$tcdir"
+  printf '%s\n' "$DEFAULT_CACHE"
 }
 
 CACHE="$(default_cache)"
-CAP_GB=60
-TARGET_GB=40
+CAP_GB=120
+TARGET_GB=80
 DRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
