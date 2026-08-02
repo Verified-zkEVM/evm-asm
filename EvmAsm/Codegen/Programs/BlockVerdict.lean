@@ -85,7 +85,35 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /- `zisk_stateless_verdict_v2`: probe. Fed the SAME `-i` input as the guest.
-   Output OUTPUT+0 = verdict bit (system writes + withdrawals modeled). -/
+   Output OUTPUT+0 = verdict bit (system writes + withdrawals modeled).
+
+   ⚠️ THIS IS AN OFFSET-ADDRESSED DEBUG CONTRACT, NOT A PRIVATE SCRATCH BUFFER.
+   `scripts/codegen-eest-stateless-check.sh`'s `format_verdict_debug` decodes it
+   POSITIONALLY, via a bash label array that names each 8-byte word. The stores
+   below are the ONLY ground truth for what each offset holds; the label array is
+   an interpretation of them and can drift. **If you add, remove or reorder a
+   store here, update that array in the same commit** — otherwise every reader
+   silently mis-labels every field after the change.
+
+   Verified 2026-08-02 (GH #11105 follow-up): the label array matches these
+   stores, field for field. Recorded because four agents read this buffer by
+   offset and the mapping had to be re-derived from the emitter to be trusted —
+   a field NAME is not a contract, and a control row only validates the fields
+   that happen to be NON-ZERO in it.
+
+   The map, as emitted below:
+     +0   verdict bit                        +96  bvgr_receipt_gas_increments[1]
+     +8   bv_fail_code                       +104 bvgr_tx_total_state_gas[0]
+     +16  bv_header_status                   +112 bvgr_tx_total_state_gas[1]
+     +24  bv_state_status                    +120 bv_exact_net_status
+     +32  bsr_bal_count                      +128 bv_exact_net_index
+     +40  bsr_fail_code                      +136 bv_exact_block_status
+     +48  bsr_change_count                   +144 bv_exact_header_gas_used
+     +56  bsr_wl_v                           +152 bv_exact_expected_gas_used
+     +64  baacd_fail_code                    +160 brr_records[16]
+     +72  bacv_fail_code                     +168 sv_recomputed  (32 bytes)
+     +80  baap_fail_code                     +200 payload state root (32 bytes)
+     +88  bvgr_receipt_gas_increments[0]     +232 onward: gas-arena status/counts -/
 def ziskStatelessVerdictV2Prologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  jal ra, stateless_verdict_v2\n" ++
@@ -391,8 +419,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
-  committedStorageSnapshotUpsertFunction ++ "\n" ++
-  committedStorageLatestValueFunction ++ "\n" ++
   committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
   committedStorageChunkedLatestValueFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++

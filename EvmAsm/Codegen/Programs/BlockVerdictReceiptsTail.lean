@@ -123,14 +123,17 @@ def blockVerdictReceiptsTail : String :=
   "  j .Lbv_receipts_accept\n" ++
   ".Lbv_receipt_logs_helper_status:\n" ++
   "  j .Lbv_receipts_helper_fail\n" ++
-  ".Lbv_receipts_accept:\n" ++
-  -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
-  -- conservative bail; the single-tx destroyed-empty detector may replace a
-  -- successful result with 62.  Every nonzero route bypasses the single-tx
-  -- all-account storage/tuple comparators, so none may accept based only on a
-  -- matching attacker-chosen receipts root.
-  "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_bal_storage_omit_fail\n" ++
-  "  li a0, 1; j .Lbv_ret\n" ++
+   ".Lbv_receipts_accept:\n" ++
+   -- dispatch_tx_runtime_code produces 0 on complete replay and 1..7 on a
+   -- conservative bail; the single-tx destroyed-empty detector may replace a
+   -- successful result with 62.  Every nonzero route bypasses the single-tx
+   -- all-account storage/tuple comparators, so none may accept based only on a
+   -- matching attacker-chosen receipts root.
+   -- #11119: this is a DISPATCH-status bail, not a storage-omit comparator.
+   -- Formerly jumped to .Lbv_bal_storage_omit_fail (bv_fail=36), which lied
+   -- about the cause.  Omit property stays CONTAINER_DEPENDENT under 37.
+   "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_dispatch_runtime_status_fail\n" ++
+   "  li a0, 1; j .Lbv_ret\n" ++
   ".Lbv_receipts_no_runtime_gas:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  li a1, 0\n" ++
@@ -223,11 +226,13 @@ def blockVerdictReceiptsTail : String :=
   -- #11118: removed dead sinks storage_mismatch(34), recipient_field(35), reads(38).
   -- NOTE: code 35 remains live on .Lbv_block_state_gas_fail above (unrelated).
   -- NOTE: bal_storage_matches_exec_log ROUTINE stays — live callee of allaccounts 37.
-  -- storage_omit(36): still reached from receipts_accept via dispatch_runtime_status
-  -- miswire (#11119 / PR #11131 retarget); reverse property itself lives under 37.
-  -- #11118 does NOT retarget that miswire.
-  ".Lbv_bal_storage_omit_fail:\n" ++       -- currently: nonzero dispatch_runtime_status (name lies; #11119)
+  -- storage_omit(36): sink retained for the named property; currently unreachable
+  -- (#11119 / PR #11131 retargeted dispatch bail to code 64). Real reverse storage
+  -- lives inside allaccounts (37). Standalone 36 waits on container convergence.
+  ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5 named property; unreachable (#11119)
   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
+  "  li t0, 64; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
   "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
