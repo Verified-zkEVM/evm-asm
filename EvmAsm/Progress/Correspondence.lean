@@ -232,13 +232,13 @@ encoded-byte), per-index orders, and the read/write exclusion" },
     verdict := .unproven, basis := .none,
     reference := "the ordering _build_from_builder imposes",
     note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
-cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
-  { family := "bal", routine := "bal_sort_storage_writes",
-    verdict := .unproven, basis := .none,
-    note := "DEAD CODE — nothing calls it; its #guards pin a path nothing runs" },
-  { family := "bal", routine := "bal_sort_account_writes",
-    verdict := .unproven, basis := .none,
-    note := "DEAD CODE — nothing calls it. Descriptor 0x9400 is big-endian" }
+cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" }
+  -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
+  -- they were dead-but-present code. Both routines were deleted from the image
+  -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
+  -- occurrences in the emitted asm, including the `.globl` and label, and zero
+  -- in the ELF symbol table. A registry row for a symbol that does not exist
+  -- misreports the unproven count, so the rows go with the routines.
 ]
 
 /-! ## Counts -/
@@ -249,19 +249,19 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 22 := by decide
+theorem registry_size : registry.length = 20 := by decide
 theorem rlp_rows : countFamily "rlp" = 18 := by decide
-theorem bal_rows : countFamily "bal" = 4 := by decide
+theorem bal_rows : countFamily "bal" = 2 := by decide
 
 theorem verdict_counts :
     countVerdict .agrees = 11 ∧ countVerdict .domainRestricted = 2 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 7 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 5 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 5 ∧
     countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
-    countBasis .none = 7 := by decide
+    countBasis .none = 5 := by decide
 
 /-! ## Invariants
 

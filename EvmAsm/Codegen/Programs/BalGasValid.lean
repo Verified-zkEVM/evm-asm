@@ -173,6 +173,105 @@ theorem balGasValidFunction_eq_prog :
 
 #guard balGasValidFunction.startsWith "bal_gas_valid:\n"
 #guard balGasValid_prog.length = 106
+
+/-! ## `bal_gas_valid_from_builder` (#11120)
+
+    Count `bal_items` from the **built** BAL builder after
+    `bal_serializer_rebuild_hash` (incorporate touched + sorts), then apply the
+    same gas predicate as `bal_gas_valid` / execution-specs
+    `validate_block_access_list_gas_limit`:
+
+      bal_items = Σ_accounts (1 + #unique storage slots)
+      unique slots = distinct slots in storage_changes ∪ surviving storage_reads
+      INVALID iff bal_items * 2000 > block_gas_limit
+
+    Shape C (count from builder), not materialise-then-walk. Rebuild is
+    stream-only into keccak; there is no rebuilt RLP buffer to hand the RLP
+    walker. After sort, change rows are ordered by (addr, slot, bai) so unique
+    change slots are a linear scan; surviving reads reuse
+    `bal_serializer_slot_written` (spec `:544-547` drop when also written).
+
+    a0 = block_gas_limit
+    a0 (out) = 0 valid / 1 exceeded
+
+    PRE: `bal_serializer_rebuild_hash` returned 0 (builder incorporated + sorted).
+    The RLP walker `bal_gas_valid` remains for probes and declared-byte diagnostics. -/
+def balGasValidFromBuilderFunction : String :=
+  "bal_gas_valid_from_builder:\n" ++
+  -- Frame 96 B: saves 0..56 + BE20 scratch at 64..83 (must not overflow into caller).
+  "  addi sp, sp, -96\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0\n" ++                                              -- s0 = gas_limit
+  -- items starts at account_count (one item per address, including empty touches)
+  "  la t0, bal_builder_account_count; ld s1, 0(t0)\n" ++         -- s1 = bal_items
+  -- Unique slots among storage_changes (sorted by addr BE, slot BE, bai LE)
+  "  la t0, bal_builder_storage_change_count; ld s2, 0(t0)\n" ++
+  "  li s3, 0\n" ++                                              -- i
+  "  li s4, 0\n" ++                                              -- prev_valid
+  "  li s6, 0\n" ++                                              -- prev index
+  ".Lbgvfb_ch:\n" ++
+  "  bgeu s3, s2, .Lbgvfb_ch_done\n" ++
+  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add s5, t2, t1\n" ++
+  "  beqz s4, .Lbgvfb_ch_new\n" ++
+  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add t4, t2, t1\n" ++
+  "  li t5, 0\n" ++
+  ".Lbgvfb_ch_acmp:\n" ++
+  "  li t0, 20; beq t5, t0, .Lbgvfb_ch_scmp\n" ++
+  "  add t0, s5, t5; add t1, t4, t5\n" ++
+  "  lbu t2, 0(t0); lbu t3, 0(t1); bne t2, t3, .Lbgvfb_ch_new\n" ++
+  "  addi t5, t5, 1; j .Lbgvfb_ch_acmp\n" ++
+  ".Lbgvfb_ch_scmp:\n" ++
+  "  li t5, 0\n" ++
+  ".Lbgvfb_ch_scmp_loop:\n" ++
+  "  li t0, 32; beq t5, t0, .Lbgvfb_ch_next\n" ++
+  "  addi t0, s5, 32; add t0, t0, t5\n" ++
+  "  addi t1, t4, 32; add t1, t1, t5\n" ++
+  "  lbu t2, 0(t0); lbu t3, 0(t1); bne t2, t3, .Lbgvfb_ch_new\n" ++
+  "  addi t5, t5, 1; j .Lbgvfb_ch_scmp_loop\n" ++
+  ".Lbgvfb_ch_new:\n" ++
+  "  addi s1, s1, 1\n" ++
+  "  mv s6, s3\n" ++
+  "  li s4, 1\n" ++
+  ".Lbgvfb_ch_next:\n" ++
+  "  addi s3, s3, 1; j .Lbgvfb_ch\n" ++
+  ".Lbgvfb_ch_done:\n" ++
+  -- Surviving storage_reads: count reads whose (addr,slot) is not also written
+  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++
+  "  li s3, 0\n" ++
+  ".Lbgvfb_rd:\n" ++
+  "  bgeu s3, s2, .Lbgvfb_test\n" ++
+  "  slli t0, s3, 6; li t1, 0xa1ba0000; add s5, t1, t0\n" ++
+  -- reverse LE stack-word low 20 bytes → BE20 scratch at sp+64 (fits in 96 B frame)
+  "  li t5, 0\n" ++
+  ".Lbgvfb_rd_rev:\n" ++
+  "  li t0, 20; beq t5, t0, .Lbgvfb_rd_chk\n" ++
+  "  li t0, 19; sub t0, t0, t5; add t0, s5, t0; lbu t1, 0(t0)\n" ++
+  "  addi t0, sp, 64; add t0, t0, t5; sb t1, 0(t0)\n" ++
+  "  addi t5, t5, 1; j .Lbgvfb_rd_rev\n" ++
+  ".Lbgvfb_rd_chk:\n" ++
+  "  addi a0, s5, 32\n" ++
+  "  addi a1, sp, 64\n" ++
+  "  jal ra, bal_serializer_slot_written\n" ++
+  "  bnez a0, .Lbgvfb_rd_next\n" ++
+  "  addi s1, s1, 1\n" ++
+  ".Lbgvfb_rd_next:\n" ++
+  "  addi s3, s3, 1; j .Lbgvfb_rd\n" ++
+  ".Lbgvfb_test:\n" ++
+  -- bal_items * 2000 > gas_limit  ⟺  gas_limit < bal_items * 2000
+  "  li t0, 2000\n" ++
+  "  mul t1, s1, t0\n" ++
+  "  bltu s0, t1, .Lbgvfb_exceed\n" ++
+  "  li a0, 0; j .Lbgvfb_ret\n" ++
+  ".Lbgvfb_exceed:\n" ++
+  "  li a0, 1\n" ++
+  ".Lbgvfb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
+  "  addi sp, sp, 96\n" ++
+  "  ret\n"
+
+#guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
 def bgvU32le_prog : Program :=
   [ .LBU .x5 .x10 (0 : BitVec 12),
@@ -354,6 +453,7 @@ def ziskBalGasValidPrologue : String :=
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balGasValidFromBuilderFunction ++ "\n" ++
   ".Lbgv_pdone:"
 
 def ziskBalGasValidDataSection : String :=

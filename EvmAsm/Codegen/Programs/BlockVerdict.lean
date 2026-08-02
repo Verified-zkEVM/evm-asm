@@ -11,6 +11,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageWrite
+import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
@@ -53,7 +54,6 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
-import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
@@ -178,8 +178,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 448(t0)\n" ++
   "  la t1, bv_dispatch_runtime_status; ld t2, 0(t1); sd t2, 456(t0)\n" ++
   "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
-  "  la t1, bv_mtx_committed_chunk_overflow; ld t2, 0(t1); sd t2, 472(t0)\n" ++
-  "  la t1, bv_mtx_committed_chunk_count; ld t2, 0(t1); sd t2, 480(t0)\n" ++
   "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
   "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 496(t0)\n" ++
   "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 504(t0)\n" ++
@@ -226,8 +224,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 832(t0)\n" ++
   "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 840(t0)\n" ++
   "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
-  "  li t2, " ++ toString bvMtxCommittedChunkCapacity ++ "; sd t2, 856(t0)\n" ++
-  "  li t2, " ++ toString bvMtxCommittedChunkBytes ++ "; sd t2, 864(t0)\n" ++
+  "  li t2, " ++ toString storageWritesCapacity ++ "; sd t2, 856(t0)\n" ++
+  "  la t1, storage_writes_count; ld t2, 0(t1); sd t2, 864(t0)\n" ++
   "  li t2, 0; sd t2, 872(t0)  # retired nonce-seen debug counter\n" ++
   "  li t2, 16; sd t2, 880(t0)\n" ++
   "  la t1, bv_tx_count; ld t2, 0(t1); sd t2, 888(t0)\n" ++
@@ -419,8 +417,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockValidateReceiptsRootIndexedFunction ++ "\n" ++
   headerExtractLogsBloomFunction ++ "\n" ++
   bloomEqFunction ++ "\n" ++
-  committedStorageChunkedSnapshotUpsertFunction ++ "\n" ++
-  committedStorageChunkedLatestValueFunction ++ "\n" ++
+  storageWritesBlockLatestValueFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
   blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
@@ -430,6 +427,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++

@@ -28,8 +28,9 @@
   ## Semantics
 
   **SLOAD (0x54)** — scan persistent log from end (last-write-
-  wins); copy matching `current` to the stack-top slot; default
-  zero on miss. Net stack delta = 0.
+  wins); on a miss resolve the authenticated value by key and append
+  a read seed, then let the same scan copy `current` to the stack-top
+  slot. Net stack delta = 0.
 
   **SSTORE (0x55)** — scan from end; append a new entry preserving
   the prior `original` on match (or 0 on miss). **Always appends**
@@ -219,9 +220,8 @@ def sstoreValueTransitionGasAsm : String :=
     frame's `(env.ADDRESS, stack key)`, setting `x18 = &found.original`
     (`entry+64`) or leaving it `0` on a miss.
 
-    Extracted verbatim from `h_SSTORE`'s inline scan. ⚠️ It currently has ONE
-    consumer: a second was intended for `h_SLOAD`'s cold-miss path (GH #10874) and
-    is not landed.
+    Extracted verbatim from `h_SSTORE`'s inline scan so `h_SLOAD` determines
+    "absent from the log" the SAME way rather than by a second implementation.
 
     ⛔ The reason recorded here used to be *"that path is unreachable while the BAL
     preload stages every slot a block reads"*. THAT IS REFUTED. `h_SSTORE`'s
@@ -289,9 +289,10 @@ def storagePersistentLogFindAsm : String :=
     The tiers, and why the order is load-bearing:
 
     1. the per-tx persistent log — already decided by the caller's scan;
-    2. `bv_mtx_committed_chunked_latest_value`, which is execution-specs'
-       `BlockState.storage_writes`: a prior successful transaction's committed
-       value is the next transaction's `original` AND `current` alike;
+    2. `storage_writes_block_latest_value`, which reads the canonical
+       execution-specs `BlockState.storage_writes` map: a prior successful
+       transaction's committed value is the next transaction's `original` AND
+       `current` alike;
     3. `slot_at_header_state_root` against the PARENT header — the witness,
        read BY KEY on demand, matching `WitnessState.get_storage`;
     4. otherwise zero (an absent account or slot is implicitly zero).
@@ -379,14 +380,14 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_key_rev\n" ++
   -- Tier 2: the block-committed map (execution-specs' BlockState.storage_writes).
   "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
-  "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
+  "  la x14, storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
   "  mv a0, x20; la a1, " ++ out ++ "; addi a1, a1, 32\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  li a2, 0xa1fa0000; li a4, 16384; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
   -- ⚠️ Pre-existing and deliberately PRESERVED: this leaves for `.exit_outofgas`
   -- with `sp` still 40 bytes low. Harmless because that exit terminates the
   -- frame, and kept verbatim so the extraction is byte-identical at the SSTORE
   -- site rather than "behaviour-neutral as far as I can tell".
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  jal ra, storage_writes_block_latest_value\n" ++
   "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
   "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
   ".L" ++ p ++ "_committed_done:\n" ++
@@ -474,7 +475,83 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  li x15, 2\n" ++
         "  beq x14, x15, .exit_outofgas\n" ++
         "  li x15, 3\n" ++
-        "  beq x14, x15, .exit_outofgas\n"
+        "  beq x14, x15, .exit_outofgas\n" ++
+        -- GH #10874: demand-driven cold read.  A persistent-log miss is not
+        -- permission to return a guessed zero: execution-specs' get_storage
+        -- resolves the slot by key and records the read independently of any
+        -- BAL preload.  Keep the verified SLOAD scan body unchanged; resolve
+        -- and append the seed here, then the body restarts at its normal scan
+        -- entry and consumes the row.
+        --
+        -- The guard is deliberately BEFORE the resolver.  The resolver is a
+        -- no-op on a scan hit and leaves x18 pointing at the existing row's
+        -- original field; testing x18 afterwards would append a duplicate row
+        -- for every hit.
+        storagePersistentLogFindAsm ++
+        "  bnez x18, .Lsload_seed_done\n" ++
+        -- The resolver contains jal instructions.  Preserve the SLOAD caller
+        -- state around it; x20 is the live env/s4 base and the shared resolver
+        -- preserves callee-saved registers, while the explicit a0/a2/ra saves
+        -- protect the dispatcher operands.  x11 is also retained for the
+        -- handler ABI even though the verified scan does not consume it.
+        "  addi sp, sp, -8\n" ++
+        "  sd x11, 0(sp)\n" ++
+        storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
+        "  ld x11, 0(sp); addi sp, sp, 8\n" ++
+        -- A zero result is still a real read (absent slots read as zero), so
+        -- append a row on every genuine miss.  A full execution log is not an
+        -- optional seed case: the authenticated value must not be silently
+        -- replaced by zero, and skipping the append would violate the log
+        -- contract consumed by the BAL validators.  Reject at the capacity
+        -- boundary, matching the account/slot-cap callers' fail-closed path.
+        "  ld x15, 448(x20)\n" ++
+        "  li x14, 16384\n" ++
+        "  bgeu x15, x14, .exit_outofgas\n" ++
+        "  li x14, 0xa0630000\n" ++
+        "  slli x16, x15, 7\n" ++
+        "  add x14, x14, x16\n" ++
+        -- addrHash = current frame env.ADDRESS [x20+0..32].
+        "  ld x16, 0(x20); sd x16, 0(x14)\n" ++
+        "  ld x16, 8(x20); sd x16, 8(x14)\n" ++
+        "  ld x16, 16(x20); sd x16, 16(x14)\n" ++
+        "  ld x16, 24(x20); sd x16, 24(x14)\n" ++
+        -- slotKey = stack [x12+0..32].
+        "  ld x16, 0(x12); sd x16, 32(x14)\n" ++
+        "  ld x16, 8(x12); sd x16, 40(x14)\n" ++
+        "  ld x16, 16(x12); sd x16, 48(x14)\n" ++
+        "  ld x16, 24(x12); sd x16, 56(x14)\n" ++
+        -- A resolved pair is {original,current}; a read seed is a no-op, so
+        -- both row values are the resolved current value.  If the authenticated
+        -- lookup reports an absent slot, x18 remains zero and both halves stay
+        -- zero while the read row is still present in the execution log.
+        "  beqz x18, .Lsload_seed_zero\n" ++
+        "  ld x16, 32(x18); sd x16, 64(x14); sd x16, 96(x14)\n" ++
+        "  ld x16, 40(x18); sd x16, 72(x14); sd x16, 104(x14)\n" ++
+        "  ld x16, 48(x18); sd x16, 80(x14); sd x16, 112(x14)\n" ++
+        "  ld x16, 56(x18); sd x16, 88(x14); sd x16, 120(x14)\n" ++
+        "  j .Lsload_seed_meta\n" ++
+        ".Lsload_seed_zero:\n" ++
+        "  sd x0, 64(x14); sd x0, 72(x14); sd x0, 80(x14); sd x0, 88(x14)\n" ++
+        "  sd x0, 96(x14); sd x0, 104(x14); sd x0, 112(x14); sd x0, 120(x14)\n" ++
+        ".Lsload_seed_meta:\n" ++
+        -- Stamp the block_access_index and mark this row as a seed.  The
+        -- capture pass intentionally skips seeded rows; the transaction/block
+        -- storage_reads set was already updated by storage_read_record above.
+        -- These parallel arrays still carry the provenance consumed by the
+        -- tuple validators, so omitting either makes the row ambiguous.
+        "  la x16, current_block_access_index\n" ++
+        "  ld x17, 0(x16)\n" ++
+        "  la x16, exec_log_txindex\n" ++
+        "  slli x18, x15, 3\n" ++
+        "  add x16, x16, x18\n" ++
+        "  sd x17, 0(x16)\n" ++
+        "  la x16, exec_log_seed_flag\n" ++
+        "  add x16, x16, x15\n" ++
+        "  li x17, 1\n" ++
+        "  sb x17, 0(x16)\n" ++
+        "  addi x15, x15, 1\n" ++
+        "  sd x15, 448(x20)\n" ++
+        ".Lsload_seed_done:\n"
       -- Verified reverse-scan core (byte-identical re-encoding of the former
       -- inline label-based scan on the persistent log; see the `#guard` pin
       -- below). Witnessed at tier `.conditional` by
@@ -783,7 +860,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- constrain the choice: a carried register (`x18`) faulted, a dedicated
         -- global needed the same unreconstructable control flow to prove
         -- non-reentrancy, a recompute turned out to be half a lookup
-        -- (`bv_mtx_committed_chunked_latest_value` answers only on a match, with the
+        -- (`storage_writes_block_latest_value` answers only on a match, with the
         -- prestate-header fallback separate), and reading the exec-log row failed
         -- because the exec-log append and this write-map append are DIFFERENT events.
         --

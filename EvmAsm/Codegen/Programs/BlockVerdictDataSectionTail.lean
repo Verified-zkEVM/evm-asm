@@ -343,11 +343,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- layout has only a narrow fixed headroom, while the map is zero-initialized
   -- and must not bloat the emitted ELF as a 13 MiB PROGBITS payload.
   ".balign 8\n" ++
-  "bv_mtx_committed_chunk_count:\n  .zero 8\n" ++
-  "bv_mtx_committed_chunk_overflow:\n  .zero 8\n" ++
-  ".section .committed_storage, \"aw\", @nobits\n" ++
-  ".balign 32\n" ++
-  "bv_mtx_committed_chunked:\n  .zero " ++ toString bvMtxCommittedChunkBytes ++ "\n" ++
   ".section .bss, \"aw\", @nobits\n" ++
   -- Per-transaction auth-preparation outcome.  A receipt status cannot carry
   -- this bit because body REVERT retains the authorization phase while an

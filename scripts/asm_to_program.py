@@ -1142,9 +1142,6 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
-    # This helper is an intentional hand-composed wrapper around a mechanically
-    # converted core, so its source is not one generated literal block.
-    'committedStorageChunkedSnapshotUpsertFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
@@ -1453,6 +1450,32 @@ def main():
         return
     if args.command=='check-all':
         man=_load_manifest()
+        # Bijection gate: every fixture file must have a MANIFEST row.
+        #
+        # Every other leg of this check walks the MANIFEST, so an ORPHANED
+        # fixture -- a `.s` whose routine was retired while the file survived --
+        # is invisible to all of them. The deletion looks complete from every
+        # angle except this one: the Lean def goes, the manifest row goes, the
+        # symbol leaves the image, and the fixture stays behind ungated, so
+        # nothing would notice it drifting or contradicting the tree.
+        #
+        # Three had accumulated before anyone counted them (GH #11054): the two
+        # bal_sort routines and eip7702NonceReuseGuardFunction, against 386
+        # gated rows. 386 of 389 is a rule with exceptions, and an exception to
+        # a rule nobody states becomes the new rule -- hence a gate rather than
+        # a one-off cleanup.
+        #
+        # Direction matters, and only one direction needs a new check: a
+        # MANIFEST row with no fixture already fails loudly in check_file, while
+        # an orphaned file fails silently.
+        orphans=[f for f in sorted(os.listdir(FIXDIR))
+                 if f.endswith('.s') and f[:-len('.s')] not in man]
+        if orphans:
+            print("DRIFT DETECTED:")
+            for o in orphans:
+                print(f"  scripts/asm-fixtures/{o}: fixture has no MANIFEST.tsv row "
+                      "(routine retired? delete the fixture; still live? re-add its row)")
+            sys.exit(1)
         byfile={}
         for fn,path in man.items(): byfile.setdefault(path,[]).append(fn)
         root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

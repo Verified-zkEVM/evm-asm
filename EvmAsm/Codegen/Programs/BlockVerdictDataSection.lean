@@ -240,6 +240,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Set only after BAL slice decoding/gas validation, the structural precondition
   -- shared by the downstream granular BAL comparators.
   "bv_bal_shadow_ready:\n  .zero 8\n" ++
+  -- Header gas_limit captured at BAL-slice decode for late gas-on-built (#11120).
+  "bv_block_gas_limit:\n  .zero 8\n" ++
   -- Shadow serializer list counters: actual rows emitted, not producer writes.
   "bv_bal_shadow_emit_storage_changes:\n  .zero 8\n" ++
   "bv_bal_shadow_emit_storage_reads:\n  .zero 8\n" ++
