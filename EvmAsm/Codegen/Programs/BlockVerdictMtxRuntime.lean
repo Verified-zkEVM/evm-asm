@@ -300,6 +300,17 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t0, 32; beq t3, t0, .Lbv_mtx_bf_rev_done\n" ++
   "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
   ".Lbv_mtx_bf_rev_done:\n" ++
+  -- execution-specs runs the EIP-4788 and EIP-2935 system transactions before
+  -- the user transaction loop.  Derive the same three descriptors here and
+  -- seed the canonical block map before any h_SLOAD can consult it.  The
+  -- row helper's vlen guards preserve the zero-value/deletion no-op cases;
+  -- its seed-only mode does not publish side-log or BAL rows until the
+  -- terminal state-root replay.
+  "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, -60; jal ra, system_write_descriptors\n" ++
+  "  li t1, 1; la t0, bv_system_storage_map_seed_only; sd t1, 0(t0)\n" ++
+  "  jal ra, append_modeled_system_storage_tuple_rows\n" ++
+  "  mv t2, a0; la t0, bv_system_storage_map_seed_only; sd zero, 0(t0)\n" ++
+  "  bnez t2, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
   -- The dispatcher resets this marker only when it is reached.  Every MTx
@@ -932,9 +943,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   blockVerdictMtxOogMaterialize
 
 -- The N+1 system-request phase is pinned at the post-user-loop boundary.  The
--- sibling occurrence is guarded in `BlockVerdictEoaBodyEffectReconcile`; the two
--- sites are mutually exclusive at run time, so both must exist and neither may
--- be doubled.
+-- universal MTx loop is now the sole live post-user-loop site; the former
+-- single-transaction reconciliation definition was source-only dead and is
+-- removed, so there is no sibling occurrence to duplicate.
 #guard (blockVerdictMtxRuntimeLoop.splitOn
   "  jal ra, block_verdict_deferred_system_requests\n").length == 2
 

@@ -3035,10 +3035,34 @@ def emitRuntimeDispatcherPrologue : String :=
     it appends one 128 B persistent-exec-log entry (addrHash, slotKey, original=value,
     current=value — mirrors `exec_log_append_storage_seed`) and bumps
     env.persistentLogLength (env+448), so a nested callee's SLOAD finds its witness
-    value instead of cold 0. `callee_seed_count` is 0 for every current caller (the
-    top-level guest uses a different prologue; the verdict has not populated the table
-    yet), so this is INERT — depth-0 / recipient behaviour is byte-identical. The
-    enumeration that fills the table is 1.6.4.2.b (dispatch_tx_runtime_code). Uses only
+    value instead of cold 0.
+
+    ⛔ **THIS IS NOT INERT.** This docstring used to claim `callee_seed_count` "is 0 for
+    every current caller … so this is INERT — depth-0 / recipient behaviour is
+    byte-identical". **That was true when the loop was written and is false now**: the
+    enumeration it names as future work — 1.6.4.2.b, `seed_callee_storage` in
+    `dispatch_tx_runtime_code` — has since landed, and it populates the table on the
+    ordinary verdict path. ⇒ **this loop is the live consumer of the eager BAL-sourced
+    storage preload.** GH #11176.
+
+    MEASURED (2026-08-02), not inferred. Cited by input sha256 rather than index,
+    because an index is selector-relative and two agents reading "fixture 00192" from
+    two manifests differed by three orders of magnitude on the same day:
+      input sha256 `242fa1e11ec51d7b9f9395b93d3e02ebf6c7d9064196360eba1cefd367cdb13b`
+      relpath `blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/`
+              `block_access_lists_eip7002/bal_7002_request_from_contract.json`
+    A commitlog dump of every access to
+    `callee_seed_count` shows it **walk 0 → 1 → 2 → 3 → 4 and keep going**, with the
+    bumps at the producer's own store and read-backs at the two loads this loop uses.
+    And disabling the producer flips **15 of 1,045** sampled rows from reject to accept
+    with **zero** reverse flips — an inert loop cannot do that.
+
+    ⚠️ **Why this mattered enough to write down:** the retired sentence is exactly the
+    one that would license deleting this loop as dead weight *without measuring
+    anything* — "byte-identical" is a claim a reader acts on. Trust the **why** in a
+    comment like that; measure the **happens**.
+
+    Uses only
     x5/x6/x7 (the dispatch loop re-inits them each iteration) and x28..x31 temps; never
     touches x10/x12/x13/x20/x21. -/
 def emitCalleeStorageSeedLoop : String :=

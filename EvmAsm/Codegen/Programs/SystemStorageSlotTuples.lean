@@ -115,6 +115,9 @@ def systemUserExecLogSlotTuplesFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret"
 
+/-- Production guest data for `system_user_exec_log_slot_tuples`.
+    KEEP: sust_sysbuf / sust_userbuf / sust_endbuf (+ counts/txindex).
+    `sust_out` is probe-only (production writes via caller a7 = `atsc_execbuf`). -/
 def systemUserExecLogSlotTuplesData : String :=
   ".balign 8\n" ++
   "sust_zero_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
@@ -126,7 +129,11 @@ def systemUserExecLogSlotTuplesData : String :=
   ".balign 32\n" ++
   "sust_sysbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
   "sust_userbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
-  "sust_endbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  "sust_endbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
+
+/-- Probe-only output buffer for `zisk_system_user_exec_log_slot_tuples`. -/
+def systemUserExecLogSlotTuplesProbeOutData : String :=
+  ".balign 32\n" ++
   "sust_out:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n"
 
 def ziskSystemUserExecLogSlotTuplesPrologue : String :=
@@ -168,6 +175,7 @@ def ziskSystemUserExecLogSlotTuplesPrologue : String :=
 def ziskSystemUserExecLogSlotTuplesDataSection : String :=
   ".section .data\n" ++
   systemUserExecLogSlotTuplesData ++ "\n" ++
+  systemUserExecLogSlotTuplesProbeOutData ++ "\n" ++
   execLogSlotTuplesData ++ "\n" ++
   ".balign 32\n" ++
   "sust_probe_addr:\n  .zero 32\n" ++

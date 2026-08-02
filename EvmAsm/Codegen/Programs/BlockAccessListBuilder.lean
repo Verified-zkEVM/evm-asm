@@ -696,7 +696,7 @@ def blockAccessListBuilderFunctions : String :=
   balSerializerSlotWrittenFunction ++
   balSerializerSlotSeenBeforeFunction ++
   balSerializerU64ToFieldFunction ++
-  balSerializerFilterReadsFunction ++
+  -- bal_serializer_filter_reads: never jal'd from guest; probe/selftest only.
   balSerializerMeasureReadsFunction ++
   balSerializerSlotToLeFunction ++
   balSerializerBalanceToLeFunction ++
@@ -1071,7 +1071,7 @@ def blockAccessListBuilderFunctions : String :=
 -- builds fine in Lean and fails only at LINK, with a message naming the symbol rather than
 -- the routine -- so the reservation is guarded next to the routine that needs it.
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_u64_field:").length == 2
-#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_filter_reads:").length == 2
+#guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_filter_reads:").length == 1
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_reads:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_storage:").length == 2
 #guard (blockAccessListBuilderFunctions.splitOn "bal_serializer_measure_balance:").length == 2

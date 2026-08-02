@@ -177,11 +177,11 @@ def accountWriteRecordFunction : String :=
   ".Lawr_cmp:\n" ++
   "  beqz t6, .Lawr_hit; lbu a0, 0(t2); lbu a1, 0(t3); bne a0, a1, .Lawr_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawr_cmp\n" ++
   ".Lawr_hit:\n" ++
-  "  mv a5, t4; li a6, 0; jal ra, account_writes_undo_push; j .Lawr_store\n" ++
+  "  mv a5, t4; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow; j .Lawr_store\n" ++
   ".Lawr_next:\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; addi t4, t4, 1; j .Lawr_scan\n" ++
   ".Lawr_append:\n" ++
-  "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawr_overflow; mv a5, t1; li a6, 1; jal ra, account_writes_undo_push\n" ++
+  "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawr_overflow; mv a5, t1; li a6, 1; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20\n" ++
   ".Lawr_copy_addr:\n" ++
   "  beqz t6, .Lawr_zero; lbu t3, 0(t2); sb t3, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lawr_copy_addr\n" ++
@@ -203,7 +203,7 @@ def accountWriteRecordFunction : String :=
   ".Lawr_no_state:\n" ++
   "  ld t3, 112(t5); or t2, t2, t3; sd t2, 112(t5); j .Lawr_done\n" ++
   ".Lawr_overflow:\n" ++
-  "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, account_writes_overflow; sd t1, 0(t0)\n" ++
   ".Lawr_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp); addi sp, sp, 128\n" ++
   "  ret\n"
@@ -529,25 +529,12 @@ def accountResolvePreStateFunction : String :=
   ".Larp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 96; ret\n"
 
-/-! ## `account_writes_discard_tx`
+/-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
-    A transaction that fails contributes nothing to the block. The spec reaches
-    this by never calling `incorporate_tx_into_block`, so the transaction dict is
-    simply abandoned — but the guest's arena is reused across transactions, so
-    abandoning means explicitly clearing, or the next transaction inherits the
-    failed one's writes and `incorporate` promotes them.
-
-    That is not hypothetical: it is the storage-side defect from this same family
-    (#10693), where a failed transaction's writes reached the block level because
-    the promotion was gated on a coverage flag rather than on transaction status.
-
-    No arguments; no result register. -/
-def accountWritesDiscardTxFunction : String :=
-  "account_writes_discard_tx:\n" ++
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
-  "  la t0, tx_account_writes_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, account_writes_undo_count; sd zero, 0(t0)\n" ++
-  "  ret\n"
+    Never jal'd. Storage twin `write_sets_discard_tx` is live on status=0.
+    Account path always `emit`+`incorporate` after presumed body restore.
+    Issue #11202 carries the open question (benign dead twin vs missing
+    fail-discard wiring). Do not resurrect without wiring a real fail path. -/
 
 /-! ## `account_writes_undo_push`
 
@@ -555,8 +542,11 @@ def accountWritesDiscardTxFunction : String :=
 
     a5 = entryIndex, a6 = wasAbsent (1 on append, 0 on overwrite).
     On an overwrite the superseded fields are read from the entry itself, so the
-    caller does not have to stage them. No result register; no overflow path —
-    the journal inherits the exec log's already-enforced 16384-row cap. -/
+    caller does not have to stage them. The journal has the same 16384-entry
+    capacity as the transaction map, but the push is separately bounded because
+    repeated updates can add undo rows without increasing the live map count.
+    On exhaustion it returns `a0 = 1` and latches both overflow flags before any
+    out-of-range store; success returns `a0 = 0`. -/
 def accountWritesUndoPushFunction : String :=
   "account_writes_undo_push:\n" ++
   -- GH #10810: save t5/t6 as well, so this routine's CONTRACT matches what its callers
@@ -580,6 +570,7 @@ def accountWritesUndoPushFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
+  "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawu_fail\n" ++
   "  li t2, 0xa2d20000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
   "  sd a5, 0(t3)\n" ++                                            -- entryIndex
@@ -593,7 +584,10 @@ def accountWritesUndoPushFunction : String :=
   "  ld t2, 64(t4);  sd t2, 48(t3); ld t2, 72(t4);  sd t2, 56(t3); ld t2, 80(t4);  sd t2, 64(t3); ld t2, 88(t4);  sd t2, 72(t3)\n" ++
   "  ld t2, 96(t4);  sd t2, 80(t3); ld t2, 104(t4); sd t2, 88(t3); ld t2, 112(t4); sd t2, 96(t3); ld t2, 120(t4); sd t2, 104(t3)\n" ++
   ".Lawu_appended:\n" ++
-  "  addi t1, t1, 1; la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
+  "  addi t1, t1, 1; la t0, account_writes_undo_count; sd t1, 0(t0); li a0, 0; j .Lawu_done\n" ++
+  ".Lawu_fail:\n" ++
+  "  li a0, 1; la t3, tx_account_writes_overflow; sd a0, 0(t3); la t3, account_writes_overflow; sd a0, 0(t3)\n" ++
+  ".Lawu_done:\n" ++
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
   "  addi sp, sp, 64\n" ++
   "  ret\n"
@@ -684,7 +678,6 @@ def accountWriteMapFunctions : String :=
   accountWritesBlockUpsertFunction ++
   accountWritesEmitBuilderTxFunction ++
   accountWritesIncorporateTxFunction ++
-  accountWritesDiscardTxFunction ++
   accountWritesUndoPushFunction ++
   accountWritesRestoreFrameFunction ++
   accountResolvePreStateFunction
@@ -728,12 +721,15 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
-#guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 1
 -- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
 -- target row address in t5 ACROSS this call. Pin the save AND the restore: a prologue-only save
 -- would leave the register clobbered on return and read as a fix.
 #guard (accountWritesUndoPushFunction.splitOn "sd t5, 40(sp); sd t6, 48(sp)").length == 2
 #guard (accountWritesUndoPushFunction.splitOn "ld t5, 40(sp); ld t6, 48(sp)").length == 2
+#guard (accountWriteRecordFunction.splitOn "bnez a0, .Lawr_overflow").length == 3
+#guard (accountWritesUndoPushFunction.splitOn "bgeu t1, t2, .Lawu_fail").length == 2
+#guard (accountWritesUndoPushFunction.splitOn ".Lawu_fail:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_resolve_pre_state:").length == 2
@@ -743,12 +739,7 @@ def accountWriteMapFunctions : String :=
 -- against the previous one's indices.
 #guard (accountWritesIncorporateTxFunction.splitOn "account_writes_undo_count").length == 2
 
--- `discard` must clear exactly what `incorporate` clears. A discard that forgets a
--- counter leaves a failed transaction's writes visible to the next one, which is
--- the storage-side defect in #10693.
-#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_count").length == 2
-#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_overflow").length == 2
-#guard (accountWritesDiscardTxFunction.splitOn "account_writes_undo_count").length == 2
+-- account_writes_discard_tx removed from guest (#11202); wiring question on issue.
 
 -- The data section must declare every counter the routines name. Matched as EXACT
 -- LINES, not substrings: `account_writes_count:` is a substring of

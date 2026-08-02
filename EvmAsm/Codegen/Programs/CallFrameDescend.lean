@@ -223,18 +223,20 @@ def callFrameForwardGasFunction : String :=
       desc+88  value_nonzero  (0/1; 0 for STATICCALL / zero value)
 
     Effect (in order):
-      1. `frame_save_regs(parent_depth, parent_pc, parent_code_base)`;
-      2. `frame_depth_push` → child depth d;
-      3. save the return-context `frame_call_ctx[d]` = (parent_x12,
+      1. charge the value-transfer gas (or consume the caller's precharge flag),
+         before mutating any child-frame state;
+      2. `frame_save_regs(parent_depth, parent_pc, parent_code_base)`;
+      3. `frame_depth_push` → child depth d;
+      4. save the return-context `frame_call_ctx[d]` = (parent_x12,
          outOff_abs = parent_mem + outOff, outSize, netPopBytes) for `frame_return`;
-      4. save the parent memory/env bases in `frame_parent_bases[d]`;
-      5. `call_frame_enter(d)` → child memory/stack/env bases (+ child mem zero-init);
-      6. `call_frame_set_call_env` (ADDRESS=to, CALLER=parent.ADDRESS, CALLVALUE);
-      7. `call_frame_set_calldata` (alias child calldata into parent memory);
-      8. `call_frame_forward_gas` (EIP-150 63/64 + stipend) → child env.gasRemaining;
-      9. copy the witness context env+576..616 (header/state/codes ptrs+lens) so the
+      5. save the parent memory/env bases in `frame_parent_bases[d]`;
+      6. `call_frame_enter(d)` → child memory/stack/env bases (+ child mem zero-init);
+      7. `call_frame_set_call_env` (ADDRESS=to, CALLER=parent.ADDRESS, CALLVALUE);
+      8. `call_frame_set_calldata` (alias child calldata into parent memory);
+      9. `call_frame_forward_gas` (EIP-150 63/64 + stipend) → child env.gasRemaining;
+     10. copy the witness context env+576..616 (header/state/codes ptrs+lens) so the
          child's by-address handlers (BALANCE/EXTCODE*/the next descent) resolve;
-     10. set the child code base x21=x10=code_ptr (PC at code[0]) and
+     11. set the child code base x21=x10=code_ptr (PC at code[0]) and
          env.codeSize (env+496) = code_len.
 
     On return the live dispatcher registers are repointed to the child frame and
@@ -247,6 +249,24 @@ def callFrameForwardGasFunction : String :=
     s0-s3/s6-s9 and never uses s4/s5 as scratch. Clobbers t0-t2, a0-a4. -/
 def callFrameDescendFunction : String :=
   "call_frame_descend:\n" ++
+  -- execution-specs charges `message_call_gas.cost` before `generic_call`; keep
+  -- the same ordering here so a transfer-charge OOG cannot consume a child
+  -- frame slot or advance `evm_call_depth`. The CALL handler's one-shot flag is
+  -- consumed on the same path; direct helper probes perform the charge here.
+  "  ld t0, 88(a1)                  # value_nonzero\n" ++
+  "  beqz t0, .Lcfd_no_transfer\n" ++
+  "  la t2, cd_xfer_gas_precharged\n" ++
+  "  ld t3, 0(t2)\n" ++
+  "  beqz t3, .Lcfd_charge_transfer\n" ++
+  "  sd x0, 0(t2)\n" ++
+  "  j .Lcfd_no_transfer\n" ++
+  ".Lcfd_charge_transfer:\n" ++
+  "  ld t0, 568(x20)\n" ++
+  "  li t1, 10300\n" ++
+  "  bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1\n" ++
+  "  sd t0, 568(x20)\n" ++
+  ".Lcfd_no_transfer:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -308,35 +328,8 @@ def callFrameDescendFunction : String :=
   "  ld a2, 24(s7)                  # argsOff\n" ++
   "  ld a3, 32(s7)                  # argsLen\n" ++
   "  jal ra, call_frame_set_calldata\n" ++
-  -- 7a. EIP-150 transfer_gas_cost: a value-bearing CALL/CALLCODE charges
-  -- GAS_CALL_VALUE (10300) BEFORE the 63/64 forwarding cap (it is part of
-  -- extra_gas, deducted from gas_left first). The shipped CALL handler already
-  -- does this before NEW_ACCOUNT state gas and arms cd_xfer_gas_precharged; consume
-  -- that flag here. Direct helper probes with no precharge still charge here so
-  -- the forward cap below sees the reduced gas_left.
-  -- bbow4.1.1: GAS_CALL_VALUE participates in the spec's pre-state `check_gas`
-  -- (system.py:436/554 `check_gas(access + transfer + extend_memory)`), which raises
-  -- OutOfGasError (an exceptional halt that burns ALL remaining gas) when the caller
-  -- cannot afford it. The guest charges access (runtime_access_account_charge) and the
-  -- delegation-target access (callDelegationAccessChargeAsm) incrementally before this
-  -- point, so once gas_left < 10300 here the original gas was < access + 10300, i.e. the
-  -- spec's check_gas would already have OOG'd. Without this guard the bare `sub`
-  -- UNDERFLOWED gas_left to ~2^64, letting the call wrongly succeed (the EIP-7702-delegated
-  -- CALLCODE/CALL that the spec OOGs ran to completion, under-counting block_regular_gas by
-  -- ~the net transfer 8000 -> header.gas_used appeared to over-claim -> bv_fail=41/44/45,
-  -- bal_callcode_7702_delegation_and_oog). Route the shortfall to the exceptional-halt path.
-  "  ld a2, 88(s7)\n" ++
-  "  beqz a2, .Lcfd_no_transfer\n" ++
-  "  la t2, cd_xfer_gas_precharged\n  ld t3, 0(t2)\n  beqz t3, .Lcfd_charge_transfer\n" ++
-  "  sd x0, 0(t2)\n  j .Lcfd_no_transfer\n" ++
-  ".Lcfd_charge_transfer:\n" ++
-  "  ld t0, 568(s3)\n" ++
-  "  li t1, 10300\n" ++
-  "  bltu t0, t1, .exit_outofgas\n" ++
-  "  sub t0, t0, t1\n" ++
-  "  sd t0, 568(s3)\n" ++
-  ".Lcfd_no_transfer:\n" ++
-  -- 7. EIP-150 forwarded gas -> child env.gasRemaining (env+568).
+  -- 9. EIP-150 forwarded gas -> child env.gasRemaining (env+568); the
+  -- transfer charge above has already reduced the parent gas when needed.
   "  ld a0, 568(s3)                 # parent gas_left (after transfer charge)\n" ++
   "  ld a1, 80(s7)                  # requested_gas\n" ++
   "  ld a2, 88(s7)                  # value_nonzero\n" ++

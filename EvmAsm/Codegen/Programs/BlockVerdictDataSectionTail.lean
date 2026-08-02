@@ -469,10 +469,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "i3djw_skip_list:\n  .zero 288\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 6 system addresses (9*32)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
-  -- comparators. A multi-tx block's gas/value-coupled accounts are {sender_i,
-  -- recipient_i} for every tx i plus the shared {coinbase} and 6 system addresses -> up to 2N+7 entries
-  -- (N = bv_tx_count <= bvMtxFullTxCap). The skip list has 2N+7
-  -- entries, 32-byte-strided,
+  -- comparators. Gas/value-coupled {sender_i, recipient_i} + coinbase + residual
+  -- system (bvMtxSystemSkipEntries = 4: 7002/7251/6110/SYSTEM; #10684 dropped
+  -- 2935/4788). Capacity 2*N+1+system (N <= bvMtxFullTxCap). 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
   -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.
