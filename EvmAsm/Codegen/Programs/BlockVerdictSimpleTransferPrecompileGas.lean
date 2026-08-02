@@ -29,7 +29,7 @@ private def blockVerdictModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) :
   ".Lbv_modexp_len_done_" ++ toString fieldOff ++ ":\n" ++
   "  li a6, 1024; bltu a6, " ++ dstReg ++ ", .Lbv_simple_transfer_precompile_fail\n"
 
-def blockVerdictSimpleTransferPrecompileGasAsm : String :=
+def blockVerdictSimpleTransferPrecompileGasAsmFor (ctxLabel : String) : String :=
   "  # Active precompile recipients have empty state-trie code but still execute. Detect them\n" ++
   "  # before the zero-value EOA shortcut so their execution gas reaches the exact gas arena.\n" ++
   ".Lbv_tx_gas_precharge_pc0_prefix:\n" ++
@@ -107,15 +107,15 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFixedGasCostAsm 3000 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_sha256:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2)\n" ++
   precompileWordGasCostAsm ".Lbv_simple_transfer_precompile_fail" 60 12 "t5" "t6" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ripemd160:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2)\n" ++
   precompileWordGasCostAsm ".Lbv_simple_transfer_precompile_fail" 600 120 "t5" "t6" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_identity:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2)\n" ++
   precompileWordGasCostAsm ".Lbv_simple_transfer_precompile_fail" 15 3 "t5" "t6" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_modexp:\n" ++
@@ -126,7 +126,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   -- Match execution-specs' MODEXP decoder and EIP-2565/Amsterdam gas formula.
   -- Header bytes absent from calldata are zero; any length above 1024 is an
   -- exceptional halt and therefore consumes all remaining transaction gas.
-  "  la t2, bv_simple_transfer_tx; ld a3, 56(t2); ld a4, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld a3, 56(t2); ld a4, 64(t2)\n" ++
   blockVerdictModexpReadLengthAsm 0 "a0" ++
   blockVerdictModexpReadLengthAsm 32 "a1" ++
   blockVerdictModexpReadLengthAsm 64 "a2" ++
@@ -167,7 +167,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   -- execution-specs' `alt_bn128_add` rejects invalid field elements or points
   -- with an exceptional halt, so a direct top-level precompile must not accept
   -- the length-correct but invalid input that the old root-only path ignored.
-  "  la t2, bv_simple_transfer_tx; ld t5, 56(t2); ld t4, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 56(t2); ld t4, 64(t2)\n" ++
   stagePrecompileInputWindowFromAsm "bv_simple_transfer_ecadd_p1" "t5" "t4"
     precompileFrameBls12G1Input0Off 0 64 ++
   stagePrecompileInputWindowFromAsm "bv_simple_transfer_ecadd_p2" "t5" "t4"
@@ -184,7 +184,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   -- same kernel validity gate as the CALL precompile path. The precompile
   -- zero-pads short input and ignores bytes beyond the first 96. Stage that
   -- exact window before calling the shared kernel validity gate.
-  "  la t2, bv_simple_transfer_tx; ld t5, 56(t2); ld t4, 64(t2); la t3, evm_precompile_frame; li a0, 0\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 56(t2); ld t4, 64(t2); la t3, evm_precompile_frame; li a0, 0\n" ++
   ".Lbv_simple_transfer_ecmul_zero:\n" ++
   "  li a1, 96; beq a0, a1, .Lbv_simple_transfer_ecmul_copy_init; add a2, t3, a0; sb zero, 0(a2); addi a0, a0, 1; j .Lbv_simple_transfer_ecmul_zero\n" ++
   ".Lbv_simple_transfer_ecmul_copy_init:\n" ++
@@ -200,25 +200,25 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   ".Lbv_simple_transfer_precompile_ecpairing:\n" ++
   -- `alt_bn128_pairing_check` charges by complete 192-byte tuples, then
   -- raises an exceptional halt when a partial tuple remains.
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 192; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail\n" ++
   -- Pairing validity is part of the precompile, not just its length formula.
   -- Reuse the child route's kernel: invalid field elements, off-curve points,
   -- and a non-subgroup G2 component take the same exceptional-halt route.
-  "  la t2, bv_simple_transfer_tx; ld a0, 56(t2); ld t5, 64(t2); li t4, 192; divu a1, t5, t4\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld a0, 56(t2); ld t5, 64(t2); li t4, 192; divu a1, t5, t4\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
   precompileKernelCallAsm "ra" "zkvm_bn254_pairing" "a0"
     ".Lbv_simple_transfer_precompile_fail" "" "  " ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2)\n" ++
   precompilePerUnitGasCostAsm ".Lbv_simple_transfer_precompile_fail" 192 45000 34000
     "t5" "t6" "t5" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_blake2f:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 213; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld t5, 56(t2); lbu t6, 0(t5); slli t6, t6, 24; lbu t4, 1(t5); slli t4, t4, 16; or t6, t6, t4; lbu t4, 2(t5); slli t4, t4, 8; or t6, t6, t4; lbu t4, 3(t5); or t6, t6, t4\n" ++
   "  lbu t4, 212(t5); li t5, 1; bgtu t4, t5, .Lbv_simple_transfer_precompile_fail\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_point_eval:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 192; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 192; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   -- A top-level transaction to an active precompile bypasses the opcode
   -- dispatcher, so validate the KZG input here as `run_precompile` does.  An
   -- invalid versioned hash or proof is an exceptional halt and consumes all
@@ -227,7 +227,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  ld t5, 56(t2)\n" ++
   "  addi a0, t5, 96; li a1, 48; la a2, evm_precompile_frame; jal ra, zkvm_sha256\n" ++
   "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 56(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 56(t2)\n" ++
   "  lbu t3, 0(t5); li t4, 1; bne t3, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  li t3, 1; la t4, evm_precompile_frame\n" ++
   ".Lbv_simple_transfer_point_eval_hash_loop:\n" ++
@@ -243,7 +243,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFixedGasCostAsm 50000 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1add:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 256; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 256; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld a0, 56(t2)\n" ++
   precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
   "  jal ra, zkvm_bls12_g1_add\n" ++
@@ -251,17 +251,17 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFixedGasCostAsm 375 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g1msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
-  "  la t2, bv_simple_transfer_tx; ld a0, 56(t2); ld t5, 64(t2); li t4, 160; divu a1, t5, t4\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 160; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld a0, 56(t2); ld t5, 64(t2); li t4, 160; divu a1, t5, t4\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
   "  jal ra, zkvm_bls12_g1_msm\n" ++
   "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
-  "  la t2, bv_simple_transfer_tx; ld x18, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld x18, 64(t2)\n" ++
   bls12MsmCostAsm ".Lbv_simple_transfer_precompile_fail" 160 12000 519 "bls12_g1_msm_discount_table" ++
   "  mv t6, x16\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2add:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 512; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 512; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld a0, 56(t2)\n" ++
   precompileFrameAddi "a1" precompileFrameBls12G2AddOutputOff ++
   "  jal ra, zkvm_bls12_g2_add\n" ++
@@ -269,29 +269,29 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFixedGasCostAsm 600 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_g2msm:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
-  "  la t2, bv_simple_transfer_tx; ld a0, 56(t2); ld t5, 64(t2); li t4, 288; divu a1, t5, t4\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 288; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail; mv x18, t5\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld a0, 56(t2); ld t5, 64(t2); li t4, 288; divu a1, t5, t4\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G2OutputOff ++
   "  jal ra, zkvm_bls12_g2_msm\n" ++
   "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
-  "  la t2, bv_simple_transfer_tx; ld x18, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld x18, 64(t2)\n" ++
   bls12MsmCostAsm ".Lbv_simple_transfer_precompile_fail" 288 22500 524 "bls12_g2_msm_discount_table" ++
   "  mv t6, x16\n" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_pairing:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 384; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); beqz t5, .Lbv_simple_transfer_precompile_fail; li t4, 384; remu t3, t5, t4; bnez t3, .Lbv_simple_transfer_precompile_fail\n" ++
   -- The BLS pairing kernel performs the same decode, curve, and subgroup
   -- validation as the child precompile path.
-  "  la t2, bv_simple_transfer_tx; ld a0, 56(t2); ld t5, 64(t2); li t4, 384; divu a1, t5, t4\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld a0, 56(t2); ld t5, 64(t2); li t4, 384; divu a1, t5, t4\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
   "  jal ra, zkvm_bls12_pairing\n" ++
   "  bnez a0, .Lbv_simple_transfer_precompile_fail\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2)\n" ++
   precompilePerUnitGasCostAsm ".Lbv_simple_transfer_precompile_fail" 384 37700 32600
     "t5" "t6" "t5" "t4" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_map_g1:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 64; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 64; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld a0, 56(t2)\n" ++
   precompileFrameAddi "a1" precompileFrameBls12G1OutputOff ++
   "  jal ra, zkvm_bls12_map_fp_to_g1\n" ++
@@ -299,7 +299,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFixedGasCostAsm 5500 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_bls_map_g2:\n" ++
-  "  la t2, bv_simple_transfer_tx; ld t5, 64(t2); li t4, 128; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
+  "  la t2, " ++ ctxLabel ++ "; ld t5, 64(t2); li t4, 128; bne t5, t4, .Lbv_simple_transfer_precompile_fail\n" ++
   "  ld a0, 56(t2)\n" ++
   precompileFrameAddi "a1" precompileFrameBls12G2OutputOff ++
   "  jal ra, zkvm_bls12_map_fp2_to_g2\n" ++
@@ -312,5 +312,8 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   ".Lbv_simple_transfer_precompile_default:\n" ++
   "  li t6, 0\n" ++
   "  j .Lbv_simple_transfer_no_log_then_after_tx_gas_precharge\n"
+
+def blockVerdictSimpleTransferPrecompileGasAsm : String :=
+  blockVerdictSimpleTransferPrecompileGasAsmFor "bv_simple_transfer_tx"
 
 end EvmAsm.Codegen
