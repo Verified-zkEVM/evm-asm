@@ -7,10 +7,11 @@
 
   The gate (`callDescendFallThrough`, ChildFrameHandlers.lean) rejects a
   value-bearing CALL/CALLCODE — pushing 0 and NOT descending — when the caller's
-  balance (looked up via `balance_at_header_state_root` against the attached
-  header/state witness) is below the transfer value. This probe drives the live
-  `callFrameGuestRegistry` h_CALL handler (with the gate wired in, unlike the
-  push-0 `callFrameProbeRegistry`) so the rejection is exercised end-to-end.
+  **live** balance is below the transfer value. The handlers read env+32
+  (`.selfBalance`), not `balance_at_header_state_root` (drj99.1; #11019).
+  This probe drives the live `callFrameGuestRegistry` h_CALL handler (with the
+  gate wired in, unlike the push-0 `callFrameProbeRegistry`) so the rejection
+  is exercised end-to-end.
 
   Setup (witness supplied at runtime via `ziskemu -i`, built by
   codegen-zisk-call-balance-gate-check.sh, reusing the balance-at-header-state-root

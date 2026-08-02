@@ -394,9 +394,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- unconditional (alive := 0).
     "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    -- spec is_account_alive(target): the TARGET's header-state balance
-    -- (code/nonce holders already took the collision branch) plus the shared
-    -- current CodeState overlay for prior creation.
+    -- spec is_account_alive(target) on mutable tx_state (state_tracker.py):
+    -- LIVE balance via balance_at_header_state_root (live-first, #11019), not
+    -- pure header. Code/nonce holders already took the collision branch; plus
+    -- the shared current CodeState overlay for prior same-tx creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
     "  jal ra, balance_at_header_state_root\n" ++
