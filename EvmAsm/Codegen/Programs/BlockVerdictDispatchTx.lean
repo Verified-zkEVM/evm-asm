@@ -601,142 +601,26 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_bal_unsupported\n" ++
-  "  bnez a0, .Ldtrc_zero_storage\n" ++
-  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0); la a2, bvcd_keys\n" ++
-  "  jal ra, bal_recipient_storage_keys\n" ++
-  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Ldtrc_bal_unsupported   # 4jczt class-B lift: storage_changes capped at the gas-derived bsrAccountSlotCap; bvcd_keys/bvcd_preload sized to match (was 128)\n" ++
-  "  la t0, bvcd_sc_count; sd a0, 0(t0)\n" ++
-  -- fhsxz.2.4.2.57.11.6.5 (revert fix): also preload the recipient's storage_READS slots
-  -- (accessed-but-not-net-changed). A reverting tx has empty storage_changes (its writes
-  -- roll back) but lists the touched slots in storage_reads; without these the SSTORE-clears
-  -- find no preloaded slot and undercharge (missing-slot path) -> block_regular undercount
-  -- (bv_fail=41). Append the storage_reads keys after the storage_changes keys; cap total at
-  -- bsrAccountSlotCap (the gas-derived bvcd_keys/bvcd_preload buffer size; 4jczt lift, was 128).
-  "  la t0, bvcd_acct_ptr; ld a0, 0(t0); la t0, bvcd_acct_len; ld a1, 0(t0)\n" ++
-  "  la t0, bvcd_sc_count; ld t1, 0(t0); slli t2, t1, 5; la a2, bvcd_keys; add a2, a2, t2\n" ++
-  "  li a3, " ++ toString bsrAccountSlotCap ++ "; sub a3, a3, t1\n" ++
-  "  jal ra, bal_recipient_storage_reads_keys\n" ++
-  "  la t0, bvcd_sc_count; ld t1, 0(t0); add a0, a0, t1   # total = storage_changes + storage_reads\n" ++
-  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Ldtrc_bal_unsupported\n" ++
-  "  la t0, bvcd_key_count; sd a0, 0(t0); j .Ldtrc_read_storage\n" ++
-  ".Ldtrc_zero_storage:\n" ++
-  "  la t0, bvcd_key_count; sd zero, 0(t0)\n" ++
-  ".Ldtrc_read_storage:\n" ++
-  "  la t0, bvcd_i; sd zero, 0(t0)\n" ++
-  ".Ldtrc_sloop:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); la t2, bvcd_key_count; ld t3, 0(t2); beq t1, t3, .Ldtrc_stage\n" ++
-  -- `BlockState.storage_writes` is the authoritative pre-tx source.  Query it
-  -- before the parent witness: a prior successful transaction may have changed
-  -- this recipient's slot, and the parent header must not overwrite that value.
-  "  la t0, storage_writes_count; ld a3, 0(t0); beqz a3, .Ldtrc_header_storage\n" ++
-  -- Context recipient bytes are canonical BE, while the committed table uses
-  -- the exec-log's LE account key.  Build that key in the reusable slot scratch;
-  -- the lookup copies it into `dtrc_recipkey` before reusing this scratch for the
-  -- slot-key BE->LE conversion.
-  "  addi t4, s2, 91; la t5, dtrc_slotkey_le; li t6, 20\n" ++
-  ".Ldtrc_recipkey_rev:\n" ++
-  "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Ldtrc_recipkey_rev\n" ++
-  "  la a0, dtrc_slotkey_le\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2\n" ++
-  "  li a2, 0xa1fa0000; li a4, " ++ toString storageWritesCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-  "  jal ra, storage_writes_block_latest_value\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported\n" ++
-  "  li t0, 1; beq a0, t0, .Ldtrc_thread_hit\n" ++
-  ".Ldtrc_header_storage:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0)\n" ++
-  "  slli t4, t1, 5; la t5, bvcd_keys; add a3, t5, t4\n" ++
-  "  la t0, dtrc_hdr_ptr; ld a0, 0(t0); la t0, dtrc_hdr_len; ld a1, 0(t0)\n" ++   -- .57.11.6.5: mtx-gated witness-lookup header (resolved at dispatch entry)
-  "  addi a2, s2, 72\n" ++
-  "  mv a4, s0; mv a5, s1; mv a6, s0; mv a7, s1\n" ++
-  "  jal ra, slot_at_header_state_root\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2\n" ++
-  "  slli t2, t1, 5; la t3, bvcd_keys; add t5, t3, t2\n" ++
-  "  li t6, 0\n" ++
-  -- fhsxz.2.4.2.57.11.6.5.3 (d'): the BAL slot key (bvcd_keys) is 32-byte BIG-ENDIAN
-  -- (left-padded), but the EVM stack / exec-log scan (Storage.lean h_SLOAD/h_SSTORE) and the
-  -- runtime SSTORE-appended entries are LITTLE-ENDIAN-limb. Copying the key verbatim left
-  -- preloaded non-zero slots INVISIBLE to the scan (only slot 0 matched, identical in both
-  -- orders) -> SLOAD-of-preload returned 0 and SSTORE saw a missing slot, undercharging gas.
-  -- Byte-REVERSE the key (dst byte 31-i <- src byte i) so the preload entry's slotKey matches
-  -- the stack/append LE order. Validated: with LE preload the 10x SSTORE-clear repro charges
-  -- the full 5000 each (gas_left 25200 -> 0).
-  ".Ldtrc_kcopy:\n" ++
-  "  li t2, 32; beq t6, t2, .Ldtrc_kdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE key byte i
-  "  li t2, 31; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte (31-i): BE->LE
-  "  addi t6, t6, 1; j .Ldtrc_kcopy\n" ++
-  ".Ldtrc_kdone:\n" ++
-  -- An authenticated absent account has the empty storage trie, so every
-  -- requested slot has the same zero pre-state value as an absent slot.
-  -- Keep parse/decode failures below as conservative unsupported exits.
-  "  li t2, 1; beq a0, t2, .Ldtrc_vzero\n" ++
-  "  li t2, 5; beq a0, t2, .Ldtrc_vzero\n" ++
-  "  bnez a0, .Ldtrc_storage_unsupported\n" ++
-  "  la t5, sahsr_u256; li t6, 0\n" ++
-  -- The witness slot value (sahsr_u256) is also u256 BIG-ENDIAN (StateCompose.lean:519);
-  -- byte-REVERSE it into the value field [entry+32..64] (dst byte 63-i <- src byte i) so
-  -- original==current read back as LE limbs match the SSTORE handler's clean/dirty test.
-  -- (The cross-tx threaded value below is already LE — it limb-copies dtrc_threadval from the
-  -- exec log — so it is left as-is.)
-  ".Ldtrc_vcopy:\n" ++
-  "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
-  "  add t2, t5, t6; lbu t3, 0(t2)\n" ++                              -- t3 = BE value byte i
-  "  li t2, 63; sub t2, t2, t6; add t2, t4, t2; sb t3, 0(t2)\n" ++    -- -> dst byte 32+(31-i)=63-i: BE->LE
-  "  addi t6, t6, 1; j .Ldtrc_vcopy\n" ++
-  ".Ldtrc_vzero:\n" ++
-  "  li t6, 0\n" ++
-  ".Ldtrc_vzloop:\n" ++
-  "  li t2, 32; beq t6, t2, .Ldtrc_vdone\n" ++
-  "  add t2, t4, t6; addi t2, t2, 32; sb zero, 0(t2); addi t6, t6, 1; j .Ldtrc_vzloop\n" ++
-  ".Ldtrc_vdone:\n" ++
-  -- The EIP-4788 system transaction runs before every user transaction.  Its
-  -- timestamp/root writes are therefore part of the current block state even
-  -- though they are absent from the parent-state witness used above.  Overlay
-  -- those two staged values into a matching top-level recipient preload, just
-  -- as execution-specs applies process_unchecked_system_transaction before the
-  -- transaction loop.  Other recipients and slots retain the authenticated
-  -- witness value.
-  "  addi t0, s2, 72; la t1, bsr_addr_4788; li t2, 20\n" ++
-  ".Ldtrc_4788_addr_cmp:\n" ++
-  "  beqz t2, .Ldtrc_4788_key_setup\n" ++
-  "  lbu t3, 0(t0); lbu t6, 0(t1); bne t3, t6, .Ldtrc_4788_overlay_done\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Ldtrc_4788_addr_cmp\n" ++
-  ".Ldtrc_4788_key_setup:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
-  "  la t0, swd_4788_slot; li t1, 32\n" ++
-  ".Ldtrc_4788_ts_key_cmp:\n" ++
-  "  beqz t1, .Ldtrc_4788_ts_value\n" ++
-  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_root_key_setup\n" ++
-  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_ts_key_cmp\n" ++
-  ".Ldtrc_4788_root_key_setup:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la t3, bvcd_keys; add t3, t3, t2\n" ++
-  "  la t0, swd_4788_root_slot; li t1, 32\n" ++
-  ".Ldtrc_4788_root_key_cmp:\n" ++
-  "  beqz t1, .Ldtrc_4788_root_value\n" ++
-  "  lbu t2, 0(t3); lbu t6, 0(t0); bne t2, t6, .Ldtrc_4788_overlay_done\n" ++
-  "  addi t3, t3, 1; addi t0, t0, 1; addi t1, t1, -1; j .Ldtrc_4788_root_key_cmp\n" ++
-  ".Ldtrc_4788_ts_value:\n" ++
-  "  la t0, swd_4788_val; la t1, swd_4788_vlen; ld t1, 0(t1); j .Ldtrc_4788_value_copy_setup\n" ++
-  ".Ldtrc_4788_root_value:\n" ++
-  "  la t0, swd_4788_root_val; la t1, swd_4788_root_vlen; ld t1, 0(t1)\n" ++
-  ".Ldtrc_4788_value_copy_setup:\n" ++
-  "  la t2, bvcd_i; ld t2, 0(t2); slli t2, t2, 6; la t3, bvcd_preload; add t3, t3, t2; addi t3, t3, 32\n" ++
-  "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
-  "  beqz t1, .Ldtrc_4788_overlay_done\n" ++
-  "  add t0, t0, t1; addi t0, t0, -1\n" ++
-  ".Ldtrc_4788_value_copy:\n" ++
-  "  lbu t2, 0(t0); sb t2, 0(t3); addi t0, t0, -1; addi t3, t3, 1; addi t1, t1, -1; bnez t1, .Ldtrc_4788_value_copy\n" ++
-  ".Ldtrc_4788_overlay_done:\n" ++
-  "  j .Ldtrc_nothread\n" ++
-  -- A committed-map hit has already supplied the exact current value.  Materialize
-  -- it as original=current and bypass all header-state work above.
-  ".Ldtrc_thread_hit:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 6; la t3, bvcd_preload; add t4, t3, t2   # preload entry i\n" ++
-  "  la t5, dtrc_threadval\n" ++
-  "  ld t6, 0(t5);  sd t6, 32(t4); ld t6, 8(t5);  sd t6, 40(t4)\n" ++
-  "  ld t6, 16(t5); sd t6, 48(t4); ld t6, 24(t5); sd t6, 56(t4)\n" ++
-  ".Ldtrc_nothread:\n" ++
-  "  la t0, bvcd_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Ldtrc_sloop\n" ++
+  -- GH #11176: the eager BAL-sourced RECIPIENT storage preload is RETIRED here.
+  -- #11165 landed the demand-driven h_SLOAD, which resolves a cold slot on first read,
+  -- so staging every BAL-declared slot up front duplicated it. Evidence, not assumption:
+  --   * population, sentinel build: 492 of 1,045 sampled rows had bvcd_key_count != 0,
+  --     a FLOOR (a row where the sentinel perturbation was harmless is invisible);
+  --   * A/B on that same sample with the handover count zeroed: FR 41 -> 41, OK 1004 ->
+  --     1004, ZERO flips either way, FA=0 both legs.
+  -- ⇒ the path was demonstrably exercised and the artefact was unchanged without it.
+  --
+  -- ⭐ WHAT WENT AND WHAT STAYED, because that boundary is where a silent regression
+  -- would live: CAPACITY checks went with their buffers (the two bgtu-against-
+  -- bsrAccountSlotCap bails existed BECAUSE bvcd_keys/bvcd_preload were that size);
+  -- INPUT-VALIDITY checks stayed (`a0 == 2` after bal_find_account_by_address is a
+  -- BAL-parse bail, FA-safe, and unrelated to buffer size). bal_find_account_by_address
+  -- and bvcd_acct_ptr/bvcd_acct_len stay for that reason.
+  --
+  -- ⚠️ NOT retired by this change, and each for a measured reason: the CALLEE preload
+  -- (seed_callee_storage) also fills callee_balance_table for nested SELFBALANCE; the
+  -- SYSTEM-CALL preload is load-bearing -- disabling it reverse-flips three
+  -- consolidation-request rows.
   ".Ldtrc_stage:\n" ++
   -- 3vc2p.3b sub-step B: reconstruct the M29 recent-blockhash table from the witness headers
   -- (cur = exec NUMBER, count = contiguous recent ancestors, count*32 hashes) into the staging
@@ -794,7 +678,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- conservatively (route to the safe path) instead of corrupting state.
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
-  "  la t0, bvcd_key_count; ld t2, 0(t0); slli t2, t2, 6; add t1, t1, t2\n" ++   -- + storage_count*64
+  -- (GH #11176: the storage_count*64 preload term is gone with the preload itself.)
   "  la t0, m28_blob_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- + blob hashes (count*32)
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++  -- 3vc2p.3b: + M29 hashes (count*32)
   "  la t0, dtrc_hdr_len; ld t2, 0(t0); add t1, t1, t2\n" ++        -- nested-CALL account-witness header bytes
@@ -803,7 +687,9 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer (4jczt-lifted) -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
-  "  la a5, bvcd_preload; la t0, bvcd_key_count; ld a6, 0(t0)\n" ++
+  -- GH #11176: no recipient storage preload. a5/a6 = the routine's documented
+  -- empty-preload default, which its count-driven copy loop already handles.
+  "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
   -- 6121j/coc3g.12.1: stage BLOBBASEFEE for the contract-recipient payload too.

@@ -362,7 +362,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_tx_auth_phase_applied_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
-  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
+  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of a BAL slot key for the exec_log_latest_value slotKey match. (GH #11176 retired bvcd_keys, which this comment used to name as the source; the remaining writers are outside the retired preload.)
   -- coc3g.5: 20-byte EIP-7702 delegated TARGET address scratch. When the recipient's
   -- resolved code is a 0xef0100||target marker (a prior-block-delegated EOA), the
   -- dispatch follows the marker to the target's code while keeping env.ADDRESS = the
