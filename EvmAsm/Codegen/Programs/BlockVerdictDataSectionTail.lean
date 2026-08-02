@@ -378,7 +378,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- block_state_root (additive; no consumer yet -> verdict byte-identical).
   -- Consumed later by .4.1/.4.2 to build execution-derived sender/coinbase leaves.
   ".balign 8\n" ++
-  "bmvmx_avail:\n  .zero 8\n" ++
   "eip7708_tl_typed_avail:\n  .zero 8\n" ++
   -- Receipts completeness shape for the enforcement tail:
   --   0 unknown/none
@@ -446,7 +445,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bmvmx_cb_acct_len:\n  .zero 8\n" ++
   "bmvmx_cb_bal_len:\n  .zero 8\n" ++
   "bmvmx_cb_nonce_len:\n  .zero 8\n" ++
-  "bmvmx_coinbase_match:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bmvmx_cb_balbytes:\n  .zero 32\n" ++
   "bmvmx_cb_post:\n  .zero 32\n" ++
@@ -596,7 +594,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 32\n" ++
   "yisv8_self_bal:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bmvmx_sender_match:\n  .zero 8\n" ++
   -- bmvmx.1.4.3.1: envelope predicate scratch. bmvmx_sender_checked / bmvmx_coinbase_checked
   -- mark that the exec-derived balance compare was PERFORMED in the cheap envelope (single-tx
   -- + legacy) with the relevant addresses distinct (sender!=recipient/coinbase for the sender
@@ -605,8 +602,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- (avail && checked && EOA && !match), without false-rejecting skipped / out-of-envelope /
   -- overlapping blocks.
   ".balign 8\n" ++
-  "bmvmx_sender_checked:\n  .zero 8\n" ++
-  "bmvmx_coinbase_checked:\n  .zero 8\n" ++
   -- bmvmx.1.6.3 (balance slice): scratch for the execution-derived sender balance compare
   -- (tx_gas_bal_post_verify_runtime + sender_debit_from_gas). tea_*/u256m_acc/tgsbl_*/bpf_*/
   -- tefgp_* are already provided by the EOA tx_gas_bal_post_verify path; only sdfg_gascost

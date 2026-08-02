@@ -8,10 +8,10 @@
 
   ## What is being modeled
 
-  `call_frame_arena` (`frameArrayBytes` ≈ 228 MiB, the Phase-D EVM
-  call-frame overlay) physically coalesces six execution-dead Phase-H
+  `call_frame_arena` (`frameArrayBytes` ≈ 100.1 MiB, the Phase-D EVM
+  call-frame overlay) physically coalesces five execution-dead Phase-H
   arenas into its front (`basr_values`, `basr_accounts`,
-  `baap_storage_{desc,paths,delete_paths,values}`;
+  `baap_storage_{desc,paths,values}`;
   `RegionMap.dataUnionChildren`).  (`bv_system_storage_log` was un-unioned in
   `4ch8f.73` — it is read post-dispatch, so a frame slot would clobber it.)
   Until now the no-corruption argument was
@@ -22,7 +22,7 @@
   * The arena is ONE separation-logic resource
     (`phaseDView base = anyBytes base frameArrayBytes`), never two.
   * The Phase-H view is a *tiling* of that same resource
-    (`phaseHView` = six havoc'd children + havoc'd pad), and
+    (`phaseHView` = five havoc'd children + havoc'd pad), and
     `phaseD_eq_phaseH` proves the two views are THE SAME assertion.
   * Phase transitions are rewrites across that equality.  Both directions
     **forget contents by construction** (`anyBytes` carries ownership and
@@ -56,7 +56,7 @@ namespace CallFramePhase
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
-/-- Total bytes of the six coalesced Phase-H arenas (the union front). -/
+/-- Total bytes of the five coalesced Phase-H arenas (the union front). -/
 def unionBytes : Nat := (RegionMap.dataUnionChildren.map (·.size)).sum
 
 /-- Trailing pad: arena bytes past the union front, owned by neither Phase-H
@@ -67,7 +67,7 @@ def unionPadBytes : Nat := frameArrayBytes - unionBytes
     `RegionMap.dataUnionChildren_fit_arena` at the summed granularity). -/
 theorem unionBytes_le_arena : unionBytes ≤ frameArrayBytes := by decide
 
-/-- Phase-H tiling segment sizes: the six children in layout order, then
+/-- Phase-H tiling segment sizes: the five children in layout order, then
     the pad. -/
 def phaseHSegs : List Nat :=
   RegionMap.dataUnionChildren.map (·.size) ++ [unionPadBytes]
@@ -84,7 +84,7 @@ theorem phaseHSegs_dvd8 : ∀ s ∈ phaseHSegs, 8 ∣ s := by decide
     (the EVM call-frame overlay owns every byte, contents unspecified). -/
 def phaseDView (base : Word) : Assertion := anyBytes base frameArrayBytes
 
-/-- **Phase-H view**: the six coalesced arenas plus the pad, each a
+/-- **Phase-H view**: the five coalesced arenas plus the pad, each a
     havoc'd tile of the same byte range. -/
 def phaseHView (base : Word) : Assertion := anyTilesAt base 0 phaseHSegs
 
@@ -113,7 +113,7 @@ private def S : Nat := RegionMap.basrArenaBytes
 private def D : Nat := bsrMaxBalItems * baapStorageDescBytes
 private def P : Nat := bsrMaxBalItems * bsrPathBytes
 
-/-- The Phase-H view unfolded to the six named children plus the pad, each
+/-- The Phase-H view unfolded to the five named children plus the pad, each
     at its accumulated byte offset.  The offsets are stated as left-nested
     sums exactly as the tiling produces them;
     `children_offsets_match_regionMap` pins them to the audited
@@ -125,43 +125,41 @@ theorem phaseHView_children (base : Word) :
         ** (anyBytes (base + BitVec.ofNat 64 (S + S)) D
         ** (anyBytes (base + BitVec.ofNat 64 (S + S + D)) P
         ** (anyBytes (base + BitVec.ofNat 64 (S + S + D + P)) P
-        ** (anyBytes (base + BitVec.ofNat 64 (S + S + D + P + P)) P
-        ** anyBytes (base + BitVec.ofNat 64 (S + S + D + P + P + P))
-            unionPadBytes)))))) := by
+        ** anyBytes (base + BitVec.ofNat 64 (S + S + D + P + P))
+            unionPadBytes))))) := by
   show anyTilesAt base 0 phaseHSegs = _
-  rw [show phaseHSegs = [S, S, D, P, P, P, unionPadBytes] from rfl]
+  rw [show phaseHSegs = [S, S, D, P, P, unionPadBytes] from rfl]
   simp only [anyTilesAt, Nat.zero_add, sepConj_emp_right']
 
 /-- The accumulated offsets above are exactly the audited
     `RegionMap.dataUnionChildren` offsets (and the pad starts at
     `unionBytes`). -/
 theorem children_offsets_match_regionMap :
-    [0, S, S + S, S + S + D, S + S + D + P, S + S + D + P + P]
+    [0, S, S + S, S + S + D, S + S + D + P]
       = RegionMap.dataUnionChildren.map (·.off)
-    ∧ S + S + D + P + P + P = unionBytes := by
+    ∧ S + S + D + P + P = unionBytes := by
   constructor <;> decide
 
 -- ============================================================================
 -- Phase transitions
 -- ============================================================================
 
-/-- **Phase-H → Phase-D handoff, from concrete buffers**: the six child
+/-- **Phase-H → Phase-D handoff, from concrete buffers**: the five child
     buffers with WHATEVER contents Phase H left in them, plus the untouched
     pad, assemble into the single arena resource Phase D owns.  Contents are
     forgotten here — this hypothesis shape is all a `block_verdict`-level
     composition needs at the dispatch boundary. -/
 theorem phaseH_to_phaseD (base : Word) (h : PartialState)
-    (bs₁ bs₂ bs₃ bs₄ bs₅ bs₆ : List (BitVec 8))
+    (bs₁ bs₂ bs₃ bs₄ bs₅ : List (BitVec 8))
     (hl₁ : bs₁.length = S) (hl₂ : bs₂.length = S) (hl₃ : bs₃.length = D)
-    (hl₄ : bs₄.length = P) (hl₅ : bs₅.length = P) (hl₆ : bs₆.length = P)
+    (hl₄ : bs₄.length = P) (hl₅ : bs₅.length = P)
     (hp : (bytesRegion (base + BitVec.ofNat 64 0) bs₁
         ** (bytesRegion (base + BitVec.ofNat 64 S) bs₂
         ** (bytesRegion (base + BitVec.ofNat 64 (S + S)) bs₃
         ** (bytesRegion (base + BitVec.ofNat 64 (S + S + D)) bs₄
         ** (bytesRegion (base + BitVec.ofNat 64 (S + S + D + P)) bs₅
-        ** (bytesRegion (base + BitVec.ofNat 64 (S + S + D + P + P)) bs₆
-        ** anyBytes (base + BitVec.ofNat 64 (S + S + D + P + P + P))
-            unionPadBytes)))))) h) :
+        ** anyBytes (base + BitVec.ofNat 64 (S + S + D + P + P))
+            unionPadBytes))))) h) :
     phaseDView base h := by
   have w : ∀ (b : Word) (n : Nat) (bs : List (BitVec 8)), bs.length = n →
       ∀ h', bytesRegion b bs h' → anyBytes b n h' :=
@@ -171,14 +169,13 @@ theorem phaseH_to_phaseD (base : Word) (h : PartialState)
   refine sepConj_mono_left (w _ _ _ hl₂) h₁ (sepConj_mono_right (fun h₂ hx₂ => ?_) h₁ hx₁)
   refine sepConj_mono_left (w _ _ _ hl₃) h₂ (sepConj_mono_right (fun h₃ hx₃ => ?_) h₂ hx₂)
   refine sepConj_mono_left (w _ _ _ hl₄) h₃ (sepConj_mono_right (fun h₄ hx₄ => ?_) h₃ hx₃)
-  refine sepConj_mono_left (w _ _ _ hl₅) h₄ (sepConj_mono_right (fun h₅ hx₅ => ?_) h₄ hx₄)
-  exact sepConj_mono_left (w _ _ _ hl₆) h₅ hx₅
+  exact sepConj_mono_left (w _ _ _ hl₅) h₄ hx₄
 
 /-- **Phase-D → Phase-H re-entry** (stated for completeness; the guest's
     phase order is H then D with no post-dispatch Phase-H reader — this
     direction documents that even if one existed, it would receive its
     buffers HAVOC'D, not with their old contents): the arena resource
-    re-partitions into the six child tiles + pad, contents unspecified. -/
+    re-partitions into the five child tiles + pad, contents unspecified. -/
 theorem phaseD_to_phaseH (base : Word) (h : PartialState)
     (hp : phaseDView base h) : phaseHView base h :=
   (phaseD_eq_phaseH base) ▸ hp
