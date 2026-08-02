@@ -134,14 +134,10 @@ def blockVerdictReceiptsTail : String :=
    -- about the cause.  Omit property stays CONTAINER_DEPENDENT under 37.
    "  la t0, bv_dispatch_runtime_status; ld t0, 0(t0); bnez t0, .Lbv_dispatch_runtime_status_fail\n" ++
    "  li a0, 1; j .Lbv_ret\n" ++
-  ".Lbv_receipts_no_runtime_gas:\n" ++
-  "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
-  "  li a1, 0\n" ++
-  "  li a2, 0\n" ++
-  "  li a3, 0\n" ++
-  "  li a4, 0\n" ++
-  "  jal ra, block_receipt_records_materialize\n" ++
-  "  li a0, 1; j .Lbv_ret\n" ++
+  -- #11170: deleted dead `.Lbv_receipts_no_runtime_gas` ACCEPT arm (0 branch
+  -- targets). It was the sole bypass of `bv_dispatch_runtime_status` — wiring
+  -- it would accept with nonzero dispatch status (latent FA). Live accept above
+  -- is the only reader of that cell.
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_header_fail:\n" ++
