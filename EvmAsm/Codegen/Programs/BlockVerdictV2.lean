@@ -508,9 +508,9 @@ def statelessVerdictV2GuestClosure : String :=
   balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
   stageRuntimePayloadWitnessContextFunction ++ "\n" ++
-  blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
-  -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
-  -- block_verdict so the multi-tx dispatch loop can reuse it.
+  -- #10685 PR2: bv_emit_single_tx_tl7708 unlinked (never-written buffer +
+  -- mode-2 gate bypass; early-exit no-op even if jal taken). KEEP Function
+  -- string for probe isolation.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
   txAccessListSpanFunction ++ "\n" ++
     txEip2930DecodeFunction ++ "\n" ++

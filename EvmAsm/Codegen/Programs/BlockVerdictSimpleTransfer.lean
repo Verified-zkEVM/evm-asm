@@ -321,9 +321,9 @@ def blockVerdictSimpleTransferDataSection : String :=
   "t48_offset:\n  .zero 8\n" ++
   "t48_length:\n  .zero 8\n" ++
   ".balign 32\n" ++
-  "sttc_base_fee_be:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "bv_simple_transfer_tx:\n  .zero 192\n"
+  "sttc_base_fee_be:\n  .zero 32\n"
+  -- #10685 PR2: bv_simple_transfer_tx (.zero 192) deleted with bv_emit_single_tx_tl7708.
+  -- SPIKE_WATCH hits=0 on cell; sole producer never filled; emit early-exits on zero.
 
 def blockVerdictTxGasPrechargeDataSection : String :=
   ".balign 8\n" ++

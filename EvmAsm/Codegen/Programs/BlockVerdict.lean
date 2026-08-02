@@ -162,7 +162,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bvgr_tx_gas_limits; ld t2, 0(t1); sd t2, 320(t0)\n" ++
   "  la t1, bvgr_block_gas_increments; ld t2, 0(t1); sd t2, 328(t0)\n" ++
   "  la t1, bvgr_receipt_gas_increments; ld t2, 0(t1); sd t2, 336(t0)\n" ++
-  "  la t1, bv_simple_transfer_tx; ld t2, 0(t1); sd t2, 344(t0)\n" ++
+  -- #10685 PR2: bv_simple_transfer_tx BSS deleted with bv_emit_single_tx_tl7708.
+  -- Slot 344 left unwritten (same sibling-unit trap class as 360/368).
   "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 352(t0)\n" ++
   -- #10685: bv_simple_transfer_recipient / fee_recipient BSS deleted with the
   -- dead bal_verify twins. zisk_stateless_verdict_v2 debug dump must not la them
@@ -420,7 +421,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bloomEqFunction ++ "\n" ++
   storageWritesBlockLatestValueFunction ++ "\n" ++
   blockVerdictFunction ++ "\n" ++
-  blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
+  -- #10685 PR2: bv_emit_single_tx_tl7708 unlinked from guest; KEEP Function for probes.
   rlpListCountItemsFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
