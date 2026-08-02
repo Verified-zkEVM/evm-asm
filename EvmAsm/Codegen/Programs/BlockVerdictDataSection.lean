@@ -741,6 +741,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- current behavior. Capture those erased rows here with txindex=0 for the
   -- follow-up tuple-merge comparator.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
+  -- Set only around the pre-user descriptor pass: reuse the row conversion
+  -- without emitting a duplicate side-log/BAL event before terminal replay.
+  "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
   -- 4ch8f.73: bv_system_storage_log is a STANDALONE .data region (NOT unioned into
   -- call_frame_arena). The former ~77 MiB union placement was UNSOUND: the audit's
