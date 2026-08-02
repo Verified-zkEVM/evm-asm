@@ -216,8 +216,9 @@ def blockVerdictFunction : String :=
   -- wrong-chain typed tx was a verdict false-accept.
   "  jal ra, block_verdict_chain_id_gate\n" ++
   "  bnez a0, .Lbv_chain_id_gate_fail\n" ++
-  "  # EIP-7928 BAL gas-limit rule: reject if the block_access_list exceeds the\n" ++
-  "  # gas limit (a semantic invalidity not caught by header/state checks).\n" ++
+   "  # Decode declared BAL slice + capture gas_limit for late gas-on-built (#11120).\n" ++
+  "  # Spec validate_block_access_list_gas_limit runs on the BUILT list after\n" ++
+  "  # build_block_access_list (fork.py:932-936); early gas-on-declared removed.\n" ++
   "  mv a0, s3; jal ra, bgv_u32le\n" ++
   "  add t0, s3, a0              # NPR = SSZ_BASE + outer.offsets[0]\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2)\n" ++
@@ -227,17 +228,12 @@ def blockVerdictFunction : String :=
   "  la t2, bv_bal_start; sd a0, 0(t2)\n" ++
   "  la t2, bv_npr_p; ld t0, 0(t2); addi a0, t0, 4; jal ra, bgv_u32le   # vh_off\n" ++
   "  la t2, bv_npr_p; ld t0, 0(t2); add a1, t0, a0   # bal_end\n" ++
-  "  la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3   # bal_len (a1 survives bgv_u64le)\n" ++
+  "  la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3   # bal_len\n" ++
   "  la t2, bv_bal_len; sd a1, 0(t2)\n" ++
-  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le   # a0 = gas_limit\n" ++
-  "  mv a2, a0                                  # gas_limit\n" ++
-  "  la t2, bv_bal_start; ld a0, 0(t2)          # bal_start\n" ++
-  "  la t2, bv_bal_len; ld a1, 0(t2)            # bal_len\n" ++
-  "  jal ra, bal_gas_valid\n" ++
-  "  bnez a0, .Lbv_bal_gas_fail          # BAL gas exceeded (or parse fail) -> invalid\n" ++
-  -- The decoded BAL slice now satisfies the same precondition consumed by the
-  -- downstream granular comparators.  The terminal shadow observer uses this
-  -- reach marker rather than guessing from a pointer value.
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le   # gas_limit\n" ++
+  "  la t2, bv_block_gas_limit; sd a0, 0(t2)\n" ++
+  -- Decoded BAL slice ready for granular comparators + Path A observer.
+  -- Gas-on-built runs at Lbv_ret after rebuild (bal_gas_valid_from_builder).
   "  li t0, 1; la t2, bv_bal_shadow_ready; sd t0, 0(t2)\n" ++
   "  # Witness integrity: for every BAL account with non-empty pre-state code,\n" ++
   "  # witness.codes must contain that code hash, matching execution-specs'\n" ++
