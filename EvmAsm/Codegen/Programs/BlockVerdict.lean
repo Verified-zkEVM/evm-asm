@@ -164,8 +164,10 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bvgr_receipt_gas_increments; ld t2, 0(t1); sd t2, 336(t0)\n" ++
   "  la t1, bv_simple_transfer_tx; ld t2, 0(t1); sd t2, 344(t0)\n" ++
   "  la t1, bv_tx_gas_precharge; ld t2, 0(t1); sd t2, 352(t0)\n" ++
-  "  la t1, bv_simple_transfer_recipient; ld t2, 0(t1); sd t2, 360(t0)\n" ++
-  "  la t1, bv_simple_transfer_fee_recipient; ld t2, 0(t1); sd t2, 368(t0)\n" ++
+  -- #10685: bv_simple_transfer_recipient / fee_recipient BSS deleted with the
+  -- dead bal_verify twins. zisk_stateless_verdict_v2 debug dump must not la them
+  -- (sibling-unit trap: dead in guest, live only as dump mirrors). Slots 360/368
+  -- left unwritten; later dumps keep their historical offsets.
   "  la t1, bv_withdrawals_root_status; ld t2, 0(t1); sd t2, 376(t0)\n" ++
   "  la t1, bv_withdrawals_root_valid; ld t2, 0(t1); sd t2, 384(t0)\n" ++
   "  la t1, bv_tx_root_status; ld t2, 0(t1); sd t2, 392(t0)\n" ++
@@ -432,7 +434,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
-  simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
   blockVerdictCreationRuntimeFunction ++ "\n" ++
@@ -444,8 +445,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
-  simpleTransferRecipientBalVerifyFunction ++ "\n" ++
-  simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
@@ -467,7 +466,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
-  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++

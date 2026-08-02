@@ -748,12 +748,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- byte order matches a word GASPRICE pushes. INERT until 3vc2p.4 (self-contained
   -- recipients don't read GASPRICE). Conservative: a pricing failure leaves gasPrice 0.
   "  ld a0, 8(s2); ld a1, 16(s2); ld a2, 32(s2)\n" ++
-  -- fhsxz.2.4.2.57.11.6.5: skip gas-pricing when base_fee ptr (ctx+32) is null. The
-  -- multi-tx context (multi_tx_nth_context) leaves +32 zero (base_fee is a per-call
-  -- input the loop doesn't supply); tx_effective_gas_pricing would then deref a null
-  -- base_fee (u256_sub_be max_fee - base_fee reads addr 0 -> ziskemu mem panic). GASPRICE
-  -- is INERT for self-contained recipients, so leaving it 0 here is correct (same as the
-  -- existing pricing-failure path). Mirrors the .Ldtrc_no_sender guard on the pubkey (+24).
+  -- fhsxz.2.4.2.57.11.6.5: retain a conservative no-price path when a caller has
+  -- not supplied the base-fee pointer at ctx+32. `tx_effective_gas_pricing`
+  -- dereferences that pointer (u256_sub_be max_fee - base_fee), so a null input
+  -- must not be passed through. MTx now supplies the authenticated block buffer
+  -- before reaching this helper; the guard remains for unsupported/malformed
+  -- contexts and mirrors the `.Ldtrc_no_sender` guard on the pubkey (+24).
   "  beqz a2, .Ldtrc_no_gasprice\n" ++
   "  la a3, gp_egp; la a4, gp_prio\n" ++
   "  jal ra, tx_effective_gas_pricing\n" ++
