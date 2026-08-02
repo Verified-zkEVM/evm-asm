@@ -36,25 +36,25 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc0" "t0" "t3" "t1" "t4" ++
   "  beqz t3, .Lbv_tx_gas_precharge_value_check\n" ++
-  precompileSelectorBranchesAsm "t3" "t4"
-    [ (1, ".Lbv_simple_transfer_precompile_ecrecover")
-    , (2, ".Lbv_simple_transfer_precompile_sha256")
-    , (3, ".Lbv_simple_transfer_precompile_ripemd160")
-    , (4, ".Lbv_simple_transfer_precompile_identity")
-    , (5, ".Lbv_simple_transfer_precompile_modexp")
-    , (6, ".Lbv_simple_transfer_precompile_ecadd")
-    , (7, ".Lbv_simple_transfer_precompile_ecmul")
-    , (8, ".Lbv_simple_transfer_precompile_ecpairing")
-    , (9, ".Lbv_simple_transfer_precompile_blake2f")
-    , (10, ".Lbv_simple_transfer_precompile_point_eval")
-    , (11, ".Lbv_simple_transfer_precompile_bls_g1add")
-    , (12, ".Lbv_simple_transfer_precompile_bls_g1msm")
-    , (13, ".Lbv_simple_transfer_precompile_bls_g2add")
-    , (14, ".Lbv_simple_transfer_precompile_bls_g2msm")
-    , (15, ".Lbv_simple_transfer_precompile_bls_pairing")
-    , (16, ".Lbv_simple_transfer_precompile_bls_map_g1")
-    , (17, ".Lbv_simple_transfer_precompile_bls_map_g2")
-    , (256, ".Lbv_simple_transfer_precompile_p256") ] ++
+  precompileSelectorBranchesAsm "t3" "t4" true
+    [ ("1", ".Lbv_simple_transfer_precompile_ecrecover")
+    , ("2", ".Lbv_simple_transfer_precompile_sha256")
+    , ("3", ".Lbv_simple_transfer_precompile_ripemd160")
+    , ("4", ".Lbv_simple_transfer_precompile_identity")
+    , ("5", ".Lbv_simple_transfer_precompile_modexp")
+    , ("6", ".Lbv_simple_transfer_precompile_ecadd")
+    , ("7", ".Lbv_simple_transfer_precompile_ecmul")
+    , ("8", ".Lbv_simple_transfer_precompile_ecpairing")
+    , ("9", ".Lbv_simple_transfer_precompile_blake2f")
+    , ("10", ".Lbv_simple_transfer_precompile_point_eval")
+    , ("11", ".Lbv_simple_transfer_precompile_bls_g1add")
+    , ("12", ".Lbv_simple_transfer_precompile_bls_g1msm")
+    , ("13", ".Lbv_simple_transfer_precompile_bls_g2add")
+    , ("14", ".Lbv_simple_transfer_precompile_bls_g2msm")
+    , ("15", ".Lbv_simple_transfer_precompile_bls_pairing")
+    , ("16", ".Lbv_simple_transfer_precompile_bls_map_g1")
+    , ("17", ".Lbv_simple_transfer_precompile_bls_map_g2")
+    , ("256", ".Lbv_simple_transfer_precompile_p256") ] ++
   ".Lbv_tx_gas_precharge_value_check:\n" ++
   -- The MTx empty-code route enters this shared active-precompile recognizer
   -- with its context copied into the scalar scratch. Falling through here
@@ -75,25 +75,25 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  mv t0, t2; addi t0, t0, 72\n" ++
   precompileAddressClassifyAsm "bv_tx_gas_precharge_pc" "t0" "t3" "t1" "t4" ++
   "  beqz t3, .Lbv_mtx_precompile_not_active\n" ++
-  precompileSelectorBranchesAsm "t3" "t4"
-    [ (1, ".Lbv_simple_transfer_precompile_ecrecover")
-    , (2, ".Lbv_simple_transfer_precompile_sha256")
-    , (3, ".Lbv_simple_transfer_precompile_ripemd160")
-    , (4, ".Lbv_simple_transfer_precompile_identity")
-    , (5, ".Lbv_simple_transfer_precompile_modexp")
-    , (6, ".Lbv_simple_transfer_precompile_ecadd")
-    , (7, ".Lbv_simple_transfer_precompile_ecmul")
-    , (8, ".Lbv_simple_transfer_precompile_ecpairing")
-    , (9, ".Lbv_simple_transfer_precompile_blake2f")
-    , (10, ".Lbv_simple_transfer_precompile_point_eval")
-    , (11, ".Lbv_simple_transfer_precompile_bls_g1add")
-    , (12, ".Lbv_simple_transfer_precompile_bls_g1msm")
-    , (13, ".Lbv_simple_transfer_precompile_bls_g2add")
-    , (14, ".Lbv_simple_transfer_precompile_bls_g2msm")
-    , (15, ".Lbv_simple_transfer_precompile_bls_pairing")
-    , (16, ".Lbv_simple_transfer_precompile_bls_map_g1")
-    , (17, ".Lbv_simple_transfer_precompile_bls_map_g2")
-    , (256, ".Lbv_simple_transfer_precompile_p256") ] ++
+  precompileSelectorBranchesAsm "t3" "t4" true
+    [ ("1", ".Lbv_simple_transfer_precompile_ecrecover")
+    , ("2", ".Lbv_simple_transfer_precompile_sha256")
+    , ("3", ".Lbv_simple_transfer_precompile_ripemd160")
+    , ("4", ".Lbv_simple_transfer_precompile_identity")
+    , ("5", ".Lbv_simple_transfer_precompile_modexp")
+    , ("6", ".Lbv_simple_transfer_precompile_ecadd")
+    , ("7", ".Lbv_simple_transfer_precompile_ecmul")
+    , ("8", ".Lbv_simple_transfer_precompile_ecpairing")
+    , ("9", ".Lbv_simple_transfer_precompile_blake2f")
+    , ("10", ".Lbv_simple_transfer_precompile_point_eval")
+    , ("11", ".Lbv_simple_transfer_precompile_bls_g1add")
+    , ("12", ".Lbv_simple_transfer_precompile_bls_g1msm")
+    , ("13", ".Lbv_simple_transfer_precompile_bls_g2add")
+    , ("14", ".Lbv_simple_transfer_precompile_bls_g2msm")
+    , ("15", ".Lbv_simple_transfer_precompile_bls_pairing")
+    , ("16", ".Lbv_simple_transfer_precompile_bls_map_g1")
+    , ("17", ".Lbv_simple_transfer_precompile_bls_map_g2")
+    , ("256", ".Lbv_simple_transfer_precompile_p256") ] ++
   "  j .Lbv_mtx_precompile_not_active\n" ++
   ".Lbv_simple_transfer_precompile_ecrecover:\n" ++
   -- At depth zero the precompile's returndata is intentionally not materialized:
@@ -176,7 +176,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
   precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
   precompileKernelCallAsm "ra" "zkvm_bn254_g1_add" "a0"
-    ".Lbv_simple_transfer_precompile_fail" "" ++
+    ".Lbv_simple_transfer_precompile_fail" "" "  " ++
   precompileFixedGasCostAsm 150 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecmul:\n" ++
@@ -192,9 +192,9 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   ".Lbv_simple_transfer_ecmul_copy:\n" ++
   "  beq a0, t4, .Lbv_simple_transfer_ecmul_run; add a1, t5, a0; lbu a2, 0(a1); add a1, t3, a0; sb a2, 0(a1); addi a0, a0, 1; j .Lbv_simple_transfer_ecmul_copy\n" ++
   ".Lbv_simple_transfer_ecmul_run:\n" ++
-  "  mv a0, t3; addi a1, t3, 64; addi a2, t3, 128\n" ++
+  "  mv a0, t3; addi a1, t3, 64; addi a2, t3, 128" ++
   precompileKernelCallAsm "ra" "zkvm_bn254_g1_mul" "a0"
-    ".Lbv_simple_transfer_precompile_fail" "" ++
+    ".Lbv_simple_transfer_precompile_fail" "" "; " ++
   precompileFixedGasCostAsm 6000 "t6" ++
   "  j .Lbv_simple_transfer_emit_tl_then_after_tx_gas_precharge\n" ++
   ".Lbv_simple_transfer_precompile_ecpairing:\n" ++
@@ -207,7 +207,7 @@ def blockVerdictSimpleTransferPrecompileGasAsm : String :=
   "  la t2, bv_simple_transfer_tx; ld a0, 56(t2); ld t5, 64(t2); li t4, 192; divu a1, t5, t4\n" ++
   precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
   precompileKernelCallAsm "ra" "zkvm_bn254_pairing" "a0"
-    ".Lbv_simple_transfer_precompile_fail" "" ++
+    ".Lbv_simple_transfer_precompile_fail" "" "  " ++
   "  la t2, bv_simple_transfer_tx; ld t5, 64(t2)\n" ++
   precompilePerUnitGasCostAsm ".Lbv_simple_transfer_precompile_fail" 192 45000 34000
     "t5" "t6" "t5" "t4" ++

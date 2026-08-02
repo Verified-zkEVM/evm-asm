@@ -50,20 +50,24 @@ def precompileAddressClassifyAsm
     helper only emits caller-owned targets, so output, success, continuation,
     and gas-allotment policy remain at each call site. -/
 def precompileSelectorBranchesAsm
-    (selectorReg scratchReg : String) : List (Nat × String) → String
+    (selectorReg scratchReg : String) (inline : Bool) : List (String × String) → String
   | [] => ""
   | (selector, target) :: rest =>
-      "  li " ++ scratchReg ++ ", " ++ toString selector ++ "\n" ++
-      "  beq " ++ selectorReg ++ ", " ++ scratchReg ++ ", " ++ target ++ "\n" ++
-      precompileSelectorBranchesAsm selectorReg scratchReg rest
+      (if inline then
+        "  li " ++ scratchReg ++ ", " ++ selector ++ "; beq " ++
+          selectorReg ++ ", " ++ scratchReg ++ ", " ++ target ++ "\n"
+       else
+        "  li " ++ scratchReg ++ ", " ++ selector ++ "\n" ++
+          "  beq " ++ selectorReg ++ ", " ++ scratchReg ++ ", " ++ target ++ "\n") ++
+      precompileSelectorBranchesAsm selectorReg scratchReg inline rest
 
 /-- Call a precompile validity kernel and branch on its status. The optional
     post-call text is for caller-local ABI restoration (the child path saves
     its dispatch registers around LP64 kernels); it deliberately does not
     encode output, success, continuation, or gas-allotment policy. -/
 def precompileKernelCallAsm
-    (linkReg kernel statusReg failLabel afterCall : String) : String :=
-  "  jal " ++ linkReg ++ ", " ++ kernel ++ "\n" ++
+    (linkReg kernel statusReg failLabel afterCall callPrefix : String) : String :=
+  callPrefix ++ "jal " ++ linkReg ++ ", " ++ kernel ++ "\n" ++
   afterCall ++
   "  bnez " ++ statusReg ++ ", " ++ failLabel ++ "\n"
 

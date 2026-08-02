@@ -245,21 +245,21 @@ def precompileMessageProcessorAsm
     successfulPrecompileNewAccountStateGasAsm tag valueOff? ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
-    precompileSelectorBranchesAsm "x14" "x15"
-      [ (5, ".Lmodexp_zero_header_" ++ tag)
-      , (6, ".L" ++ tag ++ "_bn254_add")
-      , (7, ".L" ++ tag ++ "_bn254_mul")
-      , (8, ".L" ++ tag ++ "_bn254_pairing")
-      , (9, ".L" ++ tag ++ "_blake2f")
-      , (10, ".L" ++ tag ++ "_kzg_point_eval")
-      , (11, "13f")
-      , (12, "14f")
-      , (13, "15f")
-      , (14, "16f")
-      , (15, "17f")
-      , (16, "18f")
-      , (17, "19f")
-      , (256, ".L" ++ tag ++ "_p256verify") ] ++
+    precompileSelectorBranchesAsm "x14" "x15" false
+      [ ("5", ".Lmodexp_zero_header_" ++ tag)
+      , ("0x06", ".L" ++ tag ++ "_bn254_add")
+      , ("0x07", ".L" ++ tag ++ "_bn254_mul")
+      , ("0x08", ".L" ++ tag ++ "_bn254_pairing")
+      , ("0x09", ".L" ++ tag ++ "_blake2f")
+      , ("0x0a", ".L" ++ tag ++ "_kzg_point_eval")
+      , ("0x0b", "13f")
+      , ("0x0c", "14f")
+      , ("0x0d", "15f")
+      , ("0x0e", "16f")
+      , ("0x0f", "17f")
+      , ("0x10", "18f")
+      , ("0x11", "19f")
+      , ("0x100", ".L" ++ tag ++ "_p256verify") ] ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "11:\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -472,7 +472,7 @@ def precompileMessageProcessorAsm
       ("  mv x16, a0\n" ++
        "  mv x13, s9\n" ++
        "  mv x10, s10\n" ++
-       "  mv x12, s11\n") ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_add_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BN254 G1 MUL (EIP-196 ecMul): fixed 6000 gas, one 64-byte point plus
@@ -501,7 +501,7 @@ def precompileMessageProcessorAsm
       ("  mv x16, a0\n" ++
        "  mv x13, s9\n" ++
        "  mv x10, s10\n" ++
-       "  mv x12, s11\n") ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BN254 pairing (EIP-197): cost = 45000 + 34000 * floor(len / 192),
@@ -536,7 +536,7 @@ def precompileMessageProcessorAsm
       ("  mv x16, a0\n" ++
        "  mv x13, s9\n" ++
        "  mv x10, s10\n" ++
-       "  mv x12, s11\n") ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccessBoolFromFrameAsm
       (tag ++ "_bn254_pairing_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
