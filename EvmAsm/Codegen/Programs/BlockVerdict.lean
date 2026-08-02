@@ -427,7 +427,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
-  balGasValidFunction ++ "\n" ++
+  -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++

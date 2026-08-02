@@ -93,8 +93,12 @@ def delegationAccessChargeAsm (addressLabel : String) : String :=
     Calling convention:
       a0 = witness.state ptr   a1 = witness.state len   a2 = recipient 20-byte addr ptr
     Reads globals `bv_bal_start`/`bv_bal_len`, `sv_this_rlp`/`sv_this_rlp_len`.
-    Writes `callee_seed_count` + `callee_seed_table` (count × 96 B: addrHash, key,
-    value). Caps at 512 entries (table size); preserves s0..s3. A seeded slot has
+    Writes `callee_seed_count` + `callee_seed_table` (count × `calleeSeedEntryBytes`:
+    addrHash, key, value). Per-account key scratch is `csce_keys` sized
+    `bsrAccountSlotCap` (gas-derived = `bsrMaxBalItems`); the output table is
+    `calleeSeedTableCap` entries. All three capacity guards FAIL CLOSED:
+    return `a0 = 1` so the caller bails `.Ldtrc_bal_unsupported` (GH #11157).
+    Preserves s0..s3 on success (`a0 = 0`). A seeded slot has
     original==current==value (no net change), matching the recipient preload. -/
 def seedCalleeStorageFunction : String :=
   "seed_callee_storage:\n" ++
@@ -163,8 +167,11 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_addrp; ld a0, 0(t0); la a1, csce_addrkey\n" ++
   "  jal ra, bal_addr_to_exec_log_key                # csce_addrkey = LE callee exec-log key\n" ++
   "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0); la a2, csce_keys\n" ++
-  "  jal ra, bal_recipient_storage_keys              # csce_keys[] (own buffer, 128 cap)\n" ++
-  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # bmvmx.1.7.3: >128 changes wouldn't fit csce_keys -> skip this account (seed nothing)\n" ++
+  "  jal ra, bal_recipient_storage_keys              # csce_keys[] sized bsrAccountSlotCap\n" ++
+  -- #11157: guard = buffer capacity it protects (csce_keys = bsrAccountSlotCap × 32 B =
+  -- bsrMaxBalItems = gas_limit/BAL_ITEM). Helper returns true count and writes nothing when
+  -- over cap; caller MUST fail closed (was: bare `li 128` + skip account = FA surface).
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Lscs_cap_fail\n" ++
   -- lv44p / coc3g.5: ALSO enumerate the account's storage_READS keys (AccountChanges item 2) and
   -- seed them from the witness pre-state. A user contract that CALLs the EIP-2935 / EIP-4788
   -- predeploy READS a slot the begin-of-block system tx wrote in a PRIOR block (e.g. BLOCKHASH /
@@ -179,15 +186,18 @@ def seedCalleeStorageFunction : String :=
   "  mv s4, a0                                        # s4 = changes-slot count\n" ++
   "  mv a0, s3; la t0, csce_alen; ld a1, 0(t0)\n" ++
   "  slli t0, s4, 5; la t1, csce_keys; add a2, t1, t0  # a2 = &csce_keys[changes_count]\n" ++
-  "  li t0, 128; sub a3, t0, s4                       # remaining capacity to 128\n" ++
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; sub a3, t0, s4   # remaining csce_keys capacity\n" ++
   "  jal ra, bal_recipient_storage_reads_keys         # append storage_reads keys after the changes keys\n" ++
   "  add a0, a0, s4                                   # total = changes + reads\n" ++
-  "  li t0, 128; bgtu a0, t0, .Lscs_acct_next        # combined > 128 -> skip this account (reads wrote nothing)\n" ++
+  -- #11157: combined changes+reads vs same csce_keys capacity; fail closed (was skip).
+  "  li t0, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t0, .Lscs_cap_fail\n" ++
   "  la t0, csce_key_n; sd a0, 0(t0)\n" ++
   "  la t0, csce_key_i; sd zero, 0(t0)\n" ++
   ".Lscs_slot_loop:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); la t2, csce_key_n; ld t3, 0(t2); beq t1, t3, .Lscs_acct_next\n" ++
-  "  la t0, callee_seed_count; ld t2, 0(t0); li t3, 128; bgeu t2, t3, .Lscs_done   # table cap\n" ++
+  -- #11157: table-full vs calleeSeedTableCap (Dispatch .zero size / entry bytes). Fail closed
+  -- so remaining accounts are not silently dropped (was: bare `li 128` + .Lscs_done continue).
+  "  la t0, callee_seed_count; ld t2, 0(t0); li t3, " ++ toString calleeSeedTableCap ++ "; bgeu t2, t3, .Lscs_cap_fail\n" ++
   -- execution-specs' `get_storage_original` / `get_storage` first consult
   -- the cumulative block map.  This callee-preload path feeds the per-tx
   -- exec log before SSTORE runs, so it must use the FOREIGN callee's real
@@ -197,7 +207,7 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la a1, csce_keys; add a1, a1, t4\n" ++
   "  li a2, 0xa1fa0000; li a4, " ++ toString storageWritesCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
   "  jal ra, storage_writes_block_latest_value\n" ++
-  "  li t0, 2; beq a0, t0, .Lscs_done                # malformed over-capacity map: do not seed stale state\n" ++
+  "  li t0, 2; beq a0, t0, .Lscs_cap_fail             # malformed over-capacity map: fail closed (#11157)\n" ++
   "  li t0, 1; beq a0, t0, .Lscs_slot_committed\n" ++
   ".Lscs_slot_header:\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la t5, csce_keys; add a3, t5, t4   # slot key ptr\n" ++
@@ -329,7 +339,13 @@ def seedCalleeStorageFunction : String :=
   "  la t0, csce_key_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_slot_loop\n" ++
   ".Lscs_acct_next:\n" ++
   "  la t0, csce_acct_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lscs_acct_loop\n" ++
+  -- #11157: capacity exceeded (csce_keys or callee_seed_table) or malformed map → a0=1.
+  ".Lscs_cap_fail:\n" ++
+  "  li a0, 1\n" ++
+  "  j .Lscs_ret\n" ++
   ".Lscs_done:\n" ++
+  "  li a0, 0\n" ++
+  ".Lscs_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 56\n" ++
@@ -975,8 +991,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- bmvmx.1.6.4.2.b: seed every non-recipient BAL account's storage into the exec log
   -- so nested callees SLOAD witness values (not 0). Fills callee_seed_table/count, which
   -- the callable dispatcher's seed loop drains during runtime_dispatcher_call's setup.
+  -- #11157: a0≠0 = capacity/malformed fail-closed (was: ignore return, skip silently).
   "  mv a0, s0; mv a1, s1; addi a2, s2, 72\n" ++
   "  jal ra, seed_callee_storage\n" ++
+  "  bnez a0, .Ldtrc_bal_unsupported\n" ++
   -- fhsxz.2.4.2.57.18.10: pass access-list cardinalities into the runtime
   -- dispatcher's tx-gas validator so the captured calldata floor and regular
   -- intrinsic gas include tokens_in_access_list. Type 0 has no access list,

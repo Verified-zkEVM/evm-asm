@@ -86,7 +86,6 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
-import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
@@ -309,7 +308,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
   (GuestAddrs.bal_section_info, balSectionInfo_prog),
-  (GuestAddrs.bal_gas_valid, balGasValid_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -353,7 +351,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_scalar_mul, secp256k1ScalarMul_prog),
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
-  (GuestAddrs.exec_log_latest_value, execLogLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
@@ -516,6 +513,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 356
+#guard guestImageEntries.length = 354
 
 end EvmAsm.Codegen

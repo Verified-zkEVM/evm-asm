@@ -542,7 +542,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "csce_key_i:\n  .zero 8\n" ++ "csce_key_n:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "csce_addrkey:\n  .zero 32\n" ++
-  "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys (matches the gas-derived bal_recipient_storage_keys cap; the seed loop still skips accounts >128)
+  "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys; seed_callee guards derive from bsrAccountSlotCap and fail closed (#11157)
   -- 1ipxd.1: pre-resolved per-account balance table for nested-frame SELFBALANCE.
   -- seed_callee_storage fills it (clean pre-execution context). ⚠️ This used to add "where the
   -- witness MPT walk works — it returns absent mid-EVM-execution"; GH #11105 refuted that as an
