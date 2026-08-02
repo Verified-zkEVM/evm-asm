@@ -18,10 +18,10 @@ the machine-checked overlap inventory for the one intentional aliasing.
 > seven-child/`0x39000` snapshots below are retained only as history.
 
 > **Current linked snapshot:** `.text` is `0x80000000..0x806338c`, `.data` is
-> `0xa3000000..0xa3005370`, `.bss` is `0xa3110000..0xbdd7cb20`, and
-> `.sszscratch` starts at `0xbf980000`. `call_frame_arena` is `0xad3dd7a0`,
-> `evm_memory_pool` is `0xb37f67a0`, and `bv_system_storage_log` is
-> `0xab07a800` in the checked guest artifact.
+> `0xa3000000..0xa3005370`, `.bss` is `0xa3110000..0xbdd7c900`, and
+> `.sszscratch` starts at `0xbf980000`. `call_frame_arena` is `0xad3dd5e0`,
+> `evm_memory_pool` is `0xb37f65e0`, and `bv_system_storage_log` is
+> `0xab07a640` in the checked guest artifact.
 
 Source of truth, in order of authority:
 
@@ -131,7 +131,7 @@ carries `guestRegionMap_pairwise_disjoint` (no exceptions):
 | `state_tracker_live` | `0xa0630000` | `0x200000` | emitted storage-log window `..0xa0830000` | STABLE |
 | `.text` | `0x80000000` | `0x6338c` | `readelf -S` | **LINK-DEPENDENT** |
 | `.data` | `0xa3000000` | `0x5370` (ends `0xa3005370`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
-| `.bss` | `0xa3110000` | `0x1ac6cb20` (ends `0xbdd7cb20`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
+| `.bss` | `0xa3110000` | `0x1ac6c900` (ends `0xbdd7c900`) | `readelf -S` | base STABLE, **size LINK-DEPENDENT** |
 | `.sszscratch` | `0xbf980000` | linker NOBITS scratch | `readelf -S`; `MemoryLayout SSZ_SCRATCH_*` | STABLE |
 
 **Aspirational scheme-A anchors (`schemeAAnchors`)** — the port contract; size =
@@ -164,7 +164,7 @@ and move whenever any function or data object changes
 size; `RegionMap.textSizeBytes`/`dataSizeBytes` record the current ELF values and
 `check-region-map.sh` re-derives them (regenerate on drift — see §5).
 
-The top RW `LOAD` segment ends at `.bss` end `0xbdd7cb20`, comfortably below the
+The top RW `LOAD` segment ends at `.bss` end `0xbdd7c900`, comfortably below the
 `0xc0000000` ziskemu RAM ceiling (`readelf -lW`; checked structurally).
 
 ### Predicate-readiness audit (input to the proof lane)
@@ -181,7 +181,7 @@ Absolute addresses are image-specific drift-guard inputs, not predicate
 parameters. A separation-logic predicate must quantify `arena_base` and prove
 the structural slot relation `slot(d) = arena_base + (d - 1) * 0x19000` for
 `1 ≤ d ≤ 1024` (depth zero has no overlay slot), together with the 1,025-slot
-extent. `callFrameArenaBase = 0xad3dd7a0` below is therefore only the pin for
+extent. `callFrameArenaBase = 0xad3dd5e0` below is therefore only the pin for
 this linked ELF; another image may move the arena while satisfying the same
 parametric predicate.
 
@@ -225,17 +225,17 @@ execution-dead Phase-H arenas into its front. ELF ground truth
 
 | symbol | address | arena-relative offset | size |
 |---|---|---|---|
-| `call_frame_arena` == `basr_values` | `0xad3dd7a0` | `0` | `S` = 25,604,608 |
-| `basr_accounts` | `0xaec489a0` | `S` | `S` |
-| `baap_storage_desc` | `0xb04b3ba0` | `2S` | 4,000,000 |
-| `baap_storage_paths` | `0xb08844a0` | `2S+desc` | 6,400,000 |
-| `baap_storage_values` | `0xb0e9eca0` | `2S+desc+path` | 6,400,000 |
-| `call_frame_arena_end` | `0xb37f67a0` | `frameArrayBytes` | — |
+| `call_frame_arena` == `basr_values` | `0xad3dd5e0` | `0` | `S` = 25,604,608 |
+| `basr_accounts` | `0xaec487e0` | `S` | `S` |
+| `baap_storage_desc` | `0xb04b39e0` | `2S` | 4,000,000 |
+| `baap_storage_paths` | `0xb08842e0` | `2S+desc` | 6,400,000 |
+| `baap_storage_values` | `0xb0e9eae0` | `2S+desc+path` | 6,400,000 |
+| `call_frame_arena_end` | `0xb37f65e0` | `frameArrayBytes` | — |
 
 `bv_system_storage_log` is deliberately **not** a union child: it is a
-standalone 4 MiB region at `0xab07a800`, below the frame arena, because the
+standalone 4 MiB region at `0xab07a640`, below the frame arena, because the
 post-dispatch BAL validators read it after frame zeroing. The 96 MiB
-`evm_memory_pool` begins at `0xb37f67a0`, immediately after the frame arena.
+`evm_memory_pool` begins at `0xb37f65e0`, immediately after the frame arena.
 
 where `S = bsrMaxStateChanges·bsrEncodedAccountBytes`,
 `L = bvSystemStorageLogBytes` (`BlockVerdictParams.lean`).

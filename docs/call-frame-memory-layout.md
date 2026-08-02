@@ -19,8 +19,8 @@
 > a 96 MiB `evm_memory_pool` immediately after the frame arena. The five
 > coalesced children are `basr_values`, `basr_accounts`, `baap_storage_desc`,
 > `baap_storage_paths`, and `baap_storage_values`; the standalone system log
-> is 4 MiB. Current linked anchors are `call_frame_arena = 0xad3dd7a0`,
-> `evm_memory_pool = 0xb37f67a0`, and `.sszscratch = 0xbf980000`.
+> is 4 MiB. Current linked anchors are `call_frame_arena = 0xad3dd5e0`,
+> `evm_memory_pool = 0xb37f65e0`, and `.sszscratch = 0xbf980000`.
 
 Design for bead `evm-asm-fhsxz.2.4.2.61.2` (P0, foundational). Owner: claude-c2.
 This settles the guest `.data` layout and register conventions for nested EVM

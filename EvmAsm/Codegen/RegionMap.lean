@@ -746,12 +746,12 @@ theorem schemeA_matches_layout :
     ELF ground truth (`readelf -s`, this build; post-`4ch8f.73` — five children,
     `bv_system_storage_log` un-unioned):
     ```
-    ad3dd7a0  call_frame_arena  == basr_values
-    aec489a0  basr_accounts          (+  S)
-    b04b3ba0  baap_storage_desc      (+ 2S)
-    b08844a0  baap_storage_paths
-    b0e9eca0  baap_storage_values
-    b37f67a0  call_frame_arena_end   (== base + frameArrayBytes)
+    ad3dd5e0  call_frame_arena  == basr_values
+    aec487e0  basr_accounts          (+  S)
+    b04b39e0  baap_storage_desc      (+ 2S)
+    b08842e0  baap_storage_paths
+    b0e9eae0  baap_storage_values
+    b37f65e0  call_frame_arena_end   (== base + frameArrayBytes)
     ```
     with `S = bsrMaxStateChanges * bsrEncodedAccountBytes`. These are relocatable
     symbols reached via independent `la`; only the *offsets within the arena* are
@@ -761,12 +761,12 @@ theorem schemeA_matches_layout :
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xad3dd7a0
+def callFrameArenaBase : Nat := 0xad3dd5e0
 
 /-! The memory-pool base is link-dependent too. Naming it separately lets the
     drift guard compare this absolute pin with the linked ELF, rather than
     checking only the relative 96 MiB extent. -/
-def evmMemoryPoolBase : Nat := 0xb37f67a0
+def evmMemoryPoolBase : Nat := 0xb37f65e0
 
 /-- Absolute shared nested-frame EVM-memory pool, emitted immediately after
     `call_frame_arena`. Both endpoints are link-layout-dependent pins checked
@@ -777,8 +777,8 @@ def evmMemoryPoolRegion : GuestRegion :=
     evidence := "ELF evm_memory_pool..evm_memory_pool_end; 96 MiB shared LIFO frame memory" }
 
 theorem evmMemoryPoolRegion_matches_elf :
-    evmMemoryPoolRegion.base = 0xb37f67a0
-      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xb97f67a0 := by decide
+    evmMemoryPoolRegion.base = 0xb37f65e0
+      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xb97f65e0 := by decide
 
 /-- The two runtime frame allocations are adjacent, disjoint, fit RAM, and both
     lie inside `.bss`; this is the pool/slot non-aliasing soundness fence. -/
@@ -862,7 +862,7 @@ theorem callFrameArena_within_data :
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
     LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
-def syslogBase : Nat := 0xab07a800
+def syslogBase : Nat := 0xab07a640
 
 /-- **The `.73` clobber is closed (load-bearing).** The un-unioned
     `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
