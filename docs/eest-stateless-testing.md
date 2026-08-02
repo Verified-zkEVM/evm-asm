@@ -62,6 +62,39 @@ with a fixed seed. That control is not optional — a set built only from
 known-failing and path-touching cases is blind in the OK→FR direction by
 construction.
 
+> [!WARNING]
+> **`--all` silently overrides `--limit`.** `--limit` is forwarded to the manifest
+> converter only when `--all` is absent (`[[ "$ALL" -eq 0 ]] && conv_args+=(--limit
+> "$LIMIT")`, line ~1205), and no warning is printed when both are given. So
+> `--all --random --limit 200` builds a manifest of **all 26,104 rows in fixture-path
+> order** and processes it sequentially; `--random` prints a seed but affects only
+> which blocks are selected, not the order. Pass `--limit N` **without** `--all`.
+>
+> This matters because the resulting partial **reads exactly like a sample and is
+> not one**. Measured 2026-08-02: such a run reached 106 FR of 995 cases before it
+> was stopped, and rows 500+ were entirely `eip7928_block_level_access_lists` — the
+> family most likely to fail a BAL metric. Publishing that ratio would have given a
+> confident, biased rate wearing the costume of a random 200.
+>
+> **Check before trusting any partial:** `cut -f7 <run-dir>/manifest.tsv | head`. If
+> the relpaths are in path order, a prefix is depth in one family, not breadth.
+>
+> For a genuine corpus estimate, prefer a **stride** sub-manifest over a seeded draw
+> — reproducible without a seed, and it spreads across families:
+>
+> ```bash
+> awk 'NR%25==1' <run-dir>/manifest.tsv > stride25.tsv   # 1,045 rows, 102 families
+> WORKERS=16 scripts/sweep_one.py --spike scripts/spike/spike_run \
+>     --manifest stride25.tsv <elf> out.results.tsv
+> ```
+>
+> `sweep_one.py` is the lean instrument for this (no trace, no verdict-debug re-emit,
+> ~0.4 s/fixture at `WORKERS=16`) and reports `FA / FR / OK / FAULT` directly. Two
+> traps in reading its output: the class column is **`cat`**, not `class`; and this
+> harness's `FAIL` line is **not** FR — a nonzero verdict is *correct* for an
+> oracle-invalid block, so with `--quiet-passes` you see only FAILs, which is not a
+> false-reject count.
+
 **State the scope with every number you report.** A subset run reports honestly
 over its N cases and reads exactly like a corpus pass. A sequential partial is
 depth in *manifest order*, and manifest order tracks fixture family, so it says
