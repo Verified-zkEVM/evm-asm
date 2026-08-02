@@ -95,8 +95,6 @@ Corpus highlights — the cases the verdict turns on:
 |---|---|---|---|---|
 | model | `SpecRef._build_from_builder` | — (evidence is the differential) | agrees | **diff** |
 | guest | `bal_canonical_sort` | — | n/a — unproven | — |
-| guest | `bal_sort_storage_writes` | — | n/a — unproven | — |
-| guest | `bal_sort_account_writes` | — | n/a — unproven | — |
 
 `bal_canonical_sort` is the **live** routine: 6 call sites in
 `bal_serializer_rebuild_hash` (`BalSerializer.lean:1067`–`:1101`) with builder
@@ -124,11 +122,16 @@ than as open work on the audit.
 
 **[#11017](https://github.com/Verified-zkEVM/evm-asm/issues/11017) — `BalCanonicalSort` hygiene cluster:**
 
-- `bal_sort_storage_writes` / `bal_sort_account_writes` are **dead code** —
-  nothing calls them (`:456` says so) — *and* their `#guard`s (`:503`–`506`,
-  `:533`–`534`) pin that unreachable path.
-- The BAL sort symbols are **absent from `GuestAddrs.lean`** — no resolved
-  address, unlike every other `bal_*` entry.
+- `bal_sort_storage_writes` / `bal_sort_account_writes` were **dead code**, and
+  are now **deleted** — retired in `da930613c`, riding a repin-forcing change as
+  GH #11054 recommended. Re-measured absent on `main` `696c236f2`: **zero
+  occurrences** in the emitted asm (including the `.globl` and the label) and
+  zero in the ELF symbol table, against a live control of 8 for
+  `bal_canonical_sort`. Their registry rows and routine-table rows went with
+  them; the two `#guard`s at `BalCanonicalSort.lean:550`–`551` were kept, and now
+  pin the routines' **absence** rather than an unreachable path. ⚠️ Those guards
+  test one definition's string, so they would not catch re-emission from a
+  different definition — the whole-image grep is the broader check.
 - Status 4 ("unsupported firstSig") is documented at `:199` and **never emitted**.
 - Comment/code drift at `:498`: the comment says `account: [(0,20)] = 0x1400`;
   the guard and code use `0x9400` (`0x1400` is the *selftest's*).
