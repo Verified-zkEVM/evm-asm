@@ -64,27 +64,27 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   -- is why it is written here at the same time rather than after a fixture shows the
   -- gap: 23100 reaches THIS site, 23725 reaches the other one.
   --
-  -- See the sibling comment for why the baseline forces this position rather than
-  -- the requests phase where the writes are actually made.
   -- A failed single transaction has already restored its execution snapshot in
   -- the spec (`vm/interpreter.py:217,301`), so none of its storage writes may
-  -- reach the later system replay. The guest reuses the transaction arena and
-  -- reaches this common postlude with the failed SSTORE row still present;
-  -- discard it by the authoritative receipt status before replaying the
-  -- end-of-block system writes. Successful transactions retain their writes
-  -- for the normal incorporate below. This mirrors `process_transaction`'s
-  -- fresh TransactionState (`fork.py:870`) and final incorporation (`:974`)
-  -- without touching the read set, whose rollback semantics are separate.
+  -- reach the later N+1 boundary. Discard the failed transaction map using the
+  -- authoritative receipt status; successful transactions retain their writes.
   "  la t0, bv_tx_status_arr; ld t1, 0(t0); bnez t1, .Lbv_eoa_storage_tx_ready\n" ++
   "  jal ra, write_sets_discard_tx\n" ++
   ".Lbv_eoa_storage_tx_ready:\n" ++
-  "  jal ra, replay_system_storage_writes_at_bai\n" ++
+  -- The account-write incorporate above only flushes balance/nonce/code fields.
+  -- Preserve the successful EOA transaction's storage map before the deferred
+  -- system calls begin a fresh transaction and replace the pending map.
   "  jal ra, write_sets_incorporate_tx\n" ++
+  -- The checked EIP-7002/EIP-7251/EIP-8282 calls are one post-user-loop
+  -- phase. Their own write-set incorporates run at N+1, so no side-arena
+  -- replay compensation is needed.
+  "  jal ra, block_verdict_deferred_system_requests\n" ++
+  "  bnez a0, .Lbv_requests_hash_fail\n" ++
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n"
 
 -- Both post-exec sites carry the storage half; a bare count of the pair across the
 -- two modules cannot be written here, so each module pins its own occurrence.
 #guard (blockVerdictEoaBodyEffectReconcile.splitOn
-  "  jal ra, replay_system_storage_writes_at_bai\n  jal ra, write_sets_incorporate_tx\n").length == 2
+  "  jal ra, block_verdict_deferred_system_requests\n").length == 2
 
 end EvmAsm.Codegen

@@ -53,9 +53,16 @@
 
   - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
     env.ADDRESS (multi-contract isolated).
-  - Cold `SLOAD` reads of non-preloaded slots return 0. The BAL-driven preload
-    stages every slot a block reads, so this is not observed (GH #10874 measured
-    zero misses on the corpus); a demand-driven read is blocked on GH #11105.
+  - Cold `SLOAD` reads of non-preloaded slots return 0. ⛔ The reason recorded here
+    used to be *"the BAL-driven preload stages every slot a block reads, so this is
+    not observed (GH #10874 measured zero misses on the corpus); a demand-driven read
+    is blocked on GH #11105"*. **All three clauses are false.** Measured on the
+    UNMODIFIED guest: `h_SSTORE`'s cold-miss resolve runs **16 and 17 times** on two
+    rows, so the preload does NOT stage every slot and misses are NOT zero; and
+    GH #11105 is closed with no code change, so nothing is blocked on it.
+    What a demand-driven `SLOAD` read still needs is a **present-slot** case — every
+    measured cold miss resolved a genuinely-absent slot, so the found path is
+    unexercised. See `storagePrestateResolveAsm` below for the full funnel.
   - 4 MiB per log = ~32K entries each — well past any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
@@ -214,10 +221,19 @@ def sstoreValueTransitionGasAsm : String :=
 
     Extracted verbatim from `h_SSTORE`'s inline scan. ⚠️ It currently has ONE
     consumer: a second was intended for `h_SLOAD`'s cold-miss path (GH #10874) and
-    is not landed, because that path is unreachable while the BAL preload stages
-    every slot a block reads. Numeric local labels (`1:`/`2:`/`3:`) are
-    unique-per-use, so a second instantiation can coexist without a prefix
-    parameter when the read lands.
+    is not landed.
+
+    ⛔ The reason recorded here used to be *"that path is unreachable while the BAL
+    preload stages every slot a block reads"*. THAT IS REFUTED. `h_SSTORE`'s
+    cold-miss resolve -- which only runs when this scan MISSES -- executes **16 and
+    17 times** on two rows of the UNMODIFIED guest (`main` `d97788890`, GH #11105).
+    The preload does **not** stage every slot a block reads, and cold misses do
+    happen in production, so the `h_SLOAD` read is not blocked by unreachability.
+    What it does still need is a **present-slot** case: every measured cold miss
+    resolved a genuinely-absent slot, so the found path is unexercised.
+
+    Numeric local labels (`1:`/`2:`/`3:`) are unique-per-use, so a second
+    instantiation can coexist without a prefix parameter when the read lands.
 
     Register convention -- identical at both sites, which is what makes this
     shareable at all: `x20` = env base (`env.ADDRESS` at `+0..32`, log length at
@@ -285,52 +301,53 @@ def storagePersistentLogFindAsm : String :=
     slot. That is why a demand-driven `h_SLOAD` must reuse this chain rather than
     call `sload_at_header_state_root`, which resolves the witness tier ALONE.
 
-    ⛔ AND TIER 3 DOES NOT WORK -- BUT NOT WHERE THIS DOCSTRING USED TO SAY.
-    The failure is total and it is in the SLOT WALK, not the header. Measured on
-    `main` at `d97788890` over two rows that both have a NONZERO pre-state slot
-    (`00000_test_sstore_xto_y_...d4-g0__b0`, `00163_test_sstore_xto_x_...d1-g0__b0`),
-    with the preload starved so cold misses actually occur, counting every internal
-    exit of `slot_at_header_state_root` and pooling all callers. Identical on both
-    rows (GH #11105):
+    ✅ TIER 3 WORKS, AND IT RUNS IN PRODUCTION. Measured on the UNMODIFIED guest
+    (`main` `d97788890`, ELF `fbb83b69...`), counting PCs from the objdump:
 
-    | | count |
-    |---|---|
-    | total calls | 82 |
-    | died in `header_extract_state_root` (status 4) | 16 |
-    | reached `account_at_address` -- header OK | 66 |
-    | died in `account_at_address` | 2 |
-    | reached `slot_at_index` -- header AND account resolved | 64 |
-    | died in `slot_at_index` | **64** |
-    | succeeded | **0** |
+    | row | tier-3 entries | header len (`env+584`) | status-4 header fails |
+    |---|---|---|---|
+    | `00000_test_sstore_xto_y_...d4-g0__b0` | **16** | `0x27c` at all 16 | **0** |
+    | `00163_test_sstore_xto_x_...d1-g0__b0` | **17** | `0x27c` at all 17 | **0** |
 
-    One level down, all 64 fail inside `mpt_lookup_by_key` and ZERO reach
-    `slot_decode_u256`: the trie walk finds no key, ever. The attribution is forced
-    rather than plausible -- `h_SSTORE` makes 32 calls of which exactly 16 load a
-    ZERO header length, matching the status-4 count exactly, and
-    16 + 34 (`bal_emit_storage_changes`) + 16 (`predeploy_preload`) = 66 = the
-    header-OK count with nothing left over. `h_SSTORE`'s other 16 calls carry a
-    well-formed header (len `0x27c`) and a witness pointer at header+len, and they
-    still fail.
+    Every production call gets a well-formed header, resolves the account, walks the
+    storage trie, and correctly reports not-found -- because on these rows the
+    accounts looked up have **zero pre-state `storage` entries** in the fixture, so an
+    empty storage root is the right answer and the fallback to value 0 is correct.
 
-    ⚠️ THREE CLAIMS WERE REFUTED BY THAT MEASUREMENT and are recorded here so nobody
-    re-derives them:
-    * that status 4 comes back on EVERY call -- it is 16 of 82;
-    * that `seed_callee_storage` / `stage_predeploy_storage_preload` are WORKING
-      callers -- `seed_callee_storage` made ZERO calls on both rows, so the phrase
-      had no evidence behind it and no caller of this routine is known to succeed;
-    * that the raw slot key needs keccak-hashing first -- `mpt_lookup_by_key` calls
+    ⛔ FOUR CLAIMS THAT USED TO BE HERE WERE REFUTED BY MEASUREMENT (GH #11105,
+    GH #11122 closed invalid). Recorded so nobody re-derives them:
+    * *"tier 3 does not work / returns status 4 on every call"* -- it works. The
+      82-call funnel that produced that reading came from a probe build whose log was
+      ⚠️ **CORRUPTED, not starved** -- an earlier revision of this note said "the
+      preload starved" and that was wrong about its own instrument. The probe zeroed
+      only the scan bound (`env+448`); `.preload_expand_loop` is guarded by the count
+      REGISTER `x6` and still wrote all 16 arena entries, which each SSTORE then
+      appended over from index 0. That is a state production cannot reach, and it is
+      what manufactured the 16 zero-length-header calls -- production has **zero**.
+      The tell was that `h_SSTORE` ran **312 times in both builds**: an intervention
+      that leaves a downstream count identical did not land. See PLAN.md
+      "Probe discipline" before building another one.
+    * *"this chain never executes in production, the preload means SSTORE never sees
+      a cold miss"* -- it executes 16 times on a single row of the unmodified guest.
+      Production does see cold misses.
+    * *"`seed_callee_storage` / `stage_predeploy_storage_preload` are WORKING
+      callers"* -- unsupported; `seed_callee_storage` made zero calls on both rows.
+    * *"the raw slot key needs keccak-hashing first"* -- `mpt_lookup_by_key` calls
       `zkvm_keccak256` itself, and `account_at_address` reaches the trie through the
-      SAME routine and succeeds at least 64 times in the same run.
+      SAME routine.
 
-    That last one is also the control: 168 `mpt_lookup_by_key` calls in one run, 64
-    via `slot_at_index` with ZERO successes and 104 elsewhere with at least 64.
-    Same routine, same run, same hashing -- differing only in root and node
-    container.
+    ⚠️ WHAT IS STILL NOT SHOWN: that tier 3 returns the right value for a slot that
+    **is** in the pre-state. Every measured call resolved a genuinely-absent slot, so
+    the not-found path is exercised and the found path is not. A present-slot case is
+    the open gate for GH #10874 -- and note that every non-zero status is flattened to
+    value 0, so a broken authenticated read would be indistinguishable from an absent
+    slot.
 
-    Do not build on tier 3. Note that every non-zero status is flattened to value 0,
-    so a broken authenticated read is indistinguishable from an absent slot; and
-    that this chain never executes in production anyway, because the preload means
-    SSTORE never sees a cold miss.
+    ✅ AND ONE OPERAND QUESTION IS SETTLED: `ExecutionWitness`
+    (`execution-specs/.../stateless.py`) has exactly three fields -- `state`, `codes`,
+    `headers`. There is **no separate storage-node container**; `state` is one flat
+    pool of trie-node preimages. So passing the same pointer for both the state and
+    storage arguments below is CORRECT, not a two-containers defect.
 
     `p` prefixes the named labels so both handlers can instantiate it.
     `out` is a 64-byte scratch buffer, also used to stage the canonical
