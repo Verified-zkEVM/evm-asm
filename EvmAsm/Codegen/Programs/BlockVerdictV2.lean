@@ -488,6 +488,7 @@ def statelessVerdictV2GuestClosure : String :=
   headersValidateChainFunction ++ "\n" ++
   balSectionInfoFunction ++ "\n" ++
   balGasValidFunction ++ "\n" ++
+  balGasValidFromBuilderFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   balCodePreimagesValidFunction ++ "\n" ++
