@@ -19,8 +19,7 @@ import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
-import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
-import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
+-- #11118: BalAllAccountsCodeCovers / BalStorageReadsExecLog data unlinked with dead 43/38.
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
@@ -179,13 +178,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
-  "bsr_storage_access_path_count:\n  .zero 8\n" ++
-  "bsr_storage_access_window:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "bsr_changed_accounts:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
-  "bsr_access_paths:\n  .zero " ++ toString (bsrMaxAccountAccessOutcomes * bsrPathBytes) ++ "\n" ++
-  "bsr_storage_account_token:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
-  "bsr_storage_access_paths:\n  .zero " ++ toString (bsrMaxStorageAccessOutcomes * bsrPathBytes) ++ "\n" ++
   "baaod_hash:\n  .zero 32\n" ++
   "bsaod_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
@@ -533,10 +527,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   balStorageCoversExecLogData ++
   -- bmvmx.1.6.4.3 all-accounts storage check scratch (bal_all_accounts_storage_consistent, c2bal_*).
   balAllAccountsStorageConsistentData ++
-  -- i3djw all-accounts CODE reverse scratch (bal_all_accounts_code_covers, bacov_*).
-  balAllAccountsCodeCoversData ++
-  -- bmvmx.1.6.7 storage_reads exec-consistency scratch.
-  balStorageReadsInExecLogData ++
+  -- #11118: bacov_*/bsr_krev guest data removed with dead code_covers (43) and reads (38).
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
   "bv_rcf_len:\n  .zero 8\n" ++

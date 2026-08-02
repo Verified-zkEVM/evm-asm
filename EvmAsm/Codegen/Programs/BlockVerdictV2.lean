@@ -39,9 +39,7 @@ import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
-import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
-import EvmAsm.Codegen.Programs.BalAllAccountsCode
-import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
+-- #11118: CodeCovers/Code/AccountCodeConsistent/StorageReadsExecLog unlinked (dead 43/46/38).
 import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
@@ -49,7 +47,6 @@ import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
-import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
@@ -185,13 +182,11 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
-  balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
-  balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
-  balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
+  -- #11118: bal_storage_reads_in_exec_log / code_covers / code_consistent unlinked (dead labels 38/43/46).
+  -- bal_storage_matches_exec_log + covers KEEP — live callees of allaccounts 37.
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
   blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
   headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
-  balAccountCodeConsistentFunction ++ "\n" ++   -- i3djw.4 dep: per-account CODE compare
   balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
@@ -548,7 +543,7 @@ def statelessVerdictV2GuestClosure : String :=
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
-  balStorageReadsInExecLogFunction ++ "\n" ++   -- bmvmx.1.6.7: storage_reads exec consistency
+  -- #11118: dead BAL labels 38/43/46 unlinked (reads/code_covers/code_consistent). matches+covers stay (37).
   -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
   -- handler preBody so the verified evm_sload body stays byte-identical.
@@ -607,12 +602,10 @@ def statelessVerdictV2GuestClosure : String :=
   readSetsMergeOneFunction ++ "\n" ++
   readSetsIncorporateTxFunction ++ "\n" ++
   readSetsDiscardTxFunction ++ "\n" ++
-  balAllAccountsCodeCoversFunction ++ "\n" ++   -- i3djw: all-accounts CODE reverse (hidden created/destroyed account)
-  balAllAccountsCodeConsistentFunction ++ "\n" ++   -- i3djw.4: all-accounts CODE forward (+ EIP-7702 skip)
+  -- #11118: code_covers/code_consistent/account_code_consistent unlinked (dead 43/46).
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
   blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
   headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
-  balAccountCodeConsistentFunction ++ "\n" ++   -- i3djw.4 dep: per-account CODE compare
   balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals

@@ -1190,7 +1190,37 @@ def check_file(path, funcs, rendered=None):
         fp=fixture_path(fn)
         if not os.path.exists(fp): problems.append(f"{fn}: missing fixture {fp}"); continue
         asm=open(fp).read()
-        entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)   # py_emit consistency pre-flight
+        # Cheap entry label for probe-only classification before SYMMAP resolve.
+        try:
+            _toks=tokenize(asm)
+            if not _toks or _toks[0][0]!='label':
+                problems.append(f"{fn}: first line is not a label"); continue
+            entry=_toks[0][1]
+        except Exception as e:
+            problems.append(f"{fn}: tokenize failed: {e}"); continue
+        try:
+            entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)   # py_emit consistency pre-flight
+        except ConvError as e:
+            # Probe-only entry absent from the linked guest image/TSV (SYMMAP).
+            # SYMMAP-based conversion (concrete laHi/laLo/jalOff against the guest
+            # address table) is outside this gate's domain: an unlinked→unlinked
+            # jal/la cannot be expressed against a table that does not define the
+            # target.  Do NOT invent a placeholder jalOff/la offset here — a
+            # wrong baked immediate would silently pass every gate.  Drift is
+            # covered by the kernel-checked `<Name>Function_eq_prog` theorem
+            # (e.g. balAllAccountsCodeConsistentFunction_eq_prog,
+            # balStorageReadsInExecLogFunction_eq_prog).  Still run the
+            # symbolic safety assemble against the Lean-rendered emitProgramR
+            # string when available.
+            if entry not in SYMMAP:
+                if fn not in rendered:
+                    problems.append(f"{fn}: no Lean render captured"); continue
+                safe_ok,_,_=assemble_cmp(asm, rendered[fn])
+                if not safe_ok:
+                    problems.append(f"{fn}: emitted SYMBOLIC render is not byte-identical to the "
+                                    f"hand-written source (probe-only, SYMMAP-excluded)"); continue
+                continue
+            problems.append(f"{fn}: {e}"); continue
         if not ok: problems.append(f"{fn}: py_emit render no longer assembles identically"); continue
         if fn not in rendered:
             problems.append(f"{fn}: no Lean render captured"); continue
@@ -1215,11 +1245,12 @@ def check_file(path, funcs, rendered=None):
             #     link produces for the symbolic form (fixture linked at the
             #     guest entry with the externals `--defsym`'d). Ties `_prog`'s
             #     baked immediates to the actual guest layout.
-            # Probe-only (entry not in the guest TSV): skip — there is no guest
-            # link site; Lean uses a local PC placeholder, not GuestAddrs.entry.
+            # Probe-only (entry not in the guest TSV): skip concrete consistency —
+            # there is no guest link site; Lean uses a local PC placeholder, not
+            # GuestAddrs.entry.  Safety gate (a) already covers symbolic emit.
             ckey=fn+"#c"
             if _e not in SYMMAP:
-                pass  # safety gate (a) already covers symbolic emit
+                pass
             elif ckey not in rendered:
                 problems.append(f"{fn}: no concrete Lean render captured"); continue
             else:
@@ -1245,7 +1276,15 @@ def check_file(path, funcs, rendered=None):
             elif b!='GLOBAL':
                 problems.append(f"{fn}: {entry} is {b}, not GLOBAL — the `.globl` was lost or "
                                 f"demoted; `.text` bytes are unchanged, so no other leg sees this")
-        # source drift
+        # source drift — skip for probe-only entries (entry ∉ SYMMAP).  gen_lean
+        # always emits GuestAddrs.<entry> for the PC base, but probe-only Lean
+        # sources use a local `<Name>Pc := 0x80000000` placeholder (see
+        # balAccountCodeConsistentPc / balAllAccountsCodeConsistentPc /
+        # balStorageReadsInExecLogPc).  Verbatim-block match is therefore the
+        # wrong shape; the kernel-checked `<Name>Function_eq_prog` theorem is
+        # the drift guard for these.
+        if entry not in SYMMAP:
+            continue
         prog=lean_camel(entry)+'_prog'
         if layout_mode:
             leaf_block,bridge_block=gen_lean_layout(entry,renders,fn,prog,relocs)

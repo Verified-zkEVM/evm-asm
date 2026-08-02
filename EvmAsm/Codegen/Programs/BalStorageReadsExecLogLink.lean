@@ -25,12 +25,12 @@ namespace BalStorageReadsExecLogSpec
 /-! ## §6  Concrete linkage: code requirement, call-site adapters, `la` pairs
 
     Everything below is at the CONCRETE linked base
-    (`GuestAddrs.bal_storage_reads_in_exec_log`) — the walker callees live at
+    (`balStorageReadsInExecLogPc`) — the walker callees live at
     fixed entries, so the `jal` offsets, code-range disjointness, and `la`
     resolutions are all kernel-decided. -/
 
 /-- Concrete routine/callee entries. -/
-abbrev B : Word := (GuestAddrs.bal_storage_reads_in_exec_log : Word)
+abbrev B : Word := (balStorageReadsInExecLogPc : Word)
 abbrev WI : Word := (GuestAddrs.rlp_walk_init : Word)
 abbrev WN : Word := (GuestAddrs.rlp_walk_next : Word)
 
@@ -67,7 +67,7 @@ theorem bsre_callSite15_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 60) (calleeEntry := WI) (vOld := vRa)
     (calleeCode := rlp_walk_init_code WI) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 60))
+    (jalOff GuestAddrs.rlp_walk_init (balStorageReadsInExecLogPc + 60))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -91,7 +91,7 @@ theorem bsre_callSite18_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 72) (calleeEntry := WN) (vOld := vRa)
     (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 72))
+    (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 72))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -116,7 +116,7 @@ theorem bsre_callSite21_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 84) (calleeEntry := WN) (vOld := vRa)
     (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 84))
+    (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 84))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -141,7 +141,7 @@ theorem bsre_callSite24_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 96) (calleeEntry := WN) (vOld := vRa)
     (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 96))
+    (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 96))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -166,7 +166,7 @@ theorem bsre_callSite28_walk_init {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 112) (calleeEntry := WI) (vOld := vRa)
     (calleeCode := rlp_walk_init_code WI) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 112))
+    (jalOff GuestAddrs.rlp_walk_init (balStorageReadsInExecLogPc + 112))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -190,7 +190,7 @@ theorem bsre_callSite35_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
   have hcall := WP.cpsCallWithin
     (nSteps := n) (callerPC := B + 140) (calleeEntry := WN) (vOld := vRa)
     (calleeCode := rlp_walk_next_code WN) (Prest := Prest) (Q := Q)
-    (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 140))
+    (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 140))
     (by decide) (by decide) hPrest
     (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
     hcallee
@@ -210,10 +210,10 @@ theorem bsre_callSite35_walk_next {n : Nat} {Prest Q : Assertion} (vRa : Word)
 theorem bsre_la_krev1_spec (vOld : Word) :
     cpsTripleWithin 2 (B + 180) (B + 188) bsreCR
       ((.x5 : Reg) ↦ᵣ vOld)
-      ((.x5 : Reg) ↦ᵣ (GuestAddrs.bsr_krev : Word)) := by
+      ((.x5 : Reg) ↦ᵣ (bsrKrevPc : Word)) := by
   have hau := liftCode (cr' := bsreCR)
     (auipc_spec_gen_within .x5 vOld
-      (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180))
+      (laHi bsrKrevPc (balStorageReadsInExecLogPc + 180))
       (B + 180) (by decide))
     (fun a i h => CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 180) bsreProg 45 _
@@ -222,22 +222,22 @@ theorem bsre_la_krev1_spec (vOld : Word) :
   rw [show (B + 180) + 4 = B + 184 from by decide] at hau
   have haddi := liftCode (cr' := bsreCR)
     (addi_spec_gen_same_within .x5
-      ((B + 180) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 180)).zeroExtend 32
+      ((B + 180) + (((laHi bsrKrevPc
+          (balStorageReadsInExecLogPc + 180)).zeroExtend 32
             <<< 12).signExtend 64))
-      (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180))
+      (laLo bsrKrevPc (balStorageReadsInExecLogPc + 180))
       (B + 184) (by decide))
     (fun a i h => CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 184) bsreProg 46 _
         (by decide +kernel) (by decide +kernel) (by decide +kernel)
         (by decide +kernel) a i h))
   rw [show (B + 184) + 4 = B + 188 from by decide,
-      show (B + 180) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 180)).zeroExtend 32
+      show (B + 180) + (((laHi bsrKrevPc
+          (balStorageReadsInExecLogPc + 180)).zeroExtend 32
             <<< 12).signExtend 64)
-        + signExtend12 (laLo GuestAddrs.bsr_krev
-            (GuestAddrs.bal_storage_reads_in_exec_log + 180))
-        = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
+        + signExtend12 (laLo bsrKrevPc
+            (balStorageReadsInExecLogPc + 180))
+        = (bsrKrevPc : Word) from by decide] at haddi
   exact cpsTripleWithin_seq_same_cr hau haddi
 
 
@@ -246,10 +246,10 @@ theorem bsre_la_krev1_spec (vOld : Word) :
 theorem bsre_la_krev2_spec (vOld : Word) :
     cpsTripleWithin 2 (B + 264) (B + 272) bsreCR
       ((.x31 : Reg) ↦ᵣ vOld)
-      ((.x31 : Reg) ↦ᵣ (GuestAddrs.bsr_krev : Word)) := by
+      ((.x31 : Reg) ↦ᵣ (bsrKrevPc : Word)) := by
   have hau := liftCode (cr' := bsreCR)
     (auipc_spec_gen_within .x31 vOld
-      (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264))
+      (laHi bsrKrevPc (balStorageReadsInExecLogPc + 264))
       (B + 264) (by decide))
     (fun a i h => CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 264) bsreProg 66 _
@@ -258,22 +258,22 @@ theorem bsre_la_krev2_spec (vOld : Word) :
   rw [show (B + 264) + 4 = B + 268 from by decide] at hau
   have haddi := liftCode (cr' := bsreCR)
     (addi_spec_gen_same_within .x31
-      ((B + 264) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 264)).zeroExtend 32
+      ((B + 264) + (((laHi bsrKrevPc
+          (balStorageReadsInExecLogPc + 264)).zeroExtend 32
             <<< 12).signExtend 64))
-      (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264))
+      (laLo bsrKrevPc (balStorageReadsInExecLogPc + 264))
       (B + 268) (by decide))
     (fun a i h => CodeReq.union_mono_left a i
       (CodeReq.ofProg_mem_at B (B + 268) bsreProg 67 _
         (by decide +kernel) (by decide +kernel) (by decide +kernel)
         (by decide +kernel) a i h))
   rw [show (B + 268) + 4 = B + 272 from by decide,
-      show (B + 264) + (((laHi GuestAddrs.bsr_krev
-          (GuestAddrs.bal_storage_reads_in_exec_log + 264)).zeroExtend 32
+      show (B + 264) + (((laHi bsrKrevPc
+          (balStorageReadsInExecLogPc + 264)).zeroExtend 32
             <<< 12).signExtend 64)
-        + signExtend12 (laLo GuestAddrs.bsr_krev
-            (GuestAddrs.bal_storage_reads_in_exec_log + 264))
-        = (GuestAddrs.bsr_krev : Word) from by decide] at haddi
+        + signExtend12 (laLo bsrKrevPc
+            (balStorageReadsInExecLogPc + 264))
+        = (bsrKrevPc : Word) from by decide] at haddi
   exact cpsTripleWithin_seq_same_cr hau haddi
 
 
