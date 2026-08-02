@@ -218,10 +218,15 @@ def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
 
 /-- The multi-tx skip-list stores `{sender_i, recipient_i}` for every
-    transaction plus the shared coinbase account. It is sized to the full 200M
-    tx-count target so the post-loop BAL comparators do not inherit the active
-    execution-loop cap. -/
-def bvMtxSystemSkipEntries : Nat := 6
+    transaction plus the shared coinbase account and residual system skips.
+    Sized to the full 200M tx-count target so the post-loop BAL comparators do
+    not inherit the active execution-loop cap.
+
+    System entries (GH #10684): four residual addresses only —
+    EIP-7002 / EIP-7251 / EIP-6110 predeploys + SYSTEM_ADDRESS. EIP-2935 and
+    EIP-4788 are **not** skipped (no spec address exclusion; in-body modeled
+    skip already removed by f5be2e440). -/
+def bvMtxSystemSkipEntries : Nat := 4
 def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1 + bvMtxSystemSkipEntries
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 /-- Sender-balance aggregation shares the full sender table capacity so the
@@ -473,8 +478,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderBalanceEntries = bvMtxFullTxCap
 #guard bvMtxSenderBalanceTableBytes = bvMtxFullTxCap * 64
 #guard bvMtxCreatedRecipientBytes = 304736
-#guard bvMtxSkipListEntries = 19053
-#guard bvMtxSkipListBytes = 609696
+#guard bvMtxSkipListEntries = 19051
+#guard bvMtxSkipListBytes = 609632
 #guard bvMtxSenderCountEntries = 9523
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736

@@ -41,8 +41,9 @@ block_verdict_withdrawal_nonstorage_effects -- the routine that RECORDS the
 withdrawal's balance credit into the nonstorage-effect log (it computes
 amount * 1e9 + post and calls record_nonstorage_effect; the reconciliation
 of the log against the declared block access list is done separately by
-bal_all_accounts_nonstorage_consistent and _covers) -- sits in
-BlockVerdictEoaBodyEffectReconcile, reachable only from that dead route.
+bal_all_accounts_nonstorage_consistent and _covers) -- used to sit in the
+former single-transaction reconciliation route, which is no longer
+concatenated into the emitted guest.
 
 The comparators DO run on the MTx route: MtxTail 286-289 aggregates the
 effect log, 291-295 compares the declared BAL against that aggregate, and

@@ -104,10 +104,11 @@ For a 1-tx block these are correct and currently absent on the single path — a
 likely source of single-vs-multi storage/access FRs that unification fixes for
 free.
 
-**Single-tx-only capability the unified loop must PRESERVE:** creation dispatch
-(`.Lbv_creation_dispatch`, `BlockVerdictFunction.lean:288`). MTx bails on creation
-today; the unified loop must route creation like single-tx does, so
-multi-tx-with-creation stops bailing.
+**Creation capability the unified loop must PRESERVE:** the live MTx creation
+route (`.Lbv_mtx_creation_*`, `BlockVerdictMtxRuntime.lean`) is now the only
+emitted creation dispatch.  The former `.Lbv_creation_dispatch` single-tx
+definition was source-only dead and has been removed; any future unification
+must preserve the MTx route rather than resurrecting that stale twin.
 
 ## Target architecture
 
