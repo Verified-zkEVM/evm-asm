@@ -153,12 +153,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   --
   -- Three facts that outlive the removed entry, recorded because they are not
   -- recoverable from what remains:
-  --  * `i3djw_skip_list` is still BUILT (BlockVerdictFunction, the recipient +
-  --    six modeled-system addresses) and never CONSULTED -- the list the live
-  --    path passes is `bv_mtx_skip_list`, at the `BlockVerdictMtxTail` call to
-  --    `bal_all_accounts_storage_consistent_skip_list`.  Measured: the
-  --    single-tx all-accounts call site is reached on 0 of 60 EIP-7928
-  --    fixtures, the MtxTail one on 56 of 60.
+  --  * `i3djw_skip_list` was BUILT and never CONSULTED; removed under #10685
+  --    (0 refs). The list the live path passes is `bv_mtx_skip_list`, at the
+  --    `BlockVerdictMtxTail` call to
+  --    `bal_all_accounts_storage_consistent_skip_list`.
   --  * the old single-tx entry and its contract/creation/recipient-exactness
   --    body were audited on the emitted image before removal.  The closure was
   --    seeded from `block_verdict`, `block_verdict_mtx_oog_materialize`, and

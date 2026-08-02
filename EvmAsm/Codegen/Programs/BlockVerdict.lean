@@ -432,7 +432,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
-  simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
   blockVerdictCreationRuntimeFunction ++ "\n" ++
@@ -444,8 +443,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
-  simpleTransferRecipientBalVerifyFunction ++ "\n" ++
-  simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
@@ -467,7 +464,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
-  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++

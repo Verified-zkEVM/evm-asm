@@ -464,10 +464,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "gp_egp:\n  .zero 32\n" ++
   "gp_prio:\n  .zero 32\n" ++
-  -- i3djw.3: skip-list for the all-accounts non-storage comparator (32B-strided
-  -- {recipient, sender, coinbase} plus system addresses, pinned outside the exec log).
-  ".balign 8\n" ++
-  "i3djw_skip_list:\n  .zero 288\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 6 system addresses (9*32)
+  -- #10685: i3djw_skip_list removed (0 refs after #11212 deleted builder; survivor bv_mtx_skip_list)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. Gas/value-coupled {sender_i, recipient_i} + coinbase + residual
   -- system (bvMtxSystemSkipEntries = 4: 7002/7251/6110/SYSTEM; #10684 dropped
