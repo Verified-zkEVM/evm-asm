@@ -179,13 +179,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
-  "bsr_storage_access_path_count:\n  .zero 8\n" ++
-  "bsr_storage_access_window:\n  .zero 32\n" ++
   ".balign 32\n" ++
   "bsr_changed_accounts:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
-  "bsr_access_paths:\n  .zero " ++ toString (bsrMaxAccountAccessOutcomes * bsrPathBytes) ++ "\n" ++
-  "bsr_storage_account_token:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
-  "bsr_storage_access_paths:\n  .zero " ++ toString (bsrMaxStorageAccessOutcomes * bsrPathBytes) ++ "\n" ++
   "baaod_hash:\n  .zero 32\n" ++
   "bsaod_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++

@@ -108,8 +108,6 @@ def bsrMptConstructedCacheWordBytes : Nat := bsrMptConstructedCacheSlots * 8
 
 #guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
-def bsrMaxAccountAccessOutcomes : Nat := runtimeAccessAccountOutcomeCapacity
-def bsrMaxStorageAccessOutcomes : Nat := storageAccessOutcomeMaxRecords
 
 /-- Per-account storage-slot staging capacity for the BAL key/preload helpers
     (`bal_recipient_storage_keys`, `bal_recipient_storage_reads_keys`,
