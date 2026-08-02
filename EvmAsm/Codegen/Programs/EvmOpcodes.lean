@@ -327,24 +327,39 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
 
 /-! ## balance_at_header_state_root  (EVM BALANCE opcode)
 
-    Witness-side implementation of the EVM `BALANCE` opcode.
-    Given a parent header RLP, an address, and an SSZ
-    `witness.state` list section, return the u256 balance an
-    `BALANCE(addr)` frame would push.
+    **LIVE-FIRST, not header-only.** The symbol name is historical and
+    misdescribes the body (#11019). Every production caller wants
+    live-else-header; the code is correct and the name/docs used to lie.
 
-    BALANCE has the same "absent → 0" flattening as SLOAD: a
-    missing account returns balance 0 without any error
-    signalling. That's the natural EVM-semantic of "all addresses
-    are conceptually defined; uninitialised ones have zero
-    balance".
+    Spec baseline (execution-specs Amsterdam): one mutable
+    `TransactionState`; `BALANCE` reads
+    `get_account(tx_state, address).balance`
+    (`vm/instructions/environment.py`) and `is_account_alive` uses the
+    same `get_account_optional(tx_state, …)`
+    (`state_tracker.py`). Reads return the last write — not a frozen
+    header snapshot. Live-first matches that baseline.
 
-    Composes K201 `header_extract_state_root` + K28
-    `account_at_address`, then extracts the 32-byte balance
-    field (struct + 8 .. + 40) and flattens status 1 to (0, 0).
+    Behaviour:
+    1. Pad the 20B address and call `account_state_latest_balance`
+       (AccountState pending/durable). On a hit, write that post
+       balance and return success — **no header path**.
+    2. On a miss only: K201 `header_extract_state_root` + K28
+       `account_at_address`, copy balance (struct + 8 .. + 40), flatten
+       missing account (status 1) to `(0, balance=0)`.
 
-    Distinct from `account_at_header_state_root` which surfaces
-    the missing-account case as status 1: BALANCE callers
-    shouldn't have to special-case absence.
+    **Contrast — do not confuse with header-only helpers:**
+    - `account_at_header_state_root` **is** a true header-only source
+      (header → state root → account_at_address, no live overlay) with
+      many callers.
+    - A pure **balance**-header-only helper **does not exist**. Anyone
+      who genuinely needs pre-state balance must build it from
+      `account_at_header_state_root` (or accept this miss path). The
+      name of *this* routine must not be read as that helper.
+    - Callers that need a non-settlement snapshot deliberately **avoid**
+      this symbol (e.g. DispatchTx SELFBALANCE staging).
+
+    BALANCE absent → 0 flattening matches SLOAD: missing accounts are
+    conceptually defined with zero balance (no status-1 to the caller).
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -363,6 +378,9 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
 
       (Code 1 is intentionally absent: missing accounts map to
       `status=0, balance=0` per the EVM BALANCE semantic.)
+
+    Rename to `balance_live_else_header_state_root` tracked separately
+    (regen cost); do not treat the current name as a contract.
 -/
 def balanceAtHeaderStateRootFunction : String :=
   "balance_at_header_state_root:\n" ++
@@ -378,10 +396,11 @@ def balanceAtHeaderStateRootFunction : String :=
   "  mv s5, a5                  # 32-byte u256 BE output ptr\n" ++
   "  # Pre-zero output -- BALANCE default value.\n" ++
   "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  -- yisv8 .spine.2: prefer the LIVE balance -- the latest non-storage effect post_balance for this
-  -- addr (a value transfer's result) -- so BALANCE reflects mid-execution credits/debits, not just
-  -- the pre-state. Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the effect
-  -- record's zero-padded addr@0; on a hit s5 holds post_balance and we return success.
+  -- LIVE-FIRST (#11019): account_state_latest_balance before any header path.
+  -- Spec: one mutable TransactionState; BALANCE / is_account_alive read last write.
+  -- Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the
+  -- effect record's zero-padded addr@0; on a hit s5 holds post_balance and we
+  -- return success. Header path is miss-only fallback — not the primary source.
   "  la t0, bal_addr_padded; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  mv t1, s2; mv t2, t0; li t3, 20\n" ++
   ".Lbal_padcp:\n" ++
