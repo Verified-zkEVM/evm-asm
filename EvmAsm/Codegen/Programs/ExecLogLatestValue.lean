@@ -89,13 +89,14 @@ def execLogLatestValueFunction : String :=
 /-- Kernel-checked drift guard: the Codegen helper string is exactly
     `execLogLatestValue_prog` rendered under its label (bead evm-asm-4ch8f.9,
     mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
+    byte-identity verified offline by assemble+cmp of the `.text`).
+    #11178: unlinked from `stateless_guest` (0 refs); probe-only. -/
 theorem execLogLatestValueFunction_eq_prog :
     execLogLatestValueFunction = "exec_log_latest_value:\n" ++ emitProgram execLogLatestValue_prog := rfl
 
 #guard execLogLatestValueFunction.startsWith "exec_log_latest_value:\n"
 #guard execLogLatestValue_prog.length = 42
-/-- `zisk_exec_log_latest_value`: focused probe.
+/-- `zisk_exec_log_latest_value`: focused probe (routine not in guest, #11178).
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : entry count
       bytes 16..48 : addrHash (32B)
