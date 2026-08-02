@@ -352,6 +352,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- commits `runtime_tx_post_preparation_reached`; an OOG therefore remains a
   -- preparation failure and rolls back set_delegation exactly as the spec does.
   delegationAccessChargeAsm "dtrc_deleg_target" ++
+  -- `prepare_message` unconditionally adds the resolved top-level target to
+  -- `accessed_addresses` before execution (execution-specs utils/message.py:
+  -- 56-71).  The deferred materializer is the prior-block delegation route,
+  -- so its resolved target must enter the tracked read set here as well;
+  -- warming/charging alone is not the BAL touch.
+  "  la a0, dtrc_deleg_target; jal ra, account_read_record\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   -- A delegation target may itself have been successfully CREATEd by an
