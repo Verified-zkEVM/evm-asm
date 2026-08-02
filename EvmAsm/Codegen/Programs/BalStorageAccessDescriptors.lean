@@ -14,6 +14,13 @@ import EvmAsm.Codegen.Programs.Mpt
 
 namespace EvmAsm.Codegen
 
+/-- Probe-only PC placeholder; unlinked from guest. bsaod -/
+def balStorageAccessOutcomeDescriptorsPc : Nat := 0x80000000
+
+/-- Probe-only data placeholders (unlinked consumer; not in GuestAddrs). -/
+def bsaodHashPlaceholder : Nat := 0xa3000000
+def bsaodEmptyValuePlaceholder : Nat := 0xa3000000
+
 open EvmAsm.Rv64
 
 /-! ## bal_storage_access_outcome_descriptors
@@ -103,14 +110,14 @@ def balStorageAccessOutcomeDescriptors_prog : Program :=
     .JAL .x0 (-32 : BitVec 21),
     .ADDI .x10 .x26 (32 : BitVec 12),
     .LI .x11 (32 : Word),
-    .AUIPC .x12 (laHi GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 248)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 248)),
-    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bal_storage_access_outcome_descriptors + 256)),
-    .AUIPC .x10 (laHi GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 260)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bsaod_hash (GuestAddrs.bal_storage_access_outcome_descriptors + 260)),
+    .AUIPC .x12 (laHi bsaodHashPlaceholder (balStorageAccessOutcomeDescriptorsPc + 248)),
+    .ADDI .x12 .x12 (laLo bsaodHashPlaceholder (balStorageAccessOutcomeDescriptorsPc + 248)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (balStorageAccessOutcomeDescriptorsPc + 256)),
+    .AUIPC .x10 (laHi bsaodHashPlaceholder (balStorageAccessOutcomeDescriptorsPc + 260)),
+    .ADDI .x10 .x10 (laLo bsaodHashPlaceholder (balStorageAccessOutcomeDescriptorsPc + 260)),
     .LI .x11 (32 : Word),
     .MV .x12 .x22,
-    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bal_storage_access_outcome_descriptors + 276)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (balStorageAccessOutcomeDescriptorsPc + 276)),
     .LI .x5 (0 : Word),
     .BEQ .x5 .x25 (64 : BitVec 13),
     .SUB .x6 .x25 .x5,
@@ -135,8 +142,8 @@ def balStorageAccessOutcomeDescriptors_prog : Program :=
     .SD .x5 .x22 (0 : BitVec 12),
     .LI .x6 (64 : Word),
     .SD .x5 .x6 (8 : BitVec 12),
-    .AUIPC .x6 (laHi GuestAddrs.bsaod_empty_value (GuestAddrs.bal_storage_access_outcome_descriptors + 376)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.bsaod_empty_value (GuestAddrs.bal_storage_access_outcome_descriptors + 376)),
+    .AUIPC .x6 (laHi bsaodEmptyValuePlaceholder (balStorageAccessOutcomeDescriptorsPc + 376)),
+    .ADDI .x6 .x6 (laLo bsaodEmptyValuePlaceholder (balStorageAccessOutcomeDescriptorsPc + 376)),
     .SD .x5 .x6 (16 : BitVec 12),
     .SD .x5 .x0 (24 : BitVec 12),
     .LI .x6 (3 : Word),

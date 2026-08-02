@@ -362,7 +362,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_tx_auth_phase_applied_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++
-  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of bvcd_keys[i] for the exec_log_latest_value slotKey match
+  "dtrc_slotkey_le:\n  .zero 32\n" ++   -- ogjan: LE byte-reverse of a BAL slot key for the exec_log_latest_value slotKey match. (GH #11176 retired bvcd_keys, which this comment used to name as the source; the remaining writers are outside the retired preload.)
   -- coc3g.5: 20-byte EIP-7702 delegated TARGET address scratch. When the recipient's
   -- resolved code is a 0xef0100||target marker (a prior-block-delegated EOA), the
   -- dispatch follows the marker to the target's code while keeping env.ADDRESS = the
@@ -467,11 +467,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- i3djw.3: skip-list for the all-accounts non-storage comparator (32B-strided
   -- {recipient, sender, coinbase} plus system addresses, pinned outside the exec log).
   ".balign 8\n" ++
-  "i3djw_skip_list:\n  .zero 288\n" ++   -- coc3g.6.5: 3 {recipient,sender,coinbase} + 6 system addresses (9*32)
+  "i3djw_skip_list:\n  .zero " ++ toString ((3 + bvMtxSystemSkipEntries) * 32) ++ "\n" ++   -- #10684: 3 gas-coupled only (system skip empty)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
-  -- comparators. Gas/value-coupled {sender_i, recipient_i} + coinbase + residual
-  -- system (bvMtxSystemSkipEntries = 4: 7002/7251/6110/SYSTEM; #10684 dropped
-  -- 2935/4788). Capacity 2*N+1+system (N <= bvMtxFullTxCap). 32-byte-strided,
+  -- comparators. Gas/value-coupled {sender_i, recipient_i} + coinbase only
+  -- (bvMtxSystemSkipEntries = 0; #10684/#11210/#11218 dropped all six system skips).
+  -- Capacity 2*N+1 (N <= bvMtxFullTxCap). 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
   -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.

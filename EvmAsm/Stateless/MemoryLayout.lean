@@ -105,7 +105,7 @@
   | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 5 MiB       |
   | `ACCOUNT_WRITES_AREA`        | `0xa28a0000`     | 2.5 MiB     |
   | `TX_ACCOUNT_WRITES_AREA`     | `0xa2b20000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2d20000`     | 2 MiB       |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2d20000`     | 2 MiB (16384×128 provisioned; 4294 needed; 3.8× headroom) |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -417,11 +417,29 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
 def ACCOUNT_WRITES_AREA      : Word := 0xa28a0000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
 def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
-/-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB.
+/-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB
+    provisioned. The current workload derivation needs only 4294 rows on the
+    densest known path: with the per-transaction regular-gas ceiling of
+    16,777,216 and the minimum set-code intrinsic base of 12,000,
+    `2 × floor((16,777,216 - 12,000) / 7,816) = 4,288` EIP-7702 MTx
+    authorization pushes, plus six fixed boundary records (sender inclusion,
+    upfront debit, refund, coinbase credit, and both sides of a self value
+    transfer). The 200M block-gas limit is not the applicable bound because
+    this counter resets at transaction incorporation. The 16384-row physical
+    reservation is intentionally retained, giving 12090 rows and about 3.8×
+    headroom rather than shrinking the mapped region.
 
-    Same frame-rollback rationale as storage undo (dict copy unaffordable at
-    capacity × call depth). Account side has no destroy-style second undo, so
-    capacity stays 1:1 with the tx map (16384). Entry layout (128 B):
+    The producer census is closed over the current direct account-write
+    publication sites: `BlockVerdictMtxRuntime.lean` sender inclusion,
+    `TxIntrinsicStateGas.lean` EIP-7702 nonce/code effects,
+    `NonstorageEffectLog.lean` generic nonstorage effects (including value
+    transfer, sender upfront/refund, and coinbase), and
+    `CreateCodeEffectLog.lean` CREATE/code effects. It is not a formal proof over
+    future indirect dispatcher routes, so the extra headroom is deliberate. The
+    existing `account_writes_undo_push` guard checks the count before the first
+    store, returns failure, and latches the transaction/block overflow flags;
+    callers reject that status. Same frame-rollback rationale as storage undo
+    (dict copy unaffordable at capacity × call depth). Entry layout (128 B):
 
         +0   entryIndex   (8 B)   index into the tx-level map this write touched
         +8   wasAbsent    (8 B)   1 if the write APPENDED a new key, else 0
