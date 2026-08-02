@@ -177,21 +177,9 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     because the 100-gas divisor ignored the 16,384-row fail-closed source cap.
 
     ⚠️ **And the converse trap, which is how the journal note went wrong:** a
-    capacity cap bounds OCCUPANCY, not FLOW. **Do not bound a flow with a capacity.**
-
-    ⛔ **AND THE FIRST ATTEMPT AT THAT CORRECTION NAMED THE WRONG FLOW**, which is why
-    the region note below carries the mechanism and not just the verdict. It blamed
-    `destroy_storage` freeing map rows that later writes refill; the witness's kind
-    breakdown is `kind0 = 49,999, kind1 = 2, kind2 = 0`, so **`destroy_storage` pushed
-    nothing at all.** The real source is the value-unchanged rewrite, which escapes the
-    **exec-log** cap (not the write-map cap) because `Storage.lean:718-729` skips the
-    append while `:796-800` still calls the recorder.
-
-    ⭐ **The generalisation, which cost three numbers in one day:** a cap on a container
-    is not a cap on the traffic through it — **and a cap on the traffic is not a cap on
-    the traffic that matters.** Two of the three journal kinds here are records whose
-    replay is a bitwise identity, so the ceiling they imply is a leak to close rather
-    than a size to reserve.
+    capacity cap bounds OCCUPANCY, not FLOW. `destroy_storage` decrements
+    `tx_storage_writes_count`, so freed rows are refilled and the journal's inflow
+    is not bounded by the map's size. **Do not bound a flow with a capacity.**
 
     ⛔ **OVER-RESERVING IS NOT FREE HERE.** The old 76.8 MiB gas-derived reservation
     was unioned into `call_frame_arena`'s front and **physically zeroed** by per-tx
@@ -203,12 +191,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     ⚠️ **OPEN, NOT SETTLED — do not read this section as complete.** Whether a
     *legitimate* 200M-gas block can EXCEED either cap is unresolved: the log cap is
     fail-closed so exceeding it is sound but false-rejects, while the journal cap is
-    fail-open so exceeding it is a state divergence. The journal side is known to be
-    reachable — 49,999 kind-0 pushes on `case_id`
-    `3ea3e6019a9d4adf4ffed4afdbddf361300efc662f50f028ccbad2e973bff9d4` with the cap
-    raised. ⚠️ **Cite that row by `case_id` or input sha, never by index:** two agents
-    measuring "fixture 00192" reported 49,999 against 16 because an index is
-    selector-relative, and both counters were correct. The log side's realistic peak is
+    fail-open so exceeding it is a state divergence. Journal side is known to be
+    reachable (fixture `00192` hits 32,768 exactly); the log side's realistic peak is
     still being quantified.
 -/
 
@@ -290,73 +274,22 @@ def schemeAAnchors : List GuestRegion :=
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
     -- a per-frame copy would cost capacity x call depth.
     --
-    -- ⛔ GH #11189: THIS REGION'S OVERFLOW IS FAIL-OPEN.  The note here once claimed it
-    -- was "bounded by the SSTORE handler's own 16384-row cap, so it needs no overflow
-    -- path".  THAT IS FALSE, and the error is CAPACITY-versus-FLOW.
+    -- ⛔ GH #11189: THIS REGION IS UNDERSIZED AND ITS OVERFLOW IS FAIL-OPEN.  The
+    -- previous note here claimed it was "bounded by the SSTORE handler's own
+    -- 16384-row cap, so it needs no overflow path".  THAT IS FALSE, and the error is
+    -- CAPACITY-versus-FLOW: the 16384 cap bounds LIVE ROWS in the write map, not the
+    -- NUMBER OF WRITES.  destroy_storage DECREMENTS tx_storage_writes_count as it
+    -- drops rows (.Lds_drop), so each destruction frees map capacity that the next
+    -- write refills -- a slot can be written, destroyed, written, destroyed, pushing
+    -- one undo every time while live rows never exceed 16384.
     --
-    -- ⚠️ BUT THE FIRST CORRECTION NAMED THE WRONG FLOW, so read the mechanism and not
-    -- just the verdict.  It blamed destroy_storage freeing map capacity that later
-    -- writes refill.  REFUTED BY MEASUREMENT: on the witness below the kind breakdown
-    -- is kind0 = 49,999, kind1 = 2, KIND2 = 0 -- destroy_storage pushed NOTHING.
-    --
-    -- THE ACTUAL SOURCE IS THE VALUE-UNCHANGED REWRITE, and it escapes the EXEC-LOG
-    -- cap rather than the write-map cap.  Storage.lean:718-729 SKIPS the exec-log
-    -- append when the found row's current equals the value being written (its own
-    -- comment gives the motive: long loops rewriting the same value would otherwise
-    -- exhaust the 16384-row arena), while Storage.lean:796-800 says "Both the append
-    -- and the value-unchanged skip converge here, AND THE RECORDER IS CALLED ON BOTH".
-    -- => such a rewrite pushes an undo record while log_length stands still, so the
-    -- capacity guard at Storage.lean:667-669 -- which tests log_length -- never fires.
-    --
-    -- ⚠️ AND IT IS NARROWER THAN "REPEAT WRITES".  The exec log is APPEND-ONLY and
-    -- never updates in place (Storage.lean:730-784 writes at log_base + log_length*128
-    -- and increments; h_SLOAD reverse-scans for the LAST match precisely because
-    -- supersession is by appending).  A repeat write with a DIFFERENT value DOES append
-    -- and DOES advance the guard.  Only the identical-value case escapes.
-    --
-    -- MEASURED, cited by identity because an index is selector-relative and this exact
-    -- confusion produced a 49,999-versus-16 contradiction between two correct counters:
-    --   case_id  3ea3e6019a9d4adf4ffed4afdbddf361300efc662f50f028ccbad2e973bff9d4
-    --   input    sha256 9fe0961ad262bb4d15430a19e390fe35422cc11902744c1417b04c32f42c0575
-    --   relpath  ported_static/stQuadraticComplexityTest/return50000/return50000.json, g1
-    -- ⚠️ THE RELPATH IS NOT AN IDENTITY EITHER: four corpus rows share it and differ
-    -- only in a gas parameter that the 96-character label truncation hides.  The g0
-    -- variant and the sibling test push 28 and 27.
-    --
-    -- ⛔ AND A READING OF EXACTLY 32768 IS THE CAP READING ITSELF, NOT A DEMAND.  The
-    -- guard skips the push AND the increment, so the counter SATURATES and carries no
-    -- upper information.  49,999 is from a run with the cap raised.
-    --
-    -- DERIVED CEILING for the current code: per-transaction regular gas is capped at
-    -- TX_MAX_GAS_LIMIT = 16,777,216 (transactions.py:63, fork.py:1098-1100), the
-    -- journal is per-transaction (zeroed by write_sets_incorporate_tx and
-    -- write_sets_discard_tx), and the cheapest journal-pushing write costs
-    -- WARM_ACCESS = 100 -- storage.py:110-113 charges STORAGE_WRITE only when
-    -- original == current AND current != new, and the second conjunct is FALSE on a
-    -- value-unchanged rewrite.  ⚠️ But storage.py:97 gates every SSTORE through
-    -- check_gas(max(gas_cost, CALL_STIPEND + 1)), so each write REQUIRES gas_left >=
-    -- 2301 while SPENDING only 100 and the last 2301 gas cannot fund a write:
-    --   (16777216 - 21000 - 2301)/100 + 1 = 167,550, NOT the 167,772 that
-    -- TX_MAX_GAS_LIMIT/WARM_ACCESS gives.  The 222-row difference decides nothing, but
-    -- the naive division is what a re-derivation lands on twice.
-    --
-    -- ⭐ AND THAT CEILING IS A LEAK, NOT A REQUIREMENT -- DO NOT RESIZE TO IT.  A
-    -- value-unchanged rewrite's undo record has prevValue EQUAL to the value being
-    -- written, so replaying it stores identical bytes: an identity on the map, hence on
-    -- the map length and on the rebuilt BAL, which block_access_lists.py:667-676 derives
-    -- from the FINAL MAP ALONE (it iterates tx_state.storage_writes and compares against
-    -- _get_pre_tx_storage -- no sequence, no journal, no arrival count).  And the rows
-    -- have exactly ONE reader: of the seven occurrences of 0xa23a0000 in EvmAsm,
-    -- StorageWriteMap.lean:423 is the push and :480 is write_sets_restore_frame; the
-    -- rest are layout or docstrings.  => skipping the identity push in
-    -- storage_write_record's HIT path is unobservable, and with it kind0+kind1 are
-    -- 1-to-1 with exec-log appends (<= 16384) and kind2 with map rows (<= 16384), so
-    -- 32768 becomes tight again at 20.6 MiB less than the resize.
-    --
-    -- ⛔ THE TEST MUST READ entry+64, NOT THE EXEC-LOG ROW'S current.  h_SSTORE's
-    -- value-unchanged test uses the exec log, and THE EXEC LOG RETAINS REVERTED WRITES
-    -- while this journal rolls the map BACK -- post-revert the two disagree, and gating
-    -- on the log would drop a REAL undo record in the false-accept direction.
+    -- MEASURED: fixture 00192 reaches storage_writes_undo_count = 32768 exactly (the
+    -- capacity), so the guard fires on a non-adversarial block today.  DERIVED bound:
+    -- per-transaction regular gas is capped at TX_MAX_GAS_LIMIT = 16,777,216
+    -- (transactions.py:63, fork.py:1098-1100) and the cheapest journal-pushing write
+    -- costs WARM_ACCESS = 100, so up to 167,772 entries are reachable -- 5.1x this
+    -- region.  At the current 160 B stride that is 25.6 MiB; at the 40 B achievable
+    -- width (GH #11189 row audit) 6.4 MiB.
     --
     -- ⚠️ AND THE OVERFLOW IS SILENT: storage_writes_undo_push does
     -- `bgeu t1, t2, .Lswup_done`, skipping the push AND not bumping the count, so
@@ -368,11 +301,7 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 5 MiB = 32768x160 "
         ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
         ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2. "
-        ++ "⛔ FAIL-OPEN on overflow -- GH #11189, fail-closed by GH #11200. "
-        ++ "167550 per-tx entries are reachable TODAY (not 167772: storage.py:97 needs "
-        ++ "gas_left >= CALL_STIPEND+1 per write while spending 100), but that is a LEAK -- "
-        ++ "value-unchanged rewrites push identity records; skipping them in the hit path "
-        ++ "makes 32768 tight, so DO NOT RESIZE. "
+        ++ "⛔ UNDERSIZED 5.1x (167772 reachable per tx) AND FAIL-OPEN on overflow -- GH #11189. "
         ++ "Row audit: 16 B of the 160 (offsets 16..31) are never written and never read; "
         ++ "kind 0/1 need 40 B (32 B value + packed index/kind, 8-aligned), only kind 2 "
         ++ "needs the 128 B payload and it is bounded by distinct written slots, so "
