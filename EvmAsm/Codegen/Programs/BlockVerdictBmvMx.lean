@@ -15,10 +15,8 @@ def blockVerdictBmvMxPrecomputePrefix : String :=
   -- ADDITIVE (no consumer reads bmvmx_* yet) -> verdict byte-identical. exec_p = 0(s0)
   -- (= bv_exec_p). All bv_* writes here are idempotent with the post-348 tx preamble,
   -- and block_state_root (BlockVerdict.lean:67-302) reads none of these globals.
-  "  la t0, bmvmx_avail; sd zero, 0(t0)\n" ++
   "  la t0, eip7708_tl_typed_avail; sd zero, 0(t0)\n" ++
-  bvReceiptsShapeClear ++  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++             -- bmvmx.1.4.3.1: envelope predicate flags default 0
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
+  bvReceiptsShapeClear ++               -- bmvmx.1.4.3.1: envelope predicate flags default 0
   "  addi t4, s3, 60; la t0, bv_exec_p; sd t4, 0(t0)\n" ++         -- exec_p = ssz_base(s3)+60 (block_state_root's bsr_exec_p derivation; 0(s0) is NOT populated pre-348)
   "  la t4, bv_exec_p; ld t4, 0(t4); addi a0, t4, 504; jal ra, bgv_u32le\n" ++       -- transactions_offset
   "  la t0, bmvmx_txoff; sd a0, 0(t0)\n" ++
@@ -37,7 +35,7 @@ def blockVerdictBmvMxPrecomputePrefix : String :=
   "  la t0, bmvmx_ctx; ld t1, 0(t0); bnez t1, .Lbmvmx_done; ld t1, 48(t0); bnez t1, .Lbmvmx_done\n" ++   -- unsupported/creation tx shape
   -- bmvmx.1.4.3.1 envelope (cheap half): restrict the exec-derived balance compare to a
   -- LEGACY (type-0, no access list) single tx. Outside legacy, stay conservative: jump to
-  -- .Lbmvmx_done (skip the whole inert compute; bmvmx_avail stays 0, so .4.3.2's gate never
+  -- .Lbmvmx_done (skip the whole inert compute).  GH #11211: the bmvmx_* comparison
   -- fires). The remaining envelope conditions gate the per-compare bmvmx_*_checked flags:
   -- sender/recipient/coinbase distinctness is enforced below; the EOA-recipient check (so
   -- gas_used==21000 is exact) is DEFERRED to .4.3.2's reject path, since that MPT+keccak
@@ -62,11 +60,10 @@ def blockVerdictBmvMxPrecomputePrefix : String :=
   -- (the amount the sender's balance decreases; consumed by .4.3 as sender_post = pre - debit).
   "  la a0, bmvmx_eff_gas_price; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_gascost; jal ra, u256_mul_u64_be\n" ++
   "  la a0, bmvmx_gascost; la a1, bmvmx_value; la a2, bmvmx_sender_debit; jal ra, u256_add_be\n" ++
-  -- bmvmx.1.4.1 compare (additive; sets bmvmx_sender_match only -> verdict byte-identical):
+  -- bmvmx.1.4.1 compare.  GH #11211 retired its write-only result flag; the compare below
   -- assert the BAL sender post balance == sender_pre - bmvmx_sender_debit. Sender address is
   -- derived from the selected public key (pubkeys = SSZ_BASE(s3) + offsets[3]@s3+12; 65-byte
   -- SEC1 key 0x04||x||y -> address_from_pubkey(key+1)). Reuses bmvmx_acct/bmvmx_cb_* scratch.
-  "  la t0, bmvmx_sender_match; sd zero, 0(t0)\n" ++
   "  addi a0, s3, 12; jal ra, bgv_u32le\n" ++                          -- offsets[3] (public_keys offset)
   "  add t0, s3, a0; addi a0, t0, 1\n" ++                              -- pubkey[0] x||y (skip 0x04 prefix)
   "  la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
@@ -91,17 +88,14 @@ def blockVerdictBmvMxPrecomputePrefix : String :=
   ".Lbmvmx_sd_rad:\n" ++
   "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_sender_debit; la a2, bmvmx_cb_expected; jal ra, u256_sub_be\n" ++   -- expected = pre - debit
   "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_sender_match; sd a0, 0(t0)\n" ++                     -- match = (pre - debit == BAL post)
-  "  la t0, bmvmx_sender_checked; li t1, 1; sd t1, 0(t0)\n" ++          -- bmvmx.1.4.3.1: sender compare PERFORMED in-envelope (distinctness cleared below)
   ".Lbmvmx_sd_skip:\n" ++
   -- bmvmx.1.4.2: execution-derived coinbase fee credit = priority_fee_per_gas * gas_used
   -- (the tip credited to the block coinbase; EIP-1559 base fee is burned). Consumed by
   -- .4.3 as coinbase_post = coinbase_pre + credit (for the supported single-tx EOA class).
   "  la a0, bmvmx_priority_fee; la t0, bmvmx_gas_used; ld a1, 0(t0); la a2, bmvmx_coinbase_credit; jal ra, u256_mul_u64_be\n" ++
-  -- bmvmx.1.4.2 compare (additive; sets bmvmx_coinbase_match only -> verdict byte-identical):
+  -- bmvmx.1.4.2 compare.  GH #11211 retired its write-only result flag; the compare below
   -- assert the BAL coinbase post balance == coinbase_pre + bmvmx_coinbase_credit. Any miss /
   -- not-found / overlap (coinbase==sender/recipient) / absent leaves match=0 (conservative).
-  "  la t0, bmvmx_coinbase_match; sd zero, 0(t0)\n" ++
   "  la t4, bv_exec_p; ld t4, 0(t4); addi t1, t4, 32; la t2, bmvmx_coinbase_addr; li t3, 0\n" ++   -- coinbase = fee_recipient (exec_p+32)
   ".Lbmvmx_cbaddr:\n" ++
   "  li t0, 20; beq t3, t0, .Lbmvmx_cbaddr_d\n" ++
@@ -128,26 +122,19 @@ def blockVerdictBmvMxPrecomputePrefix : String :=
   ".Lbmvmx_cb_rad:\n" ++
   "  la a0, bmvmx_acct; addi a0, a0, 8; la a1, bmvmx_coinbase_credit; la a2, bmvmx_cb_expected; jal ra, u256_add_be\n" ++
   "  la a0, bmvmx_cb_expected; la a1, bmvmx_cb_post; jal ra, u256_eq\n" ++
-  "  la t0, bmvmx_coinbase_match; sd a0, 0(t0)\n" ++                   -- match = (pre+credit == BAL post)
-  "  la t0, bmvmx_coinbase_checked; li t1, 1; sd t1, 0(t0)\n" ++       -- bmvmx.1.4.3.1: coinbase compare PERFORMED in-envelope (distinctness cleared below)
   ".Lbmvmx_cb_skip:\n" ++
-  "  la t0, bmvmx_avail; li t1, 1; sd t1, 0(t0)\n" ++
   bvReceiptsShapeSet 1 true ++  -- Distinctness clears the performed sender/coinbase checks when value/fee effects overlap.
   "  la a0, bmvmx_sender_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
   "  bnez a0, .Lbmvmx_s_vs_cb\n" ++                                    -- sender == recipient -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
   ".Lbmvmx_s_vs_cb:\n" ++
   "  la a0, bmvmx_sender_addr; la a1, bmvmx_coinbase_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
   "  bnez a0, .Lbmvmx_cb_vs_s\n" ++                                    -- sender == coinbase -> clear sender_checked
-  "  la t0, bmvmx_sender_checked; sd zero, 0(t0)\n" ++
   ".Lbmvmx_cb_vs_s:\n" ++
   "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_sender_addr; jal ra, .Lbmvmx_addr20_ne\n" ++
   "  bnez a0, .Lbmvmx_cb_vs_r\n" ++                                    -- coinbase == sender -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
   ".Lbmvmx_cb_vs_r:\n" ++
   "  la a0, bmvmx_coinbase_addr; la a1, bmvmx_ctx; addi a1, a1, 72; jal ra, .Lbmvmx_addr20_ne\n" ++
   "  bnez a0, .Lbmvmx_dist_done\n" ++                                  -- coinbase == recipient -> clear coinbase_checked
-  "  la t0, bmvmx_coinbase_checked; sd zero, 0(t0)\n" ++
   ".Lbmvmx_dist_done:\n" ++
   "  j .Lbmvmx_done\n" ++
   -- local helper: a0,a1 = 20-byte address ptrs; returns a0 = 1 if they differ, 0 if equal.
