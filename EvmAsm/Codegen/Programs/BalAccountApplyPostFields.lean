@@ -23,6 +23,8 @@ import EvmAsm.Codegen.Programs.MptStateRootIns
 import EvmAsm.Codegen.Programs.RlpWalk
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
+import EvmAsm.Codegen.Programs.StorageWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -334,7 +336,99 @@ def balAccountApplyPostFieldsFunction : String :=
   "  bnez a2, .Lbaap_fail\n" ++
   "  mv s8, a0; mv s9, a1\n" ++
   "  # Storage changes share one bounded descriptor stream regardless of count.\n" ++
+  "  la t0, bsr_storage_from_map; ld t0, 0(t0); li t1, 1; beq t0, t1, .Lbaap_map_storage\n" ++
   "  j .Lbaap_multi_storage\n" ++
+  -- Terminal block-state replay path: replace BAL's final storage values with
+  -- the canonical execution-specs block map.  The mode is set only by the
+  -- post-incorporation block_state_root caller; a zero map count therefore
+  -- means no committed rows, not an early read of an unpopulated map.
+  ".Lbaap_map_storage:\n" ++
+  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1; mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail\n" ++
+  "  mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail; li t2, 32; bne a2, t2, .Lbaap_fail\n" ++
+  "  sub t1, a0, a2; la t0, baap_storage_root_ptr; sd t1, 0(t0)\n" ++
+  "  la t2, aps_empty_root; li t3, 32\n" ++
+  ".Lbaap_map_empty_cmp:\n" ++
+  "  beqz t3, .Lbaap_map_empty_ok\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbaap_map_nonempty\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbaap_map_empty_cmp\n" ++
+  ".Lbaap_map_empty_ok:\n" ++
+  "  li t0, 1; la t1, baap_storage_empty_flag; sd t0, 0(t1); j .Lbaap_map_init\n" ++
+  ".Lbaap_map_nonempty:\n" ++
+  "  la t0, baap_storage_empty_flag; sd zero, 0(t0)\n" ++
+  ".Lbaap_map_init:\n" ++
+  "  la t0, baap_map_addr; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail\n" ++
+  "  mv s10, a1; mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail; li t0, 20; bne a2, t0, .Lbaap_fail\n" ++
+  "  sub t0, a0, a2; addi t1, t0, 19; la t2, baap_map_addr; li t3, 0\n" ++
+  ".Lbaap_map_addr_rev:\n" ++
+  "  li t4, 20; beq t3, t4, .Lbaap_map_addr_done\n" ++
+  "  lbu t5, 0(t1); sb t5, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, 1; j .Lbaap_map_addr_rev\n" ++
+  ".Lbaap_map_addr_done:\n" ++
+  "  la t0, baap_storage_values; la t1, baap_storage_value_cursor; sd t0, 0(t1)\n" ++
+  "  la t0, baap_sc_index; sd zero, 0(t0); la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
+  ".Lbaap_map_loop:\n" ++
+  "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1); beq t0, t1, .Lbaap_map_apply\n" ++
+  "  li t2, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  mv a0, s8; mv a1, s9; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail; mv s8, a0; sub t0, a0, a2; la t1, baap_code_item_ptr; sd t0, 0(t1); la t1, baap_item_len; sd a2, 0(t1)\n" ++
+  "  mv a0, t0; mv a1, a2; jal ra, rlp_walk_init\n" ++
+  "  bnez a2, .Lbaap_fail; mv s10, a1; mv a1, s10; jal ra, rlp_walk_next\n" ++
+  "  bnez a1, .Lbaap_fail; sub t0, a0, a2; la t1, baap_val_ptr; sd t0, 0(t1); la t1, baap_val_len; sd a2, 0(t1)\n" ++
+  "  la t0, baap_val_len; ld t0, 0(t0); li t1, 32; bgtu t0, t1, .Lbaap_fail\n" ++
+  "  la t1, baap_slot; li t2, 0\n" ++
+  ".Lbaap_map_slot_zero:\n" ++
+  "  li t3, 32; beq t2, t3, .Lbaap_map_slot_copy\n" ++
+  "  add t4, t1, t2; sb zero, 0(t4); addi t2, t2, 1; j .Lbaap_map_slot_zero\n" ++
+  ".Lbaap_map_slot_copy:\n" ++
+  "  la t0, baap_val_len; ld t0, 0(t0); li t2, 32; sub t2, t2, t0; la t3, baap_val_ptr; ld t3, 0(t3); la t4, baap_slot; add t4, t4, t2\n" ++
+  ".Lbaap_map_slot_copy_loop:\n" ++
+  "  beqz t0, .Lbaap_map_slot_ready\n" ++
+  "  lbu t5, 0(t3); sb t5, 0(t4); addi t3, t3, 1; addi t4, t4, 1; addi t0, t0, -1; j .Lbaap_map_slot_copy_loop\n" ++
+  ".Lbaap_map_slot_ready:\n" ++
+  "  la a0, baap_map_addr; la a1, baap_slot; li a2, 0xa1fa0000; la t0, storage_writes_count; ld a3, 0(t0); li a4, " ++ toString storageWritesCapacity ++ "; la a5, baap_map_value; la a6, baap_map_recip_scratch; la a7, baap_map_slot_scratch\n" ++
+  "  jal ra, storage_writes_block_latest_value; li t0, 2; beq a0, t0, .Lbaap_fail; beqz a0, .Lbaap_map_next\n" ++
+  "  la a0, baap_slot; li a1, 32; la a2, srss_key; jal ra, zkvm_keccak256\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); li t1, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t1, .Lbaap_fail; slli t1, t0, 6; la t2, baap_storage_paths; add a2, t2, t1\n" ++
+  "  la a0, srss_key; li a1, 32; jal ra, bytes_to_nibbles\n" ++
+  "  la t0, baap_map_value; addi t1, t0, 31; la t2, baap_map_value_be; li t3, 0\n" ++
+  ".Lbaap_map_value_rev:\n" ++
+  "  li t4, 32; beq t3, t4, .Lbaap_map_value_strip\n" ++
+  "  lbu t5, 0(t1); sb t5, 0(t2); addi t1, t1, -1; addi t2, t2, 1; addi t3, t3, 1; j .Lbaap_map_value_rev\n" ++
+  ".Lbaap_map_value_strip:\n" ++
+  "  la t1, baap_map_value_be; li t2, 0\n" ++
+  ".Lbaap_map_value_strip_loop:\n" ++
+  "  li t3, 32; beq t2, t3, .Lbaap_map_zero\n" ++
+  "  lbu t4, 0(t1); bnez t4, .Lbaap_map_value_nonzero\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; j .Lbaap_map_value_strip_loop\n" ++
+  ".Lbaap_map_zero:\n" ++
+  "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_map_next\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); li t1, " ++ toString bsrMaxBalItems ++ "; bgeu t0, t1, .Lbaap_fail\n" ++
+  "  slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
+  "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1); sd zero, 16(t1); sd zero, 24(t1); li t2, 2; sd t2, 32(t1)\n" ++
+  "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1); j .Lbaap_map_next\n" ++
+  ".Lbaap_map_value_nonzero:\n" ++
+  "  sub t3, t3, t2; add a0, t1, zero; mv a1, t3; la t4, baap_storage_value_cursor; ld a2, 0(t4); la a3, aab_enc_len\n" ++
+  "  jal ra, rlp_encode_bytes\n" ++
+  "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0); la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1; li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len\n" ++
+  "  jal ra, mpt_walk; beqz a0, .Lbaap_map_modify; li t0, 1; bne a0, t0, .Lbaap_fail; li t5, 1; j .Lbaap_map_desc\n" ++
+  ".Lbaap_map_modify:\n  li t5, 0\n" ++
+  ".Lbaap_map_desc:\n" ++
+  "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
+  "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1); la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1); la t4, aab_enc_len; ld t4, 0(t4); sd t4, 24(t1); sd t5, 32(t1)\n" ++
+  "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2); addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
+  ".Lbaap_map_next:\n" ++
+  "  la t0, baap_sc_index; ld t0, 0(t0); addi t0, t0, 1; la t1, baap_sc_index; sd t0, 0(t1); j .Lbaap_map_loop\n" ++
+  ".Lbaap_map_apply:\n" ++
+  "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbaap_nonce\n" ++
+  "  j .Lbaap_multi_apply\n" ++
   ".Lbaap_multi_storage:\n" ++
   "  # Multi-slot BAL storage replay is supported when the account's prior\n" ++
   "  # storage trie is empty: build all storage insert descriptors and apply\n" ++
@@ -621,11 +715,13 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
+  storageWritesBlockLatestValueFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
   balAccountApplyPostFieldsFunction ++ "\n" ++
   ".Lbaap_pdone:"
 
 def ziskBalAccountApplyPostFieldsDataSection : String :=
+  storageWriteMapDataSection ++ "\n" ++
   ziskMptStateRootInsDataSection ++ "\n" ++
   -- The bounded storage-root fallback closure reopens constructed children by
   -- Patricia depth; standalone BAAP probes need the same fixed cache as the
@@ -682,6 +778,7 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_force_storage_clear:\n  .zero 8\n" ++
+  "bsr_storage_from_map:\n  .zero 8\n" ++
   "baap_storage_root_ptr:\n  .zero 8\n" ++
   "baap_walk_val_len:\n  .zero 8\n" ++
   "baap_item_off:\n  .zero 8\n" ++
@@ -706,6 +803,11 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_nonce:\n  .zero 32\n" ++
   "baap_slot:\n  .zero 32\n" ++
   "baap_code_hash:\n  .zero 32\n" ++
+  "baap_map_addr:\n  .zero 32\n" ++
+  "baap_map_value:\n  .zero 32\n" ++
+  "baap_map_value_be:\n  .zero 32\n" ++
+  "baap_map_recip_scratch:\n  .zero 32\n" ++
+  "baap_map_slot_scratch:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
   "baap_tmp2:\n  .zero 512\n" ++
