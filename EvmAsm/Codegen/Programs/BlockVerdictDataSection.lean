@@ -1071,6 +1071,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Persistent execution-derived BAL builder.  It is deliberately last: this
   -- allocation must not move established data labels, and it remains live from
   -- transaction execution through the later serializer/hash pass.
-  blockAccessListBuilderDataSection
+  blockAccessListBuilderDataSection ++
+  -- Scratch used by the BAL storage-map adapter.  Keep it after the existing
+  -- pinned data so adding the adapter does not move established GuestAddrs
+  -- anchors or the phase-unioned storage arenas.
+  "\n.balign 32\nbaap_address:\n  .zero 32\nbaap_value_be:\n  .zero 32\n"
 
 end EvmAsm.Codegen
