@@ -64,7 +64,9 @@ false-reject band: live child memories occupy disjoint LIFO slices, and the
 All must provision up to ~2.90 MiB/frame and ~90 MiB total-live. Following
 execution-specs (flat growable `bytearray`, every window op via
 `memory_read_bytes`/`memory_write`), three shapes fit within the RAM window
-(`.data` ≈ 473 MiB budget; current frame arena = `0x39000 × 1025` ≈ 228 MiB):
+(`.bss`/`.sszscratch` span is the relevant reserved window; current
+`call_frame_arena = 0x19000 × 1025` ≈ 100.1 MiB, followed by the implemented
+96 MiB shared pool):
 
 1. **Grow the shared sparse store toward the total-live bound (~90 MiB / ~3M
    words)** + per-opcode sparse-awareness (the `evm-asm-274cr` families).

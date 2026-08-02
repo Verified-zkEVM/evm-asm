@@ -46,8 +46,8 @@ STABLE_BASES = {
     "OUTPUT_ADDR":  0xa0010000,
     ".text":        0x80000000,
     ".data":        0xa3000000,
-    ".bss":         0xa4000000,
-    ".sszscratch":  0xbf800000,
+    ".bss":         0xa3110000,
+    ".sszscratch":  0xbf980000,
     "ssz_input_decoded":      0xa0020000,
     "execution_witness_area": 0xa0030000,
     "node_db_buckets":        0xa0130000,
@@ -69,6 +69,12 @@ STABLE_BASES = {
     "tx_storage_reads_area":  0xa1da0000,
     "tx_account_reads_area":  0xa1ea0000,
     "tx_code_reads_area":     0xa1f20000,
+    "storage_writes_area":    0xa1fa0000,
+    "tx_storage_writes_area": 0xa21a0000,
+    "storage_writes_undo_area": 0xa23a0000,
+    "account_writes_area":    0xa28a0000,
+    "tx_account_writes_area": 0xa2b20000,
+    "account_writes_undo_area": 0xa2d20000,
 }
 
 

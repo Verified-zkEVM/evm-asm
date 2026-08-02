@@ -28,15 +28,17 @@ The source of truth is
 This means a complete static layout is complete only relative to a declared
 maximum supported **actual BAL item count**, not merely a declared block gas
 limit. For the execution-specs default block gas limit of 120,000,000, the BAL
-item budget is 60,000. The current static replay arenas are sized for 500,000
-BAL items, the same worst-case item budget implied by a 1,000,000,000 gas
-block. A layout with that capacity must cover both extreme shapes:
+item budget is 60,000. The current emitted static replay arenas are sized for
+100,000 BAL items (the 200M target); the older 500,000-item/1G layout is
+historical. A layout with a declared capacity must cover both extreme shapes:
 
 - many account rows, which stress `basr_*` account-record arrays and the
   top-level `bsr_*` state-change arrays;
 - one/few accounts with many storage keys, which stress per-account storage
   replay arrays such as `baap_storage_desc`, `baap_storage_paths`,
-  `baap_storage_delete_paths`, and `baap_storage_values`.
+  `baap_storage_delete_paths`, and `baap_storage_values`. The
+  `baap_storage_delete_paths` child is historical/probe-only in the current
+  guest; the emitted `RegionMap.dataUnionChildren` has no such symbol.
 
 Do not resize only the first array that failed. Follow every index that derives
 from the same count and resize the matching backing storage together.
@@ -46,7 +48,7 @@ that happens, treat the ELF memory map as part of the layout: keep linked
 `.data`, fixed working-RAM anchors, public output, and `.sszscratch` disjoint.
 The current stateless guest layout (sized for the Amsterdam 200M block-gas
 target, `bsrMaxBalItems = 100000`) puts `.data` at `0xa3000000` and
-`.sszscratch` at `0xbf500000`, both inside the verified RAM zone. Keep the
+`.sszscratch` at `0xbf980000`, both inside the verified RAM zone. Keep the
 linked `.data` growth below the `.sszscratch` start and leave headroom below
 `0xc0000000`.
 
