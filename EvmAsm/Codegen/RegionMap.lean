@@ -570,7 +570,7 @@ def dataSizeBytes : Nat := 0x5370
     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
     removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1b5948a0
+def bssSizeBytes : Nat := 0x1b594860
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
