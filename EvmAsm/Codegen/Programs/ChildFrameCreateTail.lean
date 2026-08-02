@@ -239,6 +239,20 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
       "  mv x13, s9\n" ++
       "  mv x10, s10\n" ++
       "  mv x12, s11\n") ++
+    -- `generic_create` performs tracked account accesses while checking target
+    -- aliveness/deployability (execution-specs amsterdam/vm/instructions/
+    -- system.py:106-117; state_tracker.py:199).  The depth check precedes
+    -- the target access in the spec, so a depth-limited CREATE takes the
+    -- existing zero-result path without recording an unreachable target.
+    -- `account_read_record` preserves t0-t6 and takes only a0 (x10) as its
+    -- input, so x10 is the only register required by callee arity.  Retain
+    -- x12/x13 defensively because this surrounding region's established
+    -- convention brackets all three (CreateFrameDescend.lean:131-139);
+    -- document the distinction so this does not teach a wholesale rule.
+    "  la t1, evm_call_depth\n  ld t2, 0(t1)\n  li t3, 1024\n  bgeu t2, t3, 7f\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be; jal ra, account_read_record\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     -- If an account-witness context is attached, apply the EIP-684
     -- code-or-nonce collision check to the derived target address.  The
     -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
