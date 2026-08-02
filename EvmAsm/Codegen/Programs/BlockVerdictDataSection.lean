@@ -705,8 +705,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "stfv_post_raw:\n  .zero 32\n" ++
   "stfv_nonce_raw:\n  .zero 32\n" ++
   ".balign 8\n" ++
-  "bv_simple_transfer_recipient:\n  .zero 208\n" ++
-  "bv_simple_transfer_fee_recipient:\n  .zero 240\n" ++
   ".balign 8\n" ++
   "tvhm_tx_type:\n  .zero 8\n" ++
   "tvhm_inner_off:\n  .zero 8\n" ++

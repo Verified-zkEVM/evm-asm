@@ -258,6 +258,13 @@ shared and *over what ranges*, leaving only the temporal-exclusion argument.
 
 ## 5. Drift handling
 
+The scalar journal initialization obligations that feed the next predicate
+layer are recorded in
+[`docs/4ch8f-dispatch-journal-initialization.md`](4ch8f-dispatch-journal-initialization.md).
+That document is cell/lifetime vocabulary, not another absolute-address map:
+the twelve zero-assuming readers are load-bearing, while the two sampled
+no-write cells remain retained until an all-path proof exists.
+
 `scripts/check-region-map.sh` skips gracefully when the RISC-V toolchain is
 absent (exit 0). Otherwise it hard-fails on:
 

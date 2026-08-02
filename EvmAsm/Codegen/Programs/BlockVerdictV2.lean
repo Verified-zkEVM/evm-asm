@@ -489,7 +489,6 @@ def statelessVerdictV2GuestClosure : String :=
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
-  simpleTransferTxContextFunction ++ "\n" ++
   stageRuntimePayloadFunction ++ "\n" ++
   stageCreationRuntimePayloadFunction ++ "\n" ++
   blockVerdictCreationRuntimeFunction ++ "\n" ++
@@ -636,15 +635,12 @@ def statelessVerdictV2GuestClosure : String :=
   accountChargeGasPreExecFunction ++ "\n" ++
   txUpfrontPrechargeFunction ++ "\n" ++
   txGasBalPostVerifyFunction ++ "\n" ++
-  simpleTransferRecipientBalVerifyFunction ++ "\n" ++
-  simpleTransferFeeRecipientBalVerifyFunction ++ "\n" ++
   bvSumWithdrawalsToAddressFunction ++ "\n" ++
   accessListCountFunction ++ "\n" ++
   intrinsicGasAmsterdamCountsFunction ++ "\n" ++
   eip8037GasGateBundleFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
-  multiTxSequentialGasSettleStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
   senderPostNonceConsistentFunction ++ "\n" ++

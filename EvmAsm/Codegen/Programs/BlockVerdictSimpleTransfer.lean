@@ -8,7 +8,6 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
@@ -17,6 +16,30 @@ import EvmAsm.Codegen.Programs.TxExtract
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
+/-- #10685: `simple_transfer_tx_context` unlinked from guest (0 inbound, prev ends
+    `jalr x0,0(x1)`). Probe-only Program keeps local address placeholders so
+    `laHi`/`laLo`/`jalOff` still elaborate; drift is covered by
+    `simpleTransferTxContextFunction_eq_prog`. Entry is a dummy PC; data/callee
+    addrs match the current guest TSV (still live for MTx string paths). -/
+private def simpleTransferTxContextPc : Nat := 0x80000000
+private def sttc_bv_tx_count : Nat := 0xa5ca03f0
+private def sttc_bv_public_keys_len : Nat := 0xa5ca0410
+private def sttc_bv_public_keys_ptr : Nat := 0xa5ca0408
+private def sttc_bv_tx_item_start : Nat := 0xa5ca0400
+private def sttc_bv_tx_list_ptr : Nat := 0xa5ca03e0
+private def sttc_bv_tx_list_len : Nat := 0xa5ca03e8
+private def sttc_bv_exec_p : Nat := 0xa5ca02b0
+private def sttc_sttc_nonce : Nat := 0xab960788
+private def sttc_sttc_base_fee_be : Nat := 0xab960840
+private def sttc_tea_type : Nat := 0xab960790
+private def sttc_tea_inner_off : Nat := 0xab960798
+private def sttc_tx_extract_data_section : Nat := 0x8001d038
+private def sttc_tx_extract_value : Nat := 0x8001cdc0
+private def sttc_tx_extract_to_address : Nat := 0x8001cb68
+private def sttc_tx_extract_nonce_and_gas : Nat := 0x8002d29c
+private def sttc_tx_type_dispatch : Nat := 0x8001c37c
+
 
 /-! ## simple_transfer_tx_context
 
@@ -101,30 +124,30 @@ def simpleTransferTxContext_prog : Program :=
     .SD .x8 .x0 (168 : BitVec 12),
     .SD .x8 .x0 (176 : BitVec 12),
     .SD .x8 .x0 (184 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bv_tx_count (GuestAddrs.simple_transfer_tx_context + 128)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_count (GuestAddrs.simple_transfer_tx_context + 128)),
+    .AUIPC .x5 (laHi sttc_bv_tx_count (simpleTransferTxContextPc + 128)),
+    .ADDI .x5 .x5 (laLo sttc_bv_tx_count (simpleTransferTxContextPc + 128)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (1 : Word),
     .BEQ .x6 .x7 (16 : BitVec 13),
     .LI .x5 (1 : Word),
     .SD .x8 .x5 (0 : BitVec 12),
     .JAL .x0 (484 : BitVec 21),
-    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_len (GuestAddrs.simple_transfer_tx_context + 160)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_len (GuestAddrs.simple_transfer_tx_context + 160)),
+    .AUIPC .x5 (laHi sttc_bv_public_keys_len (simpleTransferTxContextPc + 160)),
+    .ADDI .x5 .x5 (laLo sttc_bv_public_keys_len (simpleTransferTxContextPc + 160)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (65 : Word),
     .BEQ .x6 .x7 (16 : BitVec 13),
     .LI .x5 (2 : Word),
     .SD .x8 .x5 (0 : BitVec 12),
     .JAL .x0 (452 : BitVec 21),
-    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_ptr (GuestAddrs.simple_transfer_tx_context + 192)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_ptr (GuestAddrs.simple_transfer_tx_context + 192)),
+    .AUIPC .x5 (laHi sttc_bv_tx_list_ptr (simpleTransferTxContextPc + 192)),
+    .ADDI .x5 .x5 (laLo sttc_bv_tx_list_ptr (simpleTransferTxContextPc + 192)),
     .LD .x9 .x5 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_len (GuestAddrs.simple_transfer_tx_context + 204)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_len (GuestAddrs.simple_transfer_tx_context + 204)),
+    .AUIPC .x5 (laHi sttc_bv_tx_list_len (simpleTransferTxContextPc + 204)),
+    .ADDI .x5 .x5 (laLo sttc_bv_tx_list_len (simpleTransferTxContextPc + 204)),
     .LD .x18 .x5 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bv_tx_item_start (GuestAddrs.simple_transfer_tx_context + 216)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_item_start (GuestAddrs.simple_transfer_tx_context + 216)),
+    .AUIPC .x5 (laHi sttc_bv_tx_item_start (simpleTransferTxContextPc + 216)),
+    .ADDI .x5 .x5 (laLo sttc_bv_tx_item_start (simpleTransferTxContextPc + 216)),
     .LD .x19 .x5 (0 : BitVec 12),
     .BLTU .x18 .x19 (380 : BitVec 13),
     .BEQ .x18 .x19 (388 : BitVec 13),
@@ -132,17 +155,17 @@ def simpleTransferTxContext_prog : Program :=
     .SUB .x18 .x18 .x19,
     .SD .x8 .x9 (8 : BitVec 12),
     .SD .x8 .x18 (16 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_ptr (GuestAddrs.simple_transfer_tx_context + 252)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_ptr (GuestAddrs.simple_transfer_tx_context + 252)),
+    .AUIPC .x5 (laHi sttc_bv_public_keys_ptr (simpleTransferTxContextPc + 252)),
+    .ADDI .x5 .x5 (laLo sttc_bv_public_keys_ptr (simpleTransferTxContextPc + 252)),
     .LD .x6 .x5 (0 : BitVec 12),
     .ADDI .x6 .x6 (1 : BitVec 12),
     .SD .x8 .x6 (24 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.simple_transfer_tx_context + 272)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.simple_transfer_tx_context + 272)),
+    .AUIPC .x5 (laHi sttc_bv_exec_p (simpleTransferTxContextPc + 272)),
+    .ADDI .x5 .x5 (laLo sttc_bv_exec_p (simpleTransferTxContextPc + 272)),
     .LD .x6 .x5 (0 : BitVec 12),
     .ADDI .x6 .x6 (440 : BitVec 12),
-    .AUIPC .x7 (laHi GuestAddrs.sttc_base_fee_be (GuestAddrs.simple_transfer_tx_context + 288)),
-    .ADDI .x7 .x7 (laLo GuestAddrs.sttc_base_fee_be (GuestAddrs.simple_transfer_tx_context + 288)),
+    .AUIPC .x7 (laHi sttc_sttc_base_fee_be (simpleTransferTxContextPc + 288)),
+    .ADDI .x7 .x7 (laLo sttc_sttc_base_fee_be (simpleTransferTxContextPc + 288)),
     .LI .x28 (0 : Word),
     .LI .x29 (32 : Word),
     .BEQ .x28 .x29 (36 : BitVec 13),
@@ -157,21 +180,21 @@ def simpleTransferTxContext_prog : Program :=
     .SD .x8 .x7 (32 : BitVec 12),
     .MV .x10 .x9,
     .MV .x11 .x18,
-    .AUIPC .x12 (laHi GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 352)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 352)),
-    .AUIPC .x13 (laHi GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 360)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 360)),
-    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.simple_transfer_tx_context + 368)),
+    .AUIPC .x12 (laHi sttc_tea_type (simpleTransferTxContextPc + 352)),
+    .ADDI .x12 .x12 (laLo sttc_tea_type (simpleTransferTxContextPc + 352)),
+    .AUIPC .x13 (laHi sttc_tea_inner_off (simpleTransferTxContextPc + 360)),
+    .ADDI .x13 .x13 (laLo sttc_tea_inner_off (simpleTransferTxContextPc + 360)),
+    .JAL .x1 (jalOff sttc_tx_type_dispatch (simpleTransferTxContextPc + 368)),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LI .x5 (20 : Word),
     .SD .x8 .x5 (0 : BitVec 12),
     .JAL .x0 (256 : BitVec 21),
-    .AUIPC .x5 (laHi GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 388)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.tea_type (GuestAddrs.simple_transfer_tx_context + 388)),
+    .AUIPC .x5 (laHi sttc_tea_type (simpleTransferTxContextPc + 388)),
+    .ADDI .x5 .x5 (laLo sttc_tea_type (simpleTransferTxContextPc + 388)),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x8 .x6 (160 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 404)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.tea_inner_off (GuestAddrs.simple_transfer_tx_context + 404)),
+    .AUIPC .x5 (laHi sttc_tea_inner_off (simpleTransferTxContextPc + 404)),
+    .ADDI .x5 .x5 (laLo sttc_tea_inner_off (simpleTransferTxContextPc + 404)),
     .LD .x28 .x5 (0 : BitVec 12),
     .SD .x8 .x28 (168 : BitVec 12),
     .BLTU .x18 .x28 (212 : BitVec 13),
@@ -181,10 +204,10 @@ def simpleTransferTxContext_prog : Program :=
     .SD .x8 .x29 (184 : BitVec 12),
     .MV .x10 .x9,
     .MV .x11 .x18,
-    .AUIPC .x12 (laHi GuestAddrs.sttc_nonce (GuestAddrs.simple_transfer_tx_context + 448)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.sttc_nonce (GuestAddrs.simple_transfer_tx_context + 448)),
+    .AUIPC .x12 (laHi sttc_sttc_nonce (simpleTransferTxContextPc + 448)),
+    .ADDI .x12 .x12 (laLo sttc_sttc_nonce (simpleTransferTxContextPc + 448)),
     .ADDI .x13 .x8 (40 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.tx_extract_nonce_and_gas (GuestAddrs.simple_transfer_tx_context + 460)),
+    .JAL .x1 (jalOff sttc_tx_extract_nonce_and_gas (simpleTransferTxContextPc + 460)),
     .SD .x8 .x10 (128 : BitVec 12),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LI .x5 (20 : Word),
@@ -194,7 +217,7 @@ def simpleTransferTxContext_prog : Program :=
     .MV .x11 .x18,
     .ADDI .x12 .x8 (72 : BitVec 12),
     .ADDI .x13 .x8 (48 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.tx_extract_to_address (GuestAddrs.simple_transfer_tx_context + 500)),
+    .JAL .x1 (jalOff sttc_tx_extract_to_address (simpleTransferTxContextPc + 500)),
     .SD .x8 .x10 (136 : BitVec 12),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LI .x5 (30 : Word),
@@ -203,7 +226,7 @@ def simpleTransferTxContext_prog : Program :=
     .MV .x10 .x9,
     .MV .x11 .x18,
     .ADDI .x12 .x8 (96 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.tx_extract_value (GuestAddrs.simple_transfer_tx_context + 536)),
+    .JAL .x1 (jalOff sttc_tx_extract_value (simpleTransferTxContextPc + 536)),
     .SD .x8 .x10 (144 : BitVec 12),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LI .x5 (40 : Word),
@@ -213,7 +236,7 @@ def simpleTransferTxContext_prog : Program :=
     .MV .x11 .x18,
     .ADDI .x12 .x8 (56 : BitVec 12),
     .ADDI .x13 .x8 (64 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.tx_extract_data_section (GuestAddrs.simple_transfer_tx_context + 576)),
+    .JAL .x1 (jalOff sttc_tx_extract_data_section (simpleTransferTxContextPc + 576)),
     .SD .x8 .x10 (152 : BitVec 12),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LI .x5 (50 : Word),

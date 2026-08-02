@@ -49,7 +49,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
-import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
@@ -309,7 +308,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
   (GuestAddrs.account_extract_nonce, accountExtractNonce_prog),
   (GuestAddrs.tx_gas_sender_bal_lookup, txGasSenderBalLookup_prog),
-  (GuestAddrs.simple_transfer_tx_context, simpleTransferTxContext_prog),
   (GuestAddrs.slot_decode_u256, slotDecodeU256_prog),
   (GuestAddrs.slot_at_index, slotAtIndex_prog),
   (GuestAddrs.slot_at_header_state_root, slotAtHeaderStateRoot_prog),
@@ -504,6 +502,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 347
+#guard guestImageEntries.length = 346
 
 end EvmAsm.Codegen

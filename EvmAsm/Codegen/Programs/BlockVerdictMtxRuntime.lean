@@ -153,12 +153,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   --
   -- Three facts that outlive the removed entry, recorded because they are not
   -- recoverable from what remains:
-  --  * `i3djw_skip_list` is still BUILT (BlockVerdictFunction, the recipient +
-  --    six modeled-system addresses) and never CONSULTED -- the list the live
-  --    path passes is `bv_mtx_skip_list`, at the `BlockVerdictMtxTail` call to
-  --    `bal_all_accounts_storage_consistent_skip_list`.  Measured: the
-  --    single-tx all-accounts call site is reached on 0 of 60 EIP-7928
-  --    fixtures, the MtxTail one on 56 of 60.
+  --  * `i3djw_skip_list` was BUILT and never CONSULTED; removed under #10685
+  --    (0 refs). The list the live path passes is `bv_mtx_skip_list`, at the
+  --    `BlockVerdictMtxTail` call to
+  --    `bal_all_accounts_storage_consistent_skip_list`.
   --  * the old single-tx entry and its contract/creation/recipient-exactness
   --    body were audited on the emitted image before removal.  The closure was
   --    seeded from `block_verdict`, `block_verdict_mtx_oog_materialize`, and
@@ -327,6 +325,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
+  -- `dispatch_tx_runtime_code` consumes the context's +32 base-fee pointer
+  -- when staging `tx_env.gas_price` for GASPRICE.  `multi_tx_nth_context`
+  -- intentionally leaves this per-call input empty; the block base fee was
+  -- already decoded into `bv_mtx_base_fee_be` for the MTx fee-validity gate
+  -- above.  Supplying that same authenticated buffer here keeps the runtime
+  -- environment aligned with execution-specs `process_transaction`, which
+  -- installs `effective_gas_price` in `tx_env` before `process_message`.
+  "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
   -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
   -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
