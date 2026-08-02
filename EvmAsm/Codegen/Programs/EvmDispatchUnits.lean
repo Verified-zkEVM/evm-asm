@@ -215,6 +215,11 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
   -- GH #10944: the top-level CREATE endowment in canonical 32-byte BE, copied from the
   -- context record so the shared `record_message_value_transfer` can take a pointer to it.
   "bvcr_endow_val_be:\n  .zero 32\n" ++
+  -- GH #11164: the AUTHENTICATED pre-state balance of the top-level created account, in
+  -- canonical 32-byte BE.  Captured from `create_prebalance_acct+8` BEFORE
+  -- `runtime_dispatcher_call`, because that buffer is rewritten by
+  -- `call_frame_descend`/`create_frame_descend` and so cannot survive the constructor.
+  "bvcr_created_pre_bal:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "bv_creation_ctx_ptr:\n  .zero 8\n" ++
     "bv_tx_log_window:\n  .zero 16\n" ++

@@ -245,34 +245,21 @@ def precompileMessageProcessorAsm
     successfulPrecompileNewAccountStateGasAsm tag valueOff? ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
-    "  li x15, 5\n" ++
-    "  beq x14, x15, .Lmodexp_zero_header_" ++ tag ++ "\n" ++
-    "  li x15, 0x06\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_bn254_add\n" ++
-    "  li x15, 0x07\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_bn254_mul\n" ++
-    "  li x15, 0x08\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_bn254_pairing\n" ++
-    "  li x15, 0x09\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_blake2f\n" ++
-    "  li x15, 0x0a\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_kzg_point_eval\n" ++
-    "  li x15, 0x0b\n" ++
-    "  beq x14, x15, 13f\n" ++
-    "  li x15, 0x0c\n" ++
-    "  beq x14, x15, 14f\n" ++
-    "  li x15, 0x0d\n" ++
-    "  beq x14, x15, 15f\n" ++
-    "  li x15, 0x0e\n" ++
-    "  beq x14, x15, 16f\n" ++
-    "  li x15, 0x0f\n" ++
-    "  beq x14, x15, 17f\n" ++
-    "  li x15, 0x10\n" ++
-    "  beq x14, x15, 18f\n" ++
-    "  li x15, 0x11\n" ++
-    "  beq x14, x15, 19f\n" ++
-    "  li x15, 0x100\n" ++
-    "  beq x14, x15, .L" ++ tag ++ "_p256verify\n" ++
+    precompileSelectorBranchesAsm "x14" "x15" false
+      [ ("5", ".Lmodexp_zero_header_" ++ tag)
+      , ("0x06", ".L" ++ tag ++ "_bn254_add")
+      , ("0x07", ".L" ++ tag ++ "_bn254_mul")
+      , ("0x08", ".L" ++ tag ++ "_bn254_pairing")
+      , ("0x09", ".L" ++ tag ++ "_blake2f")
+      , ("0x0a", ".L" ++ tag ++ "_kzg_point_eval")
+      , ("0x0b", "13f")
+      , ("0x0c", "14f")
+      , ("0x0d", "15f")
+      , ("0x0e", "16f")
+      , ("0x0f", "17f")
+      , ("0x10", "18f")
+      , ("0x11", "19f")
+      , ("0x100", ".L" ++ tag ++ "_p256verify") ] ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     "11:\n" ++
     "  la x15, evm_precompile_frame\n" ++
@@ -478,14 +465,14 @@ def precompileMessageProcessorAsm
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
-    "  jal x1, zkvm_bn254_g1_add\n" ++
     -- a0 IS x10: stash the kernel status before restoring the saved
     -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
-    "  mv x16, a0\n" ++
-    "  mv x13, s9\n" ++
-    "  mv x10, s10\n" ++
-    "  mv x12, s11\n" ++
-    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
+    precompileKernelCallAsm "x1" "zkvm_bn254_g1_add" "x16"
+      (".L" ++ tag ++ "_bn254_kfail")
+      ("  mv x16, a0\n" ++
+       "  mv x13, s9\n" ++
+       "  mv x10, s10\n" ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_add_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BN254 G1 MUL (EIP-196 ecMul): fixed 6000 gas, one 64-byte point plus
@@ -507,14 +494,14 @@ def precompileMessageProcessorAsm
     precompileFrameAddi "a0" precompileFrameBls12G1Input0Off ++
     precompileFrameAddi "a1" precompileFrameBls12G1Input1Off ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
-    "  jal x1, zkvm_bn254_g1_mul\n" ++
     -- a0 IS x10: stash the kernel status before restoring the saved
     -- PC into x10 (the ecrecover-path landmine, #8721 stack notes).
-    "  mv x16, a0\n" ++
-    "  mv x13, s9\n" ++
-    "  mv x10, s10\n" ++
-    "  mv x12, s11\n" ++
-    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
+    precompileKernelCallAsm "x1" "zkvm_bn254_g1_mul" "x16"
+      (".L" ++ tag ++ "_bn254_kfail")
+      ("  mv x16, a0\n" ++
+       "  mv x13, s9\n" ++
+       "  mv x10, s10\n" ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccess64FromFrameAsm
       (tag ++ "_bn254_mul_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BN254 pairing (EIP-197): cost = 45000 + 34000 * floor(len / 192),
@@ -543,13 +530,13 @@ def precompileMessageProcessorAsm
     "  add a0, x13, x17\n" ++
     "  mv a1, x22\n" ++
     precompileFrameAddi "a2" precompileFrameBls12G1OutputOff ++
-    "  jal x1, zkvm_bn254_pairing\n" ++
     -- a0 IS x10: stash the kernel status before the saved-PC restore.
-    "  mv x16, a0\n" ++
-    "  mv x13, s9\n" ++
-    "  mv x10, s10\n" ++
-    "  mv x12, s11\n" ++
-    "  bnez x16, .L" ++ tag ++ "_bn254_kfail\n" ++
+    precompileKernelCallAsm "x1" "zkvm_bn254_pairing" "x16"
+      (".L" ++ tag ++ "_bn254_kfail")
+      ("  mv x16, a0\n" ++
+       "  mv x13, s9\n" ++
+       "  mv x10, s10\n" ++
+       "  mv x12, s11\n") "  " ++
     precompileSuccessBoolFromFrameAsm
       (tag ++ "_bn254_pairing_success") outOffsetOff outSizeOff precompileFrameBls12G1OutputOff ++
     -- BLAKE2F: exact 213-byte payload, then charge gas equal to the BE
