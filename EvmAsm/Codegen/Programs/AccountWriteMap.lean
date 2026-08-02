@@ -98,7 +98,11 @@ import EvmAsm.Stateless.MemoryLayout
 namespace EvmAsm.Codegen
 
 /-- Transaction-local entries. One transaction's CALL-tree bound is 15038, so
-    the existing 16384-row reservation remains sufficient. -/
+    the existing 16384-row map reservation remains sufficient. This is an
+    occupancy bound, not an undo-flow bound: a hit updates one map row while
+    still pushing a fresh rollback record. The undo-flow workload derivation
+    needs 4294 rows on the densest current path, so the 16384-row reservation
+    is intentionally retained with roughly 3.8x headroom. -/
 def txAccountWritesCapacity : Nat := 16384
 
 /-- Block-lifetime entries. Amsterdam permits at most 9523 minimum-cost plain
@@ -542,11 +546,15 @@ def accountResolvePreStateFunction : String :=
 
     a5 = entryIndex, a6 = wasAbsent (1 on append, 0 on overwrite).
     On an overwrite the superseded fields are read from the entry itself, so the
-    caller does not have to stage them. The journal has the same 16384-entry
-    capacity as the transaction map, but the push is separately bounded because
-    repeated updates can add undo rows without increasing the live map count.
-    On exhaustion it returns `a0 = 1` and latches both overflow flags before any
-    out-of-range store; success returns `a0 = 0`. -/
+    caller does not have to stage them. The journal has the same provisioned
+    16384-entry capacity as the transaction map, but the push is separately
+    bounded because repeated updates can add undo rows without increasing the
+    live map count. The current producer census derives 4294 rows for the
+    densest path: two pushes for each EIP-7702 MTx authorization at 7816 regular
+    gas, plus six fixed boundary records. This is workload justification for
+    retaining the physical reservation, not a replacement for its fail-closed
+    bound. On exhaustion it returns `a0 = 1` and latches both overflow flags
+    before any out-of-range store; success returns `a0 = 0`. -/
 def accountWritesUndoPushFunction : String :=
   "account_writes_undo_push:\n" ++
   -- GH #10810: save t5/t6 as well, so this routine's CONTRACT matches what its callers

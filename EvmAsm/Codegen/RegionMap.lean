@@ -330,7 +330,10 @@ def schemeAAnchors : List GuestRegion :=
     -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
     -- depth, so the bounded equivalent is a reverse-replayed journal.
     { name := "account_writes_undo_area", base := 0xa2d20000, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
+      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 provisioned; "
+        ++ "current census needs 4294 (4288 auth pushes + 6 fixed records), "
+        ++ "about 3.8x headroom; per-tx regular cap 16777216; "
+        ++ "fail-closed bgeu-before-store and overflow latch; "
         ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
         ++ "reverse-replayed by account_writes_restore_frame" } ]
 
