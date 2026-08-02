@@ -220,21 +220,15 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "sstore_committed_current:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "sstore_committed_hit:\n  .zero 8\n" ++
-  -- GH #10874 prerequisite: the tier-3 witness read flattens EVERY non-zero
-  -- `slot_at_header_state_root` status to value 0, so an ABSENT LEAF and a
-  -- WITNESS-INTEGRITY FAILURE are the same observable. Only the first is what
-  -- execution-specs' `get_storage` flattens -- the spec has no error path that
-  -- returns zero, because its witness is authenticated by construction. These
-  -- separate the two AT THE POINT THEY ARE PRODUCED. Counters only: no caller
-  -- consumes them yet, and what the guest should DO on an integrity failure is
-  -- a soundness-policy question, deliberately not decided here.
-  --   status 5 = absent leaf   (mpt_lookup_by_key "not found" 1, +4)
-  --   status 6 = witness parse error (mpt "parse error" 2, +4)
-  --   status 7 = slot_decode_u256 failure (3, +4)
-  --   status 4 = header_extract_state_root failure
+  -- GH #11162 / #10874: tier-3 witness status classifiers. Resolved value is
+  -- still zero on every non-found arm (counters only; no verdict consumer —
+  -- #11138 policy unset). Spec-legitimate zeros are status 1 (account absent)
+  -- and status 5 (slot absent); real faults 2/3/4/6/7 share integrity_fail by
+  -- design. Do not fold 1 into 5 — that would re-merge two distinct absences.
   -- Zero-only, so `Layout.moveZeroDataLines` promotes them to `.bss` and the
   -- fixed `.data` addresses are unperturbed.
   "sstore_witness_absent:\n  .zero 8\n" ++
+  "sstore_witness_absent_account:\n  .zero 8\n" ++
   "sstore_witness_integrity_fail:\n  .zero 8\n" ++
   "sstore_witness_last_status:\n  .zero 8\n" ++
   -- code_at_header_state_root scratch:

@@ -402,15 +402,24 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
   "  beqz a0, .L" ++ p ++ "_prestate_found\n" ++
-  -- GH #10874 prerequisite: split ABSENT from WITNESS-INTEGRITY FAILURE at the
-  -- point the status is produced. Status 5 is an absent leaf, which is the one
-  -- case execution-specs' `get_storage` legitimately flattens to zero; 4/6/7
-  -- (and any account-lookup status passed through) are integrity/availability
-  -- failures the spec does not model at all. Behaviour is UNCHANGED -- both arms
-  -- still fall to `_prestate_zero` -- so this records the distinction without
-  -- deciding what to do with it. `seed_callee_storage` already uses the same
-  -- `status == 5` convention for its absent case.
-  "  li x14, 5; bne a0, x14, .L" ++ p ++ "_prestate_integrity\n" ++
+  -- GH #11162 / #10874: classify tier-3 witness statuses WITHOUT changing the
+  -- resolved value (every non-zero arm still falls to `_prestate_zero`). Spec
+  -- `witness_state.py` flattens absent account → EMPTY_TRIE_ROOT → U256(0) and
+  -- absent slot → U256(0); both are legitimate zeros, not integrity failures.
+  -- Unified `slot_at_header_state_root` enum (StateCompose):
+  --   0 found
+  --   1 account not in state trie  → sstore_witness_absent_account  (#11162)
+  --   5 slot not in storage trie   → sstore_witness_absent          (slot)
+  --   2/3/4/6/7 real faults        → sstore_witness_integrity_fail + last_status
+  -- Counters only: no verdict consumer (#11138 policy unset). Do NOT fold 1 into
+  -- 5 — that would fix the false-positive by creating a smaller over-report.
+  "  li x14, 1; beq a0, x14, .L" ++ p ++ "_prestate_absent_account\n" ++
+  "  li x14, 5; beq a0, x14, .L" ++ p ++ "_prestate_absent_slot\n" ++
+  "  j .L" ++ p ++ "_prestate_integrity\n" ++
+  ".L" ++ p ++ "_prestate_absent_account:\n" ++
+  "  la x14, sstore_witness_absent_account; ld x15, 0(x14); addi x15, x15, 1; sd x15, 0(x14)\n" ++
+  "  j .L" ++ p ++ "_prestate_zero\n" ++
+  ".L" ++ p ++ "_prestate_absent_slot:\n" ++
   "  la x14, sstore_witness_absent; ld x15, 0(x14); addi x15, x15, 1; sd x15, 0(x14)\n" ++
   "  j .L" ++ p ++ "_prestate_zero\n" ++
   ".L" ++ p ++ "_prestate_integrity:\n" ++
