@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
+import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Stateless.SpecRef.Gas
 
 namespace EvmAsm.Codegen
@@ -191,11 +192,11 @@ def seedCalleeStorageFunction : String :=
   -- the cumulative block map.  This callee-preload path feeds the per-tx
   -- exec log before SSTORE runs, so it must use the FOREIGN callee's real
   -- address, not the outer recipient, and must win over the header lookup.
-  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Lscs_slot_header\n" ++
+  "  la t0, storage_writes_count; ld a3, 0(t0); beqz a3, .Lscs_slot_header\n" ++
   "  la a0, csce_addrkey                              # real callee exec-log key (LE)\n" ++
   "  la t0, csce_key_i; ld t1, 0(t0); slli t4, t1, 5; la a1, csce_keys; add a1, a1, t4\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li a2, 0xa1fa0000; li a4, " ++ toString storageWritesCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, storage_writes_block_latest_value\n" ++
   "  li t0, 2; beq a0, t0, .Lscs_done                # malformed over-capacity map: do not seed stale state\n" ++
   "  li t0, 1; beq a0, t0, .Lscs_slot_committed\n" ++
   ".Lscs_slot_header:\n" ++
@@ -605,7 +606,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- `BlockState.storage_writes` is the authoritative pre-tx source.  Query it
   -- before the parent witness: a prior successful transaction may have changed
   -- this recipient's slot, and the parent header must not overwrite that value.
-  "  la t0, bv_mtx_committed_chunk_count; ld a3, 0(t0); beqz a3, .Ldtrc_header_storage\n" ++
+  "  la t0, storage_writes_count; ld a3, 0(t0); beqz a3, .Ldtrc_header_storage\n" ++
   -- Context recipient bytes are canonical BE, while the committed table uses
   -- the exec-log's LE account key.  Build that key in the reusable slot scratch;
   -- the lookup copies it into `dtrc_recipkey` before reusing this scratch for the
@@ -615,8 +616,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  lbu t0, 0(t4); sb t0, 0(t5); addi t4, t4, -1; addi t5, t5, 1; addi t6, t6, -1; bnez t6, .Ldtrc_recipkey_rev\n" ++
   "  la a0, dtrc_slotkey_le\n" ++
   "  la t0, bvcd_i; ld t1, 0(t0); slli t2, t1, 5; la a1, bvcd_keys; add a1, a1, t2\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  li a2, 0xa1fa0000; li a4, " ++ toString storageWritesCapacity ++ "; la a5, dtrc_threadval; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, storage_writes_block_latest_value\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_storage_unsupported\n" ++
   "  li t0, 1; beq a0, t0, .Ldtrc_thread_hit\n" ++
   ".Ldtrc_header_storage:\n" ++

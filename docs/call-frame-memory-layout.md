@@ -51,8 +51,8 @@ Status: DESIGN (no code yet). Downstream consumers: `.61` skeleton,
     = `0x1c980000` = `479,723,520` B = **457.5 MiB** (≈ 480 MB decimal).
     (Pinned + proved in `EvmAsm/Codegen/CallFrameLayout.lean:244`
     `data_gap_bytes` by `decide`. The total reserved NOBITS footprint of the
-    emitted guest ELF, per `readelf -SW`, is `.bss` `0x1b85cae0` +
-    `.committed_storage` `0xcdd800` + `.sszscratch` `0x680000` ≈ **482 MB**;
+    emitted guest ELF, per `readelf -SW`, is `.bss` `0x1c101b40` +
+    `.sszscratch` `0x680000` ≈ **482 MB**;
     the ziskemu RAM region is 512 MiB (`0xa0000000..0xc0000000`,
     CODEGEN.md:149) — the relevant ceiling for any new reserved arena.)
 - Amsterdam caps: `MAX_CODE_SIZE = 0x10000` (64 KiB), `MAX_INIT_CODE_SIZE =

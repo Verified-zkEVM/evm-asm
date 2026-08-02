@@ -12,7 +12,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
-import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
 import EvmAsm.Codegen.Programs.BlockVerdictGasGatePrelude
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase

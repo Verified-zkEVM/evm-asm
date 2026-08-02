@@ -289,9 +289,10 @@ def storagePersistentLogFindAsm : String :=
     The tiers, and why the order is load-bearing:
 
     1. the per-tx persistent log — already decided by the caller's scan;
-    2. `bv_mtx_committed_chunked_latest_value`, which is execution-specs'
-       `BlockState.storage_writes`: a prior successful transaction's committed
-       value is the next transaction's `original` AND `current` alike;
+    2. `storage_writes_block_latest_value`, which reads the canonical
+       execution-specs `BlockState.storage_writes` map: a prior successful
+       transaction's committed value is the next transaction's `original` AND
+       `current` alike;
     3. `slot_at_header_state_root` against the PARENT header — the witness,
        read BY KEY on demand, matching `WitnessState.get_storage`;
     4. otherwise zero (an absent account or slot is implicitly zero).
@@ -379,14 +380,14 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_key_rev\n" ++
   -- Tier 2: the block-committed map (execution-specs' BlockState.storage_writes).
   "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
-  "  la x14, bv_mtx_committed_chunk_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
+  "  la x14, storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
   "  mv a0, x20; la a1, " ++ out ++ "; addi a1, a1, 32\n" ++
-  "  la a2, bv_mtx_committed_chunked; li a4, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  li a2, 0xa1fa0000; li a4, 16384; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
   -- ⚠️ Pre-existing and deliberately PRESERVED: this leaves for `.exit_outofgas`
   -- with `sp` still 40 bytes low. Harmless because that exit terminates the
   -- frame, and kept verbatim so the extraction is byte-identical at the SSTORE
   -- site rather than "behaviour-neutral as far as I can tell".
-  "  jal ra, bv_mtx_committed_chunked_latest_value\n" ++
+  "  jal ra, storage_writes_block_latest_value\n" ++
   "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
   "  la x14, sstore_committed_hit; sd a0, 0(x14)\n" ++
   ".L" ++ p ++ "_committed_done:\n" ++
@@ -769,7 +770,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- constrain the choice: a carried register (`x18`) faulted, a dedicated
         -- global needed the same unreconstructable control flow to prove
         -- non-reentrancy, a recompute turned out to be half a lookup
-        -- (`bv_mtx_committed_chunked_latest_value` answers only on a match, with the
+        -- (`storage_writes_block_latest_value` answers only on a match, with the
         -- prestate-header fallback separate), and reading the exec-log row failed
         -- because the exec-log append and this write-map append are DIFFERENT events.
         --
