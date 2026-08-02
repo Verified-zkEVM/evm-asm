@@ -14,6 +14,7 @@
     successive anchors. Here every anchor gets an explicit extent (the gap to the
     next anchor) and a per-region evidence note.
   * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
+    dedicated bounded `.committed_storage` NOBITS map at `0xa2000000`, the
     zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
     (`--section-start=.sszscratch=0xbf980000`). Sizes here are the ELF ground
@@ -300,8 +301,8 @@ def schemeAAnchors : List GuestRegion :=
     Grew by `0x4` for the batch-merge landing the divmod cleanup and bounded
     extension direct-result ABI repair. Grew by `0x60` for the batch-merge
     landing the BAL delegation-codes-base fix and further divmod cleanup.
-    Grew by `0x40` for the recipient-ownership filter in the former committed
-    snapshot helper (`fix/committed-snapshot-recipient-filter`).
+    Grew by `0x40` for the recipient-ownership filter in
+    `bv_mtx_committed_chunked_snapshot_upsert` (`fix/committed-snapshot-recipient-filter`).
     Grew further to `0x5c688` for the combined batch-merge landing that fix
     together with the MPT bounded leaf-group delete-collapse fix
     (`fix/bounded-leaf-group-delete-collapse`), measured via a fresh
@@ -447,7 +448,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x0639e4
+def textSizeBytes : Nat := 0x063b80
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -487,6 +488,12 @@ def dataSizeBytes : Nat := 0x5370
     removal absorbs in the same direction (#10986, #10988). -/
 def bssSizeBytes : Nat := 0x1c101b60
 
+/-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
+    storage map. It is kept outside `.data` so zero initialization does not
+    materialize a multi-megabyte payload, and outside `.bss` so the existing
+    frame/SSZ layout remains stable. -/
+def committedStorageSizeBytes : Nat := 0xcd9800
+
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
   { name := "INPUT", base := 0x40000000, size := 0x2000, mode := .ro, zone := .input,
@@ -515,6 +522,13 @@ def textRegion : GuestRegion :=
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
     evidence := "ELF -Tdata=0xa3000000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
+
+/-- Fixed-size cross-transaction committed-storage map
+    (`--section-start=.committed_storage=0xa2000000`). -/
+def committedStorageRegion : GuestRegion :=
+  { name := ".committed_storage", base := 0xa2000000,
+    size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
 
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa3110000`). The
     base moved down from `0xa4000000` into the `.data` slack (`.data` uses
@@ -586,7 +600,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     this list because they collide with `guest_stack` in the current build. -/
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
-    stateTrackerLiveRegion, textRegion, dataRegion,
+    stateTrackerLiveRegion, textRegion, committedStorageRegion, dataRegion,
     bssRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
@@ -882,6 +896,7 @@ def stableGuestBases : List (String × Nat) :=
     ("zisk_system",       ziskSystemRegion.base),
     ("guest_stack_top",   guestStackTop),
     (".text",             textRegion.base),
+    (".committed_storage", committedStorageRegion.base),
     (".data",             dataRegion.base),
     (".bss",              bssRegion.base),
     (".sszscratch",       sszScratchRegion.base) ]
@@ -893,6 +908,6 @@ def stableGuestBases : List (String × Nat) :=
 --            Lost in a merge resolution of #10679 and restored here; the
 --            constants and the guest's use of the addresses were never removed,
 --            so three in-use regions had no disjointness or fit proof.
-theorem stableGuestBases_length : stableGuestBases.length = 31 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 32 := by decide
 
 end EvmAsm.Codegen.RegionMap

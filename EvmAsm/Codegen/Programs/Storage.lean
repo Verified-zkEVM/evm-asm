@@ -402,6 +402,20 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  ld a4, 592(x20); ld a5, 600(x20); ld a6, 592(x20); ld a7, 600(x20)\n" ++
   "  jal ra, slot_at_header_state_root\n" ++
   "  beqz a0, .L" ++ p ++ "_prestate_found\n" ++
+  -- GH #10874 prerequisite: split ABSENT from WITNESS-INTEGRITY FAILURE at the
+  -- point the status is produced. Status 5 is an absent leaf, which is the one
+  -- case execution-specs' `get_storage` legitimately flattens to zero; 4/6/7
+  -- (and any account-lookup status passed through) are integrity/availability
+  -- failures the spec does not model at all. Behaviour is UNCHANGED -- both arms
+  -- still fall to `_prestate_zero` -- so this records the distinction without
+  -- deciding what to do with it. `seed_callee_storage` already uses the same
+  -- `status == 5` convention for its absent case.
+  "  li x14, 5; bne a0, x14, .L" ++ p ++ "_prestate_integrity\n" ++
+  "  la x14, sstore_witness_absent; ld x15, 0(x14); addi x15, x15, 1; sd x15, 0(x14)\n" ++
+  "  j .L" ++ p ++ "_prestate_zero\n" ++
+  ".L" ++ p ++ "_prestate_integrity:\n" ++
+  "  la x14, sstore_witness_integrity_fail; ld x15, 0(x14); addi x15, x15, 1; sd x15, 0(x14)\n" ++
+  "  la x14, sstore_witness_last_status; sd a0, 0(x14)\n" ++
   "  j .L" ++ p ++ "_prestate_zero\n" ++
   ".L" ++ p ++ "_prestate_found:\n" ++
   -- sahsr_u256 is canonical big-endian. Materialize both original and current
