@@ -529,25 +529,12 @@ def accountResolvePreStateFunction : String :=
   ".Larp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 96; ret\n"
 
-/-! ## `account_writes_discard_tx`
+/-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
-    A transaction that fails contributes nothing to the block. The spec reaches
-    this by never calling `incorporate_tx_into_block`, so the transaction dict is
-    simply abandoned — but the guest's arena is reused across transactions, so
-    abandoning means explicitly clearing, or the next transaction inherits the
-    failed one's writes and `incorporate` promotes them.
-
-    That is not hypothetical: it is the storage-side defect from this same family
-    (#10693), where a failed transaction's writes reached the block level because
-    the promotion was gated on a coverage flag rather than on transaction status.
-
-    No arguments; no result register. -/
-def accountWritesDiscardTxFunction : String :=
-  "account_writes_discard_tx:\n" ++
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
-  "  la t0, tx_account_writes_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, account_writes_undo_count; sd zero, 0(t0)\n" ++
-  "  ret\n"
+    Never jal'd. Storage twin `write_sets_discard_tx` is live on status=0.
+    Account path always `emit`+`incorporate` after presumed body restore.
+    Issue #11202 carries the open question (benign dead twin vs missing
+    fail-discard wiring). Do not resurrect without wiring a real fail path. -/
 
 /-! ## `account_writes_undo_push`
 
@@ -684,7 +671,6 @@ def accountWriteMapFunctions : String :=
   accountWritesBlockUpsertFunction ++
   accountWritesEmitBuilderTxFunction ++
   accountWritesIncorporateTxFunction ++
-  accountWritesDiscardTxFunction ++
   accountWritesUndoPushFunction ++
   accountWritesRestoreFrameFunction ++
   accountResolvePreStateFunction
@@ -728,7 +714,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
-#guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 1
 -- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
 -- target row address in t5 ACROSS this call. Pin the save AND the restore: a prologue-only save
 -- would leave the register clobbered on return and read as a fix.
@@ -743,12 +729,7 @@ def accountWriteMapFunctions : String :=
 -- against the previous one's indices.
 #guard (accountWritesIncorporateTxFunction.splitOn "account_writes_undo_count").length == 2
 
--- `discard` must clear exactly what `incorporate` clears. A discard that forgets a
--- counter leaves a failed transaction's writes visible to the next one, which is
--- the storage-side defect in #10693.
-#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_count").length == 2
-#guard (accountWritesDiscardTxFunction.splitOn "tx_account_writes_overflow").length == 2
-#guard (accountWritesDiscardTxFunction.splitOn "account_writes_undo_count").length == 2
+-- account_writes_discard_tx removed from guest (#11202); wiring question on issue.
 
 -- The data section must declare every counter the routines name. Matched as EXACT
 -- LINES, not substrings: `account_writes_count:` is a substring of
