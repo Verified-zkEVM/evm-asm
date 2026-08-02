@@ -232,10 +232,6 @@ def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
     can see earlier committed values, while duplicate keys update in place.
     Overflow is conservative and tracked separately from tx arena overflow. -/
 def bvMtxCommittedEntryBytes : Nat := 128
-def bvMtxCommittedPageCapacity : Nat := 128
-/-- Current single-page committed-storage capacity used by the existing helper ABI. -/
-def bvMtxCommittedCapacity : Nat := bvMtxCommittedPageCapacity
-def bvMtxCommittedBytes : Nat := bvMtxCommittedCapacity * bvMtxCommittedEntryBytes
 
 /-- A distinct committed storage row can be produced by an access-listed no-op
     SSTORE, so the block map must not use the 10,000-gas changing-write arm as
@@ -525,7 +521,6 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
-#guard bvMtxCommittedBytes = 16384
 #guard bvMtxCommittedUniqueKeyMinGas = 1900
 #guard bvMtxCommittedChunkCapacity = 105264
 #guard bvMtxCommittedChunkBytes = 13473792

@@ -2957,8 +2957,14 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_seen_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
+  -- GH #11147: preserve destroyed_count/overflow across system re-entry
+  -- (stage_system_call sets system_call_mode=1 before jal runtime_dispatcher_call).
+  -- nonstorage_effect_aggregate destroyed-norm runs AFTER deferred system requests
+  -- and needs the user-body table. Other journals still zero every entry (#11152).
+  "  la x5, system_call_mode; ld x6, 0(x5); bnez x6, .Lrtdc_destroyed_kept\n" ++
   "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_destroyed_kept:\n" ++
   "  la x5, cd_destroyed_empty_hits; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
@@ -3514,6 +3520,11 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_exec_fn:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_phase_halted:\n" ++
+  "  .zero 8\n" ++
+  -- Recipient pre-dispatch balance lookup uses account_state_latest_balance,
+  -- whose internal tracked read is suppressed only while that lookup runs.
+  -- Ordinary post-dispatch account_read_record remains enabled.
+  "runtime_tx_account_read_suppress:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_state_gas_ptr:\n" ++
   "  .zero 8\n" ++

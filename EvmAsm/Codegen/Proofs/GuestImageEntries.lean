@@ -360,8 +360,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.exec_log_latest_value, execLogLatestValue_prog),
-  (GuestAddrs.bv_mtx_committed_snapshot_upsert, bvMtxCommittedSnapshotUpsert_prog),
-  (GuestAddrs.bv_mtx_committed_latest_value, bvMtxCommittedLatestValue_prog),
   (GuestAddrs.bv_mtx_committed_chunked_snapshot_upsert, bvMtxCommittedChunkedSnapshotUpsert_prog),
   (GuestAddrs.bv_mtx_committed_chunked_latest_value, bvMtxCommittedChunkedLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
@@ -530,6 +528,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 364
+#guard guestImageEntries.length = 362
 
 end EvmAsm.Codegen
