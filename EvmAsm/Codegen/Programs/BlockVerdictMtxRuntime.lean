@@ -9,7 +9,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
-import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.AccountWriteMap
@@ -289,7 +288,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- only after its pending and durable overlays miss.
   "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, bv_mtx_committed_chunk_count; sd zero, 0(t0); la t0, bv_mtx_committed_chunk_overflow; sd zero, 0(t0)  # empty chunked cross-tx committed table/status\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
   -- so compute the BLOCK base_fee once here (it is block-level, identical for every tx) by
@@ -627,15 +625,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- filters seed/preload rows through explicit per-row provenance rather than
   -- assuming they occupy a stable prefix of the live log.
   -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
-  "  beqz a4, .Lbv_mtx_snapshot_empty\n" ++
+  "  beqz a4, .Lbv_mtx_capture_done\n" ++
   "  li a0, 0; la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  -- Commit the exact unseeded slice just copied into the user-write arena.
-  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2; j .Lbv_mtx_snapshot_ready\n" ++
-  ".Lbv_mtx_snapshot_empty:\n" ++
-  "  la a1, bv_user_storage_log; li a2, 0\n" ++
-  ".Lbv_mtx_snapshot_ready:\n" ++
+  ".Lbv_mtx_capture_done:\n" ++
   -- Commit the just-successful transaction's current CodeState overlay before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
@@ -689,19 +683,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
-  -- `account_state_commit_pending` uses a1/a2 for durable-map operations.
-  -- Reconstruct the successful transaction's captured storage slice before the
-  -- committed-storage upsert: a1/a2 are caller-saved and must not be reused
-  -- across that call.  This is the same slice computed at snapshot_ready.
-  "  la t0, bv_system_storage_capture_old_count; ld t1, 0(t0); la t0, bv_system_storage_capture_new_count; ld a2, 0(t0); sub a2, a2, t1; slli t2, t1, 7; la a1, bv_user_storage_log; add a1, a1, t2\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
-  "  la a0, evm_selfdestruct_destroyed_table; la t0, evm_selfdestruct_destroyed_count; ld a7, 0(t0)\n" ++
-  "  la a3, bv_mtx_committed_chunked; la t0, bv_mtx_committed_chunk_count; ld a4, 0(t0)\n" ++
-  "  li a5, " ++ toString bvMtxCommittedChunkCapacity ++ "; la a6, bv_mtx_committed_chunk_overflow\n" ++
-  "  jal ra, bv_mtx_committed_chunked_snapshot_upsert\n" ++
-  "  bnez a1, .Lbv_mtx_bail                         # chunked table full -> conservative\n" ++
-  "  la t4, bv_mtx_committed_chunk_count; sd a0, 0(t4)\n" ++
   -- Body effects are already rolled back to the undo mark above on status=0.
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
@@ -714,7 +697,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- helper's balance lookup records a coinbase account read even when its
   -- priority-fee credit is zero; promote that final per-transaction read at
   -- this transaction's incorporation boundary.
-  -- The committed-storage snapshot above is complete; retain the existing
+  -- The block-storage incorporation above is complete; retain the existing
   -- caller-save wrapper because this function still needs its outer `ra`.
   "  addi sp, sp, -32; sd ra, 0(sp); sd a1, 8(sp); sd a2, 16(sp); jal ra, read_sets_incorporate_tx; ld ra, 0(sp); ld a1, 8(sp); ld a2, 16(sp); addi sp, sp, 32\n" ++
   -- Consume the merge latches immediately after the merge that sets them.
@@ -872,7 +855,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
   -- Re-key the shared mtx postlude to the created account.  The context is
   -- replaced on the next loop iteration, and only its address slot is read by
-  -- the postlude's committed-storage snapshot.
+  -- the postlude's canonical block-storage preload.
   "  la t0, bv_create_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
   ".Lbv_mtx_creation_key_copy:\n  beqz t2, .Lbv_mtx_creation_post; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_key_copy\n" ++
   ".Lbv_mtx_creation_post:\n" ++

@@ -335,10 +335,10 @@ def registry : List OpcodeEntry := [
       ("stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan " ++
        "(byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, " ++
        "length cell env+448) is proven to replace the stack top in place with " ++
-       "persistentLookup — the `current` of the most-recent committedStorageIs " ++
+       "persistentLookup — the `current` of the canonical block-storage view " ++
        "entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` " ++
        "because the miss→0 branch is EVM-sound only RELATIVE to the " ++
-       "committedStorageIs snapshot supplied in the precondition; full MPT-" ++
+       "storage_writes view supplied in the precondition; full MPT-" ++
        "witness verification that the snapshot faithfully reflects state root " ++
        "is deferred to stage-2 (post-Phase-10). Structural clone of the proven " ++
        "TLOAD reverse scan on the transient log.")

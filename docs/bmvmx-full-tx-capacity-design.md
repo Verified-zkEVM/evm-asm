@@ -29,11 +29,11 @@ The current `main` implementation has several independent ceilings:
 - The sender sequencing checks are currently quadratic scans over prior public
   keys / skip-list entries. That is acceptable for fixture-sized tests, but not
   for the full gas-limit target.
-- The active committed-storage threading path uses the chunked
-  `bv_mtx_committed_chunked` table: four 128-entry pages of 128-byte committed
-  storage records, for `bvMtxCommittedChunkCapacity = 512` unique
-  `(recipient, slotKey)` entries. This is not a transaction-count cap. Duplicate
-  writes update the existing entry in place.
+- The active block-level `storage_writes` map uses the canonical
+  `STORAGE_WRITES_AREA` with `storageWritesCapacity = 16384` 128-byte rows.
+  `write_sets_incorporate_tx` upserts cumulative `(recipient, slotKey)` state;
+  duplicate writes update the existing entry in place. The per-tx
+  `TX_STORAGE_WRITES_AREA` plus undo journal remains the rollback container.
 - Receipt/log validation has separate windows and byte arenas. Per-tx receipt
   records, record bloom storage, and record log descriptors derive from
   `bvMtxFullTxCap = 9523`; block-log descriptors, log data bytes, log-list RLP,
@@ -59,11 +59,10 @@ Use a staged design:
    table that is explicitly sized or chunked for 9,523 transactions. This table
    should serve both exact nonce sequencing and sender debit/balance aggregation.
 4. Do not scale committed storage as `transactions * storage-writes`.
-   The active chunked keyed-upsert design counts unique `(recipient, slotKey)`
-   entries, not raw writes, so duplicate-heavy blocks can exceed both the old
-   128-write shape and the active 512-unique-key shape while preserving
-   latest-write-wins. More than 512 unique committed keys is still conservative
-   capacity debt for a later streaming design.
+   The canonical block map counts unique `(recipient, slotKey)` entries, not
+   raw writes, so duplicate-heavy blocks preserve latest-write-wins without a
+   second cross-transaction cache. More than 16,384 unique keys remains
+   conservative capacity debt for a later streaming design.
 5. Treat receipt/log capacity separately from transaction count. Full-capacity
    receipt validation should consume per-tx windows plus a log/receipt stream or
    digest substrate instead of allocating a worst-case static log body per
@@ -80,43 +79,14 @@ whose natural size is keyed by senders, storage writes, or logs need dedicated
 algorithms and tests, because a 9,523-wide tx cap does not bound them tightly
 enough to make a blind static allocation a maintainable interface.
 
-## Committed-Storage Classification
+## Canonical storage-map classification
 
-The committed-storage threading table now has a precise chunked model:
-
-- Exact: up to `bvMtxCommittedChunkCapacity = 512` unique `(recipient, slotKey)`
-  entries across four 128-entry pages. Each committed entry remains a 128-byte
-  storage-log record, and the block-verdict call sites read/write
-  `bv_mtx_committed_chunked`, `bv_mtx_committed_chunk_count`, and
-  `bv_mtx_committed_chunk_overflow`.
-- Exact above 512 raw writes when they collapse onto at most 512 unique keys.
-  `bv_mtx_committed_chunked_snapshot_upsert` scans the populated prefix for the
-  re-keyed recipient plus slot key and updates that entry in place, so later
-  writes keep execution-specs last-write-wins behavior without consuming another
-  slot. `bv_mtx_committed_chunked_latest_value` scans the same populated prefix
-  for preload threading.
-- Conservative today: more than 512 unique `(recipient, slotKey)` entries. The
-  helper sets `bv_mtx_committed_chunk_overflow` and returns a nonzero status
-  before writing past the active table.
-- Full target: `bvMtxCommittedFullKeyCap = 16384` unique keys, matching the
-  existing persistent storage exec-log row capacity. This is the current
-  guest-wide upper bound because each unique committed key must originate from
-  at least one committed storage-effect row. It is not `tx_count * writes` and
-  duplicate writes continue to collapse by key.
-
-Evidence:
-
-- `scripts/codegen-zisk-mtx-committed-chunked-snapshot-upsert-check.sh` covers
-  129 unique keys, duplicate updates across the old 128-entry page boundary,
-  exact full-capacity fill at 512 unique keys, and conservative overflow of a
-  513th unique key with the sentinel beyond capacity unchanged.
-- `scripts/codegen-zisk-mtx-committed-chunked-latest-value-check.sh` covers
-  lookup in page 0, lookup in page 1, duplicate last-wins lookup across pages,
-  and conservative over-capacity lookup status.
-- `scripts/codegen-zisk-mtx-committed-block-verdict-threading-check.sh` uses the
-  actual block-verdict global labels to prove the wired path can upsert and
-  thread 129 unique keys, collapse 130 duplicate raw writes to one key, and
-  leave the post-table sentinel unchanged on chunk-capacity overflow.
+The canonical block map is exact up to `storageWritesCapacity = 16384` unique
+`(recipient, slotKey)` rows. It is populated by `write_sets_incorporate_tx` and
+read by `storagePrestateResolveAsm` and BAL storage-change emission through
+`storage_writes_block_latest_value`. The former cross-transaction duplicate
+table was separately populated and consumed, so it is removed rather than kept
+as a cache with an equality invariant.
 
 ## Implementation Beads
 
@@ -141,14 +111,12 @@ The follow-up work should land in separate PRs:
 - Landed sender balance aggregation: `evm-asm-vv4hr.1.4` sizes the B2 running
   sender-balance table from `bvMtxSenderBalanceEntries = bvMtxFullTxCap`, so
   distinct-sender balance tracking no longer inherits the active loop cap.
-- Landed committed-storage threading slices:
-  `evm-asm-bmvmx.5.5.7.4.4.1`/`.4.4.2` added and wired the first keyed upsert,
-  while `evm-asm-bmvmx.5.5.7.4.4.4` adds the active 512-entry chunked table,
-  chunked upsert/lookup helpers, block-verdict wiring, and above-128 evidence.
-- Extend committed-storage threading beyond 512 unique `(recipient, slotKey)`
-  entries toward the `bvMtxCommittedFullKeyCap = 600000`-key target, or replace
-  the fixed arena with an equivalent streaming/indexed design, once the follow-up
-  slices migrate the active upsert/lookup and block-verdict wiring.
+- Landed canonical block-storage threading: `write_sets_incorporate_tx`
+  populates `STORAGE_WRITES_AREA`, while
+  `storage_writes_block_latest_value` serves prestate and BAL preload reads.
+- Extend canonical storage beyond 16,384 unique `(recipient, slotKey)` entries
+  with a streaming/indexed design if the execution-derived upper bound grows;
+  do not reintroduce a separately populated committed-storage cache.
 - Decouple the remaining receipt/log validation capacity from the tx cap and
   connect block-log capture, log-list RLP, receipt-list RLP, and consensus
   descriptor traversal to the log/receipt streaming or digest substrate. The

@@ -69,14 +69,14 @@ for line in sys.stdin:
 " "$1"
 }
 read TEXT_BASE TEXT_SIZE <<<"$(sec .text)"
-read COMMITTED_BASE COMMITTED_SIZE <<<"$(sec .committed_storage)"
 read DATA_BASE DATA_SIZE <<<"$(sec .data)"
 read BSS_BASE  BSS_SIZE  <<<"$(sec .bss)"
 read SSZ_BASE  SSZ_SIZE  <<<"$(sec .sszscratch)"
+COMMITTED_SECTION_COUNT=$("$READELF" -SW "$ELF" | awk '$2 == ".committed_storage" { n++ } END { print n + 0 }')
 
 echo "== structural (must never drift) =="
 check ".text base"       "0000000080000000" "$TEXT_BASE"
-check ".committed_storage base" "00000000a2000000" "$COMMITTED_BASE"
+check ".committed_storage section absent" "0" "$COMMITTED_SECTION_COUNT"
 check ".data base"       "00000000a3000000" "$DATA_BASE"
 check ".bss base"        "00000000a3110000" "$BSS_BASE"
 check ".sszscratch base" "00000000bf980000" "$SSZ_BASE"
@@ -180,11 +180,9 @@ PY
 # --- link-dependent sizes vs RegionMap constants ---
 echo "== link-layout (DRIFT REPAIR: relink + TSV/GuestAddrs/GuestImageEntries; pin RegionMap .text/.data/.bss and GuestImage .bss end from that ELF; repeat to fixpoint — docs/regenerating-generated-files.md) =="
 LEAN_TEXT=$(grep -oE 'def textSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
-LEAN_COMMITTED=$(grep -oE 'def committedStorageSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_DATA=$(grep -oE 'def dataSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 LEAN_BSS=$(grep -oE 'def bssSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
 check "RegionMap.textSizeBytes" "$(printf '%x' $LEAN_TEXT)" "$(printf '%x' 0x$TEXT_SIZE)"
-check "RegionMap.committedStorageSizeBytes" "$(printf '%x' $LEAN_COMMITTED)" "$(printf '%x' 0x$COMMITTED_SIZE)"
 check "RegionMap.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
 check "RegionMap.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
 

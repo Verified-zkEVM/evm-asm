@@ -42,16 +42,14 @@
   carries that constant; the placement lemmas below are stated for any
   in-capacity index.
 
-  ## `committedStorageIs`
+  ## Canonical block write map
 
-  The cross-transaction committed-storage table
-  (`Codegen/Programs/CommittedStorageSnapshot.lean` /
-  `CommittedStorageLookup.lean`, params in `BlockVerdictParams.lean`)
-  uses the **same 128-byte entry shape** (with `addrHash` holding the
-  zero-padded 20-byte account address instead of the frame address), so its
-  assertion is the same log predicate at a different base/capacity
-  (`bvMtxCommittedEntryBytes = 128`, with capacity derived from the block gas
-  bound).
+  The block-level `storage_writes` map is the canonical cross-transaction
+  reader (`Codegen/Programs/CommittedStorageLookup.lean` and
+  `StorageWriteMap.lean`). It uses the same 128-byte row stride as the
+  transaction map: the outer address key, slot key, and current value occupy
+  the first 96 bytes. The lookup normalizes the BAL address/slot query into the
+  little-endian row-key representation before scanning that map.
 
   Like the account routines, the storage handlers are inline-asm codegen
   programs with no functional `cpsTripleWithin` specs yet; this module
@@ -120,13 +118,6 @@ def storageLogIs (base : Word) (entries : List StorageLogEntry) : Assertion :=
   match entries with
   | [] => empAssertion
   | e :: es => storageSlotIs base e ** storageLogIs (base + 128) es
-
-/-- The committed-storage table (`bv_mtx_committed*`) shares the exact
-    128-byte entry shape, re-keyed by tx recipient
-    (`CommittedStorageSnapshot.lean:29-34`); its assertion is the same
-    log predicate at the table's base. -/
-def committedStorageIs : Word → List StorageLogEntry → Assertion :=
-  storageLogIs
 
 /-- The persistent-log length cell: the u64 at `env + 448`
     (`EvmEnv.persistentLogLengthOff`, `Environment/Layout.lean:99`) holding the

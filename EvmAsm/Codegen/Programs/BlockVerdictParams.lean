@@ -226,29 +226,6 @@ def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
 def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
 def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
 
-/-- Cross-transaction committed-storage threading table. This is a unique
-    `(recipient, slotKey)` capacity, not a transaction-count or raw-write
-    capacity: each tx snapshots 128-byte storage-log entries so later tx preloads
-    can see earlier committed values, while duplicate keys update in place.
-    Overflow is conservative and tracked separately from tx arena overflow. -/
-def bvMtxCommittedEntryBytes : Nat := 128
-
-/-- A distinct committed storage row can be produced by an access-listed no-op
-    SSTORE, so the block map must not use the 10,000-gas changing-write arm as
-    its bound.  We use 1,900 gas as a deliberately conservative lower bound:
-    it is below Amsterdam's actual 3,000-gas access-list storage-key charge
-    and also leaves room for the following warm SSTORE floor. -/
-def bvMtxCommittedUniqueKeyMinGas : Nat := 1900
-
-/-- Full block-wide `BlockState.storage_writes` capacity. It is keyed by real
-    `(address, slotKey)` pairs and is gas-bounded rather than transaction-bounded:
-    `ceil(200M / 1900) = 105264` rows, or about 13 MiB at the native 128-byte
-    execution-log row stride. -/
-def bvMtxCommittedChunkCapacity : Nat :=
-  (bsrStateRootBlockGasLimit + bvMtxCommittedUniqueKeyMinGas - 1) /
-    bvMtxCommittedUniqueKeyMinGas
-def bvMtxCommittedChunkBytes : Nat := bvMtxCommittedChunkCapacity * bvMtxCommittedEntryBytes
-
 /-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
     `SYSTEM_TRANSACTION_GAS = 30,000,000`. The stateless verdict derives both
     withdrawal and consolidation requests, so side capture must be sized for two
@@ -291,18 +268,6 @@ def bvPersistentStorageLogCapacity : Nat := 16384
     `syslog_disjoint_from_frameArena`. -/
 def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
 
-/-- Full committed-storage unique-key target for the 200M resource work.
-
-    This is keyed by unique `(recipient, slotKey)`, not by transaction count or
-    raw duplicate writes. The active block-verdict path uses
-    `bvMtxCommittedChunkCapacity`; follow-up slices migrate the upsert/lookup
-    substrate to this full target or to an equivalent streaming design.
-    (Independent of `bvSystemStorageLogCapacity` since `.73`: that syslog arena is
-    a per-block system-call side buffer bounded by the runtime exec-log source
-    cap, whereas this is a whole-block cross-tx unique-key capacity target.) -/
-def bvMtxCommittedFullKeyCap : Nat := 600000
-def bvMtxCommittedFullBytes : Nat :=
-  bvMtxCommittedFullKeyCap * bvMtxCommittedEntryBytes
 /-- Byte stride of one storage exec-log row, shared by the system arena
     (`bv_system_storage_log`) and the per-tx user arena (`bv_user_storage_log`).
     Layout: `addrHash@0`, `slotKey@32`, `original@64`, `current@96`. Every scan
@@ -521,11 +486,6 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bmvFixtureLogWindowArenaBytes = 256
 #guard bmvFullU64PerTxArenaBytes = 76184
 #guard bmvFullLogWindowArenaBytes = 152368
-#guard bvMtxCommittedUniqueKeyMinGas = 1900
-#guard bvMtxCommittedChunkCapacity = 105264
-#guard bvMtxCommittedChunkBytes = 13473792
-#guard bvMtxCommittedFullKeyCap = 600000
-#guard bvMtxCommittedFullBytes = 76800000
 #guard bvReceiptRecordsBytes = 609472
 #guard bvResourceBlockGasLimit = 200000000
 #guard bsrStateRootBlockGasLimit = 200000000

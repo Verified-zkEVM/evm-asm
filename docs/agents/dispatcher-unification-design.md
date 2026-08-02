@@ -97,8 +97,8 @@ verify no regression when count==1):
 
 - block-access-index stamp `current_block_access_index = i+1` (`BVMtxRuntime:227`)
 - per-tx user-storage capture `capture_system_storage_exec_rows` (`:304-307`)
-- committed-storage cross-tx snapshot `bv_mtx_committed_chunked_snapshot_upsert`
-  (`:309-319`)
+- canonical block `storage_writes` incorporation and preload
+  (`write_sets_incorporate_tx` → `storage_writes_block_latest_value`)
 
 For a 1-tx block these are correct and currently absent on the single path — a
 likely source of single-vs-multi storage/access FRs that unification fixes for

@@ -1142,9 +1142,6 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
-    # This helper is an intentional hand-composed wrapper around a mechanically
-    # converted core, so its source is not one generated literal block.
-    'committedStorageChunkedSnapshotUpsertFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each

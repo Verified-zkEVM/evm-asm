@@ -82,8 +82,6 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.ChainValidateProgs
-import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.CommittedStorageSnapshot
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.Eip7702Authority
@@ -360,8 +358,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.exec_log_latest_value, execLogLatestValue_prog),
-  (GuestAddrs.bv_mtx_committed_chunked_snapshot_upsert, bvMtxCommittedChunkedSnapshotUpsert_prog),
-  (GuestAddrs.bv_mtx_committed_chunked_latest_value, bvMtxCommittedChunkedLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
   (GuestAddrs.bal_storage_reads_in_exec_log, balStorageReadsInExecLog_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
@@ -528,6 +524,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 362
+#guard guestImageEntries.length = 360
 
 end EvmAsm.Codegen
