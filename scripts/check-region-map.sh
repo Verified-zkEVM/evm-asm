@@ -28,19 +28,37 @@
 #     See docs/regenerating-generated-files.md. This keeps the Lean map matching
 #     the ELF (the .6 contract) instead of quietly diverging.
 #
-# Skips gracefully (exit 0) when the RISC-V toolchain is absent, mirroring
-# scripts/check-asm-to-program.sh.
+# This is a blocking drift guard.  Missing tooling is a configuration error,
+# not a reason to report success: a guard that cannot inspect the ELF must fail
+# loudly instead of silently becoming inert in CI.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 && ! command -v riscv64-elf-as >/dev/null 2>&1; then
-  echo "check-region-map: riscv64 cross toolchain not found; skipping (install to enable)"
-  exit 0
+die_missing() {
+  echo "check-region-map: missing required command: $1" >&2
+  exit 2
+}
+
+for required_cmd in lake python3 awk grep sed sort comm paste mktemp diff; do
+  command -v "$required_cmd" >/dev/null 2>&1 || die_missing "$required_cmd"
+done
+
+if command -v riscv64-unknown-elf-as >/dev/null 2>&1; then
+  :
+elif command -v riscv64-elf-as >/dev/null 2>&1; then
+  :
+else
+  echo "check-region-map: missing required RISC-V cross assembler (riscv64-unknown-elf-as or riscv64-elf-as)" >&2
+  exit 2
 fi
-READELF="$(command -v readelf || command -v riscv64-unknown-elf-readelf || true)"
-if [[ -z "$READELF" ]]; then
-  echo "check-region-map: readelf not found; skipping"
-  exit 0
+
+if command -v readelf >/dev/null 2>&1; then
+  READELF="$(command -v readelf)"
+elif command -v riscv64-unknown-elf-readelf >/dev/null 2>&1; then
+  READELF="$(command -v riscv64-unknown-elf-readelf)"
+else
+  echo "check-region-map: missing required readelf (readelf or riscv64-unknown-elf-readelf)" >&2
+  exit 2
 fi
 
 ELF_DIR="${ELF_DIR:-gen-out/regionmap}"
@@ -173,13 +191,13 @@ done
 # proof subject with no emitted storage.
 GUEST_ADDRS="EvmAsm/Codegen/GuestAddrs.lean"
 guest_addrs_missing="$(comm -23 \
-  <(rg '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS" |
+  <(grep -E '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS" |
       sed -E 's/^def ([A-Za-z0-9_]+) : Nat := 0x.*/\1/' | sort -u) \
   <("$READELF" -sW "$ELF" |
       awk 'NF >= 8 && $7 != "UND" && $4 != "SECTION" && $4 != "FILE" && $8 !~ /^\$/ {print $8}' |
       sort -u))"
 if [[ -z "$guest_addrs_missing" ]]; then
-  guest_addrs_count="$(rg -c '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS")"
+  guest_addrs_count="$(grep -cE '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS")"
   note "OK   GuestAddrs symbols all exist in ELF ($guest_addrs_count names)"
 else
   note "DRIFT GuestAddrs names absent from ELF: $guest_addrs_missing"
