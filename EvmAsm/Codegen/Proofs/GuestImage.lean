@@ -218,7 +218,7 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- object, this is why.
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
       0xa3110000 0xbf211b40 :=
-    satWithin_ramRegion 0xa3110000 0x1c101b80 (by omega) (by omega)
+    satWithin_ramRegion 0xa3110000 0x1c101b40 (by omega) (by omega)
       (by omega) (by omega)
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
       0xa3005370 0xbf211b40 :=
