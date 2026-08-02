@@ -325,6 +325,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context\n" ++
   "  la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_mtx_bail\n" ++
+  -- `dispatch_tx_runtime_code` consumes the context's +32 base-fee pointer
+  -- when staging `tx_env.gas_price` for GASPRICE.  `multi_tx_nth_context`
+  -- intentionally leaves this per-call input empty; the block base fee was
+  -- already decoded into `bv_mtx_base_fee_be` for the MTx fee-validity gate
+  -- above.  Supplying that same authenticated buffer here keeps the runtime
+  -- environment aligned with execution-specs `process_transaction`, which
+  -- installs `effective_gas_price` in `tx_env` before `process_message`.
+  "  la t0, bv_mtx_ctx; la t1, bv_mtx_base_fee_be; sd t1, 32(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): same PATH-INDEPENDENT check_transaction
   -- fee-validity test as the single-tx gate (max_fee>=base_fee / priority<=max_fee),
   -- run per tx in the mtx loop. bv_mtx_ctx holds tx ptr@8 / len@16 (simple_transfer layout,
