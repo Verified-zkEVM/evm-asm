@@ -68,6 +68,47 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-! ## block_state_root_pre_accounts -- pre-MTx account table only.
+
+    The upfront sender gas gate consumes the authenticated BAL account-record
+    table, but it must not consume the post-state storage map or run the
+    terminal state-root replay.  Keep this prefix deliberately narrow: the
+    full `block_state_root` below is called only after the user and system
+    write sets have reached their block-level maps. -/
+def blockStateRootPreAccountsFunction : String :=
+  "block_state_root_pre_accounts:\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  la t0, bsr_root_p; sd a0, 0(t0)\n" ++
+  "  la t0, bsr_wit_p; sd a1, 0(t0)\n" ++
+  "  la t0, bsr_wl_v; sd a2, 0(t0)\n" ++
+  "  la t0, bsr_wds_p; sd a3, 0(t0)\n" ++
+  "  la t0, bsr_wds_n; sd a4, 0(t0)\n" ++
+  "  la t0, bsr_ssz_p; sd a6, 0(t0)\n" ++
+  "  la t0, bsr_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_storage_from_map; sd zero, 0(t0)\n" ++
+  "  li t1, " ++ toString bsrMaxWitnessBytes ++ "; bgtu a2, t1, .Lbsr_pre_cons_cap\n" ++
+  "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
+  "  la t0, bsr_ssz_p; ld t1, 0(t0); addi t1, t1, 60; la t0, bsr_exec_p; sd t1, 0(t0)\n" ++
+  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
+  "  jal ra, bal_section_info; bnez a0, .Lbsr_pre_cons_section\n" ++
+  "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_pre_ok\n" ++
+  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
+  "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
+  "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
+  "  la a6, basr_records; la a7, basr_accounts\n" ++
+  "  jal ra, bal_account_record_array; bnez a0, .Lbsr_pre_cons_records\n" ++
+  ".Lbsr_pre_ok:\n" ++
+  "  li a0, 0; j .Lbsr_pre_ret\n" ++
+  ".Lbsr_pre_cons_cap:\n  li t0, 101; j .Lbsr_pre_cons_set\n" ++
+  ".Lbsr_pre_cons_section:\n  li t0, 102; j .Lbsr_pre_cons_set\n" ++
+  ".Lbsr_pre_cons_records:\n  li t0, 103\n" ++
+  ".Lbsr_pre_cons_set:\n" ++
+  "  la t1, bsr_fail_code; sd t0, 0(t1); li a0, 1\n" ++
+  ".Lbsr_pre_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
+
 /-! ## block_state_root -- post-state root after system writes + withdrawals.
     a0 = pre-state root ptr   a1 = witness   a2 = witness_len
     a3 = wds descriptors   a4 = n_wds   a5 = out_root   a6 = SSZ_BASE

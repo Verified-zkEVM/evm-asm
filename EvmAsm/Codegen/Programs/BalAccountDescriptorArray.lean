@@ -222,6 +222,7 @@ def balAccountDescriptorArrayDeps : String :=
   mptExtensionExtractFunction ++ "\n" ++
   mptDeleteAccFunction ++ "\n" ++
   mptStateRootInsFunction ++ "\n" ++
+  storageWritesBlockLatestValueFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
@@ -280,6 +281,7 @@ def ziskBalAccountDescriptorArrayPrologue : String :=
   ".Lbaada_pdone:"
 
 def ziskBalAccountDescriptorArrayDataSection : String :=
+  storageWriteMapDataSection ++ "\n" ++
   ziskMptStateRootInsDataSection ++ "\n" ++
   "bsr_sort_ranges:\n  .zero " ++ toString (bsrMptSortRangeStackCapacity * bsrMptSortRangeFrameBytes) ++ "\n" ++
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
@@ -347,6 +349,7 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "baap_sc_out_count:\n  .zero 8\n" ++
   "baap_storage_empty_flag:\n  .zero 8\n" ++
   "baap_force_storage_clear:\n  .zero 8\n" ++
+  "bsr_storage_from_map:\n  .zero 8\n" ++
   "baap_storage_delete_flag:\n  .zero 8\n" ++
   "baap_storage_delete_count:\n  .zero 8\n" ++
   "baap_storage_delete_index:\n  .zero 8\n" ++
@@ -374,6 +377,11 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "baap_nonce:\n  .zero 32\n" ++
   "baap_slot:\n  .zero 32\n" ++
   "baap_code_hash:\n  .zero 32\n" ++
+  "baap_map_addr:\n  .zero 32\n" ++
+  "baap_map_value:\n  .zero 32\n" ++
+  "baap_map_value_be:\n  .zero 32\n" ++
+  "baap_map_recip_scratch:\n  .zero 32\n" ++
+  "baap_map_slot_scratch:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
   "baap_tmp2:\n  .zero 512\n" ++

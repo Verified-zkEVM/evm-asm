@@ -433,6 +433,7 @@ def statelessVerdictV2GuestClosure : String :=
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
+  blockStateRootPreAccountsFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
   codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++

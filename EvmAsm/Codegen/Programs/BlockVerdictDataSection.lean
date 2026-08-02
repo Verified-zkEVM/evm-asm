@@ -997,6 +997,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsg_blob_lt_out:\n  .zero 8\n" ++
   "bsg_sender_addr:\n  .zero 32\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
+  "bsr_storage_from_map:\n  .zero 8\n" ++
+  "bsr_header_state_root_p:\n  .zero 8\n" ++
+  "bsr_wds_p:\n  .zero 8\n" ++
+  "bsr_wds_n:\n  .zero 8\n" ++
   "bsr_change_count:\n  .zero 8\n" ++
   "sri_cur_mode:\n  .zero 8\n" ++
   "sri_fail_index:\n  .zero 8\n" ++
@@ -1058,6 +1062,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   "baap_nonce:\n  .zero 32\n" ++
   "baap_slot:\n  .zero 32\n" ++
   "baap_code_hash:\n  .zero 32\n" ++
+  "baap_map_addr:\n  .zero 32\n" ++
+  "baap_map_value:\n  .zero 32\n" ++
+  "baap_map_value_be:\n  .zero 32\n" ++
+  "baap_map_recip_scratch:\n  .zero 32\n" ++
+  "baap_map_slot_scratch:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "baap_tmp:\n  .zero 512\n" ++
   "baap_tmp2:\n  .zero 512\n" ++
