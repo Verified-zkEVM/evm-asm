@@ -498,12 +498,14 @@ def storageHandlers : List OpcodeHandlerSpec :=
         storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
         "  ld x11, 0(sp); addi sp, sp, 8\n" ++
         -- A zero result is still a real read (absent slots read as zero), so
-        -- append a row on every genuine miss.  The full-log case is a cache
-        -- capacity condition: unlike SSTORE, skipping this optional seed must
-        -- not turn a valid SLOAD into an out-of-gas halt.
+        -- append a row on every genuine miss.  A full execution log is not an
+        -- optional seed case: the authenticated value must not be silently
+        -- replaced by zero, and skipping the append would violate the log
+        -- contract consumed by the BAL validators.  Reject at the capacity
+        -- boundary, matching the account/slot-cap callers' fail-closed path.
         "  ld x15, 448(x20)\n" ++
         "  li x14, 16384\n" ++
-        "  bgeu x15, x14, .Lsload_seed_done\n" ++
+        "  bgeu x15, x14, .exit_outofgas\n" ++
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
         "  add x14, x14, x16\n" ++
