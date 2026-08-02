@@ -783,14 +783,66 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
+  -- Only status 1 (an existing account with code) is an EIP-684 collision.
+  -- Status 2 is an existing empty-code entry and is not a collision by
+  -- itself; preserve the established fail-closed route until its CREATE
+  -- preparation is modelled.  Sending status 2 through the collision
+  -- settlement would reject valid creation fixtures whose target is merely
+  -- represented by an empty code-state entry.
+  "  li t0, 1; beq a0, t0, .Lbv_mtx_creation_collision\n" ++
   "  j .Lbv_mtx_creation_unsupported\n" ++
   ".Lbv_mtx_creation_header_collision:\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_create_addr; ld a3, 80(s0); ld a4, 88(s0); jal ra, has_code_or_nonce_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_creation_unsupported\n" ++
-  "  la t0, hcon_predicate; ld t0, 0(t0); bnez t0, .Lbv_mtx_creation_unsupported\n" ++
+  "  bnez a0, .Lbv_mtx_creation_collision\n" ++
+  "  la t0, hcon_predicate; ld t0, 0(t0); bnez t0, .Lbv_mtx_creation_collision\n" ++
+  "  j .Lbv_mtx_creation_prepare\n" ++
+  -- A target absent from both current overlays and the authenticated header is
+  -- the only non-collision case and continues into the CREATE preparation.
+  -- Keep the collision arm separate so malformed access-list/runtime failures
+  -- below retain their existing fail-closed route.
+  ".Lbv_mtx_creation_collision:\n" ++
+  -- `prepare_message` unconditionally adds the computed top-level CREATE
+  -- target to accessed_addresses before collision handling (utils/message.py:
+  -- 56-71).  Record that touch even though no initcode executes.
+  "  la a0, bv_create_addr; jal ra, account_read_record\n" ++
+  -- Collision is an exceptional transaction: all regular gas is consumed and
+  -- the state-gas reservoir remains available (the same settlement as the
+  -- single-tx collision branch). Publish the indexed result and rejoin the
+  -- ordinary MTx postlude so read sets, nonce and receipts are incorporated.
+  "  la t4, bv_mtx_ctx; ld t5, 40(t4); li t4, 16777216\n" ++
+  "  bgeu t5, t4, .Lbv_mtx_creation_collision_have_reservoir\n" ++
+  "  li t5, 0\n" ++
+  "  j .Lbv_mtx_creation_collision_gas_ready\n" ++
+  ".Lbv_mtx_creation_collision_have_reservoir:\n" ++
+  "  sub t5, t5, t4\n" ++
+  ".Lbv_mtx_creation_collision_gas_ready:\n" ++
+  "  la t4, bv_runtime_gas_left; sd t5, 0(t4)\n" ++
+  "  la t4, bv_runtime_refund_counter; sd zero, 0(t4)\n" ++
+  "  la t4, bv_runtime_calldata_floor; sd zero, 0(t4)\n" ++
+  "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_calldata; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  li t4, 1; la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd t4, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  -- The collision path never enters the dispatcher, so it must consume the
+  -- staged process_transaction gas debit itself before the shared settlement
+  -- postlude reads the sender's live balance for the refund.
+  "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
+  bvReceiptsShapeSet 5 true ++
+  "  li a4, 0\n" ++
+  -- The shared postlude keys the effective recipient from ctx+72.  A CREATE
+  -- collision has no ordinary recipient, so expose the computed target there.
+  "  la t0, bv_create_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
+  ".Lbv_mtx_creation_collision_key_copy:\n  beqz t2, .Lbv_mtx_creation_collision_effects; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_collision_key_copy\n" ++
+  ".Lbv_mtx_creation_collision_effects:\n" ++
+  "  j .Lbv_mtx_effects_kept\n" ++
   -- Fresh target: mirror the single CREATE prepare_dispatch charge.  A
   -- collision stays conservative until its error-receipt publication is also
   -- indexed; never run initcode for a target whose EIP-684 predicate is true.
+  ".Lbv_mtx_creation_prepare:\n" ++
   "  la t0, runtime_tx_create_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, hcon_acct_struct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lbv_mtx_creation_charge_ready\n" ++
   liAmsterdamNewAccountStateGas "t1" ++
