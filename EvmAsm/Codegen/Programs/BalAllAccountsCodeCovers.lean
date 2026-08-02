@@ -36,6 +36,10 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- #11118: unlinked from guest; probe-only PC placeholder. -/
+def balAllAccountsCodeCoversPc : Nat := 0x80000000
+
+
 /-! ## bal_all_accounts_code_covers
     a0 = BAL section RLP ptr (list of AccountChanges)   a1 = BAL section RLP length
     a2 = exec code-effect array base (variable-stride)   a3 = record count
@@ -63,22 +67,22 @@ def balAllAccountsCodeCovers_prog : Program :=
     .BEQ .x5 .x0 (136 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_covers + 88)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balAllAccountsCodeCoversPc + 88)),
     .BNE .x12 .x0 (156 : BitVec 13),
     .MV .x23 .x10,
     .MV .x24 .x11,
     .BEQ .x23 .x24 (144 : BitVec 13),
     .MV .x10 .x23,
     .MV .x11 .x24,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_covers + 116)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balAllAccountsCodeCoversPc + 116)),
     .BNE .x11 .x0 (128 : BitVec 13),
     .MV .x23 .x10,
     .SUB .x7 .x10 .x12,
     .MV .x10 .x7,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_covers + 140)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balAllAccountsCodeCoversPc + 140)),
     .BNE .x12 .x0 (104 : BitVec 13),
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_covers + 148)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balAllAccountsCodeCoversPc + 148)),
     .BNE .x11 .x0 (96 : BitVec 13),
     .LI .x7 (20 : Word),
     .BNE .x12 .x7 (48 : BitVec 13),

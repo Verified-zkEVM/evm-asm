@@ -39,6 +39,11 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- #11118: unlinked from guest; probe-only PC placeholders. -/
+def balAccountCodeConsistentPc : Nat := 0x80002000
+def baccFinalsPc : Nat := 0x80003000
+
+
 /-! ## bal_account_code_consistent
     a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
     a2 = exec code effect record ptr (layout above)
@@ -51,10 +56,10 @@ def balAccountCodeConsistent_prog : Program :=
     .SD .x2 .x18 (24 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x12,
-    .AUIPC .x18 (laHi GuestAddrs.bacc_finals (GuestAddrs.bal_account_code_consistent + 28)),
-    .ADDI .x18 .x18 (laLo GuestAddrs.bacc_finals (GuestAddrs.bal_account_code_consistent + 28)),
+    .AUIPC .x18 (laHi baccFinalsPc (balAccountCodeConsistentPc + 28)),
+    .ADDI .x18 .x18 (laLo baccFinalsPc (balAccountCodeConsistentPc + 28)),
     .MV .x12 .x18,
-    .JAL .x1 (jalOff GuestAddrs.bal_account_nonstorage_finals (GuestAddrs.bal_account_code_consistent + 40)),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_nonstorage_finals (balAccountCodeConsistentPc + 40)),
     .BNE .x10 .x0 (100 : BitVec 13),
     .LD .x5 .x18 (56 : BitVec 12),
     .LD .x6 .x9 (0 : BitVec 12),

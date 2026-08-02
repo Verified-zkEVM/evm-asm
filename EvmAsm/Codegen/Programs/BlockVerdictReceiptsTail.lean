@@ -219,23 +219,18 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 47; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_hash_mismatch:\n" ++
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_storage_mismatch_fail:\n" ++   -- bmvmx.1.6.2: recipient BAL storage != execution
-  "  li t0, 34; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_recipient_field_fail:\n" ++    -- bmvmx.1.6.3: recipient BAL nonce/code claims a change execution didn't make
-  "  li t0, 35; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-   ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5: recipient BAL omits a storage change execution made
-   -- #11119: sink retained for the named property; currently unreachable from
-   -- the verdict path (sole former reacher was the dispatch-status bail above,
-   -- now on .Lbv_dispatch_runtime_status_fail / code 64).  Real reverse storage
-   -- coverage lives inside allaccounts (37).  Standalone 36 waits on container
-   -- convergence (#10765 CONTAINER_DEPENDENT).
-   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-   ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
-   "  li t0, 64; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-   ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
-   "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_reads_fail:\n" ++              -- bmvmx.1.6.7: recipient BAL storage_read slot never accessed in execution
-  "  li t0, 38; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11118: removed dead sinks storage_mismatch(34), recipient_field(35), reads(38).
+  -- NOTE: code 35 remains live on .Lbv_block_state_gas_fail above (unrelated).
+  -- NOTE: bal_storage_matches_exec_log ROUTINE stays — live callee of allaccounts 37.
+  -- storage_omit(36): sink retained for the named property; currently unreachable
+  -- (#11119 / PR #11131 retargeted dispatch bail to code 64). Real reverse storage
+  -- lives inside allaccounts (37). Standalone 36 waits on container convergence.
+  ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5 named property; unreachable (#11119)
+  "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
+  "  li t0, 64; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
+  "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- This is deliberately a catch-all legacy code, not a mechanism identifier:
@@ -252,14 +247,11 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_tuple_fail:\n" ++              -- bmvmx.1.6.6: a non-recipient account's per-slot (block_access_index,value) tuple sequence != exec
   "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_code_covers_fail:\n" ++        -- i3djw: execution deployed/cleared code for an account the BAL omits (hidden created/destroyed account)
-  "  li t0, 43; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11118: removed dead sinks code_covers(43), code_consistent(46).
   ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
   "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_nonstorage_covers_fail:\n" ++  -- i3djw.3 reverse: exec net-changed an account's balance/nonce that the BAL omits
   "  li t0, 45; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_code_consistent_fail:\n" ++    -- i3djw.4: a BAL account's declared code change != exec code-effect (and not a 7702 delegation)
-  "  li t0, 46; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_upfront_fail:\n" ++         -- bmvmx.2: sender_pre_balance < gas_limit*max_fee + value (InsufficientBalanceError)
   "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject

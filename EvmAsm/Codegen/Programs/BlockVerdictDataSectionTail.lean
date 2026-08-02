@@ -590,16 +590,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- bmvmx.5.5.7.3 step c: matched-bitmap for the LINEARIZED bal_all_accounts_nonstorage_covers
   -- (1 byte per agg entry, indexed by agg index). MUST be >= nonstorageEffectLogCap bytes.
   "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n" ++
-  -- i3djw.4: scratch for bal_all_accounts_code_consistent (FORWARD per-account CODE compare,
-  -- with the EIP-7702 delegation skip). bacc_finals is the per-account 88-byte finals scratch
-  -- consumed by bal_account_code_consistent; baac_* are the account-iteration scratch. The
-  -- c2nsf_*/rfu_* scratch the inlined finals helper needs is already provided just above.
+  -- #11118: baac_* account-iteration scratch removed with dead code_consistent (46).
+  -- bacc_finals KEPT: shared 88B finals scratch still used live by
+  -- bal_same_block_delegation_code_resolve (BalCodePreimages) and
+  -- BlockVerdictStateRoot (not only by unlinked bal_account_code_consistent).
   ".balign 8\n" ++
-  "baac_acct_count:\n  .zero 8\n" ++
-  "baac_acct_off:\n  .zero 8\n" ++
-  "baac_acct_len:\n  .zero 8\n" ++
-  "baac_addr_off:\n  .zero 8\n" ++
-  "baac_addr_len:\n  .zero 8\n" ++
   "bacc_finals:\n  .zero 88\n" ++
   -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
   ".balign 32\n" ++

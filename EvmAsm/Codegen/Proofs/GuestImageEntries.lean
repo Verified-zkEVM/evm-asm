@@ -28,21 +28,17 @@ import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
-import EvmAsm.Codegen.Programs.BalAccountCodeConsistent
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
-import EvmAsm.Codegen.Programs.BalAllAccountsCode
-import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
-import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -90,6 +86,7 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
+import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
@@ -312,6 +309,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
   (GuestAddrs.bal_section_info, balSectionInfo_prog),
+  (GuestAddrs.bal_gas_valid, balGasValid_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -355,14 +353,11 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_scalar_mul, secp256k1ScalarMul_prog),
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
+  (GuestAddrs.exec_log_latest_value, execLogLatestValue_prog),
   (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
-  (GuestAddrs.bal_storage_reads_in_exec_log, balStorageReadsInExecLog_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
-  (GuestAddrs.bal_all_accounts_code_covers, balAllAccountsCodeCovers_prog),
-  (GuestAddrs.bal_all_accounts_code_consistent, balAllAccountsCodeConsistent_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
-  (GuestAddrs.bal_account_code_consistent, balAccountCodeConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_consistent, balAccountNonstorageConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
@@ -521,6 +516,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 358
+#guard guestImageEntries.length = 356
 
 end EvmAsm.Codegen
