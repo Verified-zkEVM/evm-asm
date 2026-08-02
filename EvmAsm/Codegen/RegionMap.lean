@@ -330,7 +330,10 @@ def schemeAAnchors : List GuestRegion :=
     -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
     -- depth, so the bounded equivalent is a reverse-replayed journal.
     { name := "account_writes_undo_area", base := 0xa2d20000, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 "
+      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 provisioned; "
+        ++ "current census needs 4294 (4288 auth pushes + 6 fixed records), "
+        ++ "about 3.8x headroom; per-tx regular cap 16777216; "
+        ++ "fail-closed bgeu-before-store and overflow latch; "
         ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
         ++ "reverse-replayed by account_writes_restore_frame" } ]
 
@@ -532,7 +535,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x0633d0
+def textSizeBytes : Nat := 0x06338c
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -570,7 +573,7 @@ def dataSizeBytes : Nat := 0x5370
     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
     removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1ac6cc60
+def bssSizeBytes : Nat := 0x1ac6cb20
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
