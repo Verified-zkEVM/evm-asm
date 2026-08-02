@@ -19,9 +19,9 @@ before filing.*
 | Frame operand stack | **SAFE** — push-before-pop, sp starts at stack-top, under/overflow guards repointed per frame (`CallFrameDescend.lean:500-505`, `CallFrameReturn.lean:250-266`). Stale bytes below sp never read as entries. |
 | Frame returndata / pc / codebase / meta sub-regions | **SAFE (vestigial)** — the runtime keeps this state in standalone `.data` (`frame_save_area`, `frame_call_ctx`, `frame_parent_bases`, `Dispatch.lean:3022-3033`; returndata in the global `evm_precompile_frame`). The arena sub-regions are never addressed, so their garbage is never read. |
 | Frame env block | **ONE BUG** — the descend write-set covers every handler read except `env+552/560` → **`.72`** below. |
-| `basr_values`, `basr_accounts`, `baap_storage_{desc,paths,delete_paths,values}` | **SAFE** — written *and* read entirely inside the single-shot, pre-dispatch `block_state_root` (`BlockVerdictFunction.lean:241`), which invokes no dispatcher internally (verified by grep over all its callees). Earlier derive-phase dispatcher scribbles are rewritten before any read. |
+| `basr_values`, `basr_accounts`, `baap_storage_{desc,paths,values}` | **SAFE** — written *and* read entirely inside the single-shot, pre-dispatch `block_state_root` (`BlockVerdictFunction.lean:241`), which invokes no dispatcher internally (verified by grep over all its callees). Earlier derive-phase dispatcher scribbles are rewritten before any read. |
 | `bv_system_storage_log` | **UNSAFE** → **`.73`** below. |
-| REVERT / mid-block Phase-H re-entry | **NONE** — `block_state_root` is called exactly once; REVERT only truncates the `0xa0630000` exec log (`BlockVerdictFunction.lean:902-923`). No phase token needed for the six safe children. |
+| REVERT / mid-block Phase-H re-entry | **NONE** — `block_state_root` is called exactly once; REVERT only truncates the `0xa0630000` exec log (`BlockVerdictFunction.lean:902-923`). No phase token needed for the five safe children. |
 | Layout constants vs emitted geometry | **DIVERGED** → **`.71`** (and `.74`) below. |
 
 ## The true phase timeline (not "H once, then D once")
@@ -50,6 +50,12 @@ writes (H₁) and reads (H₃) straddle the per-tx dispatch, whose frames
 physically cover the syslog extent from call depth ≈ 220 up.
 
 ## Filed bugs
+
+> **Historical snapshot.** The `.71`/`.74` stride and frame-address pins listed
+> below describe the pre-reconciliation artifact. The current Lean model is
+> re-pinned to `0x19000` stride, `+0x18400` env, and the five-child union; the
+> current standalone syslog placement is recorded in `RegionMap.lean`. These
+> defect records remain audit history, not current constants.
 
 ### `.71` (P0) — `CallFrameLayout` constants are stale vs the emitted geometry
 
@@ -107,9 +113,9 @@ constant reconciliation.
 1. Re-pin `CallFrameLayout` constants to the emitted geometry (or drive
    the emit from the constants) and re-run the fit proofs + the
    `check-region-map.sh` ELF drift guard (the arena grows ~64 MiB;
-   re-verify `.data` end vs `.sszscratch` at `0xbf500000`).
+   re-verify `.data` end vs `.sszscratch` at `0xbf980000`).
 2. Un-union `bv_system_storage_log` (or move the three validator reads
-   before per-tx dispatch); then the H-view tiling drops to six children
+   before per-tx dispatch); then the H-view tiling has five children
    + pad and `phaseHSegs` shrinks accordingly.
 3. After `.72`'s descend fix, the env write-set covers all handler
    reads, and the D-side `Own`-opening obligation is dischargeable for

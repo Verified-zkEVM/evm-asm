@@ -1,6 +1,7 @@
 # Nested CALL/CREATE frame memory layout (depth-indexed pre-allocated frame array)
 
-> **STATUS (2026-07-05): historical design record — superseded on three points.**
+> **STATUS (2026-08-02): historical design record; current emitted geometry is
+> summarized below and the Lean sources are authoritative.**
 > The live authorities are `EvmAsm/Codegen/CallFrameLayout.lean` (constants,
 > re-pinned to the emitted geometry by #9852), `EvmAsm/Codegen/RegionMap.lean`
 > (region extents + overlap inventory, ELF-drift-guarded), and
@@ -8,11 +9,18 @@
 > (the union-aliasing soundness story). Specifically superseded here:
 > (1) §5's grep-based "SOUNDNESS GATE" is replaced by the verified
 > phase-ownership model + the Own-not-Is / sequencing audits; (2) the union now
-> coalesces SEVEN Phase-H children (not just the basr pair), inventoried in
-> `RegionMap.dataUnionChildren`; (3) one child — `bv_system_storage_log` — is
-> in fact read post-dispatch, violating the phase-liveness assumption (open
-> P0 bug bead `evm-asm-4ch8f.73`). Sizes/addresses below are design-time
+> coalesces FIVE Phase-H children, inventoried in `RegionMap.dataUnionChildren`;
+> (3) `bv_system_storage_log` is standalone because it is read post-dispatch.
+> Older seven-child tables and `0x39000`/228 MiB figures below are historical
 > snapshots; trust the Lean constants + `scripts/check-region-map.sh`.
+
+> **Current emitted artifact:** `frameStride = 0x19000`,
+> `frameArrayBytes = 1025 × 0x19000 = 104,960,000 B` (about 100.1 MiB), with
+> a 96 MiB `evm_memory_pool` immediately after the frame arena. The five
+> coalesced children are `basr_values`, `basr_accounts`, `baap_storage_desc`,
+> `baap_storage_paths`, and `baap_storage_values`; the standalone system log
+> is 4 MiB. Current linked anchors are `call_frame_arena = 0xadd053a0`,
+> `evm_memory_pool = 0xb411e3a0`, and `.sszscratch = 0xbf980000`.
 
 Design for bead `evm-asm-fhsxz.2.4.2.61.2` (P0, foundational). Owner: claude-c2.
 This settles the guest `.data` layout and register conventions for nested EVM
@@ -66,7 +74,7 @@ operand stack / `evm_env`), left **completely unchanged** — depth-0 is the onl
 currently-executed path and the verdict-critical one, so it must stay
 byte-identical. Frames **1..1024** (the nested children) live in the overlay
 arena: `frame[d] = call_frame_arena + (d-1) * FRAME_STRIDE` for `d ≥ 1`
-(1024 slots × `FRAME_STRIDE` = 228 MiB ≤ the 244 MiB union). A CALL descends by
+    (1024 slots × `FRAME_STRIDE`; current emitted geometry is 100.1 MiB). A CALL descends by
 bumping a depth counter and, for `d ≥ 1`, computing the child register bases
 from `call_frame_arena + (d-1)*FRAME_STRIDE`; the parent of a depth-1 child is
 `frame[0]` (the existing `evm_memory`/env). This **avoids rebasing the
@@ -177,25 +185,25 @@ Each depth slot is a contiguous, 32-aligned block:
 ```
 frame[d] for d>=1 (at call_frame_arena + (d-1)*FRAME_STRIDE); frame[0] = the
 existing dispatcher evm_memory/stack/env (see §1, NOT in this arena):
-  +0x00000  frame_mem:        .zero 0x20000   (128 KiB EVM memory)         x13
-  +0x10000  frame_stack_glo:  .zero 512        (guard)
-  +0x10200  frame_stack_low:  .zero 0x8000    (32 KiB operand stack)
-  +0x28200  frame_stack_top:                   (x12 init = here, grows ↓)
-  +0x28200  frame_stack_ghi:  .zero 512        (guard)
-  +0x28400  frame_returndata: .zero 0x10000   (64 KiB last-subcall returndata) 
-  +0x38400  frame_env:        .zero 0x300     (768 B per-frame env, §3)     x20
-  +0x28700  frame_pc:         .zero 8          (saved PC / x10 on descent)
-  +0x28708  frame_codebase:   .zero 8          (saved x21 = witness.codes slice)
-  +0x28710  frame_meta:       .zero 0xF0       (caller depth, ret-offset/len in
+  +0x00000  frame_stack_glo:  .zero 512        (guard)
+  +0x00200  frame_stack_low:  .zero 0x8000    (32 KiB operand stack)
+  +0x08200  frame_stack_top:                   (x12 init = here, grows ↓)
+  +0x08200  frame_stack_ghi:  .zero 512        (guard)
+  +0x08400  frame_returndata: .zero 0x10000   (64 KiB last-subcall returndata)
+  +0x18400  frame_env:        .zero 0x300     (768 B per-frame env, §3)     x20
+  +0x18700  frame_pc:         .zero 8          (saved PC / x10 on descent)
+  +0x18708  frame_codebase:   .zero 8          (saved x21 = witness.codes slice)
+  +0x18710  frame_meta:       .zero 0xF0       (caller depth, ret-offset/len in
                                                 parent mem, is_static, is_create,
                                                 created-address, state checkpoint id)
-  ── round up to FRAME_STRIDE = 0x39000 (228 KiB, 32-aligned) ──
+  ── round up to FRAME_STRIDE = 0x19000 (100 KiB, 32-aligned) ──
 ```
 
-`FRAME_STRIDE = 0x39000` (228 KiB). Components: 128 KiB mem + 33 KiB stack(+guards)
-+ 64 KiB returndata + 768 B env + meta, rounded.
+`FRAME_STRIDE = 0x19000` (100 KiB). Nested-frame memory is in the shared 96 MiB
+pool; the slot contains the stack/guards, returndata, env, saved registers, and
+metadata, rounded to the stride.
 
-Total frame array = `1025 * 0x39000` = `0xE439000` ≈ **228.2 MiB** (depths
+Total frame array = `1025 * 0x19000` = `104,960,000 B` ≈ **100.1 MiB** (depths
 0..1024 inclusive — see §1).
 
 > **Returndata sizing.** Returndata is per-frame (RETURNDATASIZE/COPY read the
@@ -208,18 +216,19 @@ Total frame array = `1025 * 0x39000` = `0xE439000` ≈ **228.2 MiB** (depths
 
 ---
 
-## 5. Memory-map placement — overlay RETIRED; standalone arena under the 200M layout
+## 5. Memory-map placement — five-child union plus standalone memory pool
 
-> **UPDATE (2026-06-11).** The BAL-replay arenas were right-sized from the 1G
-> worst case (`bsrMaxBalItems = 500000`, ~416 MiB) to the Amsterdam 200M target
-> (`bsrMaxBalItems = 100000`, ~83 MiB), freeing ~333 MiB of the 512 MiB window.
-> `call_frame_arena` is now a **standalone** pre-zeroed `.zero` block emitted
-> after `basr_accounts` (`BlockVerdictDataSection.lean`) — the union described
-> below no longer exists (the shrunken `basr_values`+`basr_accounts` pair, ~49
-> MiB, could not host the 164 MiB frame array anyway), and the execution-dead
-> soundness gate on `basr_values`/`basr_accounts` is no longer load-bearing.
-> Fit: `frameArray_and_balArenas_fit` in `CallFrameLayout.lean` + `readelf -lW`.
-> §5's union design is kept below as the historical record.
+> **CURRENT (2026-08-02).** The Amsterdam 200M target uses
+> `bsrMaxBalItems = 100000`. The current emitted `call_frame_arena` is
+> coalesced with the five Phase-H children listed in `RegionMap.lean`; its
+> `104,960,000 B` frame extent is followed by the standalone 96 MiB
+> `evm_memory_pool`. `bv_system_storage_log` is outside that union because
+> post-dispatch validators read it after frame zeroing. Fit and absolute
+> placement are checked by `frameArray_unions_basr_baap`,
+> `RegionMap.callFrameArena_within_data`, and `scripts/check-region-map.sh`.
+
+> The old 1G/228 MiB/244 MiB layout is retained below only as historical
+> rationale; it is not a description of the current guest.
 
 > **CORRECTION (empirically validated 2026-06-08).** An earlier draft of this
 > section assumed `.data` is ~16 MiB and the `0xa4000000..0xbf980000` window is

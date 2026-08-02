@@ -136,33 +136,27 @@ def sszScratchBase : Nat := 0xbf980000
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride
 
-/-! ## Placement: the frame arena UNIONS the BAL-replay basr pair (a1vvy, 200M)
+/-! ## Placement: the frame arena coalesces five BAL-replay children
 
-    ziskemu's RAM is 512 MiB (`0xa0000000..0xc0000000`). Under the former
-    1G-sized BAL arenas (`bsrMaxBalItems = 500000`, ~416 MiB) there was no free
-    window, so the frame arena *aliased* the contiguous, execution-dead
-    `basr_values`+`basr_accounts` pair (the #8513 union, 244 MiB ≥ 164 MiB).
-    The Amsterdam target is 200M block gas (`bsrMaxBalItems = 100000`), which
-    shrinks the BAL arenas to ~83 MiB; the union was retired (standalone arena)
-    while the BAL downsize left free RAM. The 200M log/receipt capacity lifts
-    (`vv4hr.3.4.*`) have since consumed that slack (measured `.data` headroom
-    fell to ~59 MiB), so a1vvy REINSTATES the union to reclaim ~49 MiB.
+    ziskemu's RAM is 512 MiB (`0xa0000000..0xc0000000`). The current Amsterdam
+    200M layout (`bsrMaxBalItems = 100000`) coalesces the execution-dead
+    `basr_values`/`basr_accounts` pair and the three `baap_storage_*` arrays
+    into the front of `call_frame_arena`. The current frame array is
+    `1025 * 0x19000 = 104,960,000 B` (about 100.1 MiB), larger than the
+    coalesced child prefix (about 61.6 MiB), with a trailing pad. The
+    `bv_system_storage_log` is deliberately standalone because it is read
+    post-dispatch; `evm_memory_pool` follows the frame arena.
 
-    The size relation flipped: the frame array (`frameArrayBytes` ~228 MiB at the
-    reconciled `0x39000` stride) is now
-    LARGER than the basr pair (~49 MiB), so the pair is coalesced into the FRONT
-    of `call_frame_arena` (`BlockVerdictDataSection.lean`) rather than the arena
-    aliasing into the pair. Soundness is the same execution-dead disjointness
-    #8513 established and is now load-bearing again: `basr_values`/`basr_accounts`
-    are referenced ONLY in `BlockVerdictStateRoot` (Phase H,
-    pre-dispatch state-root recompute) with no post-replay reader, while
-    `call_frame_arena` is referenced ONLY by `CallFrameBase`/`Descend`/`Return`
-    (Phase D dispatch) — sequential, disjoint live windows. See
-    `docs/call-frame-memory-layout.md` §5. -/
+    The historical 1G layout used a 244 MiB basr union and a 228 MiB frame
+    stride. Those values remain useful in the design history but are not live
+    geometry. The current phase-ownership argument is the same execution-dead
+    Phase-H / Phase-D sequencing: the five child arrays are used during the
+    pre-dispatch state-root recompute, while the frame arena is used during
+    dispatch. See `docs/call-frame-memory-layout.md` §5. -/
 
 /-- Total bytes of all 200M-sized BAL/state-replay static arenas
     (`bsr_changes` + `basr_records/paths/values/accounts` +
-    `baap_storage_desc/paths/delete_paths/values`), matching the `.zero`
+    `baap_storage_desc/paths/values`), matching the `.zero`
     declarations in `BlockVerdictDataSection.lean`. -/
 def balArenaTotalBytes : Nat :=
   bsrMaxStateChanges * bsrStateChangeBytes
@@ -170,7 +164,7 @@ def balArenaTotalBytes : Nat :=
     + bsrMaxStateChanges * bsrPathBytes
     + 2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
     + bsrMaxBalItems * baapStorageDescBytes
-    + 3 * (bsrMaxBalItems * bsrPathBytes)
+    + 2 * (bsrMaxBalItems * bsrPathBytes)
 
 /-! ## Verified consistency invariants (kernel-checked `decide`) -/
 
@@ -187,16 +181,13 @@ theorem frameMeta_within_stride : frameMetaOff + frameMetaBytes ≤ frameStride 
 /-- 1025 slots cover depths 0..1024 inclusive. -/
 theorem frameSlotCount_eq : frameSlotCount = 1025 := by decide
 
-/-- **Overrun closed (the `.71` fix, load-bearing):** the deepest reachable frame
-    is depth `maxCallDepth` (1024); the emitted `frame_base(d) = arena + (d-1)*stride`
-    places its slot at arena offset `(maxCallDepth-1)*frameStride`, so the slot spans
-    `[(maxCallDepth-1)*frameStride, maxCallDepth*frameStride)`. This slot end stays
-    within `frameArrayBytes`, i.e. the entire depth-1024 frame (memory/stack/env/…)
-    lands inside `call_frame_arena` and never overruns into the following `.data`.
-    With the STALE `frameStride = 0x29000` the arena was sized `1025*0x29000` while
-    `frame_base` stepped `0x39000`, so this failed for every depth ≥ ~738 — that
-    failure WAS the bug. It now passes for all 1025 slots against the corrected
-    `0x39000` stride/arena. -/
+/-- **Overrun closed (load-bearing):** the deepest reachable frame is depth
+    `maxCallDepth` (1024), and the current emitted `frame_base(d)` uses
+    `d * frameStride` with `frameStride = 0x19000`. The slot at depth 1024
+    therefore ends at `maxCallDepth * frameStride`, which is inside the
+    `frameArrayBytes = frameSlotCount * frameStride` arena. The old geometry
+    divergence is historical; this guard pins the current 1025-slot geometry
+    rather than carrying either old `0x29000` or `0x39000` as a live value. -/
 theorem frameArray_covers_all_depths :
     maxCallDepth * frameStride ≤ frameArrayBytes := by decide
 
@@ -210,12 +201,12 @@ theorem frameArray_covers_all_depths :
 theorem frameArray_unions_basr_pair :
     2 * (bsrMaxStateChanges * bsrEncodedAccountBytes) ≤ frameArrayBytes := by decide
 
-/-- **Union-fits gate (load-bearing), post-`4ch8f.73`:** the basr pair + the four
-    Phase-H `baap_storage_*` arenas (`baap_storage_desc` + 3 `* bsrPathBytes` path
-    arenas) all fit within the frame array, so the six coalesced foreign arenas
+/-- **Union-fits gate (load-bearing), post-`4ch8f.73`:** the basr pair + the three
+    Phase-H `baap_storage_*` arenas (`baap_storage_desc` + the `baap_storage_paths` and `baap_storage_values` arrays)
+    all fit within the frame array, so the five coalesced foreign arenas
     occupy distinct, non-overlapping, 32-aligned sub-ranges at the front of
     `call_frame_arena` (`[0,S)`, `[S,2S)`, then baap at `[2S, …)`) with a
-    non-negative trailing pad to `frameArrayBytes`. All six are Phase-H
+    non-negative trailing pad to `frameArrayBytes`. All five are Phase-H
     (state-root recompute) scratch, dead during the Phase-D dispatch window when
     the frame array is live. `bv_system_storage_log` is NO LONGER among them: it
     is read post-dispatch (a frame slot would clobber it), so `4ch8f.73` moved it
@@ -224,12 +215,12 @@ theorem frameArray_unions_basr_pair :
     `frameArray_unions_basr_and_syslog` / `frameArray_unions_basr_syslog_baap`. -/
 theorem frameArray_unions_basr_baap :
     2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)
-      + bsrMaxBalItems * baapStorageDescBytes + 3 * (bsrMaxBalItems * bsrPathBytes)
+      + bsrMaxBalItems * baapStorageDescBytes + 2 * (bsrMaxBalItems * bsrPathBytes)
       ≤ frameArrayBytes := by decide
 
 /-- **The fits proof that actually matters (200M layout):** the BAL/state-replay
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
-    array (~228 MiB at the reconciled `0x39000` stride) together stay well inside
+    array (104,960,000 B, about 100.1 MiB at the current `0x19000` stride) stay well inside
     the `.data`→`.sszscratch` span
     (456 MiB) — ~145 MiB of slack for the remaining `.data` objects (~80 MiB
     measured). The ELF-level ground truth is `readelf -lW`: the top RW LOAD
@@ -240,7 +231,8 @@ theorem frameArray_and_balArenas_fit :
 
 /-- The usable `.data`→`.sszscratch` span is `0x1c980000` = 479,723,520 B
     = 457.5 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
-    standalone frame array (~228 MiB) leave ample room for the rest of `.data`. -/
+    current standalone frame array (104,960,000 B, about 100.1 MiB) leave ample
+    room for the rest of `.data`. -/
 theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c980000 := by decide
 
 /-- **vv4hr.3.4.2 PACK:** the active block-log arena = packed descriptors
