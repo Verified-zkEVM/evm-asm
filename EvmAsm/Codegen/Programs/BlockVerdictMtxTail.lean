@@ -21,17 +21,17 @@ namespace EvmAsm.Codegen
 def blockVerdictMtxValidationTail : String :=
   -- bmvmx.5.5.1 (umbrella-A1): build the MULTI-TX skip-list that the all-accounts
   -- exec-vs-BAL comparators (@1032-1110, run only on the single-tx path today) must
-  -- skip. The single-tx i3djw_skip_list is the fixed 8 entries {recipient, sender,
-  -- coinbase, six system addresses}; a multi-tx block has up to 2N+1 such
-  -- gas/value-coupled accounts plus the same six system addresses. We are
+  -- skip. The single-tx i3djw_skip_list is {recipient, sender, coinbase} plus
+  -- BAI-0 (2935+4788; #10684); multi-tx has up to 2N+1 gas/value-coupled accounts
+  -- plus the same BAI-0 pair. We are
   -- at .Lbv_mtx_done, so EVERY tx reached a status-0 supported shape -> re-deriving
   -- each is safe (address_from_pubkey already ran @474, multi_tx_nth_context @438):
   --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)   (as @473-474)
   --   skip[2i+1] = effective recipient_i = the dispatch-settled target
   --                 (raw recipient for CALL/EOA, derived CREATE address for creation)
   --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)            (as @161-164)
-  --   skip[2N+1..2N+6] = the genesis system/predeploy contracts plus SYSTEM_ADDRESS
-  -- count = 2N+7. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
+  --   skip[2N+1..2N+2] = EIP-2935 + EIP-4788 only (#10684 dropped 7002/7251/6110/SYSTEM)
+  -- count = 2N+3. 32-byte-strided, address in the first 20 bytes. BEHAVIOR-NEUTRAL:
   -- nothing reads bv_mtx_skip_list yet (umbrella-A2 wires it into the comparators);
   -- built here so the existing multi-tx fixtures exercise the derivation. The build
   -- loop's cursor lives in bv_mtx_skip_idx (memory) so it survives the jal calls;
@@ -53,11 +53,14 @@ def blockVerdictMtxValidationTail : String :=
   "  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32; li t3, 0\n" ++    -- src = fee_recipient (exec_p+32)
   ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
   "  addi t6, t6, 32\n" ++                                             -- t6 = &skip[2N+1]
-  "  la t1, bbcv_sys_2935; li t4, 6\n" ++
+  -- #10684: copy ONLY BAI-0 predeploys (2935, 4788) — contiguous at bbcv_sys_2935.
+  -- Four deferred (7002/7251/6110/SYSTEM) dropped: no spec counterpart for skip;
+  -- poison sentinel FR0 on stride-1045+r200; keep = FA surface (un-checked).
+  "  la t1, bbcv_sys_2935; li t4, " ++ toString bvMtxSystemSkipEntries ++ "\n" ++
   ".Lbv_skl_sys_o:\n  li t3, 0\n" ++
   ".Lbv_skl_sys_i:\n  li t2, 20; beq t3, t2, .Lbv_skl_sys_next\n  add t2, t1, t3; lbu a0, 0(t2); add t2, t6, t3; sb a0, 0(t2); addi t3, t3, 1; j .Lbv_skl_sys_i\n.Lbv_skl_sys_next:\n" ++
   "  addi t1, t1, 20; addi t6, t6, 32; addi t4, t4, -1; bnez t4, .Lbv_skl_sys_o\n" ++
-  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 7; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+7
+  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, " ++ toString (1 + bvMtxSystemSkipEntries) ++ "; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++  -- count = 2N+1+sys
   -- bmvmx.5.5.2 (umbrella-B1): validate each multi-tx sender's BAL final nonce
   -- against AccountState's final execution-derived nonce.  The sender table is
   -- only a sorted distinct-address enumerator; its count word is deliberately

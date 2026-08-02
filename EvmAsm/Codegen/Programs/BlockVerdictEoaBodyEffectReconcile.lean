@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
@@ -24,7 +25,7 @@ def blockVerdictEoaBodyEffectReconcile : String :=
   "  la a1, i3djw_skip_list; addi a1, a1, 32\n  la a0, bv_public_keys_ptr; ld a0, 0(a0); addi a0, a0, 1\n  jal ra, address_from_pubkey\n.Lbv_i3sk1d:\n" ++
   "  la t0, i3djw_skip_list; addi t0, t0, 64\n  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32\n  li t2, 20\n" ++
   ".Lbv_i3sk2:\n  beqz t2, .Lbv_i3sk2d\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  j .Lbv_i3sk2\n.Lbv_i3sk2d:\n" ++
-  "  la t0, i3djw_skip_list; addi t0, t0, 96\n  la t1, bbcv_sys_2935\n  li t4, 6\n" ++
+  "  la t0, i3djw_skip_list; addi t0, t0, 96\n  la t1, bbcv_sys_2935\n  li t4, " ++ toString bvMtxSystemSkipEntries ++ "\n" ++  -- #10684: 2935+4788 only
   ".Lbv_i3sksys_o:\n  li t2, 20\n" ++
   ".Lbv_i3sksys_i:\n  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, 1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lbv_i3sksys_i\n" ++
   "  addi t0, t0, 12\n  addi t4, t4, -1\n  bnez t4, .Lbv_i3sksys_o\n" ++

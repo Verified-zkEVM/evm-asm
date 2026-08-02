@@ -217,11 +217,15 @@ def bvMtxArenaTxCap : Nat := bvMtxActiveTxCap
 def bvMtxU64ArenaBytes : Nat := bvMtxFullTxCap * 8
 def bvMtxLogWindowBytes : Nat := bvMtxFullTxCap * 16
 
+/-- System addresses still skipped by MtxTail storage/nonstorage comparators.
+    After #10684 four-deferred drop: ONLY EIP-2935 + EIP-4788 (BAI-0 predeploys).
+    7002/7251/6110/SYSTEM_ADDRESS are NOT skipped — no execution-specs counterpart
+    for whole-account skip of deferred system-request predeploys. -/
+def bvMtxSystemSkipEntries : Nat := 2
 /-- The multi-tx skip-list stores `{sender_i, recipient_i}` for every
-    transaction plus the shared coinbase account. It is sized to the full 200M
-    tx-count target so the post-loop BAL comparators do not inherit the active
-    execution-loop cap. -/
-def bvMtxSystemSkipEntries : Nat := 6
+    transaction plus the shared coinbase account plus `bvMtxSystemSkipEntries`
+    system addresses. Sized to the full 200M tx-count target so the post-loop
+    BAL comparators do not inherit the active execution-loop cap. -/
 def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1 + bvMtxSystemSkipEntries
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 /-- Sender-balance aggregation shares the full sender table capacity so the
@@ -473,8 +477,8 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvMtxSenderBalanceEntries = bvMtxFullTxCap
 #guard bvMtxSenderBalanceTableBytes = bvMtxFullTxCap * 64
 #guard bvMtxCreatedRecipientBytes = 304736
-#guard bvMtxSkipListEntries = 19053
-#guard bvMtxSkipListBytes = 609696
+#guard bvMtxSkipListEntries = 19049
+#guard bvMtxSkipListBytes = 609568
 #guard bvMtxSenderCountEntries = 9523
 #guard bvMtxSenderCountTableBytes = 380920
 #guard bvMtxSenderCountSortBytes = 304736

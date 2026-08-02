@@ -208,11 +208,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- recognised; if you are staring at a type mismatch here after adding a data
   -- object, this is why.
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3110000 0xbe6a48a0 :=
-    satWithin_ramRegion 0xa3110000 0x1b5948a0 (by omega) (by omega)
+      0xa3110000 0xbe6a47a0 :=
+    satWithin_ramRegion 0xa3110000 0x1b5947a0 (by omega) (by omega)
       (by omega) (by omega)
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3005370 0xbe6a48a0 :=
+      0xa3005370 0xbe6a47a0 :=
     t7.mono (by omega) (le_refl _)
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=
