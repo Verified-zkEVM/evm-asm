@@ -198,7 +198,8 @@ theorem balGasValidFunction_eq_prog :
     The RLP walker `bal_gas_valid` remains for probes and declared-byte diagnostics. -/
 def balGasValidFromBuilderFunction : String :=
   "bal_gas_valid_from_builder:\n" ++
-  "  addi sp, sp, -80\n" ++
+  -- Frame 96 B: saves 0..56 + BE20 scratch at 64..83 (must not overflow into caller).
+  "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  mv s0, a0\n" ++                                              -- s0 = gas_limit
@@ -241,7 +242,7 @@ def balGasValidFromBuilderFunction : String :=
   ".Lbgvfb_rd:\n" ++
   "  bgeu s3, s2, .Lbgvfb_test\n" ++
   "  slli t0, s3, 6; li t1, 0xa1ba0000; add s5, t1, t0\n" ++
-  -- reverse LE stack-word low 20 bytes → BE20 scratch at sp+64
+  -- reverse LE stack-word low 20 bytes → BE20 scratch at sp+64 (fits in 96 B frame)
   "  li t5, 0\n" ++
   ".Lbgvfb_rd_rev:\n" ++
   "  li t0, 20; beq t5, t0, .Lbgvfb_rd_chk\n" ++
@@ -267,7 +268,7 @@ def balGasValidFromBuilderFunction : String :=
   ".Lbgvfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
+  "  addi sp, sp, 96\n" ++
   "  ret\n"
 
 #guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
