@@ -14,6 +14,13 @@ import EvmAsm.Codegen.Programs.Mpt
 
 namespace EvmAsm.Codegen
 
+/-- Probe-only PC placeholder; unlinked from guest. baaod -/
+def balAccountAccessOutcomeDescriptorsPc : Nat := 0x80000000
+
+/-- Probe-only data placeholders (unlinked consumer; not in GuestAddrs). -/
+def baaodHashPlaceholder : Nat := 0xa3000000
+def baaodEmptyAccountPlaceholder : Nat := 0xa3000000
+
 open EvmAsm.Rv64
 
 /-! ## bal_account_access_outcome_descriptors
@@ -99,14 +106,14 @@ def balAccountAccessOutcomeDescriptors_prog : Program :=
     .JAL .x0 (-60 : BitVec 21),
     .MV .x10 .x25,
     .LI .x11 (20 : Word),
-    .AUIPC .x12 (laHi GuestAddrs.baaod_hash (GuestAddrs.bal_account_access_outcome_descriptors + 260)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.baaod_hash (GuestAddrs.bal_account_access_outcome_descriptors + 260)),
-    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.bal_account_access_outcome_descriptors + 268)),
-    .AUIPC .x10 (laHi GuestAddrs.baaod_hash (GuestAddrs.bal_account_access_outcome_descriptors + 272)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.baaod_hash (GuestAddrs.bal_account_access_outcome_descriptors + 272)),
+    .AUIPC .x12 (laHi baaodHashPlaceholder (balAccountAccessOutcomeDescriptorsPc + 260)),
+    .ADDI .x12 .x12 (laLo baaodHashPlaceholder (balAccountAccessOutcomeDescriptorsPc + 260)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (balAccountAccessOutcomeDescriptorsPc + 268)),
+    .AUIPC .x10 (laHi baaodHashPlaceholder (balAccountAccessOutcomeDescriptorsPc + 272)),
+    .ADDI .x10 .x10 (laLo baaodHashPlaceholder (balAccountAccessOutcomeDescriptorsPc + 272)),
     .LI .x11 (32 : Word),
     .MV .x12 .x21,
-    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (GuestAddrs.bal_account_access_outcome_descriptors + 288)),
+    .JAL .x1 (jalOff GuestAddrs.bytes_to_nibbles (balAccountAccessOutcomeDescriptorsPc + 288)),
     .SLLI .x5 .x24 (5 : BitVec 6),
     .SLLI .x6 .x24 (3 : BitVec 6),
     .ADD .x5 .x5 .x6,
@@ -114,8 +121,8 @@ def balAccountAccessOutcomeDescriptors_prog : Program :=
     .SD .x5 .x21 (0 : BitVec 12),
     .LI .x6 (64 : Word),
     .SD .x5 .x6 (8 : BitVec 12),
-    .AUIPC .x6 (laHi GuestAddrs.baaod_empty_account (GuestAddrs.bal_account_access_outcome_descriptors + 320)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.baaod_empty_account (GuestAddrs.bal_account_access_outcome_descriptors + 320)),
+    .AUIPC .x6 (laHi baaodEmptyAccountPlaceholder (balAccountAccessOutcomeDescriptorsPc + 320)),
+    .ADDI .x6 .x6 (laLo baaodEmptyAccountPlaceholder (balAccountAccessOutcomeDescriptorsPc + 320)),
     .SD .x5 .x6 (16 : BitVec 12),
     .LI .x6 (70 : Word),
     .SD .x5 .x6 (24 : BitVec 12),

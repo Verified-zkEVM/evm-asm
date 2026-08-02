@@ -35,6 +35,16 @@ import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen
 
+/-- Probe-only PC placeholder; unlinked from guest. bnp_fp2_inv -/
+def bnpFp2InvPc : Nat := 0x80000000
+
+/-- Probe-only data placeholders (unlinked inv consumer; not in GuestAddrs). -/
+def bnpT0Placeholder : Nat := 0xa3000000
+def bnpT1Placeholder : Nat := 0xa3000000
+def bnpT2Placeholder : Nat := 0xa3000000
+def bnpPMinus1LePlaceholder : Nat := 0xa3000000
+def bnpPMinus2LePlaceholder : Nat := 0xa3000000
+
 open EvmAsm.Rv64
 
 /-- Pairing-layer data labels WITHOUT a `.section .data` header (see
@@ -415,51 +425,51 @@ def bnpFp2Inv_prog : Program :=
     .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 24)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 24)),
+    .AUIPC .x10 (laHi bnpT0Placeholder (bnpFp2InvPc + 24)),
+    .ADDI .x10 .x10 (laLo bnpT0Placeholder (bnpFp2InvPc + 24)),
     .MV .x11 .x9,
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 40)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 44)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 44)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (bnpFp2InvPc + 40)),
+    .AUIPC .x10 (laHi bnpT1Placeholder (bnpFp2InvPc + 44)),
+    .ADDI .x10 .x10 (laLo bnpT1Placeholder (bnpFp2InvPc + 44)),
     .ADDI .x11 .x9 (32 : BitVec 12),
     .ADDI .x12 .x9 (32 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 60)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 64)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 64)),
-    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 72)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 72)),
-    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 80)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 80)),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_add (GuestAddrs.bnp_fp2_inv + 88)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 92)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 92)),
-    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 100)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 100)),
-    .AUIPC .x12 (laHi GuestAddrs.bnp_p_minus_2_le (GuestAddrs.bnp_fp2_inv + 108)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_p_minus_2_le (GuestAddrs.bnp_fp2_inv + 108)),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_pow (GuestAddrs.bnp_fp2_inv + 116)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 120)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 120)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (bnpFp2InvPc + 60)),
+    .AUIPC .x10 (laHi bnpT0Placeholder (bnpFp2InvPc + 64)),
+    .ADDI .x10 .x10 (laLo bnpT0Placeholder (bnpFp2InvPc + 64)),
+    .AUIPC .x11 (laHi bnpT0Placeholder (bnpFp2InvPc + 72)),
+    .ADDI .x11 .x11 (laLo bnpT0Placeholder (bnpFp2InvPc + 72)),
+    .AUIPC .x12 (laHi bnpT1Placeholder (bnpFp2InvPc + 80)),
+    .ADDI .x12 .x12 (laLo bnpT1Placeholder (bnpFp2InvPc + 80)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_add (bnpFp2InvPc + 88)),
+    .AUIPC .x10 (laHi bnpT1Placeholder (bnpFp2InvPc + 92)),
+    .ADDI .x10 .x10 (laLo bnpT1Placeholder (bnpFp2InvPc + 92)),
+    .AUIPC .x11 (laHi bnpT0Placeholder (bnpFp2InvPc + 100)),
+    .ADDI .x11 .x11 (laLo bnpT0Placeholder (bnpFp2InvPc + 100)),
+    .AUIPC .x12 (laHi bnpPMinus2LePlaceholder (bnpFp2InvPc + 108)),
+    .ADDI .x12 .x12 (laLo bnpPMinus2LePlaceholder (bnpFp2InvPc + 108)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_pow (bnpFp2InvPc + 116)),
+    .AUIPC .x10 (laHi bnpT2Placeholder (bnpFp2InvPc + 120)),
+    .ADDI .x10 .x10 (laLo bnpT2Placeholder (bnpFp2InvPc + 120)),
     .MV .x11 .x9,
-    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 132)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 132)),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 140)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 144)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 144)),
+    .AUIPC .x12 (laHi bnpT1Placeholder (bnpFp2InvPc + 132)),
+    .ADDI .x12 .x12 (laLo bnpT1Placeholder (bnpFp2InvPc + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (bnpFp2InvPc + 140)),
+    .AUIPC .x10 (laHi bnpT0Placeholder (bnpFp2InvPc + 144)),
+    .ADDI .x10 .x10 (laLo bnpT0Placeholder (bnpFp2InvPc + 144)),
     .ADDI .x11 .x9 (32 : BitVec 12),
-    .AUIPC .x12 (laHi GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 156)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_t1 (GuestAddrs.bnp_fp2_inv + 156)),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 164)),
-    .AUIPC .x10 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 168)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 168)),
-    .AUIPC .x11 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 176)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 176)),
-    .AUIPC .x12 (laHi GuestAddrs.bnp_p_minus_1_le (GuestAddrs.bnp_fp2_inv + 184)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bnp_p_minus_1_le (GuestAddrs.bnp_fp2_inv + 184)),
-    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp2_inv + 192)),
-    .AUIPC .x5 (laHi GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 196)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_t2 (GuestAddrs.bnp_fp2_inv + 196)),
+    .AUIPC .x12 (laHi bnpT1Placeholder (bnpFp2InvPc + 156)),
+    .ADDI .x12 .x12 (laLo bnpT1Placeholder (bnpFp2InvPc + 156)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (bnpFp2InvPc + 164)),
+    .AUIPC .x10 (laHi bnpT0Placeholder (bnpFp2InvPc + 168)),
+    .ADDI .x10 .x10 (laLo bnpT0Placeholder (bnpFp2InvPc + 168)),
+    .AUIPC .x11 (laHi bnpT0Placeholder (bnpFp2InvPc + 176)),
+    .ADDI .x11 .x11 (laLo bnpT0Placeholder (bnpFp2InvPc + 176)),
+    .AUIPC .x12 (laHi bnpPMinus1LePlaceholder (bnpFp2InvPc + 184)),
+    .ADDI .x12 .x12 (laLo bnpPMinus1LePlaceholder (bnpFp2InvPc + 184)),
+    .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (bnpFp2InvPc + 192)),
+    .AUIPC .x5 (laHi bnpT2Placeholder (bnpFp2InvPc + 196)),
+    .ADDI .x5 .x5 (laLo bnpT2Placeholder (bnpFp2InvPc + 196)),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x8 .x6 (0 : BitVec 12),
     .LD .x6 .x5 (8 : BitVec 12),
@@ -468,8 +478,8 @@ def bnpFp2Inv_prog : Program :=
     .SD .x8 .x6 (16 : BitVec 12),
     .LD .x6 .x5 (24 : BitVec 12),
     .SD .x8 .x6 (24 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 236)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_t0 (GuestAddrs.bnp_fp2_inv + 236)),
+    .AUIPC .x5 (laHi bnpT0Placeholder (bnpFp2InvPc + 236)),
+    .ADDI .x5 .x5 (laLo bnpT0Placeholder (bnpFp2InvPc + 236)),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x8 .x6 (32 : BitVec 12),
     .LD .x6 .x5 (8 : BitVec 12),
@@ -526,8 +536,11 @@ theorem bn254Fp2InvFunction_eq_prog :
 
 #guard bn254Fp2InvFunction.startsWith "bnp_fp2_inv:\n"
 #guard bnpFp2Inv_prog.length = 74
+
 /-- The Fp2 layer suite (requires `bn254FieldDataFragment` +
-    `bn254Fp2DataFragment` in the data section). -/
+    `bn254Fp2DataFragment` in the data section). Guest-linked: `bnp_fp2_inv`
+    unlinked (never-ref); KEEP add/sub/mul/copy/zero/eq/is_zero + Fp mul/add/pow
+    LE. Probe keeps `bn254Fp2InvFunction`. -/
 def bn254Fp2CommonFunctions : String :=
   bn254Fp2AddFunction ++ "\n" ++
   bn254Fp2SubFunction ++ "\n" ++
@@ -538,8 +551,7 @@ def bn254Fp2CommonFunctions : String :=
   bn254Fp2IsZeroFunction ++ "\n" ++
   bn254FpMulLeFunction ++ "\n" ++
   bn254FpAddLeFunction ++ "\n" ++
-  bn254FpPowLeFunction ++ "\n" ++
-  bn254Fp2InvFunction
+  bn254FpPowLeFunction
 
 /-- Probe: read two LE Fp2 values a (input+0) and b (input+64) and write
     a+b / a-b / a*b / a^-1 as four 64-byte LE results filling the
@@ -571,6 +583,7 @@ def ziskBn254Fp2OpsProbePrologue : String :=
   "  jal ra, bnp_fp2_inv            # out[192..256] = a^-1\n" ++
   "  j .Lbnp_fp2_probe_done\n" ++
   bn254Fp2CommonFunctions ++ "\n" ++
+  bn254Fp2InvFunction ++ "\n" ++
   ".Lbnp_fp2_probe_done:"
 
 def ziskBn254Fp2OpsProbeUnit : BuildUnit := {

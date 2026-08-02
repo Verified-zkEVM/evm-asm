@@ -510,11 +510,13 @@ theorem bn254Fq12PowFunction_eq_prog :
 
 #guard bn254Fq12PowFunction.startsWith "bnq_pow:\n"
 #guard bnqPow_prog.length = 48
+
 /-- The FQ12 machine suite (requires `bn254FieldDataFragment` +
-    `bn254Fp2DataFragment` + `bn254Fq12DataFragment`). -/
+    `bn254Fp2DataFragment` + `bn254Fq12DataFragment`). Guest-linked: `bnq_add`
+    unlinked (never-ref; mul ends `ret`); KEEP mul/sub/smul/copy/zero/set_one/
+    eq/is_zero/pow. -/
 def bn254Fq12CommonFunctions : String :=
   bn254Fq12MulFunction ++ "\n" ++
-  bn254Fq12AddFunction ++ "\n" ++
   bn254Fq12SubFunction ++ "\n" ++
   bn254Fq12SMulFunction ++ "\n" ++
   bn254Fq12CopyFunction ++ "\n" ++

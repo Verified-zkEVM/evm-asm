@@ -23,6 +23,22 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
 
 namespace EvmAsm.Codegen
 
+/-- Probe-only PC placeholder; unlinked from guest. secf_add_mod_n -/
+def secfAddModNPc : Nat := 0x80000000
+
+/-- Probe-only PC placeholder; unlinked from guest. secf_inv_mod_p -/
+def secfInvModPPc : Nat := 0x80000000
+
+/-- Probe-only PC placeholder; unlinked from guest. secf_sub_mod_p -/
+def secfSubModPPc : Nat := 0x80000000
+
+/-- Probe-only PC placeholder; unlinked from guest. secf_cmp_p -/
+def secfCmpPPc : Nat := 0x80000000
+
+/-- Probe-only data placeholders (unlinked consumers; not in GuestAddrs). -/
+def secfPMinus2BePlaceholder : Nat := 0xa3000000
+def secfNCBePlaceholder : Nat := 0xa3000000
+
 open EvmAsm.Rv64
 
 /-- secp256k1 field prime, p = 2^256 - 0x1000003d1, as a data section fragment. -/
@@ -304,8 +320,8 @@ theorem secp256k1FieldEq32Function_eq_prog :
     returns a0 = 0.
 -/
 def secfCmpP_prog : Program :=
-  [ .AUIPC .x5 (laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secf_cmp_p + 0)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secf_cmp_p + 0)),
+  [ .AUIPC .x5 (laHi GuestAddrs.secp256k1_p_be (secfCmpPPc + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secp256k1_p_be (secfCmpPPc + 0)),
     .LI .x6 (32 : Word),
     .MV .x7 .x10,
     .BEQ .x6 .x0 (48 : BitVec 13),
@@ -488,23 +504,23 @@ def secfSubModP_prog : Program :=
     .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x18 .x12,
-    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (GuestAddrs.secf_sub_mod_p + 40)),
-    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (GuestAddrs.secf_sub_mod_p + 40)),
+    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (secfSubModPPc + 40)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (secfSubModPPc + 40)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x19,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 60)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 60)),
     .MV .x20 .x10,
     .BEQ .x20 .x0 (28 : BitVec 13),
     .MV .x10 .x19,
-    .AUIPC .x11 (laHi GuestAddrs.secp256k1_c_be (GuestAddrs.secf_sub_mod_p + 76)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_c_be (GuestAddrs.secf_sub_mod_p + 76)),
+    .AUIPC .x11 (laHi GuestAddrs.secp256k1_c_be (secfSubModPPc + 76)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secp256k1_c_be (secfSubModPPc + 76)),
     .MV .x12 .x18,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.secf_sub_mod_p + 88)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (secfSubModPPc + 88)),
     .JAL .x0 (16 : BitVec 21),
     .MV .x10 .x19,
     .MV .x11 .x18,
-    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_sub_mod_p + 104)),
+    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (secfSubModPPc + 104)),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -712,20 +728,20 @@ def secfInvModP_prog : Program :=
     .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
-    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secf_inv_mod_p + 24)),
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (secfInvModPPc + 24)),
     .BEQ .x10 .x0 (20 : BitVec 13),
     .MV .x10 .x9,
-    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secf_inv_mod_p + 36)),
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (secfInvModPPc + 36)),
     .LI .x10 (1 : Word),
     .JAL .x0 (40 : BitVec 21),
-    .AUIPC .x10 (laHi GuestAddrs.secp256k1_p_minus_2_be (GuestAddrs.secf_inv_mod_p + 48)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.secp256k1_p_minus_2_be (GuestAddrs.secf_inv_mod_p + 48)),
+    .AUIPC .x10 (laHi secfPMinus2BePlaceholder (secfInvModPPc + 48)),
+    .ADDI .x10 .x10 (laLo secfPMinus2BePlaceholder (secfInvModPPc + 48)),
     .ADDI .x11 .x2 (24 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_inv_mod_p + 60)),
+    .JAL .x1 (jalOff GuestAddrs.secf_copy32 (secfInvModPPc + 60)),
     .MV .x10 .x8,
     .ADDI .x11 .x2 (24 : BitVec 12),
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.secf_pow_mod_p (GuestAddrs.secf_inv_mod_p + 76)),
+    .JAL .x1 (jalOff GuestAddrs.secf_pow_mod_p (secfInvModPPc + 76)),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -956,22 +972,22 @@ def secfAddModN_prog : Program :=
     .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x18 .x12,
-    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (GuestAddrs.secf_add_mod_n + 40)),
-    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (GuestAddrs.secf_add_mod_n + 40)),
+    .AUIPC .x19 (laHi GuestAddrs.secf_tmp0 (secfAddModNPc + 40)),
+    .ADDI .x19 .x19 (laLo GuestAddrs.secf_tmp0 (secfAddModNPc + 40)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x19,
-    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.secf_add_mod_n + 60)),
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (secfAddModNPc + 60)),
     .MV .x20 .x10,
     .BEQ .x20 .x0 (24 : BitVec 13),
     .MV .x10 .x19,
-    .AUIPC .x11 (laHi GuestAddrs.secf_n_c_be (GuestAddrs.secf_add_mod_n + 76)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.secf_n_c_be (GuestAddrs.secf_add_mod_n + 76)),
+    .AUIPC .x11 (laHi secfNCBePlaceholder (secfAddModNPc + 76)),
+    .ADDI .x11 .x11 (laLo secfNCBePlaceholder (secfAddModNPc + 76)),
     .MV .x12 .x19,
-    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.secf_add_mod_n + 88)),
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (secfAddModNPc + 88)),
     .MV .x10 .x19,
     .MV .x11 .x18,
-    .JAL .x1 (jalOff GuestAddrs.secf_reduce_once_n (GuestAddrs.secf_add_mod_n + 100)),
+    .JAL .x1 (jalOff GuestAddrs.secf_reduce_once_n (secfAddModNPc + 100)),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -1218,9 +1234,14 @@ theorem secp256k1ScalarFieldInvFunction_eq_prog :
 
 #guard secp256k1ScalarFieldInvFunction.startsWith "secf_inv_mod_n:\n"
 #guard secfInvModN_prog.length = 26
+
 /-- Field/scalar suite WITHOUT the generic `u256_add_be`/`u256_sub_be`/
     `u256_lt_be` helpers, for closures that already link them (the
-    stateless-guest verdict bundles define their own copies). -/
+    stateless-guest verdict bundles define their own copies).
+    Guest-linked: orphans unlinked (never-ref; probes keep Function strings):
+    `secf_cmp_p`, `secf_sub_mod_p`, `secf_inv_mod_p`, `secf_add_mod_n`.
+    KEEP live: copy/zero/be-le/bit/is_zero/eq32/reduce/add/mul/square/pow/sqrt
+    + scalar reduce/mul/square/pow/inv. -/
 def secp256k1FieldCommonFunctionsNoU256 : String :=
   secp256k1FieldCopy32Function ++ "\n" ++
   secp256k1FieldZero32Function ++ "\n" ++
@@ -1229,17 +1250,13 @@ def secp256k1FieldCommonFunctionsNoU256 : String :=
   secp256k1FieldGetBitFunction ++ "\n" ++
   secp256k1FieldIsZeroFunction ++ "\n" ++
   secp256k1FieldEq32Function ++ "\n" ++
-  secp256k1FieldCmpPFunction ++ "\n" ++
   secp256k1FieldReduceOnceFunction ++ "\n" ++
   secp256k1FieldAddFunction ++ "\n" ++
-  secp256k1FieldSubFunction ++ "\n" ++
   secp256k1FieldMulFunction ++ "\n" ++
   secp256k1FieldSquareFunction ++ "\n" ++
   secp256k1FieldPowFunction ++ "\n" ++
-  secp256k1FieldInvFunction ++ "\n" ++
   secp256k1FieldSqrtFunction ++ "\n" ++
   secp256k1ScalarFieldReduceOnceFunction ++ "\n" ++
-  secp256k1ScalarFieldAddFunction ++ "\n" ++
   secp256k1ScalarFieldMulFunction ++ "\n" ++
   secp256k1ScalarFieldSquareFunction ++ "\n" ++
   secp256k1ScalarFieldPowFunction ++ "\n" ++
@@ -1303,6 +1320,7 @@ def ziskSecp256k1FieldSubPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lsecf_sub_probe_done\n" ++
   secp256k1FieldCommonFunctions ++ "\n" ++
+  secp256k1FieldSubFunction ++ "\n" ++
   ".Lsecf_sub_probe_done:"
 
 
@@ -1344,6 +1362,7 @@ def ziskSecp256k1FieldInvPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lsecf_inv_probe_done\n" ++
   secp256k1FieldCommonFunctions ++ "\n" ++
+  secp256k1FieldInvFunction ++ "\n" ++
   ".Lsecf_inv_probe_done:"
 
 def ziskSecp256k1FieldSqrtPrologue : String :=

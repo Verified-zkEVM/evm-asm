@@ -40,13 +40,14 @@
   `globalConst` prime region untouched.
 
   Byte-transparent: the spec is stated at the `#guard`-tied symbolic
-  `GuestAddrs.secf_cmp_p` over the emitted `secfCmpP_prog` directly — no
+  `secfCmpPPc` over the emitted `secfCmpP_prog` directly — no
   guest-byte change, no A/B run needed.  No hardcoded PC literals (bead
   evm-asm-6agnq): the base and the constant's address are referenced
   through `GuestAddrs`, pinned by the `#guard`s below.
 -/
 
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
+import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Rv64.SAsm.TriCmpStoreJoin
 
 namespace EvmAsm.Codegen
@@ -59,7 +60,7 @@ open U256MinSAsm (beBytesToNat_lt_of_prefix_lt bytes_eq_of_prefix_all)
 open Secp256k1FieldReduceOnceSAsm (secp256k1PBytes)
 
 /-- The routine base, symbolic (bead evm-asm-6agnq). -/
-def cmpPBase : Word := (GuestAddrs.secf_cmp_p : Word)
+def cmpPBase : Word := (secfCmpPPc : Word)
 
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.secp256k1_p_be : Word)
@@ -76,15 +77,15 @@ def pConstAddr : Word := (GuestAddrs.secp256k1_p_be : Word)
 /-- The emitter's reloc immediates ARE the psABI `%pcrel_hi`/`%pcrel_lo`
     of the `la` resolution model at this pc/target (kernel-checked). -/
 theorem cmpP_laHi_agree :
-    Codegen.laHi GuestAddrs.secp256k1_p_be (GuestAddrs.secf_cmp_p + 0)
+    Codegen.laHi GuestAddrs.secp256k1_p_be (secfCmpPPc + 0)
       = EvmAsm.Rv64.laHi cmpPBase pConstAddr := by decide
 
 theorem cmpP_laLo_agree :
-    Codegen.laLo GuestAddrs.secp256k1_p_be (GuestAddrs.secf_cmp_p + 0)
+    Codegen.laLo GuestAddrs.secp256k1_p_be (secfCmpPPc + 0)
       = EvmAsm.Rv64.laLo cmpPBase pConstAddr := by decide
 
 /-
-  Emitted layout relative to `GuestAddrs.secf_cmp_p`:
+  Emitted layout relative to `secfCmpPPc`:
     +0   auipc x5, %pcrel_hi(secp256k1_p_be)
     +4   addi  x5, x5, %pcrel_lo
     +8   li    x6, 32
