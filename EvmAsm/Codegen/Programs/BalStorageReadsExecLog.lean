@@ -30,6 +30,11 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- #11118: unlinked from guest; probe-only PC placeholder (not GuestAddrs). -/
+def balStorageReadsInExecLogPc : Nat := 0x80000000
+def bsrKrevPc : Nat := 0x80001000
+
+
 /-! ## bal_storage_reads_in_exec_log
 
     Calling convention:
@@ -57,27 +62,27 @@ def balStorageReadsInExecLog_prog : Program :=
     .MV .x21 .x15,
     .MV .x10 .x11,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 60)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balStorageReadsInExecLogPc + 60)),
     .BNE .x12 .x0 (336 : BitVec 13),
     .MV .x22 .x11,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 72)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 72)),
     .BNE .x11 .x0 (324 : BitVec 13),
     .MV .x11 .x22,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 84)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 84)),
     .BNE .x11 .x0 (312 : BitVec 13),
     .MV .x11 .x22,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 96)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 96)),
     .BNE .x11 .x0 (300 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_reads_in_exec_log + 112)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balStorageReadsInExecLogPc + 112)),
     .BNE .x12 .x0 (284 : BitVec 13),
     .MV .x19 .x10,
     .MV .x20 .x11,
     .BEQ .x19 .x20 (264 : BitVec 13),
     .MV .x10 .x19,
     .MV .x11 .x20,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_reads_in_exec_log + 140)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balStorageReadsInExecLogPc + 140)),
     .BNE .x11 .x0 (256 : BitVec 13),
     .MV .x19 .x10,
     .SUB .x6 .x10 .x12,
@@ -87,8 +92,8 @@ def balStorageReadsInExecLog_prog : Program :=
     .BEQ .x7 .x0 (12 : BitVec 13),
     .LBU .x5 .x6 (0 : BitVec 12),
     .BEQ .x5 .x0 (224 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 180)),
+    .AUIPC .x5 (laHi bsrKrevPc (balStorageReadsInExecLogPc + 180)),
+    .ADDI .x5 .x5 (laLo bsrKrevPc (balStorageReadsInExecLogPc + 180)),
     .SD .x5 .x0 (0 : BitVec 12),
     .SD .x5 .x0 (8 : BitVec 12),
     .SD .x5 .x0 (16 : BitVec 12),
@@ -108,8 +113,8 @@ def balStorageReadsInExecLog_prog : Program :=
     .BEQ .x7 .x0 (148 : BitVec 13),
     .MUL .x28 .x7 .x21,
     .ADD .x28 .x9 .x28,
-    .AUIPC .x31 (laHi GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264)),
-    .ADDI .x31 .x31 (laLo GuestAddrs.bsr_krev (GuestAddrs.bal_storage_reads_in_exec_log + 264)),
+    .AUIPC .x31 (laHi bsrKrevPc (balStorageReadsInExecLogPc + 264)),
+    .ADDI .x31 .x31 (laLo bsrKrevPc (balStorageReadsInExecLogPc + 264)),
     .SUB .x28 .x28 .x21,
     .LD .x29 .x28 (0 : BitVec 12),
     .LD .x30 .x8 (0 : BitVec 12),
