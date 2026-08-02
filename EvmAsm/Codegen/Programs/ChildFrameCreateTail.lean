@@ -239,6 +239,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
       "  mv x13, s9\n" ++
       "  mv x10, s10\n" ++
       "  mv x12, s11\n") ++
+    -- `generic_create` performs tracked account accesses while checking target
+    -- aliveness/deployability (execution-specs amsterdam/vm/instructions/
+    -- system.py:106-117; state_tracker.py:199).  Keep one set-like read record
+    -- for both CREATE and CREATE2 before the guest's collision and deployability
+    -- checks; `account_read_record` preserves the live x-regs.
+    "  la a0, create_address_be; jal ra, account_read_record\n" ++
     -- If an account-witness context is attached, apply the EIP-684
     -- code-or-nonce collision check to the derived target address.  The
     -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
