@@ -212,7 +212,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- bodies that block_verdict now reaches inside the embedded guest closure. The
     -- standalone debug ELF does not include statelessGuestUnit.epilogueAsm, so these
     -- symbols must be emitted here as well.
-    deriveBlockSystemRequestsFunction ++ "\n" ++
+    -- `derive_block_system_requests` probe-only (#11156); dbsr_* data stays below.
     deriveWithdrawalRequestsFunction ++ "\n" ++
     deriveConsolidationRequestsFunction ++ "\n" ++
     deriveBuilderDepositRequestsFunction ++ "\n" ++
