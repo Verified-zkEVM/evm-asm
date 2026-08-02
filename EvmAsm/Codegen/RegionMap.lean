@@ -14,7 +14,6 @@
     successive anchors. Here every anchor gets an explicit extent (the gap to the
     next anchor) and a per-region evidence note.
   * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
-    dedicated bounded `.committed_storage` NOBITS map at `0xa2000000`, the
     zero-initialized `.bss` at `0xa4000000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
     (`--section-start=.sszscratch=0xbf980000`). Sizes here are the ELF ground
@@ -488,12 +487,6 @@ def dataSizeBytes : Nat := 0x5370
     removal absorbs in the same direction (#10986, #10988). -/
 def bssSizeBytes : Nat := 0x1c101b60
 
-/-- ELF-measured fixed NOBITS capacity for the cross-transaction committed
-    storage map. It is kept outside `.data` so zero initialization does not
-    materialize a multi-megabyte payload, and outside `.bss` so the existing
-    frame/SSZ layout remains stable. -/
-def committedStorageSizeBytes : Nat := 0xcd9800
-
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
   { name := "INPUT", base := 0x40000000, size := 0x2000, mode := .ro, zone := .input,
@@ -522,13 +515,6 @@ def textRegion : GuestRegion :=
 def dataRegion : GuestRegion :=
   { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
     evidence := "ELF -Tdata=0xa3000000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
-
-/-- Fixed-size cross-transaction committed-storage map
-    (`--section-start=.committed_storage=0xa2000000`). -/
-def committedStorageRegion : GuestRegion :=
-  { name := ".committed_storage", base := 0xa2000000,
-    size := committedStorageSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.committed_storage=0xa2000000; fixed gas-bounded NOBITS map" }
 
 /-- `.bss` zero-initialized arena (`--section-start=.bss=0xa3110000`). The
     base moved down from `0xa4000000` into the `.data` slack (`.data` uses
@@ -600,7 +586,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     this list because they collide with `guest_stack` in the current build. -/
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
-    stateTrackerLiveRegion, textRegion, committedStorageRegion, dataRegion,
+    stateTrackerLiveRegion, textRegion, dataRegion,
     bssRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
@@ -896,7 +882,6 @@ def stableGuestBases : List (String × Nat) :=
     ("zisk_system",       ziskSystemRegion.base),
     ("guest_stack_top",   guestStackTop),
     (".text",             textRegion.base),
-    (".committed_storage", committedStorageRegion.base),
     (".data",             dataRegion.base),
     (".bss",              bssRegion.base),
     (".sszscratch",       sszScratchRegion.base) ]
@@ -908,6 +893,6 @@ def stableGuestBases : List (String × Nat) :=
 --            Lost in a merge resolution of #10679 and restored here; the
 --            constants and the guest's use of the addresses were never removed,
 --            so three in-use regions had no disjointness or fit proof.
-theorem stableGuestBases_length : stableGuestBases.length = 32 := by decide
+theorem stableGuestBases_length : stableGuestBases.length = 31 := by decide
 
 end EvmAsm.Codegen.RegionMap
