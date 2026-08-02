@@ -482,6 +482,11 @@ def ziskStatelessVerdictV2Prologue : String :=
   addressComputeCreate2Function ++ "\n" ++
   enrgU32leFunction ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
+  -- #11163: one emitted selector/pricing kernel is shared by the root
+  -- transaction adapter and all CALL-family precompile tails.  The helper is
+  -- appended after the returning stateless entry, so it is a callable label
+  -- and cannot alter the entry's fall-through control flow.
+  precompileSharedSelectPriceFunction ++ "\n" ++
   ".Lv2_pdone:"
 
 end EvmAsm.Codegen
