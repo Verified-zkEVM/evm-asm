@@ -19,8 +19,7 @@ import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
-import EvmAsm.Codegen.Programs.BalAllAccountsCodeCovers
-import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
+-- #11118: BalAllAccountsCodeCovers / BalStorageReadsExecLog data unlinked with dead 43/38.
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
@@ -528,10 +527,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   balStorageCoversExecLogData ++
   -- bmvmx.1.6.4.3 all-accounts storage check scratch (bal_all_accounts_storage_consistent, c2bal_*).
   balAllAccountsStorageConsistentData ++
-  -- i3djw all-accounts CODE reverse scratch (bal_all_accounts_code_covers, bacov_*).
-  balAllAccountsCodeCoversData ++
-  -- bmvmx.1.6.7 storage_reads exec-consistency scratch.
-  balStorageReadsInExecLogData ++
+  -- #11118: bacov_*/bsr_krev guest data removed with dead code_covers (43) and reads (38).
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
   "bv_rcf_len:\n  .zero 8\n" ++
@@ -877,6 +873,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- GH #10944: the top-level CREATE endowment in canonical 32-byte BE, copied from the
   -- context record so the shared `record_message_value_transfer` can take a pointer to it.
   "bvcr_endow_val_be:\n  .zero 32\n" ++
+  -- GH #11164: the AUTHENTICATED pre-state balance of the top-level created account, in
+  -- canonical 32-byte BE.  Captured from `create_prebalance_acct+8` BEFORE
+  -- `runtime_dispatcher_call`, because that buffer is rewritten by
+  -- `call_frame_descend`/`create_frame_descend` and so cannot survive the constructor.
+  "bvcr_created_pre_bal:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
   -- Output routing for the generalized top-level creation runner.  Mode 0 is

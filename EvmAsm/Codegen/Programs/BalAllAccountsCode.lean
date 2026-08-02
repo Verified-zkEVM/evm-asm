@@ -57,6 +57,11 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- #11118: unlinked from guest; probe-only PC placeholder.
+    `balAccountCodeConsistentPc` lives in BalAccountCodeConsistent.lean. -/
+def balAllAccountsCodeConsistentPc : Nat := 0x80000000
+
+
 /-! ## bal_all_accounts_code_consistent
     a0 = BAL section RLP ptr (list of AccountChanges)   a1 = BAL section RLP length
     a2 = exec code-effect array base (variable-stride; layout above)   a3 = record count
@@ -79,23 +84,23 @@ def balAllAccountsCodeConsistent_prog : Program :=
     .MV .x19 .x13,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_consistent + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balAllAccountsCodeConsistentPc + 68)),
     .BNE .x12 .x0 (200 : BitVec 13),
     .MV .x20 .x10,
     .MV .x21 .x11,
     .BEQ .x20 .x21 (180 : BitVec 13),
     .MV .x10 .x20,
     .MV .x11 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_consistent + 96)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balAllAccountsCodeConsistentPc + 96)),
     .BNE .x11 .x0 (172 : BitVec 13),
     .MV .x20 .x10,
     .SUB .x22 .x10 .x12,
     .MV .x23 .x12,
     .MV .x10 .x22,
     .MV .x11 .x23,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_all_accounts_code_consistent + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balAllAccountsCodeConsistentPc + 124)),
     .BNE .x12 .x0 (144 : BitVec 13),
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_all_accounts_code_consistent + 132)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balAllAccountsCodeConsistentPc + 132)),
     .BNE .x11 .x0 (136 : BitVec 13),
     .LI .x7 (20 : Word),
     .BNE .x12 .x7 (116 : BitVec 13),
@@ -123,7 +128,7 @@ def balAllAccountsCodeConsistent_prog : Program :=
     .MV .x10 .x22,
     .MV .x11 .x23,
     .ADDI .x12 .x5 (32 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bal_account_code_consistent (GuestAddrs.bal_all_accounts_code_consistent + 244)),
+    .JAL .x1 (jalOff balAccountCodeConsistentPc (balAllAccountsCodeConsistentPc + 244)),
     .BNE .x10 .x0 (24 : BitVec 13),
     .JAL .x0 (8 : BitVec 21),
     .JAL .x0 (4 : BitVec 21),
