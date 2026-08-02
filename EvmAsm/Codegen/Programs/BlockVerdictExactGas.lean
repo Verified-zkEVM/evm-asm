@@ -22,6 +22,31 @@ def blockVerdictExactGasCheck : String :=
   -- floor bind the block-regular dimension too (state gas subtracted
   -- FIRST, so the floor is not discounted by state spending); it was
   -- receipt-only at v0.5.0.
+  --
+  -- ⚠️ `header.gas_used` IS A **MAX** OVER TWO INDEPENDENT DIMENSIONS, NOT A SUM,
+  -- AND NOT THE RECEIPT'S `cumulative_gas_used`. This contradicts pre-8037
+  -- intuition and it has already misled two readers, so it is stated here rather
+  -- than left to be re-derived. At `execution-specs` @ `e5a8caf1b`:
+  --
+  --   fork.py:1181   block_output.block_gas_used       += tx_regular_gas
+  --   fork.py:1182   block_output.block_state_gas_used += max(0, tx_state_gas)
+  --   fork.py:1185   block_output.cumulative_gas_used  += tx_gas_used   -- RECEIPT
+  --   fork.py:370-375
+  --       block_gas_used = max(block_output.block_gas_used,
+  --                            block_output.block_state_gas_used)
+  --       if block_gas_used != block.header.gas_used: raise InvalidBlock
+  --
+  -- ⇒ THREE accumulators, not one. The header is validated against the **max** of
+  -- the regular and state dimensions; the receipt carries the **full** per-tx
+  -- `tx_gas_used` (regular + state). So on a SINGLE-TRANSACTION block the receipt
+  -- cumulative can legitimately EXCEED `header.gas_used` — e.g. `scenarios`
+  -- `program_GASPRICE-debug __b18`: header 97920, state total 97920, regular
+  -- 83799, receipt cumulative 181719. All four are CORRECT and consistent.
+  --
+  -- Do not "fix" a receipt cumulative that differs from `header.gas_used`; a
+  -- defect was nearly filed on exactly that reading. The loop below plus
+  -- `eip8037_block_gas_used` implement the max, which is why that row's
+  -- `bv_exact_block_status` is 0 while its receipts root still mismatches.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
