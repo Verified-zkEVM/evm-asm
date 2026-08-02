@@ -88,11 +88,11 @@
   **Forcing constraint:** no dynamic allocation, so the spec's per-frame copy of
   a keyed map would cost capacity × call depth (16384 × 1024), four orders of
   magnitude beyond what can be reserved. The journal is bounded by the number of
-  writes instead. The journal's live-row map cap is 16384, but that is not a
-  bound on pushes: a slot can be written, reverted, and rewritten while the
-  live map count stays flat. A valid quadratic-complexity fixture reached the
-  32768-entry journal cap, so the push itself must fail closed rather than
-  silently skip the rollback record.
+  rollback-relevant writes instead: value-unchanged hits do not need an undo
+  record because restoring their prior value is an identity. The journal's
+  live-row map cap is 16384, but changed writes can still be repeated while the
+  live map count stays flat. The 32768-entry cap therefore remains a fail-closed
+  safety bound for records that are actually pushed.
 
   This is the *reasoned-to-be-the-same* form rather than the *looking-the-same*
   form, which is why the constraint is named rather than assumed.
@@ -107,9 +107,11 @@ namespace EvmAsm.Codegen
     cannot overflow before its read counterpart does. -/
 def storageWritesCapacity : Nat := 16384
 
-/-- Undo journal capacity. SSTORE caps writes at `storageWritesCapacity` (W);
-    each write pushes one undo. `destroy_storage` pushes a second undo per
-    converted row (D ≤ W), so the shared journal needs W + D ≤ 2W records.
+/-- Undo journal capacity. SSTORE caps live map rows at `storageWritesCapacity`
+    (W); changed hits and appends push one undo, while value-unchanged hits are
+    identity updates and push none. `destroy_storage` pushes a second undo per
+    converted row (D ≤ W), so the shared journal's conservative bound remains
+    W + D ≤ 2W records.
     See `STORAGE_WRITES_UNDO_AREA` sizing note. -/
 def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
 
@@ -205,7 +207,17 @@ def storageWriteRecordFunction : String :=
   "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lswr_next\n" ++
   "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lswr_next\n" ++
-  -- Key hit.  Journal the SUPERSEDED value before overwriting it (r59nm S5a):
+  -- A value-unchanged hit needs no undo record: restoring the superseded value
+  -- would write the identical bytes back. The transaction map update still
+  -- runs through `.Lswr_store`, preserving `set_storage`'s idempotent write.
+  "  ld t2, 64(t5); ld t6, 0(a2); bne t2, t6, .Lswr_journal_hit\n" ++
+  "  ld t2, 72(t5); ld t6, 8(a2); bne t2, t6, .Lswr_journal_hit\n" ++
+  "  ld t2, 80(t5); ld t6, 16(a2); bne t2, t6, .Lswr_journal_hit\n" ++
+  "  ld t2, 88(t5); ld t6, 24(a2); bne t2, t6, .Lswr_journal_hit\n" ++
+  "  j .Lswr_store\n" ++
+  ".Lswr_journal_hit:\n" ++
+  -- Key hit with a changed value. Journal the SUPERSEDED value before
+  -- overwriting it (r59nm S5a):
   -- undo{entryIndex = t4, wasAbsent = 0, prevValue = entry[64..96]}.
   "  mv a3, t4; li a4, 0; addi a5, t5, 64\n" ++
   "  jal ra, storage_writes_undo_push\n" ++
@@ -339,6 +351,11 @@ def writeSetsIncorporateTxFunction : String :=
 #guard (storageWriteRecordFunction.splitOn "sd a6, 88(sp)").length == 2
 #guard (storageWriteRecordFunction.splitOn "ld a6, 88(sp)").length == 2
 
+-- A value-unchanged hit must bypass the undo push but still join the shared
+-- store tail; changed hits retain the journal path.
+#guard (storageWriteRecordFunction.splitOn ".Lswr_journal_hit:").length == 2
+#guard (storageWriteRecordFunction.splitOn "j .Lswr_store").length == 3
+
 /-! ## `storage_writes_block_upsert`
 
     The block-level half of the merge, factored out so the promotion boundary
@@ -404,9 +421,9 @@ def storageWritesBlockUpsertFunction : String :=
 
 /-! ## `storage_writes_undo_push`
 
-    Append one undo record. Called by `storage_write_record` BEFORE it mutates,
-    which is what makes the journal a faithful stand-in for `take_snapshot`'s
-    dict copy (`state_tracker.py:800-806`).
+    Append one undo record. Called by `storage_write_record` BEFORE a changed
+    hit or append mutates, which is what makes the journal a faithful stand-in
+    for `take_snapshot`'s dict copy (`state_tracker.py:800-806`).
 
       a3 = entryIndex
       a4 = wasAbsent (0 = overwrite, 1 = append, 2 = destroy_storage drop)
