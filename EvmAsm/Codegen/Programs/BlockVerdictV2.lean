@@ -181,7 +181,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   -- #11178: exec_log_latest_value unlinked (probe-only; 0 guest refs)
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
-  balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
+  balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: KEEP — embeds live skip_list body
   -- #11118: bal_storage_reads_in_exec_log / code_covers / code_consistent unlinked (dead labels 38/43/46).
   -- bal_storage_matches_exec_log + covers KEEP — live callees of allaccounts 37.
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
@@ -422,8 +422,6 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountApplyPostFieldsFunction ++ "\n" ++
   balAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
-  balAccountAccessOutcomeDescriptorsFunction ++ "\n" ++
-  balStorageAccessOutcomeDescriptorsFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++
   bsrSysChangeFunction ++ "\n" ++
@@ -543,7 +541,7 @@ def statelessVerdictV2GuestClosure : String :=
   storageWritesBlockLatestValueFunction ++ "\n" ++
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
-  balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: per-slot tuple-sequence all-accounts
+  balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: KEEP — embeds live skip_list body
   -- #11118: dead BAL labels 38/43/46 unlinked (reads/code_covers/code_consistent). matches+covers stay (37).
   -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
@@ -657,7 +655,6 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthorizationSigningHashFunction ++ "\n" ++
   eip7702AuthorizationRecoverAddressFunction ++ "\n" ++
   eip7702WarmRecoveredAuthoritiesFunction ++ "\n" ++
-  balAccountNonceBeforeIndexFunction ++ "\n" ++
   eip7702AuthorityAsOfFunction ++ "\n" ++
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
