@@ -354,16 +354,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- authenticated public_keys[i]+1 pointer before the nonce helper clobbers a0.
   "  la t0, bv_mtx_ctx; sd a0, 24(t0)\n" ++
   "  la a1, bv_mtx_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_mtx_sender_acct; jal ra, account_state_latest_nonce\n" ++
-  "  bnez a0, .Lbv_mtx_sender_nonce_current\n" ++
-  ".Lbv_mtx_sender_header:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_sender_addr; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bv_mtx_sender_acct\n" ++
-  "  jal ra, account_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_nonce_done\n" ++                         -- sender lookup failed/absent -> skip
-  "  la t0, bv_mtx_sender_acct; ld t0, 0(t0); j .Lbv_mtx_sender_nonce_have\n" ++
-  ".Lbv_mtx_sender_nonce_current:\n" ++
+  -- Resolve the sender's pre-transaction account with the same precedence as
+  -- execution-specs `_get_pre_tx_account`: block-cumulative account writes,
+  -- then the authenticated parent-state account.  In particular, an account
+  -- created and funded by an earlier transaction has a valid balance-only
+  -- block row and an absent parent account; `account_resolve_pre_state`
+  -- returns that row's balance and the absent account's nonce zero.  The old
+  -- latest-nonce/header pair treated the missing nonce bit as a total lookup
+  -- failure and skipped the gas/blob debit before this transaction's stage.
+  -- (block_access_lists.py:583-600, fork.py:656-667.)
+  "  la a0, bv_mtx_sender_addr; la a1, bv_mtx_sender_acct; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); jal ra, account_resolve_pre_state\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++
-  ".Lbv_mtx_sender_nonce_have:\n" ++
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
