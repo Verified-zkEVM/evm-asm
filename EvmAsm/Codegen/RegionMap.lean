@@ -535,7 +535,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x628c8
+def textSizeBytes : Nat := 0x62280
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, `0x195726d0`). Link-layout-dependent. Shrank by `0x40` (64 B)
@@ -572,8 +572,10 @@ def dataSizeBytes : Nat := 0x5370
     `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
-    removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1ac6c900
+    removal absorbs in the same direction (#10986, #10988). Grew by `0x20` for
+    #11163's four-word shared precompile selector/pricing descriptor, appended
+    after the established BSS arenas so their addresses remain unchanged. -/
+def bssSizeBytes : Nat := 0x1ac6c920
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=

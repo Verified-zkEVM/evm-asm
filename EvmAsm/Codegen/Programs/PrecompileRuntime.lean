@@ -623,6 +623,143 @@ def bls12MsmCostAsm (failureLabel : String)
   "  li x23, 1000\n" ++
   "  divu x16, x16, x23\n"
 
+def precompileSharedLoadCostAsm (costReg : String) : String :=
+  "  la t0, precompile_shared_cost\n  ld " ++ costReg ++ ", 0(t0)\n"
+
+def precompileSharedStatusFailAsm (failLabel : String) : String :=
+  "  la t0, precompile_shared_status\n  ld t0, 0(t0)\n  bnez t0, " ++ failLabel ++ "\n"
+
+private def precompileSharedWordCostKernelAsm (baseGas perWordGas : Nat) : String :=
+  "  la t0, precompile_shared_ctx\n  ld t5, 16(t0)\n" ++
+  "  li t4, 31\n  add t6, t5, t4\n  bltu t6, t5, .Lprecompile_shared_shape_fail\n" ++
+  "  srli t6, t6, 5\n  li t4, " ++ toString perWordGas ++ "\n" ++
+  "  mulhu t5, t6, t4\n  bnez t5, .Lprecompile_shared_shape_fail\n" ++
+  "  mul t5, t6, t4\n  li t4, " ++ toString baseGas ++ "\n  add t5, t5, t4\n" ++
+  "  bltu t5, t4, .Lprecompile_shared_shape_fail\n  j .Lprecompile_shared_store_cost\n"
+
+private def precompileSharedPerUnitCostKernelAsm
+    (unit baseGas perUnitGas : Nat) : String :=
+  "  la t0, precompile_shared_ctx\n  ld t5, 16(t0)\n" ++
+  "  li t4, " ++ toString unit ++ "\n  divu t6, t5, t4\n" ++
+  "  li t4, " ++ toString perUnitGas ++ "\n  mulhu t5, t6, t4\n  bnez t5, .Lprecompile_shared_shape_fail\n" ++
+  "  mul t5, t6, t4\n  li t4, " ++ toString baseGas ++ "\n  add t5, t5, t4\n" ++
+  "  bltu t5, t4, .Lprecompile_shared_shape_fail\n" ++
+  "  j .Lprecompile_shared_store_cost\n"
+
+private def precompileSharedMsmCostKernelAsm
+    (pairBytes basePerPair maxDiscount : Nat) (tableLabel : String) : String :=
+  "  la t0, precompile_shared_ctx\n  ld t5, 16(t0)\n  beqz t5, .Lprecompile_shared_shape_fail\n" ++
+  "  li t4, " ++ toString pairBytes ++ "\n  remu t3, t5, t4\n  bnez t3, .Lprecompile_shared_shape_fail\n" ++
+  "  divu t6, t5, t4\n  li t4, " ++ toString basePerPair ++ "\n  mulhu t3, t6, t4\n  bnez t3, .Lprecompile_shared_shape_fail\n  mul t5, t6, t4\n" ++
+  "  li t4, 128\n  bltu t4, t6, .Lprecompile_shared_msm_max_" ++ toString pairBytes ++ "\n" ++
+  "  addi t3, t6, -1\n  slli t3, t3, 3\n  la t4, " ++ tableLabel ++ "\n  add t3, t4, t3\n  ld t3, 0(t3)\n  j .Lprecompile_shared_msm_discount_" ++ toString pairBytes ++ "\n" ++
+  " .Lprecompile_shared_msm_max_" ++ toString pairBytes ++ ":\n  li t3, " ++ toString maxDiscount ++ "\n" ++
+  " .Lprecompile_shared_msm_discount_" ++ toString pairBytes ++ ":\n" ++
+  "  mulhu t4, t5, t3\n  bnez t4, .Lprecompile_shared_shape_fail\n  mul t5, t5, t3\n  li t4, 1000\n  divu t5, t5, t4\n  j .Lprecompile_shared_store_cost\n"
+
+private def precompileSharedModexpReadLengthAsm (fieldOff : Nat) (dstReg : String) : String :=
+  "  li " ++ dstReg ++ ", 0\n  li t2, 0\n" ++
+  " .Lprecompile_shared_modexp_len_" ++ toString fieldOff ++ ":\n" ++
+  "  li t6, 32\n  beq t2, t6, .Lprecompile_shared_modexp_len_done_" ++ toString fieldOff ++ "\n" ++
+  "  addi t6, t2, " ++ toString fieldOff ++ "\n  bgeu t6, a1, .Lprecompile_shared_modexp_len_missing_" ++ toString fieldOff ++ "\n" ++
+  "  add t6, t0, t6\n  lbu t6, 0(t6)\n  j .Lprecompile_shared_modexp_len_have_" ++ toString fieldOff ++ "\n" ++
+  " .Lprecompile_shared_modexp_len_missing_" ++ toString fieldOff ++ ":\n  li t6, 0\n" ++
+  " .Lprecompile_shared_modexp_len_have_" ++ toString fieldOff ++ ":\n" ++
+  "  li a0, 30\n  bltu t2, a0, .Lprecompile_shared_modexp_len_high_" ++ toString fieldOff ++ "\n" ++
+  "  slli " ++ dstReg ++ ", " ++ dstReg ++ ", 8\n  or " ++ dstReg ++ ", " ++ dstReg ++ ", t6\n  j .Lprecompile_shared_modexp_len_next_" ++ toString fieldOff ++ "\n" ++
+  " .Lprecompile_shared_modexp_len_high_" ++ toString fieldOff ++ ":\n" ++
+  "  bnez t6, .Lprecompile_shared_shape_fail\n" ++
+  " .Lprecompile_shared_modexp_len_next_" ++ toString fieldOff ++ ":\n  addi t2, t2, 1\n  j .Lprecompile_shared_modexp_len_" ++ toString fieldOff ++ "\n" ++
+  " .Lprecompile_shared_modexp_len_done_" ++ toString fieldOff ++ ":\n" ++
+  "  li t6, 1024\n  bltu t6, " ++ dstReg ++ ", .Lprecompile_shared_shape_fail\n"
+
+private def precompileSharedModexpCostAsm : String :=
+  "  la t0, precompile_shared_ctx\n  ld t1, 8(t0)\n  ld a1, 16(t0)\n  mv t0, t1\n" ++
+  precompileSharedModexpReadLengthAsm 0 "t3" ++
+  precompileSharedModexpReadLengthAsm 32 "t4" ++
+  precompileSharedModexpReadLengthAsm 64 "t5" ++
+  -- Preserve baseLen before t3 becomes the max-length/bit-length scratch;
+  -- exponent bytes begin after the base payload.
+  "  mv a2, t3\n  mv t6, t3\n  bgeu t6, t5, .Lprecompile_shared_modexp_max_done\n  mv t6, t5\n" ++
+  " .Lprecompile_shared_modexp_max_done:\n" ++
+  "  mv t3, t6\n  li t6, 16\n  li a0, 32\n  bgeu a0, t3, .Lprecompile_shared_modexp_complex_done\n" ++
+  "  addi t3, t3, 7\n  srli t3, t3, 3\n  mul t6, t3, t3\n  slli t6, t6, 1\n" ++
+  " .Lprecompile_shared_modexp_complex_done:\n" ++
+  "  mv t5, t4\n  li a0, 32\n  bgeu a0, t5, .Lprecompile_shared_modexp_head_len_done\n  mv t5, a0\n" ++
+  " .Lprecompile_shared_modexp_head_len_done:\n  li t2, 0\n  li t3, 0\n" ++
+  " .Lprecompile_shared_modexp_head_loop:\n  beq t2, t5, .Lprecompile_shared_modexp_head_done\n" ++
+  "  addi a0, t2, 96\n  add a0, a0, a2\n  bgeu a0, a1, .Lprecompile_shared_modexp_head_missing\n  add a0, t0, a0\n  lbu a0, 0(a0)\n  j .Lprecompile_shared_modexp_head_have\n" ++
+  " .Lprecompile_shared_modexp_head_missing:\n  li a0, 0\n" ++
+  " .Lprecompile_shared_modexp_head_have:\n  bnez a0, .Lprecompile_shared_modexp_head_nonzero\n  addi t2, t2, 1\n  j .Lprecompile_shared_modexp_head_loop\n" ++
+  " .Lprecompile_shared_modexp_head_nonzero:\n  sub t3, t5, t2\n  addi t3, t3, -1\n  slli t3, t3, 3\n" ++
+  " .Lprecompile_shared_modexp_head_log:\n  li a1, 2\n  bltu a0, a1, .Lprecompile_shared_modexp_head_done\n  srli a0, a0, 1\n  addi t3, t3, 1\n  j .Lprecompile_shared_modexp_head_log\n" ++
+  " .Lprecompile_shared_modexp_head_done:\n  li a0, 32\n  bgeu a0, t4, .Lprecompile_shared_modexp_iterations_min\n  addi t5, t4, -32\n  slli t5, t5, 4\n  add t5, t5, t3\n  j .Lprecompile_shared_modexp_iterations_done\n" ++
+  " .Lprecompile_shared_modexp_iterations_min:\n  mv t5, t3\n" ++
+  " .Lprecompile_shared_modexp_iterations_done:\n  bnez t5, .Lprecompile_shared_modexp_cost_mul\n  li t5, 1\n" ++
+  " .Lprecompile_shared_modexp_cost_mul:\n  mul t6, t6, t5\n  li a0, 500\n  bgeu t6, a0, .Lprecompile_shared_modexp_cost_done\n  mv t6, a0\n  .Lprecompile_shared_modexp_cost_done:\n  mv t5, t6\n  j .Lprecompile_shared_store_cost\n"
+
+def precompileSharedSelectPriceFunction : String :=
+  "precompile_shared_select_price:\n" ++
+  "  la t0, precompile_shared_selector\n  sd zero, 0(t0)\n" ++
+  "  la t0, precompile_shared_cost\n  sd zero, 0(t0)\n" ++
+  "  la t0, precompile_shared_status\n  sd zero, 0(t0)\n" ++
+  "  la t0, precompile_shared_ctx\n  ld t1, 0(t0)\n" ++
+  precompileAddressClassifyAsm "shared" "t1" "t2" "t3" "t4" ++
+  "  la t0, precompile_shared_selector\n  sd t2, 0(t0)\n" ++
+  precompileSelectorBranchesAsm "t2" "t3" true
+    [ ("1", ".Lprecompile_shared_fixed_3000")
+    , ("2", ".Lprecompile_shared_word_60_12")
+    , ("3", ".Lprecompile_shared_word_600_120")
+    , ("4", ".Lprecompile_shared_word_15_3")
+    , ("5", ".Lprecompile_shared_modexp")
+    , ("6", ".Lprecompile_shared_fixed_150")
+    , ("7", ".Lprecompile_shared_fixed_6000")
+    , ("8", ".Lprecompile_shared_pair_192")
+    , ("9", ".Lprecompile_shared_blake")
+    , ("10", ".Lprecompile_shared_fixed_50000")
+    , ("11", ".Lprecompile_shared_fixed_375")
+    , ("12", ".Lprecompile_shared_msm_g1")
+    , ("13", ".Lprecompile_shared_fixed_600")
+    , ("14", ".Lprecompile_shared_msm_g2")
+    , ("15", ".Lprecompile_shared_pair_384")
+    , ("16", ".Lprecompile_shared_fixed_5500")
+    , ("17", ".Lprecompile_shared_fixed_23800")
+    , ("256", ".Lprecompile_shared_fixed_6900") ] ++
+  "  j .Lprecompile_shared_return\n" ++
+  " .Lprecompile_shared_fixed_3000:\n  li t5, 3000\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_150:\n  li t5, 150\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_6000:\n  li t5, 6000\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_50000:\n  li t5, 50000\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_375:\n  li t5, 375\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_600:\n  li t5, 600\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_5500:\n  li t5, 5500\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_23800:\n  li t5, 23800\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_fixed_6900:\n  li t5, 6900\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_word_60_12:\n" ++
+  precompileSharedWordCostKernelAsm 60 12 ++
+  " .Lprecompile_shared_word_600_120:\n" ++
+  precompileSharedWordCostKernelAsm 600 120 ++
+  " .Lprecompile_shared_word_15_3:\n" ++
+  precompileSharedWordCostKernelAsm 15 3 ++
+  " .Lprecompile_shared_pair_192:\n" ++
+  precompileSharedPerUnitCostKernelAsm 192 45000 34000 ++
+  " .Lprecompile_shared_pair_384:\n" ++
+  precompileSharedPerUnitCostKernelAsm 384 37700 32600 ++
+  " .Lprecompile_shared_blake:\n" ++
+  "  la t0, precompile_shared_ctx\n  ld t5, 16(t0)\n  li t4, 213\n  bne t5, t4, .Lprecompile_shared_shape_fail\n" ++
+  "  ld t0, 8(t0)\n  lbu t5, 0(t0)\n  slli t5, t5, 24\n  lbu t4, 1(t0)\n  slli t4, t4, 16\n  or t5, t5, t4\n  lbu t4, 2(t0)\n  slli t4, t4, 8\n  or t5, t5, t4\n  lbu t4, 3(t0)\n  or t5, t5, t4\n  j .Lprecompile_shared_store_cost\n" ++
+  " .Lprecompile_shared_modexp:\n" ++
+  precompileSharedModexpCostAsm ++
+  " .Lprecompile_shared_msm_g1:\n" ++
+  precompileSharedMsmCostKernelAsm 160 12000 519 "bls12_g1_msm_discount_table" ++
+  " .Lprecompile_shared_msm_g2:\n" ++
+  precompileSharedMsmCostKernelAsm 288 22500 524 "bls12_g2_msm_discount_table" ++
+  " .Lprecompile_shared_store_cost:\n" ++
+  "  la t0, precompile_shared_cost\n  sd t5, 0(t0)\n  j .Lprecompile_shared_return\n" ++
+  " .Lprecompile_shared_shape_fail:\n" ++
+  "  la t0, precompile_shared_status\n  li t5, 1\n  sd t5, 0(t0)\n" ++
+  " .Lprecompile_shared_return:\n  jalr x0, x1, 0\n"
+
 def chargeBls12G1MsmGasAsm
     (inputLenReg pairCountReg costReg discountReg scratchReg : String) : String :=
   "  li " ++ scratchReg ++ ", 160\n" ++
