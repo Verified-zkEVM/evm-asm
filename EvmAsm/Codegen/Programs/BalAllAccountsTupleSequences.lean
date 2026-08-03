@@ -96,7 +96,7 @@ def balAllAccountsTupleSequencesConsistentFunction : String :=
   "  mv a0, s11                              # addr ptr (20B BE)\n" ++
   "  la a1, batsc_key\n" ++
   "  jal ra, bal_addr_to_exec_log_key           # batsc_key = addr byte-reversed (LE callee key)\n" ++
-  "  mv a0, s8; mv a1, s9; la a2, batsc_key; mv a3, s2; mv a4, s3; mv a5, s4\n" ++
+  "  mv a0, s8; mv a1, s9; la a2, batsc_key; mv a3, s2; mv a4, s3; mv a5, s4; mv a6, s11\n" ++
   "  jal ra, account_tuple_sequences_consistent\n" ++
   "  bnez a0, .Lbatsc_fail\n" ++
   ".Lbatsc_next:\n" ++

@@ -225,11 +225,14 @@ def blockVerdictMtxValidationTail : String :=
   -- coinbase is left to the gas/value path, while non-recipient nested-callee storage remains
   -- checked against the persistent execution storage log. Tuple-sequence wiring stays out of
   -- this slice so regressions are attributable to storage only.
+  -- Transitional comparison mode: enable the map stream before either production consumer
+  -- runs so the tuple validator can execute both the retained append-log stream and the map
+  -- stream on the same slot. This flag is removed with the legacy stream after equivalence is
+  -- measured; it is not a durable runtime/configuration switch.
+  "  li t0, 1; la t1, bsr_storage_from_map; sd t0, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  li a2, 0xa0630000\n" ++
-  "  la t0, evm_env; ld a3, 448(t0)\n" ++
-  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
-  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
+  "  la a2, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a3, 0(t0)\n" ++
+  "  jal ra, bal_all_accounts_storage_consistent_map\n" ++
   "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
   -- bmvmx.5.5.1.2.1.3: tuple-sequence consistency over every non-skip BAL account
   -- in the multi-tx path. This mirrors the single-tx call while using the A1 skip-list.

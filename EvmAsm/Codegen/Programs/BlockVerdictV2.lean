@@ -39,6 +39,7 @@ import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
 import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
 import EvmAsm.Codegen.Programs.BalAllAccountsStorage
+import EvmAsm.Codegen.Programs.BalStorageMap
 -- #11118: CodeCovers/Code/AccountCodeConsistent/StorageReadsExecLog unlinked (dead 43/46/38).
 import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.TxPubkey
@@ -173,6 +174,10 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     balStorageChangeValuesFunction ++ "\n" ++
     balStorageMatchesExecLogFunction ++ "\n" ++
     balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
+    balStorageMatchesMapFunction ++ "\n" ++
+    balStorageCoversMapFunction ++ "\n" ++
+    balAllAccountsStorageConsistentMapFunction ++ "\n" ++
+    mapStorageSlotTuplesFunction ++ "\n" ++
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
@@ -531,6 +536,10 @@ def statelessVerdictV2GuestClosure : String :=
   balStorageChangeValuesFunction ++ "\n" ++
   balStorageMatchesExecLogFunction ++ "\n" ++
   balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
+  balStorageMatchesMapFunction ++ "\n" ++
+  balStorageCoversMapFunction ++ "\n" ++
+  balAllAccountsStorageConsistentMapFunction ++ "\n" ++
+  mapStorageSlotTuplesFunction ++ "\n" ++
   balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++

@@ -38,6 +38,7 @@ import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
 import EvmAsm.Codegen.Programs.SystemStorageSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.BalStorageMap
 
 namespace EvmAsm.Codegen
 
@@ -50,10 +51,12 @@ open EvmAsm.Rv64
     a0 (output) = 0 every slot's tuple sequence matches exec / 1 mismatch (or parse fail). -/
 def accountTupleSequencesConsistentFunction : String :=
   "account_tuple_sequences_consistent:\n" ++
+  "  la t0, atsc_call_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
   "  sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp)\n" ++
+  "  sd a6, 88(sp)\n" ++
   "  mv s0, a0                   # AccountChanges ptr\n" ++
   "  mv s1, a1                   # AccountChanges len\n" ++
   "  mv s2, a2                   # addrHash ptr\n" ++
@@ -117,6 +120,14 @@ def accountTupleSequencesConsistentFunction : String :=
   emitProgram BalValueReverseSAsm.balValueReverse_verified ++ "\n" ++
   "  addi t1, t1, 40; addi t0, t0, -1; j .Latsc_vr\n" ++
   ".Latsc_vrd:\n" ++
+  -- r59nm: production consumes the survivor map rows.  During the A/B
+  -- comparison, run the legacy append-log reconstruction into its own buffer,
+  -- then compare it entry-by-entry with the map stream before using the map.
+  "  la t0, bsr_storage_from_map; ld t0, 0(t0); beqz t0, .Latsc_mode_zero\n" ++
+  "  la t1, atsc_mode_nonzero; ld t2, 0(t1); addi t2, t2, 1; sd t2, 0(t1); j .Latsc_legacy_exec\n" ++
+  ".Latsc_mode_zero:\n" ++
+  "  la t1, atsc_mode_zero; ld t2, 0(t1); addi t2, t2, 1; sd t2, 0(t1)\n" ++
+  ".Latsc_legacy_exec:\n" ++
   "  # exec net-change tuple sequence for this slot: begin-system (idx0) then user (1..N) then end-system (idxN+1).\n" ++
   -- lv44p.2.2: point system_user_exec_log_slot_tuples at the REAL per-row system
   -- block_access_index array so end-of-block (EIP-7002/7251) rows order after the
@@ -132,9 +143,35 @@ def accountTupleSequencesConsistentFunction : String :=
   ".Latsc_user_live:\n" ++
   "  mv a4, s3; mv a5, s4; mv a6, s5\n" ++
   ".Latsc_user_set:\n" ++
-  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0); la a7, atsc_execbuf\n" ++
+  "  mv a0, s2; la a1, atsc_key_le; la a2, bv_system_storage_log; la t0, bv_system_storage_log_count; ld a3, 0(t0)\n" ++
+  "  la t0, bsr_storage_from_map; ld t0, 0(t0); beqz t0, .Latsc_legacy_output\n" ++
+  "  la a7, atsc_legacybuf; j .Latsc_output_set\n" ++
+  ".Latsc_legacy_output:\n" ++
+  "  la a7, atsc_execbuf\n" ++
+  ".Latsc_output_set:\n" ++
   "  jal ra, system_user_exec_log_slot_tuples\n" ++
   "  mv t6, a0                                            # exec_count\n" ++
+  "  la t0, bsr_storage_from_map; ld t0, 0(t0); beqz t0, .Latsc_exec_ready\n" ++
+  "  la t0, atsc_legacycount; sd t6, 0(t0)\n" ++
+  "  ld a0, 88(sp); la a1, atsc_key; la a2, bal_builder_storage_changes\n" ++
+  "  la t0, bal_builder_storage_change_count; ld a3, 0(t0); la a4, atsc_execbuf\n" ++
+  "  jal ra, map_storage_slot_tuples\n" ++
+  "  mv t6, a0\n" ++
+  "  la t0, atsc_stream_compare_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, atsc_legacycount; ld t1, 0(t0); bne t1, t6, .Latsc_stream_mismatch\n" ++
+  "  li t2, 0\n" ++
+  ".Latsc_stream_cmp:\n" ++
+  "  bgeu t2, t6, .Latsc_exec_ready\n" ++
+  "  li t0, 40; mul t0, t2, t0; la t1, atsc_legacybuf; add t1, t1, t0; la t3, atsc_execbuf; add t3, t3, t0\n" ++
+  "  ld t4, 0(t1); ld t5, 0(t3); bne t4, t5, .Latsc_stream_mismatch\n" ++
+  "  ld t4, 8(t1); ld t5, 8(t3); bne t4, t5, .Latsc_stream_mismatch\n" ++
+  "  ld t4, 16(t1); ld t5, 16(t3); bne t4, t5, .Latsc_stream_mismatch\n" ++
+  "  ld t4, 24(t1); ld t5, 24(t3); bne t4, t5, .Latsc_stream_mismatch\n" ++
+  "  ld t4, 32(t1); ld t5, 32(t3); bne t4, t5, .Latsc_stream_mismatch\n" ++
+  "  la t0, atsc_stream_entry_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); addi t2, t2, 1; j .Latsc_stream_cmp\n" ++
+  ".Latsc_stream_mismatch:\n" ++
+  "  la t0, atsc_stream_mismatch_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Latsc_exec_ready:\n" ++
   -- fhsxz.2.4.2.66.1.1: symmetric to the BAL-side cap bail above. exec_log_slot_tuples
   -- stops writing at bsrMaxTuplesPerSlot records (atsc_execbuf capacity) but returns the
   -- true count; > cap means the tail records were not written, so bail conservatively
@@ -154,6 +191,7 @@ def accountTupleSequencesConsistentFunction : String :=
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp)\n" ++
+  "  ld a6, 88(sp)\n" ++
   "  addi sp, sp, 96\n" ++
   "  ret"
 
@@ -166,6 +204,22 @@ def accountTupleSequencesConsistentData : String :=
   "atsc_key_le:\n  .zero 32\n" ++       -- LE byte-reverse of atsc_key for the exec-log search (bmvmx.1.6.6)
   "atsc_balbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++   -- .66.1.2: bsrMaxTuplesPerSlot tuples * 40B (was 256; one net-change tuple per tx, ~9.5k max at 200M)
   "atsc_execbuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  "atsc_legacybuf:\n  .zero " ++ toString (bsrMaxTuplesPerSlot * 40) ++ "\n" ++
+  "atsc_legacycount:\n  .zero 8\n" ++
+  "atsc_stream_compare_count:\n  .zero 8\n" ++
+  "atsc_stream_mismatch_count:\n  .zero 8\n" ++
+  "atsc_call_count:\n  .zero 8\n" ++
+  "atsc_mode_nonzero:\n  .zero 8\n" ++
+  "atsc_mode_zero:\n  .zero 8\n" ++
+  "atsc_stream_entry_count:\n  .zero 8\n" ++
+  "bsr_map_matches_fail_count:\n  .zero 8\n" ++
+  "bsr_map_covers_fail_count:\n  .zero 8\n" ++
+  "bsr_map_parse_fail_count:\n  .zero 8\n" ++
+  "bsr_map_fail_map_index:\n  .zero 8\n" ++
+  "bsr_map_fail_bal_index:\n  .zero 8\n" ++
+  "bsr_map_fail_row:\n  .zero 96\n" ++
+  "bsr_map_fail_key:\n  .zero 32\n" ++
+  "bsr_map_fail_val:\n  .zero 32\n" ++
   systemUserExecLogSlotTuplesData
 
 def accountTupleSequencesConsistentEmptySystemData : String :=
@@ -187,6 +241,11 @@ def accountTupleSequencesConsistentEmptySystemData : String :=
     toString (2 * bvStorageLogTxindexEntryBytes) ++ "\n" ++
   ".balign 32\n" ++
   "bv_user_storage_log:\n  .zero " ++ toString bvStorageLogRowBytes ++ "\n"
+  ++ ".balign 8\n"
+  ++ "bsr_storage_from_map:\n  .zero 8\n"
+  ++ "bal_builder_storage_change_count:\n  .zero 8\n"
+  ++ ".balign 32\n"
+  ++ "bal_builder_storage_changes:\n  .zero 96\n"
 
 /-- `zisk_account_tuple_sequences_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
