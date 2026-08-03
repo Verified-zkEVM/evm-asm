@@ -10,7 +10,7 @@ The generated files, what regenerates each, and what it depends on:
 | File | Regenerate with | Derived from |
 |---|---|---|
 | `scripts/asm-fixtures/symbol-addresses.tsv` | `scripts/gen-symbol-addresses.py --build` | the linked ELF (`lake exe codegen`) |
-| `EvmAsm/Codegen/GuestAddrs.lean` | `python3 scripts/asm_to_program.py guest-addrs` | the TSV above |
+| `EvmAsm/Codegen/GuestAddrs.lean` | `python3 scripts/asm_to_program.py guest-addrs` | the TSV above; `scripts/check-guestaddrs-starts.sh` (#11280) greps declared vs TSV for converted linked entries |
 | `EvmAsm/Codegen/RegionMapLinkPins.lean` | `python3 scripts/gen-region-map-link-pins.py` | the linked ELF (class-A sizes + three BSS bases; #11230) |
 | `EvmAsm/Codegen/Proofs/GuestImageEntries.lean` | `python3 scripts/guest_image_coverage.py --emit-lean` | `GuestAddrs` + the linked function set |
 
