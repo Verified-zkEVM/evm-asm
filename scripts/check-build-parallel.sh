@@ -38,6 +38,7 @@ report_checks() {
 }
 
 start codegen codegen_checks
+start guestaddrs-starts scripts/check-guestaddrs-starts.sh
 start asm-to-program scripts/check-asm-to-program.sh
 start reports report_checks
 start axioms scripts/check-axioms.sh
