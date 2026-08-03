@@ -5,14 +5,16 @@ after any change that alters the guest's emitted bytes or layout (a re-emit, a n
 routine, a `.text`/`.data` size change). Editing them by hand is wrong — each carries a
 `GENERATED — do not edit` header.
 
-The four files, what regenerates each, and what it depends on:
+The generated files, what regenerates each, and what it depends on:
 
 | File | Regenerate with | Derived from |
 |---|---|---|
 | `scripts/asm-fixtures/symbol-addresses.tsv` | `scripts/gen-symbol-addresses.py --build` | the linked ELF (`lake exe codegen`) |
 | `EvmAsm/Codegen/GuestAddrs.lean` | `python3 scripts/asm_to_program.py guest-addrs` | the TSV above |
-| `EvmAsm/Codegen/RegionMap.lean` (the `textSizeBytes` / `dataSizeBytes` / `bssSizeBytes` fields) | manual edit to the ELF section sizes | the linked ELF |
+| `EvmAsm/Codegen/RegionMapLinkPins.lean` | `python3 scripts/gen-region-map-link-pins.py` | the linked ELF (class-A sizes + three BSS bases; #11230) |
 | `EvmAsm/Codegen/Proofs/GuestImageEntries.lean` | `python3 scripts/guest_image_coverage.py --emit-lean` | `GuestAddrs` + the linked function set |
+
+`RegionMap.lean` re-exports class-A pins from `RegionMapLinkPins` — do **not** hand-edit sizes or the three BSS bases there. Class B stable bases (INPUT/OUTPUT/zisk/stack/section starts/schemeA) stay typed in RegionMap with a per-def why. `GuestImage.lean` unfolds LinkPins via `simp` — no hand `.bss` end hex.
 
 ## Prerequisites
 
@@ -33,32 +35,33 @@ python3 scripts/asm_to_program.py guest-addrs
 # 3. Regenerate the guest-image entry list.
 python3 scripts/guest_image_coverage.py --emit-lean
 
-# 4. RegionMap.lean is NOT fully auto-generated: update textSizeBytes,
-#    dataSizeBytes, and bssSizeBytes from `readelf -S` on the relinked ELF.
-#    Everything else in RegionMap is a fixed, kernel-checked layout statement and
-#    should not change on a routine re-emit.
+# 4. Derive class-A RegionMap pins from the linked ELF (#11230).
+python3 scripts/gen-region-map-link-pins.py
 
 # 5. Repeat steps 1-4 until a complete pass makes no changes. Updating
-#    RegionMap.textSizeBytes can itself change the emitted image, so a one-pass
-#    relink is not a convergence check.
+#    RegionMapLinkPins.textSizeBytes (re-exported as RegionMap.textSizeBytes)
+#    can itself change the emitted image, so a one-pass relink is not a
+#    convergence check. The *second* gen-region-map-link-pins pass must be a
+#    NO-OP (diff empty) or stop and investigate.
 ```
 
 ## Layout invariants during a regen
 
 - **Reach a fixed point.** `textSizeBytes` is an input to emission as well as a
-  record of it. After repinning it, relink and repeat the complete procedure
-  until a further pass changes neither the generated files nor the reported
-  section sizes. Do not trust a one-pass repin.
+  record of it. After regenerating LinkPins, relink and repeat the complete
+  procedure until a further pass changes neither the generated files nor the
+  reported section sizes. Do not trust a one-pass repin.
 - **Keep `.data` fixed.** Its base is `0xa3000000`; growth shifts downstream
   data symbols and breaks the hard `rfl` address proofs. In particular,
   `GuestAddrs.bnf_le_a` must remain `2734690016` (`0xa3000ee0`). A changed
   value is a layout regression to investigate, not an address to accept.
-- **Update the handwritten `.bss` proof literals too.**
-  `EvmAsm/Codegen/Proofs/GuestImage.lean` contains the handwritten `.bss`
-  extent/end literals used by `guestScratch_sat`; no generator updates them.
-  Keep them consistent with `RegionMap.bssSizeBytes` and the fixed `.bss` base
-  (`0xa4000000`). A stale literal can fail to typecheck before
-  `check-region-map.sh` gets a chance to report the drift.
+- **Do not hand-edit GuestImage `.bss` end hex.** `guestScratch_sat` unfolds
+  `RegionMap.dataSizeBytes` / `bssSizeBytes` from LinkPins (#11230). A stale
+  LinkPins file fails `check-region-map.sh` (pins vs check-time ELF) and/or
+  `gen-region-map-link-pins.py --check`.
+- **Guard contract.** `check-region-map.sh` compares LinkPins (regen-time ELF
+  reading) to readelf/nm of the ELF built at *check* time — two independent
+  readings of two artefacts. Never compare a generated file only to itself.
 
 ## Verify
 
