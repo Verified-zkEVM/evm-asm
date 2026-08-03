@@ -42,9 +42,9 @@ def blockVerdictSimpleTransferPrecompileGasAsmFor (ctxLabel : String) : String :
     , ("17", ".Lbv_simple_transfer_precompile_bls_map_g2")
     , ("256", ".Lbv_simple_transfer_precompile_p256") ] ++
   ".Lbv_tx_gas_precharge_value_check:\n" ++
-  -- The MTx empty-code route enters this shared active-precompile recognizer
-  -- with its context copied into the scalar scratch. Falling through here
-  -- means the recipient was not active, so resume indexed EOA settlement.
+  -- #11163: shared-body arm sets lane 2 before entering.  Falling through here
+  -- means the recipient was not an active precompile — resume the bytecode
+  -- loop (empty codeSize → STOP).
   "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_not_active\n" ++
   "  ld t0,  96(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++
   "  ld t0, 104(t2); bnez t0, .Lbv_tx_gas_precharge_nonzero_value\n" ++

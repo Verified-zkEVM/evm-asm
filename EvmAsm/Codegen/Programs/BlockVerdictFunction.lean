@@ -9,7 +9,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictTransactions
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
-import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.BlockVerdictExactGas
@@ -270,9 +269,8 @@ def blockVerdictFunction : String :=
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++
   blockVerdictMtxRuntimeLoop ++
-  -- The MTx precompile hook enters this shared selector directly.  The old
-  -- single-transaction contract/creation route is retired; these are the live
-  -- MTx precompile fragments that remain reachable from the loop hook.
+  -- #11163: shared-body arm jumps here after move_ether.  Lane-2 success/fail
+  -- exits rejoin dtrc settle via .Ldtrc_mtx_precompile_{success,failure}.
   blockVerdictSimpleTransferPrecompileGasAsmFor "bv_mtx_ctx" ++
   blockVerdictSimpleTransferPublishAsmFor "bv_mtx_ctx" ++
   blockVerdictFunctionTail ++ "\n"

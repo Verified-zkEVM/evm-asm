@@ -221,12 +221,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- first-write ACCOUNT_WRITE entries.  Preserve that base through dispatch;
   -- delegation access below is an additional warm/cold cost, not a replacement.
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd t1, 0(t0)\n" ++
-  -- A mode-3 top-level precompile installs a one-shot selector hook before
-  -- entering this common path.  Preserve that hook across the normal
-  -- transaction-start reset; all ordinary callers still clear the callback.
-  "  la t0, runtime_tx_prepare_prefix_status; ld t1, 0(t0); li t2, 3; beq t1, t2, .Ldtrc_keep_precompile_hook\n" ++
+  -- #11163: top-level precompiles arm inside the shared body; no mode-3 hook
+  -- to preserve.  Clear any stale post-top-frame callback at tx start
+  -- (deferred EIP-7702 paths reinstall below when needed).
   "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
-  ".Ldtrc_keep_precompile_hook:\n" ++
   "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
@@ -799,22 +797,18 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret\n" ++
-  -- These labels are reached only from the top-level MTx precompile selector
-  -- after shared preparation.  They deliberately bypass the direct
-  -- simple-transfer publication path: dispatcher_tx_gas_settle owns the
-  -- transaction-level gas/refund/error fold and the common MTx postlude owns
-  -- indexed publication.
+  -- #11163: top-level precompile exits from the shared-body kernel tree
+  -- (lane 2).  dispatcher_tx_gas_settle owns the gas/refund/error fold and
+  -- the common MTx postlude owns indexed publication.
   ".Ldtrc_mtx_precompile_success:\n" ++
   "  la t0, evm_env; ld t1, 568(t0); bltu t1, t6, .Ldtrc_mtx_precompile_failure\n" ++
   "  sub t1, t1, t6; sd t1, 568(t0)\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  j .exit_no_epilogue\n" ++
   ".Ldtrc_mtx_precompile_failure:\n" ++
   "  la t0, evm_env; sd zero, 568(t0)\n" ++
   "  li t0, 0xa0010000; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 6; sd t1, 32(t0)\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  j .exit_no_epilogue"
 
 end EvmAsm.Codegen

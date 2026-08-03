@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.EvmRegistry
 import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.BlockVerdictV2
+import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
@@ -62,7 +63,8 @@ def statelessGuestUnit : BuildUnit := {
   epilogueAsm :=
     statelessGuestEpilogue ++ "\n" ++
     "  j .Lstateless_guest_halt_after_runtime_dispatcher\n" ++
-    emitRuntimeDispatcherCallableCoreSharedHelpers callFrameGuestRegistry evmAddEpilogue ++ "\n" ++
+    emitRuntimeDispatcherCallableCoreSharedHelpers
+      callFrameGuestRegistry evmAddEpilogue depth0SharedPrecompileArmAsm ++ "\n" ++
     -- 8uld3.2.3.1 (A): EIP-7002/7251 request-derivation leaves. The combined glue
     -- `derive_block_system_requests` is probe-only (#11156): the guest inlines the
     -- same sequence in deferred system-request staging and never jals the wrapper.
