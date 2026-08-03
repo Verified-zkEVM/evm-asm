@@ -149,6 +149,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
     "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
     "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
     "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
+    -- Restore this frame's authenticated CREATE target pre-balance. Nested
+    -- CREATE overwrites nse_create_pre_bal; without per-depth restore the
+    -- deposit record sees pre=0 for outer pre-funded targets (EIP-8037).
+    "  la t1, create_pre_bal_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, nse_create_pre_bal; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
+
     (if kind == 2 then
       -- REVERT: CREATE failed -> push 0 (rollback already ran above).
       createFailedStateGasRefundStashAsm ++
