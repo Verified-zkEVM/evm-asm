@@ -44,9 +44,10 @@
   [19]-[25]  payload copy loop                   7*len + 1
   [26]-[29]  short tail                               EXIT B
   [30]-[51]  bc ladder, seven BLTUs, all -> [52]
-  [52]-[54]  long header 0xb7 + bc
-  [55]-[62]  length-of-length loop                7*bc + 1
-  [63]-[70]  payload copy loop                   7*len + 1
+  [52]-[55]  long header 0xb7 + bc, counter seeded bc - 1
+  [56]-[62]  length-of-length loop                7*bc + 1
+  [63]       long-copy setup (reload counter)
+  [64]-[70]  payload copy loop                   7*len + 1
   [71]-[75]  long tail                                EXIT C
   ```
 
