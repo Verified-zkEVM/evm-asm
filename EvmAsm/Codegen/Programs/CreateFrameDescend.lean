@@ -162,6 +162,12 @@ def createFrameDescendData : String :=
   "create_sender_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
   "create_value_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
   "create_nonce_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 8) ++ "\n" ++
+  -- Per-depth authenticated CREATE target pre-balance (32B BE). Nested CREATE
+  -- overwrites the single global nse_create_pre_bal; RETURN restores this slot
+  -- (same pattern as create_address/value_by_depth) before the child deposit
+  -- record. Without it, recursive CREATE chains record pre=0 for outer
+  -- pre-funded targets (EIP-8037) → spurious BAL balance 0→1 vs net-zero.
+  "create_pre_bal_by_depth:\n  .zero " ++ toString (createFrameFlagDepths * 32) ++ "\n" ++
   ".balign 8\n" ++
   "create_prebalance_acct:\n  .zero 128\n" ++
   "create_prebalance_lookup_status:\n  .zero 8\n"
