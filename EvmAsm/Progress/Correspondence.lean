@@ -195,11 +195,15 @@ matches U64 exactly, stricter on a Uint field — differential does not reach th
     verdict := .agrees, basis := .machineOnly,
     reference := "len(encode_sequence(...))" },
   { family := "rlp", routine := "rlp_encode_uint_be",
-    verdict := .unproven, basis := .none,
+    spec := some "reub_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
     reference := "encode(Uint) → encode_bytes(to_be_bytes()) — unbounded",
-    note := "model layer complete (reubOut_eq_encode_toBytesBE) but NO whole-routine triple, \
-so the ≤55 domain restriction is a documented property of the model, not a proven property of \
-the routine — `unproven`, not `domainRestricted`. Caught by verdict_requires_spec." },
+    note := "whole-routine triple landed in #11040, so the ≤55 bound is now a proven property \
+of the ROUTINE rather than a documented property of the model — which is exactly the condition \
+this row's previous note said would move it off `unproven`. `domainRestricted` because the \
+reference accepts any length while the spec needs the stripped payload ≤ 55; `bridged` because \
+reub_spec_encode_within restates the post over encodeBytes ∘ toBytesBE ∘ fromBytesBE via \
+reubOut_eq_encode_toBytesBE." },
   { family := "rlp", routine := "rlp_encode_list_prefix",
     spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
     verdict := .domainRestricted, basis := .bridged,
@@ -254,14 +258,14 @@ theorem rlp_rows : countFamily "rlp" = 18 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 11 ∧ countVerdict .domainRestricted = 2 ∧
+    countVerdict .agrees = 11 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 5 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 4 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 6 ∧
     countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
-    countBasis .none = 5 := by decide
+    countBasis .none = 4 := by decide
 
 /-! ## Invariants
 
@@ -310,7 +314,22 @@ theorem families_nonempty : registry.all (fun e => e.family != "") := by decide
     Only routines whose spec lives in a module this file can import without
     cycling are witnessed here; the rest are covered by the doc page's
     grep-verified table. Extending the witness set is strictly an improvement —
-    add the import and the `abbrev`. -/
+    add the import and the `abbrev`.
+
+    ⚠️ **`reub_spec_within` cannot be witnessed here yet, and the obstacle is
+    layering rather than a cycle.** Measured: adding
+    `import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm` elaborates fine —
+    there is no cycle — but `check-layering.sh` L1 rejects it, "no verified-core
+    module may import Codegen", and `EvmAsm/Progress/**` is core-by-default. That
+    is why all four witnesses below are `Rv64.RLP.*`: they are the RLP specs that
+    live *outside* Codegen.
+
+    The row is not unprotected in the meantime. #11273 adds the L1 exemption for
+    the progress registry (sound because L2 makes it a pure sink) *and* witnesses
+    `reub_spec_within` in `EvmAsm/Progress/Routines.lean` with a `#print axioms`
+    line in `AxiomWitnesses.lean`. So a rename fails *that* file's elaboration
+    instead of this one's, and a local `abbrev` here becomes a redundant
+    convenience once the exemption lands rather than the only protection. -/
 
 private noncomputable abbrev _rlp_walk_init_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_init_spec_within

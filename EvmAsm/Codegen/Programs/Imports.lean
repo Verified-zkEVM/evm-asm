@@ -219,6 +219,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
