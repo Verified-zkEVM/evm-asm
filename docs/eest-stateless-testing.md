@@ -28,20 +28,30 @@ through the local `execution-specs` submodule stateless input path.
 Install the normal codegen requirements from the README: Lean/Lake,
 `riscv64-elf-binutils`, and `ziskemu`.
 
-Fetch the EEST fixture tarball once:
+Fetch the EEST fixture tarball once from the repository root (a fresh checkout
+does not contain generated fixture data):
 
 ```bash
-scripts/eest-fetch-fixtures.sh zkevm@v0.4.0
+scripts/eest-fetch-fixtures.sh "$(cat scripts/eest-fixture-tag.txt)"
 ```
+
+The command is idempotent. It downloads the `fixtures_zkevm.tar.gz` release
+asset from `ethereum/execution-specs` and extracts it under the ignored
+`gen-out/` directory. Run it before the first harness invocation; otherwise
+the harness stops with the same command as an actionable setup error.
 
 By default the harness reads:
 
 ```text
-gen-out/eest-fixtures/zkevm@v0.4.0/fixtures/fixtures
+gen-out/eest-fixtures/<tag>/fixtures/fixtures
 ```
 
-Override that with `EEST_FIXTURES_DIR=/path/to/fixtures` when needed. Use
-`EEST_FIXTURE_TAG=...` or `--tag ...` to select a different cached release.
+The path above follows the current value in
+`scripts/eest-fixture-tag.txt` (currently `tests-zkevm@v0.6.2`). If that file
+changes, re-run the fetch command to materialise the matching cache. Override
+the root with `EEST_FIXTURES_DIR=/path/to/fixtures` when needed. Use `EEST_FIXTURE_TAG=...`
+or `--tag ...` to select a different cached release, then fetch that tag with
+`scripts/eest-fetch-fixtures.sh <tag>` before running the harness.
 
 ## Common Commands
 
