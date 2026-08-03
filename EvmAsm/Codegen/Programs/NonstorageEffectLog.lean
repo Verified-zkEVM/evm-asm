@@ -498,11 +498,15 @@ def nonstorageEffectAggregateFunction : String :=
   -- even though the execution log necessarily contains the transient CREATE
   -- nonce and balance records.  The producer records the destroyed address and
   -- byte-20 metadata in `evm_selfdestruct_destroyed_table`: 0 means a distinct
-  -- beneficiary clear (drop balance and nonce), 1 means self-destruction to
-  -- self (preserve the balance component, but still drop nonce).  Normalize the
+  -- beneficiary clear and 1 means self-destruction to self.  Normalize the
   -- aggregate after its ordinary component fold so both BAL->exec and
   -- exec->BAL comparators see the block-final account rather than the transient
-  -- frame history.  The overflow latch keeps the conservative pre-existing path.
+  -- frame history.  A distinct clear retains a balance change when its
+  -- cumulative pre-balance is nonzero and sets the post-balance to zero;
+  -- only a zero-to-zero account is net-zero and loses the balance bit.  This
+  -- mirrors block_access_lists.py:617-650, where the BAL builder compares the
+  -- transaction result against cumulative pre-state and emits only inequality.
+  -- The overflow latch keeps the conservative pre-existing path.
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lnea_destroyed_norm_done\n" ++
   "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lnea_destroyed_norm_done\n" ++
   "  la t2, evm_selfdestruct_destroyed_table; mv t3, s11\n" ++
@@ -524,9 +528,13 @@ def nonstorageEffectAggregateFunction : String :=
   -- account's nonce/code at the block boundary.
   "  ld t0, 96(s11); sd t0, 104(s11); lbu t0, 20(s11); andi t0, t0, 1; sb t0, 20(s11); j .Lnea_destroyed_norm_continue\n" ++
   ".Lnea_destroyed_norm_distinct:\n" ++
-  -- A distinct-beneficiary clear removes the originator's final account; no
-  -- balance or nonce component survives into the BAL.
-  "  ld t0, 32(s11); sd t0, 64(s11); ld t0, 40(s11); sd t0, 72(s11); ld t0, 48(s11); sd t0, 80(s11); ld t0, 56(s11); sd t0, 88(s11)\n" ++
+  -- A distinct-beneficiary clear removes the originator's final account.  If
+  -- its cumulative pre-balance was nonzero, the clear is a real balance
+  -- change and the BAL must retain that component with post=0; a zero-to-zero
+  -- account is the only net-zero case and drops both components.
+  "  ld t0, 32(s11); ld t1, 40(s11); or t0, t0, t1; ld t1, 48(s11); or t0, t0, t1; ld t1, 56(s11); or t0, t0, t1; beqz t0, .Lnea_destroyed_norm_distinct_zero\n" ++
+  "  sd zero, 64(s11); sd zero, 72(s11); sd zero, 80(s11); sd zero, 88(s11); ld t0, 96(s11); sd t0, 104(s11); lbu t0, 20(s11); andi t0, t0, 1; sb t0, 20(s11); j .Lnea_destroyed_norm_continue\n" ++
+  ".Lnea_destroyed_norm_distinct_zero:\n" ++
   "  ld t0, 96(s11); sd t0, 104(s11); sb zero, 20(s11)\n" ++
   ".Lnea_destroyed_norm_continue:\n" ++
   "  addi s7, s7, 1\n" ++
