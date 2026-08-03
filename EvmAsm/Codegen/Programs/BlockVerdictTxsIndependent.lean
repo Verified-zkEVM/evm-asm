@@ -274,7 +274,7 @@ def brpsfAddr20EqFunction : String :=
     The caller takes the full sequential lane only on 0. Verified end-to-end
     on the request-cluster shape: block-end system writes are captured in
     `bv_system_storage_log`, per-tx user writes in `bv_user_storage_log`
-    (SSTORE tail past `callee_seed_count`), and both comparators consult the
+    (SSTORE tail after storage-log capture), and both comparators consult the
     arenas; read-time values come from BAL read-set preloads. Any other
     interaction shape keeps today's bail posture (fail-closed). Walks the BAL
     with the same rlp_walk_init/rlp_walk_next idiom as `bal_txs_independent`. -/
