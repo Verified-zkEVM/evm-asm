@@ -39,11 +39,18 @@ def lean_camel(entry: str) -> str:
 
 
 def read_text_size() -> int:
-    src = open(REGIONMAP).read()
-    m = re.search(r"def textSizeBytes : Nat := (0x[0-9a-fA-F]+)", src)
-    if not m:
-        sys.exit("textSizeBytes not found in RegionMap.lean")
-    return int(m.group(1), 16)
+    # Prefer generated LinkPins (#11230); RegionMap only re-exports the alias.
+    for path in (
+        os.path.join(os.path.dirname(REGIONMAP), "RegionMapLinkPins.lean"),
+        REGIONMAP,
+    ):
+        if not os.path.isfile(path):
+            continue
+        src = open(path).read()
+        m = re.search(r"(?:def|abbrev) textSizeBytes : Nat := (0x[0-9a-fA-F]+)", src)
+        if m:
+            return int(m.group(1), 16)
+    sys.exit("textSizeBytes hex not found in RegionMapLinkPins.lean or RegionMap.lean")
 
 
 def read_text_symbols():

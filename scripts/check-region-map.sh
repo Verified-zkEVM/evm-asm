@@ -18,15 +18,19 @@
 #       coalesced children sit at the RegionMap arena-relative offsets, the arena
 #       is fully inside .bss, and its extent == frameArrayBytes.
 #
-#   LINK-LAYOUT (hard fail, repaired by a manual convergent regen): the section
-#     sizes and symbol->address TSV are link-dependent. `gen-symbol-addresses.py`
-#     writes only the TSV; it does NOT update RegionMap or GuestImage. On drift:
-#       1. relink + regenerate the TSV; regenerate GuestAddrs and GuestImageEntries;
-#       2. copy the ELF's .text/.data/.bss sizes into RegionMap and its .bss end
-#          into GuestImage.lean's `guestScratch_sat` literals; then
-#       3. relink and repeat from step 1 until those values stop moving.
-#     See docs/regenerating-generated-files.md. This keeps the Lean map matching
-#     the ELF (the .6 contract) instead of quietly diverging.
+#   LINK-LAYOUT (hard fail, repaired by convergent regen): section sizes + three
+#     BSS bases (call_frame_arena / evm_memory_pool / bv_system_storage_log) are
+#     link-dependent. They live in GENERATED `RegionMapLinkPins.lean`
+#     (`scripts/gen-region-map-link-pins.py`); RegionMap re-exports them; GuestImage
+#     unfolds them (no hand hex). Guard contract (#11230):
+#       * pins  = hex in RegionMapLinkPins.lean (regen-time ELF reading)
+#       * expect = readelf/nm of the ELF built at *check* time
+#     Two independent readings of two artefacts — never pin vs same generated
+#     file (tautology). On drift:
+#       1. relink + TSV + GuestAddrs + GuestImageEntries
+#       2. `python3 scripts/gen-region-map-link-pins.py` (then second pass NO-OP)
+#       3. repeat to fixpoint (textSizeBytes is an emission input)
+#     See docs/regenerating-generated-files.md.
 #
 # This is a blocking drift guard.  Missing tooling is a configuration error,
 # not a reason to report success: a guard that cannot inspect the ELF must fail
@@ -134,28 +138,30 @@ symaddr() {
   "$READELF" -sW "$ELF" | awk -v n="$1" '$8==n && !found {print $2; found=1}'
 }
 
-# Absolute link-dependent pins are part of the map contract too. Keep this
-# check next to the relative union checks: a relative extent can remain valid
-# after every symbol moves while an absolute RegionMap pin silently goes stale.
+# Absolute link-dependent pins (#11230): hex lives in generated
+# RegionMapLinkPins.lean (regen-time ELF). Expectation = nm of check-time ELF.
+# RegionMap.lean only re-exports the aliases (no hex to grep).
 LEAN_MAP="EvmAsm/Codegen/RegionMap.lean"
-lean_def_hex() {
-  sed -nE "s/^def $1 : Nat := 0x([0-9a-fA-F]+)$/\1/p" "$LEAN_MAP" | head -n 1
+LEAN_PINS="EvmAsm/Codegen/RegionMapLinkPins.lean"
+lean_pin_hex() {
+  # sed -n '1p' not head: pipefail + head → SIGPIPE exit 141
+  sed -nE "s/^(def|abbrev) $1 : Nat := 0x([0-9a-fA-F]+)$/\2/p" "$LEAN_PINS" | sed -n '1p'
 }
 check_link_pin() {
   local desc="$1" def_name="$2" symbol="$3" map_hex actual expected
-  map_hex="$(lean_def_hex "$def_name")"
+  map_hex="$(lean_pin_hex "$def_name")"
   actual="$(symaddr "$symbol")"
   if [[ -z "$map_hex" || -z "$actual" ]]; then
-    note "DRIFT $desc: RegionMap def or ELF symbol is missing (map=$map_hex elf=$actual)"
+    note "DRIFT $desc: RegionMapLinkPins def or ELF symbol is missing (map=$map_hex elf=$actual)"
     fail=1
     return
   fi
   printf -v expected '%016x' "$((16#$map_hex))"
   check "$desc" "$expected" "$actual"
 }
-check_link_pin "RegionMap.callFrameArenaBase" callFrameArenaBase call_frame_arena
-check_link_pin "RegionMap.evmMemoryPoolBase" evmMemoryPoolBase evm_memory_pool
-check_link_pin "RegionMap.syslogBase" syslogBase bv_system_storage_log
+check_link_pin "RegionMapLinkPins.callFrameArenaBase" callFrameArenaBase call_frame_arena
+check_link_pin "RegionMapLinkPins.evmMemoryPoolBase" evmMemoryPoolBase evm_memory_pool
+check_link_pin "RegionMapLinkPins.syslogBase" syslogBase bv_system_storage_log
 
 # The union inventory is a closed set for this emitted guest. Checking only
 # the three symbols used by the relative arithmetic would let a phantom map
@@ -269,14 +275,57 @@ bad |= (not backstop_ok)
 sys.exit(1 if bad else 0)
 PY
 
-# --- link-dependent sizes vs RegionMap constants ---
-echo "== link-layout (DRIFT REPAIR: relink + TSV/GuestAddrs/GuestImageEntries; pin RegionMap .text/.data/.bss and GuestImage .bss end from that ELF; repeat to fixpoint — docs/regenerating-generated-files.md) =="
-LEAN_TEXT=$(grep -oE 'def textSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
-LEAN_DATA=$(grep -oE 'def dataSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
-LEAN_BSS=$(grep -oE 'def bssSizeBytes : Nat := 0x[0-9a-fA-F]+' EvmAsm/Codegen/RegionMap.lean | grep -oE '0x[0-9a-fA-F]+')
-check "RegionMap.textSizeBytes" "$(printf '%x' $LEAN_TEXT)" "$(printf '%x' 0x$TEXT_SIZE)"
-check "RegionMap.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
-check "RegionMap.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
+# --- link-dependent pins (RegionMapLinkPins) vs check-time ELF ---
+# Pins = generated file (regen-time reading). Expectation = this script's ELF
+# (check-time reading). Do NOT compare two greps of the same generated file.
+echo "== link-layout (DRIFT REPAIR: relink + TSV/GuestAddrs/GuestImageEntries + gen-region-map-link-pins.py; second pin pass must be NO-OP; docs/regenerating-generated-files.md) =="
+PINS=EvmAsm/Codegen/RegionMapLinkPins.lean
+if [[ ! -f "$PINS" ]]; then
+  note "DRIFT missing $PINS — run python3 scripts/gen-region-map-link-pins.py"
+  fail=1
+else
+  pin_hex() {
+    # Avoid `... | head` under pipefail (SIGPIPE → exit 141).
+    sed -nE "s/^(def|abbrev) $1 : Nat := (0x[0-9a-fA-F]+)$/\2/p" "$PINS" | sed -n '1p'
+  }
+  LEAN_TEXT=$(pin_hex textSizeBytes)
+  LEAN_DATA=$(pin_hex dataSizeBytes)
+  LEAN_BSS=$(pin_hex bssSizeBytes)
+  LEAN_CFA=$(pin_hex callFrameArenaBase)
+  LEAN_POOL=$(pin_hex evmMemoryPoolBase)
+  LEAN_SYSLOG=$(pin_hex syslogBase)
+  if [[ -z "$LEAN_TEXT" || -z "$LEAN_DATA" || -z "$LEAN_BSS" || -z "$LEAN_CFA" || -z "$LEAN_POOL" || -z "$LEAN_SYSLOG" ]]; then
+    note "DRIFT $PINS missing one or more class-A defs"
+    fail=1
+  else
+    check "RegionMapLinkPins.textSizeBytes" "$(printf '%x' $LEAN_TEXT)" "$(printf '%x' 0x$TEXT_SIZE)"
+    check "RegionMapLinkPins.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
+    check "RegionMapLinkPins.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
+    # Three BSS bases: nm of check-time ELF vs pins
+    if command -v nm >/dev/null 2>&1; then
+      # Consume full nm output (no awk early-exit): pipefail + SIGPIPE → exit 141.
+      nm_addr() { nm "$ELF" | awk -v s="$1" '$NF==s && !f {print $1; f=1}'; }
+      ELF_CFA=$(nm_addr call_frame_arena)
+      ELF_POOL=$(nm_addr evm_memory_pool)
+      ELF_SYSLOG=$(nm_addr bv_system_storage_log)
+      check "RegionMapLinkPins.callFrameArenaBase" "$(printf '%x' $LEAN_CFA)" "$(printf '%x' 0x$ELF_CFA)"
+      check "RegionMapLinkPins.evmMemoryPoolBase" "$(printf '%x' $LEAN_POOL)" "$(printf '%x' 0x$ELF_POOL)"
+      check "RegionMapLinkPins.syslogBase" "$(printf '%x' $LEAN_SYSLOG)" "$(printf '%x' 0x$ELF_SYSLOG)"
+    else
+      note "DRIFT nm missing — cannot check callFrameArenaBase/evmMemoryPoolBase/syslogBase"
+      fail=1
+    fi
+  fi
+  # Stale-file check: regenerate from THIS elf into a temp and diff (independent
+  # of the hex greps above — catches a hand-edited pins file that still matches
+  # sizes by coincidence but not the generator output).
+  if ! python3 scripts/gen-region-map-link-pins.py --elf "$ELF" --check >/dev/null; then
+    note "DRIFT $PINS stale vs $ELF — run python3 scripts/gen-region-map-link-pins.py"
+    fail=1
+  else
+    note "OK   RegionMapLinkPins.lean matches generator output for check-time ELF"
+  fi
+fi
 
 # --- TSV snapshot ---
 TMP_TSV="$(mktemp)"

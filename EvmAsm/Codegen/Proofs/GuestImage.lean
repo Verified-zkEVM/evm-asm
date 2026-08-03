@@ -32,6 +32,7 @@ import EvmAsm.Rv64.CodeReqExtents
 import EvmAsm.Rv64.MemSat
 import EvmAsm.Codegen.Proofs.GuestImageEntries
 import EvmAsm.Codegen.RegionMap
+import EvmAsm.Codegen.RegionMapLinkPins
 import EvmAsm.Stateless.EntrySpec
 
 namespace EvmAsm.Codegen
@@ -187,51 +188,39 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0xa0630000 0xa0830000 :=
     satWithin_ramRegion 0xa0630000 0x200000 (by omega) (by omega)
       (by omega) (by omega)
+  -- Link pins are `abbrev` from RegionMapLinkPins (#11230). Use `decide` (not
+  -- omega) so inequalities reduce through abbrevs; no hand-typed end/size hex.
   have t6 : (regionScratch RegionMap.dataRegion).SatWithin
-      0xa3000000 0xa3005370 :=
-    satWithin_ramRegion 0xa3000000 0x5370 (by omega) (by omega)
-      (by omega) (by omega)
-  -- REPIN THESE WHENEVER `RegionMap.bssSizeBytes` CHANGES.  Two constants, and the
-  -- hex is deliberately NOT quoted in this comment -- it was quoted, went stale, and
-  -- then described neither literal.  They are: `bssSizeBytes` spelled as a literal
-  -- (ONCE, in `t7`'s `satWithin_ramRegion` argument), and the `.bss` base
-  -- `0xa3110000` plus it (TWICE -- `t7`'s end bound and `t7'`'s below).  A `.bss` size change is
-  -- routine -- any new data object moves it -- and the four-step layout regen
-  -- (`gen-symbol-addresses.py --build`) does NOT touch this file, so the repin is
-  -- manual.
-  --
-  -- What makes it worth a comment: the failure does not look like layout drift.
-  -- `check-region-map.sh` reports drift and names the constant, but it never runs,
-  -- because `lake exe codegen` fails first with a bare `Type mismatch` on the
-  -- `satWithin_ramRegion` application below -- no mention of `.bss`, no mention of
-  -- a size.  This cost two debugging detours in one session before the pattern was
-  -- recognised; if you are staring at a type mismatch here after adding a data
-  -- object, this is why.
+      0xa3000000 (0xa3000000 + RegionMap.dataSizeBytes) := by
+    dsimp [regionScratch, RegionMap.dataRegion, RegionMap.dataSizeBytes,
+      RegionMapLinkPins.dataSizeBytes]
+    apply satWithin_ramRegion <;> decide
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3110000 0xbda64460 :=
-    satWithin_ramRegion 0xa3110000 0x1a954460 (by omega) (by omega)
-      (by omega) (by omega)
+      0xa3110000 (0xa3110000 + RegionMap.bssSizeBytes) := by
+    dsimp [regionScratch, RegionMap.bssRegion, RegionMap.bssSizeBytes,
+      RegionMapLinkPins.bssSizeBytes]
+    apply satWithin_ramRegion <;> decide
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3005370 0xbda64460 :=
-    t7.mono (by omega) (le_refl _)
+      (0xa3000000 + RegionMap.dataSizeBytes) (0xa3110000 + RegionMap.bssSizeBytes) :=
+    t7.mono (by decide) (le_refl _)
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=
-    satWithin_ramRegion 0xbf980000 0x680000 (by omega) (by omega)
-      (by omega) (by omega)
+    satWithin_ramRegion 0xbf980000 0x680000 (by decide) (by decide)
+      (by decide) (by decide)
   have hs : guestScratch.SatWithin 0xa0000000 0xc0000000 :=
     t1.sepConj
       (t2.sepConj
         (t3.sepConj
-          ((t4.mono (by omega) (by omega)).sepConj
+          ((t4.mono (by decide) (by decide)).sepConj
             (t6.sepConj
               (t7'.sepConj
-                (t8.mono (by omega) (le_refl _))
-                (by omega) (by omega))
-              (by omega) (by omega))
-            (by omega) (by omega))
-          (by omega) (by omega))
-        (by omega) (by omega))
-      (by omega) (by omega)
+                (t8.mono (by decide) (le_refl _))
+                (by decide) (by decide))
+              (by decide) (by decide))
+            (by decide) (by decide))
+          (by decide) (by decide))
+        (by decide) (by decide))
+      (by decide) (by decide)
   -- the input footprint tops out at 0x78000008 ≤ 0xa0000000
   have hall := (hin.mono (le_refl _) (show
       0x40000010 + 8 * ((input.length + 7) / 8) ≤ 0xa0000000 by omega)).sepConj
