@@ -712,6 +712,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
+  -- Spec stage: clear destroyed accounts before incorporate (fork.py:1201-1202).
+  -- Apply destroyed-norm to the RAW nonstorage log here while the destroyed
+  -- table is still live; next user tx wipes the table (mode=0) and block-end
+  -- aggregate would otherwise miss CREATE+SD nonce phantoms (fc44).
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, nonstorage_apply_destroyed_norm; ld ra, 0(sp); addi sp, sp, 16\n" ++
   -- Body effects are already rolled back to the undo mark above on status=0.
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
