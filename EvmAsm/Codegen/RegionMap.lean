@@ -48,6 +48,7 @@
 
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.RegionMapLinkPins
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen.RegionMap
@@ -522,13 +523,13 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x622a8
+abbrev textSizeBytes : Nat := RegionMapLinkPins.textSizeBytes
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, current value `0x5370`). Link-layout-dependent; this is
     intentionally a short current fact rather than a copied growth history.
     The drift guard re-derives it from the linked ELF. -/
-def dataSizeBytes : Nat := 0x5370
+abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
 
 /-- ELF-measured `.bss` size for the `stateless_guest` unit. Grew by `0x77900`
     for the fixed, gas-sized bounded indexed-root builder arenas, then `0x1d320`
@@ -553,7 +554,7 @@ def dataSizeBytes : Nat := 0x5370
     `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
     removal absorbs in the same direction (#10986, #10988). -/
-def bssSizeBytes : Nat := 0x1a954460
+abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
