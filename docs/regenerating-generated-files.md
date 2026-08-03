@@ -14,7 +14,16 @@ The generated files, what regenerates each, and what it depends on:
 | `EvmAsm/Codegen/RegionMapLinkPins.lean` | `python3 scripts/gen-region-map-link-pins.py` | the linked ELF (class-A sizes + three BSS bases; #11230) |
 | `EvmAsm/Codegen/Proofs/GuestImageEntries.lean` | `python3 scripts/guest_image_coverage.py --emit-lean` | `GuestAddrs` + the linked function set |
 
-`RegionMap.lean` re-exports class-A pins from `RegionMapLinkPins` — do **not** hand-edit sizes or the three BSS bases there. Class B stable bases (INPUT/OUTPUT/zisk/stack/section starts/schemeA) stay typed in RegionMap with a per-def why. `GuestImage.lean` unfolds LinkPins via `simp` — no hand `.bss` end hex.
+`RegionMap.lean` re-exports class-A pins from `RegionMapLinkPins` as
+`abbrev name := RegionMapLinkPins.name` — do **not** hand-edit sizes or the
+three BSS bases there, and do **not** turn those `abbrev`s back into
+`def … := 0x…` during a layout repin. Class A hex lives **only** in
+`RegionMapLinkPins.lean` (generator output). A merge that drops the re-export
+while leaving LinkPins current is a silent two-modules-one-fact regression
+(`check-region-map.sh` greps the `abbrev` form; #11282). Class B stable bases
+(INPUT/OUTPUT/zisk/stack/section starts/schemeA) stay typed in RegionMap with
+a per-def why. `GuestImage.lean` unfolds LinkPins via `simp`/`decide` — no
+hand `.bss` end hex.
 
 ## Prerequisites
 

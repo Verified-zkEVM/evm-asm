@@ -761,13 +761,13 @@ theorem schemeA_matches_layout :
     cross-checking. -/
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
-    LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-def callFrameArenaBase : Nat := 0xad0c8120
+    LINK-LAYOUT-DEPENDENT — class-A pin from `RegionMapLinkPins` (issue #11230 / #11282). -/
+abbrev callFrameArenaBase : Nat := RegionMapLinkPins.callFrameArenaBase
 
 /-! The memory-pool base is link-dependent too. Naming it separately lets the
     drift guard compare this absolute pin with the linked ELF, rather than
     checking only the relative 96 MiB extent. -/
-def evmMemoryPoolBase : Nat := 0xb34e1120
+abbrev evmMemoryPoolBase : Nat := RegionMapLinkPins.evmMemoryPoolBase
 
 /-- Absolute shared nested-frame EVM-memory pool, emitted immediately after
     `call_frame_arena`. Both endpoints are link-layout-dependent pins checked
@@ -777,9 +777,12 @@ def evmMemoryPoolRegion : GuestRegion :=
     mode := .rw, zone := .ram,
     evidence := "ELF evm_memory_pool..evm_memory_pool_end; 96 MiB shared LIFO frame memory" }
 
+/-- Pool endpoints follow the class-A pin aliases — no hand hex (fence #11282). -/
 theorem evmMemoryPoolRegion_matches_elf :
-    evmMemoryPoolRegion.base = 0xb34e1120
-      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xb94e1120 := by decide
+    evmMemoryPoolRegion.base = evmMemoryPoolBase
+      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size =
+        evmMemoryPoolBase + evmMemoryPoolBytes := by
+  simp [evmMemoryPoolRegion, evmMemoryPoolBase, evmMemoryPoolBytes]
 
 /-- The two runtime frame allocations are adjacent, disjoint, fit RAM, and both
     lie inside `.bss`; this is the pool/slot non-aliasing soundness fence. -/
@@ -862,8 +865,8 @@ theorem callFrameArena_within_data :
     runtime-exec-log source cap — see `BlockVerdictParams.bvSystemStorageLogCapacity`. -/
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
-    LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
-def syslogBase : Nat := 0xaad65180
+    LINK-LAYOUT-DEPENDENT — class-A pin from `RegionMapLinkPins` (issue #11230 / #11282). -/
+abbrev syslogBase : Nat := RegionMapLinkPins.syslogBase
 
 /-- **The `.73` clobber is closed (load-bearing).** The un-unioned
     `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
