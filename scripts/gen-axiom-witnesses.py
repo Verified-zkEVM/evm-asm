@@ -45,13 +45,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PROGRESS = ROOT / "EvmAsm" / "Progress.lean"
 ROUTINES = ROOT / "EvmAsm" / "Progress" / "Routines.lean"
+CORRESPOND = ROOT / "EvmAsm" / "Progress" / "Correspondence.lean"
 WITNESS = ROOT / "EvmAsm" / "Progress" / "AxiomWitnesses.lean"
 
-# Registry sources, each paired with the Lean module that must be imported for
-# its witnesses to resolve.
+# Registry sources: (path, module to import, strict).
+#
+# `strict` controls the row cross-check, NOT whether the file is scanned — every
+# source's abbrevs reach the gate either way.
+#
+#   * strict=True  — a row naming a theorem with no witness abbrev in the same
+#     file is an error. Correct where this change owns the rows.
+#   * strict=False — the shortfall is COUNTED AND PRINTED instead. Used for
+#     Correspondence.lean, whose 12 `spec := some "…"` rows carry only 4
+#     abbrevs; the other 8 live in modules that file does not import, so making
+#     it strict would demand 8 new imports into a registry another change is
+#     actively editing (#11276). Declared, not hidden — the count is on stdout
+#     every run, which is the difference between a known residual and a silent
+#     skip.
 SOURCES = [
-    (PROGRESS, "EvmAsm.Progress"),
-    (ROUTINES, "EvmAsm.Progress.Routines"),
+    (PROGRESS, "EvmAsm.Progress", True),
+    (ROUTINES, "EvmAsm.Progress.Routines", True),
+    (CORRESPOND, "EvmAsm.Progress.Correspondence", False),
 ]
 
 # Any `EvmAsm.*` witness abbrev target, in any namespace.  Narrowing the
@@ -131,24 +145,47 @@ def check_refs(path: Path, text: str, names: list[str]) -> list[str]:
 
 def collect() -> list[str]:
     """Union of witness names across registries, with the row cross-check."""
+    # Pass 1: every witness name across all registries.  The cross-check below
+    # runs against this UNION, not per-file: what determines whether a theorem
+    # is audited is that *some* scanned registry binds it, not which one.
+    # (`rlp_item_size_spec_within` is named by a Correspondence row and
+    # witnessed from Routines.lean — reporting that as uncovered would be a
+    # false alarm.)
+    sources: list[tuple[Path, str, bool, str]] = []
     all_names: list[str] = []
-    problems: list[str] = []
-    for path, _module in SOURCES:
+    for path, module, strict in SOURCES:
         if not path.exists():
             sys.exit(f"missing registry source: {path.relative_to(ROOT)}")
         text = path.read_text()
         names = witness_names(text)
         if not names:
             sys.exit(f"no witness abbrevs found in {path.relative_to(ROOT)}")
-        missing = check_refs(path, text, names)
-        if missing:
-            rel = path.relative_to(ROOT)
+        sources.append((path, module, strict, text))
+        all_names.extend(names)
+
+    # Pass 2: cross-check each registry's rows against the union.
+    problems: list[str] = []
+    for path, _module, strict, text in sources:
+        missing = check_refs(path, text, all_names)
+        if not missing:
+            continue
+        rel = path.relative_to(ROOT)
+        if strict:
             problems.append(
                 f"{rel}: {len(missing)} registry row(s) name a theorem with no "
-                f"witness abbrev, so the axiom gate cannot see them:\n"
+                f"witness abbrev in ANY scanned registry, so the axiom gate "
+                f"cannot see them:\n"
                 + "".join(f"    {m}\n" for m in missing)
             )
-        all_names.extend(names)
+        else:
+            # Declared residual — stderr, so it surfaces on every run without
+            # perturbing the stdout module the gate diffs.
+            print(
+                f"note: {rel}: {len(missing)} row(s) name a theorem that no "
+                f"scanned registry witnesses, so those are NOT audited: "
+                + ", ".join(missing),
+                file=sys.stderr,
+            )
     if problems:
         sys.exit(
             "\n".join(problems)
@@ -161,7 +198,7 @@ def collect() -> list[str]:
 
 
 def render(names: list[str]) -> str:
-    imports = "".join(f"import {module}\n" for _path, module in SOURCES)
+    imports = "".join(f"import {module}\n" for _path, module, _s in SOURCES)
     body = "".join(f"\n#print axioms {n}\n" for n in names)
     return HEADER + imports + body
 

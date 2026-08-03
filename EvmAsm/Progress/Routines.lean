@@ -132,12 +132,19 @@ def routineRegistry : List RoutineEntry := [
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
       (notes := "∀-base triple over `rlp_walk_init_code`; opens an "
-        ++ "`encodeAccount` list and leaves the field cursor at `listBase + 2`"),
+        ++ "`encodeAccount` list and leaves the field cursor at `listBase + 2`. "
+        ++ "⚠️ This is the ACCOUNT-SPECIALISED triple. The form-generic routine "
+        ++ "spec is a different theorem — `EvmAsm.Rv64.RLP.rlp_walk_init_"
+        ++ "spec_within` (`Rv64/RLP/WalkInit.lean`) — witnessed via the "
+        ++ "correspondence registry, not from here. Two theorems share the "
+        ++ "unqualified name; do not read either as the other"),
   routine "rlp_walk_init" .conditional (some "rlp_walk_init_long1_spec_within")
       (gate := "`56 ≤ payload.length` — the long-form-1 arm specifically")
       (notes := "per-form companion to the account triple above"),
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field0_spec_within")
-      (notes := "field 0 (nonce) of an `encodeAccount` list"),
+      (notes := "field 0 (nonce) of an `encodeAccount` list. The form-generic "
+        ++ "`EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` is a distinct theorem, "
+        ++ "witnessed via the correspondence registry"),
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field1_spec_within")
       (notes := "field 1 (balance) of an `encodeAccount` list"),
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")

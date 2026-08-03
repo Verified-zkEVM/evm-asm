@@ -72,6 +72,7 @@ cd "$ROOT"
 
 PROGRESS_LEAN="EvmAsm/Progress.lean"
 ROUTINES_LEAN="EvmAsm/Progress/Routines.lean"
+CORRESPOND_LEAN="EvmAsm/Progress/Correspondence.lean"
 ALLOW_FILE="scripts/axiom-allow.txt"
 
 mode="enforce"
@@ -86,7 +87,10 @@ esac
 # 1. Witness theorem names — the abbrev sections of the two registries:
 #    EvmAsm/Progress.lean (OpcodeEntry, EVM opcodes) and
 #    EvmAsm/Progress/Routines.lean (RoutineEntry, verified guest routines,
-#    GH #11042).
+#    GH #11042) and EvmAsm/Progress/Correspondence.lean (spec-correspondence
+#    verdicts — it carries 4 `EvmAsm.Rv64.RLP.*` witness abbrevs that NO
+#    previous version of this gate audited, which is the same #11042 gap one
+#    file over).
 #
 #    This grep is deliberately INDEPENDENT of gen-axiom-witnesses.py: the
 #    completeness check below compares names derived here against reports
@@ -107,14 +111,14 @@ esac
 #        @EvmAsm.Evm64.SDiv.Compose.…
 # --------------------------------------------------------------------
 mapfile -t NAMES < <(
-  cat "$PROGRESS_LEAN" "$ROUTINES_LEAN" \
+  cat "$PROGRESS_LEAN" "$ROUTINES_LEAN" "$CORRESPOND_LEAN" \
     | tr '\n' ' ' \
     | grep -oE ':=[[:space:]]*@EvmAsm\.[A-Za-z0-9_.]+' \
     | sed -E 's/^:=[[:space:]]*@//; s/\.+$//' \
     | LC_ALL=C sort -u
 )
 if (( ${#NAMES[@]} == 0 )); then
-  echo "check-axioms: no witness theorems found in $PROGRESS_LEAN / $ROUTINES_LEAN" >&2
+  echo "check-axioms: no witness theorems found in $PROGRESS_LEAN / $ROUTINES_LEAN / $CORRESPOND_LEAN" >&2
   exit 1
 fi
 
@@ -143,7 +147,7 @@ if ! python3 scripts/gen-axiom-witnesses.py > "$REGEN"; then
   exit 1
 fi
 if ! diff -q "$REGEN" "$WITNESS_FILE" >/dev/null; then
-  echo "check-axioms: FAIL: $WITNESS_FILE is stale vs $PROGRESS_LEAN / $ROUTINES_LEAN" >&2
+  echo "check-axioms: FAIL: $WITNESS_FILE is stale vs $PROGRESS_LEAN / $ROUTINES_LEAN / $CORRESPOND_LEAN" >&2
   echo "check-axioms: regenerate with: python3 scripts/gen-axiom-witnesses.py --write" >&2
   exit 1
 fi
@@ -277,7 +281,7 @@ if [[ "$mode" == "write-allow" ]]; then
     echo "# kernel-checkable proofs). The gate FAILS on any owner NOT listed here."
     echo "# Regenerate with: scripts/check-axioms.sh --write-allow"
     echo "#"
-    echo "# Generated $(date -u +%Y-%m-%d) from $PROGRESS_LEAN + $ROUTINES_LEAN witnesses."
+    echo "# Generated $(date -u +%Y-%m-%d) from $PROGRESS_LEAN + $ROUTINES_LEAN + $CORRESPOND_LEAN witnesses."
     current_nd_owners
   } > "$tmp"
   mv "$tmp" "$ALLOW_FILE"

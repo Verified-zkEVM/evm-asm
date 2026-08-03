@@ -27,6 +27,7 @@
 -/
 import EvmAsm.Progress
 import EvmAsm.Progress.Routines
+import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
@@ -235,6 +236,14 @@ import EvmAsm.Progress.Routines
 #print axioms EvmAsm.Evm64.witnessIndexIs_split_at
 
 #print axioms EvmAsm.Evm64.witnessLookupSpec_correct
+
+#print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
+
+#print axioms EvmAsm.Rv64.RLP.rlp_content_to_u64_spec_within
+
+#print axioms EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
+
+#print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 
