@@ -725,6 +725,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- without a new entry. Skipping the append keeps long loops that rewrite
         -- the same value (e.g. a success flag per CALL iteration) from exhausting
         -- the 16384-entry exec-log arena and halting on the capacity guard.
+        -- x19 is repurposed below as an append-vs-skip marker after the refund
+        -- helper has returned.  Do not use x18 as the marker: the append tail
+        -- deliberately reuses it for the exec-log metadata index.
+        "  li x19, 0\n" ++
         "  beqz x18, .Lsstore_append_entry\n" ++
         "  ld x16, 32(x18); ld x17, 32(x12); bne x16, x17, .Lsstore_append_entry\n" ++
         "  ld x16, 40(x18); ld x17, 40(x12); bne x16, x17, .Lsstore_append_entry\n" ++
@@ -732,6 +736,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  ld x16, 56(x18); ld x17, 56(x12); bne x16, x17, .Lsstore_append_entry\n" ++
         "  j .Lsstore_append_done\n" ++
         ".Lsstore_append_entry:\n" ++
+        "  li x19, 1\n" ++
         "  ld x15, 448(x20)\n" ++         -- reload current log_length
         "  li x14, 0xa0630000\n" ++
         "  slli x16, x15, 7\n" ++
@@ -812,70 +817,23 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  mv a0, x20\n" ++
         "  mv a1, x12\n" ++
         "  addi a2, x12, 32\n" ++
-        -- a6 = pre-tx baseline ptr, which is exactly what x18 already is: the
-        -- handler maintains it as `&found.original` (:382, `x14 + 64`) or 0 meaning
-        -- original == current == 0 (:465) -- the SAME pointer-or-zero convention
-        -- `storage_write_record` documents for a6, so no conversion is needed.
-        --
-        -- WHY x18 AND NOT `sstore_prestate_pair`: that buffer is MULTIPLEXED -- it
-        -- holds (address, key) for the committed-log lookup at :411-415 and only
-        -- afterwards (original, current). On the ZERO path nothing overwrites +0, so
-        -- it still holds the REVERSED 20-BYTE ADDRESS: byte-plausible, 32 bytes wide,
-        -- and an address rather than a value.
-        --
-        -- WHY x18 IS LIVE HERE, verified rather than assumed: it is clobbered at :496
-        -- as a scratch for `evm_state_gas_spilled` inside the zero-restore credit
-        -- path, but the refund block saved it at :469 and RESTORES it at :510, and
-        -- nothing between :510 and here writes it -- :517-550 only read it.
-        --
-        -- And it is uniform across every path that reaches this point. Where the
-        -- append runs, :543-551 copies the original from x18 into the new row's +64
-        -- (or zeros when x18 is 0); where the append is skipped as a value-unchanged
-        -- rewrite, x18 already points at the found row's +64. Either way x18 is a
-        -- valid pointer to this slot's transaction-start value.
-        -- a6 = 0 -- the documented placeholder, RESTORED after `mv a6, x18` was
-        -- measured to fault the guest. x18 is NOT a valid pointer here: the fixtures
-        -- take a load access fault (mcause=0x5) at mtval=0xd8 inside
-        -- storage_write_record, i.e. a6 = 216 -- neither a pointer nor the zero the
-        -- ABI defines. The source-level liveness argument (saved :469, restored :510,
-        -- read-only :517-550) was WRONG on at least one reachable path.
-        --
-        -- Control, same fixtures, same base: a6 = 0 gives ran=2 full-match=2;
-        -- mv a6, x18 gives errored=2 ran=0.
-        --
-        -- ## THIS ZERO IS NOT A BASELINE, AND A FILTER MUST NOT TRUST IT
-        --
-        -- It is safe only because nothing reads the captured field. The moment a
-        -- net-zero filter consumes it, IT IS WRONG IN THE FALSE-ACCEPT DIRECTION:
-        --
-        --   On a VALUE-UNCHANGED REWRITE the true baseline EQUALS the value being
-        --   written, so the spec emits nothing (`block_access_lists.py:667-676`
-        --   requires `pre_value != post_value`). With a baseline of zero and a
-        --   nonzero post value, the filter concludes "changed" and EMITS A BAL ENTRY
-        --   THE SPEC OMITS. The list stays well-formed, the entry count is wrong,
-        --   and the hash is simply wrong — nothing faults and nothing complains.
-        --
-        -- The value-unchanged case is reachable at this call site: `:522`
-        -- (`j .Lsstore_append_done`) jumps past the exec-log append while still
-        -- reaching this call, so a rewrite of the same value arrives here.
-        --
-        -- So baseline acquisition belongs WITH the filter, not before it. Four
-        -- attempts failed by trying to obtain the value without a consumer to
-        -- constrain the choice: a carried register (`x18`) faulted, a dedicated
-        -- global needed the same unreconstructable control flow to prove
-        -- non-reentrancy, a recompute turned out to be half a lookup
-        -- (`storage_writes_block_latest_value` answers only on a match, with the
-        -- prestate-header fallback separate), and reading the exec-log row failed
-        -- because the exec-log append and this write-map append are DIFFERENT events.
-        --
-        -- What survives, for whoever writes the filter: `x18` IS valid and holds the
-        -- resolved original at `:517-521`, where the comparison reads it to decide the
-        -- jump — upstream of everything that defeated the four attempts. And the two
-        -- paths have a natural answer each: on the append path the exec-log row
-        -- carries it; on the skip path the baseline IS the value being written, by
-        -- definition of value-unchanged. Handled separately, neither branch needs a
-        -- carried pointer or a control-flow argument.
-        "  li a6, 0\n" ++
+        -- The baseline handoff is branch-owned.  On an append path, x14 still
+        -- points at the freshly appended persistent-log row: its +64 field was
+        -- copied from the resolved original (or explicitly zeroed) above.  On a
+        -- value-unchanged skip path, the map row already exists and ignores a6;
+        -- if it does not (for example, a read seed supplied the log row), the
+        -- value being written is exactly the transaction-start value.  In both
+        -- cases the pointer is valid, and no stale sstore_prestate_pair or
+        -- post-append x18 value is consumed.
+        -- Append paths use the freshly written log row; skip paths use the new
+        -- value.  The marker is set immediately before the append branch above,
+        -- after all helpers that may clobber x18 have returned.
+        "  beqz x19, .Lsstore_map_baseline_new\n" ++
+        "  addi a6, x14, 64\n" ++
+        "  j .Lsstore_map_record\n" ++
+        ".Lsstore_map_baseline_new:\n" ++
+        "  addi a6, x12, 32\n" ++
+        ".Lsstore_map_record:\n" ++
         "  jal ra, storage_write_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
