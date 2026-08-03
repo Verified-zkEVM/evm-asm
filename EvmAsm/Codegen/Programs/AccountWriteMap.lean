@@ -91,6 +91,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Stateless.MemoryLayout
@@ -267,6 +268,49 @@ def accountWritesBlockUpsertFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
+/-! ## `account_writes_apply_deletes`
+
+    EIP-6780 records a same-transaction-created SELFDESTRUCT in the deferred
+    `account_state_delete` set.  The AccountState commit consumes that set at
+    the transaction boundary, but the account-write map is a separate
+    transaction-local mirror and must receive the same transition before its
+    builder walk.  Preserve the map key as a state-only `None` tombstone and
+    journal the overwrite so an enclosing frame can still restore it.  The
+    incorporation walk omits this tombstone: a same-transaction-created
+    account has no prior block-map row, so omitting it is the block-level
+    representation of `account_changes[address] = None` and keeps the state
+    root enumerator from inventing a leaf.
+
+    No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
+def accountWritesApplyDeletesFunction : String :=
+  "account_writes_apply_deletes:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  la t0, account_state_delete_count; ld s2, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s2, t0, .Lawd_overflow\n" ++
+  "  li s1, 0\n" ++
+  ".Lawd_delete_loop:\n" ++
+  "  bgeu s1, s2, .Lawd_ok\n" ++
+  "  slli t0, s1, 5; la t1, account_state_delete; add s0, t1, t0; ld t0, 24(s0); beqz t0, .Lawd_delete_next\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, " ++ toString txAccountWritesCapacity ++ "; bgtu t1, t2, .Lawd_overflow; li s3, 0\n" ++
+  ".Lawd_tx_loop:\n" ++
+  "  bgeu s3, t1, .Lawd_delete_next\n" ++
+  "  slli t2, s3, 7; li t3, 0xa2b20000; add t2, t3, t2; mv t3, t2; mv t4, s0; li t5, 20\n" ++
+  ".Lawd_cmp:\n" ++
+  "  beqz t5, .Lawd_hit; lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lawd_next; addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lawd_cmp\n" ++
+  ".Lawd_next:\n" ++
+  "  addi s3, s3, 1; j .Lawd_tx_loop\n" ++
+  ".Lawd_hit:\n" ++
+  "  mv a5, s3; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawd_overflow\n" ++
+  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0); li t1, 8; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
+  ".Lawd_delete_next:\n" ++
+  "  addi s1, s1, 1; j .Lawd_delete_loop\n" ++
+  ".Lawd_ok:\n" ++
+  "  li a0, 0; j .Lawd_ret\n" ++
+  ".Lawd_overflow:\n" ++
+  "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, account_writes_overflow; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lawd_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 48; ret\n"
+
 /-! ## `account_writes_incorporate_tx`
 
     Mirrors the account half of `incorporate_tx_into_block`: merge the
@@ -313,6 +357,11 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xa2b20000; li s3, 0\n" ++
   ".Laweb_loop:\n" ++
   "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
+  -- A deferred same-transaction deletion has no BAL account post-value to
+  -- compare.  Keep the tombstone in the tx map for frame rollback, but do not
+  -- send it through the builder baseline resolver.
+  "  ld t0, 112(s4); li t1, 8; bne t0, t1, .Laweb_not_deleted; ld t1, 72(s4); beqz t1, .Laweb_advance\n" ++
+  ".Laweb_not_deleted:\n" ++
   -- Same-tx-created SELFDESTRUCT entries are tracked by the producer.  A
   -- distinct-beneficiary clear is access-only in the BAL; self-destruction to
   -- self preserves the live balance, so only its nonce/code are suppressed.
@@ -450,7 +499,14 @@ def accountWritesIncorporateTxFunction : String :=
   ".Lawi_loop:\n" ++
   "  bgeu s3, s1, .Lawi_clear\n" ++
   "  slli a0, s3, 7; add a0, s2, a0\n" ++
+  -- A same-transaction-created SELFDESTRUCT is represented by a state-only
+  -- `None` tombstone until this transaction is incorporated.  It has no
+  -- block-level predecessor, so do not turn the tombstone into a synthetic
+  -- account row for the state-root enumerator.
+  "  ld t0, 112(a0); li t1, 8; bne t0, t1, .Lawi_merge; ld t1, 72(a0); beqz t1, .Lawi_next\n" ++
+  ".Lawi_merge:\n" ++
   "  jal ra, account_writes_block_upsert\n" ++
+  ".Lawi_next:\n" ++
   "  addi s3, s3, 1; j .Lawi_loop\n" ++
   ".Lawi_clear:\n" ++
   -- state_tracker.py:874 `tx_state.account_writes.clear()`. The undo journal is
@@ -684,6 +740,7 @@ def accountWriteMapBssSection : String :=
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesBlockUpsertFunction ++
+  accountWritesApplyDeletesFunction ++
   accountWritesEmitBuilderTxFunction ++
   accountWritesIncorporateTxFunction ++
   accountWritesUndoPushFunction ++
@@ -729,6 +786,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_apply_deletes:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 1
 -- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
 -- target row address in t5 ACROSS this call. Pin the save AND the restore: a prologue-only save

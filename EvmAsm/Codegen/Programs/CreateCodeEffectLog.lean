@@ -248,6 +248,12 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_loop\n" ++
   ".Lascp_clear:\n" ++
+  -- EIP-6780's deferred delete set is also the authoritative source for the
+  -- transaction AccountWrite `None` transition.  Apply it before consuming
+  -- the set below, so the subsequent BAL builder walk and block incorporation
+  -- cannot publish a same-transaction-created account that was deleted before
+  -- transaction finalization.
+  "  jal ra, account_writes_apply_deletes; bnez a0, .Lascp_over\n" ++
   "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_delete_loop:\n" ++
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
