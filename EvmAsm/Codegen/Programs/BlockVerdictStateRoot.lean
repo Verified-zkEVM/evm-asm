@@ -490,17 +490,18 @@ def blockStateRootFunction : String :=
   "  # in this C-sized builder input. In particular, reverted storage windows\n" ++
   "  # have zero committed entries and cannot become a last-write-wins value.\n" ++
   ".Lbsr_withdrawals:\n" ++
-  "  # The map authority records which account owners already include their\n" ++
-  "  # withdrawal credit.  BAL count is only an execution statistic and is not\n" ++
-  "  # a sound proxy for this fact.  Per-withdrawal matching below skips only\n" ++
-  "  # recipients marked as account-map owners; storage-only owners still use\n" ++
-  "  # the explicit withdrawal update.\n" ++
+  "  # The map authority records addresses already owned by either execution map.\n" ++
+  "  # Match the address, not the account-map flag: a storage-only owner can\n" ++
+  "  # still have the recipient's final balance in the committed BAL record,\n" ++
+  "  # and flagging it as a miss would append a duplicate withdrawal change.\n" ++
+  "  # BAL count is only an execution statistic and is not a sound proxy here.\n" ++
   "  # withdrawal changes: change counter s1 starts after system/BAL changes.\n" ++
   "  # Zero-amount withdrawals are no-ops and do not advance the change counter.\n" ++
   "  li s0, 0                     # withdrawal index\n" ++
   ".Lbsr_wl:\n" ++
   "  beq s0, s4, .Lbsr_apply\n" ++
   "  slli t0, s0, 4; add t0, s3, t0; ld a0, 0(t0); ld a1, 8(t0)   # wd[i] rlp ptr/len\n" ++
+  "  # s1 is the next committed record slot, including system/BAL/map changes.\n" ++
   "  slli t1, s1, 6; la t2, bsr_paths; add a2, t2, t1; la a3, bsr_delta\n" ++
   "  jal ra, withdrawal_to_path_delta; bnez a0, .Lbsr_cons_wd_decode\n" ++
   "  # zero-amount withdrawal (delta == 0) -> no state change -> skip.\n" ++
@@ -510,7 +511,8 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_emitted_owner_count; ld t1, 0(t0); li t2, 0\n" ++
   ".Lbsr_wd_map_scan:\n" ++
   "  bgeu t2, t1, .Lbsr_wd_map_miss\n" ++
-  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t3, t4, t3; lbu t6, 20(t3); li t5, 1; bne t6, t5, .Lbsr_wd_map_next\n" ++
+  "  # Every emitted owner participates, including flag==0 storage-only rows.\n" ++
+  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t3, t4, t3\n" ++
   "  mv t4, t3; la t5, wtpd_struct; addi t5, t5, 16; li t6, 20\n" ++
   ".Lbsr_wd_map_cmp:\n" ++
   "  beqz t6, .Lbsr_wd_map_hit\n" ++
@@ -528,7 +530,7 @@ def blockStateRootFunction : String :=
   "  beq t6, s1, .Lbsr_no_dup\n" ++
   "  slli t0, t6, 5; slli t1, t6, 3; add t0, t0, t1; la t1, bsr_changes; add t0, t1, t0\n" ++
   "  ld t0, 0(t0)                  # prev path from descriptor (bsr_paths or basr_paths)\n" ++
-  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 6; la t1, bsr_paths; add t1, t1, t2 # current withdrawal path\n" ++
+  "  slli t2, s1, 6; la t1, bsr_paths; add t1, t1, t2 # current withdrawal path\n" ++
   "  li t2, 64\n" ++
   ".Lbsr_dup_cmp:\n" ++
   "  beqz t2, .Lbsr_dup_found\n" ++
@@ -549,24 +551,24 @@ def blockStateRootFunction : String :=
   ".Lbsr_no_dup:\n" ++
   "  li t0, " ++ toString bsrMaxStateChanges ++ "; bge s1, t0, .Lbsr_cons_change_cap # cap to the change-buffer size\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
+  "  slli t1, s1, 6; la t2, bsr_paths; add a3, t2, t1; li a4, 64; la a5, bsr_acct; la a6, bsr_acct_len\n" ++
   "  jal ra, mpt_walk\n" ++
   "  beqz a0, .Lbsr_wl_found\n" ++
   "  li t0, 1; bne a0, t0, .Lbsr_cons_wd_walk   # parse-fail (2) -> conservative\n" ++
   "  # NOT-FOUND: create the account. fresh = empty_account + delta (balance 0 -> delta).\n" ++
   "  la a0, bsr_empty_account; li a1, 70; la a2, bsr_delta\n" ++
-  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
+  "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
   "  jal ra, account_add_balance; bnez a0, .Lbsr_cons_new_add\n" ++
   "  li t5, 1; j .Lbsr_wl_record   # is_insert = 1\n" ++
   ".Lbsr_wl_found:\n" ++
   "  la a0, bsr_acct; la t0, bsr_acct_len; ld a1, 0(t0); la a2, bsr_delta\n" ++
-  "  addi t1, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t1, t1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
+  "  slli t1, s1, 7; la t2, bsr_newaccts; add a3, t2, t1; la a4, bsr_tmplen\n" ++
   "  jal ra, account_add_balance; bnez a0, .Lbsr_cons_found_add\n" ++
   "  li t5, 0                      # is_insert = 0 (MODIFY existing)\n" ++
   ".Lbsr_wl_record:\n" ++
   "  slli t0, s1, 5; slli t6, s1, 3; add t0, t0, t6; la t1, bsr_changes; add t1, t1, t0   # *40\n" ++
-  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
-  "  addi t2, s0, " ++ toString bsrModeledSystemChanges ++ "; slli t2, t2, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
+  "  slli t2, s1, 6; la t3, bsr_paths; add t3, t3, t2; sd t3, 0(t1); li t3, 64; sd t3, 8(t1)\n" ++
+  "  slli t2, s1, 7; la t3, bsr_newaccts; add t3, t3, t2; sd t3, 16(t1)\n" ++
   "  la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1)\n" ++
   "  sd t5, 32(t1)               # is_insert\n" ++
   "  addi s1, s1, 1               # advance change counter (only on a recorded change)\n" ++
