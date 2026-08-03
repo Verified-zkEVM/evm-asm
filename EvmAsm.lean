@@ -37,6 +37,7 @@ import EvmAsm.Codegen.RegionPredicates
 import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
 import EvmAsm.Progress
+import EvmAsm.Progress.Routines
 import EvmAsm.Progress.AxiomWitnesses
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
