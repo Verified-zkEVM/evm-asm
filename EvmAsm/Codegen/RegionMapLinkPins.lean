@@ -18,12 +18,12 @@
 
 namespace EvmAsm.Codegen.RegionMapLinkPins
 
-abbrev textSizeBytes : Nat := 0x62738
+abbrev textSizeBytes : Nat := 0x61e8c
 abbrev dataSizeBytes : Nat := 0x5370
-abbrev bssSizeBytes : Nat := 0x1aa7c4e0
+abbrev bssSizeBytes : Nat := 0x1a0f2de0
 
-abbrev callFrameArenaBase : Nat := 0xad1e8160
-abbrev evmMemoryPoolBase : Nat := 0xb3601160
+abbrev callFrameArenaBase : Nat := 0xacbcd960
+abbrev evmMemoryPoolBase : Nat := 0xb2fe6960
 abbrev syslogBase : Nat := 0xaae851c0
 
 end EvmAsm.Codegen.RegionMapLinkPins
