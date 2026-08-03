@@ -325,6 +325,32 @@ else
   else
     note "OK   RegionMapLinkPins.lean matches generator output for check-time ELF"
   fi
+  # One-definition fence (#11282 / #11260): RegionMap must re-export class-A pins
+  # as `abbrev … := RegionMapLinkPins.…`, not resurrect hand `def … := 0x…`.
+  # Root cause of the regression: #11260 merge f5bda999b landed LinkPins + check
+  # but had NO RegionMap.lean diff — re-exports never landed (incomplete landing,
+  # not later overwrite). Under-estimate 0x622a8 still fit CodeReq until switch growth.
+  # Guard greps the abbrev form so a restoration without this fence is a pin by another name.
+  RM=EvmAsm/Codegen/RegionMap.lean
+  if [[ ! -f "$RM" ]]; then
+    note "DRIFT missing $RM"
+    fail=1
+  else
+    for name in textSizeBytes dataSizeBytes bssSizeBytes callFrameArenaBase evmMemoryPoolBase syslogBase; do
+      if ! grep -qE "^abbrev ${name} : Nat := RegionMapLinkPins\\.${name}\$" "$RM"; then
+        note "DRIFT RegionMap.${name} is not \`abbrev := RegionMapLinkPins.${name}\` — do not hand-repin RegionMap class-A; regenerate LinkPins only (docs/regenerating-generated-files.md)"
+        fail=1
+      fi
+    done
+    if ! grep -qE '^import EvmAsm\.Codegen\.RegionMapLinkPins$' "$RM"; then
+      note "DRIFT RegionMap.lean missing import EvmAsm.Codegen.RegionMapLinkPins"
+      fail=1
+    fi
+    if grep -qE '^def (textSizeBytes|dataSizeBytes|bssSizeBytes|callFrameArenaBase|evmMemoryPoolBase|syslogBase) : Nat := 0x' "$RM"; then
+      note "DRIFT RegionMap.lean has hand def hex for a class-A pin — two-modules-one-fact regression"
+      fail=1
+    fi
+  fi
 fi
 
 # --- TSV snapshot ---
