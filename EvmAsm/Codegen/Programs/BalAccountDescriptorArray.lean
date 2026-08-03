@@ -391,7 +391,7 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "baap_storage_desc:\n  .zero 20480\n" ++
   "baap_storage_paths:\n  .zero 32768\n" ++
   "baap_storage_delete_paths:\n  .zero 32768\n" ++
-  "baap_storage_values:\n  .zero 32768\n" ++
+  "baap_storage_values:\n  .zero 32768\nbaap_storage_values_end:\n" ++
   "bacp_off:\n  .zero 8\n" ++
   "bacp_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
