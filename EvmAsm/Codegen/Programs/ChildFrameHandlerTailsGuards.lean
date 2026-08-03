@@ -14,10 +14,10 @@ namespace EvmAsm.Codegen
 /-! ### Guards on the placement of the CALL-family producer read
 
     The producer must not be attached to the access-charge setup: that tail runs
-    before the memory part of the initial static gas check. It belongs immediately
-    after `callMemoryExpansionGasAsm`, where this tail enters delegation code
-    resolution before later balance or new-account outcomes. `a0` is `x10`, so the
-    producer uses the helper's save/restore wrapper.
+    before the memory part of the initial static gas check. Value-bearing calls
+    first pass the non-charging CALL_VALUE availability probe, then the producer
+    runs; the branch-specific path performs the single actual charge later.
+    `a0` is `x10`, so the producer uses the helper's save/restore wrapper.
 
     These guard the routing boundary: a later reorder cannot silently put the
     producer back before the static check or move it after the branch-specific
@@ -33,6 +33,12 @@ private def guardedCallTail : String :=
      "  jal ra, account_read_record\n" ++
      "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
      "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n")).length = 1
+
+-- The value-bearing tail emits its CALL_VALUE availability probe before the first
+-- target producer read.
+#guard
+  (guardedCallTail.splitOn
+    ("  beqz t3, .Lcvga_zero_call_target\n")).length = 2
 
 -- The tail contains exactly two producer reads: its original target after the
 -- initial static check, plus the successful delegation-resolution path. The helper
