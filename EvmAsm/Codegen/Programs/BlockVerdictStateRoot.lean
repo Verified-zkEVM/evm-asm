@@ -158,6 +158,14 @@ def executionMapStateChangesFunction : String :=
   ".Lem_storage_loop:\n" ++
   "  bgeu s4, s9, .Lem_done\n" ++
   "  slli t0, s4, 7; add s3, s5, t0\n" ++
+  -- `storage_writes` retains the transaction-start baseline in the spare
+  -- 32-byte field at +96.  Match `bal_emit_storage_changes`: unchanged
+  -- writes are execution facts, but are not BAL storage changes.
+  "  ld t0, 64(s3); ld t1, 96(s3); bne t0, t1, .Lem_storage_delta\n" ++
+  "  ld t0, 72(s3); ld t1, 104(s3); bne t0, t1, .Lem_storage_delta\n" ++
+  "  ld t0, 80(s3); ld t1, 112(s3); bne t0, t1, .Lem_storage_delta\n" ++
+  "  ld t0, 88(s3); ld t1, 120(s3); beq t0, t1, .Lem_storage_next\n" ++
+  ".Lem_storage_delta:\n" ++
   "  la t0, bsr_map_item; addi t0, t0, 2; addi t1, s3, 19; li t2, 20\n" ++
   ".Lem_storage_addr_copy:\n" ++
   "  beqz t2, .Lem_storage_bal_scan_init\n" ++
@@ -208,12 +216,28 @@ def executionMapStateChangesFunction : String :=
   "  la s7, bsr_acct; la t0, bsr_acct_len; ld s10, 0(t0)\n" ++
   ".Lem_pre_ready:\n" ++
   "  ld t0, 0(s0); slli t1, t0, 6; la t2, basr_paths; add a4, t2, t1; slli t1, t0, 8; la t2, basr_values; add a5, t2, t1\n" ++
+  "  la t1, bsr_prev_acct; sd s7, 0(t1); la t1, bsr_acct_len; sd s10, 0(t1); la t1, bsr_prev_desc; sd a5, 0(t1)\n" ++
   "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, bal_account_change_value\n" ++
   "  bnez a0, .Lem_fail\n" ++
+  "  # Map rows are execution facts too; retain only complete account-leaf mutations.\n" ++
+  "  # Compare the complete pre/post RLP values, covering nonce, balance,\n" ++
+  "  # storage root, and code hash without making long-list decoding a hard gate.\n" ++
+  "  la t0, bsr_acct_len; ld t1, 0(t0); la t0, bsr_tmplen; ld t2, 0(t0); bne t1, t2, .Lem_map_value_changed\n" ++
+  "  la t0, bsr_prev_acct; ld t1, 0(t0); la t0, bsr_prev_desc; ld t2, 0(t0); la t0, bsr_acct_len; ld t3, 0(t0)\n" ++
+  ".Lem_map_value_compare:\n" ++
+  "  beqz t3, .Lem_map_value_unchanged\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lem_map_value_changed\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lem_map_value_compare\n" ++
+  ".Lem_map_value_changed:\n" ++
   "  ld t0, 0(s0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, bsr_changes; add t1, t2, t1\n" ++
   "  slli t2, t0, 6; la t3, basr_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1)\n" ++
   "  slli t2, t0, 8; la t3, basr_values; add t2, t3, t2; sd t2, 16(t1); la t3, bsr_tmplen; ld t3, 0(t3); sd t3, 24(t1); sd s8, 32(t1)\n" ++
   "  addi t0, t0, 1; sd t0, 0(s0)\n" ++
+  "  j .Lem_map_value_done\n" ++
+  ".Lem_map_value_unchanged:\n" ++
+  "  beqz s6, .Lem_account_next\n" ++
+  "  j .Lem_storage_next\n" ++
+  ".Lem_map_value_done:\n" ++
   "  beqz s6, .Lem_account_next\n" ++
   ".Lem_storage_next:\n" ++
   "  addi s4, s4, 1; j .Lem_storage_loop\n" ++
@@ -319,6 +343,27 @@ def blockStateRootFunction : String :=
   ".Lbsr_skip_4788:\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
+  "  # Seed the same applied-owner set with modeled system commits.  The map\n" ++
+  "  # authority must not replay a storage row for an owner already committed\n" ++
+  "  # above; derive the entries from the writes that actually ran.\n" ++
+  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_seed_4788\n" ++
+  "  la t1, bsr_changed_account_count; ld t2, 0(t1); li t3, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t2, t3, .Lbsr_cons_change_cap\n" ++
+  "  slli t3, t2, 5; la t4, bsr_changed_accounts; add t4, t4, t3; la t5, bsr_addr_2935; li t6, 20\n" ++
+  ".Lbsr_seed_2935_copy:\n" ++
+  "  beqz t6, .Lbsr_seed_2935_done\n" ++
+  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lbsr_seed_2935_copy\n" ++
+  ".Lbsr_seed_2935_done:\n" ++
+  "  addi t2, t2, 1; sd t2, 0(t1)\n" ++
+  ".Lbsr_seed_4788:\n" ++
+  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_seed_done\n" ++
+  "  la t1, bsr_changed_account_count; ld t2, 0(t1); li t3, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t2, t3, .Lbsr_cons_change_cap\n" ++
+  "  slli t3, t2, 5; la t4, bsr_changed_accounts; add t4, t4, t3; la t5, bsr_addr_4788; li t6, 20\n" ++
+  ".Lbsr_seed_4788_copy:\n" ++
+  "  beqz t6, .Lbsr_seed_4788_done\n" ++
+  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lbsr_seed_4788_copy\n" ++
+  ".Lbsr_seed_4788_done:\n" ++
+  "  addi t2, t2, 1; sd t2, 0(t1)\n" ++
+  ".Lbsr_seed_done:\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
@@ -356,11 +401,22 @@ def blockStateRootFunction : String :=
   ".Lbsr_bal_copy_normal:\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
+  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_prev_acct; sd a0, 0(t0); la t0, bsr_acct_len; sd a1, 0(t0); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
   "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
   "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
   "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
+  "  la t0, bsr_prev_desc; sd a7, 0(t0)\n" ++
   "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
+  "  # A BAL row is an execution fact, not necessarily a post-state mutation.\n" ++
+  "  # Compare the complete pre/post RLP values, covering the full account leaf\n" ++
+  "  # (nonce, balance, storage root, and code hash) before retaining the row.\n" ++
+  "  la t0, bsr_acct_len; ld t1, 0(t0); la t0, bsr_tmplen; ld t2, 0(t0); bne t1, t2, .Lbsr_bal_value_changed\n" ++
+  "  la t0, bsr_prev_acct; ld t1, 0(t0); la t0, bsr_prev_desc; ld t2, 0(t0); la t0, bsr_acct_len; ld t3, 0(t0)\n" ++
+  ".Lbsr_bal_value_compare:\n" ++
+  "  beqz t3, .Lbsr_bal_copy_next\n" ++
+  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbsr_bal_value_changed\n" ++
+  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbsr_bal_value_compare\n" ++
+  ".Lbsr_bal_value_changed:\n" ++
   "  la t0, bsr_changed_account_count; ld t1, 0(t0); li t2, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t1, t2, .Lbsr_changed_addr_record_skip\n" ++
   "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
   "  la t4, bsr_bal_item_ptr; ld a0, 0(t4); la t4, bsr_bal_item_len; ld a1, 0(t4)\n" ++
