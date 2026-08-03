@@ -397,7 +397,51 @@ theorem writeShift_eq_append : ∀ (m : Nat) (dst : List Byte) (di v : Nat),
 #guard writeShift [0,0,0,0,0] 1 65536 3 == [0, 1, 0, 0, 0]
 #guard writeShift [9,9,9,9] 0 56 1 == [0x38, 9, 9, 9]
 
-/-! ## §5  Non-vacuity checks on the model layer
+/-! ## §5  Machine-side bridges for the length-of-length loop
+
+    Three small facts the loop at [55]-[62] needs, kept here with the rest of the
+    model layer so the loop proof itself is pure plumbing. -/
+
+/-- The byte the loop actually stores at iteration `i`, in the model's form.
+    `SB` truncates to 8 bits, and `256 ^ i = 2 ^ (8*i)`. -/
+theorem truncate_shift_eq (v : Word) (i : Nat) :
+    (v >>> (8 * i)).truncate 8 = BitVec.ofNat 8 (v.toNat / 256 ^ i % 256) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat,
+      Nat.shiftRight_eq_div_pow,
+      show (256 : Nat) ^ i = 2 ^ (8 * i) from by
+        rw [show (256 : Nat) = 2 ^ 8 from by norm_num, ← Nat.pow_mul]]
+  omega
+
+/-- The loop's guard is **signed** (`BLT`), and the counter runs down to `-1`.
+    At `-1` the branch fires. -/
+theorem slt_neg_one : BitVec.slt (-1 : Word) (0 : Word) = true := by decide
+
+/-- ...and does not fire while the counter is a small non-negative value.  The
+    counter never exceeds `bc - 1 ≤ 7`. -/
+theorem slt_small_false (i : Nat) (h : i < 8) :
+    BitVec.slt (BitVec.ofNat 64 i) (0 : Word) = false := by
+  -- `i ≤ 7` is the truth of the situation: the counter starts at `bc - 1` and
+  -- `bc ≤ 8`.  Stating the tight bound and discharging the eight concrete values
+  -- beats asserting `i < 2 ^ 63`, which `omega`/`bv_omega` cannot reach anyway
+  -- (`slt` normalises through `Int.bmod`, which they treat opaquely).
+  interval_cases i <;> decide
+
+/-- Counter bookkeeping: `ofNat (m+1) - 1 = ofNat m`, so the invariant's
+    `ofNat m - 1` form steps cleanly.
+
+    **Unconditional** — `mod 2 ^ 64` absorbs the reduction, so no `m + 1 < 2 ^ 64`
+    side condition is needed.  Same as `word_128_add` in `rlp_encode_uint_be`:
+    keeping a range bound here would misplace a domain restriction as an
+    arithmetic fact. -/
+theorem ofNat_succ_sub_one (m : Nat) :
+    BitVec.ofNat 64 (m + 1) - 1 = BitVec.ofNat 64 m := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_sub, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+      show (1 : Word).toNat = 1 from by decide]
+  omega
+
+/-! ## §6  Non-vacuity checks on the model layer
 
     The lemmas above are conditional equations; these pin them at concrete data
     so a later edit cannot make them true by making them unreachable.  The
