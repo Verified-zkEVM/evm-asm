@@ -44,7 +44,6 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
-import EvmAsm.Codegen.Programs.BlockVerdictEip7702AuthNonstorageEffectsArray
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
@@ -369,7 +368,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
   (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
-  (GuestAddrs.block_verdict_eip7702_auth_nonstorage_effects_array, blockVerdictEip7702AuthNonstorageEffectsArray_prog),
   (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
   (GuestAddrs.b1_sender_table_find, b1SenderTableFind_prog),
   (GuestAddrs.address_from_pubkey, addressFromPubkey_prog),
@@ -502,6 +500,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 346
+#guard guestImageEntries.length = 345
 
 end EvmAsm.Codegen

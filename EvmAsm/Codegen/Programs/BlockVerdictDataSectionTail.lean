@@ -353,7 +353,10 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- transaction-boundary high-water mark so an auth/preparation halt erases
   -- those appends, mirroring interpreter.py:367-378's state rollback.
   "runtime_tx_auth_effect_count_checkpoint:\n  .zero 8\n" ++
+  "runtime_tx_auth_code_effect_count_checkpoint:\n  .zero 8\n" ++
+  "runtime_tx_auth_code_effect_next_checkpoint:\n  .zero 8\n" ++
   "runtime_tx_auth_effect_overflow_checkpoint:\n  .zero 8\n" ++
+  "runtime_tx_auth_code_effect_overflow_checkpoint:\n  .zero 8\n" ++
   "bv_tx_auth_phase_applied_arr:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "dtrc_recipkey:\n  .zero 32\n" ++
   "dtrc_threadval:\n  .zero 32\n" ++

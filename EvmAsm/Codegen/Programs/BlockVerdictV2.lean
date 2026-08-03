@@ -654,8 +654,6 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
-  eip7702AuthNonstorageEffectsFunction ++ "\n" ++
-  blockVerdictEip7702AuthNonstorageEffectsArrayFunction ++ "\n" ++
   eip7702AuthorityStateMaterializeFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++

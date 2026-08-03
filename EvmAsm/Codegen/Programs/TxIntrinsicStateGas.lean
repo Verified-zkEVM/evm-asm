@@ -25,7 +25,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
-import EvmAsm.Codegen.Programs.TxIntrinsicAuthEffects
 
 namespace EvmAsm.Codegen
 
@@ -296,13 +295,30 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
-  -- execution-specs `eoa_delegation.py:set_delegation` increments the authority
-  -- nonce here, before message execution.  Publish a nonce-only effect at this
-  -- point as well: its AccountWrite row receives the current transaction BAI,
-  -- rather than a post-runtime replay BAI.  The AccountState write above already
-  -- owns the execution-state mutation, so the companion producer must not append
-  -- it a second time.
+  -- execution-specs `eoa_delegation.py:set_delegation` installs the authority
+  -- code and increments its nonce here, before message execution.  Publish the
+  -- append-only code effect and nonce effect at this same point: their
+  -- AccountWrite rows receive the current transaction BAI, rather than a
+  -- post-runtime replay BAI.  The AccountState write above owns the
+  -- execution-state mutation, so the companion producers must not append it a
+  -- second time.  Body REVERT restores only the post-preparation snapshot, so
+  -- this auth record persists through a reverted message as in the spec.
   "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- The code-effect log is deliberately written before runtime.  It is the
+  -- execution-time source used by code-read suppression and code-effect
+  -- comparators; the AccountWrite map below carries the actual marker bytes to
+  -- the BAL builder in MTx mode.  Keep the record shape identical to the old
+  -- comparator input: address, has_code_change = 1, code_len = 0.
+  "  la t0, exec_code_effect_next; ld t1, 0(t0); addi t2, t1, 48; li t3, " ++ toString execCodeEffectLogCap ++ "; bgtu t2, t3, .L77prep_code_overflow\n" ++
+  "  la t3, exec_code_effect_log; add t3, t3, t1; sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++
+  "  la t4, b1an_authority; mv t5, t3; li t6, 20\n" ++
+  ".L77prep_code_addr:\n" ++
+  "  beqz t6, .L77prep_code_addr_done; lbu a0, 0(t4); sb a0, 0(t5); addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .L77prep_code_addr\n" ++
+  ".L77prep_code_addr_done:\n" ++
+  "  li t4, 1; sd t4, 32(t3); sd zero, 40(t3); la t0, exec_code_effect_count; ld t4, 0(t0); addi t4, t4, 1; sd t4, 0(t0); la t0, exec_code_effect_next; sd t2, 0(t0); j .L77prep_code_done\n" ++
+  ".L77prep_code_overflow:\n" ++
+  "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".L77prep_code_done:\n" ++
   "  la a0, b1an_authority; la a1, nse_zero_bal; la a2, nse_zero_bal; ld a3, 112(sp); addi a4, a3, 1; jal ra, record_nonstorage_effect_nonce_only_after_account_state; bnez a0, .L77prep_bad_record\n" ++
   -- The direct single-tx lane has no account-write builder pass.  MTx records
   -- the same accepted authorization into the transaction map, with a
@@ -378,9 +394,9 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- after ordinary intrinsic decoding, while the sequential MTx lane uses the
   -- post-reservoir callback below.  The active flag is set only by MTx setup.
   -- Direct transactions run authorization preparation here, before the
-  -- dispatcher-side checkpoint. Snapshot the append-only raw effect log at
-  -- the same boundary so an authorization-phase OOG can roll it back too.
-  "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
+  -- dispatcher-side checkpoint. Snapshot both append-only effect logs at the
+  -- same boundary so an authorization-phase OOG can roll them back too.
+  "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_next; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
   "  la t3, code_state_mtx_active; ld t3, 0(t3); bnez t3, .Lbvtgip_ret\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, -1; jal ra, eip7702_auth_state_prepare\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
@@ -413,7 +429,7 @@ def blockVerdictTxStateGasInlineFinalizeFunction : String :=
   -- dispatcher checks the state-gas reservoir.  Truncate those append-only
   -- cursors on the same phase-zero halt; this is the BAL counterpart of the
   -- AccountState rollback above.
-  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3)\n" ++
+  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
   -- The same pre-dispatch snapshot owns the staged ACCOUNT_WRITE regular gas.
   -- A phase-zero exceptional halt restores it together with NEW_ACCOUNT and
   -- AUTH_BASE; a body revert (phase one) retains all preparation charges.

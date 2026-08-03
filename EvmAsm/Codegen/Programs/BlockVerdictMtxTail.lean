@@ -255,17 +255,12 @@ def blockVerdictMtxValidationTail : String :=
   -- that declare no non-storage change. So running the check with withdrawals present is
   -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
   -- effect-having account in a withdrawals block.
-  -- EIP-7702 authorization code effects are reconstructed from BAL finals here.
-  -- The nonce raw effect is emitted earlier at authorization time; the code
-  -- effect cannot move because its final-state input exists only post-runtime.
-  "  la t2, bv_tx_list_ptr; ld a0, 0(t2)\n" ++
-  "  la t2, bv_tx_list_len; ld a1, 0(t2)\n" ++
-  "  la t2, bv_tx_count; ld a2, 0(t2)\n" ++
-  "  la t2, bv_bal_start; ld a3, 0(t2)\n" ++
-  "  la t2, bv_bal_len; ld a4, 0(t2)\n" ++
-  "  la t2, bv_chain_id; ld a5, 0(t2)\n" ++
-  "  la a6, bv_tx_auth_phase_applied_arr\n" ++
-  "  jal ra, block_verdict_eip7702_auth_nonstorage_effects_array\n" ++
+  -- EIP-7702 authorization code effects are recorded by the single
+  -- execution-time `eip7702_auth_state_prepare` walk.  The AccountWrite map
+  -- then supplies the actual marker bytes to the BAL builder before
+  -- incorporation.  There is intentionally no post-runtime auth-list walk:
+  -- code effects persist through body REVERT and must not be derived from BAL
+  -- finals after execution.
   "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
   -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
   -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
