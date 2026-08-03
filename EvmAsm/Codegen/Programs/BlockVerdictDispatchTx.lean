@@ -709,6 +709,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- authorization phase.  On authorization-phase OOG it never reaches that
   -- point, so omit only this pre-dispatch raw lookup; all ordinary message
   -- outcomes (including body OOG/revert) retain the target touch.
+  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 1; beq t5, t6, .Ldtrc_recipient_read_done\n" ++
   "  la t4, runtime_tx_auth_phase_halted; ld t5, 0(t4); bnez t5, .Ldtrc_recipient_read_done\n" ++
   "  addi a0, s2, 72; jal ra, account_read_record\n" ++
   ".Ldtrc_recipient_read_done:\n" ++
@@ -753,7 +754,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- cursors, account-write/state undo checkpoints, state overflow, and the
   -- create-nonce checkpoint; settlement's only error stores zero the separate
   -- `evm_state_gas_used` and `evm_state_gas_spilled` counters.
-  "  bnez s2, .Ldtrc_body_state_kept; jal ra, dispatcher_restore_body_state\n" ++
+  "  bnez s2, .Ldtrc_body_state_kept\n" ++
+  -- A preparation ExceptionalHalt has no message body to restore.  Keep the
+  -- sender's staged upfront debit visible through settlement; the MTx
+  -- preparation-halt arm restores the authorization frame after refunding.
+  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 1; beq t5, t6, .Ldtrc_body_state_kept\n" ++
+  "  la t4, runtime_tx_auth_phase_halted; ld t5, 0(t4); bnez t5, .Ldtrc_body_state_kept\n" ++
+  "  jal ra, dispatcher_restore_body_state\n" ++
   ".Ldtrc_body_state_kept:\n" ++
   -- .63.1.6.2.1: snapshot this tx's event-log window into the block log arena
   -- after settlement has classified the top-level tx status. A failed top-level

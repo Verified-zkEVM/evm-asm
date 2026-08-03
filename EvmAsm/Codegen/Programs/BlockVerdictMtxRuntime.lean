@@ -694,7 +694,13 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The debit was materialized before execution; apply the spec's later
   -- sender `create_ether` refund before AccountState commits this transaction.
   blockVerdictMtxRecordSenderRefund ++
-  "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); beqz t2, .Lbv_mtx_code_commit\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); bnez t2, .Lbv_mtx_preparation_rollback\n" ++
+  -- A pre-dispatch execution-gas OOG is marked by the preparation-prefix
+  -- status rather than by the authorization-phase halt flag.  Refund the
+  -- staged sender debit first; then discard the preparation overlay exactly
+  -- as the auth-halt arm does.
+  "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; bne t2, t3, .Lbv_mtx_code_commit\n" ++
+  ".Lbv_mtx_preparation_rollback:\n" ++
   -- `process_message` restores the preparation snapshot when preparation
   -- itself halts.  The map's direct auth producer mirrors that control-flow
   -- fact with its own cursor, rather than reusing the dead frame checkpoint.
