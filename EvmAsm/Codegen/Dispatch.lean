@@ -2367,6 +2367,12 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- here after authorization has already run; MTx uses this callback as its
   -- first authorization boundary and must snapshot here instead.
   "  la x11, runtime_tx_auth_phase_halted; sd x0, 0(x11)\n" ++
+  -- Deferred system re-entry (`system_call_mode=1`) must not re-run the user
+  -- transaction's leftover `runtime_tx_auth_exec_fn` (eip7702_auth_state_prepare).
+  -- Spec system txs never call set_delegation; re-running prepare after a user
+  -- auth-phase OOG re-applies rolled-back authority nonces into the block-lived
+  -- nonstorage log (code44 NONCE_ONLY_AUTH / #11148 sibling shape).
+  "  la x11, system_call_mode; ld x9, 0(x11); bnez x9, .runtime_tx_auth_state_used_done\n" ++
   "  la x11, code_state_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
   "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
@@ -2383,7 +2389,8 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  bnez x9, .runtime_tx_auth_phase_oog\n" ++
   "  j .runtime_tx_auth_exec_done\n" ++
   ".runtime_tx_auth_phase_oog:\n" ++
-  "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11); j .exit_outofgas\n" ++
+  "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_auth_exec_fn; sd x0, 0(x11); j .exit_outofgas\n" ++
   ".runtime_tx_auth_exec_done:\n" ++
   -- 2. authorization state-gas fold
   "  la x11, runtime_tx_auth_state_refund\n" ++

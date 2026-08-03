@@ -90,9 +90,10 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  bnez a0, .Lteanse_next\n" ++
   -- F5 (#10612): drop BAL post-state filter. Spec validate_authorization uses
   -- state only. Header account load remains for nonce baseline / balance seed.
+  -- code44: record authority account_read before lookup (spec get_account first).
+  "  la a0, teer_authority; jal ra, account_read_record\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
-  -- GH #10619 gate 2: still raw account_at_header (tracked retarget held).
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteanse_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++

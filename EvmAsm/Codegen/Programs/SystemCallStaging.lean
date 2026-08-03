@@ -143,6 +143,9 @@ def stageSystemCallFunction : String :=
   -- MessageCallOutput; empty == len 0.
   "  li t0, 0; la t1, system_call_returndata_len; sd t0, 0(t1)\n" ++
   "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
+  -- Drop any leftover user-tx auth callback before re-entering the dispatcher
+  -- (code44: system path must not re-run eip7702_auth_state_prepare).
+  "  la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1)\n" ++
   "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
   "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
   "  addi t1, s0, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++   -- input = out + 8 (skip codelen header)
