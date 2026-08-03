@@ -13,9 +13,30 @@ answers:
   objects were found.
 
 ``cannot-tell`` is intentionally a first-class result.  An absent object must
-not silently become evidence that a symbol is dead.  Relocations also cannot
-see values folded into instruction immediates; this is a reachability aid, not
-a proof that a definition is semantically unused.
+not silently become evidence that a symbol is dead.
+
+Coverage gaps (not proofs of deadness)
+--------------------------------------
+This is a reachability aid, not a proof that a definition is semantically
+   unused.  Two gaps sit above the tool by construction:
+
+1. **Fallthrough control flow (hot path).**  A label reached only by falling
+   through from the preceding instruction has no branch and no JAL
+   relocation.  Local / dotted labels (``.L…``, ``.runtime_…``) are exactly
+   where fallthrough is common, and the tool's most natural question is
+   whether such a label is dead.  ``not-referenced`` therefore does **not**
+   rule out fallthrough reachability; every ``not-referenced`` answer for a
+   dotted name prints an explicit caveat line so the status cannot be
+   mistaken for a deadness proof.  Detecting fallthrough would need
+   disassembly adjacency (is the preceding instruction non-terminating?) —
+   deliberately not attempted here; a cheap honest caveat beats an expensive
+   partial detector (#11271).  Witness: ``.runtime_tx_auth_state_used_done``
+   is live via fallthrough from ``.runtime_tx_auth_state_refund_done`` and
+   has no relocation.
+
+2. **Constant folding (rarer).**  Values folded into instruction immediates
+   leave no symbol relocation (e.g. ``accountWriteHasState``).  Documented
+   here only; less common than asking about a control-flow label.
 """
 
 from __future__ import annotations
@@ -150,6 +171,15 @@ def main(argv: list[str]) -> int:
             "reference: "
             f"object={ref.obj} section={ref.section} "
             f"offset=0x{ref.offset} relocation={ref.relocation_type}"
+        )
+    # Fallthrough has no relocation by construction (#11271).  Emit the caveat
+    # on not-referenced answers for dotted/local labels (the hot path) so label
+    # deadness cannot be inferred from status alone.  Global data symbols still
+    # carry the constant-folding non-proof in the module docstring.
+    if status == "not-referenced" and args.symbol.startswith("."):
+        print(
+            "caveat: not-referenced does not rule out fallthrough reachability "
+            "for labels (no branch/JAL relocation by construction)"
         )
     for error in errors:
         print(f"error: {error}", file=sys.stderr)
