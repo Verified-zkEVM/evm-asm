@@ -3045,71 +3045,6 @@ def emitRuntimeDispatcherPrologue : String :=
   emitRuntimeDispatcherSetup ++ "\n" ++
   emitRuntimeDispatcherLoop
 
-/-- bmvmx.1.6.4.2: nested-callee storage seed loop, run AFTER the callable setup
-    (recipient preload-expand + #8561 re-tag + env ready) and BEFORE the dispatch
-    loop. For each `callee_seed_table` entry (96 B: addrHash:32, key:32, value:32)
-    it appends one 128 B persistent-exec-log entry (addrHash, slotKey, original=value,
-    current=value — mirrors `exec_log_append_storage_seed`) and bumps
-    env.persistentLogLength (env+448), so a nested callee's SLOAD finds its witness
-    value instead of cold 0.
-
-    ⛔ **THIS IS NOT INERT.** This docstring used to claim `callee_seed_count` "is 0 for
-    every current caller … so this is INERT — depth-0 / recipient behaviour is
-    byte-identical". **That was true when the loop was written and is false now**: the
-    enumeration it names as future work — 1.6.4.2.b, `seed_callee_storage` in
-    `dispatch_tx_runtime_code` — has since landed, and it populates the table on the
-    ordinary verdict path. ⇒ **this loop is the live consumer of the eager BAL-sourced
-    storage preload.** GH #11176.
-
-    MEASURED (2026-08-02), not inferred. Cited by input sha256 rather than index,
-    because an index is selector-relative and two agents reading "fixture 00192" from
-    two manifests differed by three orders of magnitude on the same day:
-      input sha256 `242fa1e11ec51d7b9f9395b93d3e02ebf6c7d9064196360eba1cefd367cdb13b`
-      relpath `blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/`
-              `block_access_lists_eip7002/bal_7002_request_from_contract.json`
-    A commitlog dump of every access to
-    `callee_seed_count` shows it **walk 0 → 1 → 2 → 3 → 4 and keep going**, with the
-    bumps at the producer's own store and read-backs at the two loads this loop uses.
-    And disabling the producer flips **15 of 1,045** sampled rows from reject to accept
-    with **zero** reverse flips — an inert loop cannot do that.
-
-    ⚠️ **Why this mattered enough to write down:** the retired sentence is exactly the
-    one that would license deleting this loop as dead weight *without measuring
-    anything* — "byte-identical" is a claim a reader acts on. Trust the **why** in a
-    comment like that; measure the **happens**.
-
-    Uses only
-    x5/x6/x7 (the dispatch loop re-inits them each iteration) and x28..x31 temps; never
-    touches x10/x12/x13/x20/x21. -/
-def emitCalleeStorageSeedLoop : String :=
-  "  la x5, callee_seed_count; ld x6, 0(x5)\n" ++
-  "  beqz x6, .Lcallee_seed_done\n" ++
-  "  la x7, callee_seed_table\n" ++          -- x7 = src entry ptr (96 B stride)
-  "  li x28, 0xa0630000\n" ++                -- x28 = persistent exec-log base
-  ".Lcallee_seed_loop:\n" ++
-  "  beqz x6, .Lcallee_seed_done\n" ++
-  "  ld x29, 448(x20)\n" ++                  -- x29 = current entry count
-  "  la x5, exec_log_seed_flag; add x5, x5, x29; li x31, 1; sb x31, 0(x5)\n" ++
-  "  slli x30, x29, 7; add x30, x28, x30\n" ++   -- x30 = entry ptr = base + count*128
-  -- addrHash src[0..32] -> entry[0..32]
-  "  ld x31, 0(x7);  sd x31, 0(x30)\n" ++
-  "  ld x31, 8(x7);  sd x31, 8(x30)\n" ++
-  "  ld x31, 16(x7); sd x31, 16(x30)\n" ++
-  "  ld x31, 24(x7); sd x31, 24(x30)\n" ++
-  -- slotKey src[32..64] -> entry[32..64]
-  "  ld x31, 32(x7); sd x31, 32(x30)\n" ++
-  "  ld x31, 40(x7); sd x31, 40(x30)\n" ++
-  "  ld x31, 48(x7); sd x31, 48(x30)\n" ++
-  "  ld x31, 56(x7); sd x31, 56(x30)\n" ++
-  -- value src[64..96] -> original entry[64..96] AND current entry[96..128]
-  "  ld x31, 64(x7); sd x31, 64(x30);  sd x31, 96(x30)\n" ++
-  "  ld x31, 72(x7); sd x31, 72(x30);  sd x31, 104(x30)\n" ++
-  "  ld x31, 80(x7); sd x31, 80(x30);  sd x31, 112(x30)\n" ++
-  "  ld x31, 88(x7); sd x31, 88(x30);  sd x31, 120(x30)\n" ++
-  "  addi x29, x29, 1; sd x29, 448(x20)\n" ++    -- bump persistentLogLength
-  "  addi x7, x7, 96; addi x6, x6, -1; j .Lcallee_seed_loop\n" ++
-  ".Lcallee_seed_done:\n"
-
 /-- coc3g.5 multi-hop: seed the EIP-7702 RECOVERED-AUTHORITY warm set from the
     pending authorization_list span. The span/fn are prepared by
     `dispatch_tx_runtime_code` and cleared one-shot here; standalone callers leave
@@ -3168,7 +3103,10 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   "  ld x10, 0(sp); addi sp, sp, 16\n" ++
   "  jal ra, dispatcher_reemit_pending_tl\n" ++
   emitTxAuthListWarmLoop ++ "\n" ++
-  emitCalleeStorageSeedLoop ++ "\n" ++
+  -- F3 retirement: no eager BAL-account seed phase.  This follows the
+  -- execution-specs demand-driven path: state_tracker.py:273-302 records a
+  -- storage read and resolves current/parent writes before pre-state, while
+  -- vm/instructions/storage.py:36-61 makes SLOAD call get_storage directly.
   -- Mode 3 is a one-shot top-level-precompile sentinel.  The MTx adapter
   -- installs its selector hook in runtime_tx_post_top_frame_fn; invoke it
   -- only after all shared preparation and access seeding have completed.
@@ -3666,19 +3604,9 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_access_list_storage_key_count:\n" ++
   "  .zero 8\n" ++
-  -- bmvmx.1.6.4.2: nested-callee storage seed table consumed by the callable
-  -- dispatcher prologue's seed loop. `callee_seed_count` is 0 by default, so the
-  -- loop is inert (depth-0 / recipient behaviour byte-identical) until the verdict's
-  -- dispatch_tx_runtime_code (1.6.4.2.b) enumerates every non-recipient BAL account's
-  -- storage into the table (count × 96 B: addrHash:32, key:32, value:32).
-  ".balign 8\n" ++
-  "callee_seed_count:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "callee_seed_table:\n" ++
-  "  .zero " ++ toString calleeSeedTableBytes ++ "\n" ++
-  -- #11157: size = calleeSeedTableCap × calleeSeedEntryBytes (BlockVerdictParams).
-  -- Do not hardcode 12288; the seed loop's table-full guard derives from the same cap.
+  -- F3 retirement: the eager nested-callee seed table is no longer part of the
+  -- callable dispatcher data. Nested SLOAD/SELFBALANCE use authenticated demand
+  -- driven reads instead.
   -- bmvmx.1.6.3 refund accumulation (claude-c1's lane per c2 split). evm_refund_acc is
   -- the running per-tx EIP-3529 refund counter (signed i64): the SSTORE handler adds each
   -- SSTORE's refund delta (from sstore_gas_refund_outcome) on append; reset to 0 at

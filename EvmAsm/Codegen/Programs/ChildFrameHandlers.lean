@@ -335,7 +335,7 @@ def callDescendFallThrough
     -- lookup. The pre-state lookup returns 0 for a freshly-CREATEd contract (absent pre-block) -> the gate
     -- would falsely deem its value-CALL insufficient -> .Lcd_fail -> no transfer -> the created contract's
     -- balance AND the callee credit are mis-recorded (bv_fail=44/45, initcode_calls_with_value etc.). env+32
-    -- is the authoritative current balance (callee_balance_table + the create endowment-credit + live
+    -- is the authoritative current balance (authenticated pre-state + the create endowment-credit + live
     -- debits), and the .Lcd_notself transfer below ALSO debits env+32, so gate and transfer now agree (the
     -- prior split was unsound for a 2nd same-frame value-CALL: the pre-state read is stale-high). env+32 is
     -- LE -> reverse to BE into cd_balance_be. At worst conservative (env+32 missing -> 0 -> false-reject,

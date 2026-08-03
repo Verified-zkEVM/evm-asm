@@ -121,19 +121,6 @@ def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
     blocks far below 200M). -/
 def bsrAccountSlotCap : Nat := bsrMaxBalItems
 
-/-- Entry count of `callee_seed_table` (Dispatch data section). Each entry is
-    96 B (addrHash:32 + key:32 + value:32). The table is still sized at the
-    historical 128-entry footprint (no layout growth on #11157); the seed
-    loop's table-full guard MUST derive from this constant and FAIL CLOSED
-    (`a0 ≠ 0` → caller `.Ldtrc_bal_unsupported`), not skip remaining accounts.
-    Growing the table is a separate sizing item (#11133 / #11186). -/
-def calleeSeedTableCap : Nat := 128
-def calleeSeedEntryBytes : Nat := 96
-def calleeSeedTableBytes : Nat := calleeSeedTableCap * calleeSeedEntryBytes
-
-#guard calleeSeedTableBytes = 12288
-#guard calleeSeedTableCap * calleeSeedEntryBytes = calleeSeedTableBytes
-
 /-- Max per-slot change-tuple count staged by `bal_slot_tuple_sequence`
     (consumer buffers `sps_tuples` / `atsc_balbuf` / `atsc_execbuf`, 40 B per
     tuple). A slot receives at most one net-change tuple per tx (plus the
