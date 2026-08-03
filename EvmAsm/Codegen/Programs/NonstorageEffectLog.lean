@@ -552,6 +552,79 @@ def nonstorageEffectAggregateFunction : String :=
   "  addi sp, sp, 112\n" ++
   "  ret"
 
+/-! ## `nonstorage_apply_destroyed_norm` (fc44 multi-tx SUCCESS selfdestruct)
+
+    Spec stage (execution-specs e5a8caf1b): `clear_account_preserving_balance` /
+    `destroy_account` run during the transaction; `incorporate_tx_into_block`
+    then sees the cleared account (`fork.py:1201-1202`, `system.py:692-693`).
+    Nonce is forced to 0 at clear; BAL emits a nonce change only when pre≠post
+    (`block_access_lists.py:478-489`).
+
+    Guest disease: destroyed-norm lived only inside block-end
+    `nonstorage_effect_aggregate`. Multi-tx blocks wipe
+    `evm_selfdestruct_destroyed_count` at the next user
+    `runtime_dispatcher_call` (mode=0; #11147 only preserves across system
+    re-entry), so the table is empty when aggregate runs. CREATE's transient
+    nonce 0→1 then survives MAX-post fold → phantom hasNonce vs BAL empty →
+    bv_fail=44 (corpus fc44 eip8246 success initcode, n=68).
+
+    Fix: apply the same self/distinct transform to every RAW log record for
+    each destroyed address at **transaction finalize**, while the table is
+    still live. Afterward clear the table so the next-tx wipe is a no-op and
+    block-end aggregate is idempotent. Transform matches `.Lnea_destroyed_norm_*`
+    above (self: drop nonce keep balance; distinct nonzero-pre: post bal=0 keep
+    hasBalance; distinct zero-pre: drop both). -/
+def nonstorageApplyDestroyedNormFunction : String :=
+  "nonstorage_apply_destroyed_norm:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lnaddn_ret\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; ld s0, 0(t0)\n" ++
+  "  beqz s0, .Lnaddn_ret\n" ++
+  "  la s1, evm_selfdestruct_destroyed_table\n" ++
+  "  la t0, exec_nonstorage_effect_count; ld s2, 0(t0)\n" ++
+  "  beqz s2, .Lnaddn_clear\n" ++
+  "  la s3, exec_nonstorage_effect_log\n" ++
+  ".Lnaddn_dloop:\n" ++
+  "  beqz s0, .Lnaddn_clear\n" ++
+  "  lbu s4, 20(s1)\n" ++
+  "  li t6, 0\n" ++
+  ".Lnaddn_rloop:\n" ++
+  "  bgeu t6, s2, .Lnaddn_dnext\n" ++
+  "  li t0, 112; mul t0, t6, t0; add t1, s3, t0\n" ++
+  "  mv t2, s1; mv t3, t1; li t4, 20\n" ++
+  ".Lnaddn_cmp:\n" ++
+  "  beqz t4, .Lnaddn_hit\n" ++
+  "  lbu t5, 0(t2); lbu a0, 0(t3); bne t5, a0, .Lnaddn_rnext\n" ++
+  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1; j .Lnaddn_cmp\n" ++
+  ".Lnaddn_hit:\n" ++
+  "  beqz s4, .Lnaddn_distinct\n" ++
+  -- Self-SD: drop nonce, keep balance components (EIP-8246 preserve balance).
+  "  ld t0, 96(t1); sd t0, 104(t1)\n" ++
+  "  lbu t0, 20(t1); andi t0, t0, " ++ toString nonstorageEffectHasBalance ++ "; sb t0, 20(t1)\n" ++
+  "  j .Lnaddn_rnext\n" ++
+  ".Lnaddn_distinct:\n" ++
+  -- Distinct beneficiary: account ends empty. Zero EVERY raw component on each
+  -- record (post=pre, mask=0). Do NOT apply aggregate's folded distinct_nonzero
+  -- rule here — that rule sees first-pre after fold; per-record pre of the SD
+  -- clear is the post-CREATE endowment, and keeping hasBalance with post=0
+  -- would make the fold report bal endowment→0 vs BAL empty (fc44 residual on
+  -- success-eoa / success-precompile after self-SD rows already pass).
+  "  ld t0, 32(t1); sd t0, 64(t1); ld t0, 40(t1); sd t0, 72(t1)\n" ++
+  "  ld t0, 48(t1); sd t0, 80(t1); ld t0, 56(t1); sd t0, 88(t1)\n" ++
+  "  ld t0, 96(t1); sd t0, 104(t1); sb zero, 20(t1)\n" ++
+  ".Lnaddn_rnext:\n" ++
+  "  addi t6, t6, 1; j .Lnaddn_rloop\n" ++
+  ".Lnaddn_dnext:\n" ++
+  "  addi s1, s1, 32; addi s0, s0, -1; j .Lnaddn_dloop\n" ++
+  ".Lnaddn_clear:\n" ++
+  "  la t0, evm_selfdestruct_destroyed_count; sd zero, 0(t0)\n" ++
+  "  la t0, evm_selfdestruct_destroyed_overflow; sd zero, 0(t0)\n" ++
+  ".Lnaddn_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
+  "  addi sp, sp, 48\n" ++
+  "  ret"
+
 /-- Shared sort scratch for `nonstorage_effect_aggregate` (cap x 112 B each). -/
 def nonstorageEffectAggregateScratch : String :=
   -- This is runtime scratch, not initialized input data.  Name the section
