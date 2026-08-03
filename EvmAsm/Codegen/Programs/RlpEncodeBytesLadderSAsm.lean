@@ -846,8 +846,8 @@ private theorem rebLadder_bc8 (len v28 v29 : Word) (hlo : 72057594037927936 ≤ 
 
 /-! Range characterisations of `u64ByteLen`, hoisted to top level.  Inlining these
     into `rebLadder`'s eight-deep `by_cases` made `split_ifs` carry nine ambient
-    hypotheses and blow the heartbeat limit; `maxHeartbeats` is prohibited here, so
-    the fix is to run the tactic shallow. -/
+    hypotheses and exhaust the elaborator's deterministic fuel; raising that budget
+    is off-limits in this repo, so the fix is to run the tactic shallow. -/
 private theorem u64ByteLen_eq_1 (v : Word) (h1 : 1 ≤ v.toNat)
     (h2 : v.toNat < 256) : u64ByteLen v = 1 := by
   unfold u64ByteLen
