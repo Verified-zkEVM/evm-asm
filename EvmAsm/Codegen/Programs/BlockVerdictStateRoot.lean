@@ -827,16 +827,23 @@ def statelessVerdictV2Function : String :=
   "  la t0, dbsr_wlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
   ".Lc1_w_copy:\n" ++
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
-  ".Lc1_w_copyd:\n" ++
-  "  la t0, c1_system_log_cursor; ld a0, 0(t0); la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
-  -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
-  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  "  jal ra, write_sets_incorporate_tx\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
-  -- == CONSOLIDATION (EIP-7251) ==
+   ".Lc1_w_copyd:\n" ++
+   -- #11254: each system-call dispatch RESETS evm_env+448 to its own preload
+   -- count, so this call's unseeded SSTORE rows live in [0, +448). Capturing
+   -- from the pre-deferred c1_system_log_cursor (old user log length) made
+   -- end < start → status 1 malformed → zero rows for EIP-7002. The three
+   -- later captures already use start=0; match them so the system log holds
+   -- deferred-request predeploy FINALS (not the user-arena intermediate).
+   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
+   -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
+   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
+   "  jal ra, capture_system_storage_exec_rows\n" ++
+   "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
+   "  jal ra, read_sets_incorporate_tx\n" ++
+   "  jal ra, write_sets_incorporate_tx\n" ++
+   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
+   -- == CONSOLIDATION (EIP-7251) ==
+
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, consolidation_request_predeploy_addr\n" ++
