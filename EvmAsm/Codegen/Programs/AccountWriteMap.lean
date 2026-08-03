@@ -273,20 +273,13 @@ def accountWritesBlockUpsertFunction : String :=
     EIP-6780 records a same-transaction-created SELFDESTRUCT in the deferred
     `account_state_delete` set.  The AccountState commit consumes that set at
     the transaction boundary, but the account-write map is a separate
-    transaction-local mirror and must receive the same transition before its
-    builder walk.  Preserve the map key as a state-only `None` tombstone and
-    journal the overwrite so an enclosing frame can still restore it.  The
-    incorporation walk omits this tombstone: a same-transaction-created
-    account has no prior block-map row, so omitting it is the block-level
-    representation of `account_changes[address] = None` and keeps the state
-    root enumerator from inventing a leaf.
-
-    The state-delete set does not carry the SELFDESTRUCT beneficiary.  The
-    producer's destroyed table does: byte 20 is 1 for origin == beneficiary
-    and 0 for a distinct beneficiary.  A self-destruction is a live-balance
-    no-op in `move_ether`, so its map row must retain the balance component
-    while suppressing nonce/code.  Distinct-beneficiary rows remain the
-    state-only `None` tombstone described above.
+    transaction-local mirror and must receive the same in-place account
+    transition before its builder walk.  The transition clears nonce and code,
+    destroys storage through the shared delete-read path, and leaves balance
+    untouched.  The row remains a present account; downstream account-change
+    descriptor logic applies the ordinary EIP-161 empty-account prune when all
+    final fields are empty.  Journal the overwrite so an enclosing frame can
+    still restore it.
 
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
@@ -308,25 +301,10 @@ def accountWritesApplyDeletesFunction : String :=
   "  addi s3, s3, 1; j .Lawd_tx_loop\n" ++
   ".Lawd_hit:\n" ++
   "  mv a5, s3; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawd_overflow\n" ++
-  -- The state-delete entry only identifies the origin.  Recover the
-  -- self-beneficiary bit from the producer table before rewriting the map row.
-  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lawd_distinct\n" ++
-  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lawd_distinct; la t2, evm_selfdestruct_destroyed_table\n" ++
-  ".Lawd_destroyed_scan:\n" ++
-  "  mv t3, t2; mv t4, s0; li t5, 20\n" ++
-  ".Lawd_destroyed_cmp:\n" ++
-  "  beqz t5, .Lawd_destroyed_hit; lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lawd_destroyed_next; addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lawd_destroyed_cmp\n" ++
-  ".Lawd_destroyed_next:\n" ++
-  "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Lawd_destroyed_scan; j .Lawd_distinct\n" ++
-  ".Lawd_destroyed_hit:\n" ++
-  "  lbu t0, 20(t2); bnez t0, .Lawd_self\n" ++
-  ".Lawd_distinct:\n" ++
-  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0); li t1, 8; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
-  -- Selfdestruct to self preserves the live balance.  The balance producer
-  -- has already materialised that component in this row; retain it and mark
-  -- the final account as Some while clearing nonce/code.
-  ".Lawd_self:\n" ++
-  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); li t1, 1; sd t1, 72(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0); li t1, 9; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
+  -- clear_account_preserving_balance: preserve balance, clear nonce/code,
+  -- and keep the account present.  The mask is complete so the ordinary
+  -- builder and execution-map paths see the same final Account value.
+  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); li t1, 1; sd t1, 72(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
   ".Lawd_delete_next:\n" ++
   "  addi s1, s1, 1; j .Lawd_delete_loop\n" ++
   ".Lawd_ok:\n" ++
@@ -382,31 +360,6 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xa2b20000; li s3, 0\n" ++
   ".Laweb_loop:\n" ++
   "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
-  -- A deferred same-transaction deletion has no BAL account post-value to
-  -- compare.  Keep the tombstone in the tx map for frame rollback, but do not
-  -- send it through the builder baseline resolver.
-  "  ld t0, 112(s4); li t1, 8; bne t0, t1, .Laweb_not_deleted; ld t1, 72(s4); beqz t1, .Laweb_advance\n" ++
-  ".Laweb_not_deleted:\n" ++
-  -- Same-tx-created SELFDESTRUCT entries are tracked by the producer.  A
-  -- distinct-beneficiary clear is access-only in the BAL; self-destruction to
-  -- self preserves the live balance, so only its nonce/code are suppressed.
-  -- Byte 20 is producer metadata; overflow leaves the conservative path.
-  "  sd zero, 96(sp)\n" ++
-  "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Laweb_destroyed_done\n" ++
-  "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Laweb_destroyed_done\n" ++
-  "  la t2, evm_selfdestruct_destroyed_table\n" ++
-  ".Laweb_destroyed_scan:\n" ++
-  "  mv t3, t2; mv t4, s4; li t5, 20\n" ++
-  ".Laweb_destroyed_cmp:\n" ++
-  "  beqz t5, .Laweb_destroyed_hit\n" ++
-  "  lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Laweb_destroyed_next\n" ++
-  "  addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Laweb_destroyed_cmp\n" ++
-  ".Laweb_destroyed_next:\n" ++
-  "  addi t2, t2, 32; addi t1, t1, -1; bnez t1, .Laweb_destroyed_scan\n" ++
-  "  j .Laweb_destroyed_done\n" ++
-  ".Laweb_destroyed_hit:\n" ++
-  "  lbu t0, 20(t2); addi t0, t0, 1; sd t0, 96(sp)\n" ++
-  ".Laweb_destroyed_done:\n" ++
   -- Find this address in the block-cumulative map.  A hit may still lack an
   -- individual field, in which case that component keeps the pre-state base.
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0; li s5, 0\n" ++
@@ -431,7 +384,6 @@ def accountWritesEmitBuilderTxFunction : String :=
   -- account_resolve_pre_state's fixed account scratch output.
   "  mv a0, s4; la a1, account_builder_pre_account; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
   "  ld s8, 112(s4)\n" ++
-  "  ld t0, 96(sp); li t1, 1; beq t0, t1, .Laweb_advance\n" ++
   -- Balance: the resolver has already materialised the block/durable/header
   -- precedence into the shared account scratch.
   "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
@@ -469,7 +421,6 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
   -- Nonce: read the resolver's canonical pre-state scratch.
   ".Laweb_nonce:\n" ++
-  "  ld t0, 96(sp); li t1, 2; beq t0, t1, .Laweb_advance\n" ++
   "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
   ".Laweb_nonce_have:\n" ++
   -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here
@@ -524,11 +475,6 @@ def accountWritesIncorporateTxFunction : String :=
   ".Lawi_loop:\n" ++
   "  bgeu s3, s1, .Lawi_clear\n" ++
   "  slli a0, s3, 7; add a0, s2, a0\n" ++
-  -- A same-transaction-created SELFDESTRUCT is represented by a state-only
-  -- `None` tombstone until this transaction is incorporated.  It has no
-  -- block-level predecessor, so do not turn the tombstone into a synthetic
-  -- account row for the state-root enumerator.
-  "  ld t0, 112(a0); li t1, 8; bne t0, t1, .Lawi_merge; ld t1, 72(a0); beqz t1, .Lawi_next\n" ++
   ".Lawi_merge:\n" ++
   "  jal ra, account_writes_block_upsert\n" ++
   ".Lawi_next:\n" ++
