@@ -609,8 +609,23 @@ def callDescendFallThrough
     "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
+    -- (alive, clear_account_preserving_balance) with a balance-zero one
+    -- (dropped from the trie, must read as non-existent), because the writer
+    -- keys the tombstone flags on balance OR nonce.  The 32 balance bytes are
+    -- the discriminant: only when the tombstone balance is all zero does the
+    -- status-2 callee fail is_account_alive and owe the new-account charge.
+    "  li t5, 2; bne t6, t5, .Lcd_nacc_std_" ++ tag ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_state_tombstone_balance_zero\n" ++
+    "  mv t5, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t5, .Lcd_nacc_seenentry_" ++ tag ++ "\n" ++
+    "  li t6, 2\n" ++
+    ".Lcd_nacc_std_" ++ tag ++ ":\n" ++
     codeStateStatusIsLiveAsm "t6" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
+    ".Lcd_nacc_seenentry_" ++ tag ++ ":\n" ++
     -- SELFDESTRUCT moves the origin balance to zero but leaves the account alive until tx end.
     "  la t0, evm_selfdestruct_seen_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
     "  la t0, evm_selfdestruct_seen_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
