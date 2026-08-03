@@ -357,6 +357,16 @@ def writeShift (dst : List Byte) (di v : Nat) : Nat → List Byte
   | 0 => dst
   | m + 1 => writeShift (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v m
 
+-- Explicit equation lemmas, mirroring `copyN_zero`/`copyN_succ`: `rw` on a
+-- match-defined function fails under dependent contexts (the `beShift` lesson),
+-- and the machine loop's induction rewrites with these.
+theorem writeShift_zero (dst : List Byte) (di v : Nat) :
+    writeShift dst di v 0 = dst := rfl
+
+theorem writeShift_succ (dst : List Byte) (di v m : Nat) :
+    writeShift dst di v (m + 1)
+      = writeShift (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v m := rfl
+
 theorem writeShift_length (dst : List Byte) (di v m : Nat) :
     (writeShift dst di v m).length = dst.length := by
   induction m generalizing dst di with
