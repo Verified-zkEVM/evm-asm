@@ -283,6 +283,11 @@ def eip7702AuthStatePrepareFunction : String :=
   -- the same accepted authorization into the transaction map, with a
   -- block-lifetime code slot: the map retains code pointers past tx-map clear,
   -- so a reusable authorization scratch would corrupt earlier authorities.
+  -- `set_delegation` in execution-specs (eoa_delegation.py:223-229) calls
+  -- `set_code` and `increment_nonce`; both go through `modify_state`, so even
+  -- an absent authority is written back as `Some Account`.  Keep `a5 = 1`
+  -- and advertise that Optional-account state with the state-valid bit as well
+  -- as nonce and code (mask 14, not mask 6).
   "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next\n" ++
   "  la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add t4, t4, t3; addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  beqz s11, .L77prep_auth_code_ready; li t0, 0xef; sb t0, 0(t4); li t0, 1; sb t0, 1(t4); sb zero, 2(t4); li t0, 0\n" ++
@@ -293,7 +298,7 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_auth_code_null:\n" ++
   "  li a4, 0\n" ++
   ".L77prep_auth_code_record:\n" ++
-  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
@@ -317,6 +322,11 @@ def eip7702AuthStatePrepareFunction : String :=
   "li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item"
 #guard eip7702AuthStatePrepareFunction.contains
   "li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item"
+-- The authorization AccountWrite row is `Some Account` with nonce, code and
+-- presence all valid.  Keep the state bit pinned so a future mask edit cannot
+-- silently make Optional[Account] absence indistinguishable from zero fields.
+#guard eip7702AuthStatePrepareFunction.contains
+  "li a5, 1; li a6, 14; jal ra, account_write_record"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
