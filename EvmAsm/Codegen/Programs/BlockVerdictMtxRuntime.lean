@@ -95,6 +95,38 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  bnez a0, .Lbv_mtx_bail\n" ++
 ".Lbv_mtx_sr_done:\n"
 
+/-! Gate the pre-user system-storage seed on the same code-presence predicate as
+    `process_unchecked_system_transaction`.  The MTx lane seeds the canonical
+    block map before dispatch so user SLOADs can resolve the EIP-2935/4788
+    startup writes.  An absent or codeless system contract executes no code and
+    therefore must not leave a storage-map row behind.  `block_state_root`
+    repeats this check for its terminal descriptors; clearing only those
+    descriptors cannot retract a row already inserted into the canonical map.
+
+    The output account buffer is shared between the two lookups, and every
+    nonzero lookup result is treated as "not a writable system contract" here.
+    The terminal root pass remains authoritative for malformed witness handling;
+    this early guard only prevents a speculative map seed. -/
+private def blockVerdictMtxGateSystemStorageSeed : String :=
+  "  la a0, bsr_addr_2935; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_mtx_sys2935_skip\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys2935_code_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_present\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_code_cmp\n" ++
+  ".Lbv_mtx_sys2935_skip:\n" ++
+  "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_sys2935_present:\n" ++
+  "  la a0, bsr_addr_4788; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
+  "  bnez a0, .Lbv_mtx_sys4788_skip\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys4788_code_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_present\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_code_cmp\n" ++
+  ".Lbv_mtx_sys4788_skip:\n" ++
+  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
+  ".Lbv_mtx_sys4788_present:\n"
+
 /- Materialize the process_transaction sender debit when the shared callable
    dispatcher halts exceptionally before its normal pending-seed and MTx
    postlude. The tuple is already authenticated and computed by
@@ -305,6 +337,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- its seed-only mode does not publish side-log or BAL rows until the
   -- terminal state-root replay.
   "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, -60; jal ra, system_write_descriptors\n" ++
+  blockVerdictMtxGateSystemStorageSeed ++
   "  li t1, 1; la t0, bv_system_storage_map_seed_only; sd t1, 0(t0)\n" ++
   "  jal ra, append_modeled_system_storage_tuple_rows\n" ++
   "  mv t2, a0; la t0, bv_system_storage_map_seed_only; sd zero, 0(t0)\n" ++
@@ -718,6 +751,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
+  -- Spec stage: clear destroyed accounts before incorporate (fork.py:1201-1202).
+  -- Apply destroyed-norm to the RAW nonstorage log here while the destroyed
+  -- table is still live; next user tx wipes the table (mode=0) and block-end
+  -- aggregate would otherwise miss CREATE+SD nonce phantoms (fc44).
+  "  addi sp, sp, -16; sd ra, 0(sp); jal ra, nonstorage_apply_destroyed_norm; ld ra, 0(sp); addi sp, sp, 16\n" ++
   -- Body effects are already rolled back to the undo mark above on status=0.
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.

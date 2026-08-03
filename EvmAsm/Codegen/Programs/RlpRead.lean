@@ -577,7 +577,21 @@ theorem rlpEncodeUintBeFunction_eq_prog :
       ra (input)  : return
       a0 (output) : 0 (always succeeds — total function).
 
-    Pure-leaf semantics: no scratch memory, no transitive calls. -/
+    Pure-leaf semantics: no scratch memory, no transitive calls.
+
+    **Verified in** `EvmAsm.Codegen.RlpEncodeBytesSAsm` (model layer + the
+    `u64ByteLen ↔ toBytesBE` bridge), `…LadderSAsm` (the bc ladder),
+    `…BlocksSAsm` (all 76 instructions block-covered), and `…ComposeSAsm`
+    (the whole-routine triple): `reb_spec_within` says the routine returns
+    status 0, leaves `encodeBytes data` at the front of the output buffer
+    with the rest untouched, and writes the encoding's length to `*a3` —
+    for EVERY input, both sides of the 55/56 boundary (total function, no
+    domain restriction).  `reb_spec_rlpItem_within` restates the output
+    region over `RLPItem`, the vocabulary SpecRef's encoders use.
+
+    That pointer is here deliberately: a per-file theorem count of *this*
+    module sees only the drift guard below and reads as "unspecified",
+    which is how #10779 and #10782 came to be filed against finished work. -/
 def rlpEncodeBytes_prog : Program :=
   [ .MV .x5 .x10,
     .MV .x6 .x11,

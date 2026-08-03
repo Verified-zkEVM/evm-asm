@@ -23,11 +23,20 @@
   rather than whole-routine, so populating every one is not a single change.
   What is registered is witnessed; what is not registered is still outside the
   gate.  Stated here rather than left implicit, because the assumption this
-  file exists to break is "covered by CI".
+  file exists to break is "covered by CI".  #11290 tracks turning that residual
+  into a measured coverage number rather than prose.  As of #11289 all three
+  registries are strict, so within a *registered* file an unwitnessed row is a
+  build error — the gap is only in what has not been registered yet.
 -/
 import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
+
+#print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
+
+#print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
@@ -35,7 +44,21 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within_of_length_le
 
+#print axioms EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
+
+#print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+
+#print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
+
+#print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
+
+#print axioms EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within
+
+#print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+
+#print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 

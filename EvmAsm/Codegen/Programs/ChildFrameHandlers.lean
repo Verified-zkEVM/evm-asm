@@ -279,6 +279,16 @@ def callDescendFallThrough
   "  la t0, cd_xfer_gas_precharged\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_new_account_charged_current\n  sd x0, 0(t0)\n" ++
   "  la t0, cd_callee_alive_before_value\n  sd x0, 0(t0)\n" ++
+  -- Stale cd_value_be / nse_callee_be from a prior CALLCODE (or any prior message-call)
+  -- must not survive into this opcode. CALLCODE fills cd_value_be for its balance gate
+  -- but does not consume it for move_ether (self-transfer, mode 2). A later CALL with
+  -- stack value 0 skips the nse_callee fill, yet post-descend record_message_value_transfer
+  -- still runs with a3=1 and reads the leftover cd_value_be — crediting nse_callee_be
+  -- (still zero) and creating account 0x0 with the leaked wei (fc=1 GASPRICE-debug b19).
+  -- Mirror the per-CALL pending-flag reset above. Spec: interpreter.py:385-391 move_ether
+  -- only when should_transfer_value and value != 0 for THIS message.
+  "  la t0, cd_value_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
+  "  la t0, nse_callee_be\n  sd x0, 0(t0); sd x0, 8(t0); sd x0, 16(t0); sd x0, 24(t0)\n" ++
   "  mv s10, x10                           # preserve parent PC through CALL fallthrough helpers\n" ++
   "  la x15, evm_precompile_frame\n" ++
   "  sd x0, 0(x15)\n" ++

@@ -464,6 +464,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_prebal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- Snapshot into per-depth slot so nested CREATE cannot clobber this frame's
+    -- pre-balance before RETURN records the child deposit (create_pre_bal_by_depth).
+    "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
+    "  la t0, create_pre_bal_by_depth; slli t1, t1, 5; add t0, t0, t1\n" ++
+    "  la t1, nse_create_pre_bal; ld t2, 0(t1); sd t2, 0(t0); ld t2, 8(t1); sd t2, 8(t0); ld t2, 16(t1); sd t2, 16(t0); ld t2, 24(t1); sd t2, 24(t0)\n" ++
     -- v0.6.0 (C11): target_alive was computed at the charge site above;
     -- persist it into the by-depth slot for the RETURN-path snapshot.
     "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++

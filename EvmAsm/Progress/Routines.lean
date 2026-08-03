@@ -57,7 +57,15 @@
 import EvmAsm.Progress
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
+import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 
 namespace EvmAsm.Progress
 
@@ -121,6 +129,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "form a caller can discharge without reasoning about `reubZeros`")
       (notes := "ABI-shaped corollary; every production caller passes 8 or 32"),
 
+  -- `rlp_encode_bytes` — #10780 item 2. Total function: no input-domain
+  -- restriction, so `.proven` where `reub` is `.conditional` — both sides of
+  -- the 55/56 boundary are inside the claim.
+  routine "rlp_encode_bytes" .proven (some "reb_spec_within")
+      (notes := "whole-routine triple against `encodeBytes` — the function "
+        ++ "SpecRef's own encoders call (`encR := EL.RLP.encode`, and "
+        ++ "`encode (.bytes d) = encodeBytes d` definitionally). All three "
+        ++ "paths (raw byte, short form, long form) proved; coverage examples "
+        ++ "pin output bytes as literals on both sides of 55/56. Resource "
+        ++ "preconditions only (capacity `n + 9`, alignment, validity)"),
+  routine "rlp_encode_bytes" .proven (some "reb_spec_rlpItem_within")
+      (notes := "the same triple with the output region phrased as "
+        ++ "`rlpItemRegionFrom outPtr (.bytes data) …` — the `RLPItem` "
+        ++ "vocabulary a caller encoding a SpecRef struct field composes with"),
+
   -- `rlp_item_size` — at its linked guest address, unlike the ∀-base walk triples.
   routine "rlp_item_size" .conditional (some "rlp_item_size_spec_within")
       (gate := "`SpanForm (bs.getD 0 0)` — single byte, short string and short "
@@ -158,7 +181,49 @@ def routineRegistry : List RoutineEntry := [
   routine "account_rlp_content_to_u256_be" .proven
       (some "account_rlp_content_to_u256_be_balance_spec_within")
       (notes := "writes the 32-byte balance; step bound "
-        ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`")
+        ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
+
+  -- #11289: the RLP size / field / list routines whose specs `Correspondence`
+  -- names but nothing witnessed. All whole-routine triples at their linked
+  -- guest addresses (`B := GuestAddrs.<symbol>`), confirmed via the correspondence
+  -- registry's `spec` refs. Tiers read per this module's header: only a
+  -- nonvacuous input-domain gate is `.conditional`; buffer-slack, alignment,
+  -- `isValidByteAccess`, register encoding and u64-representability are ABI.
+  routine "rlp_bytes_encoded_size" .proven (some "rlpBytesEncodedSize_spec")
+      (notes := "total: computes `rbesSize` for any byte payload whose length "
+        ++ "matches the `len` register; only ABI hyps (ptr/len consistency, "
+        ++ "alignment, validity)"),
+  routine "rlp_field_to_u256_be" .proven (some "rlpFieldToU256Be_spec_within")
+      (notes := "whole-routine triple over the `…Whole` module; 32-byte output "
+        ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
+  routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
+      (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
+  routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
+      (notes := "total: the result covers BOTH the `ult v 56` short branch and "
+        ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
+  routine "rlp_list_nth_item" .proven (some "rlpListNthItem_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.rlp_list_nth_item`; the "
+        ++ "consumer of the account decode / apply paths"),
+  routine "rlp_list_count_items" .proven (some "rlp_list_count_items_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.rlp_list_count_items`"),
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_short_pinned_spec_within")
+      (gate := "`len.toNat < 56` — the RLP short-form list-prefix bound. The "
+        ++ "`lenlen ≥ 2` long forms are the documented cut (#10780 item 3), the "
+        ++ "same boundary as `rlp_item_size`")
+      (notes := "per-form (\"short\") pinned triple; writes header byte "
+        ++ "`0xC0 + len` and sets the cell flag to 1"),
+
+  -- #11291: the whole-routine triple already existed (landed 2026-07-17,
+  -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
+  -- — the full program — not a per-path certificate, so a single row is the
+  -- strongest claim and subsumes the Close2..5 composition chain.
+  routine "withdrawal_decode" .proven (some "withdrawal_decode_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.withdrawal_decode`: decodes "
+        ++ "all four RLP fields and returns `a0 = 0` with a `Decoded` verdict or "
+        ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
+        ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
+        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -170,10 +235,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 11 := by decide
+theorem routineCount_eq : routineCount = 21 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 4 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 7 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 13 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -187,7 +252,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 6 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
 
 /-! ## Witness `abbrev`s
 
@@ -212,6 +277,10 @@ private noncomputable abbrev _reub_encode_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 private noncomputable abbrev _reub_length_le_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within_of_length_le
+private noncomputable abbrev _reb_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
+private noncomputable abbrev _reb_rlpItem_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
@@ -228,5 +297,23 @@ private noncomputable abbrev _account_rlp_content_to_u64_nonce_routine_witness :
   @EvmAsm.Evm64.account_rlp_content_to_u64_nonce_spec_within
 private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u256_be_balance_spec_within
+-- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
+private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
+  @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
+private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
+  @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
+private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
+  @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
+  @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
+private noncomputable abbrev _rlp_list_nth_item_routine_witness :=
+  @EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within
+private noncomputable abbrev _rlp_list_count_items_routine_witness :=
+  @EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
+  @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+-- #11291: the whole-routine withdrawal decoder (existed since #10782).
+private noncomputable abbrev _withdrawal_decode_routine_witness :=
+  @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 end EvmAsm.Progress
