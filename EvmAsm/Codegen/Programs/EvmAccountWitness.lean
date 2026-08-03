@@ -141,6 +141,19 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodehash_not_create_self:\n" ++
+    -- A transaction-finalized EIP-6780 deletion whose final balance is zero
+    -- is dropped from the post-state trie (EIP-161), so every later
+    -- transaction reads the address as non-existent for EIP-1052: push zero,
+    -- never the same-tx EMPTY_CODE_HASH substitution.  A deletion whose
+    -- balance is preserved (clear_account_preserving_balance) persists as an
+    -- empty-code account and keeps the witness-check path below, which reads
+    -- keccak(empty) exactly as before; the writer keys the tombstone flags on
+    -- balance OR nonce, so the lookup status cannot separate the two cases —
+    -- the tombstone balance field is the discriminant.  Within the destroying
+    -- transaction no tombstone exists yet, so same-tx semantics are unchanged.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_state_tombstone_balance_zero\n" ++
+    "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
     -- Execution code visibility is resolved from the layered mutable
     -- CodeState, never from the append-only BAL comparison log.
     "  la a0, eahsr_address_scratch\n" ++
@@ -325,6 +338,14 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
     ".Lextcodesize_after_same_block:\n" ++
+    -- A transaction-finalized EIP-6780 deletion (AccountState delete-pending
+    -- tombstone) makes the account non-existent in every later transaction:
+    -- code size is zero.  Within the destroying transaction no tombstone
+    -- exists yet, so same-tx semantics below are unchanged.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_state_lookup_current\n" ++
+    "  li t3, 2; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
+    "  li t3, 3; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
     -- Consult the shared CodeState before the authenticated witness fallback.
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, code_state_lookup_current\n" ++

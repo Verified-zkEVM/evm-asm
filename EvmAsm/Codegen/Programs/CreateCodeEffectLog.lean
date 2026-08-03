@@ -519,6 +519,38 @@ def accountStateLookupCurrentFunction : String :=
   ".Laslc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
 
+/-! ## account_state_tombstone_balance_zero
+
+    EIP-161 existence predicate for a delete-pending (bit4) AccountState
+    tombstone, mirroring the trie pass: a finalized EIP-6780 deletion whose
+    final balance is zero is dropped from the post-state trie, so every later
+    transaction must read the address as non-existent; a deletion whose
+    balance is preserved (`clear_account_preserving_balance`) persists as an
+    empty-code account and must NOT take the deleted read path.  The writer
+    (`account_state_commit_pending`) sets flags 17 (exists clear, balance
+    zeroed) or 51 (exists set, balance preserved) keyed on balance OR nonce,
+    so the lookup status alone cannot separate the two cases — the balance
+    field is the discriminant (tombstone flags never carry the nonce-valid
+    bit, so nonce is not consulted).
+
+    a0 = canonical 20-byte BE address pointer
+    returns a0 = 1 delete-pending entry found (pending first, then durable)
+                 with an all-zero balance field, 0 otherwise.
+    Clobbers a0-a3, t0, t1. -/
+def accountStateTombstoneBalanceZeroFunction : String :=
+  "account_state_tombstone_balance_zero:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Latbz_entry\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Latbz_no\n" ++
+  ".Latbz_entry:\n" ++
+  "  ld t0, 88(a0); andi t0, t0, 16; beqz t0, .Latbz_no\n" ++
+  "  ld t0, 32(a0); ld t1, 40(a0); or t0, t0, t1; ld t1, 48(a0); or t0, t0, t1; ld t1, 56(a0); or t0, t0, t1; bnez t0, .Latbz_no\n" ++
+  "  li a0, 1; j .Latbz_ret\n" ++
+  ".Latbz_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Latbz_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret"
+
 /-! Transaction-local EIP-6780 membership query.  This reads only the
     AccountState `created_accounts` set, never the durable map: an account
     created in a prior transaction must remain live after SELFDESTRUCT. -/

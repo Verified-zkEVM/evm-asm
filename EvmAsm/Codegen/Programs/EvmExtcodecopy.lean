@@ -320,6 +320,53 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  bnez t0, .Lrt_ecc_codestate_empty
 " ++
+    -- CodeState missed: a transaction-finalized EIP-6780 deletion
+    -- (AccountState delete-pending tombstone) makes the account non-existent
+    -- in every later transaction, masking the witness exactly like an
+    -- explicit CodeState tombstone.  Within the destroying transaction no
+    -- tombstone exists yet, so same-tx semantics are unchanged.
+    "  addi sp, sp, -64
+" ++
+    "  sd x10, 0(sp)
+" ++
+    "  sd x12, 8(sp)
+" ++
+    "  sd x13, 16(sp)
+" ++
+    "  sd x14, 24(sp)
+" ++
+    "  sd x15, 32(sp)
+" ++
+    "  sd x19, 40(sp)
+" ++
+    "  sd x21, 48(sp)
+" ++
+    "  la a0, ecc_address_scratch
+" ++
+    "  jal ra, account_state_lookup_current
+" ++
+    "  mv t0, a0
+" ++
+    "  ld x10, 0(sp)
+" ++
+    "  ld x12, 8(sp)
+" ++
+    "  ld x13, 16(sp)
+" ++
+    "  ld x14, 24(sp)
+" ++
+    "  ld x15, 32(sp)
+" ++
+    "  ld x19, 40(sp)
+" ++
+    "  ld x21, 48(sp)
+" ++
+    "  addi sp, sp, 64
+" ++
+    "  li t5, 2; beq t0, t5, .Lrt_ecc_codestate_empty
+" ++
+    "  li t5, 3; beq t0, t5, .Lrt_ecc_codestate_empty
+" ++
     "  j .Lrt_ecc_no_create_effect
 " ++
     ".Lrt_ecc_same_from_codestate:
