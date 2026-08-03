@@ -389,41 +389,21 @@ def callFrameDescendFunction : String :=
   -- so a verbatim copy is exact. The evm_block_hashes table is global (.data).
   "  ld t0, 552(s3); sd t0, 552(s9)\n" ++
   "  ld t0, 560(s3); sd t0, 560(s9)\n" ++
-  -- 8c (1ipxd.1): stage the child's SELFBALANCE (env+32) from the pre-resolved balance table.
-  -- call_frame_set_call_env stages ADDRESS/CALLER/CALLVALUE but NOT selfBalance (a per-frame
-  -- balance, not a tx constant), so a nested SELFBALANCE would read BAL-replay-dirtied garbage;
-  -- pointer_reentry's re-entered EOA SSTOREs SELFBALANCE=1000 and the directly-called contract
-  -- 100. dispatch_tx_runtime_code pre-resolves BAL-account balances into callee_balance_table
-  -- (LE-limb order). Reverse the child ADDRESS@0 (20B stack-word/LE, MSB at env+19) into the free
-  -- child-env scratch (env+696; frameEnvBytes=768, fields end 688) -> canonical BE, scan the table,
-  -- and copy the matching LE balance verbatim into env+32 (h_SELFBALANCE copies env+32 to the LE
-  -- stack dword-for-dword). Miss -> leave 0. CALLCODE/DELEGATECALL: ADDRESS = parent's, still the
-  -- storage-context account.
+  -- F3 retirement: resolve the child's SELFBALANCE from authenticated state below.
+  -- The former eager `callee_balance_table` scan was only a pre-resolution cache;
+  -- removing it leaves env+32 zero until the live-effect or header lookup fills it.
+  -- execution-specs vm/instructions/environment.py:510-535 reads the current
+  -- account balance for SELFBALANCE; the live-effect overlay and authenticated
+  -- header fallback below preserve that demand-driven source.
   "  sd zero, 32(s9); sd zero, 40(s9); sd zero, 48(s9); sd zero, 56(s9)\n" ++
-  "  addi t0, s9, 696; addi t1, s9, 19; li t2, 20\n" ++
-  ".Lcfd_sb_rev:\n" ++
-  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_sb_rev\n" ++
-  "  la t0, callee_balance_count; ld t0, 0(t0); la t1, callee_balance_table\n" ++
-  ".Lcfd_sb_scan:\n" ++
-  "  beqz t0, .Lcfd_sb_done\n" ++
-  "  ld t2, 0(t1); ld t3, 696(s9); bne t2, t3, .Lcfd_sb_next\n" ++
-  "  ld t2, 8(t1); ld t3, 704(s9); bne t2, t3, .Lcfd_sb_next\n" ++
-  "  lwu t2, 16(t1); lwu t3, 712(s9); bne t2, t3, .Lcfd_sb_next\n" ++
-  "  ld t2, 32(t1); sd t2, 32(s9); ld t2, 40(t1); sd t2, 40(s9); ld t2, 48(t1); sd t2, 48(s9); ld t2, 56(t1); sd t2, 56(s9)\n" ++
-  "  li t2, 1; sd t2, 88(sp)         # table supplied the child's live pre-balance\n" ++
-  "  j .Lcfd_sb_done\n" ++
-  ".Lcfd_sb_next:\n" ++
-  "  addi t1, t1, 64; addi t0, t0, -1; j .Lcfd_sb_scan\n" ++
-  ".Lcfd_sb_done:\n" ++
-  -- coc3g.6.4: LIVE-BALANCE overlay. The pre-state staging above (callee_balance_table) gives the
-  -- child its PRE-BLOCK balance. But a callee that already RECEIVED value earlier in this tx (its
+  -- coc3g.6.4: LIVE-BALANCE overlay. A callee that already RECEIVED value earlier in this tx (its
   -- balance was credited by an earlier value-CALL) must descend with the LIVE balance, else its own
   -- later value-CALL debits from the stale pre-state -> the recorded final balance is short and the
   -- exec-vs-BAL non-storage comparator false-rejects (bv_fail=44; frontier/scenarios MCOPY b12:
   -- dd36afb2 receives +1 then sends 3, true 107+1-3=105, but pre-state-debit gave 107-3=104).
   -- The authoritative live balance = the most-recent recorded post_balance in the non-storage effect
   -- log (record_nonstorage_effect captures EVERY value-flow credit/debit), so overlay env+32 with
-  -- nonstorage_effect_latest_balance(child_addr) when present; miss -> keep the pre-state staging.
+  -- nonstorage_effect_latest_balance(child_addr) when present; miss -> use authenticated pre-state.
   -- The effect log post_balance is 32B BE; env+32 is LE-limb (h_SELFBALANCE copies env+32 verbatim),
   -- so reverse BE -> LE. Scratch: env+696 (32B addr key: 20B BE + 12B zero) and env+728 (32B BE out);
   -- the env is frameEnvBytes=768 and its fields end at 688, so +696..+759 is free. a0/a1 are leaf-clobbered
@@ -443,11 +423,9 @@ def callFrameDescendFunction : String :=
   "  addi t0, s9, 728; addi t1, s9, 63; li t2, 32\n" ++
   ".Lcfd_lbov_wb:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_wb\n" ++
-  "  li t2, 1; sd t2, 88(sp)         # committed effect supersedes the table value\n" ++
+  "  li t2, 1; sd t2, 88(sp)         # committed effect supplies the live balance\n" ++
   ".Lcfd_lbov_done:\n" ++
-  -- The BAL table is intentionally bounded and does not necessarily include every
-  -- account reached by a nested frame.  If neither it nor the live-effect overlay
-  -- supplied a balance, resolve the inherited authenticated header state instead
+  -- If no live effect supplied a balance, resolve the inherited authenticated header state instead
   -- of executing with a guessed zero.  This is the same prestate fallback used by
   -- CREATE descent: a live effect always wins, authenticated absence is zero, and
   -- malformed lookup results become the existing sticky runtime failure.

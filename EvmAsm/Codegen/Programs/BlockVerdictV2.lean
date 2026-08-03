@@ -120,7 +120,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Re-emitting them in this debug-only helper block duplicates symbols.
     -- GH #10619: this debug unit mirrors the guest's handlers and helpers, so every
     -- routine the read containers hook is present here too -- h_SLOAD/h_SSTORE,
-    -- account_state_commit_pending, code_at_header_state_root, seed_callee_storage,
+    -- account_state_commit_pending, code_at_header_state_root,
     -- dispatch_tx_runtime_code, block_verdict_withdrawal_nonstorage_effects. It
     -- therefore needs the recorders, both tracked accessors and the promotion
     -- boundary, or it fails to LINK with undefined references to
@@ -166,9 +166,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     readSetsMergeOneFunction ++ "\n" ++
     readSetsIncorporateTxFunction ++ "\n" ++
     readSetsDiscardTxFunction ++ "\n" ++
-    -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
+    -- F3 retirement: no eager BAL-account seed producer is linked.
     balAddrToExecLogKeyFunction ++ "\n" ++
-    seedCalleeStorageFunction ++ "\n" ++
     -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, now referenced by
     -- block_verdict's contract-dispatch tail (rlp_list_nth_item/count_items already present).
     balStorageChangeValuesFunction ++ "\n" ++
@@ -525,9 +524,8 @@ def statelessVerdictV2GuestClosure : String :=
   secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
   secp256k1RecoverRFunction ++ "\n" ++
   secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
-  -- bmvmx.1.6.4.2.b: callee-storage enumeration + its LE exec-log key helper.
+  -- F3 retirement: no eager BAL-account seed producer is linked.
   balAddrToExecLogKeyFunction ++ "\n" ++
-  seedCalleeStorageFunction ++ "\n" ++
   -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, referenced by
   -- block_verdict's contract-dispatch tail. rlp_list_nth_item/count_items already in closure.
   balStorageChangeValuesFunction ++ "\n" ++

@@ -273,8 +273,8 @@ def ecrecoverScalarOrderGateAsm : String :=
     `dispatch_tx_runtime_code`; the focused ecrecover probe arms it itself).
     Closures that leave it 0 (the standalone dispatch probes) keep the legacy
     success-with-empty-returndata behavior AND keep linking without the
-    secp256k1 dependency tree — the same data-driven optionality as
-    `callee_seed_count`.
+    secp256k1 dependency tree — the same data-driven optionality as the
+    retired eager-seed state.
 
     Register use mirrors the SHA256 path: x13/x10/x12 are saved in s9/s10/s11
     across the LP64 calls (the secp/keccak helpers preserve s-registers);

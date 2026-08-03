@@ -540,32 +540,10 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
   "bv_rcf_len:\n  .zero 8\n" ++
-  -- bmvmx.1.6.4.2.b seed_callee_storage scratch: BAL-account + slot loop state, the
-  -- per-account LE exec-log key, and the callee storage-key buffer (own buffer so it
-  -- can't overflow the recipient's 16-slot bvcd_keys; caps with the 128-entry table).
-  ".balign 8\n" ++
-  "csce_acct_i:\n  .zero 8\n" ++ "csce_acct_n:\n  .zero 8\n" ++
-  "csce_aoff:\n  .zero 8\n" ++ "csce_alen:\n  .zero 8\n" ++
-  "csce_doff:\n  .zero 8\n" ++ "csce_dlen:\n  .zero 8\n" ++
-  "csce_addrp:\n  .zero 8\n" ++
-  "csce_key_i:\n  .zero 8\n" ++ "csce_key_n:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "csce_addrkey:\n  .zero 32\n" ++
-  "csce_keys:\n  .zero " ++ toString (bsrAccountSlotCap * 32) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 32-byte slot keys; seed_callee guards derive from bsrAccountSlotCap and fail closed (#11157)
-  -- 1ipxd.1: pre-resolved per-account balance table for nested-frame SELFBALANCE.
-  -- seed_callee_storage fills it (clean pre-execution context). ⚠️ This used to add "where the
-  -- witness MPT walk works — it returns absent mid-EVM-execution"; GH #11105 refuted that as an
-  -- inherent restriction (the ACCOUNT walk resolved mid-execution from h_SSTORE's tier 3; it is
-  -- the SLOT walk that fails, 64 of 64, in every phase). call_frame_descend reads it to stage a
-  -- child frame's env+32. Entry = 64 B: canonical-BE 20-byte address (zero-padded to 32) @0,
-  -- balance @32 in LE-limb (stack-word) order so the descend copies it verbatim to the LE
-  -- EVM stack via h_SELFBALANCE (odq06 byte-order lesson). 128 cap. csce_bal_struct = the
-  -- account_at_header_state_root output (nonce@0 / balance@8..40 BE / sroot / codehash).
+  -- The recipient SELFBALANCE resolver still writes the account decode scratch;
+  -- F3 retirement removes only the eager BAL-account tables around it.
   ".balign 8\n" ++
   "csce_bal_struct:\n  .zero 104\n" ++
-  "callee_balance_count:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "callee_balance_table:\n  .zero " ++ toString (512 * 64) ++ "\n" ++
 
   "bv_eip7778_status:\n  .zero 8\n" ++
   "bv_eip7778_index:\n  .zero 8\n" ++

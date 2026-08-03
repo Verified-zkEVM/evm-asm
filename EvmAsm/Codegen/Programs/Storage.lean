@@ -331,8 +331,9 @@ def storagePersistentLogFindAsm : String :=
     * *"this chain never executes in production, the preload means SSTORE never sees
       a cold miss"* -- it executes 16 times on a single row of the unmodified guest.
       Production does see cold misses.
-    * *"`seed_callee_storage` / `stage_predeploy_storage_preload` are WORKING
-      callers"* -- unsupported; `seed_callee_storage` made zero calls on both rows.
+    * *"the former eager seed / `stage_predeploy_storage_preload` are WORKING
+      callers"* -- unsupported; the eager seed has been retired and the
+      predeploy preload is a separate system-call path.
     * *"the raw slot key needs keccak-hashing first"* -- `mpt_lookup_by_key` calls
       `zkvm_keccak256` itself, and `account_at_address` reaches the trie through the
       SAME routine.
