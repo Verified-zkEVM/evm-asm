@@ -687,7 +687,13 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  li t0, 1; sd t0, 224(sp)\n" ++
   "  addi a1, sp, 32; mv a2, a1; j .L_sdbn_record_clear\n" ++
   ".L_sdbn_clear_distinct:\n" ++
-  "  mv a1, sp; mv a2, sp\n" ++
+  -- A distinct beneficiary receives the child's full live balance, so the
+  -- origin clear must publish transferred -> 0. `sp` is the zero scratch
+  -- prepared above; `sp+32` is the child's transferred balance. Passing the
+  -- same zero buffer for both operands suppresses the balance component and
+  -- leaves the endowment as a phantom non-empty account after the deferred
+  -- EIP-6780 clear.
+  "  addi a1, sp, 32; mv a2, sp\n" ++
   ".L_sdbn_record_clear:\n" ++
   "  la a0, sdai_origin_address\n  li a3, 0\n  li a4, 0\n" ++
   "  jal ra, record_nonstorage_effect\n" ++
