@@ -247,6 +247,91 @@ theorem rebOut_short_length (data : List Byte) (hhi : data.length < 56)
     (encodeBytes data).length = data.length + 1 := by
   rw [rebOut_short_form data hhi hnot_raw, List.length_cons]
 
+/-! ## §5  The length-of-length loop's contents
+
+    `u64ByteLen_eq_toBytesBE_length` (§2) gives the length-of-length's *count*.
+    That is not enough for the long form: the spec also has to say *which bytes*
+    the loop at [55]-[62] writes.  Two separate facts, and the plan for this
+    routine initially conflated them.
+
+    The loop stores, for `i = bc-1` down to `0`, the byte `(len >>> 8i) & 0xff`.
+    ⭐ Defining that sequence by peeling the **least** significant byte makes it
+    structurally identical to `Nat.toBytesBE`'s own division recursion, which
+    collapses the bridge to a four-line induction.  An earlier attempt stated it
+    as an indexed `List.range … |>.reverse.map` and needed a `List.ext_getElem`
+    argument plus tail-peeling of `range` — same theorem, much worse proof. -/
+
+/-- The byte sequence the length-of-length loop emits: `k` bytes of `v`, most
+    significant first.  Defined by peeling the *least* significant byte, which is
+    the recursion `Nat.toBytesBE` itself uses — that alignment is what makes the
+    bridge below a short induction rather than an indexed argument. -/
+def beShift (v : Nat) : Nat → List Byte
+  | 0 => []
+  | k + 1 => beShift (v / 256) k ++ [BitVec.ofNat 8 (v % 256)]
+
+theorem beShift_length : ∀ (k v : Nat), (beShift v k).length = k := by
+  intro k
+  induction k with
+  | zero => intro v; rfl
+  | succ k ih =>
+    intro v
+    rw [beShift, List.length_append, ih, List.length_cons, List.length_nil]
+
+/-- **At its own length, `beShift` IS the minimal big-endian encoding.** -/
+theorem beShift_eq_toBytesBE : ∀ n : Nat,
+    beShift n (Nat.toBytesBE n).length = Nat.toBytesBE n := by
+  intro n
+  induction n using Nat.toBytesBE.induct with
+  | case1 => simp [Nat.toBytesBE, beShift]
+  | case2 m _hlt ih =>
+    rw [Nat.toBytesBE_succ, List.length_append, List.length_cons, List.length_nil,
+        Nat.add_zero, beShift, ih]
+
+/-- Element `j` is `v` shifted right by `k-1-j` bytes — the form the machine loop
+    needs, since at iteration `i` it stores `(len >>> 8i) & 0xff`, which lands at
+    index `k-1-i`.  Stated with `getElem?` rather than `getElem`: the dependent
+    index proof blocks `rw` on `beShift` itself. -/
+theorem beShift_getElem? : ∀ (k v j : Nat), j < k →
+    (beShift v k)[j]? = some (BitVec.ofNat 8 (v / 256 ^ (k - 1 - j) % 256)) := by
+  intro k
+  induction k with
+  | zero => intro v j hj; omega
+  | succ k ih =>
+    intro v j hj
+    have hlenA : (beShift (v / 256) k).length = k := beShift_length k _
+    show ((beShift (v / 256) k ++ [BitVec.ofNat 8 (v % 256)])[j]?) = _
+    by_cases hjk : j < k
+    · rw [List.getElem?_append_left (by rw [hlenA]; exact hjk), ih (v / 256) j hjk]
+      -- one shift of the *value* is one more byte of the *exponent*
+      have hd : (v / 256) / 256 ^ (k - 1 - j) = v / 256 ^ (k + 1 - 1 - j) := by
+        rw [Nat.div_div_eq_div_mul]
+        congr 1
+        rw [show k + 1 - 1 - j = (k - 1 - j) + 1 from by omega, Nat.pow_succ]
+        ring
+      rw [hd]
+    · have hje : j = k := by omega
+      subst hje
+      rw [List.getElem?_append_right (by rw [hlenA]), hlenA, Nat.sub_self]
+      simp
+
+-- non-vacuity: the bridge is an equation between things that actually compute
+#guard beShift 56 1 == [0x38]
+#guard beShift 65536 3 == [0x01, 0x00, 0x00]
+#guard beShift 65536 3 == Nat.toBytesBE 65536
+#guard beShift 255 1 == Nat.toBytesBE 255
+#guard beShift 256 2 == Nat.toBytesBE 256
+#guard (beShift 65536 3)[1]? == some 0x00
+#guard (beShift 65536 3)[0]? == some 0x01
+#guard beShift 0 0 == Nat.toBytesBE 0
+
+-- non-vacuity: the bridge relates things that actually compute
+#guard beShift 56 1 == [0x38]
+#guard beShift 65536 3 == [0x01, 0x00, 0x00]
+#guard beShift 65536 3 == Nat.toBytesBE 65536
+#guard beShift 255 1 == Nat.toBytesBE 255
+#guard beShift 256 2 == Nat.toBytesBE 256
+#guard beShift 0 0 == Nat.toBytesBE 0
+
 /-! ## §4  Non-vacuity checks on the model layer
 
     The lemmas above are conditional equations; these pin them at concrete data
