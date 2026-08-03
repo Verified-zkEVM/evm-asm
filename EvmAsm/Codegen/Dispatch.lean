@@ -2488,20 +2488,40 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  add x8, x8, x7\n" ++
   "  sd x8, 0(x11)\n" ++
   ".runtime_tx_create_state_done:\n" ++
-  -- 4. top-level-only preparation halt, then top-frame gas and context
-  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_prefix_continue\n" ++
-  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
-  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  -- 4. top-level-only preparation halt, then top-frame gas and context.  The
+  -- prepare-only return is deliberately after the staged top-frame charge:
+  -- execution-gas exhaustion is a transaction OOG, not an unresolved
+  -- recipient.  A successful preparation prefix still records status 2 and
+  -- returns below, preserving the genuine missing-witness verdict arm.
   ".runtime_tx_prepare_prefix_continue:\n" ++
   ".runtime_tx_gas_done:\n" ++
   "  sd x6, 568(x20)\n" ++
   "  la x11, runtime_tx_top_frame_regular_gas\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_top_frame_regular_done\n" ++
-  "  bltu x6, x9, .exit_outofgas\n" ++
+  "  bltu x6, x9, .runtime_tx_prepare_prefix_oog\n" ++
   "  sub x6, x6, x9\n" ++
   "  sd x6, 568(x20)\n" ++
   ".runtime_tx_top_frame_regular_done:\n" ++
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_body_continue\n" ++
+  "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  -- A staged top-frame ACCOUNT_WRITE charge is part of transaction
+  -- preparation.  If the exact intrinsic-gas transaction has no regular
+  -- gas left, return a transaction-level exceptional halt to the caller so
+  -- settlement burns regular gas and preserves block validation.  The
+  -- preparation snapshot must be unwound atomically before the caller's OOG
+  -- hook materializes the sender fee debit.  The hook is the same transaction
+  -- boundary used by the normal exceptional-exit path.
+  ".runtime_tx_prepare_prefix_oog:\n" ++
+  "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_normal_oog\n" ++
+  "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11)\n" ++
+  "  j .exit_outofgas\n" ++
+  ".runtime_tx_prepare_normal_oog:\n" ++
+  "  sd x0, 568(x20)\n" ++
+  "  li x9, 6; li x11, 0xa0010000; sd x9, 32(x11)\n" ++
+  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  ".runtime_tx_prepare_body_continue:\n" ++
   "  ld x6, 0(x5)\n" ++
   "  sd x6, 584(x20)\n" ++
   "  ld x7, 8(x5)\n" ++

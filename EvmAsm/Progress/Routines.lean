@@ -57,6 +57,7 @@
 import EvmAsm.Progress
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
@@ -127,6 +128,21 @@ def routineRegistry : List RoutineEntry := [
       (gate := "`n ≤ 55` — strictly stronger than the tight bound, and the "
         ++ "form a caller can discharge without reasoning about `reubZeros`")
       (notes := "ABI-shaped corollary; every production caller passes 8 or 32"),
+
+  -- `rlp_encode_bytes` — #10780 item 2. Total function: no input-domain
+  -- restriction, so `.proven` where `reub` is `.conditional` — both sides of
+  -- the 55/56 boundary are inside the claim.
+  routine "rlp_encode_bytes" .proven (some "reb_spec_within")
+      (notes := "whole-routine triple against `encodeBytes` — the function "
+        ++ "SpecRef's own encoders call (`encR := EL.RLP.encode`, and "
+        ++ "`encode (.bytes d) = encodeBytes d` definitionally). All three "
+        ++ "paths (raw byte, short form, long form) proved; coverage examples "
+        ++ "pin output bytes as literals on both sides of 55/56. Resource "
+        ++ "preconditions only (capacity `n + 9`, alignment, validity)"),
+  routine "rlp_encode_bytes" .proven (some "reb_spec_rlpItem_within")
+      (notes := "the same triple with the output region phrased as "
+        ++ "`rlpItemRegionFrom outPtr (.bytes data) …` — the `RLPItem` "
+        ++ "vocabulary a caller encoding a SpecRef struct field composes with"),
 
   -- `rlp_item_size` — at its linked guest address, unlike the ∀-base walk triples.
   routine "rlp_item_size" .conditional (some "rlp_item_size_spec_within")
@@ -219,9 +235,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 19 := by decide
+theorem routineCount_eq : routineCount = 21 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 11 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 13 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -236,7 +252,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 14 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
 
 /-! ## Witness `abbrev`s
 
@@ -261,6 +277,10 @@ private noncomputable abbrev _reub_encode_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 private noncomputable abbrev _reub_length_le_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within_of_length_le
+private noncomputable abbrev _reb_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
+private noncomputable abbrev _reb_rlpItem_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
