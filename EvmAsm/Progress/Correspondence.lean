@@ -216,7 +216,7 @@ reubOut_eq_encode_toBytesBE." },
 encoders call (`encR := EL.RLP.encode`, `encode (.bytes d) = encodeBytes d` definitionally), \
 so no bridge lemma is even needed; `agrees` on the full domain (total function, both sides \
 of 55/56 covered; resource preconditions only). Witnessed in `Progress/Routines.lean`, \
-not here — L1 layering forbids this file importing Codegen (see the Witnesses block)." },
+not here — this file deliberately does not import Codegen (see the Witnesses block)." },
   { family := "rlp", routine := "rlp_encode_u64",
     verdict := .unproven, basis := .none, reference := "encode(U64)",
     note := "drift guard only" },
@@ -321,20 +321,17 @@ theorem families_nonempty : registry.all (fun e => e.family != "") := by decide
     grep-verified table. Extending the witness set is strictly an improvement —
     add the import and the `abbrev`.
 
-    ⚠️ **`reub_spec_within` cannot be witnessed here yet, and the obstacle is
-    layering rather than a cycle.** Measured: adding
-    `import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm` elaborates fine —
-    there is no cycle — but `check-layering.sh` L1 rejects it, "no verified-core
-    module may import Codegen", and `EvmAsm/Progress/**` is core-by-default. That
-    is why all four witnesses below are `Rv64.RLP.*`: they are the RLP specs that
-    live *outside* Codegen.
-
-    The row is not unprotected in the meantime. #11273 adds the L1 exemption for
-    the progress registry (sound because L2 makes it a pure sink) *and* witnesses
-    `reub_spec_within` in `EvmAsm/Progress/Routines.lean` with a `#print axioms`
-    line in `AxiomWitnesses.lean`. So a rename fails *that* file's elaboration
-    instead of this one's, and a local `abbrev` here becomes a redundant
-    convenience once the exemption lands rather than the only protection. -/
+    Codegen-proved specs (`reub_spec_within`, `reb_spec_within`, …) are
+    deliberately NOT witnessed here even though they could be: since #11273,
+    `check-layering.sh` L1 exempts all of `EvmAsm/Progress/**` (sound because
+    L2 makes the registries pure sinks), so importing Codegen from this file
+    would elaborate AND pass the gate. It stays unimported to keep this
+    module's closure light. Those specs are witnessed in
+    `EvmAsm/Progress/Routines.lean` instead, with `#print axioms` lines in
+    `AxiomWitnesses.lean` — a rename fails *that* file's elaboration, so a
+    local `abbrev` here would be a redundant convenience, not protection.
+    (An earlier revision of this comment claimed L1 *forbids* the import;
+    that predates the #11273 exemption and was stale — GH #11294 rider.) -/
 
 private noncomputable abbrev _rlp_walk_init_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_init_spec_within

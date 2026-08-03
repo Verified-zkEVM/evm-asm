@@ -1132,19 +1132,14 @@ def balSerializerRebuildHashFunction : String :=
     substitutes -- matching lengths, counts and field sets are all satisfiable by a BAL
     that hashes differently.
 
-    INERT AS OF THIS COMMIT: nothing calls it. Wiring it into the verdict is a separate
-    change and a substantial one. Two reasons, both external to the serializer:
-
-      * it is the first thing to READ the builder streams, so every neutrality claim
-        measured over unconsumed builder output expires the moment it lands, and it owes
-        a fresh paired A/B with both halves live rather than inheriting a number measured
-        over dead output;
-      * the producer side is incomplete -- `append_code`/`append_nonce` cannot fire for
-        EIP-7702 authorities until #10757, and #10730 has a cross-transaction storage
-        write that is never captured -- and a rebuilt BAL missing a row cannot match a
-        declared BAL that has it. Those fixtures will fail for producer reasons, not
-        serializer ones, and a hash mismatch yields one bit and no localisation. That is
-        why the probes underneath it exist. -/
+    WIRED AND BINDING since GH #10680 (see GH #11258 for the history of this
+    docstring claiming otherwise). Called from the shadow-verify block in
+    `BlockVerdictReceiptsTail.lean` (`jal ra, bal_serializer_verify`); its return is
+    stored to `bv_bal_shadow_status`; and the status is bound into the verdict there --
+    a digest mismatch rejects with `bv_fail_code = 60`, a rebuild failure with `61`,
+    checked on ACCEPT paths only (the ACCEPT-only guard is what keeps the FR delta
+    attributable). The binding contract is pinned by `#guard`s at the bottom of that
+    file, so an edit cannot loosen it silently. -/
 def balSerializerVerifyFunction : String :=
   "bal_serializer_verify:\n" ++
   "  addi sp, sp, -32\n" ++
