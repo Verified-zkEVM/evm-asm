@@ -3012,8 +3012,10 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, evm_selfdestruct_seen_overflow; sd x0, 0(x5)\n" ++
   -- GH #11147: preserve destroyed_count/overflow across system re-entry
   -- (stage_system_call sets system_call_mode=1 before jal runtime_dispatcher_call).
-  -- nonstorage_effect_aggregate destroyed-norm runs AFTER deferred system requests
-  -- and needs the user-body table. Other journals still zero every entry (#11152).
+  -- Primary destroyed-norm is now nonstorage_apply_destroyed_norm at Mtx
+  -- effects_kept (tx finalize); table is cleared there. Preserve across system
+  -- re-entry still required if finalize has not run yet. Other journals still
+  -- zero every entry (#11152).
   "  la x5, system_call_mode; ld x6, 0(x5); bnez x6, .Lrtdc_destroyed_kept\n" ++
   "  la x5, evm_selfdestruct_destroyed_count; sd x0, 0(x5)\n" ++
   "  la x5, evm_selfdestruct_destroyed_overflow; sd x0, 0(x5)\n" ++
@@ -3269,6 +3271,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   nonstorageEffectLatestNonceFunction ++ "\n" ++   -- bmvmx.5.5.10: live-NONCE read (CREATE seed threading)
   nonstorageEffectAggregateFunction ++ "\n" ++   -- bmvmx.5.5.7.3: O(N) per-account effect aggregation (block_verdict tail)
+  nonstorageApplyDestroyedNormFunction ++ "\n" ++   -- fc44: raw-log destroyed-norm at tx finalize
   frameReturnFunction ++ "\n" ++
   sparseWindowReadFunction ++ "\n" ++   -- evm-asm-0w05f.13: depth-1+ RETURN/REVERT window materialization
   sparseWindowWriteFunction   -- evm-asm-0w05f.13 surface 2: nested-caller out-window write-back

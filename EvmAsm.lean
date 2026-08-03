@@ -33,9 +33,11 @@ import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap
+import EvmAsm.Codegen.RegionPredicates
 import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
 import EvmAsm.Progress
+import EvmAsm.Progress.Routines
 import EvmAsm.Progress.AxiomWitnesses
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
