@@ -1,0 +1,10 @@
+# Routine-liveness allowlist (GH #11303) — checked by scripts/check-routine-liveness.sh.
+#
+# One entry per line: <symbol><TAB><reason>. An entry asserts that a
+# theorem-bearing routine deliberately has NO reference anywhere (no call,
+# jump, or address-taken site) AND is absent from the linked guest's symbol
+# census — and says why. THE EXEMPTION EXPIRES: if the symbol gains a
+# reference or appears in the guest census, the run fails with STALE and
+# names the entry to delete. Inertness claims live here, where they are
+# re-checked every run — not in docstrings, where they rot (#11258).
+secf_add_mod_n	probe-only PC placeholder, unlinked from guest (Secp256k1Field.lean:26 says so); the k1 scalar-field add is exercised via the recover chain, not this standalone entry

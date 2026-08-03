@@ -44,6 +44,10 @@ jobs:
       # "Architecture fitness functions".
       - name: Heartbeat-override allowlist (maxHeartbeats is a ceiling, not a license)
         run: scripts/check-heartbeats-approved.sh
+      - name: "Routine liveness (a theorem's subject must be referenced or annotated, #11303)"
+        run: |
+          scripts/check-routine-liveness.sh --self-test
+          scripts/check-routine-liveness.sh
       - name: Layering invariants (verified core must not import Codegen / Progress)
         run: scripts/check-layering.sh
       - name: Opcode-structure (AddrNorm pairing; advisory checklist for new complex dirs)
