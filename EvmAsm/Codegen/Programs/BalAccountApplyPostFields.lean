@@ -243,6 +243,10 @@ theorem baapDeleteSingleLeafStorageFunction_eq_prog :
     Storage replay starts from the account's current storage root and applies
     only explicit BAL storage_changes, matching execution-specs witness_state
     post-state-root computation. -/
+-- The value arena is a fixed, build-unit-local buffer.  Keep the end marker
+-- adjacent to each unit's allocation and check the complete 40-byte envelope
+-- (32-byte payload rounded up to an 8-byte boundary) before encoding or
+-- advancing the cursor; the map/count guards alone do not prove this bound.
 def balAccountApplyPostFieldsFunction : String :=
   "bal_account_apply_post_fields:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -423,7 +427,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1); sd zero, 16(t1); sd zero, 24(t1); li t2, 2; sd t2, 32(t1)\n" ++
   "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1); j .Lbaap_map_next\n" ++
   ".Lbaap_map_value_nonzero:\n" ++
-  "  sub t3, t3, t2; add a0, t1, zero; mv a1, t3; la t4, baap_storage_value_cursor; ld a2, 0(t4); la a3, aab_enc_len\n" ++
+  "  sub t3, t3, t2; add a0, t1, zero; mv a1, t3; la t4, baap_storage_value_cursor; ld a2, 0(t4); la t0, baap_storage_values_end; li t1, 40; add t2, a2, t1; bgtu t2, t0, .Lbaap_fail_storage_bounds; la a3, aab_enc_len\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_map_insert\n" ++
   "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0); la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 6; la t2, baap_storage_paths; add a3, t2, t1; li a4, 64; la a5, baap_walk_val; la a6, baap_walk_val_len\n" ++
@@ -433,7 +437,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_map_desc:\n" ++
   "  la t0, baap_sc_out_count; ld t0, 0(t0); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; la t2, baap_storage_desc; add t1, t2, t1\n" ++
   "  slli t2, t0, 6; la t3, baap_storage_paths; add t2, t3, t2; sd t2, 0(t1); li t2, 64; sd t2, 8(t1); la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1); la t4, aab_enc_len; ld t4, 0(t4); sd t4, 24(t1); sd t5, 32(t1)\n" ++
-  "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2); addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
+  "  add t6, t3, t4; addi t6, t6, 7; andi t6, t6, -8; la t1, baap_storage_values_end; bgtu t6, t1, .Lbaap_fail_storage_bounds; sd t6, 0(t2); addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
   ".Lbaap_map_next:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); addi t0, t0, 1; la t1, baap_sc_index; sd t0, 0(t1); j .Lbaap_map_loop\n" ++
   ".Lbaap_map_apply:\n" ++
@@ -547,6 +551,7 @@ def balAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_encode_value:\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_encode_nonzero\n" ++
   ".Lbaap_multi_encode_nonzero:\n" ++
+  "  la t0, baap_storage_values_end; li t1, 40; add t2, a2, t1; bgtu t2, t0, .Lbaap_fail_storage_bounds\n" ++
   "  jal ra, rlp_encode_bytes\n" ++
   "  la a0, baap_slot; li a1, 32; la a2, srss_key\n" ++
   "  jal ra, zkvm_keccak256\n" ++
@@ -573,7 +578,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  la t2, baap_storage_value_cursor; ld t3, 0(t2); sd t3, 16(t1)\n" ++
   "  la t4, aab_enc_len; ld t4, 0(t4); sd t4, 24(t1)\n" ++
   "  sd t5, 32(t1)\n" ++
-  "  add t3, t3, t4; addi t3, t3, 7; andi t3, t3, -8; sd t3, 0(t2)\n" ++
+  "  add t6, t3, t4; addi t6, t6, 7; andi t6, t6, -8; la t1, baap_storage_values_end; bgtu t6, t1, .Lbaap_fail_storage_bounds; sd t6, 0(t2)\n" ++
   "  addi t0, t0, 1; la t1, baap_sc_out_count; sd t0, 0(t1)\n" ++
   ".Lbaap_multi_skip_zero:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0)\n" ++
@@ -678,6 +683,8 @@ def balAccountApplyPostFieldsFunction : String :=
   "  li t0, 505; la t1, baap_fail_code; sd t0, 0(t1); j .Lbaap_fail\n" ++
   ".Lbaap_fail_balance:\n" ++
   "  li t0, 506; la t1, baap_fail_code; sd t0, 0(t1); j .Lbaap_fail\n" ++
+  ".Lbaap_fail_storage_bounds:\n" ++
+  "  li t0, 599; la t1, baap_fail_code; sd t0, 0(t1); j .Lbaap_fail\n" ++
   ".Lbaap_fail:\n" ++
   "  la t1, baap_fail_code; ld t0, 0(t1); bnez t0, .Lbaap_fail_have_code\n" ++
   "  li t0, 599; sd t0, 0(t1)\n" ++
@@ -867,7 +874,7 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "bsr_builder_witness_value_max:\n  .zero 8\n" ++
   "baap_storage_desc:\n  .zero 2400000\n" ++
   "baap_storage_paths:\n  .zero 3840000\n" ++
-  "baap_storage_values:\n  .zero 3840000\n" ++
+  "baap_storage_values:\n  .zero 3840000\nbaap_storage_values_end:\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
