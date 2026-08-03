@@ -2540,14 +2540,9 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- 5. caller-scoped access seeding and the full deferred prepare_dispatch callback
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
   emitTxAccessListSeedLoop ++ "\n" ++
-  -- A top-level MTx precompile enters the ordinary dispatcher so it receives
-  -- the same intrinsic/upfront-gas and rollback setup as a contract.  Its
-  -- selector hook is installed for the post-seed point; do not run a regular
-  -- delegated post-top-frame callback before that hook.
-  "  la x11, runtime_tx_prepare_prefix_status\n" ++
-  "  ld x9, 0(x11)\n" ++
-  "  li x11, 3\n" ++
-  "  beq x9, x11, .runtime_tx_post_top_frame_done\n" ++
+  -- Deferred post-top-frame callback (EIP-7702 delegation materialize/charge).
+  -- #11163: top-level precompiles no longer use a mode-3 hook here; they arm
+  -- inside the shared body after move_ether / TL reemit.
   "  la x5, runtime_tx_post_top_frame_fn\n" ++
   "  ld x28, 0(x5)\n" ++
   "  beqz x28, .runtime_tx_post_top_frame_done\n" ++
@@ -3130,8 +3125,16 @@ def emitTxAuthListWarmLoop : String :=
 
 /-- Callable runtime dispatcher entry. The dispatcher loop uses `ra` for
     opcode-handler calls, so the caller's return address is saved in the
-    runtime data section and restored by the callable exit join. -/
-def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : String :=
+    runtime data section and restored by the callable exit join.
+
+    `depth0PrecompileArm` (GH #11163) is optional guest-linked asm inserted
+    after shared prep / move_ether / TL reemit and before the bytecode loop —
+    the shared `process_message` precompile site.  Probes leave it empty; the
+    stateless guest passes an arm that jumps to the linked top-level kernel
+    tree.  CREATE and system-call modes must skip inside the arm. -/
+def emitRuntimeDispatcherCallablePrologue
+    (depthAwareStop : Bool := false)
+    (depth0PrecompileArm : String := "") : String :=
   -- `runtime_dispatcher_prepare_only` shares the ordinary callable setup and
   -- exits at the post-preparation seam above.
   "runtime_dispatcher_prepare_only:\n" ++
@@ -3170,17 +3173,9 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   -- execution-specs demand-driven path: state_tracker.py:273-302 records a
   -- storage read and resolves current/parent writes before pre-state, while
   -- vm/instructions/storage.py:36-61 makes SLOAD call get_storage directly.
-  -- Mode 3 is a one-shot top-level-precompile sentinel.  The MTx adapter
-  -- installs its selector hook in runtime_tx_post_top_frame_fn; invoke it
-  -- only after all shared preparation and access seeding have completed.
-  "  la x5, runtime_tx_prepare_prefix_status\n" ++
-  "  ld x6, 0(x5)\n" ++
-  "  li x7, 3\n" ++
-  "  bne x6, x7, .Lruntime_dispatcher_regular_loop\n" ++
-  "  la x5, runtime_tx_post_top_frame_fn\n" ++
-  "  ld x6, 0(x5)\n" ++
-  "  beqz x6, .Lruntime_dispatcher_regular_loop\n" ++
-  "  jalr ra, x6, 0\n" ++
+  -- #11163: shared-body precompile arm (spec process_message after move_ether).
+  -- Empty when probes omit the kernel tree; guest supplies the arm.
+  depth0PrecompileArm ++
   ".Lruntime_dispatcher_regular_loop:\n" ++
   emitRuntimeDispatcherLoop depthAwareStop
 
@@ -3303,8 +3298,9 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
 
 def emitRuntimeDispatcherCallableCoreSharedHelpers
     (registry : List OpcodeHandlerSpec)
-    (exitBody : Program) : String :=
-  emitRuntimeDispatcherCallablePrologue true ++ "\n" ++
+    (exitBody : Program)
+    (depth0PrecompileArm : String := "") : String :=
+  emitRuntimeDispatcherCallablePrologue true depth0PrecompileArm ++ "\n" ++
   emitRuntimeDispatcherEmbeddedHelperFunctions ++ "\n" ++
   emitDispatcherCallableEpilogueSharedHelpers registry exitBody
 

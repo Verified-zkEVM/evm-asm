@@ -6,7 +6,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
-import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
+import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
@@ -516,20 +516,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
   "  jal ra, bal_same_block_delegation_code_resolve\n" ++
-  "  beqz a0, .Lbv_mtx_is_contract\n" ++
-  blockVerdictMtxPrecompileSettlement ++
-  -- An inactive precompile is ordinary zero-byte code.  Rejoin the one
-  -- top-level message processor instead of falling through to a second EOA
-  -- settlement route.  In the shared dispatcher this is a one-shot hook:
-  -- clear both sentinels and return to the callable prologue's regular-loop
-  -- label.  Re-entering `.Lbv_mtx_is_contract` here would recursively invoke
-  -- `dispatch_tx_runtime_code` while its frame is still live, and a later MTx
-  -- iteration would reach its `ld a1,80(s0)` with a null frame pointer.
+  -- #11163: empty-code (BAL hit or miss) enters the shared message processor
+  -- the same way as contracts.  The depth-0 precompile arm inside
+  -- `runtime_dispatcher_call` classifies after move_ether; inactive falls
+  -- through to the bytecode loop (codeSize 0 → STOP).
+  "  j .Lbv_mtx_is_contract\n" ++
+  -- Inactive / non-precompile resume from the shared-body kernel tree.
   ".Lbv_mtx_precompile_not_active:\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_post_top_frame_fn; sd zero, 0(t0)\n" ++
-  "  ret\n" ++
+  "  j .Lruntime_dispatcher_regular_loop\n" ++
   ".Lbv_mtx_is_contract:\n" ++
   -- #10695 INVARIANT: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
   -- TRANSACTION'S block_access_index (i+1; EIP-7928: 0 for system, i+1 for the i-th user tx,
