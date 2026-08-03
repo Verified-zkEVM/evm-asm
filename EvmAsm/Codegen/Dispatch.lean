@@ -1099,6 +1099,8 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  la t2, create_value_be; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
     "  la t1, create_nonce_by_depth; slli t2, t0, 3; add t1, t1, t2\n" ++
     "  la t2, create_nonce; ld t3, 0(t1); sd t3, 0(t2)\n" ++
+    "  la t1, create_pre_bal_by_depth; slli t2, t0, 5; add t1, t1, t2\n" ++
+    "  la t2, nse_create_pre_bal; ld t3, 0(t1); sd t3, 0(t2); ld t3, 8(t1); sd t3, 8(t2); ld t3, 16(t1); sd t3, 16(t2); ld t3, 24(t1); sd t3, 24(t2)\n" ++
     "  li x14, 0\n" ++
     "  li x15, 0\n" ++
     "  j .Lcreate_deposit_from_halt_1\n" ++
