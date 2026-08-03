@@ -1307,6 +1307,15 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "4:\n" ++
   "  j .dispatch_loop\n" ++
   s!"{label}_top:\n" ++
+  -- OOG-exit mode-flag hygiene (same class as #11247 `runtime_tx_auth_exec_fn`):
+  -- `runtime_dispatcher_prepare_only` sets `runtime_tx_prepare_only := 1` before the
+  -- shared preparation prefix. A prefix OOG takes this exceptional join and used to
+  -- leave the flag set; the next full `runtime_dispatcher_call` (deferred system
+  -- predeploys EIP-7002/7251/…) then hit the prepare-only seam, returned without a
+  -- body, and dropped storage_reads (code60 Δ4 on 00029). Clear here — scope ends
+  -- at the OOG exit — not in setup (that would break the intentional prepare-only
+  -- split) and not by special-casing any predeploy address.
+  "  la x5, runtime_tx_prepare_only; sd x0, 0(x5)\n" ++
   -- A transaction-aware caller may stage a process_transaction debit before
   -- entering the callable dispatcher. An exceptional halt can occur in the
   -- shared preparation prefix, so give that caller one optional hook to
@@ -3063,8 +3072,10 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   -- `runtime_dispatcher_prepare_only` shares the ordinary callable setup and
   -- exits at the post-preparation seam above.
   "runtime_dispatcher_prepare_only:\n" ++
-  -- Mark entered before setup.  A prefix OOG takes the ordinary exceptional
-  -- exit and leaves this at 1; only the explicit prefix-return writes 2.
+  -- Mark entered before setup.  `prepare_prefix_status` stays 1 on prefix OOG
+  -- (only the success seam writes 2).  `prepare_only` is cleared on every
+  -- top-level exceptional exit (`emitExceptionalExit` `_top`) so a leftover
+  -- cannot suppress a later full dispatcher body (#11247-class mode flag).
   "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
   "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
   "  j runtime_dispatcher_call\n" ++
