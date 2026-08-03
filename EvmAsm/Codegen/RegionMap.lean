@@ -48,7 +48,6 @@
 
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.RegionMapLinkPins
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen.RegionMap
@@ -327,13 +326,13 @@ def schemeAAnchors : List GuestRegion :=
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
-    Class A (`.text`/`.data`/`.bss` sizes + three BSS bases) are LINK-LAYOUT-
-    DEPENDENT and live in generated `RegionMapLinkPins.lean` (#11230);
-    `scripts/check-region-map.sh` compares those pins to readelf/nm of the
-    check-time ELF. Class B INPUT/OUTPUT bases and section bases are STABLE
-    (codegen constants + `-Ttext=`/`-Tdata=`/`--section-start=` flags). -/
+    `.text` and `.data` sizes are LINK-LAYOUT-DEPENDENT (they move whenever any
+    function or data object changes size); `scripts/check-region-map.sh`
+    re-derives them from the linked ELF on every CI run. INPUT/OUTPUT bases and
+    the section bases are STABLE (pinned by the codegen constants and the
+    `-Ttext=`/`-Tdata=`/`--section-start=` linker flags). -/
 
-/- Historical ELF-measured `.text` size notes (pin is now RegionMapLinkPins #11230).
+/-- ELF-measured `.text` size for the `stateless_guest` unit
     (`readelf -S`, `0x59318`). Link-layout-dependent; the drift guard re-derives it.
     Shrank by 4 B when the BLOBHASH handler's two early `ret`s merged into the
     shared tail (verified `evm_blobhash` body swap). Grew by `0x90` when exact
@@ -515,24 +514,46 @@ def schemeAAnchors : List GuestRegion :=
     it).  ELF-MEASURED, not summed: `0x067318 + 0xd0` is the obvious arithmetic and
     is NOT how this literal was set.  The value is an INPUT to emission, so a
     hand-computed one gets reflected back by the next relink and looks confirmed --
-    an earlier draft of this same change measured `0x14` for what is now `0xd0`.
-    Also: #10887 code_changes pointer, #10911 CALL target account-read,
-    #10913 creation-stage creator nonce, #10930 creation-target account-read,
-    #10931 durable upfront-balance, #10957 body-state snapshot slab. -/
+    an earlier draft of this same change measured `0x14` for what is now `0xd0`. -/
+-- ELF-MEASURED after the relink, combining GH #10887's code_changes pointer
+-- change, #10911's guarded post-static-check CALL target account-read
+-- restoration, #10913's creation-stage running creator nonce fix,
+-- #10930's top-level creation-target account-read
+-- (`utils/message.py:71`), and #10931's durable upfront-balance
+-- publish plus credit-path guard removal, then #10957's shared
+-- body-state snapshot slab migration.
+def textSizeBytes : Nat := 0x622a8
 
-/-- Link-layout-dependent pins (class A) are generated into
-    `RegionMapLinkPins.lean` by `scripts/gen-region-map-link-pins.py` from the
-    linked ELF (#11230). The `def`s below re-export those generated literals so
-    proofs still see concrete `Nat`s for `decide`/`omega`. Class B stable bases
-    remain hand-typed. Do not hand-edit the hex — regenerate LinkPins. -/
-abbrev textSizeBytes : Nat := RegionMapLinkPins.textSizeBytes
+/-- ELF-measured `.data` size for the `stateless_guest` unit
+    (`readelf -S`, current value `0x5370`). Link-layout-dependent; this is
+    intentionally a short current fact rather than a copied growth history.
+    The drift guard re-derives it from the linked ELF. -/
+def dataSizeBytes : Nat := 0x5370
 
-/-- ELF-measured `.data` size; value from `RegionMapLinkPins` (#11230). -/
-abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
+/-- ELF-measured `.bss` size for the `stateless_guest` unit. Grew by `0x77900`
+    for the fixed, gas-sized bounded indexed-root builder arenas, then `0x1d320`
+    when the transaction descriptor staging was raised to the same gas bound.
+    Grew by `0xc0` for the withdrawal-BAL-parity fix's per-withdrawal
+    non-storage effect modeling (#10422). Grew by `0x160000`
+    (execCodeEffectLogCap 128 KiB -> 1.5 MiB, #10447) so a full
+    200M-gas block can never over-reject on deployed-code volume. Grew by
+    `0xe08000` when the bounded non-storage effect log capacity was raised
+    from 32768 to 65536 entries. Grew by `0x3c680` when the per-creator
+    CREATE nonce table was raised from 64 to its 200M-gas-derived 6,250-entry
+    capacity. Grew by `0x19bfa0` for the fixed-capacity EIP-7702 authority
+    state table (address, nonce delta, and header-delegated bit). Grew by
+    `0x1a000` for #10957's 1025-by-13 u64 body-state snapshot slab, then `0x2000`
+    for GH #10619's fourteenth slab field (`storage_writes_undo_count`).
 
-/-- ELF-measured `.bss` size; value from `RegionMapLinkPins` (#11230).
-    Growth history lives in git; the pin is regenerated from the linked ELF. -/
-abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
+    ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
+    the eight-byte remainder is absorbed by the `.balign 32` that already followed the
+    slab. Derived from the emitted addresses, not from arithmetic —
+    `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
+    `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
+    `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
+    the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
+    removal absorbs in the same direction (#10986, #10988). -/
+def bssSizeBytes : Nat := 0x1a954460
 
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
@@ -624,9 +645,8 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
-    (`0xa3000000`); `.data` / `.bss` ends are link-dependent
-    (`dataSizeBytes` / `bssSizeBytes` from RegionMapLinkPins) and both stay
-    below `.sszscratch`; INPUT and `.text` sit in their own zones. The
+    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbe6a4860`,
+    both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
     is expanded — as its own inventory —
     in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
@@ -741,12 +761,12 @@ theorem schemeA_matches_layout :
 
 /-- Absolute base of `call_frame_arena` (== `basr_values`) in this build.
     LINK-LAYOUT-DEPENDENT — recorded so the drift guard can anchor the union. -/
-abbrev callFrameArenaBase : Nat := RegionMapLinkPins.callFrameArenaBase
+def callFrameArenaBase : Nat := 0xad0c8120
 
 /-! The memory-pool base is link-dependent too. Naming it separately lets the
     drift guard compare this absolute pin with the linked ELF, rather than
     checking only the relative 96 MiB extent. -/
-abbrev evmMemoryPoolBase : Nat := RegionMapLinkPins.evmMemoryPoolBase
+def evmMemoryPoolBase : Nat := 0xb34e1120
 
 /-- Absolute shared nested-frame EVM-memory pool, emitted immediately after
     `call_frame_arena`. Both endpoints are link-layout-dependent pins checked
@@ -757,10 +777,8 @@ def evmMemoryPoolRegion : GuestRegion :=
     evidence := "ELF evm_memory_pool..evm_memory_pool_end; 96 MiB shared LIFO frame memory" }
 
 theorem evmMemoryPoolRegion_matches_elf :
-    evmMemoryPoolRegion.base = evmMemoryPoolBase
-      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size
-          = evmMemoryPoolBase + evmMemoryPoolBytes := by
-  decide
+    evmMemoryPoolRegion.base = 0xb34e1120
+      ∧ evmMemoryPoolRegion.base + evmMemoryPoolRegion.size = 0xb94e1120 := by decide
 
 /-- The two runtime frame allocations are adjacent, disjoint, fit RAM, and both
     lie inside `.bss`; this is the pool/slot non-aliasing soundness fence. -/
@@ -844,7 +862,7 @@ theorem callFrameArena_within_data :
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
     LINK-LAYOUT-DEPENDENT — read from the ELF, guarded by `check-region-map.sh`. -/
-abbrev syslogBase : Nat := RegionMapLinkPins.syslogBase
+def syslogBase : Nat := 0xaad65180
 
 /-- **The `.73` clobber is closed (load-bearing).** The un-unioned
     `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
