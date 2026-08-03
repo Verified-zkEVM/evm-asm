@@ -105,6 +105,28 @@ def poolOwn (base : Word) : Assertion := anyBytes base poolBytes
 theorem pcFree_poolOwn (base : Word) : (poolOwn base).pcFree :=
   pcFree_anyBytes base poolBytes
 
+/-! ### The pool's initialisation contract
+
+    ⚠️ **Do not assume the pool is zero on entry to anything.** Nothing zeroes
+    the 96 MiB; frames write their own windows, and the depth-1 reset paths
+    restore *limits*, not contents. So a routine that reads a pool byte it has
+    not written reads whatever the previous frame at that offset left there.
+
+    ⭐ **This is why `poolOwn` is the strongest predicate available for the
+    region, and why there is deliberately no `poolZero` companion.** For
+    `evmMemZero`-style regions a zero predicate is the right opening resource;
+    here it would be unsound — writing one would let a caller conclude a read
+    returns `0` from a cell no one initialised. The absence is the contract, so
+    it is stated rather than left as a missing definition somebody later
+    "fixes".
+
+    ⇒ **Audited entry points: none.** Unlike the dispatch-journal cells
+    (§2), whose contract names `emitRuntimeDispatcherCallableSetup` as the
+    routine that discharges it on every `runtime_dispatcher_call`, no entry
+    point establishes a zero precondition for this region — there is nothing to
+    audit, which is a different fact from "not yet audited". A caller needing
+    known contents must establish them itself via `bytesRegion`. -/
+
 /-- **One live per-frame window**: `len` bytes at pool-relative `off`. Windows
     are slices of the pool, not allocations from it. -/
 def poolWindow (base : Word) (off len : Nat) : Assertion :=
