@@ -53,19 +53,23 @@ WITNESS = ROOT / "EvmAsm" / "Progress" / "AxiomWitnesses.lean"
 # `strict` controls the row cross-check, NOT whether the file is scanned — every
 # source's abbrevs reach the gate either way.
 #
-#   * strict=True  — a row naming a theorem with no witness abbrev in the same
-#     file is an error. Correct where this change owns the rows.
-#   * strict=False — the shortfall is COUNTED AND PRINTED instead. Used for
-#     Correspondence.lean, whose 12 `spec := some "…"` rows carry only 4
-#     abbrevs; the other 8 live in modules that file does not import, so making
-#     it strict would demand 8 new imports into a registry another change is
-#     actively editing (#11276). Declared, not hidden — the count is on stdout
-#     every run, which is the difference between a known residual and a silent
-#     skip.
+#   * strict=True  — a row naming a theorem with no witness abbrev in ANY
+#     scanned registry is an error.
+#   * strict=False — the shortfall is COUNTED AND PRINTED instead.
+#
+# All three sources are now strict (#11289). Correspondence.lean was
+# temporarily non-strict when introduced (#11278): its `spec := some "…"` rows
+# named 7 theorems no registry witnessed, whose modules it does not import, and
+# #11276 was in flight in the neighbouring file. #11289 registered those 7 as
+# `RoutineEntry` rows in Routines.lean (which does import their modules), so the
+# cross-check — run against the UNION of all registries below — now finds a
+# witness for every Correspondence row. Flipping this to strict is what stops
+# the defect class recurring: a future Correspondence row naming an unwitnessed
+# theorem is a build error, not a printed note nobody reads.
 SOURCES = [
     (PROGRESS, "EvmAsm.Progress", True),
     (ROUTINES, "EvmAsm.Progress.Routines", True),
-    (CORRESPOND, "EvmAsm.Progress.Correspondence", False),
+    (CORRESPOND, "EvmAsm.Progress.Correspondence", True),
 ]
 
 # Any `EvmAsm.*` witness abbrev target, in any namespace.  Narrowing the
@@ -110,7 +114,10 @@ HEADER = """\
   rather than whole-routine, so populating every one is not a single change.
   What is registered is witnessed; what is not registered is still outside the
   gate.  Stated here rather than left implicit, because the assumption this
-  file exists to break is "covered by CI".
+  file exists to break is "covered by CI".  #11290 tracks turning that residual
+  into a measured coverage number rather than prose.  As of #11289 all three
+  registries are strict, so within a *registered* file an unwitnessed row is a
+  build error — the gap is only in what has not been registered yet.
 -/
 """
 
