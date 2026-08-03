@@ -505,7 +505,12 @@ def accountWritesIncorporateTxFunction : String :=
     represented as zero nonce/balance), or 1 on malformed lookup/error. -/
 def accountResolvePreStateFunction : String :=
   "account_resolve_pre_state:\n" ++
-  "  addi sp, sp, -96\n" ++
+  -- Keep a separate frame-local output for the parent lookup.  A sparse
+  -- block-map row may already have supplied balance or nonce; using
+  -- `account_builder_pre_account` as the header lookup output would clobber
+  -- that field before `.Larp_header_found` sees its valid bit.  This is the
+  -- same frame-local scratch idiom used by the selfdestruct header fallback.
+  "  addi sp, sp, -208\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0\n" ++
   "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
@@ -547,18 +552,18 @@ def accountResolvePreStateFunction : String :=
   "  li t0, 3; beq s7, t0, .Larp_ok\n" ++
   -- Final source: authenticated parent witness. Absence is a valid zero
   -- account; only malformed lookup errors fail closed.
-  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; la a6, account_builder_pre_account; jal ra, account_at_header_state_root_tracked\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; addi a6, sp, 96; jal ra, account_at_header_state_root_tracked\n" ++
   "  li t0, 1; bgtu a0, t0, .Larp_fail; beqz a0, .Larp_header_found; j .Larp_ok\n" ++
   ".Larp_header_found:\n" ++
-  "  andi t1, s7, 1; bnez t1, .Larp_header_nonce; la t0, account_builder_pre_account; ld t1, 8(t0); sd t1, 8(s1); ld t1, 16(t0); sd t1, 16(s1); ld t1, 24(t0); sd t1, 24(s1); ld t1, 32(t0); sd t1, 32(s1); ori s7, s7, 1\n" ++
+  "  andi t1, s7, 1; bnez t1, .Larp_header_nonce; addi t0, sp, 96; ld t1, 8(t0); sd t1, 8(s1); ld t1, 16(t0); sd t1, 16(s1); ld t1, 24(t0); sd t1, 24(s1); ld t1, 32(t0); sd t1, 32(s1); ori s7, s7, 1\n" ++
   ".Larp_header_nonce:\n" ++
-  "  andi t1, s7, 2; bnez t1, .Larp_ok; la t0, account_builder_pre_account; ld t1, 0(t0); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  "  andi t1, s7, 2; bnez t1, .Larp_ok; addi t0, sp, 96; ld t1, 0(t0); sd t1, 0(s1); ori s7, s7, 2\n" ++
   ".Larp_ok:\n" ++
   "  li a0, 0; j .Larp_ret\n" ++
   ".Larp_fail:\n" ++
   "  li a0, 1\n" ++
   ".Larp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 96; ret\n"
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
 
 /-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
