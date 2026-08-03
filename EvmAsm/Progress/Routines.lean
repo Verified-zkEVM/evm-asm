@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 
 namespace EvmAsm.Progress
 
@@ -211,7 +212,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "`lenlen ≥ 2` long forms are the documented cut (#10780 item 3), the "
         ++ "same boundary as `rlp_item_size`")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
-        ++ "`0xC0 + len` and sets the cell flag to 1")
+        ++ "`0xC0 + len` and sets the cell flag to 1"),
+
+  -- #11291: the whole-routine triple already existed (landed 2026-07-17,
+  -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
+  -- — the full program — not a per-path certificate, so a single row is the
+  -- strongest claim and subsumes the Close2..5 composition chain.
+  routine "withdrawal_decode" .proven (some "withdrawal_decode_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.withdrawal_decode`: decodes "
+        ++ "all four RLP fields and returns `a0 = 0` with a `Decoded` verdict or "
+        ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
+        ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
+        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -223,9 +235,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 20 := by decide
+theorem routineCount_eq : routineCount = 21 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 12 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 13 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -240,7 +252,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 14 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
 
 /-! ## Witness `abbrev`s
 
@@ -300,5 +312,8 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
   @EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+-- #11291: the whole-routine withdrawal decoder (existed since #10782).
+private noncomputable abbrev _withdrawal_decode_routine_witness :=
+  @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 end EvmAsm.Progress
