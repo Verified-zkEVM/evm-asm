@@ -24,7 +24,6 @@ import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
-import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
@@ -58,7 +57,6 @@ import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
-import EvmAsm.Codegen.Programs.SystemCallStoragePreload
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
@@ -225,7 +223,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     materializeLogRecordsFunction ++ "\n" ++
     assembleExecutionRequestsFunction ++ "\n" ++
     requestsHashVerifyFunction ++ "\n" ++
-    stagePredeployStoragePreloadFunction ++ "\n" ++
     zkvmKeccak256SegmentsFunction ++ "\n" ++
     rlpEncodeU64Function ++ "\n" ++
     receiptEncodeFunction ++ "\n" ++
@@ -252,11 +249,10 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     codeReadLogDataSection ++ "\n" ++
     readSetsBlockDataSection ++ "\n" ++
     executionRequestsHashShaDataSection ++ "\n" ++
-    -- Data labels for the request-derivation/predeploy-storage helpers above.
+    -- Data labels for the request-derivation helpers above.
     -- ziskStatelessVerdictV2DataSection already owns the receipt-consensus scratch.
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     ".section .data\n" ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
@@ -290,7 +286,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     "pdr_out:\n  .zero 2048\n" ++
     "pdr_status:\n  .zero 8\n" ++
     "rhv_hash:\n  .zero 32\n" ++
-    stagePredeployStoragePreloadData ++ "\n" ++
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 

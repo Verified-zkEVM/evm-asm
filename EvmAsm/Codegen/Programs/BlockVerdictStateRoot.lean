@@ -862,7 +862,7 @@ def statelessVerdictV2Function : String :=
   -- The input path parses c1_bal_start/c1_bal_len before block_verdict. The
   -- post-loop helper deliberately consumes those stable globals instead of
   -- relying on the caller's clobbered s-registers.
-  -- == WITHDRAWAL (EIP-7002): code_at -> BAL preload -> system call -> copy body ==
+  -- == WITHDRAWAL (EIP-7002): code_at -> system call -> copy body ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, withdrawal_request_predeploy_addr\n" ++
@@ -871,30 +871,9 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Ldsr_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, withdrawal_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lc1_w_nopreload\n" ++
-  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
-  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
-  "  la t1, withdrawal_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
-  ".Lc1_w_addr:\n" ++
-  "  beqz t3, .Lc1_w_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_addr\n" ++
-  ".Lc1_w_addrd:\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
-  "  jal ra, stage_predeploy_storage_preload\n" ++
-  -- fhsxz.2.4.2.66.1/.66.1.2: a count above the gas-derived bsrAccountSlotCap means
-  -- NOTHING was staged (the preload bails write-nothing — including the per-slot
-  -- tuple-overflow case); storing it would make stage_runtime_payload_code copy count*64
-  -- garbage bytes from past c1_preload into the payload -> wrong execution. Conservative
-  -- reject instead (sound: only blocks beyond the 200M BAL budget can trip this).
-  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Ldsr_fail\n" ++
-  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
-  "  j .Lc1_w_derive\n" ++
-  ".Lc1_w_nopreload:\n" ++
-  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  -- GH #11176: do not construct BAL-sourced storage rows before the checked
+  -- system call. The callee receives empty preload arguments and resolves
+  -- request-queue storage through its authenticated state path.
   ".Lc1_w_derive:\n" ++
   "  la t0, c1_wcode_ptr; ld a0, 0(t0); la t0, c1_wcode_len; ld a1, 0(t0)\n" ++
   "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
@@ -904,8 +883,8 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_copy:\n" ++
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
    ".Lc1_w_copyd:\n" ++
-   -- #11254: each system-call dispatch RESETS evm_env+448 to its own preload
-   -- count, so this call's unseeded SSTORE rows live in [0, +448). Capturing
+   -- #11254: each system-call dispatch RESETS evm_env+448 to its own storage-log
+   -- count, so this call's SSTORE rows live in [0, +448). Capturing
    -- from the pre-deferred c1_system_log_cursor (old user log length) made
    -- end < start → status 1 malformed → zero rows for EIP-7002. The three
    -- later captures already use start=0; match them so the system log holds
@@ -928,27 +907,6 @@ def statelessVerdictV2Function : String :=
   "  bnez a0, .Ldsr_fail\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_ccode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_ccode_len; sd t3, 0(t0)\n" ++
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, consolidation_request_predeploy_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lc1_c_nopreload\n" ++
-  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2)\n" ++
-  "  la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
-  "  la t1, consolidation_request_predeploy_addr; la t2, sps_addr; li t3, 20\n" ++
-  ".Lc1_c_addr:\n" ++
-  "  beqz t3, .Lc1_c_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_addr\n" ++
-  ".Lc1_c_addrd:\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload\n" ++
-  "  jal ra, stage_predeploy_storage_preload\n" ++
-  -- fhsxz.2.4.2.66.1/.66.1.2: same gas-derived >cap conservative reject as the
-  -- withdrawal site above.
-  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Ldsr_fail\n" ++
-  "  la t0, scc_preload_count; sd a0, 0(t0); la t1, c1_preload; la t0, scc_preload_ptr; sd t1, 0(t0)\n" ++
-  "  j .Lc1_c_derive\n" ++
-  ".Lc1_c_nopreload:\n" ++
-  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   ".Lc1_c_derive:\n" ++
   "  la t0, c1_ccode_ptr; ld a0, 0(t0); la t0, c1_ccode_len; ld a1, 0(t0)\n" ++
   "  la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging\n" ++
@@ -959,7 +917,7 @@ def statelessVerdictV2Function : String :=
   "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
   ".Lc1_c_copyd:\n" ++
   -- bmvmx.5.5.10 (bv=37): each system-call dispatch RESETS evm_env+448 to its
-  -- own preload count (Dispatch.lean:2369), so this call's rows are always
+  -- own storage-log count (Dispatch.lean:2369), so this call's rows are always
   -- [0, +448) -- the advancing c1_system_log_cursor captured only a suffix
   -- (or nothing) for every call after the first. Capture from 0.
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
@@ -971,7 +929,6 @@ def statelessVerdictV2Function : String :=
   "  jal ra, write_sets_incorporate_tx\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
-  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   -- v0.6.0 (EIP-8282/C12): process_checked_system_transaction pre-checks that
   -- each BUILDER predeploy holds code (fork.py:985-1005 via :755-765) and
   -- raises InvalidBlock when it does not -- even though an absent contract's
@@ -1031,9 +988,9 @@ def statelessVerdictV2Function : String :=
   "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Ldsr_fail\n" ++
   ".Lc1_be_code_ok:\n" ++
   -- EIP-8282: derive the builder deposit and builder exit request bodies through
-  -- the same checked system-call path. Their queues are preloaded from the BAL
-  -- exactly like the EIP-7002/7251 queues; empty return data is represented by
-  -- a zero body length and is therefore omitted by the five-field assembler.
+  -- the same checked system-call path. Request-queue storage is resolved by the
+  -- authenticated state path; empty return data is represented by a zero body
+  -- length and is therefore omitted by the five-field assembler.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, builder_deposit_contract_addr\n" ++
@@ -1043,16 +1000,6 @@ def statelessVerdictV2Function : String :=
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail\n" ++
   ".Lc1_bd_derive_ready:\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_bd_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_bd_code_len; sd t3, 0(t0)\n" ++
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lc1_bd_no_preload\n" ++
-  "  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
-  "  la t1, builder_deposit_contract_addr; la t2, sps_addr; li t3, 20\n" ++
-  ".Lc1_bd_addr:\n  beqz t3, .Lc1_bd_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_addr\n" ++
-  ".Lc1_bd_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
-  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Ldsr_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_bd_call\n" ++
-  ".Lc1_bd_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   -- `process_checked_system_transaction` first reads this account through a
   -- throwaway TransactionState, so the earlier code check intentionally remains raw.
   -- `stage_system_call` records the matching real-state read at the actual dispatch
@@ -1061,7 +1008,7 @@ def statelessVerdictV2Function : String :=
   "  la t0, c1_bd_code_ptr; ld a0, 0(t0); la t0, c1_bd_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_deposit_requests\n" ++
   "  bnez a2, .Ldsr_fail; la t0, dbsr_bdlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bdbody; mv t3, a1\n" ++
   ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
-  ".Lc1_bd_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  ".Lc1_bd_copyd:\n" ++
   -- bmvmx.5.5.10 (bv=37): capture the BUILDER DEPOSIT system call's SSTOREs
   -- too; rows are [0, +448) (per-dispatch reset, see the consolidation site).
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
@@ -1077,14 +1024,9 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  bnez a0, .Lc1_be_derive_ready\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail\n" ++
   ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len; jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lc1_be_no_preload\n  la t0, svf_parent_rlp; ld t1, 0(t0); la t2, sps_header; sd t1, 0(t2); la t0, svf_parent_rlp_len; ld t1, 0(t0); la t2, sps_header_len; sd t1, 0(t2); la t0, svf_witness; ld t1, 0(t0); la t2, sps_state; sd t1, 0(t2); la t2, sps_storage; sd t1, 0(t2); la t0, svf_witness_len; ld t1, 0(t0); la t2, sps_state_len; sd t1, 0(t2); la t2, sps_storage_len; sd t1, 0(t2)\n" ++
-  "  la t1, builder_exit_contract_addr; la t2, sps_addr; li t3, 20\n  .Lc1_be_addr:\n  beqz t3, .Lc1_be_addrd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_addr\n  .Lc1_be_addrd:\n  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, c1_preload; jal ra, stage_predeploy_storage_preload\n" ++
-  "  li t1, " ++ toString bsrAccountSlotCap ++ "; bgtu a0, t1, .Ldsr_fail; la t0, scc_preload_count; sd a0, 0(t0); la t0, c1_preload; la t1, scc_preload_ptr; sd t0, 0(t1); j .Lc1_be_call\n" ++
-  "  .Lc1_be_no_preload:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
   "  bnez a2, .Ldsr_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
-  "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
+  "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n" ++
   -- bmvmx.5.5.10 (bv=37): capture the BUILDER EXIT system call's SSTOREs too.
   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
@@ -1096,12 +1038,10 @@ def statelessVerdictV2Function : String :=
   -- as evidence, while their read/write maps are incorporated directly here;
   -- no post-loop replay or compensation is needed.
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
-  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   "  la t0, dbsr_saved_ra; ld ra, 0(t0); li a0, 0; ret\n" ++
   ".Ldsr_fail:\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
-  "  la t0, scc_preload_count; sd zero, 0(t0)\n" ++
   "  la t0, dbsr_saved_ra; ld ra, 0(t0); li a0, 1; ret\n" ++
   ".Lv2_input_hash:\n" ++
   -- The entry path reaches this label before block_verdict, so s0/s3/s4 still

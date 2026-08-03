@@ -463,7 +463,6 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
@@ -561,7 +560,6 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
@@ -657,7 +655,6 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
@@ -779,7 +776,6 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     accountReadLogDataSection ++
     ".balign 8\n" ++
     "scc_system_addr:\n" ++
@@ -887,7 +883,6 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
     "scc_ctx:\n  .zero 192\n" ++
-    "scc_preload_ptr:\n  .zero 8\nscc_preload_count:\n  .zero 8\n" ++
     accountReadLogDataSection ++
     storageReadLogDataSection ++
     codeReadLogDataSection ++
