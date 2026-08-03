@@ -314,7 +314,22 @@ theorem families_nonempty : registry.all (fun e => e.family != "") := by decide
     Only routines whose spec lives in a module this file can import without
     cycling are witnessed here; the rest are covered by the doc page's
     grep-verified table. Extending the witness set is strictly an improvement —
-    add the import and the `abbrev`. -/
+    add the import and the `abbrev`.
+
+    ⚠️ **`reub_spec_within` cannot be witnessed here yet, and the obstacle is
+    layering rather than a cycle.** Measured: adding
+    `import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm` elaborates fine —
+    there is no cycle — but `check-layering.sh` L1 rejects it, "no verified-core
+    module may import Codegen", and `EvmAsm/Progress/**` is core-by-default. That
+    is why all four witnesses below are `Rv64.RLP.*`: they are the RLP specs that
+    live *outside* Codegen.
+
+    The row is not unprotected in the meantime. #11273 adds the L1 exemption for
+    the progress registry (sound because L2 makes it a pure sink) *and* witnesses
+    `reub_spec_within` in `EvmAsm/Progress/Routines.lean` with a `#print axioms`
+    line in `AxiomWitnesses.lean`. So a rename fails *that* file's elaboration
+    instead of this one's, and a local `abbrev` here becomes a redundant
+    convenience once the exemption lands rather than the only protection. -/
 
 private noncomputable abbrev _rlp_walk_init_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
