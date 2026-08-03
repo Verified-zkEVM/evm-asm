@@ -55,6 +55,7 @@
 -/
 
 import EvmAsm.Progress
+import EvmAsm.Progress.Correspondence
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
@@ -253,6 +254,44 @@ def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
 theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
+
+/-! ## Cross-registry consistency (#11294)
+
+    This registry and `Correspondence.lean` describe overlapping facts in
+    different vocabularies: a row here is a *witnessed theorem* about a symbol;
+    a row there is a *verdict* about the same symbol. Nothing else compares
+    them — `gen-axiom-witnesses.py`'s cross-check keys on theorem names, and an
+    `.unproven` Correspondence row has `spec := none`, so it contributes no
+    name at all and is invisible to that check by construction.
+
+    The theorem below closes the gap in the direction that already bit once
+    (#11281: `rlp_encode_uint_be` sat `.unproven` while `reub_spec_within`
+    existed): a symbol witnessed here must not read `.unproven` there. Both
+    registries would now have to be wrong in the same way for a stale verdict
+    to survive. `scripts/check-registry-crosscheck.sh` enforces the same
+    invariant source-level so it fails in `source-checks` in seconds rather
+    than an hour into the build. -/
+
+/-- `false` iff some entry of `reg` carries verdict `.unproven` for a routine
+    in `witnessed`. Factored out of the theorem so the negative control below
+    can run the same decision procedure on a synthetic violation. -/
+def crossVerdictOk (witnessed : List String)
+    (reg : List Correspondence.Entry) : Bool :=
+  reg.all fun e =>
+    e.verdict != .unproven || !(witnessed.contains e.routine)
+
+/-- A routine with a witnessed row here must not be `.unproven` in
+    `Correspondence.registry`. -/
+theorem witnessed_not_unproven :
+    crossVerdictOk routineSymbols Correspondence.registry = true := by decide
+
+/-- Negative control, kernel-checked on every build: `rlp_item_span` is a real
+    `.unproven` Correspondence row today, so witnessing it here would make the
+    check fire. A gate nobody has seen fail is indistinguishable from one that
+    cannot. -/
+example :
+    crossVerdictOk ("rlp_item_span" :: routineSymbols) Correspondence.registry
+      = false := by decide
 
 /-! ## Witness `abbrev`s
 

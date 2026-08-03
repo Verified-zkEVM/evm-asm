@@ -87,6 +87,20 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t4, 24(sp)\n  addi sp, sp, 32\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
+/-- Check the generic CALL/CALLCODE value-gas floor without charging it.
+
+    `system.py` performs the combined access + CALL_VALUE + memory check before
+    any target state access. The actual CALL_VALUE charge remains in the
+    branch-specific fall-through below; this probe only prevents
+    `account_read_record` from publishing a target when that later charge would
+    immediately OOG. -/
+def callValueGasAvailabilityGateAsm (tag : String) (valueOff : Nat) : String :=
+  "  ld t3, " ++ toString valueOff ++ "(x12); ld t4, " ++ toString (valueOff + 8) ++ "(x12); or t3, t3, t4\n" ++
+  "  ld t4, " ++ toString (valueOff + 16) ++ "(x12); or t3, t3, t4; ld t4, " ++ toString (valueOff + 24) ++ "(x12); or t3, t3, t4\n" ++
+  "  beqz t3, .Lcvga_zero_" ++ tag ++ "\n" ++
+  s!"  ld t3, 568(x20); li t4, {EvmAsm.Stateless.SpecRef.GasCosts.CALL_VALUE}; bltu t3, t4, .exit_outofgas\n" ++
+  ".Lcvga_zero_" ++ tag ++ ":\n"
+
 /-- Record a delegation target when the CALL resolver selects an active
     precompile.  This is deliberately separate from the resolver: its `a3 = 2`
     liveness probe must remain a pure probe, while this site has committed to

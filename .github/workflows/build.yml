@@ -48,6 +48,10 @@ jobs:
         run: |
           scripts/check-routine-liveness.sh --self-test
           scripts/check-routine-liveness.sh
+      - name: "Registry cross-check (witnessed routine must not be .unproven, #11294)"
+        run: |
+          scripts/check-registry-crosscheck.sh --self-test
+          scripts/check-registry-crosscheck.sh
       - name: Layering invariants (verified core must not import Codegen / Progress)
         run: scripts/check-layering.sh
       - name: Opcode-structure (AddrNorm pairing; advisory checklist for new complex dirs)
