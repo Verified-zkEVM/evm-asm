@@ -210,8 +210,13 @@ reubOut_eq_encode_toBytesBE." },
     reference := "header of encode_sequence",
     note := "no unified dispatch theorem; lenlen ≥ 2 (payload ≥ 256 B) uncovered" },
   { family := "rlp", routine := "rlp_encode_bytes",
-    verdict := .unproven, basis := .none, reference := "encode_bytes",
-    note := "drift guard only" },
+    spec := some "reb_spec_within",
+    verdict := .agrees, basis := .bridged, reference := "encode_bytes",
+    note := "whole-routine triple over `encodeBytes` itself — the function SpecRef's \
+encoders call (`encR := EL.RLP.encode`, `encode (.bytes d) = encodeBytes d` definitionally), \
+so no bridge lemma is even needed; `agrees` on the full domain (total function, both sides \
+of 55/56 covered; resource preconditions only). Witnessed in `Progress/Routines.lean`, \
+not here — L1 layering forbids this file importing Codegen (see the Witnesses block)." },
   { family := "rlp", routine := "rlp_encode_u64",
     verdict := .unproven, basis := .none, reference := "encode(U64)",
     note := "drift guard only" },
@@ -258,14 +263,14 @@ theorem rlp_rows : countFamily "rlp" = 18 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 11 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 12 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 4 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 6 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 7 ∧
     countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
-    countBasis .none = 4 := by decide
+    countBasis .none = 3 := by decide
 
 /-! ## Invariants
 
