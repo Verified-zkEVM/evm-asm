@@ -247,7 +247,7 @@ theorem rebOut_short_length (data : List Byte) (hhi : data.length < 56)
     (encodeBytes data).length = data.length + 1 := by
   rw [rebOut_short_form data hhi hnot_raw, List.length_cons]
 
-/-! ## §5  The length-of-length loop's contents
+/-! ## §4  The length-of-length loop's contents
 
     `u64ByteLen_eq_toBytesBE_length` (§2) gives the length-of-length's *count*.
     That is not enough for the long form: the spec also has to say *which bytes*
@@ -332,7 +332,72 @@ theorem beShift_getElem? : ∀ (k v j : Nat), j < k →
 #guard beShift 256 2 == Nat.toBytesBE 256
 #guard beShift 0 0 == Nat.toBytesBE 0
 
-/-! ## §4  Non-vacuity checks on the model layer
+/-- `beShift`'s **most-significant-first** view.  The definition peels the least
+    significant byte, which is what aligns it with `Nat.toBytesBE`; the machine
+    loop writes in the opposite order, so it needs the head instead. -/
+theorem beShift_cons : ∀ (m v : Nat),
+    beShift v (m + 1) = BitVec.ofNat 8 (v / 256 ^ m % 256) :: beShift v m := by
+  intro m
+  induction m with
+  | zero => intro v; simp [beShift]
+  | succ m ih =>
+    intro v
+    show beShift (v / 256) (m + 1) ++ _ = _
+    have hd : (v / 256) / 256 ^ m = v / 256 ^ (m + 1) := by
+      rw [Nat.div_div_eq_div_mul, Nat.pow_succ]
+      congr 1
+      ring
+    rw [ih (v / 256), List.cons_append, hd]
+    rfl
+
+/-- The region update the length-of-length loop performs: `m` bytes of `v`,
+    most significant first, starting at index `di`.  Mirrors `copyN`'s
+    repeated-`List.set` shape so the same append lemma is available. -/
+def writeShift (dst : List Byte) (di v : Nat) : Nat → List Byte
+  | 0 => dst
+  | m + 1 => writeShift (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v m
+
+theorem writeShift_length (dst : List Byte) (di v m : Nat) :
+    (writeShift dst di v m).length = dst.length := by
+  induction m generalizing dst di with
+  | zero => rfl
+  | succ m ih => rw [writeShift, ih, List.length_set]
+
+/-- The analogue of `copyN_eq_append`: the write overwrites exactly the window
+    `[di, di + m)` with `beShift v m`. -/
+theorem writeShift_eq_append : ∀ (m : Nat) (dst : List Byte) (di v : Nat),
+    di + m ≤ dst.length →
+    writeShift dst di v m = dst.take di ++ (beShift v m ++ dst.drop (di + m)) := by
+  intro m
+  induction m with
+  | zero => intro dst di v _; simp [writeShift, beShift]
+  | succ m ih =>
+    intro dst di v h
+    have hdi : di < dst.length := by omega
+    rw [writeShift,
+      ih (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v
+        (by rw [List.length_set]; omega),
+      beShift_cons m v]
+    have hlt : (dst.take di).length = di := by rw [List.length_take]; omega
+    rw [List.set_eq_take_cons_drop _ hdi]
+    have hT1 : (dst.take di ++ BitVec.ofNat 8 (v / 256 ^ m % 256) :: dst.drop (di + 1)).take (di + 1)
+        = dst.take di ++ [BitVec.ofNat 8 (v / 256 ^ m % 256)] := by
+      rw [List.take_append, hlt, List.take_of_length_le (by rw [hlt]; omega),
+        show di + 1 - di = 1 from by omega, List.take_succ_cons, List.take_zero]
+    have hT3 : (dst.take di ++ BitVec.ofNat 8 (v / 256 ^ m % 256) :: dst.drop (di + 1)).drop (di + 1 + m)
+        = dst.drop (di + 1 + m) := by
+      rw [List.drop_append, hlt, List.drop_eq_nil_of_le (by rw [hlt]; omega),
+        show di + 1 + m - di = m + 1 from by omega, List.drop_succ_cons,
+        List.drop_drop, List.nil_append,
+        show di + 1 + m = m + (di + 1) from by omega]
+    rw [hT1, hT3, show di + (m + 1) = di + 1 + m from by omega]
+    simp [List.append_assoc]
+
+-- the region update: 3 bytes of 65536 written at index 1, the rest untouched
+#guard writeShift [0,0,0,0,0] 1 65536 3 == [0, 1, 0, 0, 0]
+#guard writeShift [9,9,9,9] 0 56 1 == [0x38, 9, 9, 9]
+
+/-! ## §5  Non-vacuity checks on the model layer
 
     The lemmas above are conditional equations; these pin them at concrete data
     so a later edit cannot make them true by making them unreachable.  The
