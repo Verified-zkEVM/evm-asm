@@ -609,6 +609,12 @@ private noncomputable abbrev _sload_cover :=
   @EvmAsm.Evm64.Storage.sload_precondition_reachable
 private noncomputable abbrev _tstore_witness :=
   @EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
+-- MCOPY has been registered `.proven` since the registry was introduced, but
+-- carried no abbrev, so `check-axioms.sh` never audited it (found by the
+-- `proofRef`-vs-abbrev cross-check added in #11042: naming a theorem in a row
+-- does not put it in the gate).
+private noncomputable abbrev _mcopy_witness :=
+  @EvmAsm.Evm64.Mcopy.evm_mcopy_stack_spec_within
 private noncomputable abbrev _stop_witness :=
   @EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
 private noncomputable abbrev _invalid_witness :=
