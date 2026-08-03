@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # check-axioms.sh — kernel-truth audit of the trust base behind every
-# theorem the progress registry (EvmAsm/Progress.lean) classifies as
+# theorem the progress registries (EvmAsm/Progress.lean, EvmAsm/Progress/Routines.lean) classify as
 # `.proven`, `.conditional`, or `.partly`.
 #
 # Why this exists: PROGRESS.md historically advertised "axiom count = 0",
@@ -37,12 +37,21 @@
 # stable across rebuilds. Editing a grandfathered proof may change its
 # owner set; rerun `--write-allow` (with review) if so.
 #
-# Scope: the witness theorems referenced by the `@EvmAsm.Evm64.…` /
-# `@EvmAsm.Stateless.…` abbrevs in EvmAsm/Progress.lean — the
-# proven/conditional/partly surface the registry claims plus the
-# state-assertion vocabulary. Witnesses are discovered by grepping those
-# abbrev refs, not by tier, so the conditional tier needs no logic change
-# here. (A broader sweep of all of EvmAsm/ is future work.)
+# Scope: the witness theorems bound by `:= @EvmAsm.…` abbrevs in the two
+# registries — EvmAsm/Progress.lean (OpcodeEntry: opcodes plus the
+# state-assertion vocabulary) and EvmAsm/Progress/Routines.lean
+# (RoutineEntry: verified guest routines, GH #11042). Witnesses are
+# discovered by grepping those abbrev bindings, not by tier, so the
+# conditional tier needs no logic change here.
+#
+# The name pattern is namespace-agnostic. It was `@EvmAsm.Evm64.…` /
+# `@EvmAsm.Stateless.…`, which could not match the guest surface at all
+# (`EvmAsm.Codegen.…`, `EvmAsm.Rv64.…`) — so before #11042 a guest-routine
+# spec could regress to `sorryAx` and this gate would stay green, because it
+# was not looking at that theorem. What is REGISTERED is audited; what is not
+# registered is still outside the gate, and the guest-routine registry is a
+# partial enumeration of the verified guest surface (a broader sweep of all
+# of EvmAsm/ remains future work).
 #
 # Usage:
 #   scripts/check-axioms.sh                # enforce; exit 1 on a new
@@ -62,6 +71,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 PROGRESS_LEAN="EvmAsm/Progress.lean"
+ROUTINES_LEAN="EvmAsm/Progress/Routines.lean"
 ALLOW_FILE="scripts/axiom-allow.txt"
 
 mode="enforce"
@@ -73,18 +83,38 @@ case "${1:-}" in
 esac
 
 # --------------------------------------------------------------------
-# 1. Witness theorem names — single source is the abbrev section of
-#    EvmAsm/Progress.lean (the only place `@EvmAsm.<layer>.…` refs
-#    appear). Covers the verified-core namespaces the witnesses live in:
-#    Evm64 (opcodes + state assertions) and Stateless (spec-reference
-#    port assertions, e.g. the account-record vocabulary).
+# 1. Witness theorem names — the abbrev sections of the two registries:
+#    EvmAsm/Progress.lean (OpcodeEntry, EVM opcodes) and
+#    EvmAsm/Progress/Routines.lean (RoutineEntry, verified guest routines,
+#    GH #11042).
+#
+#    This grep is deliberately INDEPENDENT of gen-axiom-witnesses.py: the
+#    completeness check below compares names derived here against reports
+#    parsed from the build log, so re-deriving them is what makes a
+#    generator bug visible rather than self-confirming.
+#
+#    Namespace-agnostic on purpose (#11042). It used to be
+#    `@EvmAsm\.(Evm64|Stateless)…`, which cannot match the guest surface —
+#    `reub_spec_within` is `EvmAsm.Codegen.RlpEncodeUintBeSAsm.…` and 289
+#    modules live under `EvmAsm.Rv64.*`. A witness outside those two
+#    namespaces was silently skipped, leaving the gate green while covering
+#    nothing.
+#
+#    Anchored on the abbrev's `:=` so prose in these files (which now
+#    discusses witness names) is not mistaken for a declaration. Names are
+#    flattened across newlines first because the wide abbrevs wrap:
+#      private noncomputable abbrev _sdiv_witness :=
+#        @EvmAsm.Evm64.SDiv.Compose.…
 # --------------------------------------------------------------------
 mapfile -t NAMES < <(
-  grep -oE '@EvmAsm\.(Evm64|Stateless)[A-Za-z0-9_.]*' "$PROGRESS_LEAN" \
-    | sed 's/^@//' | LC_ALL=C sort -u
+  cat "$PROGRESS_LEAN" "$ROUTINES_LEAN" \
+    | tr '\n' ' ' \
+    | grep -oE ':=[[:space:]]*@EvmAsm\.[A-Za-z0-9_.]+' \
+    | sed -E 's/^:=[[:space:]]*@//; s/\.+$//' \
+    | LC_ALL=C sort -u
 )
 if (( ${#NAMES[@]} == 0 )); then
-  echo "check-axioms: no witness theorems found in $PROGRESS_LEAN" >&2
+  echo "check-axioms: no witness theorems found in $PROGRESS_LEAN / $ROUTINES_LEAN" >&2
   exit 1
 fi
 
@@ -104,15 +134,16 @@ WITNESS_FILE="EvmAsm/Progress/AxiomWitnesses.lean"
 # without materializing oleans (where `lake env lean` cannot resolve
 # cache-satisfied modules — issue #10537).  The module carries one
 # `#print axioms` line per registry witness and is generated from
-# EvmAsm/Progress.lean by scripts/gen-axiom-witnesses.py; the registry is
-# the single source of truth, so the module must regenerate identically.
+# EvmAsm/Progress.lean and EvmAsm/Progress/Routines.lean by
+# scripts/gen-axiom-witnesses.py; the registries are the single source of
+# truth, so the module must regenerate identically.
 if ! python3 scripts/gen-axiom-witnesses.py > "$REGEN"; then
   echo "check-axioms: gen-axiom-witnesses.py failed — output follows:" >&2
   cat "$REGEN" >&2
   exit 1
 fi
 if ! diff -q "$REGEN" "$WITNESS_FILE" >/dev/null; then
-  echo "check-axioms: FAIL: $WITNESS_FILE is stale vs EvmAsm/Progress.lean" >&2
+  echo "check-axioms: FAIL: $WITNESS_FILE is stale vs $PROGRESS_LEAN / $ROUTINES_LEAN" >&2
   echo "check-axioms: regenerate with: python3 scripts/gen-axiom-witnesses.py --write" >&2
   exit 1
 fi
@@ -246,7 +277,7 @@ if [[ "$mode" == "write-allow" ]]; then
     echo "# kernel-checkable proofs). The gate FAILS on any owner NOT listed here."
     echo "# Regenerate with: scripts/check-axioms.sh --write-allow"
     echo "#"
-    echo "# Generated $(date -u +%Y-%m-%d) from EvmAsm/Progress.lean witnesses."
+    echo "# Generated $(date -u +%Y-%m-%d) from $PROGRESS_LEAN + $ROUTINES_LEAN witnesses."
     current_nd_owners
   } > "$tmp"
   mv "$tmp" "$ALLOW_FILE"
