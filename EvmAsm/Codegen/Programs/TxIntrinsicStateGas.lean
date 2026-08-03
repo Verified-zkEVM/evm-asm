@@ -100,15 +100,25 @@ def balAccountNonceBeforeIndexFunction : String :=
 
 /-! ## eip7702_authority_asof
 
-    Resolve one authority at the start of an MTx transaction.  Execution's
-    pending/durable AccountState is authoritative for prior successful block
-    transitions; on a miss, use only the authenticated pre-block witness.
+    Resolve one authority for EIP-7702 auth preparation.
+
+    a1 (nonce) is CURRENT (pending then durable) — auth validation needs the
+    post-prior-auth nonce within the same transaction.
+
+    a2 (delegated) is TRANSACTION-START `delegated_before_tx` per
+    eoa_delegation.py:265-281 / get_pre_state_account: durable AccountState
+    only (prior committed txs), then authenticated pre-block header code —
+    NEVER the pending current-tx overlay.  First auth clearing a delegation
+    must not make a later same-tx auth see delegated=0 and re-charge AUTH_BASE
+    (GH #11310).  Header-only would also be wrong when an earlier tx in the
+    block left durable delegated=1.
+
     BAL post-state fields are intentionally not consulted.
 
     a0 = canonical authority address
     returns a0 = 0 absent, 1 live, 2 unavailable/malformed, 3 live with
     unsupported (non-delegation) code;
-            a1 = current nonce, a2 = is-delegated. -/
+            a1 = current nonce, a2 = delegated_before_tx. -/
 def eip7702AuthorityAsOfFunction : String :=
   "eip7702_authority_asof:\n" ++
   "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0; li s2, 0\n" ++
@@ -116,8 +126,23 @@ def eip7702AuthorityAsOfFunction : String :=
   -- (state_tracker.py:139).  Absent authorities must still appear as empty
   -- BAL rows after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
   "  mv a0, s0; jal ra, account_read_record\n" ++
+  -- CURRENT overlay for liveness + nonce (pending then durable).
   "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_state_auth_current\n" ++
-  "  li t0, 1; bne a0, t0, .L77as_normal_nonce; ld a1, 56(sp); ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; li a0, 1; j .L77as_ret\n" ++
+  "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
+  "  ld s1, 56(sp)\n" ++
+  -- a2 = delegated_before_tx: durable only (skip pending), else header code.
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
+  "  beqz a0, .L77as_deleg_hdr\n" ++
+  "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .L77as_deleg_empty\n" ++
+  "  andi t1, t0, 64; beqz t1, .L77as_deleg_hdr\n" ++
+  "  andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
+  ".L77as_deleg_empty:\n" ++
+  "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
+  ".L77as_deleg_hdr:\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .L77as_deleg_code; li t0, 1; beq a0, t0, .L77as_deleg_empty; li t0, 5; beq a0, t0, .L77as_deleg_empty; mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
+  ".L77as_deleg_code:\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
   "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
