@@ -221,7 +221,7 @@ def accountStateUpsertDurableFunction : String :=
     this helper: they rewind the pending count to the saved high-water mark.
     EIP-161 deletion is applied after pending snapshots merge: therefore a
     same-transaction CALL can still see its created contract's code, while the
-    next transaction sees the durable tombstone. -/
+    next transaction sees the durable cleared-account snapshot. -/
 def accountStateCommitPendingFunction : String :=
   "account_state_commit_pending:\n" ++
   -- The generic read-set promotion is deliberately NOT here.  The spec
@@ -248,12 +248,18 @@ def accountStateCommitPendingFunction : String :=
   ".Lascp_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_loop\n" ++
   ".Lascp_clear:\n" ++
+  -- EIP-6780's deferred delete set is also the authoritative source for the
+  -- transaction AccountWrite in-place clear.  Apply it before consuming the
+  -- set below, so the subsequent BAL builder walk and block incorporation see
+  -- the same final account fields as AccountState.
+  "  jal ra, account_writes_apply_deletes; bnez a0, .Lascp_over\n" ++
   "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
   ".Lascp_delete_loop:\n" ++
   "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
-  -- EIP-161 preserves an empty account whose final balance is nonzero.  The
-  -- AccountState tombstone must therefore distinguish `exists, no code` from
-  -- a deleted account using execution state, never the BAL comparison input.
+  -- EIP-161 preserves an empty-code account whose final balance is nonzero.
+  -- The AccountState final snapshot must therefore distinguish `exists, no
+  -- code` from a fully empty account using execution state, never the BAL
+  -- comparison input.
   "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lascp_over; li t1, 17; beqz a0, .Lascp_delete_flags; li t1, 51\n" ++
   ".Lascp_delete_flags:\n" ++
   "  sd t1, 40(sp)\n" ++
