@@ -14,6 +14,9 @@ Usage:
   python3 scripts/guest_image_coverage.py            # human summary
   python3 scripts/guest_image_coverage.py --gaps     # gap list only (tsv)
   python3 scripts/guest_image_coverage.py --md       # markdown tables
+  python3 scripts/guest_image_coverage.py --check-declared-starts
+      # #11280: GuestAddrs declared start vs TSV actual for each converted
+      # linked entry; exit 1 on DECLARED_START_MISMATCH / DECLARED_EXTENT_OVERRUN
 """
 
 import argparse
@@ -28,8 +31,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
 MANIFEST = os.path.join(ROOT, "scripts/asm-fixtures/MANIFEST.tsv")
 REGIONMAP = os.path.join(ROOT, "EvmAsm/Codegen/RegionMap.lean")
+GUEST_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestAddrs.lean")
 
 TEXT_BASE = 0x80000000
+_GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 
 
 def lean_camel(entry: str) -> str:
@@ -51,6 +56,22 @@ def read_text_size() -> int:
         if m:
             return int(m.group(1), 16)
     sys.exit("textSizeBytes hex not found in RegionMapLinkPins.lean or RegionMap.lean")
+
+
+def read_guest_addrs() -> dict:
+    """Parse generated GuestAddrs.lean: name -> declared Nat address.
+
+    #11280: coverage previously used TSV actuals only, so a stale GuestAddrs
+    (CodeReq input) with a fresh TSV still passed --gaps. This map is the
+    declared half of DECLARED_START_MISMATCH.
+    """
+    if not os.path.isfile(GUEST_ADDRS):
+        sys.exit(f"missing {GUEST_ADDRS}")
+    src = open(GUEST_ADDRS).read()
+    out = {m.group(1): int(m.group(2), 16) for m in _GA_DEF.finditer(src)}
+    if not out:
+        sys.exit(f"no `def name : Nat := 0x…` rows parsed from {GUEST_ADDRS}")
+    return out
 
 
 def read_text_symbols():
@@ -171,21 +192,17 @@ def emit_entries_lean(linked, files):
     print(f"wrote {ENTRIES_LEAN} ({len(linked)} entries, {len(mods)} imports)")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--gaps", action="store_true", help="tsv gap list only")
-    ap.add_argument("--md", action="store_true", help="markdown output")
-    ap.add_argument("--emit-lean", action="store_true",
-                    help=f"regenerate {ENTRIES_LEAN}")
-    args = ap.parse_args()
+def load_converted():
+    """Shared manifest/bindings parse. Returns (syms, text_end, converted).
 
+    converted: entry_symbol -> (prog_name, prog_bytes, lean_path)
+    """
     text_size = read_text_size()
     text_end = TEXT_BASE + text_size
     syms = read_text_symbols()
     manifest = read_manifest()
     src_files = with_layout_leaves(manifest.values())
     prog_lens = read_prog_lengths(src_files)
-
     bindings = read_function_bindings(src_files)
 
     # Anti-mis-parser asserts (GH #10753): the parse must be EXACT — every
@@ -202,7 +219,6 @@ def main():
                  f"parsed Function binding (missing e.g. {missing}) — "
                  "refusing to emit (possible mis-parse)")
 
-    # entry symbol -> (prog def name, prog byte length, lean file)
     converted = {}
     for func, path in manifest.items():
         if func not in bindings:
@@ -216,6 +232,83 @@ def main():
             sys.exit(f"no `#guard {prog}.length = N` pin found "
                      f"(manifest entry {func} in {path})")
         converted[entry] = (prog, 4 * prog_lens[prog], path)
+    return syms, text_end, converted
+
+
+def check_declared_starts(syms, text_end, converted) -> int:
+    """#11280: declared GuestAddrs start vs TSV actual for converted linked entries.
+
+    Returns number of failures (0 = clean). Prints one line per failure with a
+    stable tag (DECLARED_START_MISMATCH / DECLARED_MISSING / DECLARED_EXTENT_OVERRUN).
+    Unlinked converted aliases are skipped (no TSV row).
+    """
+    guest_addrs = read_guest_addrs()
+    addr_of = {n: a for a, n in syms}
+    # next-symbol boundary for extent check
+    next_end = {}
+    for i, (addr, name) in enumerate(syms):
+        next_end[name] = syms[i + 1][0] if i + 1 < len(syms) else text_end
+
+    linked = sorted(
+        (e for e in converted if e in addr_of),
+        key=lambda e: addr_of[e])
+    n_ok = 0
+    failures = []
+    for entry in linked:
+        actual = addr_of[entry]
+        prog, prog_bytes, _ = converted[entry]
+        if entry not in guest_addrs:
+            failures.append(
+                f"DECLARED_MISSING entry={entry} actual=0x{actual:x} "
+                f"prog={prog} — GuestAddrs has no def for linked converted symbol")
+            continue
+        declared = guest_addrs[entry]
+        if declared != actual:
+            delta = declared - actual
+            sign = "+" if delta >= 0 else "-"
+            failures.append(
+                f"DECLARED_START_MISMATCH entry={entry} "
+                f"declared=0x{declared:x} actual=0x{actual:x} "
+                f"delta={sign}0x{abs(delta):x} prog={prog}")
+            continue
+        # Extent: declared start + prog bytes must not past next TSV symbol
+        # (same overrun class CodeReq catches, but keyed on declared start).
+        ext_end = next_end[entry]
+        if declared + prog_bytes > ext_end:
+            failures.append(
+                f"DECLARED_EXTENT_OVERRUN entry={entry} "
+                f"declared=0x{declared:x} prog_bytes={prog_bytes} "
+                f"next=0x{ext_end:x} prog={prog}")
+            continue
+        n_ok += 1
+
+    print(f"check-declared-starts: linked_converted={len(linked)} ok={n_ok} "
+          f"fail={len(failures)}")
+    for line in failures:
+        print(f"  {line}")
+    if failures:
+        print(f"check-declared-starts: FAILED ({len(failures)} entries) — "
+              "regenerate GuestAddrs via `python3 scripts/asm_to_program.py "
+              "guest-addrs` after a fresh symbol-addresses.tsv (#11280)")
+        return len(failures)
+    print("check-declared-starts: OK — GuestAddrs starts match TSV for all "
+          "converted linked entries")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--gaps", action="store_true", help="tsv gap list only")
+    ap.add_argument("--md", action="store_true", help="markdown output")
+    ap.add_argument("--emit-lean", action="store_true",
+                    help=f"regenerate {ENTRIES_LEAN}")
+    ap.add_argument("--check-declared-starts", action="store_true",
+                    help="#11280: GuestAddrs declared start vs TSV actual "
+                         "(converted linked only); exit 1 on mismatch")
+    args = ap.parse_args()
+
+    syms, text_end, converted = load_converted()
+    text_size = text_end - TEXT_BASE
 
     if args.emit_lean:
         addr_of = dict((n, a) for a, n in syms)
@@ -226,6 +319,10 @@ def main():
         emit_entries_lean(linked,
                           [converted[e][2] for e, _, _ in linked])
         return
+
+    if args.check_declared_starts:
+        n_fail = check_declared_starts(syms, text_end, converted)
+        sys.exit(1 if n_fail else 0)
 
     rows = []          # (addr, extent_end, name, status, covered_end)
     gaps = []          # (start, end, owner_symbol, kind)
