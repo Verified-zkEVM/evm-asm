@@ -173,12 +173,12 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
-  routine "account_rlp_content_to_u64" .conditional
+  routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
       (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
         ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
       (notes := "step bound `7 * (Nat.toBytesBE a.nonce).length + 11`"),
-  routine "account_rlp_content_to_u256_be" .proven
+  routine "rlp_content_to_u256_be" .proven
       (some "account_rlp_content_to_u256_be_balance_spec_within")
       (notes := "writes the 32-byte balance; step bound "
         ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
