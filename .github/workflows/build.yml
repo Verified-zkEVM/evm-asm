@@ -23,6 +23,7 @@ jobs:
         run: scripts/check-sail-pin.sh
       - name: Symbolic guest-PC guard (SAsm wrappers follow GuestAddrs)
         run: scripts/check-no-hardcoded-guest-pc.sh
+        run: scripts/check-guestaddrs-starts.sh
       - name: File-size guardrail
         run: scripts/check-file-size.sh
       - name: Unimported-file check
