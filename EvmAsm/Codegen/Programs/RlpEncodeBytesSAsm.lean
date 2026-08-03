@@ -44,9 +44,10 @@
   [19]-[25]  payload copy loop                   7*len + 1
   [26]-[29]  short tail                               EXIT B
   [30]-[51]  bc ladder, seven BLTUs, all -> [52]
-  [52]-[54]  long header 0xb7 + bc
-  [55]-[62]  length-of-length loop                7*bc + 1
-  [63]-[70]  payload copy loop                   7*len + 1
+  [52]-[55]  long header 0xb7 + bc, counter seeded bc - 1
+  [56]-[62]  length-of-length loop                7*bc + 1
+  [63]       long-copy setup (reload counter)
+  [64]-[70]  payload copy loop                   7*len + 1
   [71]-[75]  long tail                                EXIT C
   ```
 
@@ -247,7 +248,211 @@ theorem rebOut_short_length (data : List Byte) (hhi : data.length < 56)
     (encodeBytes data).length = data.length + 1 := by
   rw [rebOut_short_form data hhi hnot_raw, List.length_cons]
 
-/-! ## §4  Non-vacuity checks on the model layer
+/-! ## §4  The length-of-length loop's contents
+
+    `u64ByteLen_eq_toBytesBE_length` (§2) gives the length-of-length's *count*.
+    That is not enough for the long form: the spec also has to say *which bytes*
+    the loop at [55]-[62] writes.  Two separate facts, and the plan for this
+    routine initially conflated them.
+
+    The loop stores, for `i = bc-1` down to `0`, the byte `(len >>> 8i) & 0xff`.
+    ⭐ Defining that sequence by peeling the **least** significant byte makes it
+    structurally identical to `Nat.toBytesBE`'s own division recursion, which
+    collapses the bridge to a four-line induction.  An earlier attempt stated it
+    as an indexed `List.range … |>.reverse.map` and needed a `List.ext_getElem`
+    argument plus tail-peeling of `range` — same theorem, much worse proof. -/
+
+/-- The byte sequence the length-of-length loop emits: `k` bytes of `v`, most
+    significant first.  Defined by peeling the *least* significant byte, which is
+    the recursion `Nat.toBytesBE` itself uses — that alignment is what makes the
+    bridge below a short induction rather than an indexed argument. -/
+def beShift (v : Nat) : Nat → List Byte
+  | 0 => []
+  | k + 1 => beShift (v / 256) k ++ [BitVec.ofNat 8 (v % 256)]
+
+theorem beShift_length : ∀ (k v : Nat), (beShift v k).length = k := by
+  intro k
+  induction k with
+  | zero => intro v; rfl
+  | succ k ih =>
+    intro v
+    rw [beShift, List.length_append, ih, List.length_cons, List.length_nil]
+
+/-- **At its own length, `beShift` IS the minimal big-endian encoding.** -/
+theorem beShift_eq_toBytesBE : ∀ n : Nat,
+    beShift n (Nat.toBytesBE n).length = Nat.toBytesBE n := by
+  intro n
+  induction n using Nat.toBytesBE.induct with
+  | case1 => simp [Nat.toBytesBE, beShift]
+  | case2 m _hlt ih =>
+    rw [Nat.toBytesBE_succ, List.length_append, List.length_cons, List.length_nil,
+        Nat.add_zero, beShift, ih]
+
+/-- Element `j` is `v` shifted right by `k-1-j` bytes — the form the machine loop
+    needs, since at iteration `i` it stores `(len >>> 8i) & 0xff`, which lands at
+    index `k-1-i`.  Stated with `getElem?` rather than `getElem`: the dependent
+    index proof blocks `rw` on `beShift` itself. -/
+theorem beShift_getElem? : ∀ (k v j : Nat), j < k →
+    (beShift v k)[j]? = some (BitVec.ofNat 8 (v / 256 ^ (k - 1 - j) % 256)) := by
+  intro k
+  induction k with
+  | zero => intro v j hj; omega
+  | succ k ih =>
+    intro v j hj
+    have hlenA : (beShift (v / 256) k).length = k := beShift_length k _
+    show ((beShift (v / 256) k ++ [BitVec.ofNat 8 (v % 256)])[j]?) = _
+    by_cases hjk : j < k
+    · rw [List.getElem?_append_left (by rw [hlenA]; exact hjk), ih (v / 256) j hjk]
+      -- one shift of the *value* is one more byte of the *exponent*
+      have hd : (v / 256) / 256 ^ (k - 1 - j) = v / 256 ^ (k + 1 - 1 - j) := by
+        rw [Nat.div_div_eq_div_mul]
+        congr 1
+        rw [show k + 1 - 1 - j = (k - 1 - j) + 1 from by omega, Nat.pow_succ]
+        ring
+      rw [hd]
+    · have hje : j = k := by omega
+      subst hje
+      rw [List.getElem?_append_right (by rw [hlenA]), hlenA, Nat.sub_self]
+      simp
+
+-- non-vacuity: the bridge is an equation between things that actually compute
+#guard beShift 56 1 == [0x38]
+#guard beShift 65536 3 == [0x01, 0x00, 0x00]
+#guard beShift 65536 3 == Nat.toBytesBE 65536
+#guard beShift 255 1 == Nat.toBytesBE 255
+#guard beShift 256 2 == Nat.toBytesBE 256
+#guard (beShift 65536 3)[1]? == some 0x00
+#guard (beShift 65536 3)[0]? == some 0x01
+#guard beShift 0 0 == Nat.toBytesBE 0
+
+-- non-vacuity: the bridge relates things that actually compute
+#guard beShift 56 1 == [0x38]
+#guard beShift 65536 3 == [0x01, 0x00, 0x00]
+#guard beShift 65536 3 == Nat.toBytesBE 65536
+#guard beShift 255 1 == Nat.toBytesBE 255
+#guard beShift 256 2 == Nat.toBytesBE 256
+#guard beShift 0 0 == Nat.toBytesBE 0
+
+/-- `beShift`'s **most-significant-first** view.  The definition peels the least
+    significant byte, which is what aligns it with `Nat.toBytesBE`; the machine
+    loop writes in the opposite order, so it needs the head instead. -/
+theorem beShift_cons : ∀ (m v : Nat),
+    beShift v (m + 1) = BitVec.ofNat 8 (v / 256 ^ m % 256) :: beShift v m := by
+  intro m
+  induction m with
+  | zero => intro v; simp [beShift]
+  | succ m ih =>
+    intro v
+    show beShift (v / 256) (m + 1) ++ _ = _
+    have hd : (v / 256) / 256 ^ m = v / 256 ^ (m + 1) := by
+      rw [Nat.div_div_eq_div_mul, Nat.pow_succ]
+      congr 1
+      ring
+    rw [ih (v / 256), List.cons_append, hd]
+    rfl
+
+/-- The region update the length-of-length loop performs: `m` bytes of `v`,
+    most significant first, starting at index `di`.  Mirrors `copyN`'s
+    repeated-`List.set` shape so the same append lemma is available. -/
+def writeShift (dst : List Byte) (di v : Nat) : Nat → List Byte
+  | 0 => dst
+  | m + 1 => writeShift (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v m
+
+-- Explicit equation lemmas, mirroring `copyN_zero`/`copyN_succ`: `rw` on a
+-- match-defined function fails under dependent contexts (the `beShift` lesson),
+-- and the machine loop's induction rewrites with these.
+theorem writeShift_zero (dst : List Byte) (di v : Nat) :
+    writeShift dst di v 0 = dst := rfl
+
+theorem writeShift_succ (dst : List Byte) (di v m : Nat) :
+    writeShift dst di v (m + 1)
+      = writeShift (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v m := rfl
+
+theorem writeShift_length (dst : List Byte) (di v m : Nat) :
+    (writeShift dst di v m).length = dst.length := by
+  induction m generalizing dst di with
+  | zero => rfl
+  | succ m ih => rw [writeShift, ih, List.length_set]
+
+/-- The analogue of `copyN_eq_append`: the write overwrites exactly the window
+    `[di, di + m)` with `beShift v m`. -/
+theorem writeShift_eq_append : ∀ (m : Nat) (dst : List Byte) (di v : Nat),
+    di + m ≤ dst.length →
+    writeShift dst di v m = dst.take di ++ (beShift v m ++ dst.drop (di + m)) := by
+  intro m
+  induction m with
+  | zero => intro dst di v _; simp [writeShift, beShift]
+  | succ m ih =>
+    intro dst di v h
+    have hdi : di < dst.length := by omega
+    rw [writeShift,
+      ih (dst.set di (BitVec.ofNat 8 (v / 256 ^ m % 256))) (di + 1) v
+        (by rw [List.length_set]; omega),
+      beShift_cons m v]
+    have hlt : (dst.take di).length = di := by rw [List.length_take]; omega
+    rw [List.set_eq_take_cons_drop _ hdi]
+    have hT1 : (dst.take di ++ BitVec.ofNat 8 (v / 256 ^ m % 256) :: dst.drop (di + 1)).take (di + 1)
+        = dst.take di ++ [BitVec.ofNat 8 (v / 256 ^ m % 256)] := by
+      rw [List.take_append, hlt, List.take_of_length_le (by rw [hlt]; omega),
+        show di + 1 - di = 1 from by omega, List.take_succ_cons, List.take_zero]
+    have hT3 : (dst.take di ++ BitVec.ofNat 8 (v / 256 ^ m % 256) :: dst.drop (di + 1)).drop (di + 1 + m)
+        = dst.drop (di + 1 + m) := by
+      rw [List.drop_append, hlt, List.drop_eq_nil_of_le (by rw [hlt]; omega),
+        show di + 1 + m - di = m + 1 from by omega, List.drop_succ_cons,
+        List.drop_drop, List.nil_append,
+        show di + 1 + m = m + (di + 1) from by omega]
+    rw [hT1, hT3, show di + (m + 1) = di + 1 + m from by omega]
+    simp [List.append_assoc]
+
+-- the region update: 3 bytes of 65536 written at index 1, the rest untouched
+#guard writeShift [0,0,0,0,0] 1 65536 3 == [0, 1, 0, 0, 0]
+#guard writeShift [9,9,9,9] 0 56 1 == [0x38, 9, 9, 9]
+
+/-! ## §5  Machine-side bridges for the length-of-length loop
+
+    Three small facts the loop at [55]-[62] needs, kept here with the rest of the
+    model layer so the loop proof itself is pure plumbing. -/
+
+/-- The byte the loop actually stores at iteration `i`, in the model's form.
+    `SB` truncates to 8 bits, and `256 ^ i = 2 ^ (8*i)`. -/
+theorem truncate_shift_eq (v : Word) (i : Nat) :
+    (v >>> (8 * i)).truncate 8 = BitVec.ofNat 8 (v.toNat / 256 ^ i % 256) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_setWidth, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat,
+      Nat.shiftRight_eq_div_pow,
+      show (256 : Nat) ^ i = 2 ^ (8 * i) from by
+        rw [show (256 : Nat) = 2 ^ 8 from by norm_num, ← Nat.pow_mul]]
+  omega
+
+/-- The loop's guard is **signed** (`BLT`), and the counter runs down to `-1`.
+    At `-1` the branch fires. -/
+theorem slt_neg_one : BitVec.slt (-1 : Word) (0 : Word) = true := by decide
+
+/-- ...and does not fire while the counter is a small non-negative value.  The
+    counter never exceeds `bc - 1 ≤ 7`. -/
+theorem slt_small_false (i : Nat) (h : i < 8) :
+    BitVec.slt (BitVec.ofNat 64 i) (0 : Word) = false := by
+  -- `i ≤ 7` is the truth of the situation: the counter starts at `bc - 1` and
+  -- `bc ≤ 8`.  Stating the tight bound and discharging the eight concrete values
+  -- beats asserting `i < 2 ^ 63`, which `omega`/`bv_omega` cannot reach anyway
+  -- (`slt` normalises through `Int.bmod`, which they treat opaquely).
+  interval_cases i <;> decide
+
+/-- Counter bookkeeping: `ofNat (m+1) - 1 = ofNat m`, so the invariant's
+    `ofNat m - 1` form steps cleanly.
+
+    **Unconditional** — `mod 2 ^ 64` absorbs the reduction, so no `m + 1 < 2 ^ 64`
+    side condition is needed.  Same as `word_128_add` in `rlp_encode_uint_be`:
+    keeping a range bound here would misplace a domain restriction as an
+    arithmetic fact. -/
+theorem ofNat_succ_sub_one (m : Nat) :
+    BitVec.ofNat 64 (m + 1) - 1 = BitVec.ofNat 64 m := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_sub, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+      show (1 : Word).toNat = 1 from by decide]
+  omega
+
+/-! ## §6  Non-vacuity checks on the model layer
 
     The lemmas above are conditional equations; these pin them at concrete data
     so a later edit cannot make them true by making them unreachable.  The
