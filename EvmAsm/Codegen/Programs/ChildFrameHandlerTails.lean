@@ -214,8 +214,16 @@ def precompileMessageProcessorAsm
     dispatchContinueRet ++ "\n" ++
     ".L" ++ tag ++ "_eip4788_fallthrough:\n"
     ) else "") ++
-    "  la x18, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
-    precompileAddressClassifyAsm (tag ++ "_precompile") "x18" "x14" "x16" "x15" ++
+    -- Materialize the route-neutral descriptor and call the one emitted
+    -- selector/pricing kernel.  Save the dispatcher ABI because the shared
+    -- routine is intentionally free to use caller-saved registers.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+    "  la t0, precompile_shared_ctx; la t1, " ++ runtimeAccessSeedScratchLabel ++ "; sd t1, 0(t0)\n" ++
+    "  ld t1, " ++ toString inOffsetOff ++ "(x12); add t1, x13, t1; sd t1, 8(t0)\n" ++
+    "  ld t1, " ++ toString inSizeOff ++ "(x12); sd t1, 16(t0)\n" ++
+    "  jal x1, precompile_shared_select_price\n" ++
+    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  la t0, precompile_shared_selector; ld x14, 0(t0)\n" ++
     "  bnez x14, .L" ++ tag ++ "_supported_precompile\n" ++
     "  j .L" ++ tag ++ "_nonprecompile_fallthrough\n" ++
     ".L" ++ tag ++ "_supported_precompile:\n" ++
@@ -243,6 +251,9 @@ def precompileMessageProcessorAsm
     | none => ".L" ++ tag ++ "_precompile_dispatch:\n"
     | some valueOff => precompileValueBalanceGateAsm tag netPopBytes valueOff) ++
     successfulPrecompileNewAccountStateGasAsm tag valueOff? ++
+    -- Shape/formula overflow is checked after the shared depth, value, and
+    -- new-account gates, preserving the child route's exceptional-halt order.
+    precompileSharedStatusFailAsm (".L" ++ tag ++ "_bn254_fail_allot") ++
     "  li x15, 4\n" ++
     "  bgeu x15, x14, 11f\n" ++
     precompileSelectorBranchesAsm "x14" "x15" false
@@ -275,7 +286,8 @@ def precompileMessageProcessorAsm
     "  li x16, 4\n" ++
     "  bne x14, x16, 7f\n" ++
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasWithAllotmentAsm tag 15 3 "x17" "x16" "x22" ++
+    precompileSharedLoadCostAsm "x16" ++
+    chargePrecompileGasWithAllotmentAsm tag "x16" "x22" ++
     -- The allotment helper clobbers x17; reload the input length before using
     -- it as identity's returndata length and copy bound.
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
@@ -356,7 +368,8 @@ def precompileMessageProcessorAsm
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasWithAllotmentAsm tag 60 12 "a1" "x16" "x22" ++
+    precompileSharedLoadCostAsm "x16" ++
+    chargePrecompileGasWithAllotmentAsm tag "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
@@ -394,7 +407,8 @@ def precompileMessageProcessorAsm
     "  mv s10, x10\n" ++
     "  mv s11, x12\n" ++
     "  ld a1, " ++ toString inSizeOff ++ "(x12)\n" ++
-    chargePrecompileWordGasWithAllotmentAsm tag 600 120 "a1" "x16" "x22" ++
+    precompileSharedLoadCostAsm "x16" ++
+    chargePrecompileGasWithAllotmentAsm tag "x16" "x22" ++
     "  ld x18, " ++ toString inOffsetOff ++ "(x12)\n" ++
     "  add a0, x13, x18\n" ++
     "  addi a2, x15, 16\n" ++
@@ -453,7 +467,7 @@ def precompileMessageProcessorAsm
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    precompileFixedGasCostAsm 150 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_add_p1") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
@@ -482,7 +496,7 @@ def precompileMessageProcessorAsm
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    precompileFixedGasCostAsm 6000 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_bn254_mul_point") inOffsetOff inSizeOff precompileFrameBls12G1Input0Off 0 64 ++
@@ -515,8 +529,7 @@ def precompileMessageProcessorAsm
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
-    precompilePerUnitGasCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 192 45000 34000
-      "x18" "x16" "x22" "x23" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  ld x18, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 192\n" ++
@@ -606,7 +619,7 @@ def precompileMessageProcessorAsm
     "  li x16, 1\n" ++
     "  sd x16, 0(x15)\n" ++
     "  sd x0, 8(x15)\n" ++
-    precompileFixedGasCostAsm 50000 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     stagePrecompileInputWindowAsm
       (tag ++ "_kzg_payload") inOffsetOff inSizeOff precompileFrameBls12G2InputOff 0 192 ++
@@ -686,7 +699,7 @@ def precompileMessageProcessorAsm
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 256\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    precompileFixedGasCostAsm 375 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -718,7 +731,7 @@ def precompileMessageProcessorAsm
     "  li x16, 160\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 160 12000 519 "bls12_g1_msm_discount_table" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -804,7 +817,7 @@ def precompileMessageProcessorAsm
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 512\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    precompileFixedGasCostAsm 600 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -878,7 +891,7 @@ def precompileMessageProcessorAsm
     "  li x16, 288\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    bls12MsmCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 288 22500 524 "bls12_g2_msm_discount_table" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -955,8 +968,7 @@ def precompileMessageProcessorAsm
     "  li x16, 384\n" ++
     "  remu x17, x18, x16\n" ++
     "  bnez x17, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    precompilePerUnitGasCostAsm (".L" ++ tag ++ "_bn254_fail_allot") 384 37700 32600
-      "x18" "x16" "x17" "x22" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1015,7 +1027,7 @@ def precompileMessageProcessorAsm
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 64\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    precompileFixedGasCostAsm 5500 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -1089,7 +1101,7 @@ def precompileMessageProcessorAsm
     "  ld x17, " ++ toString inSizeOff ++ "(x12)\n" ++
     "  li x16, 128\n" ++
     "  bne x17, x16, .L" ++ tag ++ "_bn254_fail_allot\n" ++
-    precompileFixedGasCostAsm 23800 "x16" ++
+    precompileSharedLoadCostAsm "x16" ++
     bn254ChargeGateAsm tag ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++

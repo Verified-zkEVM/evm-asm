@@ -1090,6 +1090,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Persistent execution-derived BAL builder.  It is deliberately last: this
   -- allocation must not move established data labels, and it remains live from
   -- transaction execution through the later serializer/hash pass.
-  blockAccessListBuilderDataSection
+  blockAccessListBuilderDataSection ++
+  -- #11163: keep the shared precompile descriptor after all established BSS
+  -- arenas so adding it cannot relocate any pre-existing runtime cell.
+  ".balign 8\n" ++
+  "precompile_shared_ctx:\n  .zero 24\n" ++
+  "precompile_shared_selector:\n  .zero 8\n" ++
+  "precompile_shared_cost:\n  .zero 8\n" ++
+  "precompile_shared_status:\n  .zero 8\n"
 
 end EvmAsm.Codegen

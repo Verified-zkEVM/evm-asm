@@ -509,9 +509,9 @@ def statelessVerdictV2GuestClosure : String :=
   balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
   stageRuntimePayloadWitnessContextFunction ++ "\n" ++
-  blockVerdictSingleTxTopLevelLogFunction ++ "\n" ++
-  -- .6.2.2.1: contract-recipient runtime gas-measurement tail extracted from
-  -- block_verdict so the multi-tx dispatch loop can reuse it.
+  -- #10685 PR2: bv_emit_single_tx_tl7708 unlinked (never-written buffer +
+  -- mode-2 gate bypass; early-exit no-op even if jal taken). KEEP Function
+  -- string for probe isolation.
   dispatchTxRuntimeCodeFunction ++ "\n" ++
   txAccessListSpanFunction ++ "\n" ++
     txEip2930DecodeFunction ++ "\n" ++
@@ -677,7 +677,10 @@ def statelessVerdictV2GuestClosure : String :=
   -- rlp_list_nth_item/count_items / zkvm_keccak256 / u256_is_zero / u256_lt_be /
   -- bgv_u32le and the secp256k1 recover kernel are already in this closure.
   verifyPublicKeysSendersGuestFunctions ++ "\n" ++
-  statelessVerdictV2Function
+  statelessVerdictV2Function ++ "\n" ++
+  -- Keep the diagnostic verdict ELF linked with the same shared precompile
+  -- selector/pricing entry as the shipped guest.
+  precompileSharedSelectPriceFunction
 
 /-- Data section for the embedded verdict closure. -/
 def statelessVerdictV2GuestData : String :=

@@ -25,12 +25,13 @@ open EvmAsm.Rv64
 
 /-! ## block_verdict_eip7702_auth_nonstorage_effects
 
-    This post-runtime helper owns the EIP-7702 code-comparator append derived
-    from BAL finals.  It intentionally no longer emits the authorization nonce
-    raw effect: `eip7702_auth_state_prepare` publishes that effect at
-    authorization time, where the current block-access index is available.
-    The code append remains here because its final-state input does not exist
-    until after runtime execution. -/
+    Post-runtime EIP-7702 code-comparator append.  Nonce raw effects are owned
+    by `eip7702_auth_state_prepare` at authorization time.  F5 (#10612): effect
+    production is gated by `validate_authorization` conditions from **state**
+    (including condition 4 via `code_state_lookup_current`), not by a BAL
+    post-state membership filter.  The append still runs post-runtime because
+    the code-effect log is consumed with other post-body BAL comparators; that
+    is scheduling, not a finals-derived apply predicate. -/
 def eip7702AuthNonstorageEffectsFunction : String :=
   "eip7702_auth_nonstorage_effects:\n" ++
   "  addi sp, sp, -128\n" ++
@@ -87,26 +88,12 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  mv a0, s9; mv a1, s10; la a2, teer_authority; la a3, teer_recover_scratch\n" ++
   "  jal ra, eip7702_authorization_recover_address\n" ++
   "  bnez a0, .Lteanse_next\n" ++
-  "  mv a0, s2; mv a1, s3; la a2, teer_authority; la a3, teer_acct_ptr; la a4, teer_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_acct_ptr; ld a0, 0(t0); la t0, teer_acct_len; ld a1, 0(t0); la a2, teer_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lteanse_next\n" ++
-  "  la t0, teer_finals; ld t1, 40(t0); beqz t1, .Lteanse_next\n" ++
-  "  ld t1, 48(t0); addi t2, s11, 1; bltu t1, t2, .Lteanse_next\n" ++
+  -- F5 (#10612): drop BAL post-state filter. Spec validate_authorization uses
+  -- state only. Header account load remains for nonce baseline / balance seed.
+  -- code44: record authority account_read before lookup (spec get_account first).
+  "  la a0, teer_authority; jal ra, account_read_record\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, teer_authority; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct\n" ++
-  -- GH #10619 gate 2: this is an EXECUTION read of the authority account and it
-  -- BELONGS on account_at_header_state_root_tracked, not on the raw entry.  It is
-  -- deliberately still raw: the EIP-7702 authorization path is being changed
-  -- concurrently by GH #10635 (the early44 auth nonce EFFECT), and two lanes
-  -- editing one region is how the spec's single mechanism becomes two.  Held for
-  -- sequencing, not overlooked -- the fix is retargeting this one token once
-  -- #10635 lands.  Consequence while held: an authority account touched ONLY by
-  -- an authorization (and by nothing else in the transaction) is missing from
-  -- account_reads, so the container UNDER-records rather than over-records; that
-  -- direction cannot produce a false accept in the BAL comparison.
   "  jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lteanse_have_pre\n" ++
   "  li t0, 1; bne a0, t0, .Lteanse_next\n" ++
@@ -115,9 +102,47 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  la t0, teer_pre_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); sd zero, 32(t0)\n" ++
   "  j .Lteanse_have_pre\n" ++
   ".Lteanse_have_pre:\n" ++
-  -- Each authorization validates the authority's current nonce.  Earlier valid
-  -- tuples in this transaction already recorded the increment, so use that
-  -- latest effect when present instead of repeatedly comparing to header state.
+  -- Spec condition 4 (eoa_delegation.py validate_authorization): reject when
+  -- authority code is present AND not a valid 0xef0100 delegation designator.
+  -- Use code_state_lookup_current (latest), same lens as condition 5 nonce —
+  -- sequential set_delegation means later tuples see earlier code installs.
+  -- Header fallback only on overlay miss (status 0).
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, teer_authority\n" ++
+  "  jal ra, code_state_lookup_current\n" ++
+  "  beqz a0, .Lteanse_c4_header\n" ++
+  "  li t0, 2; beq a0, t0, .Lteanse_c4_ok\n" ++
+  "  li t0, 3; beq a0, t0, .Lteanse_c4_ok\n" ++
+  "  li t0, 1; bne a0, t0, .Lteanse_c4_restore_next\n" ++
+  -- status 1: existing code at a1/a2 — accept only 23-byte ef0100 designator
+  "  li t0, 23; bne a2, t0, .Lteanse_c4_restore_next\n" ++
+  "  lbu t0, 0(a1); li t1, 0xef; bne t0, t1, .Lteanse_c4_restore_next\n" ++
+  "  lbu t0, 1(a1); li t1, 0x01; bne t0, t1, .Lteanse_c4_restore_next\n" ++
+  "  lbu t0, 2(a1); bnez t0, .Lteanse_c4_restore_next\n" ++
+  "  j .Lteanse_c4_ok\n" ++
+  ".Lteanse_c4_header:\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, teer_authority; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Lteanse_c4_header_code\n" ++
+  "  li t0, 1; beq a0, t0, .Lteanse_c4_ok\n" ++
+  "  li t0, 5; beq a0, t0, .Lteanse_c4_ok\n" ++
+  "  j .Lteanse_c4_restore_next\n" ++
+  ".Lteanse_c4_header_code:\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lteanse_c4_ok\n" ++
+  "  li t1, 23; bne t0, t1, .Lteanse_c4_restore_next\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lteanse_c4_restore_next\n" ++
+  "  lbu t1, 1(t0); li t2, 0x01; bne t1, t2, .Lteanse_c4_restore_next\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lteanse_c4_restore_next\n" ++
+  "  j .Lteanse_c4_ok\n" ++
+  ".Lteanse_c4_restore_next:\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  "  j .Lteanse_next\n" ++
+  ".Lteanse_c4_ok:\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+  -- Spec condition 5: authority nonce == signed nonce. Earlier valid tuples in
+  -- this transaction already recorded the increment, so use latest effect.
   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, teer_authority; la a1, teer_pre_acct\n" ++
   "  jal ra, account_state_latest_nonce\n" ++
@@ -133,10 +158,9 @@ def eip7702AuthNonstorageEffectsFunction : String :=
   "  la a0, teer_authority; la a1, teer_pre_acct; addi a1, a1, 8\n" ++
   "  jal ra, account_state_latest_balance\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-  -- The former nonce raw-effect append was here.  Keep the surrounding
-  -- final-state code-effect logic in place; only the nonce obligation moves.
-  "  la t0, teer_finals; ld t1, 56(t0); beqz t1, .Lteanse_next\n" ++
-  "  ld t1, 72(t0); bnez t1, .Lteanse_next\n" ++
+  -- F5: code-effect append is gated by validate_authorization (conditions 1-5),
+  -- not by declared BAL finals (+56/+72). Preparation vs body-revert scopes stay
+  -- separate — do not ask BAL whether a body reverted.
   "  la t0, exec_code_effect_next; ld t1, 0(t0); addi t2, t1, 48; li t3, " ++ toString execCodeEffectLogCap ++ "; bgtu t2, t3, .Lteanse_code_overflow\n" ++
   "  la t3, exec_code_effect_log; add t3, t3, t1\n" ++
   "  sd zero, 0(t3); sd zero, 8(t3); sd zero, 16(t3); sd zero, 24(t3)\n" ++

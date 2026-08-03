@@ -22,8 +22,9 @@ private def balanceWitnessAddressCopy : String :=
   sb t2, {i}(t1)
 "
 
-/-- Copy the big-endian u256 returned by `balance_at_header_state_root` into
-    the dispatcher's little-endian stack-word layout. -/
+/-- Copy the big-endian u256 returned by `balance_at_header_state_root`
+    (live-first helper, #11019 — not pure header) into the dispatcher's
+    little-endian stack-word layout. -/
 private def balanceWitnessOutputCopy : String :=
   String.intercalate "" <|
     (List.range 32).map fun i =>
@@ -31,7 +32,8 @@ private def balanceWitnessOutputCopy : String :=
   sb t2, {i}(x12)
 "
 
-/-- Raw dispatcher handler for BALANCE backed by `balance_at_header_state_root`.
+/-- Raw dispatcher handler for BALANCE via live-else-header balance lookup
+    (`balance_at_header_state_root`; name is historical — #11019).
 
     Net stack delta is zero: the input address word is overwritten with the
     account balance, or zero for missing accounts / missing witness context. -/

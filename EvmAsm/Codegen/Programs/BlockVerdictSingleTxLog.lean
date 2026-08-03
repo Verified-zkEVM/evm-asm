@@ -13,6 +13,9 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
+/-- #10685 PR2: unlinked from guest. Kept for probe isolation / historical shape.
+    Sole consumer of `bv_simple_transfer_tx` (also deleted). SPIKE_WATCH hits=0;
+    mode-2 gate bypasses jal; early-exit on zero buffer before any eip7708_tl write. -/
 def blockVerdictSingleTxTopLevelLogFunction : String :=
   "bv_emit_single_tx_tl7708:\n" ++
   "  addi sp, sp, -16\n" ++
