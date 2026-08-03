@@ -62,6 +62,8 @@ import EvmAsm.Rv64.SAsm.GlobalData
 import EvmAsm.Codegen.CallFrameWindows
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
+import EvmAsm.Stateless.SpecRef.Types
+import EvmAsm.Stateless.SpecRef.StateTracker
 
 namespace EvmAsm.Codegen
 namespace RegionPredicates
@@ -258,17 +260,45 @@ theorem teerCapacity_eq : teerCapacity = 1060 := by decide
 #guard (ziskStatelessVerdictV2DataSectionTail.splitOn
     ("teer_success_table:\n  .zero " ++ toString teerTableBytes ++ "\n")).length == 2
 
+/-! ### Reusing the spec-reference types
+
+    ⭐ **`authority` is a `SpecRef.Address`, not a fresh byte list.** The spec
+    type is `Stateless.SpecRef.Address := Bytes := List Byte := List (BitVec 8)`
+    (`SpecRef/Types.lean:31`), so this is the *same* representation named
+    honestly — the field's type now says which spec notion it carries.
+
+    ⚠️ **There is no single `TeerEntry`-equivalent struct in `SpecRef`, and it
+    would be wrong to reuse the nearest-looking one.**
+    `SpecRef.Transactions.Authorization` is the **signed input tuple**
+    (`chainId, address, nonce, yParity, r, s`) — its `address` field is the
+    delegation *target*, whereas this table's key is the **recovered
+    authority** (`recover_authority auth`, `SpecRef/Interpreter.lean:139`), a
+    different address entirely. Conflating them would be a silent correctness
+    bug, not a naming preference.
+
+    ⇒ The genuine equivalent is not a struct but the **pair of `List Address`
+    locals inside `SpecRef.Interpreter.set_delegation`**
+    (`SpecRef/Interpreter.lean:197`): `written_accounts` (ACCOUNT_WRITE charged
+    at most once per authority) and `delegation_set_for` (AUTH_BASE charged at
+    most once per authority). The guest's one 32-byte row carries both facts —
+    membership gives the former, the `+20` flag the latter — which is why the
+    guest has one table where the spec has two lists. That is the
+    correspondence, and it is stated as theorems below rather than asserted in
+    prose. -/
+
 /-- One row of the table. `charged` is the u32 at `+20..23`: the AUTH_BASE
     charged flag, 0 or 1, which `extcodehash_at_header_state_root` tests for
     nonzero. -/
 structure TeerEntry where
-  /-- Authority address, 20 bytes big-endian at `+0..19`. -/
-  authority : List (BitVec 8)
+  /-- The **recovered** authority address, 20 bytes big-endian at `+0..19`.
+      Typed as the spec's `Address` so the region's contents are named in the
+      spec's vocabulary. -/
+  authority : Stateless.SpecRef.Address
   /-- `AUTH_BASE_charged` — the u32 at `+20..23`. -/
   charged : Bool
   deriving Repr
 
-/-- The entry's validity invariant: the address is 20 bytes. -/
+/-- The entry's validity invariant: a spec `Address` is 20 bytes. -/
 def TeerEntry.wf (e : TeerEntry) : Prop := e.authority.length = 20
 
 /-- The 32 bytes of one entry: address, the little-endian u32 flag, then the
@@ -340,6 +370,129 @@ theorem teerBuffer_nil (base : Word) :
   unfold teerBuffer teerOwn teerEntriesFrom
   simp [teerTableBytes]
 
+/-! ### Correspondence with `SpecRef.Interpreter.set_delegation`
+
+    The two spec locals this one table stands in for, as projections out of the
+    table's contents. These are the values a caller would compare against the
+    spec run — the table's *meaning*, in the spec's own types. -/
+
+/-- The table's contribution to the spec's `written_accounts`: every authority
+    present, in append order. Membership in the table is what the guest tests
+    where the spec tests `written_accounts.contains authority` to decide whether
+    ACCOUNT_WRITE has already been charged. -/
+def teerWrittenAccounts (xs : List TeerEntry) : List Stateless.SpecRef.Address :=
+  xs.map (·.authority)
+
+/-- The spec's `delegation_set_for`: exactly the authorities whose AUTH_BASE was
+    charged, i.e. the rows with the `+20` word nonzero. -/
+def teerDelegationSetFor (xs : List TeerEntry) : List Stateless.SpecRef.Address :=
+  (xs.filter (·.charged)).map (·.authority)
+
+/-- ⭐ **The spec invariant the two lists stand in:** `delegation_set_for` is
+    contained in `written_accounts`. AUTH_BASE is only ever charged for an
+    authority the transaction has already written, so a charged row cannot exist
+    without its authority being present. Falls out of the shared projection —
+    which is the point of deriving both from one table rather than modelling two
+    independent regions. -/
+theorem teerDelegationSetFor_subset_written (xs : List TeerEntry) :
+    ∀ a ∈ teerDelegationSetFor xs, a ∈ teerWrittenAccounts xs := by
+  intro a ha
+  unfold teerDelegationSetFor at ha
+  unfold teerWrittenAccounts
+  simp only [List.mem_map] at ha ⊢
+  obtain ⟨e, he, rfl⟩ := ha
+  exact ⟨e, List.mem_of_mem_filter he, rfl⟩
+
+/-- The spec's `setAdd` is a no-op on an element already present
+    (`SpecRef/StateTracker.lean:74`) — the case where the guest's scan finds a
+    match and appends nothing. -/
+theorem setAdd_noop_of_contains {α : Type} [BEq α] (s : List α) (x : α)
+    (h : s.contains x = true) : Stateless.SpecRef.setAdd s x = s := by
+  unfold Stateless.SpecRef.setAdd
+  simp [h]
+
+/-- Appending a fresh row extends the projection by exactly one address — the
+    spec's `setAdd` on its miss path. -/
+theorem teerWrittenAccounts_append (xs : List TeerEntry) (e : TeerEntry) :
+    teerWrittenAccounts (xs ++ [e]) = teerWrittenAccounts xs ++ [e.authority] := by
+  unfold teerWrittenAccounts; simp
+
+/-- ⭐ **The guest's append-if-absent linear scan IS the spec's `setAdd`** —
+    stated as its two branches, which is the form a caller discharges.
+    This branch: **scan hit ⇒ nothing is appended.**
+
+    The emitter walks `teer_success_count` rows comparing the authority
+    (`TxIntrinsicStateGas.lean`, the `.L77prep_seen_append` loop) and appends
+    only on a miss; the spec writes `written_accounts := setAdd written_accounts
+    authority`. This says those two produce the same list — so the region's
+    contents track the spec value step for step, rather than merely having the
+    same shape.
+
+    Note the spec's `setAdd` appends at the tail and keeps first-insertion
+    order, which is why no sortedness invariant is needed on this table (doc §6
+    "linear membership by address; no sort required"). -/
+theorem teerScan_hit_implements_setAdd (xs : List TeerEntry) (e : TeerEntry)
+    (h : e.authority ∈ teerWrittenAccounts xs) :
+    Stateless.SpecRef.setAdd (teerWrittenAccounts xs) e.authority
+      = teerWrittenAccounts xs := by
+  have hb : (teerWrittenAccounts xs).contains e.authority = true := by simpa using h
+  simp only [Stateless.SpecRef.setAdd, hb, if_true]
+
+/-- **Scan miss ⇒ the guest appends one row, and that is `setAdd`.** -/
+theorem teerScan_miss_implements_setAdd (xs : List TeerEntry) (e : TeerEntry)
+    (h : e.authority ∉ teerWrittenAccounts xs) :
+    Stateless.SpecRef.setAdd (teerWrittenAccounts xs) e.authority
+      = teerWrittenAccounts (xs ++ [e]) := by
+  have hb : (teerWrittenAccounts xs).contains e.authority = false := by
+    simpa using h
+  simp only [Stateless.SpecRef.setAdd, hb, if_false, Bool.false_eq_true,
+    teerWrittenAccounts_append]
+
+/-! ### The Assertion, parameterised by the spec values
+
+    ⭐ This is the shape worth reusing elsewhere: an `Assertion` whose arguments
+    are **`SpecRef` data**, asserting that a region of memory *represents* that
+    spec value. `teerEntriesFrom` describes bytes; `teerRepresents` says which
+    spec state those bytes are a representation of, existentially quantifying the
+    concrete rows away. A caller reasoning about `set_delegation` can then talk
+    about `written` / `delegated` without ever mentioning the byte layout. -/
+
+/-- **The region at `base` represents the spec's `written_accounts` and
+    `delegation_set_for`.** Every row is well-formed (a 20-byte spec address),
+    and the two projections are exactly the given spec lists. -/
+def teerRepresents (base : Word)
+    (written delegated : List Stateless.SpecRef.Address) : Assertion :=
+  fun ps => ∃ xs : List TeerEntry,
+    (∀ e ∈ xs, e.wf)
+      ∧ teerWrittenAccounts xs = written
+      ∧ teerDelegationSetFor xs = delegated
+      ∧ teerEntriesFrom base xs ps
+
+theorem pcFree_teerRepresents (base : Word)
+    (written delegated : List Stateless.SpecRef.Address) :
+    (teerRepresents base written delegated).pcFree := by
+  rintro ps ⟨xs, _, _, _, hps⟩
+  exact pcFree_teerEntriesFrom base xs ps hps
+
+/-- **Introduction**: a concrete well-formed table represents the spec values
+    its own projections compute. The bridge from the byte-level predicate to the
+    spec-level one. -/
+theorem teerEntriesFrom_represents {base : Word} {xs : List TeerEntry}
+    (hwf : ∀ e ∈ xs, e.wf) {ps : PartialState} (h : teerEntriesFrom base xs ps) :
+    teerRepresents base (teerWrittenAccounts xs) (teerDelegationSetFor xs) ps :=
+  ⟨xs, hwf, rfl, rfl, h⟩
+
+/-- The spec invariant survives the abstraction: anything the region represents
+    still has `delegated ⊆ written`. So a caller cannot obtain a
+    `teerRepresents` for an inconsistent pair of spec lists. -/
+theorem teerRepresents_subset {base : Word}
+    {written delegated : List Stateless.SpecRef.Address} {ps : PartialState}
+    (h : teerRepresents base written delegated ps) :
+    ∀ a ∈ delegated, a ∈ written := by
+  obtain ⟨xs, _, hw, hd, _⟩ := h
+  subst hw; subst hd
+  exact teerDelegationSetFor_subset_written xs
+
 /-! ### Satisfiability
 
     ⚠️ A predicate no state can satisfy proves nothing about the region, and a
@@ -364,6 +517,33 @@ example : teerEntryExample.render[31]! = 0 := by decide
 example :
     ({ authority := List.replicate 20 0xAB, charged := false } : TeerEntry).render[20]!
       = 0 := by decide
+
+/-! ⚠️ The correspondence projections are checked at concrete data too. A
+    `delegated ⊆ written` theorem is worthless if `delegated` is always empty,
+    so the witness below has a **strict** subset: two authorities written, one
+    of them AUTH_BASE-charged. -/
+
+private def authA : Stateless.SpecRef.Address := List.replicate 20 0xAA
+private def authB : Stateless.SpecRef.Address := List.replicate 20 0xBB
+
+private def teerTableExample : List TeerEntry :=
+  [ { authority := authA, charged := true },
+    { authority := authB, charged := false } ]
+
+/-- Both authorities are in `written_accounts`… -/
+example : teerWrittenAccounts teerTableExample = [authA, authB] := by decide
+
+/-- …but only the charged one is in `delegation_set_for`. So the subset
+    inclusion is strict here, and `teerDelegationSetFor` is not vacuously
+    empty. -/
+example : teerDelegationSetFor teerTableExample = [authA] := by decide
+
+example : authB ∉ teerDelegationSetFor teerTableExample := by decide
+
+/-- The scan-miss step really does extend the spec value by one address. -/
+example :
+    Stateless.SpecRef.setAdd (teerWrittenAccounts teerTableExample) authA
+      = teerWrittenAccounts teerTableExample := by decide
 
 /-! ## 4. `callee_seed_table` — ⛔ NO PREDICATE; structural finding
 
