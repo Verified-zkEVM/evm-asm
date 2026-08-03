@@ -2423,6 +2423,9 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  la x11, code_state_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
   "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
+  "  la x11, exec_code_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_code_effect_count_checkpoint; sd x9, 0(x11)\n" ++
+  "  la x11, exec_code_effect_next; ld x9, 0(x11); la x11, runtime_tx_auth_code_effect_next_checkpoint; sd x9, 0(x11)\n" ++
+  "  la x11, exec_code_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_code_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
   ".runtime_tx_auth_checkpoint_done:\n" ++
   -- MTx passes the live regular gas remainder in a4; the callback returns
   -- its updated value.  This makes state-dependent authorization charging a

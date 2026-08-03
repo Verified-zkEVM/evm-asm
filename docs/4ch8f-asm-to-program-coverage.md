@@ -81,7 +81,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `blockValidateReceiptsRootIndexedFunction` | `EvmAsm/Codegen/Programs/ReceiptsRootIndexed.lean` | 0 |
 | `blockValidateWithdrawalsRootIndexedFunction` | `EvmAsm/Codegen/Programs/WithdrawalsRootIndexed.lean` | 0 |
 | `blockVerdictChainIdGateFunction` | `EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean` | 0 |
-| `blockVerdictEip7702AuthNonstorageEffectsArrayFunction` | `EvmAsm/Codegen/Programs/BlockVerdictEip7702AuthNonstorageEffectsArray.lean` | 0 |
 | `blockVerdictEip8037TxStateGasNetArrayFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `blockVerdictGasResultArenaPrepareFunction` | `EvmAsm/Codegen/Programs/BlockVerdictGasResultArena.lean` | 0 |
 | `blockVerdictTxGasLimitsFunction` | `EvmAsm/Codegen/Programs/BlockVerdictTxGasLimits.lean` | 0 |
@@ -1030,7 +1029,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/TxExtract.lean` | 5 |
 | `EvmAsm/Codegen/Programs/TxGasBalPostVerify.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxGasBalPostVerifyRuntime.lean` | 1 |
-| `EvmAsm/Codegen/Programs/TxIntrinsicAuthEffects.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxSignature.lean` | 6 |
 | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 1 |

@@ -426,8 +426,8 @@ def schemeAAnchors : List GuestRegion :=
     (`fix/call-effect-net-nonce`, #10455). Grew to `0x5d1bc` for the
     EIP-7702 authorization net-nonce threading fix
     (`fix/auth-net-nonce`, #10456), which also split the auth-effect
-    emitter out into `TxIntrinsicAuthEffects.lean` to clear the
-    1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
+    emitter out into the execution-time authorization-preparation path to
+    clear the 1500-line file-size cap. Grew to `0x5d204` for the SELFDESTRUCT
     live-origin-balance fix (`fix/selfdestruct-live-origin-balance`,
     #10457), mirroring the earlier beneficiary-balance overlay to fix
     a phantom second-selfdestruct credit. Settled to `0x5d20c` after

@@ -432,8 +432,7 @@ def accountStateAuthCurrentFunction : String :=
   "account_state_auth_current:\n" ++
   -- GH #10619 (review gate 2): a third EXECUTION account read, missed by the
   -- latest_balance/latest_nonce hooks.  Reached as
-  -- block_verdict_eip7702_auth_nonstorage_effects_array ->
-  -- eip7702_auth_nonstorage_effects -> eip7702_authority_asof -> here.  The
+  -- eip7702_auth_state_prepare -> eip7702_authority_asof -> here.  The
   -- block_verdict_ prefix is misleading: applying EIP-7702 authorizations IS
   -- transaction execution in the spec (it mutates nonce/code through
   -- get_account), so these reads belong in account_reads.  Recorded

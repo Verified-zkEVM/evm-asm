@@ -314,7 +314,6 @@ table and the script are authoritative.)
 | `0x80031260` | `0x800319b0` | 1872 | `eip7702_auth_state_prepare` | UNCONVERTED |
 | `0x800319b0` | `0x80031af0` | 320 | `block_verdict_tx_state_gas_inline_prepare` | UNCONVERTED |
 | `0x80031af0` | `0x80031bb0` | 192 | `block_verdict_tx_state_gas_inline_finalize` | UNCONVERTED |
-| `0x80031bb0` | `0x800320a0` | 1264 | `eip7702_auth_nonstorage_effects` | UNCONVERTED |
 | `0x800321c0` | `0x80032454` | 660 | `eip7702_authority_state_materialize` | UNCONVERTED |
 | `0x80032454` | `0x800325ac` | 344 | `eas_write_entry` | UNCONVERTED |
 | `0x80032818` | `0x80032ab4` | 668 | `b1_sender_count_table` | UNCONVERTED |

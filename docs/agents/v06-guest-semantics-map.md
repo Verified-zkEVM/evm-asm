@@ -106,7 +106,6 @@ Prog-form: `intrinsicGasAmsterdamCounts_prog` (74, updated),
 `eip8037BlockGasUsed_prog` (35), `txGasResultIncrements_prog` (26),
 `blockVerdictTxStateGasArray_prog` (96, jalOff → items 2/3),
 `blockVerdictEip8037TxStateGasNetArray_prog` (54),
-`blockVerdictEip7702AuthNonstorageEffectsArray_prog` (66),
 `dispatcher_tx_gas_settle` (AUIPC relocs). String-form targets have no
 pins but moving their byte length shifts `GuestAddrs`.
 
