@@ -163,11 +163,37 @@ if ! lake build "$WITNESS_MODULE" > "$RAWOUT" 2>&1; then
   exit 1
 fi
 
-# `lake build` prints each report as `info: <file>:<line>:<col>: <text>`;
-# strip the position prefix so the records match the classic
-# `#print axioms` shape the parser below consumes.
+# `lake build` prints each report as `info: <file>:<line>:<col>: <text>`
+# (the axiom list may wrap onto space-indented continuation lines that carry
+# no prefix).  Strip the position prefix so records match the classic
+# `#print axioms` shape the parser below consumes — but ONLY for reports
+# originating in the witness module.
+#
+# Scoping to $WITNESS_FILE is load-bearing: `#print axioms` reports ride
+# lake's message channel and are REPLAYED for every module in the build graph,
+# not just the one asked for.  A witness whose module carries its own
+# `#print axioms` lines (e.g. WithdrawalDecodeClose5's wd* intermediate
+# lemmas, #11291) would otherwise leak dozens of foreign reports into the
+# parse, breaking the exact count match below.  The witness module is the
+# single source of the gate's reports; anything a witness transitively depends
+# on already shows up inside that witness's own (transitive) report, so
+# dropping the foreign lines loses no coverage.
 STRIPPED="$(mktemp)"
-sed -E 's|^info: [^:]*:[0-9]+:[0-9]+: ||' "$RAWOUT" > "$STRIPPED"
+awk -v wf="$WITNESS_FILE" '
+  {
+    if (match($0, /^info: [^:]+:[0-9]+:[0-9]+: /)) {
+      f = substr($0, 7); f = substr(f, 1, index(f, ":") - 1)
+      if (f == wf) { keep = 1; print substr($0, RLENGTH + 1) }
+      else         { keep = 0 }
+    } else if ($0 ~ /^info:/) {
+      keep = 0            # non-report info line (build progress) ends a block
+    } else if ($0 ~ /^[ \t]/) {
+      if (keep) print     # space-indented continuation of a kept report
+    } else {
+      keep = 0            # any other non-indented line ends the block
+    }
+  }
+' "$RAWOUT" > "$STRIPPED"
 mv "$STRIPPED" "$RAWOUT"
 
 # Completeness (GH #10601): a summary line quoting the number of NAMES is

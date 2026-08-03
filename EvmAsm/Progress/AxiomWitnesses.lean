@@ -54,6 +54,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 
 #print axioms EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
