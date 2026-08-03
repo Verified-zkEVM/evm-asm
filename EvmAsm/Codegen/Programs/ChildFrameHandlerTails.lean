@@ -66,6 +66,12 @@ def precompileMessageProcessorAsm
       ("precompile_" ++ tag)
       inOffsetOff inSizeOff outOffsetOff outSizeOff sparseWindows ++
     -- State access begins only after the initial access/transfer/memory gas check.
+    -- The value-gas probe does not charge: the branch-specific fall-through or
+    -- precompile gate performs the single actual CALL_VALUE charge later. Its
+    -- purpose is to keep the producer behind the complete static check.
+    (match valueOff? with
+    | none => ""
+    | some valueOff => callValueGasAvailabilityGateAsm tag valueOff) ++
     -- `system.py` then unconditionally reads `code_address`, and
     -- `state_tracker.get_account_optional` first adds it to `account_reads`.
     -- Preserve x10/x12/x13: x10 is the dispatch PC and the tail still consumes all
