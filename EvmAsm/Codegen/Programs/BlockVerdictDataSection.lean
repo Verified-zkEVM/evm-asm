@@ -26,6 +26,17 @@ import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 
 namespace EvmAsm.Codegen
 
+/-! The post-merge owner set has one entry per account-map row or storage-map
+    row, plus the two modeled-system owners seeded outside both maps.  Its
+    capacity is therefore the conservative three-term bound: 20,480 account
+    rows + 16,384 storage rows + 2 system owners = 36,866.  Keep this tied to
+    the authenticated map caps rather than to the 64-entry runtime
+    access-account scratch table. -/
+def bsrMapOwnerCapacity : Nat :=
+  blockAccountWritesCapacity + storageWritesCapacity + bsrModeledSystemChanges
+
+#guard bsrMapOwnerCapacity = 36866
+
 def ziskStatelessVerdictV2DataSection : String :=
   -- .62.2.5: secp256k1 recovery scratch/constants for the ECRECOVER backend
   -- (generator + field constants + R-decompression scratch + tpr_* recovery
@@ -185,11 +196,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_builder_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\n" ++
   "bsr_changed_account_count:\n  .zero 8\n" ++
+  "bsr_emitted_owner_count:\n  .zero 8\n" ++
   "bsr_account_from_map:\n  .zero 8\n" ++
   "bsr_account_row:\n  .zero 8\n" ++
   "bsr_access_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "bsr_changed_accounts:\n  .zero " ++ toString (bsrMaxAccessAccounts * 32) ++ "\n" ++
+  "bsr_emitted_owners:\n  .zero " ++ toString (bsrMapOwnerCapacity * 32) ++ "\n" ++
   "baaod_hash:\n  .zero 32\n" ++
   "bsaod_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
