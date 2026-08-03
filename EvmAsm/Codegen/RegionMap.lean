@@ -522,7 +522,7 @@ def schemeAAnchors : List GuestRegion :=
 -- (`utils/message.py:71`), and #10931's durable upfront-balance
 -- publish plus credit-path guard removal, then #10957's shared
 -- body-state snapshot slab migration.
-def textSizeBytes : Nat := 0x620ac
+def textSizeBytes : Nat := 0x622b0
 
 /-- ELF-measured `.data` size for the `stateless_guest` unit
     (`readelf -S`, current value `0x5370`). Link-layout-dependent; this is

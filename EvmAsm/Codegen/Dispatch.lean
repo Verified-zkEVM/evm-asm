@@ -1216,11 +1216,46 @@ def emitDispatcherPrologue : String :=
   "  jalr x1, x7, 0\n" ++
   emitDispatchResume ++ "\n"
 
+/-- Exceptional-exit mode/continuation teardown (#11250).
+
+    Nested OOG used to clear none of the mode flags; top-level OOG after #11249
+    cleared only `prepare_only`. That is an absent discipline, not two bugs: there
+    was no place that clears mode state on exceptional exit.
+
+    Cleared here (every exceptional exit, nested and top, before depth branch):
+    - `runtime_tx_access_list_seed_fn` + ptr + len  (candidate #3 FA-shaped)
+    - `runtime_tx_auth_warm_fn` + list ptr + len     (candidate #3 FA-shaped)
+    - `runtime_tx_auth_exec_fn`                     (#11247 class)
+    - `runtime_tx_prepare_only`                     (#11249 class)
+
+    Intentionally sticky — do NOT clear:
+    `auth_phase_halted`, `prepare_prefix_status`, `auth_state_charged`,
+    `code_state_mtx_active`, `runtime_tx_oog_hook`. -/
+def emitExceptionalExitModeTeardown : String :=
+  -- Access-list seed triple (set by dispatch_tx_runtime_code / MTx; consumed by
+  -- emitTxAccessListSeedLoop). OOG during auth prepare leaves the triple live;
+  -- the next runtime_dispatcher_call (incl. system_call_mode=1) would jalr the
+  -- leftover fn with a0/a1 still holding user list pointers (#11250 candidate 3).
+  "  la x5, runtime_tx_access_list_ptr; sd x0, 0(x5)\n" ++
+  "  la x5, runtime_tx_access_list_len; sd x0, 0(x5)\n" ++
+  "  la x5, runtime_tx_access_list_seed_fn; sd x0, 0(x5)\n" ++
+  -- Auth warm triple (same shape; emitTxAuthListWarmLoop consumer).
+  "  la x5, runtime_tx_auth_list_ptr; sd x0, 0(x5)\n" ++
+  "  la x5, runtime_tx_auth_list_len; sd x0, 0(x5)\n" ++
+  "  la x5, runtime_tx_auth_warm_fn; sd x0, 0(x5)\n" ++
+  -- Auth prepare callback (#11247); also cleared on the OOG path that jumps here.
+  "  la x5, runtime_tx_auth_exec_fn; sd x0, 0(x5)\n" ++
+  -- Prepare-only seam (#11249); must not suppress a later full dispatcher body.
+  "  la x5, runtime_tx_prepare_only; sd x0, 0(x5)\n"
+
 /-- Emit an exceptional-halt exit block: zero the result bytes at
     `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
     `OUTPUT + 32`, then `j .exit_no_epilogue` (the universal exit join,
     bypassing `evmAddEpilogue` which would force `halt_kind = 0` and a
     stack-top result). Reached only via `j <label>`.
+
+    Runs `emitExceptionalExitModeTeardown` first (#11250) so nested and top
+    share one mode-clear site.
 
     `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
     `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
@@ -1228,6 +1263,8 @@ def emitDispatcherPrologue : String :=
     `6` out-of-gas · `7` stack underflow · `8` stack overflow. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
+  -- Mode teardown first so nested and top share one site (#11250).
+  emitExceptionalExitModeTeardown ++
   "  la x18, evm_call_depth\n" ++
   "  ld x18, 0(x18)\n" ++
   s!"  beqz x18, {label}_top\n" ++
@@ -1307,15 +1344,11 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "4:\n" ++
   "  j .dispatch_loop\n" ++
   s!"{label}_top:\n" ++
-  -- OOG-exit mode-flag hygiene (same class as #11247 `runtime_tx_auth_exec_fn`):
-  -- `runtime_dispatcher_prepare_only` sets `runtime_tx_prepare_only := 1` before the
-  -- shared preparation prefix. A prefix OOG takes this exceptional join and used to
-  -- leave the flag set; the next full `runtime_dispatcher_call` (deferred system
-  -- predeploys EIP-7002/7251/…) then hit the prepare-only seam, returned without a
-  -- body, and dropped storage_reads (code60 Δ4 on 00029). Clear here — scope ends
-  -- at the OOG exit — not in setup (that would break the intentional prepare-only
-  -- split) and not by special-casing any predeploy address.
-  "  la x5, runtime_tx_prepare_only; sd x0, 0(x5)\n" ++
+  -- Mode/continuation teardown already ran at entry (`emitExceptionalExitModeTeardown`,
+  -- #11250) — covers prepare_only (#11249), auth_exec_fn (#11247), and the seed/warm
+  -- function-pointer triples (candidate #3). Intentionally sticky flags (auth_phase_halted,
+  -- prepare_prefix_status, auth_state_charged, code_state_mtx_active, oog_hook) are NOT
+  -- cleared there; oog_hook is invoked next.
   -- A transaction-aware caller may stage a process_transaction debit before
   -- entering the callable dispatcher. An exceptional halt can occur in the
   -- shared preparation prefix, so give that caller one optional hook to
@@ -1345,6 +1378,9 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
     resume the parent. At depth 0, surface the same halt kind as INVALID. -/
 def emitStaticViolationExit : String :=
   ".exit_static_violation:\n" ++
+  -- Nested path returns via frame_return without entering emitExceptionalExit;
+  -- top path jumps to .exit_invalid_op which re-runs the teardown (idempotent).
+  emitExceptionalExitModeTeardown ++
   "  la t0, evm_call_depth\n" ++
   "  ld t0, 0(t0)\n" ++
   "  beqz t0, .exit_invalid_op\n" ++
@@ -3073,9 +3109,9 @@ def emitRuntimeDispatcherCallablePrologue (depthAwareStop : Bool := false) : Str
   -- exits at the post-preparation seam above.
   "runtime_dispatcher_prepare_only:\n" ++
   -- Mark entered before setup.  `prepare_prefix_status` stays 1 on prefix OOG
-  -- (only the success seam writes 2).  `prepare_only` is cleared on every
-  -- top-level exceptional exit (`emitExceptionalExit` `_top`) so a leftover
-  -- cannot suppress a later full dispatcher body (#11247-class mode flag).
+  -- (only the success seam writes 2 — intentionally sticky).  `prepare_only` is
+  -- cleared by `emitExceptionalExitModeTeardown` on every exceptional exit
+  -- (nested + top, #11250) so a leftover cannot suppress a later full body.
   "  la x5, runtime_tx_prepare_prefix_status; li x6, 1; sd x6, 0(x5)\n" ++
   "  la x5, runtime_tx_prepare_only; li x6, 1; sd x6, 0(x5)\n" ++
   "  j runtime_dispatcher_call\n" ++
