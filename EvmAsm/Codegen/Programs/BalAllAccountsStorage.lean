@@ -45,8 +45,9 @@ open EvmAsm.Rv64
             (forward) by and cover (reverse) the exec log for that account
         1 : any parse failure / mismatch / omission (conservative reject)
 
-    A BAL account whose address item is not exactly 20 bytes is skipped (system /
-    malformed entries are not callee storage accounts). -/
+    A BAL account whose address item is not exactly 20 bytes is rejected.  AccountChanges
+    keys are exactly 20-byte addresses in the execution-specs model; accepting a malformed
+    key by skipping it would leave an unchecked entry in the consistency boundary. -/
 def balAllAccountsStorageConsistentFunction : String :=
   "bal_all_accounts_storage_consistent_skip_list:\n" ++
   "  addi sp, sp, -112\n" ++
@@ -73,7 +74,7 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  bnez a2, .Lc2baas_fail\n" ++
   "  jal ra, rlp_walk_next                 # item 0 = address\n" ++
   "  bnez a1, .Lc2baas_fail\n" ++
-  "  li t2, 20; bne a2, t2, .Lc2baas_next   # not 20B -> skip\n" ++
+  "  li t2, 20; bne a2, t2, .Lc2baas_fail   # not 20B -> reject malformed entry\n" ++
   "  sub s10, a0, a2              # addr ptr (20B BE)\n" ++
   "  li t4, 0                    # skip-list index\n" ++
   ".Lc2baas_skip_outer:\n" ++
@@ -112,6 +113,12 @@ def balAllAccountsStorageConsistentFunction : String :=
   "  ld s9, 80(sp); ld s10, 88(sp)\n" ++
   "  addi sp, sp, 112\n" ++
   "  ret"
+
+-- #11245: malformed AccountChanges keys must take the conservative reject arm;
+-- keep the structural predicate next to the emitted helper so a future refactor
+-- cannot silently restore the old skip-to-next-account behaviour.
+#guard (balAllAccountsStorageConsistentFunction.splitOn ".Lc2baas_fail   # not 20B -> reject malformed entry").length == 2
+#guard (balAllAccountsStorageConsistentFunction.splitOn ".Lc2baas_next   # not 20B -> skip").length == 1
 
 /-- `zisk_bal_all_accounts_storage_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
