@@ -49,8 +49,16 @@ Do not collapse these to a boolean. The asymmetry *is* the product.
 |---|---|
 | `diff` | Backed by the executable differential (`lake exe correspondence-check <family>`). |
 | `bridged` | The spec is stated over — or tied by a **cited** bridge lemma to — the shared model, so it inherits the `diff` result. |
+| `ported` | The spec is tied by a **cited and consumed** bridge lemma to a `SpecRef` **port** that is not itself differentially backed. Machine-checked, so stronger than `inspection`; no `diff` to inherit, so weaker than `bridged`. **Only claimable with a port-fidelity clause table** (§6a). |
 | `machine-only` | The spec is stated over a *locally defined* predicate that re-derives the reference's rules independently of the shared model. The differential result does **not** transfer. |
 | `inspection` | Established by reading both sides. No executable or formal backing. |
+
+The ladder, weakest to strongest: `none` → `inspection` → `machine-only` → `ported` →
+`bridged` / `diff`. `ported` was added in #11341: without it, a row whose tie to the
+reference is a *machine-checked equality* against a port had to be filed under
+`machine-only`, whose description ("stated over a locally defined predicate") is simply
+false for such a row even though its operative clause ("the differential does not
+transfer") is true. Two rows sat in that contradiction before the rung existed.
 
 **A verdict without a basis is an unverified claim**, which is precisely what
 produced the stale findings in §1. `EvmAsm/Progress/Correspondence.lean` proves
@@ -102,6 +110,27 @@ actually measured at the root boundary overstates its coverage.
 
 Most families are **vendored** and need none of the external-package machinery.
 Do not copy the RLP instance wholesale — it is the harder case.
+
+### 6a. ⚠️ A vendored citation establishes PROVENANCE, not FIDELITY
+
+`scripts/check-spec-refs.sh` machine-checks that a cited `forks/…/x.py:NNN` **exists** and
+that the named symbol is there. It structurally **cannot** check that the `SpecRef` port
+*says the same thing* as those lines. The two get conflated, and the conflation is
+invisible: a row can cite a real line, elaborate cleanly, and still rest on a port that
+quietly restated a clause.
+
+That is not hypothetical. `check_gas_limit`'s port writes the lower guard as
+`gas_limit + delta ≤ parent`, where `fork.py` writes `gas_limit ≤ parent - delta` — a
+deliberate improvement, because `Uint` subtraction truncates on underflow where Python ints
+do not. The two agree **only because `delta = parent / 1024 ≤ parent`**, which is a fact
+about the factor, not a syntactic identity. It was relied upon until a reviewer asked; it is
+now `clause2_port_faithful`.
+
+**So any row claiming `ported` must record a port-fidelity clause table**: the reference's
+clauses beside the port's, with every non-syntactic restatement either **proved** (cite the
+lemma) or **named as an assumption**. Without that requirement `ported` is `machine-only`
+with a friendlier name. Doing this once per row is what would let the category be trusted
+rather than merely disclosed.
 
 > **The trap this table exists for.** `ethereum_rlp` **0.1.5 silently accepts
 > trailing bytes after a complete item; 0.1.6 rejects them.** A stale

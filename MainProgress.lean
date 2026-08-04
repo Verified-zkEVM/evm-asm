@@ -139,6 +139,7 @@ private def verdictLabel : EvmAsm.Progress.Correspondence.Verdict → String
 private def basisLabel : EvmAsm.Progress.Correspondence.Basis → String
   | .diff => "diff"
   | .bridged => "bridged"
+  | .ported => "ported"
   | .machineOnly => "machine-only"
   | .inspection => "inspection"
   | .none => "—"
@@ -177,6 +178,7 @@ Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.m
 |---|---|---|
 | diff | {countBasis EvmAsm.Progress.Correspondence.Basis.diff} | backed by `lake exe correspondence-check` |
 | bridged | {countBasis EvmAsm.Progress.Correspondence.Basis.bridged} | tied to the shared model, inherits the differential |
+| ported | {countBasis EvmAsm.Progress.Correspondence.Basis.ported} | machine-checked tie to a SpecRef port that has no differential; requires a port-fidelity clause table |
 | machine-only | {countBasis EvmAsm.Progress.Correspondence.Basis.machineOnly} | spec restates the rules locally; differential does NOT transfer |
 | inspection | {countBasis EvmAsm.Progress.Correspondence.Basis.inspection} | read both sides; no executable backing |
 | — | {countBasis EvmAsm.Progress.Correspondence.Basis.none} | no verdict to support |

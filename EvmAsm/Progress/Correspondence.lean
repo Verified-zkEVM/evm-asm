@@ -82,6 +82,27 @@ inductive Basis where
   /-- The spec is stated over, or tied by a cited bridge lemma to, the shared
       model, so it inherits the `diff` result. -/
   | bridged
+  /-- The spec is tied by a **cited and consumed** bridge lemma to a `SpecRef`
+      **port** of the reference that is not itself differentially backed.
+
+      Stronger than `inspection` — the tie is machine-checked, not read. Weaker
+      than `bridged` — there is no `diff` result to inherit, so the row's value is
+      bounded by the port's fidelity to the Python.
+
+      ⚠️ **A row may only claim this rung if it records a port-fidelity clause
+      table**: a clause-by-clause comparison of the port against the vendored
+      source, with every non-syntactic restatement either proved or named as an
+      assumption. Without that requirement this rung is `machineOnly` with a
+      friendlier name. The worked example is `check_gas_limit`, where the port
+      writes clause 2 as `gl + delta ≤ p` while `fork.py` writes
+      `gl ≤ p - delta` — algebraically equal only because `delta ≤ p`, proved as
+      `clause2_port_faithful` rather than assumed.
+
+      Introduced in #11341 because the schema previously forced such rows onto
+      `machineOnly`, whose *description* ("stated over a locally defined
+      predicate") is false for them even though its *operative* clause ("the
+      differential does not transfer") is true. -/
+  | ported
   /-- The spec is stated over a *locally defined* machine predicate that
       re-derives the reference's rules independently of the shared model. The
       differential result does **not** transfer. -/
@@ -301,7 +322,7 @@ cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" 
   -- vacuously.
   { family := "header", routine := "check_gas_limit",
     spec := some "checkGasLimit_ref_spec",
-    verdict := .agrees, basis := .machineOnly,
+    verdict := .agrees, basis := .ported,
     reference := "check_gas_limit (SpecRef/SeamShell.lean:200, fork.py)",
     note := "FULL DOMAIN and no side condition, which is not the obvious reading: the \
 reference is written with two additions (`gl >= p + d`, `gl + d <= p`) that are \
@@ -309,12 +330,14 @@ overflow-free only because `Uint = Nat`, so a naive bridge would carry a u64 env
 hypothesis and land `domainRestricted`. It needs none, because the guest never forms \
 either sum -- it compares `|new - parent|` against `parent / 1024`, and those two guards \
 are together equivalent to the single inequality. Tied by `cglStatus_eq_zero_iff` \
-(`Codegen/Programs/CheckGasLimitBridge.lean`). Basis is `machineOnly` for the same \
-schema reason as the `guest` row: the tie is FORMAL, not a local restatement, but this \
-family has no executable differential for a `bridged` grade to inherit. NOT claimed: the \
+(`Codegen/Programs/CheckGasLimitBridge.lean`). WHY `.ported` AND NOT `.bridged`: the tie is \
+FORMAL (machine-checked), not a local restatement, but this family has no executable \
+differential for a `bridged` grade to inherit. Was `.machineOnly` before the rung existed; \
+regraded in #11341. NOT claimed: the \
 guest's 1-vs-2 distinction (below-minimum vs out-of-range) is guest-specific; the \
-reference returns a bare false, so the bridge is an iff on ACCEPTANCE only. PORT \
-FIDELITY: fork.py writes clause 2 as `gl <= p - delta` while the port writes \
+reference returns a bare false, so the bridge is an iff on ACCEPTANCE only. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): clauses 1 and 3 are syntactically \
+identical to fork.py:1259-1264; clause 2 differs — fork.py writes clause 2 as `gl <= p - delta` while the port writes \
 `gl + delta <= p` (avoiding a truncating Uint subtraction). That restatement is \
 algebraic, not syntactic, and is PROVED here by `clause2_port_faithful` rather than \
 relied upon -- it is the one clause where the port could silently diverge from the \
@@ -331,20 +354,20 @@ Python while looking faithful" },
   -- witnessed symbol with NO row passes the cross-registry gate vacuously.
   { family := "guest", routine := "bgv_u32le",
     spec := some "bgvU32leFlat_spec",
-    verdict := .agrees, basis := .machineOnly,
+    verdict := .agrees, basis := .ported,
     reference := "the fixed-width LE reads of deserialize_stateless_input \
 (SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
-    note := "⚠️ THE BASIS RUNG IS A COMPROMISE AND THE SCHEMA IS THE REASON. The tie is \
-FORMAL, not a local restatement: `leU32_eq_bytesLEtoNat` proves the guest accessor equals \
-`SpecRef.bytesLEtoNat` on the first four bytes, via `toNat_or_shift` (OR past the \
-accumulated width is addition). So `machineOnly`'s descriptive half — \"stated over a \
-locally defined predicate\" — is FALSE here. But its operative half is true: the \
-guest/SSZ family has NO executable differential (see the SSZ note above), so there is no \
-`diff` result for a `bridged` grade to inherit, and claiming `bridged` would be \
-unfalsifiable. `inspection` would understate a machine-checked equality. The schema has \
-no rung for \"formally tied to a port that is not itself differentially backed\"; \
-`machineOnly` is the closest honest one and this note is the correction. Raised on \
-#11352" }
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). Reference: the \
+fixed-width LE reads in `deserialize_stateless_input` reduce to `bytesLEtoNat` \
+(SpecRef/Crypto.lean:38), a port of the SSZ uint decoder. ONE clause: `bytesLEtoNat` \
+accumulates `b + 256 * rest` where the guest ORs four shifted bytes. That restatement is \
+NOT syntactic and is PROVED, not assumed, by `leU32_eq_bytesLEtoNat` via `toNat_or_shift` \
+(OR past the accumulated width is addition). No other clause differs. \
+WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential, so \
+there is no `diff` result to inherit; the row's value is bounded by the port's fidelity to \
+the Python, which the clause table above is what establishes. Was `.machineOnly` when the \
+rung did not exist — that grade's description was false here, since the tie is \
+machine-checked rather than a local restatement. Regraded in #11341" }
 ]
 
 /-! ## Counts -/
@@ -370,7 +393,8 @@ theorem verdict_counts :
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
+    countBasis .ported = 2 ∧
+    countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
