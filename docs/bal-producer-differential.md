@@ -32,11 +32,12 @@ classes. It keeps the first four controls and adds ten class-covering fixtures:
 
 Two additional class probes are recorded as findings rather than silently
 removed from the investigation. They have no skipped, undecodable, or overflow
-rows, but the guest producer disagrees with the pinned reference:
+rows, but the guest execution (as reflected by its producer rows) disagrees
+with the pinned reference:
 
 | fixture prefix | class | expected rows (accounts/storage/balance/nonce/code) | guest rows |
 | --- | --- | --- | --- |
-| `01087_test_bal_create2_selfdestruct_then_recreate_same_block...` | EIP-6780 deletion/recreation | 11 / 4 / 6 / 5 / 1 | 11 / 5 / 6 / 3 / 0 |
+| `01087_test_bal_create2_selfdestruct_then_recreate_same_block...` | EIP-6780 deletion/recreation / CREATE2 collision | 11 / 4 / 6 / 5 / 1 | 11 / 5 / 6 / 3 / 0 |
 | `00612_test_bal_7702_cross_tx_delegation_then_call...` | EIP-7702 cross-transaction attribution | 12 / 4 / 5 / 4 / 1 | 12 / 4 / 5 / 4 / 1 |
 
 The second finding has mismatching balance payloads despite equal row counts;
@@ -47,6 +48,13 @@ reports `496/496`. They are kept out of the green set so the set runner remains
 a pass/fail oracle, but are reported explicitly for follow-up rather than being
 hidden as unsupported fixtures. The findings had zero undecodable rows and
 zero overflow flags.
+
+01087's three row-shape differences have one execution-side explanation: the
+factory's Tx2 CREATE2 returns zero when the pinned spec recreates the
+SELFDESTRUCTed target. The resulting factory `slot=0, BAI=2, value=0` row,
+missing target nonce row, and missing target code row are therefore evidence
+for a collision/tombstone predicate defect, not an independent BAL-builder
+omission. See issue [#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362).
 
 The row comparison is intentionally primary for a reason demonstrated by
 00612: every row count matches and the rebuilt/supplied serialized lengths are
