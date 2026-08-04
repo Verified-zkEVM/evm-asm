@@ -277,9 +277,14 @@ def accountStateCommitPendingFunction : String :=
   "  mv t0, a0; ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
   ".Lascp_tombstone_write:\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0); j .Lascp_delete_next\n" ++
-  ".Lascp_tombstone_nonzero:\n" ++
-  "  sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
-  ".Lascp_delete_next:\n" ++
+   -- Balance-preserved tombstone (flags 51): pin clear_account_preserving_balance
+   -- (execution-specs state_tracker.py:536-557) zeros nonce + code and keeps
+   -- balance only. Fully-deleted path above already zeros nonce@+64; this path
+   -- must too — otherwise a stale nonce makes account_deployable permanently
+   -- False and every consumer of durable nonce reads a wrong post-delete value.
+   ".Lascp_tombstone_nonzero:\n" ++
+   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
+   ".Lascp_delete_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_delete_loop\n" ++
   ".Lascp_finish:\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); li a0, 0; j .Lascp_ret\n" ++
