@@ -280,17 +280,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bsbd_tgt_ptr:\n  .zero 8\n" ++
   "bsbd_tgt_len:\n  .zero 8\n" ++
   "bsbd_code_from_bal:\n  .zero 8\n" ++
-  -- bal_recipient_storage_keys private scratch:
-  ".balign 8\n" ++
-  "brsk_off:\n  .zero 8\n" ++
-  "brsk_len:\n  .zero 8\n" ++
-  "brsk_cnt:\n  .zero 8\n" ++
-  "brsk_eoff:\n  .zero 8\n" ++
-  "brsk_elen:\n  .zero 8\n" ++
-  "brsk_soff:\n  .zero 8\n" ++
-  "brsk_slen:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "brsk_out:\n  .zero 256\n" ++
   -- .6.2.2.2.a: bal_txs_independent private scratch (the independence-guard
   -- walkers' cursors/counters; the probe's bti_bal_* fixtures are NOT needed in
   -- the verdict guest, only this scratch). All runtime-written before read.
