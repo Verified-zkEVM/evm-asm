@@ -1068,10 +1068,21 @@ def balCodePreimagesValidFunction : String :=
   ".Lasd_pc_low16:\n" ++
   "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4; li t4, 1; bltu t3, t4, .Lasd_not_precompile; li t4, 17; bgeu t4, t3, .Lasd_empty; li t4, 256; beq t3, t4, .Lasd_empty\n" ++
   ".Lasd_not_precompile:\n" ++
+  -- A same-transaction authorization can install the delegated target's
+  -- marker after the header witness was fixed.  Consult AccountState first:
+  -- the header lookup below is only the pre-state fallback, while the old
+  -- CodeState fallback cannot see an AccountState-only authorization row.
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  li t0, 1; beq a0, t0, .Lasd_account_state_code\n" ++
+  "  li t0, 2; beq a0, t0, .Lasd_empty\n" ++
+  "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  beqz a0, .Lasd_resolved\n" ++
   "  la a0, bsbd_deleg_target; jal ra, code_state_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
+  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  "  j .Lasd_resolved\n" ++
+  ".Lasd_account_state_code:\n" ++
   "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
   ".Lasd_resolved:\n" ++
   "  li a0, 0; j .Lasd_ret\n" ++

@@ -714,7 +714,21 @@ def callDescendFallThrough
   "  li t3, 1; bne t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   "  la t3, cahsr_code_length; sd t2, 0(t3)\n" ++
   "  ld t3, 608(x20); sub t1, t1, t3; la t3, cahsr_code_offset; sd t1, 0(t3)\n" ++
-  "  j .Lcd_descend_" ++ tag ++ "\n" ++
+  -- A current CodeState entry may itself be the 23-byte EIP-7702
+  -- delegation designator.  Treating that marker as executable code skips
+  -- the mode-0 resolver below (the old header path did not have this entry),
+  -- so the delegated target is never selected and the child returns failure.
+  -- Re-enter the existing header/marker path instead of duplicating its
+  -- status handling: it invokes the mode-0 resolver for same-block markers,
+  -- preserves status-2 precompile/empty bails, and falls through to the
+  -- established prior-block mode-1 path when the immutable header supplies
+  -- the marker.  Non-marker CodeState remains the direct descend path.
+  "  li t4, 23; bne t2, t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++
+  "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 2(t3); bnez t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  j .Lcd_header_lookup_" ++ tag ++ "\n" ++
   ".Lcd_header_lookup_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
