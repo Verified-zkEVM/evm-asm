@@ -263,10 +263,9 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_zero:\n" ++
   "  li a0, 0\n" ++
   ".Lbv_ret:\n" ++
-  -- Shadow-only rebuilt-BAL digest comparison.  It runs after every granular
-  -- verdict path has reached its terminal result; its status is exported for
-  -- diagnosis only and never selects a verdict branch.  Preserve the original
-  -- a0 verdict across the serializer, which mutates builder order in place.
+  -- Rebuilt-BAL digest comparison (survivor for #10612/#11245). Runs after
+  -- granular paths; status is bound ACCEPT-only below (fail 60/61). Preserve
+  -- the original a0 verdict across the serializer (mutates builder order).
   "  sd a0, 40(sp)\n" ++
   -- Inputs that never passed the BAL decoding/gas gate have no valid slice to
   -- inspect.  Use the same structural reachability condition as the granular
