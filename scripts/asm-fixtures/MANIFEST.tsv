@@ -24,7 +24,6 @@ baapDeleteSingleLeafStorageFunction	EvmAsm/Codegen/Programs/BalAccountApplyPostF
 bahU32leFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
 balAccountAccessOutcomeDescriptorsFunction	EvmAsm/Codegen/Programs/BalAccountAccessDescriptors.lean
 balAccountChangeDescriptorFunction	EvmAsm/Codegen/Programs/BalAccountChangeDescriptor.lean
-mapAccountChangeValueFunction	EvmAsm/Codegen/Programs/BalAccountChangeValue.lean
 balAccountCodeConsistentFunction	EvmAsm/Codegen/Programs/BalAccountCodeConsistent.lean
 balAccountHasStateChangeFunction	EvmAsm/Codegen/Programs/BalAccountHasStateChange.lean
 balAccountIsModeledSystemFunction	EvmAsm/Codegen/Programs/BalModeledSystem.lean
@@ -178,7 +177,6 @@ eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRema
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037PriorStateUsedExactFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 eip8037ReservoirSplitFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
-eip8037StateUsedBeforeTxFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
@@ -221,6 +219,7 @@ keccak256WordGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 logBloomAddFunction	EvmAsm/Codegen/Programs/Bloom.lean
 logDataGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 logsListBloomAddFunction	EvmAsm/Codegen/Programs/Bloom.lean
+mapAccountChangeValueFunction	EvmAsm/Codegen/Programs/BalAccountChangeValue.lean
 memoryExpansionGasFunction	EvmAsm/Codegen/Programs/MemoryExpansionGas.lean
 messageCallGasFunction	EvmAsm/Codegen/Programs/EvmMessageCallGas.lean
 mptBranchChildFunction	EvmAsm/Codegen/Programs/Mpt.lean
