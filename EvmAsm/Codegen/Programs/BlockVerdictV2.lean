@@ -31,7 +31,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictContractStage
 import EvmAsm.Codegen.Programs.BlockVerdictSingleTxLog
 import EvmAsm.Codegen.Programs.BlockVerdictSelfContained
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
-import EvmAsm.Codegen.Programs.BlockVerdictContractStorage
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
@@ -90,8 +89,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     codeAtHeaderStateRootFunction ++ "\n" ++
     bytecodeIsSelfContainedFunction ++ "\n" ++
     balFindAccountByAddressFunction ++ "\n" ++
-    balRecipientStorageKeysFunction ++ "\n" ++
-    balRecipientStorageReadsKeysFunction ++ "\n" ++
     stageRuntimePayloadCodeFunction ++ "\n" ++
     stageRuntimePayloadWitnessContextFunction ++ "\n" ++
     -- .6.2.2.1: block_verdict's contract dispatch now calls dispatch_tx_runtime_code;
@@ -499,8 +496,6 @@ def statelessVerdictV2GuestClosure : String :=
   codeAtHeaderStateRootFunction ++ "\n" ++
   bytecodeIsSelfContainedFunction ++ "\n" ++
   balFindAccountByAddressFunction ++ "\n" ++
-  balRecipientStorageKeysFunction ++ "\n" ++
-  balRecipientStorageReadsKeysFunction ++ "\n" ++
   stageRuntimePayloadCodeFunction ++ "\n" ++
   stageRuntimePayloadWitnessContextFunction ++ "\n" ++
   -- #10685 PR2: bv_emit_single_tx_tl7708 unlinked (never-written buffer +
