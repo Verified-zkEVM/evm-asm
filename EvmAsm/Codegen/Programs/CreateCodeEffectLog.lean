@@ -277,9 +277,14 @@ def accountStateCommitPendingFunction : String :=
   "  mv t0, a0; ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
   ".Lascp_tombstone_write:\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0); j .Lascp_delete_next\n" ++
-  ".Lascp_tombstone_nonzero:\n" ++
-  "  sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
-  ".Lascp_delete_next:\n" ++
+   -- Balance-preserved tombstone (flags 51): pin clear_account_preserving_balance
+   -- (execution-specs state_tracker.py:536-557) zeros nonce + code and keeps
+   -- balance only. Fully-deleted path above already zeros nonce@+64; this path
+   -- must too — otherwise a stale nonce makes account_deployable permanently
+   -- False and every consumer of durable nonce reads a wrong post-delete value.
+   ".Lascp_tombstone_nonzero:\n" ++
+   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
+   ".Lascp_delete_next:\n" ++
   "  addi s1, s1, 1; j .Lascp_delete_loop\n" ++
   ".Lascp_finish:\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); li a0, 0; j .Lascp_ret\n" ++
@@ -328,7 +333,19 @@ def accountStateRecordNonstorageFunction : String :=
   -- transition must not overwrite an already-recorded authorization increment.
   "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
-  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_unchanged; sd s2, 64(t0)\n" ++
+  -- Monotonic nonce merge. When this producer publishes a real nonce
+  -- transition (pre≠post), also set bit 6 so account_state_latest_nonce
+  -- trusts the field. Bit 5 alone is balance-present (#10619 split): a
+  -- balance-only snapshot with dummy equal nonces must NOT set bit 6 or a
+  -- zero nonce would shadow authenticated pre-state. Creator CREATE/CREATE2
+  -- bumps (pin system.py generic_create increment_nonce at BOTH the collide
+  -- :118 and deployable :132 sites — unconditional w.r.t. deployability)
+  -- rely on bit 6 so a later tx seeds create_nonce from the durable
+  -- post-nonce. 01087 factory: writer DID fire (nonce field written) but
+  -- missing the BIT (ori 35 only), not a missing writer branch.
+  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_mark; sd s2, 64(t0)\n" ++
+  ".Lasrn_nonce_mark:\n" ++
+  "  ld t2, 32(sp); beq t2, s2, .Lasrn_nonce_unchanged; ori t1, t1, 64\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
   "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
@@ -521,38 +538,31 @@ def accountStateLookupCurrentFunction : String :=
 
 /-! ## account_state_tombstone_balance_zero
 
-    EIP-161 existence predicate for a delete-pending (bit4) AccountState
-    tombstone, mirroring the trie pass: a finalized EIP-6780 deletion whose
-    final balance is zero is dropped from the post-state trie, so every later
-    transaction must read the address as non-existent; a deletion whose
-    balance is preserved (`clear_account_preserving_balance`) persists as an
-    empty-code account and     must NOT take the deleted read path.
+    Self-sufficient `EMPTY_ACCOUNT` check for a delete-pending AccountState
+    row, matching pin `is_account_alive` / `EMPTY_ACCOUNT`
+    (state_tracker.py:445-463): not-alive iff nonce==0 AND balance==0 AND
+    code empty. Callers (nacc / ibnacc / SELFDESTRUCT NEW_ACCOUNT, #11334 /
+    #11362) use the result as an aliveness gate, so all three conjuncts must
+    live in THIS helper — not as a remote writer invariant.
 
-    The predicate is the conjunction of THREE tests.  (1) Tombstone-ness is
-    decoded exactly as `account_state_lookup_current` status 2 or 3: bit4
-    set AND code-present (bit2) clear.  Bit4 alone is NOT sufficient —
-    `account_state_record_code` writes flags 27 (bits 0,1,3,4) for a live
-    created contract, and lookup treats bit4 as the precondition for the
-    existence fields being meaningful, with status 1 (live code) requiring
-    it too; the code-present test is what excludes a live zero-balance
-    contract with code from this predicate.  (1b) created-this-tx (bit3)
-    must be clear: a live created contract keeps bit3 set even across a
-    transaction boundary because `account_state_upsert_durable` copies the
-    pending snapshot verbatim, whereas the tombstone writer stores literal
-    flags 17/51, so bit3 is what excludes a live created *empty-code*
-    contract (flags 27 or 59 — status 2 with bit2 clear) that would
-    otherwise pass test (1).  (2) The 32 balance bytes are all zero.  The
-    writer (`account_state_commit_pending`) stores literal flags 17 (exists
-    clear, all fields zeroed) or 51 (exists set, balance preserved) keyed
-    on balance OR nonce, and never sets bit6, so the nonce field is not
-    authoritative on a tombstone and is not consulted: the balance field is
-    the only reliable discriminant between the dropped case and the
-    preserved case (including a preserved balance later drained to zero,
-    which stays flags 51 and must read as non-existent per EIP-161).
+    Shape filters (tombstone lineage, not a free scan of every row):
+    (1) bit4 set AND bit2 (code) clear — same decode as lookup status 2/3;
+    bit4 alone is insufficient (`account_state_record_code` flags 27 keeps
+    bit4 on live created contracts). (1b) bit3 (created-this-tx) clear —
+    excludes live empty-code CREATE rows (flags 27/59) that keep bit3 across
+    `account_state_upsert_durable`; tombstone writer stores literal 17/51.
+    (2) nonce@+64 == 0. (3) 32 balance bytes all zero.
+
+    History: until #11362 commit 1 cleared nonce on the flags-51 path, a
+    bal-preserved tombstone could sit at flags=0x33 nonce=1 bal=0. This
+    helper (pre-nonce-check) then returned 1 / not-alive while
+    `is_account_alive` says ALIVE — a silent NEW_ACCOUNT overcharge at every
+    caller. Commit 1 repairs that writer; the nonce load here makes the
+    helper correct even if that remote invariant regresses.
 
     a0 = canonical 20-byte BE address pointer
-    returns a0 = 1 lookup-status-2/3 entry found (pending first, then
-                 durable) with an all-zero balance field, 0 otherwise.
+    returns a0 = 1 when a matching entry is EMPTY (pending first, then
+                 durable), 0 otherwise.
     Clobbers a0-a3, t0, t1. -/
 def accountStateTombstoneBalanceZeroFunction : String :=
   "account_state_tombstone_balance_zero:\n" ++
@@ -561,6 +571,7 @@ def accountStateTombstoneBalanceZeroFunction : String :=
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Latbz_no\n" ++
   ".Latbz_entry:\n" ++
   "  ld t0, 88(a0); andi t1, t0, 16; beqz t1, .Latbz_no; andi t1, t0, 4; bnez t1, .Latbz_no; andi t1, t0, 8; bnez t1, .Latbz_no\n" ++
+  "  ld t1, 64(a0); bnez t1, .Latbz_no\n" ++
   "  ld t0, 32(a0); ld t1, 40(a0); or t0, t0, t1; ld t1, 48(a0); or t0, t0, t1; ld t1, 56(a0); or t0, t0, t1; bnez t0, .Latbz_no\n" ++
   "  li a0, 1; j .Latbz_ret\n" ++
   ".Latbz_no:\n" ++
@@ -743,10 +754,14 @@ def codeStateLookupCurrentFunction : String :=
 
 /-! ## codeStateStatusIsLiveAsm
 
-    Converts the shared resolver's status into the execution-spec `is_account_alive`
-    answer needed by NEW_ACCOUNT state-gas consumers. Status 1 has code and
-    status 2 is an existing empty-code account; status 3 is a finalized deletion
-    and is not live. -/
+    Coarse status→live map: status ∈ {1,2} → 1, else 0. This is **not** full
+    pin `is_account_alive` (state_tracker.py:445-463 = account ≠ EMPTY_ACCOUNT).
+    Status 2 conflates funded EOAs / bal-preserved tombstones (alive) with
+    bal-zero EIP-6780 tombstones (EMPTY after nonce clear). Every NEW_ACCOUNT
+    consumer must gate status-2 through balance (and nonce where relevant)
+    before trusting this helper — see ChildFrameHandlers nacc/ibnacc,
+    Selfdestruct beneficiary surcharge, and ChildFrameCreateTail
+    (balance_at_header_state_root + nonce). -/
 def codeStateStatusIsLiveAsm (statusReg : String) : String :=
   "  addi t0, " ++ statusReg ++ ", -1\n" ++
   "  sltiu " ++ statusReg ++ ", t0, 2\n"
