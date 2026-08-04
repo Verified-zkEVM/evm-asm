@@ -372,3 +372,13 @@ if [[ "$fail" != "0" ]]; then
   exit 1
 fi
 echo "check-region-map: region map matches the linked ELF"
+
+# --- Class-A provided-BAL ratchet (#11183) ---
+# Fail on NEW bv_bal_start/len edges or silent baseline shrink. See
+# scripts/check-bal-class-a-ratchet.py and scripts/bal-class-a-baseline.tsv.
+if [[ -f "$ELF_DIR/stateless_guest.s" ]]; then
+  python3 scripts/check-bal-class-a-ratchet.py --elf-dir "$ELF_DIR" --no-build \
+    || { echo "check-region-map: Class-A BAL ratchet failed"; exit 1; }
+else
+  echo "  skip Class-A BAL ratchet (no $ELF_DIR/stateless_guest.s)"
+fi

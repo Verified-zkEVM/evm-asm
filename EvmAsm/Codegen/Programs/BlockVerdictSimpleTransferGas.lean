@@ -52,19 +52,13 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  la t2, aie_predicate; ld t2, 0(t2)\n" ++
   "  beqz t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
   ".L" ++ tag ++ "_recipient_state_charge:\n" ++
-  "  la t1, " ++ ctxLabel ++ "\n" ++
-  "  la t2, bv_bal_start; ld a0, 0(t2)\n" ++
-  "  la t2, bv_bal_len; ld a1, 0(t2)\n" ++
-  "  addi a2, t1, 72; la a3, bfa_out_ptr; la a4, bfa_out_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .L" ++ tag ++ "_recipient_state_apply_charge\n" ++
-  "  la t1, bfa_index; ld t1, 0(t1)\n" ++
-  "  slli t2, t1, 4; slli t3, t1, 3; add t2, t2, t3; la t3, basr_records; add t2, t3, t2\n" ++
-  "  ld t3, 16(t2); bnez t3, .L" ++ tag ++ "_recipient_state_apply_charge\n" ++
-  "  ld a0, 0(t2); ld a1, 8(t2); la a2, aie_predicate\n" ++
-  "  jal ra, account_is_eip161_empty\n" ++
-  "  bnez a0, .L" ++ tag ++ "_recipient_state_apply_charge\n" ++
-  "  la t1, aie_predicate; ld t1, 0(t1); beqz t1, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  -- GH #11398: no supplied-BAL consult.  execution-specs evaluates recipient
+  -- liveness from tracked state alone (state_tracker.py); when the overlays
+  -- and the authenticated header both miss, the account is dead at this point
+  -- and the NEW_ACCOUNT state-gas charge applies.  The declared BAL arm that
+  -- used to skip the charge here papered over tracked-state gaps for shapes
+  -- the guest runtime does not replay; the provided BAL is hashed, never read
+  -- for execution (fork.py:366/:390).
   ".L" ++ tag ++ "_recipient_state_apply_charge:\n" ++
   liAmsterdamNewAccountStateGas "t0" ++
   "  j .L" ++ tag ++ "_recipient_state_done\n" ++

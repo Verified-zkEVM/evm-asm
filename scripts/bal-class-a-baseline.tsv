@@ -1,0 +1,28 @@
+# bal-class-a-baseline.tsv — emitted paths touching bv_bal_start/bv_bal_len
+# Columns: function  kind  jal_or_sink  return_status_tested  insn
+# Maintained by scripts/check-bal-class-a-ratchet.py
+# NEW path => fail; MISSING baselined path => fail (shrink baseline on purpose).
+# return_status_tested=yes means a direct jal soon after is followed by a0/t*-status branch.
+.Lbmvmx_cb_preok	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_coinbase_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len
+.Lbmvmx_sd_preok	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); la a2, bmvmx_sender_addr; la a3, bmvmx_cb_acct_ptr; la a4, bmvmx_cb_acct_len
+.Lbsbd_active_create_done	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+.Lbv_after_tx_gate	load	bgv_u64le	no	la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3
+.Lbv_after_tx_gate	store	bgv_u32le	no	la t2, bv_bal_start; sd a0, 0(t2)
+.Lbv_after_tx_gate	store	bgv_u64le	no	la t2, bv_bal_len; sd a1, 0(t2)
+.Lbv_b1_loop	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len
+.Lbv_b23_chk	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len
+.Lbv_code_preimage_flag_done	load	bal_code_preimages_valid	yes	la t2, bv_bal_len; ld a1, 0(t2)
+.Lbv_code_preimage_flag_done	load	bal_code_preimages_valid	yes	la t2, bv_bal_start; ld a0, 0(t2)
+.Lbv_code_preimage_flag_done	load	bal_storage_whitelist_clean	no	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+.Lbv_code_preimage_flag_done	load	bal_txs_independent	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+.Lbv_mtx_storage	load	bal_all_accounts_tuple_sequences_consistent_skip_list	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+.Lbv_pregate_state_gas_ready	load	bgv_u64le	yes	la t2, bv_bal_len; ld a2, 0(t2)
+.Lbv_pregate_state_gas_ready	load	bgv_u64le	yes	la t2, bv_bal_start; ld a1, 0(t2)
+.Lbv_ret	store	bal_gas_valid_from_builder	yes	la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)
+.Ldtrc_auth_exec_ready	store	STORE:runtime_current_bal	no	la t4, bv_bal_len; ld t5, 0(t4); la t4, runtime_current_bal_len; sd t5, 0(t4)
+.Ldtrc_auth_exec_ready	store	STORE:runtime_current_bal	no	la t4, bv_bal_start; ld t5, 0(t4); la t4, runtime_current_bal_ptr; sd t5, 0(t4)
+.Ldtrc_deferred_marker_ready	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+bal_same_block_delegation_code_resolve	load	rlp_walk_init	no	la t0, bv_bal_len; ld s4, 0(t0)
+bal_same_block_delegation_code_resolve	load	rlp_walk_init	no	la t0, bv_bal_start; ld s3, 0(t0)
+bbcv_bal_contains_addr	load	rlp_walk_init	no	la t0, bv_bal_len; ld s2, 0(t0)
+bbcv_bal_contains_addr	load	rlp_walk_init	no	la t0, bv_bal_start; ld s1, 0(t0)
