@@ -253,17 +253,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_address_be; jal ra, account_read_record\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    -- If an account-witness context is attached, apply the EIP-684
-    -- code-or-nonce collision check to the derived target address.  The
-    -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
-    -- overrides a header miss, while a durable same-tx-delete mask permits a
-    -- later recreate.  Only an overlay miss consults block-pre witness data.
-    "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-    "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
-    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  li t1, 2; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  ld a1, 584(x20)\n" ++
+     -- If an account-witness context is attached, apply the EIP-684
+     -- code-or-nonce collision check to the derived target address.  The
+     -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
+     -- overrides a header miss, while a durable same-tx-delete mask permits a
+     -- later recreate.  Only an overlay miss consults block-pre witness data.
+     --
+     -- Pin account_deployable (execution-specs state_tracker.py:377-388): False
+     -- iff nonce≠0 OR code_hash≠EMPTY OR has_storage — never balance alone.
+     -- Status 1 (has code) is always a collision. Status 2 (empty-code exists)
+     -- is NOT a hard collision: an EIP-6780 tombstone is status 2 with nonce
+     -- cleared by account_state_commit_pending, and must remain deployable.
+     -- Nonce/storage occupancy is covered by the header has_code_or_nonce path
+     -- plus createSameTxCollisionScanAsm. Matches top-level
+     -- BlockVerdictMtxRuntime creation (status-1 only).
+     "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+     "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
+     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+     "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+     "  ld a1, 584(x20)\n" ++
     "  beqz a1, 6f\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
