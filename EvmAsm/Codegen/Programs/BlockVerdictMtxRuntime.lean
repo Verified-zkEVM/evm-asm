@@ -39,7 +39,7 @@ private def blockVerdictMtxStageSenderUpfront : String :=
   -- fresh effective-price calculation succeeds.
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch; jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_mtx_su_done\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance_block\n" ++
   "  bnez a0, .Lbv_mtx_su_have_pre\n" ++
   "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   ".Lbv_mtx_su_have_pre:\n" ++

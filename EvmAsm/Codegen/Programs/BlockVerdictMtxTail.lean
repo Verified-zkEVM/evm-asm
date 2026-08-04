@@ -57,7 +57,7 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b1_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- t4 = &distinct sender entry
-  "  mv a0, t4; la a1, bv_b1_expected; jal ra, account_state_latest_nonce; beqz a0, .Lbv_b1_next\n" ++
+  "  mv a0, t4; la a1, bv_b1_expected; jal ra, account_state_latest_nonce_block; beqz a0, .Lbv_b1_next\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- reload t4 = &distinct sender entry
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
   "  jal ra, bal_find_account_by_address\n" ++
