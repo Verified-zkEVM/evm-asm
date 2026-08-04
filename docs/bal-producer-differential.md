@@ -74,16 +74,25 @@ the factory's running nonce unadvanced (the nonce omission is tracked
 separately in [#11363](https://github.com/Verified-zkEVM/evm-asm/issues/11363)). In 00612, each of Tx2 and Tx3 charges
 its sender an extra `43,190 * 10` wei and credits the fee recipient an extra
 `43,190 * 3` wei. The pinned test shows that both are the same plain CALL into
-the delegated counter, while the sole authorization is in Tx1, so this is
-evidence for a repeated delegated-call gas discrepancy, not an AUTH_BASE charge
-on Tx2/Tx3. The reference post-balances imply gas-used values 129,032 for Tx2
-and 31,112 for Tx3; their 97,920 difference is the Amsterdam zero-to-nonzero
-storage-set state charge (`64 * 1530`). The guest records `35,190` state gas
-for each transaction (`AUTH_BASE = 23 * 1530`) and an additional `8,000`
-regular `ACCOUNT_WRITE`, exactly explaining the `43,190` excess on both later
-CALLs. Keep these as separate follow-ups until their execution paths are
-traced; issue [#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362)
-covers the 01087 collision case.
+the delegated counter, while the sole authorization is in Tx1. The reference
+post-balances imply gas-used values 129,032 for Tx2 and 31,112 for Tx3; their
+97,920 difference is the Amsterdam zero-to-nonzero storage-set state charge
+(`64 * 1530`). The reference Tx3 body is exactly `3,112` gas: cold `SLOAD`
+3,000, `ADD` 3, three `PUSH1`s 9, warm `SSTORE` 100, and regular
+`STORAGE_WRITE` 10,000. Adding the 12,000 transaction base, 3,000 cold
+recipient charge, and 3,000 cold delegated-code resolution gives 31,112;
+Tx2 adds only the 97,920 `STORAGE_SET` state charge.
+
+The guest-side excess is localized in the final gas cells: its
+`bvgr_tx_state_gas` lanes are `[35190, 35190, 35190]`, while
+`bvgr_tx_exec_state_gas` is `[0, 97920, 0]`. The fixed `43,190` therefore
+decomposes as an `AUTH_BASE` state charge of `23 * 1530 = 35,190` plus a
+regular `ACCOUNT_WRITE` charge of `8,000`; the latter is also present in the
+candidate's `runtime_tx_top_frame_regular_gas` cell. Both components are
+charged on the two later delegated calls despite Tx2/Tx3 having no
+authorization list. Keep this as a separate delegated-call gas follow-up;
+issue [#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362) covers
+the 01087 collision case.
 
 Each expectation records the execution-specs pin and input SHA-256. Regenerate
 one only when deliberately changing its fixture:
