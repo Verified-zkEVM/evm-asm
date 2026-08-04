@@ -40,7 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
 DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
-EXPECTED_ANNOTATION_COUNT = 3
+EXPECTED_ANNOTATION_COUNT = 0
 SEEDS = ("bv_bal_start", "bv_bal_len")
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
@@ -263,7 +263,9 @@ def load_annotation_notes(path: Path) -> dict[tuple[str, str], list[str]]:
             f"{declared_count!r} annotations; expected {EXPECTED_ANNOTATION_COUNT}"
         )
     annotation_count = sum(len(annotations) for annotations in notes.values())
-    if annotation_count == 0:
+    # Zero is legal only when EXPECTED_ANNOTATION_COUNT is deliberately 0
+    # (every annotated edge retired, e.g. #11183 bal_txs_independent).
+    if annotation_count == 0 and EXPECTED_ANNOTATION_COUNT != 0:
         raise ValueError(
             "annotation sidecar has zero annotations; the rationale was lost"
         )

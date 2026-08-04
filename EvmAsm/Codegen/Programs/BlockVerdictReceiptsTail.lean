@@ -100,7 +100,9 @@ def blockVerdictReceiptsTail : String :=
   "  la t2, c1_dlen; sd a0, 0(t2)\n" ++
   "  la t2, c1_dstatus; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
   "  la t2, c1_dlen; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
-  "  la t2, bv_deposit_runtime_capture_complete; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
+  -- #11183: bv_deposit_runtime_capture_complete is RESERVED always-0 (capture-only
+  -- route retired). Empty log body falls through to DirectDepositFallback — the
+  -- spec-shaped path (parse logs, else derive from tx calldata).
   blockVerdictDirectDepositFallback ++
   ".Lbv_deposit_after_direct:\n" ++
   ".Lbv_deposit_body_ready:\n" ++
