@@ -106,6 +106,7 @@ import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Recover
@@ -386,6 +387,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.account_is_empty_at_header_state_root, accountIsEmptyAtHeaderStateRoot_prog),
   (GuestAddrs.extcodehash_at_header_state_root, extcodehashAtHeaderStateRoot_prog),
   (GuestAddrs.extcodecopy_at_header_state_root, extcodecopyAtHeaderStateRoot_prog),
+  (GuestAddrs.runtime_same_block_delegation_code, runtimeSameBlockDelegationCode_prog),
   (GuestAddrs.has_code_or_nonce_at_header_state_root, hasCodeOrNonceAtHeaderStateRoot_prog),
   (GuestAddrs.create_stage_initcode_frame, createStageInitcodeFrame_prog),
   (GuestAddrs.create_execute_initcode_frame, createExecuteInitcodeFrame_prog),
