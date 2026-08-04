@@ -32,36 +32,78 @@ open EvmAsm.Rv64
 
     Source: `account_state_lookup_current` → AccountState pending/durable overlay
     written by `eip7702_auth_state_prepare` / code deposits — not BAL. -/
+def runtimeSameBlockDelegationCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .JAL .x1 (jalOff GuestAddrs.account_state_lookup_current (GuestAddrs.runtime_same_block_delegation_code + 24)),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (96 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (120 : BitVec 13),
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x18 .x0 (76 : BitVec 13),
+    .LI .x5 (23 : Word),
+    .BNE .x18 .x5 (100 : BitVec 13),
+    .LBU .x5 .x9 (0 : BitVec 12),
+    .LI .x6 (239 : Word),
+    .BNE .x5 .x6 (88 : BitVec 13),
+    .LBU .x5 .x9 (1 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BNE .x5 .x6 (76 : BitVec 13),
+    .LBU .x5 .x9 (2 : BitVec 12),
+    .BNE .x5 .x0 (68 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 96)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 108)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_ptr (GuestAddrs.runtime_same_block_delegation_code + 128)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rsbd_code_len (GuestAddrs.runtime_same_block_delegation_code + 140)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `runtimeSameBlockDelegationCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def runtimeSameBlockDelegationCode_relocs : RelocTable :=
+  [ (6, .jal .x1 "account_state_lookup_current"),
+    (24, .la .x5 "rsbd_code_ptr"),
+    (27, .la .x5 "rsbd_code_len"),
+    (32, .la .x5 "rsbd_code_ptr"),
+    (35, .la .x5 "rsbd_code_len") ]
+
 def runtimeSameBlockDelegationCodeFunction : String :=
-  "runtime_same_block_delegation_code:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  jal ra, account_state_lookup_current\n" ++
-  -- status 2 = empty-code account (7702 clear) → hit with empty bytes
-  "  li t0, 2; beq a0, t0, .Lrsbd_empty_hit\n" ++
-  -- status 1 = has code
-  "  li t0, 1; bne a0, t0, .Lrsbd_miss\n" ++
-  "  mv s1, a1; mv s2, a2\n" ++
-  "  beqz s2, .Lrsbd_empty_hit\n" ++
-  "  li t0, 23; bne s2, t0, .Lrsbd_miss\n" ++
-  "  lbu t0, 0(s1); li t1, 0xef; bne t0, t1, .Lrsbd_miss\n" ++
-  "  lbu t0, 1(s1); li t1, 1; bne t0, t1, .Lrsbd_miss\n" ++
-  "  lbu t0, 2(s1); bnez t0, .Lrsbd_miss\n" ++
-  "  la t0, rsbd_code_ptr; sd s1, 0(t0)\n" ++
-  "  la t0, rsbd_code_len; sd s2, 0(t0)\n" ++
-  "  li a0, 0; j .Lrsbd_ret\n" ++
-  ".Lrsbd_empty_hit:\n" ++
-  "  la t0, rsbd_code_ptr; sd zero, 0(t0)\n" ++
-  "  la t0, rsbd_code_len; sd zero, 0(t0)\n" ++
-  "  li a0, 0; j .Lrsbd_ret\n" ++
-  ".Lrsbd_miss:\n" ++
-  "  li a0, 1\n" ++
-  ".Lrsbd_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32; ret\n"
+  "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `runtimeSameBlockDelegationCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
+    runtimeSameBlockDelegationCodeFunction = "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs := rfl
 
 #guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
+#guard runtimeSameBlockDelegationCode_prog.length = 47
 #guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_state_lookup_current").length == 2
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
