@@ -96,12 +96,14 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen
+open EvmAsm.Rv64
 
 /-- Transaction-local entries. One transaction's CALL-tree bound is 15038, so
     the existing 16384-row map reservation remains sufficient. This is an
@@ -737,7 +739,58 @@ def accountWriteMapBssSection : String :=
   "account_builder_block_code_hash:\n  .zero 32\n" ++
   "account_builder_diag_balance_pairs:\n  .zero 384\n" ++
   "account_builder_diag_nonce_pairs:\n  .zero 192\n" ++
-  ".balign 8\n"
+  ".balign 8\n" ++
+  -- #11329 e2e gate scratch: fixed BE20 + balance word for touch/store/twin/undo.
+  "account_write_e2e_addr:\n  .zero 32\n" ++
+  "account_write_e2e_bal:\n  .zero 32\n"
+
+/-! ## `account_write_touch_e2e`
+
+    Non-negotiable first-producer gate (#11329): set execFlags+TOUCHED, store,
+    second same-addr write (twin sticky), REVERT undo restore, read NON-ZERO.
+    Returns via OUTPUT 0xa0010000:
+      +0  mask after first write (expect bit5=32 set)
+      +8  execFlags after first write (expect 0x33)
+      +16 mask after twin balance-only write (expect 32 still sticky)
+      +24 mask after undo restore (expect 0 — row gone / truncated)
+      +32 status 0 = all checks passed, 1 = fail
+    Standalone probe; not linked into stateless_guest. -/
+def accountWriteTouchE2eFunction : String :=
+  "account_write_touch_e2e:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp)\n" ++
+  "  li s0, 0xa0010000\n" ++
+  "  la t0, account_write_e2e_addr; li t1, 20\n" ++
+  ".Lawe2e_fill:\n" ++
+  "  beqz t1, .Lawe2e_filled; li t2, 0xaa; sb t2, 0(t0); addi t0, t0, 1; addi t1, t1, -1; j .Lawe2e_fill\n" ++
+  ".Lawe2e_filled:\n" ++
+  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  "  la t0, account_writes_undo_count; sd zero, 0(t0)\n" ++
+  -- 1) set TOUCHED|EXEC_FLAGS with a7=0x33
+  "  la a0, account_write_e2e_addr; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
+  "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags) ++ "; li a7, 0x33\n" ++
+  "  jal ra, account_write_record\n" ++
+  "  li t3, 0xa2b20000; lbu t0, 112(t3); sd t0, 0(s0); ld t0, 96(t3); sd t0, 8(s0)\n" ++
+  -- 2) twin same-addr BALANCE-only write (no TOUCHED in mask) — sticky must keep 32
+  "  la t0, account_write_e2e_bal; li t1, 7; sb t1, 31(t0)\n" ++
+  "  la a0, account_write_e2e_addr; la a1, account_write_e2e_bal; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
+  "  li a6, " ++ toString accountWriteHasBalance ++ "; li a7, 0\n" ++
+  "  jal ra, account_write_record\n" ++
+  "  li t3, 0xa2b20000; lbu t0, 112(t3); sd t0, 16(s0)\n" ++
+  -- 3) undo restore to mark 0 — row must disappear (count→0, mask read as 0)
+  "  li a0, 0; jal ra, account_writes_restore_frame\n" ++
+  "  la t0, tx_account_writes_count; ld t0, 0(t0); sd t0, 24(s0)\n" ++
+  -- status: mask1&32, flags==0x33, mask2&32, count==0
+  "  li t4, 0\n" ++
+  "  ld t0, 0(s0); andi t0, t0, 32; beqz t0, .Lawe2e_fail\n" ++
+  "  ld t0, 8(s0); li t1, 0x33; bne t0, t1, .Lawe2e_fail\n" ++
+  "  ld t0, 16(s0); andi t0, t0, 32; beqz t0, .Lawe2e_fail\n" ++
+  "  ld t0, 24(s0); bnez t0, .Lawe2e_fail\n" ++
+  "  j .Lawe2e_ok\n" ++
+  ".Lawe2e_fail:\n" ++
+  "  li t4, 1\n" ++
+  ".Lawe2e_ok:\n" ++
+  "  sd t4, 32(s0)\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16; ret\n"
 
 /-- Every routine in this module, in emission order. `account_write_record`
     calls `account_writes_undo_push`, and `account_writes_incorporate_tx` calls
@@ -822,5 +875,25 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "tx_account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_undo_count:" == 1
+
+/-- Standalone e2e probe BuildUnit for #11329 TOUCHED first-producer gate. -/
+def accountWriteTouchE2ePrologue : String :=
+  "  li sp, 0xa0050000\n" ++
+  "  jal ra, account_write_touch_e2e\n" ++
+  "  li x17, 93\n  li x10, 0\n  ecall\n"
+
+def accountWriteTouchE2eProbeUnit : BuildUnit := {
+  body        := NOP
+  prologueAsm :=
+    accountWriteTouchE2ePrologue ++
+    accountWriteRecordFunction ++ "\n" ++
+    accountWritesUndoPushFunction ++ "\n" ++
+    accountWritesRestoreFrameFunction ++ "\n" ++
+    accountWriteTouchE2eFunction
+  dataAsm     :=
+    ".section .data\n" ++
+    accountWriteMapDataSection ++
+    accountWriteMapBssSection
+}
 
 end EvmAsm.Codegen

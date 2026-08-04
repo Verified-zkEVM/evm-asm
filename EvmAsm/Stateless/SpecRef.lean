@@ -60,6 +60,7 @@ import EvmAsm.Stateless.SpecRef.InstructionsCore
 import EvmAsm.Stateless.SpecRef.InstructionsEnv
 import EvmAsm.Stateless.SpecRef.Interpreter
 import EvmAsm.Stateless.SpecRef.Fork
+import EvmAsm.Stateless.SpecRef.BloomAlgebra
 import EvmAsm.Stateless.SpecRef.ElExecute
 import EvmAsm.Stateless.SpecRef.Precompiles
 import EvmAsm.Stateless.SpecRef.PrecompilesHash

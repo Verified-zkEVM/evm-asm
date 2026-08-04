@@ -51,7 +51,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
-import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BloomAddValue
 import EvmAsm.Codegen.Programs.BloomBlock
@@ -271,14 +270,13 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_account_path, balAccountPath_prog),
   (GuestAddrs.bal_account_post_fields, balAccountPostFields_prog),
   (GuestAddrs.baap_delete_single_leaf_storage, baapDeleteSingleLeafStorage_prog),
-  (GuestAddrs.bal_account_change_value, balAccountChangeValue_prog),
+  (GuestAddrs.map_account_change_value, mapAccountChangeValue_prog),
   (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
   (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
   (GuestAddrs.bal_account_is_modeled_system, balAccountIsModeledSystem_prog),
   (GuestAddrs.bsr_sys_change, bsrSysChange_prog),
   (GuestAddrs.bsr_beacon_change, bsrBeaconChange_prog),
   (GuestAddrs.bsr_apply_modeled_system_post_fields, bsrApplyModeledSystemPostFields_prog),
-  (GuestAddrs.codes_blockhash_required_headers, codesBlockhashRequiredHeaders_prog),
   (GuestAddrs.bloom_add_value, bloomAddValue_prog),
   (GuestAddrs.log_bloom_add, logBloomAdd_prog),
   (GuestAddrs.logs_list_bloom_add, logsListBloomAdd_prog),
@@ -499,6 +497,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 344
+#guard guestImageEntries.length = 343
 
 end EvmAsm.Codegen

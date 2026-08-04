@@ -15,7 +15,7 @@ bal_account_change_descriptor:
   la t0, baap_force_storage_clear; sd zero, 0(t0)
   mv a0, s4; mv a1, s5; mv a2, s6; mv a3, s7
   mv a4, s2; mv a5, s3; la a6, baacd_value_len
-  jal ra, bal_account_change_value
+  jal ra, map_account_change_value
   bnez a0, .Lbaacd_fail_value
   mv a0, s3; la t0, baacd_value_len; ld a1, 0(t0); la a2, baacd_is_empty
   jal ra, account_is_eip161_empty

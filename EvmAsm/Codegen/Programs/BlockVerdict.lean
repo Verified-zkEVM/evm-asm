@@ -35,7 +35,6 @@ import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
-import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
@@ -387,8 +386,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
-  balAccountChangeValueFunction ++ "\n" ++
+  mapAccountApplyPostFieldsFunction ++ "\n" ++
+  mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++
@@ -402,7 +401,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
-  codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++

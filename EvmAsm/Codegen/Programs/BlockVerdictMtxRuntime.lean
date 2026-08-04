@@ -39,7 +39,7 @@ private def blockVerdictMtxStageSenderUpfront : String :=
   -- fresh effective-price calculation succeeds.
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch; jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_mtx_su_done\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance_block\n" ++
   "  bnez a0, .Lbv_mtx_su_have_pre\n" ++
   "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   ".Lbv_mtx_su_have_pre:\n" ++
@@ -348,6 +348,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- its seed-only mode does not publish side-log or BAL rows until the
   -- terminal state-root replay.
   "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, -60; jal ra, system_write_descriptors\n" ++
+  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
+  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
+  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbv_mtx_oao_2935_done\n" ++
+  "  li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_oao_2935_done:\n" ++
   blockVerdictMtxGateSystemStorageSeed ++
   "  li t1, 1; la t0, bv_system_storage_map_seed_only; sd t1, 0(t0)\n" ++
   "  jal ra, append_modeled_system_storage_tuple_rows\n" ++
@@ -487,7 +492,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- and coinbase-credit writes, so it needs its own complete state transition
   -- rather than an inclusion-time snapshot here.
   "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasNonce ++ "; jal ra, account_write_record\n" ++
+  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
   -- debit.  A preparation ExceptionalHalt must restore only auth-produced map

@@ -31,7 +31,6 @@ import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
-import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
@@ -220,7 +219,7 @@ def executionMapStateChangesFunction : String :=
   ".Lem_pre_ready:\n" ++
   "  ld t0, 0(s0); slli t1, t0, 6; la t2, basr_paths; add a4, t2, t1; slli t1, t0, 8; la t2, basr_values; add a5, t2, t1\n" ++
   "  la t1, bsr_prev_acct; sd s7, 0(t1); la t1, bsr_acct_len; sd s10, 0(t1); la t1, bsr_prev_desc; sd a5, 0(t1)\n" ++
-  "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, bal_account_change_value\n" ++
+  "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, map_account_change_value\n" ++
   "  bnez a0, .Lem_fail\n" ++
   "  # Map rows are execution facts too; retain only complete account-leaf mutations.\n" ++
   "  # Compare the complete pre/post RLP values, covering nonce, balance,\n" ++
@@ -302,6 +301,11 @@ def blockStateRootFunction : String :=
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
+  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
+  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
+  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbsr_oao_2935_done\n" ++
+  "  li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbsr_oao_2935_done:\n" ++
   -- v0.6.0: process_unchecked_system_transaction runs the CONTRACT's code
   -- (fork.py:890-905); an absent or codeless history/beacon-roots contract
   -- executes nothing and writes nothing. Gate each modeled startup write on
@@ -431,60 +435,33 @@ def blockStateRootFunction : String :=
   "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
   "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_system2935\n  li t0, 2; beq a0, t0, .Lbsr_bal_copy_system4788\n  bnez a0, .Lbsr_cons_bal_desc\n" ++
   ".Lbsr_bal_copy_normal:\n" ++
-  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_next\n" ++
-  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld a0, 0(t3); ld a1, 8(t3); la t0, bsr_prev_acct; sd a0, 0(t0); la t0, bsr_acct_len; sd a1, 0(t0); la t0, bsr_bal_item_ptr; ld a2, 0(t0); la t0, bsr_bal_item_len; ld a3, 0(t0); ld a4, 16(t3)\n" ++
-  "  slli t2, s1, 5; slli t3, s1, 3; add t2, t2, t3; la t3, bsr_changes; add a5, t3, t2\n" ++
-  "  slli t2, s1, 6; la t3, basr_paths; add a6, t3, t2\n" ++
-  "  slli t2, s1, 8; la t3, basr_values; add a7, t3, t2\n" ++
-  "  la t0, bsr_prev_desc; sd a7, 0(t0)\n" ++
-  "  jal ra, bal_account_change_descriptor; bnez a0, .Lbsr_cons_bal_desc\n" ++
-  "  # A BAL row is an execution fact, not necessarily a post-state mutation.\n" ++
-  "  # Compare the complete pre/post RLP values, covering the full account leaf\n" ++
-  "  # (nonce, balance, storage root, and code hash) before retaining the row.\n" ++
-  "  la t0, bsr_acct_len; ld t1, 0(t0); la t0, bsr_tmplen; ld t2, 0(t0); bne t1, t2, .Lbsr_bal_value_changed\n" ++
-  "  la t0, bsr_prev_acct; ld t1, 0(t0); la t0, bsr_prev_desc; ld t2, 0(t0); la t0, bsr_acct_len; ld t3, 0(t0)\n" ++
-  ".Lbsr_bal_value_compare:\n" ++
-  "  beqz t3, .Lbsr_bal_copy_next\n" ++
-  "  lbu t4, 0(t1); lbu t5, 0(t2); bne t4, t5, .Lbsr_bal_value_changed\n" ++
-  "  addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbsr_bal_value_compare\n" ++
-  ".Lbsr_bal_value_changed:\n" ++
-  "  la t0, bsr_changed_account_count; ld t1, 0(t0); li t2, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t1, t2, .Lbsr_changed_addr_record_skip\n" ++
-  "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
-  "  la t4, bsr_bal_item_ptr; ld a0, 0(t4); la t4, bsr_bal_item_len; ld a1, 0(t4)\n" ++
-  "  jal ra, rlp_walk_init; bnez a2, .Lbsr_cons_bal_desc\n" ++
-  "  jal ra, rlp_walk_next; bnez a1, .Lbsr_cons_bal_desc\n" ++
-  "  li t5, 20; bne a2, t5, .Lbsr_cons_bal_desc\n" ++
-  "  sub t4, a0, a2\n" ++
-  "  la t0, bsr_changed_account_count; ld t1, 0(t0)\n" ++
-  "  slli t2, t1, 5; la t3, bsr_changed_accounts; add t3, t3, t2\n" ++
-  "  li t5, 0\n" ++
-  ".Lbsr_changed_addr_copy:\n" ++
-  "  li t6, 20; beq t5, t6, .Lbsr_changed_addr_pad\n" ++
-  "  add a0, t4, t5; lbu a1, 0(a0); add a0, t3, t5; sb a1, 0(a0)\n" ++
-  "  addi t5, t5, 1; j .Lbsr_changed_addr_copy\n" ++
-  ".Lbsr_changed_addr_pad:\n" ++
-  "  li t6, 32; beq t5, t6, .Lbsr_changed_addr_done\n" ++
-  "  add a0, t3, t5; sb zero, 0(a0); addi t5, t5, 1; j .Lbsr_changed_addr_pad\n" ++
-  ".Lbsr_changed_addr_done:\n" ++
-  "  addi t1, t1, 1; la t0, bsr_changed_account_count; sd t1, 0(t0)\n" ++
-  ".Lbsr_changed_addr_record_skip:\n" ++
-  "  addi s1, s1, 1\n" ++
+  -- #11326 entry6: non-system BAL rows do NOT seed bsr_changes.
+  -- Spec pin e5a8caf1b amsterdam fork.py:928-930 — BAL is an OUTPUT of the
+  -- builder plus tracked state; the state root comes from tracked state alone
+  -- (fork.py:358). Seeding the root candidate set from the supplied BAL made
+  -- the witness BAL an INPUT to the root (inverted data flow). Map path
+  -- `execution_map_state_changes` is the sole root authority for user-tx
+  -- accounts (TOUCHED producers #11382 fill the former A\\B leaves). Keep the
+  -- RLP walk (load_item above) so the cursor advances; system 2935/4788 arms
+  -- still apply_modeled. Residual: merge account_writes into pre-seeded system
+  -- owners when system contracts also appear in the map.
+  "  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
   ".Lbsr_bal_copy_system2935:\n  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_2935; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_system4788:\n  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_4788; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
   ".Lbsr_bal_done:\n" ++
-  "  # Step 1 #10651: extend the candidate set with execution-map accounts.\n" ++
-  "  # BAL remains the cross-check table; the helper appends map-only accounts\n" ++
-  "  # and derives their account fields from the execution maps in the same\n" ++
-  "  # authority switch.\n" ++
+  "  # entry6: execution_map_state_changes is the SOLE root authority for\n" ++
+  "  # user-tx account leaves (plus true execution system/withdrawal effects).\n" ++
+  "  # Non-system BAL no longer seeds bsr_changes; s1 is 0 here unless a prior\n" ++
+  "  # path left residues. System modeled posts may have side effects via\n" ++
+  "  # bsr_apply_modeled_system_post_fields above.\n" ++
   "  la t0, bsr_change_count; sd s1, 0(t0); mv a0, t0; la a1, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a2, 0(t0)\n" ++
   "  jal ra, execution_map_state_changes; bnez a0, .Lbsr_cons_map\n" ++
   "  la t0, bsr_change_count; ld s1, 0(t0)\n" ++
   "  # NORMALIZATION BOUNDARY: bsr_changes contains committed, value-bearing\n" ++
-  "  # mutations only (BAL final post-fields plus modeled system/withdrawals).\n" ++
+  "  # mutations from the execution maps (and modeled system/withdrawals).\n" ++
   "  # Runtime account/storage access outcomes are mode=3 no-ops: they provide\n" ++
   "  # access evidence but never a state-root value, so do not materialize them\n" ++
   "  # in this C-sized builder input. In particular, reverted storage windows\n" ++

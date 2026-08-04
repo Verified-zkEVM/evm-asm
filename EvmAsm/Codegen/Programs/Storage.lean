@@ -72,6 +72,7 @@ import EvmAsm.Stateless.SpecRef.Gas
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Evm64.Transient.StoreProgram
 import EvmAsm.Evm64.Transient.LoadProgram
 import EvmAsm.Evm64.Storage.LoadProgram
@@ -835,6 +836,24 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi a6, x12, 32\n" ++
         ".Lsstore_map_record:\n" ++
         "  jal ra, storage_write_record\n" ++
+        -- #11329 TOUCHED producer: every set_storage also marks the account in
+        -- account_writes so map-root enumeration sees storage-only touches
+        -- (entry6 digests 51e4b462 / 84e7a559). Frame: +0..24 saved regs,
+        -- +32..51 BE20 scratch (LE env.ADDRESS reversed). Then
+        -- account_write_touch_current (AccountState snapshot + TOUCHED).
+        "  addi sp, sp, -64\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp); sd x12, 24(sp)\n" ++
+        "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
+        "  li t5, 0\n" ++
+        ".Lsstore_touch_rev:\n" ++
+        "  li t0, 20; beq t5, t0, .Lsstore_touch_call\n" ++
+        "  li t0, 19; sub t0, t0, t5; add t0, x20, t0; lbu t1, 0(t0)\n" ++
+        "  addi t0, sp, 32; add t0, t0, t5; sb t1, 0(t0)\n" ++
+        "  addi t5, t5, 1; j .Lsstore_touch_rev\n" ++
+        ".Lsstore_touch_call:\n" ++
+        "  addi a0, sp, 32; jal ra, account_write_touch_current\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
+        "  addi sp, sp, 64\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp)\n" ++
         "  addi sp, sp, 32\n"
     , body    := ADDI .x12 .x12 (BitVec.ofNat 12 64)

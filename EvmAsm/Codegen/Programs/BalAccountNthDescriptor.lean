@@ -121,8 +121,8 @@ def ziskBalAccountNthDescriptorPrologue : String :=
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
-  balAccountChangeValueFunction ++ "\n" ++
+  mapAccountApplyPostFieldsFunction ++ "\n" ++
+  mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountNthDescriptorFunction ++ "\n" ++
   ".Lbaan_pdone:"

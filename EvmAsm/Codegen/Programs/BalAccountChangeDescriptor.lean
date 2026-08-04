@@ -67,7 +67,7 @@ def balAccountChangeDescriptor_prog : Program :=
     .MV .x15 .x19,
     .AUIPC .x16 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 120)),
     .ADDI .x16 .x16 (laLo GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 120)),
-    .JAL .x1 (jalOff GuestAddrs.bal_account_change_value (GuestAddrs.bal_account_change_descriptor + 128)),
+    .JAL .x1 (jalOff GuestAddrs.map_account_change_value (GuestAddrs.bal_account_change_descriptor + 128)),
     .BNE .x10 .x0 (112 : BitVec 13),
     .MV .x10 .x19,
     .AUIPC .x5 (laHi GuestAddrs.baacd_value_len (GuestAddrs.bal_account_change_descriptor + 140)),
@@ -119,7 +119,7 @@ def balAccountChangeDescriptor_relocs : RelocTable :=
   [ (18, .la .x5 "baacd_fail_code"),
     (21, .la .x5 "baap_force_storage_clear"),
     (30, .la .x16 "baacd_value_len"),
-    (32, .jal .x1 "bal_account_change_value"),
+    (32, .jal .x1 "map_account_change_value"),
     (35, .la .x5 "baacd_value_len"),
     (38, .la .x12 "baacd_is_empty"),
     (40, .jal .x1 "account_is_eip161_empty"),
@@ -212,13 +212,13 @@ def ziskBalAccountChangeDescriptorPrologue : String :=
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
-  balAccountChangeValueFunction ++ "\n" ++
+  mapAccountApplyPostFieldsFunction ++ "\n" ++
+  mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   ".Lbaacd_pdone:"
 
 def ziskBalAccountChangeDescriptorDataSection : String :=
-  ziskBalAccountChangeValueDataSection ++ "\n" ++
+  ziskMapAccountChangeValueDataSection ++ "\n" ++
   ".balign 8\n" ++
   "baacd_value_len:\n  .zero 8\n" ++
   "baacd_is_empty:\n  .zero 8\n" ++
