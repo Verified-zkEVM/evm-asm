@@ -52,6 +52,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 
+#print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
+
 #print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 
 #print axioms EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within

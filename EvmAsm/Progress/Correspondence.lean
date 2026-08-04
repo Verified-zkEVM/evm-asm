@@ -203,9 +203,18 @@ accepts inputs the spec excludes, whereas a `List Byte` of length ≥ 2^64 - 9 h
 representation on the target at all, so `hbound` excludes no input the routine could ever \
 be handed. Every byte string the guest can physically be called on is inside the claim" },
   { family := "rlp", routine := "rlp_list_encoded_size",
-    spec := some "rlpListEncodedSize_spec",
-    verdict := .agrees, basis := .machineOnly,
-    reference := "len(encode_sequence(...))" },
+    spec := some "rlpListEncodedSize_encode_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "len(encode_sequence(...))",
+    note := "was machineOnly, and weaker than its sibling: the size formula was \
+written INLINE in `rlpListEncodedSize_spec`'s statement and never named, so there \
+was nothing to compare against the reference. Bridged in #11341 by \
+`rlesSize_eq_encode_list_length` (`Codegen/Programs/RlpListEncodedSizeBridge.lean`), \
+which names the formula as `rlesSize` and ties it to `(encode (.list items)).length` \
+via `encode_list_short`/`encode_list_long` and the shared sublemma \
+`u64ByteLen_eq_toBytesBE_length`. Stated against the item list whose encoded payload \
+is the register argument — the guest sees only that length, and so does \
+`len(encode_sequence(...))`" },
   { family := "rlp", routine := "rlp_encode_uint_be",
     spec := some "reub_spec_within",
     verdict := .domainRestricted, basis := .bridged,
@@ -292,8 +301,8 @@ theorem verdict_counts :
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 8 ∧
-    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 9 ∧
+    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants

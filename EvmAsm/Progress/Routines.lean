@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
@@ -212,6 +213,15 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
+  -- #11341: the same triple restated over the SHARED MODEL
+  -- (`(EL.RLP.encode (.list items)).length`) via `rlesSize_eq_encode_list_length`.
+  -- The machine row above states its formula INLINE and unnamed; `rlesSize` in the
+  -- bridge module names it (definitionally the same), which is what made the
+  -- comparison statable at all.
+  routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_encode_spec")
+      (notes := "model-facing restatement: `a0 = (EL.RLP.encode (.list items)).length` "
+        ++ "for any item list whose encoded payload is `a0` bytes long. One rewrite "
+        ++ "over `rlpListEncodedSize_spec`; `hbound` is 64-bit non-overflow, an ABI hyp"),
   routine "rlp_list_nth_item" .proven (some "rlpListNthItem_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.rlp_list_nth_item`; the "
         ++ "consumer of the account decode / apply paths"),
@@ -246,9 +256,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 22 := by decide
+theorem routineCount_eq : routineCount = 23 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 14 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 15 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -358,6 +368,9 @@ private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
+-- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
+private noncomputable abbrev _rlp_list_encoded_size_encode_routine_witness :=
+  @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
 private noncomputable abbrev _rlp_list_nth_item_routine_witness :=
   @EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within
 private noncomputable abbrev _rlp_list_count_items_routine_witness :=
