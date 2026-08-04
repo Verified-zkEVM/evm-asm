@@ -25,6 +25,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.WalkItemDeterminism
+import EvmAsm.Rv64.RLP.ItemDecodeForward
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 
 namespace EvmAsm.Codegen.RlpListNthItemSAsm
@@ -93,5 +94,85 @@ theorem success_deterministic {bytes : List (BitVec 8)} {base : Word}
   obtain ⟨rfl, rfl⟩ := strictListPayload_deterministic hlist₁ hlist₂
   obtain ⟨rfl, rfl⟩ := strictNthItem_deterministic hnth₁ hnth₂
   exact ⟨hoff₁.trans hoff₂.symm, rfl⟩
+
+
+/-! ## Success excludes Failure
+
+`rlp_list_nth_item` reports exactly one of `Success` and `Failure`, but nothing
+in the tree said so; every existing use *constructs* a `Failure`. The model →
+guest direction needs the exclusion, in order to rule out `Result.listFailure`
+once the model has already established `Success`. -/
+
+/-- Any chain, of any arity, starts with a decode at its own cursor. -/
+theorem strictNthItem_head {bytes : List (BitVec 8)} {base endPtr : Word}
+    {index off : Nat} {next len : Word}
+    (h : StrictNthItem bytes base endPtr index off next len) :
+    ∃ n l, rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr n l := by
+  cases h
+  · exact ⟨_, _, by assumption⟩
+  · exact ⟨_, _, by assumption⟩
+
+/-- A walked prefix of `count ≤ index` steps lands on the `StrictNthItem`
+    chain: what remains at that cursor is a chain of arity `index - count`.
+
+    Induction is on the `StrictPrefix` derivation, identifying the prefix's
+    decode with the chain's at each cursor via `rlpItemDecode_deterministic`. -/
+theorem strictNthItem_extends_prefix {bytes : List (BitVec 8)} {base endPtr : Word}
+    {cursorOff : Nat} {index : Nat} {next len : Word}
+    (hnth : StrictNthItem bytes base endPtr index cursorOff next len) :
+    ∀ {count off : Nat}, StrictPrefix bytes base endPtr cursorOff count off →
+      count ≤ index →
+      ∃ next' len', StrictNthItem bytes base endPtr (index - count) off next' len' := by
+  intro count off hprefix
+  induction hprefix with
+  | zero => intro _; exact ⟨next, len, by simpa using hnth⟩
+  | succ count off0 n0 l0 hprefix hitem ih =>
+      intro hle
+      obtain ⟨n', l', hrest⟩ := ih (by omega)
+      obtain ⟨k, hk⟩ : ∃ k, index - count = k + 1 := ⟨index - count - 1, by omega⟩
+      rw [hk] at hrest
+      cases hrest
+      rename_i nn ll hitem' hrec
+      obtain ⟨rfl, -⟩ := rlpItemDecode_deterministic hitem hitem'
+      exact ⟨n', l', by rw [show index - (count + 1) = k from by omega]; exact hrec⟩
+
+/-- A walked prefix never runs past the list's declared end. -/
+theorem strictPrefix_le {bytes : List (BitVec 8)} {base : Word} {endOff cursorOff : Nat}
+    (hover : base.toNat + endOff + 9 < 2 ^ 64) (hstart : cursorOff ≤ endOff) :
+    ∀ {count off : Nat},
+      StrictPrefix bytes base (base + BitVec.ofNat 64 endOff) cursorOff count off →
+      off ≤ endOff := by
+  intro count off h
+  induction h with
+  | zero => exact hstart
+  | succ count off0 n0 l0 hprefix hitem ih =>
+      exact (BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hitem ih hover).2.2
+
+/-- `Success` and `Failure` are mutually exclusive. -/
+theorem success_not_failure {bytes : List (BitVec 8)} {base : Word}
+    {listLen index : Nat} {offset len : Word}
+    (hover : base.toNat + listLen + 9 < 2 ^ 64)
+    (hsucc : Success bytes base listLen index offset len)
+    (hfail : Failure bytes base listLen index) : False := by
+  obtain ⟨cursorOff, ep, nxt, hlist, hnth, -⟩ := hsucc
+  cases hfail with
+  | init hno => exact hno ⟨cursorOff, ep, hlist⟩
+  | walk cursorOff' count off ep' hlist' hcount hprefix hfail =>
+      obtain ⟨rfl, rfl⟩ := strictListPayload_deterministic hlist' hlist
+      obtain ⟨n', l', hrest⟩ := strictNthItem_extends_prefix hnth hprefix hcount
+      obtain ⟨n, l, hdec⟩ := strictNthItem_head hrest
+      have hend : ep' = base + BitVec.ofNat 64 listLen := hlist'.end_eq
+      rw [hend] at hdec hfail
+      -- a decode exists at `off`, which refutes the "no item decodes" disjunct
+      -- outright and, via the advance bound, the "cursor past end" one too
+      have hstart : cursorOff' ≤ listLen := hlist'.cursor_le
+      rw [hend] at hprefix
+      have hoffle : off ≤ listLen := strictPrefix_le (by omega) hstart hprefix
+      obtain ⟨-, hlt, hle⟩ :=
+        BalAccountNonstorageFinalsSpec.rlpItemDecode_advance hdec hoffle (by omega)
+      rcases hfail with hbound | hnodec
+      · exact hbound ((ult_base_add_ofNat (bound := listLen) hoffle (le_refl _)
+          (by omega)).mpr (by omega))
+      · exact hnodec ⟨n, l, hdec⟩
 
 end EvmAsm.Codegen.RlpListNthItemSAsm
