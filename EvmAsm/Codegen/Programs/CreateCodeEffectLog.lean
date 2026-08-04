@@ -675,9 +675,9 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   "  la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lcsfb_preblock; ld t0, 88(a0); andi t1, t0, 32; beqz t1, .Lcsfb_preblock\n" ++
   "  ld t1, 32(a0); ld t2, 40(a0); or t1, t1, t2; ld t2, 48(a0); or t1, t1, t2; ld t2, 56(a0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 64(a0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_zero:\n" ++
-  "  la t0, code_state_last_delete_balance_status; sd zero, 0(t0); li a0, 0; j .Lcsfb_ret\n" ++
+  "  li a0, 0; j .Lcsfb_ret\n" ++
   ".Lcsfb_nonzero:\n" ++
-  "  la t0, code_state_last_delete_balance_status; li t1, 1; sd t1, 0(t0); li a0, 1; j .Lcsfb_ret\n" ++
+  "  li a0, 1; j .Lcsfb_ret\n" ++
   -- A missing authoritative execution snapshot inherits the authenticated
   -- pre-block balance/nonce.  This is normally an absent same-tx CREATE,
   -- therefore EIP-161-empty, but also handles a pre-funded CREATE target.
@@ -687,7 +687,7 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   ".Lcsfb_pre_found:\n" ++
   "  la t0, code_state_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_unavailable:\n" ++
-  "  la t0, code_state_last_delete_balance_status; li t1, 2; sd t1, 0(t0); li a0, 2\n" ++
+  "  li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
 
@@ -834,11 +834,6 @@ def codeStatePendingContainsFunction : String :=
     `delete` sets use the same 32-byte padded-address key representation. -/
 def codeStateData : String :=
   ".balign 8\n" ++
-  "code_state_pending_count:\n  .zero 8\n" ++
-  "code_state_durable_count:\n  .zero 8\n" ++
-  "code_state_created_count:\n  .zero 8\n" ++
-  "code_state_delete_count:\n  .zero 8\n" ++
-  "code_state_overflow:\n  .zero 8\n" ++
   "code_state_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
   -- CodeState tables were retired after the atomic reader cutover; its small
@@ -850,13 +845,6 @@ def codeStateData : String :=
   "account_state_delete_count:\n  .zero 8\n" ++
   "account_state_overflow:\n  .zero 8\n" ++
   -- BAL final-account scratch for the EIP-161 deferred-delete decision.
-  "code_state_bal_acct_ptr:\n  .zero 8\n" ++
-  "code_state_bal_acct_len:\n  .zero 8\n" ++
-  "code_state_bal_len:\n  .zero 8\n" ++
-  "code_state_bal_nonce_len:\n  .zero 8\n" ++
-  "code_state_last_delete_balance_status:\n  .zero 8\n" ++
-  "code_state_bal_bytes:\n  .zero 32\n" ++
-  "code_state_bal_nonce:\n  .zero 32\n" ++
   "code_state_pre_acct:\n  .zero 48\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
