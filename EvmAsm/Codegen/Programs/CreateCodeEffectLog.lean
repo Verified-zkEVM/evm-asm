@@ -783,6 +783,8 @@ def codeStateAddressSetFlagFunction : String :=
     and `delete` sets use the same 32-byte padded-address key representation. -/
 def codeStateData : String :=
   ".balign 8\n" ++
+  -- Reserved compatibility cell.  The universal transaction loop and
+  -- callable dispatcher deliberately leave it unread and unwritten.
   "runtime_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
   -- CodeState tables were retired after the atomic reader cutover; its small
