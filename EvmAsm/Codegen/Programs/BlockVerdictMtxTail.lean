@@ -219,20 +219,22 @@ def blockVerdictMtxValidationTail : String :=
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
   ".Lbv_b23_done:\n" ++
   "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the gas-result gate)
-  ".Lbv_mtx_storage:\n" ++        -- storage/tuples/A2a run at .Lbv_mtx_done (B2 skipped there via the .Lbv_b1_done jump)
-  -- bmvmx.5.5.1.2.1.2: all-accounts STORAGE exec-vs-BAL for the MULTI-TX path,
-  -- storage-only slice. Reuse the A1 skip-list so every top-level sender/recipient plus
-  -- coinbase is left to the gas/value path, while non-recipient nested-callee storage remains
-  -- checked against the persistent execution storage log. Tuple-sequence wiring stays out of
-  -- this slice so regressions are attributable to storage only.
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  li a2, 0xa0630000\n" ++
-  "  la t0, evm_env; ld a3, 448(t0)\n" ++
-  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
-  "  jal ra, bal_all_accounts_storage_consistent_skip_list\n" ++
-  "  bnez a0, .Lbv_bal_allaccounts_fail\n" ++
-  -- bmvmx.5.5.1.2.1.3: tuple-sequence consistency over every non-skip BAL account
-  -- in the multi-tx path. This mirrors the single-tx call while using the A1 skip-list.
+  ".Lbv_mtx_storage:\n" ++
+  -- #10612 / #11245: retire granular BAL field stand-ins that the survivor hash
+  -- already covers. Spec pin e5a8caf1b amsterdam fork.py:366 + :390 — one
+  -- hash_block_access_list vs header. Guest survivor: bal_serializer_verify
+  -- bound ACCEPT-only → bv_fail 60/61 (ReceiptsTail).
+  --
+  -- RETIRED here (hash subsumes the BAL bytes these inspected):
+  --   bal_all_accounts_storage_consistent_skip_list  (code 37)
+  --   bal_all_accounts_nonstorage_consistent         (code 44)
+  --   bal_all_accounts_nonstorage_covers              (code 45)
+  --   plus the nonstorage_effect_aggregate prep that fed 44/45 only
+  --
+  -- KEPT (coord FA-block / not BAL-hash):
+  --   bal_all_accounts_tuple_sequences_consistent_skip_list (code 42)
+  --   — leave until #10646 FA-direction is closed; #11012 is NOT that blocker
+  --     (#11012 = fee status-1 fixture gap only).
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  li a2, 0xa0630000\n" ++
   "  la t0, evm_env; ld a3, 448(t0)\n" ++
@@ -240,51 +242,4 @@ def blockVerdictMtxValidationTail : String :=
   "  la a5, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a6, 0(t0)\n" ++
   "  jal ra, bal_all_accounts_tuple_sequences_consistent_skip_list\n" ++
   "  bnez a0, .Lbv_bal_tuple_fail\n" ++
-  -- bmvmx.5.5.1 (umbrella-A2a): all-accounts NON-STORAGE exec-vs-BAL for the MULTI-TX path
-  -- (the single-tx comparators @1077-1094 were skipped by the @618 jump -> bmvmx.5.5). Wired
-  -- here, consuming the A1 skip-list. The raw log is bounded by nonstorageEffectLogCap: a nonzero
-  -- value-CALL emits both debit and credit records, hence at most 2*(200M/10400)=38460 raw records
-  -- under the regular-gas limit; the 65536-entry cap leaves margin. The overflow bit is nevertheless
-  -- retained as the conservative multi-tx skip guard.
-  -- bmvmx.5.5.9: the WITHDRAWALS skip is REMOVED. EIP-4895 withdrawal credits land in the BAL but
-  -- not the tx-execution effect log; the prior `svf_wds_count -> skip` bailed the WHOLE nonstorage
-  -- exec-vs-BAL check whenever the block had withdrawals, leaving non-withdrawal accounts (CALL-
-  -- value callees / CREATE / SELFDESTRUCT) unchecked. That is unnecessary: withdrawal-recipient
-  -- balances are independently validated by withdrawals_state_root (pre-state + amount, folded into
-  -- the post-state root vs the header), and the FORWARD comparator still allows accounts
-  -- that declare no non-storage change. So running the check with withdrawals present is
-  -- 0-regress for valid blocks and ENFORCES the exec-vs-BAL consistency of every
-  -- effect-having account in a withdrawals block.
-  -- EIP-7702 authorization code effects are recorded by the single
-  -- execution-time `eip7702_auth_state_prepare` walk.  The AccountWrite map
-  -- then supplies the actual marker bytes to the BAL builder before
-  -- incorporation.  There is intentionally no post-runtime auth-list walk:
-  -- code effects persist through body REVERT and must not be derived from BAL
-  -- finals after execution.
-  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_mtx_ns_skip\n" ++
-  -- Aggregate exec_nonstorage_effect_log per-account into exec_nonstorage_effect_agg, keyed by
-  -- the 20B BE address @rec+0, keeping first-seen pre + last-seen post per account (BAL final ==
-  -- exec post / net-change post!=pre). bmvmx.5.5.7.3: this was an inline O(raw*distinct) scan;
-  -- now delegated to the O(20*N) stable-radix-sort + run-compress helper nonstorage_effect_aggregate
-  -- (KAT-validated, zisk_nonstorage_effect_aggregate), so the effect-log cap can be lifted toward
-  -- the 200M worst-case without a step-budget blowup. Same first-pre/last-post semantics; the
-  -- output order differs (sorted vs first-seen) but bal_all_accounts_nonstorage_consistent scans
-  -- the agg by address (order-independent). The helper resets agg_count and preserves s-regs.
-  "  la a0, exec_nonstorage_effect_log; la t0, exec_nonstorage_effect_count; ld a1, 0(t0)\n" ++
-  "  la a2, exec_nonstorage_effect_agg; la a3, exec_nonstorage_effect_agg_count; li a4, " ++ toString nonstorageEffectLogCap ++ "\n" ++
-  "  jal ra, nonstorage_effect_aggregate\n" ++
-  ".Lbv_agg_done:\n" ++
-  -- forward: every non-skip BAL account's declared balance/nonce change is reproduced by exec.
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
-  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
-  "  jal ra, bal_all_accounts_nonstorage_consistent\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_fail\n" ++
-  -- reverse (covers): every exec net-changed account is present in the BAL
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, exec_nonstorage_effect_agg; la t0, exec_nonstorage_effect_agg_count; ld a3, 0(t0)\n" ++
-  "  la a4, bv_mtx_skip_list; la t0, bv_mtx_skip_count; ld a5, 0(t0)\n" ++
-  "  jal ra, bal_all_accounts_nonstorage_covers\n" ++
-  "  bnez a0, .Lbv_bal_nonstorage_covers_fail\n" ++
-  ".Lbv_mtx_ns_skip:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
