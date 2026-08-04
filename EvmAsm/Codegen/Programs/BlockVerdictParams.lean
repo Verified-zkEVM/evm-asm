@@ -109,10 +109,9 @@ def bsrMptConstructedCacheWordBytes : Nat := bsrMptConstructedCacheSlots * 8
 #guard bsrMptFrameUsedBytes <= bsrMptBuilderFrameBytes
 def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
 
-/-- Per-account storage-slot staging capacity for the BAL key/preload helpers
-    (`bal_recipient_storage_keys`, `bal_recipient_storage_reads_keys`,
-    `stage_predeploy_storage_preload` and their consumer buffers `sps_keys` /
-    `bvcd_keys` / `csce_keys` / `c1_preload`). One account's changes+reads can
+/-- Per-account storage-slot staging capacity for the BAL key helpers
+    (`bal_recipient_storage_keys`, `bal_recipient_storage_reads_keys` and their
+    consumer buffers `sps_keys` / `bvcd_keys` / `csce_keys`). One account's changes+reads can
     absorb the entire gas-derived BAL budget (storage reads are the cheapest
     BAL item), so the only bound that avoids conservative rejects of legitimate
     200M blocks is `bsrMaxBalItems` itself. Counts above this make the helpers

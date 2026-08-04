@@ -511,8 +511,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
   "bvgr_runtime_count:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  -- bmvmx.1.7.2: sized to fit a max EIP-170 contract (round8(24576)) + 128-slot storage
-  -- preload (128*64=8192) + the 584-byte env/gas trailer + headroom for calldata and the
+  -- bmvmx.1.7.2: sized to fit a max EIP-170 contract (round8(24576)) + the
+  -- 584-byte env/gas trailer + headroom for calldata and the
   -- future M29 blockhash table (.3b). dispatch_tx_runtime_code's .Ldtrc_stage guard bails
   -- conservatively for any payload that would still exceed this, so the staging write can
   -- never overflow into the adjacent gas-result / bvcd_* cells.
@@ -780,14 +780,15 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_wcode_len:\n  .zero 8\n" ++
   "c1_er_input:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  -- Fix7: system-call payload = env_base+504; env_base grows with the predeploy's storage preload (up to 128 slots*64) + M29 block hashes. 4096 overflowed for above-max queues (100 slots -> ~7.5KB) -> truncated storage section -> SLOAD miss -> empty derived body.
+  -- Fix7: system-call payload = env_base+504; env_base grows with M29 block hashes.
+  -- The request predeploy's storage is resolved by the authenticated state path.
   -- fhsxz.2.4.2.66.1: 32768 overflowed for the system_contract_errors EEST predeploys
   -- (modified 7002/7251 contracts of 72946 B; predeploy code is NOT EIP-170-bounded):
   -- stage_runtime_payload_code's zero+code copy ran ~40 KiB past the buffer, smashing
   -- every .data global above (c1_saved_*, dbsr_*, rlp args) -> ERROR(exit)/false-reject.
   -- .66.1.2: sized by the shared c1StagingBytes constant (BlockVerdictParams.lean) =
   -- bsrMaxWitnessBytes + bsrAccountSlotCap*64 + 16384 — fits round8(code <= witness cap)
-  -- + the gas-derived preload + M29 + 584. The size guard in stage_system_call_payload
+  -- + the conservative shared headroom + M29 + 584. The size guard in stage_system_call_payload
   -- (SystemCallStaging.lean) uses the same constant and bails on anything larger
   -- instead of corrupting .data.
   "c1_staging:\n  .zero " ++ toString c1StagingBytes ++ "\n" ++
@@ -809,7 +810,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "c1_bal_acct_ptr:\n  .zero 8\n" ++
   "c1_bal_acct_len:\n  .zero 8\n" ++
   ".balign 8\n" ++
-  "c1_preload:\n  .zero " ++ toString (bsrAccountSlotCap * 64) ++ "\n" ++   -- .66.1.2: bsrAccountSlotCap x 64-byte (key,value) pairs — gas-derived (a 200M block's user txs can legitimately put up to the whole BAL budget of changes+reads on a predeploy; the former 512 false-rejected those blocks)
   "c1_bal_start:\n  .zero 8\n" ++
   "c1_bal_len:\n  .zero 8\n" ++
   "c1_bal_count:\n  .zero 8\n" ++
