@@ -246,8 +246,7 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 59; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_tuple_fail:\n" ++              -- #11245 RETIRED sink (was code 42); no live jal
-  "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11245: removed dead sink .Lbv_bal_tuple_fail (code 42); rejection now via hash 60/61.
   -- #11118: removed dead sinks code_covers(43), code_consistent(46).
   ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
   "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
