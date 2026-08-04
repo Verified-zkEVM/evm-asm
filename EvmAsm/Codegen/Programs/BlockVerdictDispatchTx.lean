@@ -239,10 +239,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- `.Ldtrc_have_code` (*svf_codes_ptr); the resolver re-bases cahsr_code_offset
   -- against it (top-level x20 is evm_env scratch, NOT a runtime env).
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  -- The BAL resolver only owns EIP-7702 delegation designators.  For ordinary
+  -- The AccountState adapter only owns EIP-7702 delegation designators.  For ordinary
   -- code use the shared mutable AccountState first: a tx1 CREATE is visible to a
   -- tx2 top-level call even though it is absent from the block-pre witness.
   "  addi sp, sp, -16; sd s2, 0(sp)\n" ++

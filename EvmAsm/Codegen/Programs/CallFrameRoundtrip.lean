@@ -99,7 +99,7 @@ def callFrameRoundtripPrologue : String :=
   -- the shared registry grew these dependencies.
   "account_at_header_state_root: ret\n" ++
   "account_extract_nonce: ret\n" ++
-  "bal_same_block_delegation_code_resolve: ret\n" ++
+  "account_state_delegation_code_resolve: ret\n" ++
   "code_at_header_state_root: ret\n" ++
   "evm_storage_access_seed_key: ret\n" ++
   "account_state_latest_balance: ret\n" ++
