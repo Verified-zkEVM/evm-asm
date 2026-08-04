@@ -907,6 +907,20 @@ def callDescendFallThrough
   -- early. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
+     "  # GH #11410: spec reads the stack target's code BEFORE the balance\n" ++
+     "  # precheck (generic_call, system.py:461/584). Mirror: record the callee\n" ++
+     "  # code read through code_at_header_state_root (code_read_fetch) before\n" ++
+     "  # charging and failing, so precheck-failed CALL/CALLCODE still land in\n" ++
+     "  # the block code-read set the dynamic preimage gate iterates.\n" ++
+     "  la t0, cd_callee_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+     "  addi t0, t0, 31; addi t1, x12, 32+19; li t2, 20\n" ++
+     ".Lcd_ib_addr_fill_" ++ tag ++ ":\n" ++
+     "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, -1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcd_ib_addr_fill_" ++ tag ++ "\n" ++
+     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+     "  la a0, cd_callee_be; addi a0, a0, 12\n" ++
+     "  ld a1, 576(x20); ld a2, 584(x20); ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+     "  jal ra, code_at_header_state_root\n" ++
+     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      "  li t0, 10300\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++

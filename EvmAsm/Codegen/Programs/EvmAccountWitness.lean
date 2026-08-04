@@ -154,6 +154,11 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, account_state_tombstone_balance_zero\n" ++
     "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
+    -- #11328: Present-None tombstone in account_writes (not missing key).
+    -- Multi-tx finalize → 0. Same-tx EMPTY_CODE_HASH still uses destroyed_table.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_writes_is_absent\n" ++
+    "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
     -- Execution code visibility is resolved from the layered mutable
     -- AccountState, never from the append-only BAL comparison log.
     "  la a0, eahsr_address_scratch\n" ++

@@ -24,6 +24,29 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
   "  j .Lbv_b2_entry\n" ++
   ".Lbv_mtx_b2_return:\n" ++
+  "  # GH #11410: dynamic witness-code-preimage gate. Every code read execution\n" ++
+  "  # actually performed (the guest's tracked get_code, code_read_fetch) must\n"  ++
+  "  # resolve to a keccak-verified preimage in witness.codes; spec raises on a\n"  ++
+  "  # missing preimage at read time (state_tracker.py:269-270, witness_state.py:204-212).\n" ++
+  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  la t0, code_reads_overflow; ld t0, 0(t0); bnez t0, .Lbv_cpg_fail\n" ++
+  "  la t0, code_reads_count; ld s0, 0(t0)\n" ++
+  "  li s1, 0xa1d20000\n" ++
+  ".Lbv_cpg_loop:\n" ++
+  "  beqz s0, .Lbv_cpg_done\n" ++
+  "  la a0, svf_codes_ptr; ld a0, 0(a0)\n" ++
+  "  la a1, svf_codes_len; ld a1, 0(a1)\n" ++
+  "  addi a2, s1, 32; addi a3, sp, 32; addi a4, sp, 40\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
+  "  bnez a0, .Lbv_cpg_fail\n" ++
+  "  addi s1, s1, 64; addi s0, s0, -1; j .Lbv_cpg_loop\n" ++
+  ".Lbv_cpg_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 64\n" ++
+  "  j .Lbv_cpg_past\n" ++
+  ".Lbv_cpg_fail:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 64\n" ++
+  "  j .Lbv_code_preimage_fail\n" ++
+  ".Lbv_cpg_past:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++

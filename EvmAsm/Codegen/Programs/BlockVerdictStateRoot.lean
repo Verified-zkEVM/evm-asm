@@ -353,6 +353,16 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_sys_has_2935; sd zero, 0(t0)\n" ++
   "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
   ".Lbsr_2935_gated:\n" ++
+  "  # GH #11410: spec reads the deployed system contract's code every block\n" ++
+  "  # (fork.py:807 get_code); record it through the tracked accessor so the\n" ++
+  "  # dynamic preimage gate covers the modeled 2935 path.\n" ++
+  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_2935_no_crec\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  la a0, svf_codes_ptr; ld a0, 0(a0); la a1, svf_codes_len; ld a1, 0(a1)\n" ++
+  "  la a2, bsr_sys_acct; addi a2, a2, 72; mv a3, sp; addi a4, sp, 8\n" ++
+  "  la a5, bsr_addr_2935; jal ra, code_read_fetch\n" ++
+  "  addi sp, sp, 16\n" ++
+  ".Lbsr_2935_no_crec:\n" ++
   "  la a0, bsr_addr_4788; li a1, 20\n" ++
   "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
   "  la a5, bsr_sys_acct\n" ++
@@ -372,6 +382,15 @@ def blockStateRootFunction : String :=
   "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
   "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
   ".Lbsr_4788_gated:\n" ++
+  "  # GH #11410: same tracked-read recording for the EIP-4788 system contract\n" ++
+  "  # (fork.py:807 get_code), covering the modeled 4788 path.\n" ++
+  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_4788_no_crec\n" ++
+  "  addi sp, sp, -16\n" ++
+  "  la a0, svf_codes_ptr; ld a0, 0(a0); la a1, svf_codes_len; ld a1, 0(a1)\n" ++
+  "  la a2, bsr_sys_acct; addi a2, a2, 72; mv a3, sp; addi a4, sp, 8\n" ++
+  "  la a5, bsr_addr_4788; jal ra, code_read_fetch\n" ++
+  "  addi sp, sp, 16\n" ++
+  ".Lbsr_4788_no_crec:\n" ++
   -- The two startup calls each have their own transaction read set in the
   -- spec.  They precede user transactions, so merge-and-clear their reads here
   -- before the BAL builder consumes the block-level container.
