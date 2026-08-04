@@ -9,9 +9,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
-import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
-import EvmAsm.Codegen.Programs.BalSlotTupleSequence
-import EvmAsm.Codegen.Programs.ExecLogSlotTuples
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.EIP7708Logs
 
@@ -651,21 +648,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- bmvmx.5: single-tx contract-recipient sender scratch (same role as the mtx pair, i=0 path).
   "bv_stx_sender_addr:\n  .zero 32\n" ++
   "bv_stx_sender_acct:\n  .zero 128\n" ++
-  -- bmvmx.1.6.6: scratch for the all-accounts per-slot tuple-sequence check (#8606). batsc_* is
-  -- the wrapper's own scratch; the sub-helpers' scratch (atsc_*/bts_*/els_*) come from their Data
-  -- defs. rfu_* (rlp_field_to_u64) is already provided above; slot_tuple_sequences_match is
-  -- self-contained.
-  ".balign 8\n" ++
-  "batsc_acct_count:\n  .zero 8\n" ++
-  "batsc_acct_off:\n  .zero 8\n" ++
-  "batsc_acct_len:\n  .zero 8\n" ++
-  "batsc_addr_off:\n  .zero 8\n" ++
-  "batsc_addr_len:\n  .zero 8\n" ++
-  ".balign 32\n" ++
-  "batsc_key:\n  .zero 32\n" ++ "\n" ++
-  accountTupleSequencesConsistentData ++ "\n" ++
-  balSlotTupleSequenceData ++ "\n" ++
-  execLogSlotTuplesData ++ "\n" ++
+  -- #11245: batsc_*/atsc_*/bts_*/els_* guest data removed with tuple check 42.
   -- Keep the large authorization replay table last so growing it cannot move
   -- any established data symbol or arena anchor.
   ".balign 8\n" ++

@@ -3674,6 +3674,12 @@ def emitRuntimeDispatcherDataSectionCore
   -- reaching the post-preparation coverage point, not auth application.
   "runtime_tx_post_preparation_reached:\n" ++
   "  .zero 8\n" ++
+  -- The transaction-boundary helper may apply EIP-7702 before recipient/code
+  -- resolution.  The callable dispatcher checks this one-shot marker so the
+  -- same authorization list is not applied a second time at its normal
+  -- preparation seam.
+  "runtime_tx_auth_prepared:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_post_top_frame_fn:\n" ++
   "  .zero 8\n" ++
   -- Optional transaction-boundary exceptional-halt hook. Kept in the
