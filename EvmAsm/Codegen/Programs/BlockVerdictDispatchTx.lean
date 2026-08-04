@@ -670,8 +670,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_auth_exec_ready:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
-  "  la t4, bv_bal_start; ld t5, 0(t4); la t4, runtime_current_bal_ptr; sd t5, 0(t4)\n" ++
-  "  la t4, bv_bal_len; ld t5, 0(t4); la t4, runtime_current_bal_len; sd t5, 0(t4)\n" ++
+  -- #11396: no runtime_current_bal_ptr handoff — same-block delegation reads
+  -- AccountState via code_state_lookup_current, not the supplied BAL.
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
@@ -728,8 +728,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- create_frame_descend and is consumed here into the ordinary nonzero
   -- dispatch return that the verdict's final accept gate rejects.
   "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
-  "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
-  "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  -- #11396: runtime_current_bal_* no longer set; clear omitted
   "  la t4, runtime_tx_post_top_frame_fn; sd zero, 0(t4)\n" ++
   "  la t4, dtrc_deleg_materialize_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle

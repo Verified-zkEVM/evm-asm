@@ -286,7 +286,6 @@ rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListTruncateToNFieldsFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
 runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean
 runningBloomZeroFunction	EvmAsm/Codegen/Programs/Bloom.lean
-runtimeSameBlockDelegationCodeFunction	EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean
 secp256k1FieldAddFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1FieldBeToLeFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1FieldCmpPFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
