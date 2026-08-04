@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "fixture_label": "00327_test_bal_cross_tx_balance_dependency_fork_Amsterdam-blockchain_test-funding_method_selfdestruct_",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists/bal_cross_tx_balance_dependency.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "fd8864504cfce4053946828dee3ce877fdc5a83ad1c847875c3830abaaddc190",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "13ea88b72004996fbcf65fdc13ecd116d8238736aafe02510c593c6266700e64",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "a07a12b85d16542ca926629224946e717f632cbc",
+      "a7378c36a64dcfaff2e9def4eaf5b52d36a0b525",
+      "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 61006514862669420177140136379880812693531883456454208455605057178604230297755
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      },
+      {
+        "address": "a7378c36a64dcfaff2e9def4eaf5b52d36a0b525",
+        "bai": 2,
+        "slot": 0,
+        "value": 1
+      }
+    ],
+    "balance": [
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 69009
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 2,
+        "post": 446961
+      },
+      {
+        "address": "a07a12b85d16542ca926629224946e717f632cbc",
+        "bai": 1,
+        "post": 0
+      },
+      {
+        "address": "a7378c36a64dcfaff2e9def4eaf5b52d36a0b525",
+        "bai": 1,
+        "post": 1
+      },
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "post": 999999999999999999998740160
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999999769970
+      }
+    ],
+    "nonce": [
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "nonce": 1
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": []
+  }
+}

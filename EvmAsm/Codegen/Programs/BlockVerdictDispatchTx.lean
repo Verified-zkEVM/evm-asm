@@ -49,7 +49,7 @@ def delegationAccessChargeAsm (addressLabel : String) : String :=
 /-! ## dispatch_tx_runtime_code
 
     Measure one contract-recipient transaction's runtime gas by staging its
-    bytecode + recipient storage preload and running the callable runtime
+    bytecode + the documented empty storage-preload arguments and running the callable runtime
     dispatcher. Reaches the dispatcher only when execution is exact (the recipient
     code is self-contained — own storage only, no un-staged state); any miss or
     unsupported shape returns a non-zero status so the caller stays conservative
@@ -414,8 +414,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  addi t1, t1, 584; li t2, " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "; bgtu t1, t2, .Ldtrc_payload_cap_unsupported\n" ++       -- payload > buffer (4jczt-lifted) -> conservative bail
   "  mv a0, s2; la a1, bv_runtime_payload; la t2, bv_exec_p; ld a2, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
-  -- GH #11176: no recipient storage preload. a5/a6 = the routine's documented
-  -- empty-preload default, which its count-driven copy loop already handles.
+  -- Production no-preload contract (GH #11176): all production callers use
+  -- the authenticated demand-driven storage path and pass literal zeroes.
+  -- Keep this callsite pinned by the #guard below. If a future caller feeds
+  -- rows again, BAL comparators do not consult exec_log_seed_flag and generic
+  -- rows have no exec_log_txindex stamp, so tuple validation sees txindex 0.
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
@@ -810,5 +813,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li t0, 0xa0010000; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 6; sd t1, 32(t0)\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
   "  j .exit_no_epilogue"
+
+/-! The production dispatcher callsite must remain the empty-preload form.
+    This pins the literal ABI convention in the emitted function string; the
+    generic input-driven producer is retained only for standalone/probe input.
+-/
+#guard (dispatchTxRuntimeCodeFunction.splitOn "  li a5, 0; li a6, 0\n").length = 2
 
 end EvmAsm.Codegen

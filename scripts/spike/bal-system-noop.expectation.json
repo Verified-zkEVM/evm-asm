@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "fixture_label": "00511_test_bal_system_contract_noop_filtering_fork_Amsterdam-blockchain_test__b0",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists_cross_index/bal_system_contract_noop_filtering.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "0ccc4204f80d42110c37b77cf3240e5f6b5a0838e459f295de0a6ec8a20ec5ed",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "2aa5c0611be032fa7b9f5f512145d1eb1d58a49b316f3faedb8ce9a0640774eb",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "c0f6dc9e5836f54caadbf59cc69346c508e1992b",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 52299183798028654046165148584144631363093432215379852176862615166358228418957
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      }
+    ],
+    "balance": [
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 613800
+      },
+      {
+        "address": "c0f6dc9e5836f54caadbf59cc69346c508e1992b",
+        "bai": 1,
+        "post": 100
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999997953900
+      }
+    ],
+    "nonce": [
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": []
+  }
+}

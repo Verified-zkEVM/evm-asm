@@ -2554,6 +2554,27 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- guest records that distinction explicitly for the later reconciliation.
   "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n"
 
+/-! ### Generic input-driven storage preload: dormant in production
+
+    The input-driven `.preload_expand_loop` below is retained for standalone
+    runtime-input compatibility and for `zisk_sstore_clear_gas_probe`. Every
+    production caller of `stage_runtime_payload_code` passes `a5 = 0` and
+    `a6 = 0`: the user-transaction dispatcher path, creation staging, and
+    system-call staging all use the demand-driven authenticated storage path.
+    The production call sites carry build-time `#guard` pins in their program
+    modules.
+
+    This is a dormant mechanism, not a live production hazard. If a future
+    caller feeds nonzero rows again, two independent conventions must be
+    addressed: BAL forward/reverse comparators consume the live row arena
+    without consulting `exec_log_seed_flag`, while tuple validation observes
+    generic rows as `exec_log_txindex = 0` because this producer does not stamp
+    that field. The flag itself must remain: authenticated `h_SLOAD` miss seeds
+    use it, and system-storage capture skips those seed rows by reading it.
+    The SSTORE-clear probe is the sole remaining nonzero consumer and needs
+    the preload to exercise the clean nonzero-to-zero gas class; re-feeding it
+    through production would require a new seed seam.
+-/
 def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
                                 -- (e.g. zkvm_keccak256's `addi sp, sp, -32`)

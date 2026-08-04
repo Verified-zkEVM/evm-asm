@@ -54,14 +54,13 @@
 
   - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
     env.ADDRESS (multi-contract isolated).
-  - Cold `SLOAD` reads of non-preloaded slots return 0. ⛔ The reason recorded here
-    used to be *"the BAL-driven preload stages every slot a block reads, so this is
-    not observed (GH #10874 measured zero misses on the corpus); a demand-driven read
-    is blocked on GH #11105"*. **All three clauses are false.** Measured on the
-    UNMODIFIED guest: `h_SSTORE`'s cold-miss resolve runs **16 and 17 times** on two
-    rows, so the preload does NOT stage every slot and misses are NOT zero; and
-    GH #11105 is closed with no code change, so nothing is blocked on it.
-    What a demand-driven `SLOAD` read still needs is a **present-slot** case — every
+  - Cold `SLOAD` misses are resolved through the authenticated state path;
+    genuinely absent slots produce zero. The generic input-driven preload is
+    retained for standalone/probe compatibility, but every production caller
+    passes zero preload arguments, so it does not provide production coverage
+    for storage reads. ⛔ The earlier claim that a BAL preload stages every
+    slot is refuted: measured cold-miss resolution runs in production. What a
+    demand-driven `SLOAD` read still needs is a **present-slot** case — every
     measured cold miss resolved a genuinely-absent slot, so the found path is
     unexercised. See `storagePrestateResolveAsm` below for the full funnel.
   - 4 MiB per log = ~32K entries each — well past any test workload.

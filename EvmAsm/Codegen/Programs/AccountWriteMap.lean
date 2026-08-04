@@ -65,20 +65,25 @@
   distinct-account capacity proof covers the block level;
   raw `record_nonstorage_effect`'s 38460-row admission limit is not that proof.
 
-  DOES NOT: emit BAL changes. The emission needs the spec's *pre-tx* baseline —
+  The builder walk is live. `account_writes_emit_builder_tx` realizes BAL
+  changes before incorporation, using the spec's *pre-tx* baseline —
   `_get_pre_tx_account` reads the BLOCK-cumulative value and falls back to
-  `pre_state`, NOT the pre-block value — and it needs the three-way field
-  comparison whose inequality test is what makes net-zero filtering automatic.
-  That serializer/builder walk is deliberately separate: this map retains
-  execution facts but does not yet emit BAL rows.
+  `pre_state`, NOT the pre-block value — and the three-way field comparison
+  whose inequality test makes net-zero filtering automatic. This map therefore
+  retains execution facts *and* supplies the transaction-boundary BAL rows;
+  it is not a fed-but-unread side arena.
 
-  Known coverage boundary (evm-asm-tdbn0; GH #10717): this initial producer
-  wiring covers the execution nonstorage/code effects, the inclusion-time
-  sender nonce, and the post-body coinbase fee. It does not yet feed the sender
-  gas debit, which is checked by the separate B2.3 running-balance path. The
-  container is therefore FED but still UNREAD: it misses the majority of real
-  BAL account entries, and a builder reader must not consume it until that
-  balance transition is represented too.
+  Producer coverage is path-specific, not a single global omission. The
+  current wiring covers execution nonstorage/code effects, the inclusion-time
+  sender nonce, and the post-body coinbase fee. The dispatcher sender path also
+  stages the process-transaction gas debit from execution-specs
+  `fork.py:1105-1108` and publishes it through
+  `dispatcher_seed_pending_upfront_sender_balance` before the builder walk.
+  A 01306 trace on that path records sender `f6c3...` with pre-balance 10^27
+  and post-balance `999999999999999998800000000`, exactly the specified
+  `gas_price * gas_limit` debit. Uniform publication across every producer path
+  remains a separate audit question; it must not be described as a globally
+  missing transition or as an unread map.
 
   ## The `present` field
 

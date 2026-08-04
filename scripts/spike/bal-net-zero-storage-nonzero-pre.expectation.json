@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "fixture_label": "00357_test_bal_intra_tx_sstores_same_slot_net_zero_fork_Amsterdam-blockchain_test-nonzero_pre_returns_",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists/bal_intra_tx_sstores_same_slot_net_zero.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "35df8a9715eba2956d103675881400b73a41112ac70ed698802774050c30fc69",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "540bbabcf1c2c114aaf5594ff87d8bee300ab43da3dfa7ce0a9e97a12cc8133c",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "6b803753909d67ec3c6f1ad76bbfeb828842334f",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 79646665363809413284103192317042525165460914949877799941522599415161642050340
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      }
+    ],
+    "balance": [
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 67725
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999999774250
+      }
+    ],
+    "nonce": [
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": []
+  }
+}

@@ -7,13 +7,17 @@
   (the `preload_expand_loop` format is used by the top-level guest's zkVM input via
   scripts/eest-stateless-to-input.py, so it must not change).
 
-  The verdict's contract-dispatch path preloads only the recipient's own storage via
-  the shared expand loop + #8561 re-tag (addrHash = env.ADDRESS). To make NESTED
+  Production block-verdict callers pass zero for this shared preload input;
+  the nonzero format remains for standalone runtime-input compatibility and
+  the SSTORE-clear probe.
+
+  Production contract dispatch now leaves the shared input preload empty and resolves
+  the recipient's slots through authenticated demand-driven reads. To make NESTED
   CALLEES read their witness storage (instead of cold 0) the verdict appends each
   callee's slots to the exec log keyed on that callee's address. This helper is that
   append primitive: it writes one 128-byte entry and bumps the entry count. A seeded
   slot has original == current == value (a pre-tx value, no net change — matching the
-  recipient preload-expand, which sets both to the preloaded value).
+  retained standalone/probe preload format, which sets both to the preloaded value).
 
   Exec-log entry layout (Storage.lean): 128 bytes = addrHash@0, slotKey@32,
   original@64, current@96.

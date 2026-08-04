@@ -16,6 +16,8 @@
 //   SPIKE_WATCH_STOP=1       stop the run after the first watch hit (default: log+continue)
 //   SPIKE_BREAK_PC=<hex>     stop after executing the insn at this PC (logs once)
 //   SPIKE_RUN_DEBUG=1        existing: dump first 60 steps
+//   SPIKE_DUMP_RANGES=<addr:length,...> + SPIKE_DUMP_FILE=<file>
+//                            final-memory ranges for tooling-only inspection
 #include <sys/syscall.h>
 #include "sim.h"
 #include "cfg.h"
@@ -47,6 +49,11 @@ static const reg_t HANDLER_ADDR  = 0x60000000ULL;
 static const reg_t HALT_FLAG     = 0x60008000ULL;  // handler writes nonzero here on halt
 static const uint64_t STEP_CAP   = 20000000000ULL; // safety cap on total instructions
 static const size_t STEP_BATCH   = 2000000;
+
+struct DumpRange {
+  reg_t addr;
+  size_t len;
+};
 
 
 static size_t output_len() {
@@ -86,6 +93,95 @@ static unsigned long long parse_u64(const char* raw, const char* what) {
     exit(2);
   }
   return v;
+}
+
+static std::vector<DumpRange> parse_dump_ranges() {
+  const char* raw = getenv("SPIKE_DUMP_RANGES");
+  const char* path = getenv("SPIKE_DUMP_FILE");
+  if (!raw && !path) return {};
+  if (!raw || !*raw || !path || !*path) {
+    fprintf(stderr,
+            "spike_run: SPIKE_DUMP_RANGES and SPIKE_DUMP_FILE must be set together\n");
+    exit(2);
+  }
+
+  std::vector<DumpRange> ranges;
+  std::string specs(raw);
+  size_t begin = 0;
+  while (begin <= specs.size()) {
+    size_t end = specs.find(',', begin);
+    std::string spec = specs.substr(begin, end == std::string::npos
+                                             ? std::string::npos : end - begin);
+    size_t colon = spec.find(':');
+    if (spec.empty() || colon == std::string::npos ||
+        spec.find(':', colon + 1) != std::string::npos) {
+      fprintf(stderr, "spike_run: invalid SPIKE_DUMP_RANGES item '%s'\n",
+              spec.c_str());
+      exit(2);
+    }
+    std::string addr_s = spec.substr(0, colon);
+    std::string len_s = spec.substr(colon + 1);
+    unsigned long long addr = parse_u64(addr_s.c_str(), "SPIKE_DUMP_RANGES address");
+    unsigned long long len = parse_u64(len_s.c_str(), "SPIKE_DUMP_RANGES length");
+    if (len == 0 || len > static_cast<unsigned long long>(SIZE_MAX) ||
+        addr > UINT64_MAX - (len - 1)) {
+      fprintf(stderr, "spike_run: invalid SPIKE_DUMP_RANGES item '%s'\n",
+              spec.c_str());
+      exit(2);
+    }
+    ranges.push_back({(reg_t)addr, (size_t)len});
+    if (end == std::string::npos) break;
+    begin = end + 1;
+  }
+  if (ranges.empty()) {
+    fprintf(stderr, "spike_run: SPIKE_DUMP_RANGES has no ranges\n");
+    exit(2);
+  }
+  return ranges;
+}
+
+static void put_le_u32(std::ofstream& out, uint32_t value) {
+  uint8_t b[4] = {(uint8_t)value, (uint8_t)(value >> 8),
+                  (uint8_t)(value >> 16), (uint8_t)(value >> 24)};
+  out.write((const char*)b, sizeof(b));
+}
+
+static void put_le_u64(std::ofstream& out, uint64_t value) {
+  uint8_t b[8];
+  for (unsigned i = 0; i < sizeof(b); ++i) b[i] = (uint8_t)(value >> (8 * i));
+  out.write((const char*)b, sizeof(b));
+}
+
+static void dump_ranges(simif_t* memif, const std::vector<DumpRange>& ranges,
+                        const char* path) {
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    fprintf(stderr, "spike_run: cannot open SPIKE_DUMP_FILE=%s\n", path);
+    exit(2);
+  }
+  const char magic[] = "SPKDMP01";
+  out.write(magic, sizeof(magic) - 1);
+  put_le_u32(out, 1);  // format version
+  put_le_u32(out, (uint32_t)ranges.size());
+  for (const DumpRange& range : ranges) {
+    put_le_u64(out, range.addr);
+    put_le_u64(out, range.len);
+    for (size_t i = 0; i < range.len; ++i) {
+      char* p = memif->addr_to_mem(range.addr + i);
+      if (!p) {
+        fprintf(stderr, "spike_run: unmapped dump read @0x%llx\n",
+                (unsigned long long)(range.addr + i));
+        exit(2);
+      }
+      out.put(*p);
+    }
+  }
+  if (!out) {
+    fprintf(stderr, "spike_run: write failed for SPIKE_DUMP_FILE=%s\n", path);
+    exit(2);
+  }
+  fprintf(stderr, "spike_run: dumped %zu final-memory range(s) to %s\n",
+          ranges.size(), path);
 }
 
 // ABI / numeric register name -> x-reg index. Returns -1 on failure.
@@ -333,7 +429,8 @@ int main(int argc, char** argv) {
     fprintf(stderr,
             "usage: %s <guest.elf> <input> <output>\n"
             "env: SPIKE_COMMITLOG SPIKE_DEBUG_CMD SPIKE_WATCH SPIKE_WATCH_STOP "
-            "SPIKE_BREAK_PC SPIKE_OUTPUT_LEN SPIKE_RUN_DEBUG\n",
+            "SPIKE_BREAK_PC SPIKE_OUTPUT_LEN SPIKE_RUN_DEBUG "
+            "SPIKE_DUMP_RANGES SPIKE_DUMP_FILE\n",
             argv[0]);
     return 2;
   }
@@ -347,6 +444,7 @@ int main(int argc, char** argv) {
     mem_cfg_t(0x60000000ULL, 0x00010000ULL),  // handler + tohost/fromhost
     mem_cfg_t(0x7ffff000ULL, 0x40001000ULL),  // headers+text+data+sszscratch+output -> 0xc0000000
   };
+  std::vector<DumpRange> dump_ranges_spec = parse_dump_ranges();
   std::vector<std::pair<reg_t, abstract_mem_t*>> mems;
   for (auto& m : cfg.mem_layout) mems.push_back({m.get_base(), new mem_t(m.get_size())});
 
@@ -490,6 +588,9 @@ int main(int argc, char** argv) {
   rd(&sim, OUTPUT_ADDR, out.data(), out_len);
   std::ofstream of(argv[3], std::ios::binary);
   of.write((const char*)out.data(), out_len);
+  if (!dump_ranges_spec.empty()) {
+    dump_ranges(&sim, dump_ranges_spec, getenv("SPIKE_DUMP_FILE"));
+  }
   for (auto& m : mems) delete m.second;
   return halted ? 0 : 3;
 }

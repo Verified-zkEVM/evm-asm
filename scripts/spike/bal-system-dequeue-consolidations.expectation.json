@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "fixture_label": "00609_test_bal_system_dequeue_consolidations_eip7251_fork_Amsterdam-blockchain_test-single_block_max_c",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists_eip7251/bal_system_dequeue_consolidations_eip7251.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "87008f07b498a020b6126cad2c42ba6638b416982d64378331ce76822c66ce1e",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "7ac8ab4fbe2b5a99b9b796d3bf4e2745788e845f3255753bc8fc7061a9a2c5b1",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"
+    ],
+    "storage": [
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 3,
+        "slot": 0,
+        "value": 1
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "slot": 1,
+        "value": 1
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "slot": 1,
+        "value": 2
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 3,
+        "slot": 1,
+        "value": 0
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "slot": 3,
+        "value": 1
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "slot": 3,
+        "value": 2
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 3,
+        "slot": 3,
+        "value": 0
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "slot": 4,
+        "value": 1408775177817074336275094057776221098886080738303
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "slot": 6,
+        "value": 340282366920938463463374607431768211456
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "slot": 7,
+        "value": 2
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "slot": 8,
+        "value": 1168844490979780582435414301829631731499474612715
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "slot": 10,
+        "value": 1020847100762815390390123822295304634368
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "slot": 11,
+        "value": 4
+      },
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 59846339687509731854281458693625976766161844079693254422053723680342406413004
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      }
+    ],
+    "balance": [
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 1,
+        "post": 1
+      },
+      {
+        "address": "0000bbddc7ce488642fb579f8b00f3a590007251",
+        "bai": 2,
+        "post": 2
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 1751682
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 2,
+        "post": 2915844
+      },
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "post": 999999999999999999996119459
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999994161059
+      }
+    ],
+    "nonce": [
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "nonce": 1
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": []
+  }
+}
