@@ -465,17 +465,42 @@ def accountStateLatestBalanceFunction : String :=
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
   "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslb_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Laslb_hit\n" ++
-  ".Laslb_durable:\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslb_miss; ld t0, 88(a0); andi t0, t0, 32; beqz t0, .Laslb_miss\n" ++
-  ".Laslb_hit:\n" ++
-  "  ld t0, 32(a0); sd t0, 0(s1); ld t0, 40(a0); sd t0, 8(s1); ld t0, 48(a0); sd t0, 16(s1); ld t0, 56(a0); sd t0, 24(s1); li a0, 1; j .Laslb_ret\n" ++
-  ".Laslb_miss:\n" ++
+  "  ld a1, 8(sp); li a2, 2; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  -- BLOCK-first entry used before the current transaction has published any
+  -- writes.  It still records the execution read, deliberately skips the
+  -- tx-local map, and falls back to AccountState when the block attribution
+  -- map has no component for the address.
+  "account_state_latest_balance_block:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld a1, 8(sp); li a2, 1; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  -- a2 = 1 scans the block attribution map first and then falls back to the
+  -- execution-state path.  Any other mode is AccountState-only; write maps are
+  -- attribution structures, not a substitute for AccountState.
+  "account_state_latest_balance_core:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; li t0, 1; beq s2, t0, .Laslbc_block_scan; j .Laslbc_account_state\n" ++
+  ".Laslbc_block_scan:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Laslbc_block_loop:\n" ++
+  "  bgeu t3, t1, .Laslbc_account_state; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Laslbc_block_cmp:\n" ++
+  "  beqz t6, .Laslbc_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Laslbc_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Laslbc_block_cmp\n" ++
+  ".Laslbc_block_next:\n" ++
+  "  addi t3, t3, 1; j .Laslbc_block_loop\n" ++
+  ".Laslbc_block_key:\n" ++
+  "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Laslbc_map_hit; j .Laslbc_account_state\n" ++
+  ".Laslbc_map_hit:\n" ++
+  "  ld t0, 32(t5); sd t0, 0(s1); ld t0, 40(t5); sd t0, 8(s1); ld t0, 48(t5); sd t0, 16(s1); ld t0, 56(t5); sd t0, 24(s1); li a0, 1; j .Laslbc_ret\n" ++
+  ".Laslbc_account_state:\n" ++
+  "  mv a0, s0; la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslbc_durable; ld t0, 88(a0); andi t0, t0, 32; bnez t0, .Laslbc_state_hit\n" ++
+  ".Laslbc_durable:\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslbc_miss; ld t0, 88(a0); andi t0, t0, 32; beqz t0, .Laslbc_miss\n" ++
+  ".Laslbc_state_hit:\n" ++
+  "  ld t0, 32(a0); sd t0, 0(s1); ld t0, 40(a0); sd t0, 8(s1); ld t0, 48(a0); sd t0, 16(s1); ld t0, 56(a0); sd t0, 24(s1); li a0, 1; j .Laslbc_ret\n" ++
+  ".Laslbc_miss:\n" ++
   "  li a0, 0\n" ++
-  ".Laslb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+  ".Laslbc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 40; ret"
 
 def accountStateLatestNonceFunction : String :=
   "account_state_latest_nonce:\n" ++
@@ -491,17 +516,35 @@ def accountStateLatestNonceFunction : String :=
   -- an unrelated balance update).
   "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_durable; ld t0, 88(a0); andi t0, t0, 64; bnez t0, .Lasln_hit\n" ++
-  ".Lasln_durable:\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasln_miss; ld t0, 88(a0); andi t0, t0, 64; beqz t0, .Lasln_miss\n" ++
-  ".Lasln_hit:\n" ++
-  "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasln_ret\n" ++
-  ".Lasln_miss:\n" ++
+  "  ld a1, 8(sp); li a2, 2; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "account_state_latest_nonce_block:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  jal ra, account_read_record\n" ++
+  "  ld a1, 8(sp); li a2, 1; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "account_state_latest_nonce_core:\n" ++
+  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; li t0, 1; beq s2, t0, .Laslnc_block_scan; j .Laslnc_account_state\n" ++
+  ".Laslnc_block_scan:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Laslnc_block_loop:\n" ++
+  "  bgeu t3, t1, .Laslnc_account_state; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Laslnc_block_cmp:\n" ++
+  "  beqz t6, .Laslnc_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Laslnc_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Laslnc_block_cmp\n" ++
+  ".Laslnc_block_next:\n" ++
+  "  addi t3, t3, 1; j .Laslnc_block_loop\n" ++
+  ".Laslnc_block_key:\n" ++
+  "  ld t0, 112(t5); andi t0, t0, 2; bnez t0, .Laslnc_map_hit; j .Laslnc_account_state\n" ++
+  ".Laslnc_map_hit:\n" ++
+  "  ld t0, 64(t5); sd t0, 0(s1); li a0, 1; j .Laslnc_ret\n" ++
+  ".Laslnc_account_state:\n" ++
+  "  mv a0, s0; la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslnc_durable; ld t0, 88(a0); andi t0, t0, 64; bnez t0, .Laslnc_state_hit\n" ++
+  ".Laslnc_durable:\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Laslnc_miss; ld t0, 88(a0); andi t0, t0, 64; beqz t0, .Laslnc_miss\n" ++
+  ".Laslnc_state_hit:\n" ++
+  "  ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Laslnc_ret\n" ++
+  ".Laslnc_miss:\n" ++
   "  li a0, 0\n" ++
-  ".Lasln_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
+  ".Laslnc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
 def accountStateLookupCurrentFunction : String :=
   "account_state_lookup_current:\n" ++
@@ -1117,5 +1160,16 @@ def ziskCreateCodeEffectLogProbeUnit : BuildUnit := {
   prologueAsm := ziskCreateCodeEffectLogPrologue
   dataAsm     := ziskCreateCodeEffectLogDataSection
 }
+
+-- The numeric readers have one recording wrapper per routing mode and one
+-- shared core.  Keep the labels wired: these helpers are otherwise only
+-- reached through emitted `jal`s, so a missing block-only entry can look like
+-- a caller-side fallback rather than a link failure in a source build.
+#guard (accountStateLatestBalanceFunction.splitOn "account_state_latest_balance:").length == 2
+#guard (accountStateLatestBalanceFunction.splitOn "account_state_latest_balance_block:").length == 2
+#guard (accountStateLatestBalanceFunction.splitOn "account_state_latest_balance_core:").length == 2
+#guard (accountStateLatestNonceFunction.splitOn "account_state_latest_nonce:").length == 2
+#guard (accountStateLatestNonceFunction.splitOn "account_state_latest_nonce_block:").length == 2
+#guard (accountStateLatestNonceFunction.splitOn "account_state_latest_nonce_core:").length == 2
 
 end EvmAsm.Codegen
