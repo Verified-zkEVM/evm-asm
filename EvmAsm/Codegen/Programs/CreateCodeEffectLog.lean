@@ -538,38 +538,31 @@ def accountStateLookupCurrentFunction : String :=
 
 /-! ## account_state_tombstone_balance_zero
 
-    EIP-161 existence predicate for a delete-pending (bit4) AccountState
-    tombstone, mirroring the trie pass: a finalized EIP-6780 deletion whose
-    final balance is zero is dropped from the post-state trie, so every later
-    transaction must read the address as non-existent; a deletion whose
-    balance is preserved (`clear_account_preserving_balance`) persists as an
-    empty-code account and     must NOT take the deleted read path.
+    Self-sufficient `EMPTY_ACCOUNT` check for a delete-pending AccountState
+    row, matching pin `is_account_alive` / `EMPTY_ACCOUNT`
+    (state_tracker.py:445-463): not-alive iff nonce==0 AND balance==0 AND
+    code empty. Callers (nacc / ibnacc / SELFDESTRUCT NEW_ACCOUNT, #11334 /
+    #11362) use the result as an aliveness gate, so all three conjuncts must
+    live in THIS helper — not as a remote writer invariant.
 
-    The predicate is the conjunction of THREE tests.  (1) Tombstone-ness is
-    decoded exactly as `account_state_lookup_current` status 2 or 3: bit4
-    set AND code-present (bit2) clear.  Bit4 alone is NOT sufficient —
-    `account_state_record_code` writes flags 27 (bits 0,1,3,4) for a live
-    created contract, and lookup treats bit4 as the precondition for the
-    existence fields being meaningful, with status 1 (live code) requiring
-    it too; the code-present test is what excludes a live zero-balance
-    contract with code from this predicate.  (1b) created-this-tx (bit3)
-    must be clear: a live created contract keeps bit3 set even across a
-    transaction boundary because `account_state_upsert_durable` copies the
-    pending snapshot verbatim, whereas the tombstone writer stores literal
-    flags 17/51, so bit3 is what excludes a live created *empty-code*
-    contract (flags 27 or 59 — status 2 with bit2 clear) that would
-    otherwise pass test (1).  (2) The 32 balance bytes are all zero.  The
-    writer (`account_state_commit_pending`) stores literal flags 17 (exists
-    clear, all fields zeroed) or 51 (exists set, balance preserved) keyed
-    on balance OR nonce, and never sets bit6, so the nonce field is not
-    authoritative on a tombstone and is not consulted: the balance field is
-    the only reliable discriminant between the dropped case and the
-    preserved case (including a preserved balance later drained to zero,
-    which stays flags 51 and must read as non-existent per EIP-161).
+    Shape filters (tombstone lineage, not a free scan of every row):
+    (1) bit4 set AND bit2 (code) clear — same decode as lookup status 2/3;
+    bit4 alone is insufficient (`account_state_record_code` flags 27 keeps
+    bit4 on live created contracts). (1b) bit3 (created-this-tx) clear —
+    excludes live empty-code CREATE rows (flags 27/59) that keep bit3 across
+    `account_state_upsert_durable`; tombstone writer stores literal 17/51.
+    (2) nonce@+64 == 0. (3) 32 balance bytes all zero.
+
+    History: until #11362 commit 1 cleared nonce on the flags-51 path, a
+    bal-preserved tombstone could sit at flags=0x33 nonce=1 bal=0. This
+    helper (pre-nonce-check) then returned 1 / not-alive while
+    `is_account_alive` says ALIVE — a silent NEW_ACCOUNT overcharge at every
+    caller. Commit 1 repairs that writer; the nonce load here makes the
+    helper correct even if that remote invariant regresses.
 
     a0 = canonical 20-byte BE address pointer
-    returns a0 = 1 lookup-status-2/3 entry found (pending first, then
-                 durable) with an all-zero balance field, 0 otherwise.
+    returns a0 = 1 when a matching entry is EMPTY (pending first, then
+                 durable), 0 otherwise.
     Clobbers a0-a3, t0, t1. -/
 def accountStateTombstoneBalanceZeroFunction : String :=
   "account_state_tombstone_balance_zero:\n" ++
@@ -578,6 +571,7 @@ def accountStateTombstoneBalanceZeroFunction : String :=
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Latbz_no\n" ++
   ".Latbz_entry:\n" ++
   "  ld t0, 88(a0); andi t1, t0, 16; beqz t1, .Latbz_no; andi t1, t0, 4; bnez t1, .Latbz_no; andi t1, t0, 8; bnez t1, .Latbz_no\n" ++
+  "  ld t1, 64(a0); bnez t1, .Latbz_no\n" ++
   "  ld t0, 32(a0); ld t1, 40(a0); or t0, t0, t1; ld t1, 48(a0); or t0, t0, t1; ld t1, 56(a0); or t0, t0, t1; bnez t0, .Latbz_no\n" ++
   "  li a0, 1; j .Latbz_ret\n" ++
   ".Latbz_no:\n" ++
