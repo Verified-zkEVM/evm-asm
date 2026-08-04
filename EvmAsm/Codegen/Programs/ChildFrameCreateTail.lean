@@ -419,7 +419,23 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    codeStateStatusIsLiveAsm "t1" ++
+    -- pin is_account_alive (state_tracker.py:462-463) + NEW_ACCOUNT charge
+    -- (system.py:110-112): charge only when not is_account_alive. EMPTY_ACCOUNT
+    -- is nonce0/balance0/code empty. A status-2 tombstone with bal already
+    -- proven zero here is EMPTY iff nonce=0 (after tombstone writer clears it)
+    -- and must charge NEW_ACCOUNT 183600 on recreate. 01087: guest was LOW by
+    -- 183600 because codeStateStatusIsLiveAsm (status 1|2) treated every
+    -- status-2 as alive. Status 1 → alive; status 2 + nonce≠0 → EOA alive;
+    -- status 2 + nonce0 → not alive; status 0/3 → not alive.
+    "  li t0, 1; beq t1, t0, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be; la a1, create_nonce_latest\n" ++
+    "  jal ra, account_state_latest_nonce\n" ++
+    "  mv t1, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_nonce_latest; ld t1, 0(t0)\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++
