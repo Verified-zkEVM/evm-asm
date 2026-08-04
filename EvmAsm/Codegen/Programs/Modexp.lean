@@ -268,4 +268,109 @@ def modexpPrecompileGasAsm
   "  bnez x24, .Lmodexp_backend_copy_loop_" ++ suffix ++ "\n" ++
   "  j 7b\n"
 
+/-- Charge-free MODEXP body for `precompile_shared_execute`. Reads absolute
+    calldata from `precompile_shared_ctx`, writes only `evm_precompile_frame`,
+    and exits via the shared-execute soft/ok/fail labels (no OUT copy).
+    Length/overflow validation is owned by `precompile_shared_select_price`;
+    this body re-checks status then computes. Soft-empty when base|mod lengths
+    are zero (execution-specs empty returndata success). -/
+def modexpSharedExecuteAsm : String :=
+  let suffix := "pse"
+  "  la x15, evm_precompile_frame\n" ++
+  "  li x16, 1\n" ++
+  "  sd x16, 0(x15)\n" ++
+  "  sd x0, 8(x15)\n" ++
+  "  la t0, precompile_shared_ctx\n" ++
+  "  ld x18, 8(t0)\n" ++
+  "  ld x17, 16(t0)\n" ++
+  modexpReadLengthAsm suffix 0 "x5" ++
+  modexpReadLengthAsm suffix 32 "x22" ++
+  modexpReadLengthAsm suffix 64 "x23" ++
+  "  la x16, precompile_shared_status\n  ld x16, 0(x16)\n" ++
+  "  bnez x16, .Lpse_fail\n" ++
+  "  or x24, x5, x23\n" ++
+  "  beqz x24, .Lpse_soft_ok\n" ++
+  "  beqz x23, .Lpse_soft_ok\n" ++
+  "  li x31, 4\n" ++
+  "  bltu x31, x5, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  bltu x31, x22, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  bltu x31, x23, .Lmodexp_backend_" ++ suffix ++ "\n" ++
+  "  li x30, 96\n" ++
+  modexpReadSmallComponentAsm suffix "base" "x30" "x5" "x24" ++
+  "  add x30, x30, x5\n" ++
+  modexpReadSmallComponentAsm suffix "exp" "x30" "x22" "x25" ++
+  "  add x30, x30, x22\n" ++
+  modexpReadSmallComponentAsm suffix "mod" "x30" "x23" "x26" ++
+  "  li x27, 0\n" ++
+  "  beqz x26, .Lmodexp_result_ready_" ++ suffix ++ "\n" ++
+  "  remu x24, x24, x26\n" ++
+  "  li x27, 1\n" ++
+  "  remu x27, x27, x26\n" ++
+  "  mv x28, x25\n" ++
+  ".Lmodexp_pow_loop_" ++ suffix ++ ":\n" ++
+  "  beqz x28, .Lmodexp_result_ready_" ++ suffix ++ "\n" ++
+  "  andi x31, x28, 1\n" ++
+  "  beqz x31, .Lmodexp_pow_skip_mul_" ++ suffix ++ "\n" ++
+  "  mul x27, x27, x24\n" ++
+  "  remu x27, x27, x26\n" ++
+  ".Lmodexp_pow_skip_mul_" ++ suffix ++ ":\n" ++
+  "  srli x28, x28, 1\n" ++
+  "  beqz x28, .Lmodexp_pow_loop_" ++ suffix ++ "\n" ++
+  "  mul x24, x24, x24\n" ++
+  "  remu x24, x24, x26\n" ++
+  "  j .Lmodexp_pow_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_result_ready_" ++ suffix ++ ":\n" ++
+  "  sd x23, 8(x15)\n" ++
+  "  addi x28, x15, 16\n" ++
+  "  li x29, 0\n" ++
+  ".Lmodexp_result_store_loop_" ++ suffix ++ ":\n" ++
+  "  beq x29, x23, .Lmodexp_result_store_done_" ++ suffix ++ "\n" ++
+  "  sub x31, x23, x29\n" ++
+  "  addi x31, x31, -1\n" ++
+  "  slli x31, x31, 3\n" ++
+  "  srl x16, x27, x31\n" ++
+  "  andi x16, x16, 255\n" ++
+  "  sb x16, 0(x28)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  j .Lmodexp_result_store_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_result_store_done_" ++ suffix ++ ":\n" ++
+  "  j .Lpse_ok\n" ++
+  ".Lmodexp_backend_" ++ suffix ++ ":\n" ++
+  "  li x30, 96\n" ++
+  modexpStageComponentAsm suffix "base" "x30" "x5" "modexp_base_scratch" ++
+  "  add x30, x30, x5\n" ++
+  modexpStageComponentAsm suffix "exp" "x30" "x22" "modexp_exp_scratch" ++
+  "  add x30, x30, x22\n" ++
+  modexpStageComponentAsm suffix "modulus" "x30" "x23" "modexp_modulus_scratch" ++
+  "  la a0, modexp_base_scratch\n" ++
+  "  mv a1, x5\n" ++
+  "  la a2, modexp_exp_scratch\n" ++
+  "  mv a3, x22\n" ++
+  "  la a4, modexp_modulus_scratch\n" ++
+  "  mv a5, x23\n" ++
+  "  la a6, modexp_output_scratch\n" ++
+  "  jal x1, zkvm_modexp\n" ++
+  "  bnez a0, .Lpse_fail\n" ++
+  "  la x15, evm_precompile_frame\n" ++
+  "  sd x23, 8(x15)\n" ++
+  "  la x28, modexp_output_scratch\n" ++
+  "  addi x29, x15, 16\n" ++
+  "  mv x24, x23\n" ++
+  ".Lmodexp_backend_frame_copy_loop_" ++ suffix ++ ":\n" ++
+  "  beqz x24, .Lmodexp_backend_frame_copy_done_" ++ suffix ++ "\n" ++
+  "  lbu x16, 0(x28)\n" ++
+  "  sb x16, 0(x29)\n" ++
+  "  addi x28, x28, 1\n" ++
+  "  addi x29, x29, 1\n" ++
+  "  addi x24, x24, -1\n" ++
+  "  j .Lmodexp_backend_frame_copy_loop_" ++ suffix ++ "\n" ++
+  ".Lmodexp_backend_frame_copy_done_" ++ suffix ++ ":\n" ++
+  "  li x16, 1\n" ++
+  "  sd x16, 0(x15)\n" ++
+  "  j .Lpse_ok\n" ++
+  -- modexpReadLengthAsm hard-fail labels (select_price already validated)
+  ".Lpse_bn254_fail_allot:\n" ++
+  "  j .Lpse_fail\n"
+
 end EvmAsm.Codegen

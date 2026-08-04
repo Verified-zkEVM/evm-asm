@@ -186,7 +186,9 @@ def stageEcrecoverInputAsm
 " ++
   "34:\n"
 
-def ecrecoverVGateAsm : String :=
+/-- Soft-success target defaults to the child CALL success tail (`7b`).
+    Route-neutral cores pass a local empty-frame success label instead. -/
+def ecrecoverVGateAsm (softOk := "7b") : String :=
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 32) ++
   "  li x19, 31\n" ++
   "40:\n" ++
@@ -205,10 +207,10 @@ def ecrecoverVGateAsm : String :=
   beq x16, x19, 42f
 " ++
   "43:\n" ++
-  "  j 7b\n" ++
+  "  j " ++ softOk ++ "\n" ++
   "42:\n"
 
-def ecrecoverNonzeroRSGateAsm : String :=
+def ecrecoverNonzeroRSGateAsm (softOk := "7b") : String :=
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 64) ++
   "  ld x16, 0(x18)
   ld x17, 8(x18)
@@ -217,7 +219,7 @@ def ecrecoverNonzeroRSGateAsm : String :=
   or x16, x16, x17
   ld x17, 24(x18)
   or x16, x16, x17
-  beqz x16, 7b
+  beqz x16, " ++ softOk ++ "
 " ++
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + 96) ++
   "  ld x16, 0(x18)
@@ -227,7 +229,7 @@ def ecrecoverNonzeroRSGateAsm : String :=
   or x16, x16, x17
   ld x17, 24(x18)
   or x16, x16, x17
-  beqz x16, 7b
+  beqz x16, " ++ softOk ++ "
 "
 
 private def secp256k1OrderBytes : List Nat :=
@@ -238,54 +240,35 @@ private def secp256k1OrderBytes : List Nat :=
   ]
 
 private def ecrecoverScalarBelowOrderCompareAsm
-    (bytes : List Nat) (idx belowLabel : Nat) : String :=
+    (bytes : List Nat) (idx belowLabel : Nat) (softOk : String) : String :=
   match bytes with
   | [] => ""
   | byte :: rest =>
       "  lbu x16, " ++ toString idx ++ "(x18)\n" ++
       "  li x17, " ++ toString byte ++ "\n" ++
-      "  bltu x17, x16, 7b\n" ++
+      "  bltu x17, x16, " ++ softOk ++ "\n" ++
       "  bltu x16, x17, " ++ toString belowLabel ++ "f\n" ++
-      ecrecoverScalarBelowOrderCompareAsm rest (idx + 1) belowLabel
+      ecrecoverScalarBelowOrderCompareAsm rest (idx + 1) belowLabel softOk
 
 private def ecrecoverScalarBelowOrderGateAsm
-    (wordOff : Nat) (belowLabel : Nat) : String :=
+    (wordOff : Nat) (belowLabel : Nat) (softOk : String) : String :=
   precompileFrameAddi "x18" (precompileFrameEcrecoverInputOff + wordOff) ++
-  ecrecoverScalarBelowOrderCompareAsm secp256k1OrderBytes 0 belowLabel ++
-  "  j 7b\n" ++
+  ecrecoverScalarBelowOrderCompareAsm secp256k1OrderBytes 0 belowLabel softOk ++
+  "  j " ++ softOk ++ "\n" ++
   toString belowLabel ++ ":\n"
 
-def ecrecoverScalarOrderGateAsm : String :=
-  ecrecoverScalarBelowOrderGateAsm 64 44 ++
-  ecrecoverScalarBelowOrderGateAsm 96 45
+def ecrecoverScalarOrderGateAsm (softOk := "7b") : String :=
+  ecrecoverScalarBelowOrderGateAsm 64 44 softOk ++
+  ecrecoverScalarBelowOrderGateAsm 96 45 softOk
 
-/-- ECRECOVER (0x01) recovery + output tail (.62.2.5). Runs AFTER the v/r/s
-    gates have validated the staged input (hash @+0, v @+32, r @+64, s @+96 at
-    `evm_precompile_frame + precompileFrameEcrecoverInputOff`, buffer_read
-    padded). Behavior matches execution-specs `ecrecover`: on a valid
-    signature the returndata is the 32-byte left-padded keccak address of the
-    recovered public key; on recovery failure the call still SUCCEEDS with
-    empty returndata (the gates' `j 7b` path).
-
-    The recovery kernel is reached through the `ecrecover_backend_ptr` data
-    cell rather than a direct `jal`: the secp256k1 chain is only linked by
-    closures that arm the pointer (the stateless guest arms it in
-    `dispatch_tx_runtime_code`; the focused ecrecover probe arms it itself).
-    Closures that leave it 0 (the standalone dispatch probes) keep the legacy
-    success-with-empty-returndata behavior AND keep linking without the
-    secp256k1 dependency tree — the same data-driven optionality as the
-    retired eager-seed state.
-
-    Register use mirrors the SHA256 path: x13/x10/x12 are saved in s9/s10/s11
-    across the LP64 calls (the secp/keccak helpers preserve s-registers);
-    label 7 is the handler's success-push tail; numeric labels 46-48 are
-    local. -/
-def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
+/-- Recover pubkey → left-padded address in `evm_precompile_frame` returndata.
+    Soft failures (no backend / bad sig / hash fail) leave empty returndata and
+    jump to `softOk`. Does **not** copy to caller memory — wrappers own OUT.
+    Reached via `ecrecover_backend_ptr` (optional secp link). -/
+def ecrecoverRecoverToFrameAsm (softOk := "7b") : String :=
   "  la x18, ecrecover_backend_ptr\n" ++
   "  ld x18, 0(x18)\n" ++
-  "  beqz x18, 7b\n" ++
-  -- Stage the recovery ABI block (hash/r/s/recid) from the gated input
-  -- (hash/v/r/s). Both regions are 8-byte aligned; copy by u64 limbs.
+  "  beqz x18, " ++ softOk ++ "\n" ++
   precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
   "  la x22, ecr_abi
   ld x16, 0(x19);  sd x16, 0(x22)
@@ -301,24 +284,22 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   ld x16, 112(x19); sd x16, 80(x22)
   ld x16, 120(x19); sd x16, 88(x22)
 " ++
-  "  lbu x16, 63(x19)\n" ++          -- v byte 31 (the v gate proved 27/28)
+  "  lbu x16, 63(x19)\n" ++
   "  addi x16, x16, -27\n" ++
-  "  sd x16, 96(x22)\n" ++           -- recid word
+  "  sd x16, 96(x22)\n" ++
   "  mv s9, x13
   mv s10, x10
   mv s11, x12
   la a0, ecr_abi
   la a1, ecr_pubkey
 " ++
-  "  jalr x1, x18, 0\n" ++           -- secp256k1_recover_pubkey_staged
-  -- a0 IS x10: stash the status before restoring the EVM code pointer
-  -- (restoring first would make the bnez read the nonzero code pointer).
+  "  jalr x1, x18, 0\n" ++
   "  mv x16, a0
   mv x13, s9
   mv x10, s10
   mv x12, s11
 " ++
-  "  bnez x16, 7b\n" ++              -- invalid signature: empty-returndata success
+  "  bnez x16, " ++ softOk ++ "\n" ++
   "  mv s9, x13
   mv s10, x10
   mv s11, x12
@@ -327,16 +308,16 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   la a2, ecr_hash
   jal x1, zkvm_keccak256
 " ++
-  "  mv x16, a0\n" ++                -- stash status before the x10 (=a0) restore
+  "  mv x16, a0\n" ++
   "  mv x13, s9\n" ++
   "  mv x10, s10\n" ++
   "  mv x12, s11\n" ++
-  "  bnez x16, 7b\n" ++              -- hash backend failure: stay conservative
+  "  bnez x16, " ++ softOk ++ "\n" ++
   "  la x15, evm_precompile_frame\n" ++
-  "  sd x0, 16(x15)\n" ++            -- returndata[0..12] = 0 (left padding)
+  "  sd x0, 16(x15)\n" ++
   "  sd x0, 24(x15)\n" ++
   "  la x18, ecr_hash\n" ++
-  "  addi x18, x18, 12\n" ++         -- address = keccak(pubkey)[12..32]
+  "  addi x18, x18, 12\n" ++
   "  addi x19, x15, 28\n" ++
   "  li x22, 20\n" ++
   "46:\n" ++
@@ -348,7 +329,11 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   bnez x22, 46b
   li x16, 32
 " ++
-  "  sd x16, 8(x15)\n" ++            -- returndata length = 32
+  "  sd x16, 8(x15)\n"
+
+/-- Child CALL path: recover to frame then copy min(32, out_size) to caller. -/
+def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
+  ecrecoverRecoverToFrameAsm "7b" ++
   "  ld x22, " ++ toString outSizeOff ++ "(x12)\n" ++
   "  li x23, 32\n" ++
   "  bgeu x22, x23, 47f\n" ++
@@ -366,6 +351,108 @@ def ecrecoverRecoverAndOutputAsm (outOffsetOff outSizeOff : Nat) : String :=
   addi x23, x23, -1
   bnez x23, 48b
   j 7b
+"
+
+/-- Stage ECRECOVER input from an absolute calldata pointer/length (descriptor). -/
+def stageEcrecoverInputFromAsm (inputReg sizeReg : String) : String :=
+  "  mv x17, " ++ sizeReg ++ "\n" ++
+  "  mv x18, " ++ inputReg ++ "\n" ++
+  precompileFrameAddi "x19" precompileFrameEcrecoverInputOff ++
+  "  mv x22, x17
+  li x23, 128
+  bgeu x23, x22, 30f
+  mv x22, x23
+" ++
+  "30:\n" ++
+  "  mv x24, x22\n" ++
+  "  beqz x24, 32f\n" ++
+  "31:\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x24, x24, -1
+  bnez x24, 31b
+" ++
+  "32:\n" ++
+  "  sub x24, x23, x22\n" ++
+  "  beqz x24, 34f\n" ++
+  "33:\n" ++
+  "  sb x0, 0(x19)
+  addi x19, x19, 1
+  addi x24, x24, -1
+  bnez x24, 33b
+" ++
+  "34:\n"
+
+/-- Copy `evm_precompile_frame` returndata (`+8` len, `+16` data) into the
+    CALL-family OUT window. Frame and caller memory never alias, so forward
+    copy is always safe (identity no longer needs memmove). -/
+def precompileCopyFrameReturndataToOutAsm
+    (tag : String) (outOffsetOff outSizeOff : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  ld x22, 8(x15)\n" ++
+  "  ld x23, " ++ toString outSizeOff ++ "(x12)\n" ++
+  "  bgeu x23, x22, .L" ++ tag ++ "_frame_out_len_ok\n" ++
+  "  mv x22, x23\n" ++
+  ".L" ++ tag ++ "_frame_out_len_ok:\n" ++
+  "  beqz x22, .L" ++ tag ++ "_frame_out_done\n" ++
+  "  addi x18, x15, 16\n" ++
+  "  ld x19, " ++ toString outOffsetOff ++ "(x12)\n" ++
+  "  add x19, x13, x19\n" ++
+  ".L" ++ tag ++ "_frame_out_copy:\n" ++
+  "  lbu x16, 0(x18)
+  sb x16, 0(x19)
+  addi x18, x18, 1
+  addi x19, x19, 1
+  addi x22, x22, -1
+  bnez x22, .L" ++ tag ++ "_frame_out_copy
+" ++
+  ".L" ++ tag ++ "_frame_out_done:\n"
+
+/-- Write a fixed-length result already at `resultFrameOff` into returndata. -/
+def precompileFrameSetRetdataFromOffAsm (tag : String) (resultFrameOff len : Nat) : String :=
+  "  la x15, evm_precompile_frame\n" ++
+  "  addi x18, x15, 16\n" ++
+  precompileFrameAddi "x19" resultFrameOff ++
+  "  li x22, " ++ toString len ++ "\n" ++
+  ".L" ++ tag ++ "_frame_set_ret_copy:\n" ++
+  "  beqz x22, .L" ++ tag ++ "_frame_set_ret_done\n" ++
+  "  lbu x16, 0(x19)
+  sb x16, 0(x18)
+  addi x19, x19, 1
+  addi x18, x18, 1
+  addi x22, x22, -1
+  j .L" ++ tag ++ "_frame_set_ret_copy\n" ++
+  ".L" ++ tag ++ "_frame_set_ret_done:\n" ++
+  "  li x16, 1
+  sd x16, 0(x15)
+  li x16, " ++ toString len ++ "
+  sd x16, 8(x15)
+"
+
+/-- Materialize a 32-byte boolean word from a single status byte at `resultFrameOff`. -/
+def precompileFrameSetBoolFromOffAsm (resultFrameOff : Nat) : String :=
+  "  la x15, evm_precompile_frame
+  sd x0, 16(x15)
+  sd x0, 24(x15)
+  sd x0, 32(x15)
+  sd x0, 40(x15)
+" ++
+  "  lbu x16, " ++ toString resultFrameOff ++ "(x15)\n" ++
+  "  sb x16, 47(x15)
+  li x16, 1
+  sd x16, 0(x15)
+  li x16, 32
+  sd x16, 8(x15)
+"
+
+/-- Empty successful precompile frame (status=1, len=0). -/
+def precompileFrameSoftEmptyAsm : String :=
+  "  la x15, evm_precompile_frame
+  li x16, 1
+  sd x16, 0(x15)
+  sd x0, 8(x15)
 "
 
 /-- BN254 (0x06/0x07) charge-and-gate. `x16` must already hold the
