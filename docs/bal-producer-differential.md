@@ -40,10 +40,32 @@ rows, but the guest producer disagrees with the pinned reference:
 | `00612_test_bal_7702_cross_tx_delegation_then_call...` | EIP-7702 cross-transaction attribution | 12 / 4 / 5 / 4 / 1 | 12 / 4 / 5 / 4 / 1 |
 
 The second finding has mismatching balance payloads despite equal row counts;
-both findings also have unequal rebuilt/supplied serializer hashes. They are
-kept out of the green set so the set runner remains a pass/fail oracle, but are
-reported explicitly for follow-up rather than being hidden as unsupported
-fixtures. The findings had zero undecodable rows and zero overflow flags.
+both findings also have unequal rebuilt/supplied serializer hashes. A normal
+guest run rejects both fixtures (`successful_validation=0`, oracle `1`, and
+`bv_fail_code=1`). 01087 reports rebuilt/supplied lengths `460/494`; 00612
+reports `496/496`. They are kept out of the green set so the set runner remains
+a pass/fail oracle, but are reported explicitly for follow-up rather than being
+hidden as unsupported fixtures. The findings had zero undecodable rows and
+zero overflow flags.
+
+The row comparison is intentionally primary for a reason demonstrated by
+00612: every row count matches and the rebuilt/supplied serialized lengths are
+equal, but the balance payloads still differ. A hash or length-only check would
+miss that finding; element-wise comparison identifies the affected address,
+BAI, and post-balance. Conversely, 01087's length delta provides an additional
+byte-level ledger: the missing target-A nonce and code rows account for 35
+bytes, a second missing nonce row accounts for 3, an extra storage row adds 3,
+and one guest balance scalar is one byte wider, yielding
+`-35 - 3 + 3 + 1 = -34 = 460 - 494`.
+
+The balance mismatches also share a gas-shaped signature rather than being
+arbitrary serializer values. In 01087, Tx2's sender is lower by
+`16,259,889 * 10` wei and the fee recipient is higher by
+`16,259,889 * 3` wei. In 00612, each of Tx2 and Tx3 charges its sender an extra
+`43,190 * 10` wei and credits the fee recipient an extra `43,190 * 3` wei.
+These are candidate cross-transaction gas/account-write-stage defects, and
+are kept as field-level evidence for the shared investigation (see issue
+[#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362)).
 
 Each expectation records the execution-specs pin and input SHA-256. Regenerate
 one only when deliberately changing its fixture:
