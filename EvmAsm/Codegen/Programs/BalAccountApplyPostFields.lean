@@ -587,6 +587,10 @@ def mapAccountApplyPostFieldsFunction : String :=
   ".Lbaap_multi_skip_zero:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0)\n" ++
   "  addi t0, t0, 1; la t1, baap_sc_index; sd t0, 0(t1); j .Lbaap_multi_loop\n" ++
+  -- #11385: `storage_root` is derived from the storage_writes rows at this
+  -- use via `mpt_bounded_storage_root`; it is not a map field or mask bit.
+  -- The explicit legacy call below is only the conservative builder-failure
+  -- fallback and does not introduce a stored storage-root representation.
   ".Lbaap_multi_apply:\n" ++
   "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbaap_nonce\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_apply_empty\n" ++
