@@ -628,68 +628,6 @@ def accountStateCreatedContainsFunction : String :=
   ".Lascc_no:\n" ++
   "  li a0, 0; ret"
 
-/-! ## code_state_find
-
-    a0 = 20-byte BE address pointer
-    a1 = fixed 64-byte-entry table base
-    a2 = populated entry count
-    a3 = entry capacity
-    returns a0 = entry pointer, or zero on no match / malformed count.
-
-    The table is intentionally scanned to completion and returns the latest
-    matching entry.  Upsert normally prevents duplicates, but latest-wins
-    makes the helper robust at the state boundary and is the required semantic
-    for a recreate sequence. -/
-def codeStateFindFunction : String :=
-  "code_state_find:\n" ++
-  -- a3 aliases the guest's x13 stack cursor at several runtime call sites.
-  -- Preserve it even though it is an argument to this leaf helper.
-  "  addi sp, sp, -16; sd a3, 0(sp)\n" ++
-  "  bgtu a2, a3, .Lcsf_miss\n" ++
-  "  mv t0, a1; li t1, 0; li t2, 0\n" ++
-  ".Lcsf_entry:\n" ++
-  "  bgeu t1, a2, .Lcsf_done\n" ++
-  "  li t3, 0\n" ++
-  ".Lcsf_bytes:\n" ++
-  "  li t4, 20; beq t3, t4, .Lcsf_hit\n" ++
-  "  add t4, a0, t3; lbu t5, 0(t4); add t4, t0, t3; lbu t6, 0(t4); bne t5, t6, .Lcsf_next\n" ++
-  "  addi t3, t3, 1; j .Lcsf_bytes\n" ++
-  ".Lcsf_hit:\n" ++
-  "  ld t4, 48(t0); andi t4, t4, 1; beqz t4, .Lcsf_next; mv t2, t0\n" ++
-  ".Lcsf_next:\n" ++
-  "  addi t0, t0, 64; addi t1, t1, 1; j .Lcsf_entry\n" ++
-  ".Lcsf_done:\n" ++
-  "  mv a0, t2; ld a3, 0(sp); addi sp, sp, 16; ret\n" ++
-  ".Lcsf_miss:\n" ++
-  "  li a0, 0; ld a3, 0(sp); addi sp, sp, 16; ret"
-
-/-! ## code_state_upsert
-
-    a0 = address pointer, a1 = code pointer, a2 = code length,
-    a3 = table base, a4 = count pointer, a5 = capacity, a6 = flags.
-    Returns a0 = 0 on success, 1 on capacity/count failure.  The address is
-    matched as its canonical 20-byte BE form.  The routine is deliberately
-    fixed-arena only: it never allocates and never dereferences a dynamic
-    bucket. -/
-def codeStateUpsertFunction : String :=
-  "code_state_upsert:\n" ++
-  "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd a3, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6\n" ++
-  "  ld t0, 0(s4); bgtu t0, s5, .Lcsu_over\n" ++
-  "  mv a0, s0; mv a1, s3; mv a2, t0; mv a3, s5; jal ra, code_state_find\n" ++
-  "  bnez a0, .Lcsu_write\n" ++
-  "  ld t0, 0(s4); bgeu t0, s5, .Lcsu_over; slli t1, t0, 6; add a0, s3, t1; addi t0, t0, 1; sd t0, 0(s4)\n" ++
-  ".Lcsu_write:\n" ++
-  "  mv t0, a0; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 0\n" ++
-  ".Lcsu_copy:\n" ++
-  "  li t2, 20; beq t1, t2, .Lcsu_finish; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lcsu_copy\n" ++
-  ".Lcsu_finish:\n" ++
-  "  sd s1, 32(t0); sd s2, 40(t0); sd s6, 48(t0); li a0, 0; j .Lcsu_ret\n" ++
-  ".Lcsu_over:\n" ++
-  "  li a0, 1; j .Lcsu_ret\n" ++
-  ".Lcsu_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld a3, 64(sp); addi sp, sp, 80; ret"
-
 /-! ## code_state_final_balance_nonzero
 
     Resolve the final EIP-161 existence predicate for a deferred SELFDESTRUCT
@@ -722,47 +660,6 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   "  la t0, code_state_last_delete_balance_status; li t1, 2; sd t1, 0(t0); li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
-
-/-! ## code_state_commit_pending
-
-    Merge the current transaction overlay into block-durable state.  A pending
-    entry with `exists=0` is deliberately committed too: it masks an earlier
-    durable/pre-block code entry after a same-transaction EIP-6780 deletion.
-    Returns a0 = 0 on success, 1 on fixed-arena overflow. -/
-def codeStateCommitPendingFunction : String :=
-  "code_state_commit_pending:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
-  "  la t0, code_state_pending_count; ld s0, 0(t0); li t0, " ++ toString codeStateEntryCapacity ++ "; bgtu s0, t0, .Lcscp_over\n" ++
-  "  li s1, 0\n" ++
-  ".Lcscp_loop:\n" ++
-  "  bgeu s1, s0, .Lcscp_done\n" ++
-  "  slli t0, s1, 6; la s2, code_state_pending; add s2, s2, t0; ld t1, 48(s2); andi t1, t1, 1; beqz t1, .Lcscp_next\n" ++
-  "  mv a0, s2; ld a1, 32(s2); ld a2, 40(s2); la a3, code_state_durable; la a4, code_state_durable_count; li a5, " ++ toString codeStateEntryCapacity ++ "; ld a6, 48(s2); jal ra, code_state_upsert; bnez a0, .Lcscp_over\n" ++
-  ".Lcscp_next:\n" ++
-  "  addi s1, s1, 1; j .Lcscp_loop\n" ++
-  ".Lcscp_done:\n" ++
-  -- Apply EIP-6780 deletes only at successful transaction finalization.  A
-  -- later same-tx recreate is an existing pending entry and therefore cancels
-  -- the queued delete (latest state wins without an append-log special case).
-  "  la t0, code_state_delete_count; ld s0, 0(t0); li t0, " ++ toString codeStateEntryCapacity ++ "; bgtu s0, t0, .Lcscp_over; li s1, 0\n" ++
-  ".Lcscp_delete_loop:\n" ++
-  "  bgeu s1, s0, .Lcscp_clear\n" ++
-  "  slli t0, s1, 5; la s2, code_state_delete; add s2, s2, t0; ld t0, 24(s2); beqz t0, .Lcscp_delete_next\n" ++
-  ".Lcscp_delete_apply:\n" ++
-  -- EIP-161 distinguishes an empty account (which remains existent when it
-  -- has a final nonzero balance) from a prunable final-zero account.  The BAL
-  -- is the authenticated final-state authority for this decision.
-  "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lcscp_over; li a6, 1; beqz a0, .Lcscp_delete_write; li a6, 3\n" ++
-  ".Lcscp_delete_write:\n" ++
-  "  mv a0, s2; li a1, 0; li a2, 0; la a3, code_state_durable; la a4, code_state_durable_count; li a5, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_upsert; bnez a0, .Lcscp_over\n" ++
-  ".Lcscp_delete_next:\n" ++
-  "  addi s1, s1, 1; j .Lcscp_delete_loop\n" ++
-  ".Lcscp_clear:\n" ++
-  "  la t0, code_state_pending_count; sd zero, 0(t0); la t0, code_state_created_count; sd zero, 0(t0); la t0, code_state_delete_count; sd zero, 0(t0); li a0, 0; j .Lcscp_ret\n" ++
-  ".Lcscp_over:\n" ++
-  "  la t0, code_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1; j .Lcscp_ret\n" ++
-  ".Lcscp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
 /-! ## code_state_lookup_current
 
@@ -844,19 +741,6 @@ def codeStateAddressSetFlagFunction : String :=
   "  sd a4, 24(t2); li a0, 0; ld a3, 0(sp); addi sp, sp, 16; ret\n" ++
   ".Lcsasf_miss:\n" ++
   "  li a0, 1; ld a3, 0(sp); addi sp, sp, 16; ret"
-
-/-! ## code_state_pending_contains
-
-    Transaction-local created-account membership: unlike the layered resolver,
-    this intentionally consults the pending table only. -/
-def codeStatePendingContainsFunction : String :=
-  "code_state_pending_contains:\n" ++
-  "  addi sp, sp, -24; sd ra, 0(sp); sd s0, 8(sp); sd a3, 16(sp); mv s0, a0\n" ++
-  "  la a1, code_state_pending; la t0, code_state_pending_count; ld a2, 0(t0); li a3, " ++ toString codeStateEntryCapacity ++ "; jal ra, code_state_find; beqz a0, .Lcspc_no; ld t0, 48(a0); andi t0, t0, 2; beqz t0, .Lcspc_no; li a0, 1; j .Lcspc_ret\n" ++
-  ".Lcspc_no:\n" ++
-  "  li a0, 0\n" ++
-  ".Lcspc_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); addi sp, sp, 24; ret"
 
 /-- Fixed static data for the execution CodeState overlay.  `created` and
     `delete` sets use the same 32-byte padded-address key representation. -/
