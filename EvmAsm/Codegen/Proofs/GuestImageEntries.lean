@@ -271,7 +271,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_account_path, balAccountPath_prog),
   (GuestAddrs.bal_account_post_fields, balAccountPostFields_prog),
   (GuestAddrs.baap_delete_single_leaf_storage, baapDeleteSingleLeafStorage_prog),
-  (GuestAddrs.bal_account_change_value, balAccountChangeValue_prog),
+  (GuestAddrs.map_account_change_value, mapAccountChangeValue_prog),
   (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
   (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
   (GuestAddrs.bal_account_is_modeled_system, balAccountIsModeledSystem_prog),

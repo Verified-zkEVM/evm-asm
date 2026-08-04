@@ -387,8 +387,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   balAccountPathFunction ++ "\n" ++
   balAccountPostFieldsFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
-  balAccountChangeValueFunction ++ "\n" ++
+  mapAccountApplyPostFieldsFunction ++ "\n" ++
+  mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   balAccountIsModeledSystemFunction ++ "\n" ++

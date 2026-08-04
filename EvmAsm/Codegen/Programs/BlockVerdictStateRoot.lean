@@ -220,7 +220,7 @@ def executionMapStateChangesFunction : String :=
   ".Lem_pre_ready:\n" ++
   "  ld t0, 0(s0); slli t1, t0, 6; la t2, basr_paths; add a4, t2, t1; slli t1, t0, 8; la t2, basr_values; add a5, t2, t1\n" ++
   "  la t1, bsr_prev_acct; sd s7, 0(t1); la t1, bsr_acct_len; sd s10, 0(t1); la t1, bsr_prev_desc; sd a5, 0(t1)\n" ++
-  "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, bal_account_change_value\n" ++
+  "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, map_account_change_value\n" ++
   "  bnez a0, .Lem_fail\n" ++
   "  # Map rows are execution facts too; retain only complete account-leaf mutations.\n" ++
   "  # Compare the complete pre/post RLP values, covering nonce, balance,\n" ++

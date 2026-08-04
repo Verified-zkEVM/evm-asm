@@ -1,4 +1,4 @@
-bal_account_change_value:
+map_account_change_value:
   addi sp, sp, -80
   sd ra, 0(sp)
   sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
@@ -15,7 +15,7 @@ bal_account_change_value:
   jal ra, bal_account_path
   bnez a0, .Lbacv_fail_path
   mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s5; mv a5, s6
-  jal ra, bal_account_apply_post_fields
+  jal ra, map_account_apply_post_fields
   bnez a0, .Lbacv_fail_apply
   j .Lbacv_ret
 .Lbacv_fail_path:
