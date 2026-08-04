@@ -275,7 +275,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  addi sp, sp, 64
 " ++
-    -- Current code comes from the shared mutable CodeState overlay before the
+    -- Current code comes from the shared mutable AccountState overlay before the
     -- authenticated pre-block witness.  The append-only effect log is BAL
     -- comparator evidence only and must not decide execution visibility.
     "  addi sp, sp, -64
@@ -320,10 +320,10 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  bnez t0, .Lrt_ecc_codestate_empty
 " ++
-    -- CodeState missed: a transaction-finalized EIP-6780 deletion
+    -- AccountState missed: a transaction-finalized EIP-6780 deletion
     -- (AccountState delete-pending tombstone) makes the account non-existent
     -- in every later transaction, masking the witness exactly like an
-    -- explicit CodeState tombstone.  Within the destroying transaction no
+    -- explicit AccountState tombstone.  Within the destroying transaction no
     -- tombstone exists yet, so same-tx semantics are unchanged.
     "  addi sp, sp, -64
 " ++
@@ -377,7 +377,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  j .Lrt_ecc_same_loop
 " ++
-    -- An explicit empty/deleted CodeState entry masks pre-block witness code.
+    -- An explicit empty/deleted AccountState entry masks pre-block witness code.
     -- EXTCODECOPY consequently writes zero bytes without touching the witness.
     ".Lrt_ecc_codestate_empty:
 " ++

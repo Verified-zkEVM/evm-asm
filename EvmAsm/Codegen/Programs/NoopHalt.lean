@@ -216,7 +216,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
       -- Capture execution-specs generic_create target_alive current-tx evidence
-      -- before publishing this CREATE.  This is a transaction-local CodeState
+      -- before publishing this CREATE.  This is a transaction-local AccountState
       -- membership query, not an append-only code-effect scan.
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
@@ -694,7 +694,7 @@ private def selfdestructTailAsm : String :=
   ".L_selfdestruct_ctit_codecheck:\n" ++
   -- AccountState's transaction-local created set follows the normal caller-saved ABI and
   -- clobbers a0-a3.  x13 is the live EVM stack cursor on this halt path, so
-  -- preserve it with the other runtime cursors before asking the CodeState.
+  -- preserve it with the other runtime cursors before asking the AccountState.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, sdai_origin_address\n" ++
   "  jal ra, account_state_created_contains\n" ++
