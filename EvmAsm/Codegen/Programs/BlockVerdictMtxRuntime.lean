@@ -123,19 +123,31 @@ private def blockVerdictMtxGateSystemStorageSeed : String :=
   "  bnez a0, .Lbv_mtx_sys2935_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys2935_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_present\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_code_cmp\n" ++
   ".Lbv_mtx_sys2935_skip:\n" ++
-  "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_2935_vlen; sd zero, 0(t0); j .Lbv_mtx_sys2935_present\n" ++
+  ".Lbv_mtx_sys2935_ident:\n" ++
+  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-2935 hash.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_2935_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys2935_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_ident_cmp\n" ++
   ".Lbv_mtx_sys2935_present:\n" ++
   "  la a0, bsr_addr_4788; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_sys4788_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys4788_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_present\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_code_cmp\n" ++
   ".Lbv_mtx_sys4788_skip:\n" ++
-  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0); j .Lbv_mtx_sys4788_present\n" ++
+  ".Lbv_mtx_sys4788_ident:\n" ++
+  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-4788 hash.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_4788_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys4788_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_ident_cmp\n" ++
   ".Lbv_mtx_sys4788_present:\n"
 
 /- Materialize the process_transaction sender debit when the shared callable

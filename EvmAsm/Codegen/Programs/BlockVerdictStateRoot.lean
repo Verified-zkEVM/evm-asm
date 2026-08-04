@@ -347,11 +347,18 @@ def blockStateRootFunction : String :=
   "  bnez a0, .Lbsr_cons_sys2935\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbsr_2935_ch_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_2935_gated\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_2935_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_2935_ch_cmp\n" ++
   ".Lbsr_2935_absent:\n" ++
   "  la t0, bsr_sys_has_2935; sd zero, 0(t0)\n" ++
-  "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_2935_vlen; sd zero, 0(t0); j .Lbsr_2935_gated\n" ++
+  ".Lbsr_2935_ident:\n" ++
+  "  # GH #11431: a non-empty deployed code_hash must be the canonical EIP-2935\n" ++
+  "  # predeploy hash; the modeled formula write is only valid for that code.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_2935_code_hash; li t2, 32\n" ++
+  ".Lbsr_2935_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_2935_ident_cmp\n" ++
   ".Lbsr_2935_gated:\n" ++
   "  # GH #11410: spec reads the deployed system contract's code every block\n" ++
   "  # (fork.py:807 get_code); record it through the tracked accessor so the\n" ++
@@ -375,12 +382,19 @@ def blockStateRootFunction : String :=
   "  bnez a0, .Lbsr_cons_sys4788\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbsr_4788_ch_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_4788_gated\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_4788_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_4788_ch_cmp\n" ++
   ".Lbsr_4788_absent:\n" ++
   "  la t0, bsr_sys_has_4788; sd zero, 0(t0)\n" ++
   "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
-  "  la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_4788_root_vlen; sd zero, 0(t0); j .Lbsr_4788_gated\n" ++
+  ".Lbsr_4788_ident:\n" ++
+  "  # GH #11431: a non-empty deployed code_hash must be the canonical EIP-4788\n" ++
+  "  # predeploy hash; the modeled formula write is only valid for that code.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_4788_code_hash; li t2, 32\n" ++
+  ".Lbsr_4788_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_4788_ident_cmp\n" ++
   ".Lbsr_4788_gated:\n" ++
   "  # GH #11410: same tracked-read recording for the EIP-4788 system contract\n" ++
   "  # (fork.py:807 get_code), covering the modeled 4788 path.\n" ++

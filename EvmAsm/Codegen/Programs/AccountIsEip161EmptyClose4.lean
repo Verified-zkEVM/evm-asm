@@ -37,7 +37,7 @@ local macro "pcfR" : tactic =>
 
 /-! ## Empty-code-hash constant region facts
 
-    `ECB = aie_empty_code_hash = 0xa3000ce0` sits in the RAM window and is
+    `ECB = aie_empty_code_hash = 0xa3000d20` sits in the RAM window and is
     8-byte aligned; its 32 content bytes are all valid byte accesses. -/
 
 theorem ecb_align : ECB.toNat % 8 = 0 := by decide
@@ -45,11 +45,11 @@ theorem ecb_align : ECB.toNat % 8 = 0 := by decide
 theorem ecb_over : ECB.toNat + 32 < 2 ^ 64 := by decide
 
 theorem ecb_toNat_add (j : Nat) (hj : j < 32) :
-    (ECB + BitVec.ofNat 64 j).toNat = 2734689504 + j := by
+    (ECB + BitVec.ofNat 64 j).toNat = 2734689568 + j := by
   rw [BitVec.toNat_add, BitVec.toNat_ofNat]
-  have h1 : (ECB : Word).toNat = 2734689504 := by decide
+  have h1 : (ECB : Word).toNat = 2734689568 := by decide
   rw [h1, Nat.mod_eq_of_lt (show j < 2 ^ 64 from by omega),
-      Nat.mod_eq_of_lt (show 2734689504 + j < 2 ^ 64 from by omega)]
+      Nat.mod_eq_of_lt (show 2734689568 + j < 2 ^ 64 from by omega)]
 
 theorem ecb_valid (j : Nat) (hj : j < 32) :
     isValidByteAccess (ECB + BitVec.ofNat 64 j) = true := by
