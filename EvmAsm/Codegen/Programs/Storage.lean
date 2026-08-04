@@ -281,14 +281,14 @@ def storagePersistentLogFindAsm : String :=
   "  bnez x15, 1b\n" ++
   "2:\n"
 
-/-- GH #10874: resolve a persistent-log MISS to its authenticated pre-state
+/-- GH #10874 / #11256: resolve a storage lookup through the canonical map
     value, in the THREE-TIER order execution-specs requires. Entered with
     `x18 = 0` (miss) or nonzero (hit, in which case it is a no-op); on success
     sets `x18` to a 64-byte `(original, current)` pair in LE-limb order.
 
     The tiers, and why the order is load-bearing:
 
-    1. the per-tx persistent log — already decided by the caller's scan;
+    1. the transaction-level `storage_writes` map;
     2. `storage_writes_block_latest_value`, which reads the canonical
        execution-specs `BlockState.storage_writes` map: a prior successful
        transaction's committed value is the next transaction's `original` AND
@@ -296,6 +296,12 @@ def storagePersistentLogFindAsm : String :=
     3. `slot_at_header_state_root` against the PARENT header — the witness,
        read BY KEY on demand, matching `WitnessState.get_storage`;
     4. otherwise zero (an absent account or slot is implicitly zero).
+
+    For `sload`, a transaction-map hit supplies both halves of the pair because
+    a read observes the current write. For `sstore`, a transaction-map hit
+    supplies only `current`; `original` continues at the block-map/pre-state
+    tiers, matching `get_storage_original` and never sourcing the original from
+    the current transaction's own write.
 
     ⚠️ Skipping tier 2 and going straight to the witness would return the
     PRE-BLOCK value wherever a prior transaction in this block already wrote the
@@ -367,7 +373,7 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   -- zero. An absent account/slot or an unresolved witness preimage retains the
   -- existing cold-zero behavior.
   "  bnez x18, .L" ++ p ++ "_prestate_done\n" ++
-  "  addi sp, sp, -40\n" ++
+  "  addi sp, sp, -72\n" ++
   "  sd x1, 0(sp); sd x10, 8(sp); sd x12, 16(sp); sd x13, 24(sp); sd x19, 32(sp)\n" ++
   -- env.ADDRESS is the EVM little-endian stack-word representation;
   -- slot_at_header_state_root takes a canonical 20-byte big-endian address.
@@ -380,6 +386,34 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  addi x14, x12, 31; la x15, " ++ out ++ "; addi x15, x15, 32; li x16, 32\n" ++
   ".L" ++ p ++ "_prestate_key_rev:\n" ++
   "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, -1; addi x15, x15, 1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_key_rev\n" ++
+  -- Tier 1: the transaction-level map.  The lookup helper is deliberately
+  -- reused with a different base/count rather than introducing a second scan.
+  -- `x19` is a private SSTORE flag: its saved caller value is restored below.
+  "  li x19, 0\n" ++
+  "  la x14, tx_storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_tx_miss\n" ++
+  "  mv a0, x20; la a1, " ++ out ++ "; addi a1, a1, 32\n" ++
+  "  li a2, 0xa21a0000; li a4, 16384; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  jal ra, storage_writes_block_latest_value\n" ++
+  "  li x14, 2; beq a0, x14, .exit_outofgas\n" ++
+  "  beqz a0, .L" ++ p ++ "_tx_miss\n" ++
+  (if p == "sload" then
+    -- SLOAD observes the current transaction write as its current value.  A
+    -- seed row is a no-op, so both pair halves are that value.
+    "  la x14, sstore_committed_current; la x15, " ++ out ++ "\n" ++
+    "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15)\n" ++
+    "  ld x17, 16(x14); sd x17, 16(x15); ld x17, 24(x14); sd x17, 24(x15)\n" ++
+    "  la x18, " ++ out ++ "; j .L" ++ p ++ "_prestate_restore\n"
+  else
+    -- SSTORE must retain the tx-level current value while the original-value
+    -- lookup below intentionally starts at the block map, never this map.
+    "  li x19, 1\n" ++
+    "  la x14, sstore_committed_current\n" ++
+    "  ld x17, 0(x14); sd x17, 40(sp); ld x17, 8(x14); sd x17, 48(sp)\n" ++
+    "  ld x17, 16(x14); sd x17, 56(sp); ld x17, 24(x14); sd x17, 64(sp)\n" ++
+    ".L" ++ p ++ "_tx_miss:\n") ++
+  (if p == "sload" then
+    ".Lsload_tx_miss:\n"
+  else "") ++
   -- Tier 2: the block-committed map (execution-specs' BlockState.storage_writes).
   "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
   "  la x14, storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
@@ -395,8 +429,20 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   ".L" ++ p ++ "_committed_done:\n" ++
   "  la x14, sstore_committed_hit; ld x14, 0(x14); beqz x14, .L" ++ p ++ "_prestate_header\n" ++
   "  la x14, sstore_committed_current; la x15, " ++ out ++ "\n" ++
-  "  ld x17, 0(x14); sd x17, 0(x15); sd x17, 32(x15); ld x17, 8(x14); sd x17, 8(x15); sd x17, 40(x15)\n" ++
-  "  ld x17, 16(x14); sd x17, 16(x15); sd x17, 48(x15); ld x17, 24(x14); sd x17, 24(x15); sd x17, 56(x15)\n" ++
+  "  ld x17, 0(x14); sd x17, 0(x15); ld x17, 8(x14); sd x17, 8(x15)\n" ++
+  "  ld x17, 16(x14); sd x17, 16(x15); ld x17, 24(x14); sd x17, 24(x15)\n" ++
+  (if p == "sload" then
+    "  ld x17, 0(x15); sd x17, 32(x15); ld x17, 8(x15); sd x17, 40(x15)\n" ++
+    "  ld x17, 16(x15); sd x17, 48(x15); ld x17, 24(x15); sd x17, 56(x15)\n"
+  else
+    "  bnez x19, .L" ++ p ++ "_block_keep_tx\n" ++
+    "  ld x17, 0(x15); sd x17, 32(x15); ld x17, 8(x15); sd x17, 40(x15)\n" ++
+    "  ld x17, 16(x15); sd x17, 48(x15); ld x17, 24(x15); sd x17, 56(x15)\n" ++
+    "  j .L" ++ p ++ "_block_pair_done\n" ++
+    ".L" ++ p ++ "_block_keep_tx:\n" ++
+    "  ld x17, 40(sp); sd x17, 32(x15); ld x17, 48(sp); sd x17, 40(x15)\n" ++
+    "  ld x17, 56(sp); sd x17, 48(x15); ld x17, 64(sp); sd x17, 56(x15)\n" ++
+    ".L" ++ p ++ "_block_pair_done:\n") ++
   "  la x18, " ++ out ++ "; j .L" ++ p ++ "_prestate_restore\n" ++
   -- Tier 3: the witness, BY KEY, against the parent header.
   ".L" ++ p ++ "_prestate_header:\n" ++
@@ -435,10 +481,25 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   ".L" ++ p ++ "_prestate_value_rev:\n" ++
   "  lbu x17, 0(x14); sb x17, 0(x15); addi x14, x14, 1; addi x15, x15, -1; addi x16, x16, -1; bnez x16, .L" ++ p ++ "_prestate_value_rev\n" ++
   "  la x15, " ++ out ++ "; ld x14, 0(x15); sd x14, 32(x15); ld x14, 8(x15); sd x14, 40(x15); ld x14, 16(x15); sd x14, 48(x15); ld x14, 24(x15); sd x14, 56(x15)\n" ++
+  (if p == "sstore" then
+    "  bnez x19, .Lsstore_header_keep_tx\n" ++
+    "  j .Lsstore_header_done\n" ++
+    ".Lsstore_header_keep_tx:\n" ++
+    "  la x15, " ++ out ++ "; ld x14, 40(sp); sd x14, 32(x15); ld x14, 48(sp); sd x14, 40(x15); ld x14, 56(sp); sd x14, 48(x15); ld x14, 64(sp); sd x14, 56(x15)\n" ++
+    ".Lsstore_header_done:\n"
+  else "") ++
   "  la x18, " ++ out ++ "\n" ++
   ".L" ++ p ++ "_prestate_zero:\n" ++
+  (if p == "sstore" then
+    "  bnez x19, .Lsstore_zero_keep_tx\n" ++
+    "  j .Lsstore_zero_done\n" ++
+    ".Lsstore_zero_keep_tx:\n" ++
+    "  la x14, " ++ out ++ "; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
+    "  ld x17, 40(sp); sd x17, 32(x14); ld x17, 48(sp); sd x17, 40(x14); ld x17, 56(sp); sd x17, 48(x14); ld x17, 64(sp); sd x17, 56(x14); la x18, " ++ out ++ "\n" ++
+    ".Lsstore_zero_done:\n"
+  else "") ++
   ".L" ++ p ++ "_prestate_restore:\n" ++
-  "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 40\n" ++
+  "  ld x1, 0(sp); ld x10, 8(sp); ld x12, 16(sp); ld x13, 24(sp); ld x19, 32(sp); addi sp, sp, 72\n" ++
   ".L" ++ p ++ "_prestate_done:\n"
 
 /-- M24 Option A storage handlers. -/
@@ -488,19 +549,11 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  jal ra, storage_read_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
         "  addi sp, sp, 24\n" ++
-        -- GH #10874: demand-driven cold read.  A persistent-log miss is not
-        -- permission to return a guessed zero: execution-specs' get_storage
-        -- resolves the slot by key and records the read independently of any
-        -- BAL preload.  Keep the verified SLOAD scan body unchanged; resolve
-        -- and append the seed here, then the body restarts at its normal scan
-        -- entry and consumes the row.
-        --
-        -- The guard is deliberately BEFORE the resolver.  The resolver is a
-        -- no-op on a scan hit and leaves x18 pointing at the existing row's
-        -- original field; testing x18 afterwards would append a duplicate row
-        -- for every hit.
-        storagePersistentLogFindAsm ++
-        "  bnez x18, .Lsload_seed_done\n" ++
+        -- GH #10874 / #11256: resolve the value from the map authority before
+        -- consulting the append-only log.  The resolver's map chain is the
+        -- source of truth; the log scan below is only a duplicate-seed check,
+        -- and never supplies the value consumed by the verified body.
+        "  li x18, 0\n" ++
         -- The resolver contains jal instructions.  Preserve the SLOAD caller
         -- state around it; x20 is the live env/s4 base and the shared resolver
         -- preserves callee-saved registers, while the explicit a0/a2/ra saves
@@ -510,6 +563,14 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x11, 0(sp)\n" ++
         storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
         "  ld x11, 0(sp); addi sp, sp, 8\n" ++
+        -- Preserve the resolved pair while using the old log scan only to
+        -- avoid appending a duplicate seed.  A hit jumps directly to the
+        -- verified body; a miss restores the map-derived pair and appends it.
+        "  addi sp, sp, -8\n" ++
+        "  sd x18, 0(sp)\n" ++
+        storagePersistentLogFindAsm ++
+        "  bnez x18, .Lsload_seed_log_hit\n" ++
+        "  ld x18, 0(sp); addi sp, sp, 8\n" ++
         -- A zero result is still a real read (absent slots read as zero), so
         -- append a row on every genuine miss.  A full execution log is not an
         -- optional seed case: the authenticated value must not be silently
@@ -563,6 +624,9 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sb x17, 0(x16)\n" ++
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)\n" ++
+        "  j .Lsload_seed_done\n" ++
+        ".Lsload_seed_log_hit:\n" ++
+        "  ld x18, 0(sp); addi sp, sp, 8\n" ++
         ".Lsload_seed_done:\n"
       -- Verified reverse-scan core (byte-identical re-encoding of the former
       -- inline label-based scan on the persistent log; see the `#guard` pin
@@ -649,21 +713,15 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- current value established by an earlier same-transaction write.
         "  li x14, 1; la x16, sstore_created_original_zero; sd x14, 0(x16); j .Lsstore_created_original_scan\n" ++
         ".Lsstore_created_original_scan:\n" ++
-        -- GH #10874: shared with h_SLOAD's miss determination (see
-        -- `storagePersistentLogFindAsm`). Falls through to the append step at `2:`.
-        storagePersistentLogFindAsm ++
-        -- `created_accounts` changes only get_storage_original. When this
-        -- exact created account already has a log row, synthesize
-        -- {original = 0, current = row.current}; a first touch retains {0,0}.
-        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_prestate_normal\n" ++
-        "  beqz x18, .Lsstore_created_original_done\n" ++
-        "  la x14, sstore_prestate_pair; sd zero, 0(x14); sd zero, 8(x14); sd zero, 16(x14); sd zero, 24(x14)\n" ++
-        "  ld x15, 32(x18); sd x15, 32(x14); ld x15, 40(x18); sd x15, 40(x14); ld x15, 48(x18); sd x15, 48(x14); ld x15, 56(x18); sd x15, 56(x14)\n" ++
-        "  la x18, sstore_prestate_pair; j .Lsstore_created_original_done\n" ++
-        -- GH #10874: shared three-tier cold resolution, now also used by h_SLOAD
-        -- (see `storagePrestateResolveAsm`). SSTORE needs the authenticated
-        -- original/current for Amsterdam state-gas classification.
+        -- #11256: the map is now the value authority.  `created_accounts`
+        -- changes only `get_storage_original`; keep that zero arm separate
+        -- after the resolver so a prior same-transaction write still supplies
+        -- `current` without corrupting the transaction-start `original`.
+        "  li x18, 0\n" ++
         storagePrestateResolveAsm "sstore" "sstore_prestate_pair" ++
+        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_created_original_done\n" ++
+        "  beqz x18, .Lsstore_created_original_done\n" ++
+        "  sd zero, 0(x18); sd zero, 8(x18); sd zero, 16(x18); sd zero, 24(x18)\n" ++
         ".Lsstore_created_original_done:\n" ++
         -- The persistent exec-log arena is [0xa0630000, 0xa0830000), i.e.
         -- 16384 entries of 128 bytes. Never append past it into the
