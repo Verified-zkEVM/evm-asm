@@ -69,6 +69,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.BgvU32leSpec
+import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 
 namespace EvmAsm.Progress
@@ -253,7 +254,16 @@ def routineRegistry : List RoutineEntry := [
       (notes := "whole-routine triple at `GuestAddrs.bgv_u32le`: `a0 = leU32 bs 0` for "
         ++ "a read-only region of >= 4 bytes, region intact. Only ABI hyps (pointer in "
         ++ "a0, region wf, aligned ra). Tied to the reference by "
-        ++ "`leU32_eq_bytesLEtoNat`")
+        ++ "`leU32_eq_bytesLEtoNat`"),
+
+  -- #11349: `check_gas_limit`, row 7 of docs/leaf-routine-targets.md. The machine
+  -- triple already existed byte-transparently at the guest address; what this row
+  -- registers is the model-facing restatement.
+  routine "check_gas_limit" .proven (some "checkGasLimit_ref_spec")
+      (notes := "whole-routine triple at `GuestAddrs.check_gas_limit`, post additionally "
+        ++ "records `a0 = 0` iff `SpecRef.check_gas_limit` accepts. Full domain, NO "
+        ++ "envelope hypothesis: the guest never forms the reference's two sums, it "
+        ++ "compares |new - parent| against parent/1024")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -265,9 +275,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 24 := by decide
+theorem routineCount_eq : routineCount = 25 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 16 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 17 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -282,7 +292,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 16 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 17 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -389,6 +399,8 @@ private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
+private noncomputable abbrev _check_gas_limit_routine_witness :=
+  @EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 

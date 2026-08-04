@@ -295,6 +295,30 @@ encoded-byte), per-index orders, and the read/write exclusion" },
     reference := "the ordering _build_from_builder imposes",
     note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
 cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
+
+  -- #11349: the header gas-limit rule. Row is mandatory once the symbol is witnessed
+  -- in Routines.lean -- #11342 showed an absent row passes the cross-registry gate
+  -- vacuously.
+  { family := "header", routine := "check_gas_limit",
+    spec := some "checkGasLimit_ref_spec",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "check_gas_limit (SpecRef/SeamShell.lean:200, fork.py)",
+    note := "FULL DOMAIN and no side condition, which is not the obvious reading: the \
+reference is written with two additions (`gl >= p + d`, `gl + d <= p`) that are \
+overflow-free only because `Uint = Nat`, so a naive bridge would carry a u64 envelope \
+hypothesis and land `domainRestricted`. It needs none, because the guest never forms \
+either sum -- it compares `|new - parent|` against `parent / 1024`, and those two guards \
+are together equivalent to the single inequality. Tied by `cglStatus_eq_zero_iff` \
+(`Codegen/Programs/CheckGasLimitBridge.lean`). Basis is `machineOnly` for the same \
+schema reason as the `guest` row: the tie is FORMAL, not a local restatement, but this \
+family has no executable differential for a `bridged` grade to inherit. NOT claimed: the \
+guest's 1-vs-2 distinction (below-minimum vs out-of-range) is guest-specific; the \
+reference returns a bare false, so the bridge is an iff on ACCEPTANCE only. PORT \
+FIDELITY: fork.py writes clause 2 as `gl <= p - delta` while the port writes \
+`gl + delta <= p` (avoiding a truncating Uint subtraction). That restatement is \
+algebraic, not syntactic, and is PROVED here by `clause2_port_faithful` rather than \
+relied upon -- it is the one clause where the port could silently diverge from the \
+Python while looking faithful" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
@@ -331,20 +355,22 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 22 := by decide
+theorem registry_size : registry.length = 23 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
+/-- #11349. No differential for this family -- see the row's note. -/
+theorem header_rows : countFamily "header" = 1 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 14 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 15 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
