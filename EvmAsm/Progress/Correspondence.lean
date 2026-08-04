@@ -294,13 +294,33 @@ encoded-byte), per-index orders, and the read/write exclusion" },
     verdict := .unproven, basis := .none,
     reference := "the ordering _build_from_builder imposes",
     note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
-cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" }
+cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
   -- occurrences in the emitted asm, including the `.globl` and label, and zero
   -- in the ELF symbol table. A registry row for a symbol that does not exist
   -- misreports the unproven count, so the rows go with the routines.
+
+  -- #11352: the guest-input u32 accessor. A row is MANDATORY here, not optional:
+  -- `bgv_u32le` is now witnessed in Routines.lean, and #11342 established that a
+  -- witnessed symbol with NO row passes the cross-registry gate vacuously.
+  { family := "guest", routine := "bgv_u32le",
+    spec := some "bgvU32leFlat_spec",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "the fixed-width LE reads of deserialize_stateless_input \
+(SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
+    note := "⚠️ THE BASIS RUNG IS A COMPROMISE AND THE SCHEMA IS THE REASON. The tie is \
+FORMAL, not a local restatement: `leU32_eq_bytesLEtoNat` proves the guest accessor equals \
+`SpecRef.bytesLEtoNat` on the first four bytes, via `toNat_or_shift` (OR past the \
+accumulated width is addition). So `machineOnly`'s descriptive half — \"stated over a \
+locally defined predicate\" — is FALSE here. But its operative half is true: the \
+guest/SSZ family has NO executable differential (see the SSZ note above), so there is no \
+`diff` result for a `bridged` grade to inherit, and claiming `bridged` would be \
+unfalsifiable. `inspection` would understate a machine-checked equality. The schema has \
+no rung for \"formally tied to a port that is not itself differentially backed\"; \
+`machineOnly` is the closest honest one and this note is the correction. Raised on \
+#11352" }
 ]
 
 /-! ## Counts -/
@@ -311,18 +331,20 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 21 := by decide
+theorem registry_size : registry.length = 22 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
+/-- #11352. One row so far; the family has no differential (see the row's note). -/
+theorem guest_rows : countFamily "guest" = 1 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 13 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 14 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
