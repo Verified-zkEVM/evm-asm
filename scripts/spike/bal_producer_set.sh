@@ -68,6 +68,12 @@ run_case \
   00609_test_bal_system_dequeue_consolidations_eip7251_fork_Amsterdam-blockchain_test-single_block_max_c \
   bal-system-dequeue-consolidations.expectation.json
 run_case \
+  00568_test_bal_withdrawal_no_evm_execution_fork_Amsterdam-blockchain_test__b0 \
+  bal-withdrawal-no-evm.expectation.json
+run_case \
+  00323_test_bal_create_transaction_empty_code_fork_Amsterdam-blockchain_test__b0 \
+  bal-create-transaction-empty.expectation.json
+run_case \
   00356_test_bal_intra_tx_sstores_same_slot_net_zero_fork_Amsterdam-blockchain_test-empty_pre_ephemeral_ \
   bal-net-zero-storage-empty-pre.expectation.json
 run_case \

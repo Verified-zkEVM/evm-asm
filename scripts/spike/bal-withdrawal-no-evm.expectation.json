@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "fixture_label": "00568_test_bal_withdrawal_no_evm_execution_fork_Amsterdam-blockchain_test__b0",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists_eip4895/bal_withdrawal_no_evm_execution.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "945d87d0d3962a38333a583c49f79dc7a43ae253c13ddf51e05927495bd67260",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "b50ea48305dba031751dd0c460130991800bc96221856f06d5b3279527710b87",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "3ed9f109b7188a178354f2cb30694a70b011d6eb"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 17869682084761246534850034050289559498577633917539310124817686149482629300477
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      }
+    ],
+    "balance": [
+      {
+        "address": "3ed9f109b7188a178354f2cb30694a70b011d6eb",
+        "bai": 1,
+        "post": 10000000000
+      }
+    ],
+    "nonce": [],
+    "code": []
+  }
+}
