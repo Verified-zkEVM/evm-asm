@@ -115,7 +115,9 @@ def blockStateRootPreAccountsFunction : String :=
     longer define the candidate set: every map-only address is visited and
     receives a descriptor. Account-map rows also provide the post-account
     fields needed by those map-only descriptors; this keeps the enumeration
-    and value authority coherent in one switch.
+    and value authority coherent in one switch. A pre-seeded modeled owner is
+    promoted in place when its account-map row appears, so the map post is
+    applied after the modeled system post without duplicating the owner entry.
 
     a0 = descriptor-count pointer
     a1/a2 = legacy BAL-derived account-address table (ignored after the
@@ -139,7 +141,7 @@ def executionMapStateChangesFunction : String :=
   "  beqz t6, .Lem_seed_2935_done\n" ++
   "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lem_seed_2935_copy\n" ++
   ".Lem_seed_2935_done:\n" ++
-  "  sb zero, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
+  "  addi t4, t4, -20; li t0, 1; sb t0, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
   ".Lem_seed_4788:\n" ++
   "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lem_seed_done\n" ++
   "  la t1, bsr_emitted_owner_count; ld t2, 0(t1); li t3, " ++ toString bsrMapOwnerCapacity ++ "; bgeu t2, t3, .Lem_owner_capacity_fail\n" ++
@@ -148,7 +150,7 @@ def executionMapStateChangesFunction : String :=
   "  beqz t6, .Lem_seed_4788_done\n" ++
   "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lem_seed_4788_copy\n" ++
   ".Lem_seed_4788_done:\n" ++
-  "  sb zero, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
+  "  addi t4, t4, -20; li t0, 1; sb t0, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
   ".Lem_seed_done:\n" ++
   "  la t0, account_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa28a0000; li s6, 0\n" ++
   "  j .Lem_account_loop\n" ++
@@ -156,7 +158,7 @@ def executionMapStateChangesFunction : String :=
   "  la t0, bsr_emitted_owner_count; ld t1, 0(t0); li t2, 0\n" ++
   ".Lem_owner_seen_loop:\n" ++
   "  bgeu t2, t1, .Lem_owner_not_seen\n" ++
-  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t4, t4, t3; la t5, bsr_map_item; addi t5, t5, 2; li t6, 20\n" ++
+  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t4, t4, t3; mv t3, t4; la t5, bsr_map_item; addi t5, t5, 2; li t6, 20\n" ++
   ".Lem_owner_seen_cmp:\n" ++
   "  beqz t6, .Lem_owner_seen_yes\n" ++
   "  lbu a1, 0(t4); lbu a2, 0(t5); bne a1, a2, .Lem_owner_seen_next\n" ++
@@ -164,9 +166,24 @@ def executionMapStateChangesFunction : String :=
   ".Lem_owner_seen_next:\n" ++
   "  addi t2, t2, 1; j .Lem_owner_seen_loop\n" ++
   ".Lem_owner_seen_yes:\n" ++
-  "  li a0, 1; ret\n" ++
+  "  lbu a0, 20(t3); ret\n" ++
   ".Lem_owner_not_seen:\n" ++
   "  li a0, 0; ret\n" ++
+  ".Lem_owner_promote_account:\n" ++
+  "  la t0, bsr_emitted_owner_count; ld t1, 0(t0); li t2, 0\n" ++
+  ".Lem_owner_promote_loop:\n" ++
+  "  bgeu t2, t1, .Lem_owner_promote_miss\n" ++
+  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t3, t4, t3; mv t4, t3; la t5, bsr_map_item; addi t5, t5, 2; li t6, 20\n" ++
+  ".Lem_owner_promote_cmp:\n" ++
+  "  beqz t6, .Lem_owner_promote_hit\n" ++
+  "  lbu a1, 0(t4); lbu a2, 0(t5); bne a1, a2, .Lem_owner_promote_next\n" ++
+  "  addi t4, t4, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lem_owner_promote_cmp\n" ++
+  ".Lem_owner_promote_next:\n" ++
+  "  addi t2, t2, 1; j .Lem_owner_promote_loop\n" ++
+  ".Lem_owner_promote_hit:\n" ++
+  "  li t0, 2; sb t0, 20(t3); li a0, 0; ret\n" ++
+  ".Lem_owner_promote_miss:\n" ++
+  "  li a0, 1; ret\n" ++
   ".Lem_emit_owner:\n" ++
   "  mv t6, a0; la t0, bsr_emitted_owner_count; ld t1, 0(t0); li t2, " ++ toString bsrMapOwnerCapacity ++ "; bgeu t1, t2, .Lem_owner_capacity_fail\n" ++
   "  slli t2, t1, 5; la t3, bsr_emitted_owners; add t3, t3, t2; la t4, bsr_map_item; addi t4, t4, 2; li t5, 20\n" ++
@@ -174,7 +191,7 @@ def executionMapStateChangesFunction : String :=
   "  beqz t5, .Lem_emit_owner_done\n" ++
   "  lbu t2, 0(t4); sb t2, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lem_emit_owner_copy\n" ++
   ".Lem_emit_owner_done:\n" ++
-  "  sb t6, 20(t3); addi t1, t1, 1; sd t1, 0(t0); ret\n" ++
+  "  addi t3, t3, -20; sb t6, 20(t3); addi t1, t1, 1; sd t1, 0(t0); ret\n" ++
   ".Lem_account_loop:\n" ++
   "  bgeu s4, s9, .Lem_storage_init\n" ++
   "  slli t0, s4, 7; add s3, s5, t0\n" ++
@@ -183,9 +200,13 @@ def executionMapStateChangesFunction : String :=
   "  beqz t2, .Lem_account_seen_check\n" ++
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lem_account_addr_copy\n" ++
   ".Lem_account_seen_check:\n" ++
-  "  jal ra, .Lem_owner_seen; bnez a0, .Lem_account_next\n" ++
+  "  jal ra, .Lem_owner_seen; beqz a0, .Lem_account_process\n" ++
+  "  li t0, 1; bne a0, t0, .Lem_account_next\n" ++
+  "  jal ra, .Lem_owner_promote_account; bnez a0, .Lem_owner_capacity_fail\n" ++
+  ".Lem_account_process_seeded:\n" ++
+  "  li s6, 2; li t0, 1; la t1, bsr_account_from_map; sd t0, 0(t1); la t1, bsr_account_row; sd s3, 0(t1); la t1, bsr_storage_from_map; sd t0, 0(t1); j .Lem_process_address\n" ++
   ".Lem_account_process:\n" ++
-  "  li s6, 2; li t0, 1; la t1, bsr_account_from_map; sd t0, 0(t1); la t1, bsr_account_row; sd s3, 0(t1); la t1, bsr_storage_from_map; sd t0, 0(t1); li a0, 1; jal ra, .Lem_emit_owner; j .Lem_process_address\n" ++
+  "  li s6, 2; li t0, 1; la t1, bsr_account_from_map; sd t0, 0(t1); la t1, bsr_account_row; sd s3, 0(t1); la t1, bsr_storage_from_map; sd t0, 0(t1); li a0, 2; jal ra, .Lem_emit_owner; j .Lem_process_address\n" ++
   ".Lem_storage_init:\n" ++
   "  la t0, storage_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa1fa0000; li s6, 1\n" ++
   ".Lem_storage_loop:\n" ++
@@ -206,7 +227,7 @@ def executionMapStateChangesFunction : String :=
   ".Lem_storage_seen_check:\n" ++
   "  jal ra, .Lem_owner_seen; bnez a0, .Lem_storage_next\n" ++
   ".Lem_storage_process:\n" ++
-  "  li s6, 1; li t0, 1; la t1, bsr_storage_from_map; sd t0, 0(t1); la t0, bsr_account_from_map; sd zero, 0(t0); la t0, bsr_account_row; sd zero, 0(t0); li a0, 0; jal ra, .Lem_emit_owner\n" ++
+  "  li s6, 1; li t0, 1; la t1, bsr_storage_from_map; sd t0, 0(t1); la t0, bsr_account_from_map; sd zero, 0(t0); la t0, bsr_account_row; sd zero, 0(t0); li a0, 3; jal ra, .Lem_emit_owner\n" ++
   ".Lem_process_address:\n" ++
   "  ld t0, 0(s0); li t1, " ++ toString bsrMaxStateChanges ++ "; bgeu t0, t1, .Lem_fail\n" ++
   "  la a0, bsr_map_item; li a1, 27; la a2, bsr_map_path; jal ra, bal_account_path\n" ++
@@ -379,9 +400,9 @@ def blockStateRootFunction : String :=
   ".Lbsr_skip_4788:\n" ++
   "  # BAL account changes are tx-execution account post-values.\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  # Seed the same applied-owner set with modeled system commits.  The map\n" ++
-  "  # authority must not replay a storage row for an owner already committed\n" ++
-  "  # above; derive the entries from the writes that actually ran.\n" ++
+  "  # Seed the applied-owner set with modeled system commits.  An account-map\n" ++
+  "  # row for one of these owners is promoted in place below, so its final\n" ++
+  "  # user post replaces the earlier modeled value without a duplicate path.\n" ++
   "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_seed_4788\n" ++
   "  la t1, bsr_changed_account_count; ld t2, 0(t1); li t3, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t2, t3, .Lbsr_cons_change_cap\n" ++
   "  slli t3, t2, 5; la t4, bsr_changed_accounts; add t4, t4, t3; la t5, bsr_addr_2935; li t6, 20\n" ++
@@ -1132,5 +1153,10 @@ def statelessVerdictV2Function : String :=
 -- comment at the discard.  Pinned so the obvious-looking home cannot be reoccupied
 -- silently.
 #guard (statelessVerdictV2Function.splitOn "jal ra, bal_emit_storage_changes").length == 1
+
+-- GH #11390: an account-map row for a modeled system owner must take the
+-- promotion path so its post is applied after the modeled system post.
+#guard (executionMapStateChangesFunction.splitOn "jal ra, .Lem_owner_promote_account").length == 2
+#guard (executionMapStateChangesFunction.splitOn ".Lem_account_process_seeded:").length == 2
 
 end EvmAsm.Codegen
