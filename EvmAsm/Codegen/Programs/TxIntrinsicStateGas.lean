@@ -339,10 +339,11 @@ def eip7702AuthStatePrepareFunction : String :=
   -- `set_code` and `increment_nonce`; both go through `modify_state`, so even
   -- an absent authority is written back as `Some Account`.  Keep `a5 = 1`
   -- and advertise that Optional-account state with the state-valid bit as well
-  -- as nonce and code (mask 14, not mask 6).
+  -- as nonce and code.  Retain TOUCHED: it is the sticky row-presence marker
+  -- added by #11382, so an auth-only account cannot disappear from the map.
   "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next; la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, s8; li a4, 23; bnez s11, .L77prep_auth_code_record_emit; li a4, 0\n" ++
   ".L77prep_auth_code_record_emit:\n" ++
-  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
@@ -370,7 +371,7 @@ def eip7702AuthStatePrepareFunction : String :=
 -- presence all valid.  Keep the state bit pinned so a future mask edit cannot
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
-  "li a5, 1; li a6, 14; jal ra, account_write_record"
+  "li a5, 1; li a6, 46; jal ra, account_write_record"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
