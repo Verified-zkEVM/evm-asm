@@ -14,10 +14,8 @@
 .Lbv_code_preimage_flag_done	load	bal_code_preimages_valid	yes	la t2, bv_bal_len; ld a1, 0(t2)
 .Lbv_code_preimage_flag_done	load	bal_code_preimages_valid	yes	la t2, bv_bal_start; ld a0, 0(t2)
 .Lbv_code_preimage_flag_done	load	bal_storage_whitelist_clean	no	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
-# bal_txs_independent: status-tested-only (a0==2 parse bail). Values 0/1 inert —
-# both arms converge at .Lbv_mtx_independence_ok; no divergent cell (#11183 settle).
-# Sole guest jal is MtxRuntime; TxsIndependent.lean:412/415/418 are probe-only.
 .Lbv_code_preimage_flag_done	load	bal_txs_independent	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
+.Lbv_mtx_storage	load	bal_map_builder_consistent	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 .Lbv_ret	store	bal_gas_valid_from_builder	yes	la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)
 .Ldtrc_deferred_marker_ready	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 bal_same_block_delegation_code_resolve	load	rlp_walk_init	no	la t0, bv_bal_len; ld s4, 0(t0)
