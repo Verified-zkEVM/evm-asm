@@ -186,10 +186,22 @@ matches U64 exactly, stricter on a Uint field — differential does not reach th
     reference := "_deserialize_to_uint at U256 ∘ walk",
     note := "walk layer bridged; scalar layer inspection-only" },
   { family := "rlp", routine := "rlp_bytes_encoded_size",
-    spec := some "rlpBytesEncodedSize_spec",
-    verdict := .agrees, basis := .machineOnly,
+    spec := some "rlpBytesEncodedSize_encode_spec",
+    verdict := .agrees, basis := .bridged,
     reference := "len(encode_bytes(...))",
-    note := "rbesSize is standalone arithmetic, not (encode …).length" },
+    note := "was machineOnly — `rbesSize` is standalone arithmetic, not \
+(encode …).length. Bridged in #11341 by `rbesSize_eq_encodeBytes_length` \
+(`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`), whose load-bearing sublemma \
+`u64ByteLen_eq_toBytesBE_length` identifies the guest's 9-way length-of-length \
+ladder with `(Nat.toBytesBE ·).length`. The row now names the model-facing \
+`rlpBytesEncodedSize_encode_spec` (post: `a0 = (encodeBytes xs).length`), a one-rewrite \
+consequence of the untouched machine triple `rlpBytesEncodedSize_spec`. Full domain: \
+the `hbound` side condition is 64-bit non-overflow on the register. That is a \
+REPRESENTABILITY guard, not a domain restriction, and the distinction is what keeps this \
+row `.agrees` rather than `.domainRestricted`: `domainRestricted` means the reference \
+accepts inputs the spec excludes, whereas a `List Byte` of length ≥ 2^64 - 9 has no \
+representation on the target at all, so `hbound` excludes no input the routine could ever \
+be handed. Every byte string the guest can physically be called on is inside the claim" },
   { family := "rlp", routine := "rlp_list_encoded_size",
     spec := some "rlpListEncodedSize_spec",
     verdict := .agrees, basis := .machineOnly,
@@ -280,8 +292,8 @@ theorem verdict_counts :
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 7 ∧
-    countBasis .machineOnly = 5 ∧ countBasis .inspection = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 8 ∧
+    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
