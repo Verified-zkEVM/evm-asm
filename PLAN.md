@@ -277,6 +277,72 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `BlockVerdictMtxRuntime:399`, are later slices. This bead is the forced-order
   prerequisite for #10651 (compute the state root from operations, not from the BAL).
 
+- **#10651's headline is now DONE for user-tx accounts** (PR #11389, GH #11326 entry 6):
+  `BlockVerdictStateRoot.lean` no longer seeds `bsr_changes` from the supplied BAL — the
+  seeding block is a bare `j .Lbsr_bal_copy_next`, the RLP walk is retained only so the
+  cursor advances, and `execution_map_state_changes` is the **sole root authority**. The
+  state root is computed from operations, not from the BAL, matching the spec's data flow:
+  `fork.py:928-930` builds the BAL **from** tracked state *after* execution and
+  `:366`/`:390` bind only `hash_block_access_list`. Evidence the seed was redundant rather
+  than merely unused: a −484-byte removal left the random-200 **byte-identical** (FA=0,
+  forward set empty) — which is what the #11382 TOUCHED producers bought. `bsr_changed_accounts`
+  survives as a **dedup/already-owned list, not a work list**, so system-only content is now
+  its correct content. Residual: the modeled 2935/4788 arms still pre-seed and take
+  precedence over the map (GH #11390, PR #11399 — union, not precedence, since
+  `process_unchecked_system_transaction` at `fork.py:897-907` mutates the same tracked state
+  as everything else).
+
+- **The Class-A programme** (GH #11183) is #10651's successor line: *the guest must not read
+  the provided BAL as an **execution input***. ⛔ Its original wording — "except to hash it" —
+  proved **unreachable** and was amended 2026-08-04 with a **carve-out**: a witness-integrity
+  check may read BAL row *shapes* to select what to verify, provided every value it trusts is
+  authenticated and its only effect is to reject. `bal_code_preimages_valid` satisfies the
+  carve-out and **must not be deleted** — `bal_serializer_verify` never reads `svf_codes`, so
+  removing it turns a clean fail-11 reject into a **false accept** whenever the missing code
+  does not move the post-state root, and the spec agrees such witnesses are invalid
+  (`witness_state.py:204-212` raises `KeyError` when execution reads the code, *regardless of
+  state effect*). On the accept path the serializer hash pins the supplied BAL byte-for-byte to
+  the execution-derived rebuild, so what remains BAL-sourced there is only *selection*, never a
+  value.
+
+  Retired so far: the `runtime_current_bal_ptr` handoff into same-block delegation (#11396 /
+  PR #11400), the granular MtxTail comparators 37/44/45 together with the
+  `nonstorage_effect_aggregate` they alone fed (#10612 / PR #11392), the discarded
+  `bal_storage_whitelist_clean` scan (#11402 / PR #11404), the BAL-sourced recipient
+  state-charge arm across all four arms via one shared template (#11398 / PR #11403), and
+  `eip8037`'s redundant duplicate BAL loads (PR #11405). Still live:
+  `bal_same_block_delegation_code_resolve` at **15 emitted sites** (#11406 — blocked on
+  publishing the 23-byte auth marker into AccountState first, since **write maps are
+  attribution, not state**, and the spec reads code from `tx_state.code_writes`,
+  `state_tracker.py:248-274`), `eip8037_state_used_before_tx` (#11407 — the supplied BAL is the
+  prior-state-gas source for **later transactions** of non-independent/EOA blocks, because
+  `bvgr_runtime_count` is 0 there and the gas gate runs before `arena_prepare`; not deletable
+  until a per-tx storage-set counter exists, as `storage_writes` is a cumulative latest-value
+  map cleared by `write_sets_incorporate_tx`), and the BAL-shaped *selection* in the preimage
+  gate (#11410 — C-class re-derivation from actual code reads, not a deletion).
+
+  **A ratchet, not an assertion** (PR #11409): `scripts/check-bal-class-a-ratchet.py` plus a
+  33-path baseline fails on any **new** `bv_bal_start`/`bv_bal_len` edge *and* on a **silent
+  shrink**, so retirement must shrink the baseline deliberately and progress is visible as the
+  file shrinking. The invariant is not yet true, so a guard asserting it would be red on arrival
+  and would get disabled. The baseline records per path whether its **return status is tested**,
+  because *an unused datum is not an unused status*: three near-deletions in one hour had a
+  payload reaching nothing while `a0 == 2` gated a reject — `bal_find_account_by_address` @21731
+  (`BlockVerdictDispatchTx.lean:346` says outright the parse bail is FA-safe and stays, and its
+  `a3`/`a4` are out-pointers), `bal_txs_independent` (`.Lbv_mtx_bail`), and `eip8037`'s
+  arguments (live across an `s1`/`s2` save-restore, dead only in a redundant second load).
+  Blind spots are enumerated in the script, including that symbol-only scanning is **evadable by
+  an address literal** — `AccountWriteMap` reaches its arenas via `li 0xa2b20000`, `0xa28a0000`,
+  `0xa2d20000`, `0xa21a0000`, `0xa1fa0000`, `0xa23a0000`, none of which appears in
+  `symbol-addresses.tsv`.
+
+  ⚠️ **Gate equality is the test for retiring a check, and it must be applied per check.** #11392's
+  comparators were retirable because survivor and retired check shared one flag
+  (`bv_bal_shadow_ready`, sole writer `BlockVerdictFunction.lean:230`) *and* the hash covered the
+  same bytes. The same test **fails** for `bal_code_preimages_valid`, whose property the hash
+  cannot see. Byte coverage alone is necessary but not sufficient: a survivor behind a narrower
+  gate leaves an uncovered population that a random-200 cannot reveal.
+
 - **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
   GH #10540): kernel-checked (`decide`, classical-3) assertions that the
   MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding
