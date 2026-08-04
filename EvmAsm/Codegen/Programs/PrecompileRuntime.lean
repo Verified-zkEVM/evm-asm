@@ -595,6 +595,11 @@ def stagePrecompileInputWindowFromAsm
   -- Zero-fill the fixed accelerator window, then copy the available suffix of
   -- input bytes. This mirrors execution-specs `buffer_read` padding and lets
   -- the top-level and child precompile routes share the validator input shape.
+  --
+  -- x24 holds the input base for the whole helper and must NOT be reused as the
+  -- destination cursor: dual-window callers (bn254 add/mul) invoke this twice
+  -- with the same inputReg=x24; clobbering x24 made the second window read from
+  -- the frame tail (zeros) so is_inf(p2) fired and G+G collapsed to copy-p1.
   "  mv x24, " ++ inputReg ++ "\n" ++
   precompileFrameAddi "x18" frameOff ++
   "  li x19, " ++ toString byteLen ++ "\n" ++
@@ -607,21 +612,21 @@ def stagePrecompileInputWindowFromAsm
   ".L" ++ tag ++ "_zero_done:\n" ++
   "  li x19, " ++ toString sourceOff ++ "\n" ++
   "  bgeu x19, " ++ sizeReg ++ ", .L" ++ tag ++ "_done\n" ++
-  "  sub x18, " ++ sizeReg ++ ", x19\n" ++
-  "  li x22, " ++ toString byteLen ++ "\n" ++
-  "  bgeu x22, x18, .L" ++ tag ++ "_copy_len_ok\n" ++
-  "  mv x18, x22\n" ++
+  "  sub x22, " ++ sizeReg ++ ", x19\n" ++
+  "  li x19, " ++ toString byteLen ++ "\n" ++
+  "  bgeu x19, x22, .L" ++ tag ++ "_copy_len_ok\n" ++
+  "  mv x22, x19\n" ++
   ".L" ++ tag ++ "_copy_len_ok:\n" ++
-  "  li x22, " ++ toString sourceOff ++ "\n" ++
-  "  add x19, x24, x22\n" ++
-  precompileFrameAddi "x24" frameOff ++
+  "  li x19, " ++ toString sourceOff ++ "\n" ++
+  "  add x19, x24, x19\n" ++
+  precompileFrameAddi "x18" frameOff ++
   ".L" ++ tag ++ "_copy:\n" ++
-  "  beqz x18, .L" ++ tag ++ "_done\n" ++
+  "  beqz x22, .L" ++ tag ++ "_done\n" ++
   "  lbu x23, 0(x19)
-  sb x23, 0(x24)
+  sb x23, 0(x18)
   addi x19, x19, 1
-  addi x24, x24, 1
-  addi x18, x18, -1
+  addi x18, x18, 1
+  addi x22, x22, -1
 " ++
   "  j .L" ++ tag ++ "_copy\n" ++
   ".L" ++ tag ++ "_done:\n"
