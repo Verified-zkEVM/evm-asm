@@ -361,6 +361,40 @@ identical to fork.py:1259-1264; clause 2 differs — fork.py writes clause 2 as 
 algebraic, not syntactic, and is PROVED here by `clause2_port_faithful` rather than \
 relied upon -- it is the one clause where the port could silently diverge from the \
 Python while looking faithful" },
+  -- #11351: the second `header` row. `number` is the family representative because
+  -- `getN 8` is identical in BOTH fork arms, so the 23-vs-21 discriminant is a no-op
+  -- for it -- see the note.
+  -- ⚠️ THE TRIPLE PREDATED THIS ROW by over a week (`header_extract_number_spec_within`,
+  -- HeaderExtractNumberSpec.lean, landed 27 July in c67f0a988); only the correspondence
+  -- was missing. I rebuilt it from scratch in #11457 before finding it, having read "no
+  -- registry row" as "no proof" after a truncated survey search. AN ABSENT ROW IS NOT
+  -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
+  { family := "header", routine := "header_extract_number",
+    spec := some "header_number_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:75, \
+stateless.py:244)",
+    note := "ONE-DIRECTIONAL and DOMAIN-RESTRICTED, and both qualifiers are load-bearing. \
+(a) ARITY: the guest never checks how many fields the header has, so on a list of any other \
+length it still returns a value where `_decode_header` errors; the honest statement is \
+`_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. `number` is \
+`getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is exactly \
+why this row represents the family. (b) TWO CONTENT RESTRICTIONS, which are the GUEST BEING \
+STRICTER THAN THE PORT: the guest rejects a field wider than eight bytes (`Result.tooLong`) \
+and one with a leading zero byte (`Result.noncanonical`), while the port's `getN` is plain \
+`bytesBEtoNat`, which tolerates both. That extra strictness matches CPython's \
+`rlp.decode_to`, which enforces exactly these -- it is the PORT that dropped the checks, not \
+the guest that invented them. Tied by `header_number_of_decode` \
+(`Codegen/Programs/HeaderExtractNumberBridge.lean`), consuming the machine triple \
+`header_extract_number_spec_within` and `decode_header_inv`. NOT NEEDED: any byte-string \
+side condition -- `_decode_header` runs `items.mapM rlpBytes?`, which sends `.list` to \
+`none`, so a successful header decode already implies every field is a byte string. WHY \
+`.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no executable \
+differential to inherit. PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeader`'s \
+`number := getN 8` is syntactically the `header.number` assignment of stateless.py:244; the \
+arity guard `bs.length = 23 / 21` is the port's rendering of the fork discriminant; and the \
+two dropped canonicality checks above are the one place the port is WEAKER than the Python, \
+recorded here rather than hidden in the verdict" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
@@ -397,24 +431,24 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 24 := by decide
+theorem registry_size : registry.length = 25 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
-/-- #11349. No differential for this family -- see the row's note. -/
-theorem header_rows : countFamily "header" = 1 := by decide
+/-- #11349, #11351. No differential for this family -- see the rows' notes. -/
+theorem header_rows : countFamily "header" = 2 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .ported = 3 ∧
+    countBasis .ported = 4 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 

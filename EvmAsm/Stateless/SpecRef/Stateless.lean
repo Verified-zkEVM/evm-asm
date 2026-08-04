@@ -83,6 +83,81 @@ def _decode_header (header_bytes : Bytes) : Except SpecError Header :=
           else .error .headerDecodeError
   | _ => .error .headerDecodeError
 
+/-- Indexing view of `items.mapM rlpBytes?`: it succeeds exactly when every
+    item is a byte string, and then the `i`th decoded field is the `i`th item's
+    payload.  Stated here because `rlpBytes?` is private to this module. -/
+private theorem mapM_rlpBytes_spec :
+    ∀ (items : List RLPItem) (bs : List Bytes),
+      items.mapM rlpBytes? = some bs →
+      bs.length = items.length ∧
+        ∀ i, i < items.length → items[i]? = some (.bytes (bs.getD i [])) := by
+  intro items
+  induction items with
+  | nil =>
+      intro bs h
+      rw [List.mapM_nil] at h
+      have hb : bs = [] := (Option.some.inj h).symm
+      subst hb
+      exact ⟨rfl, by intro i hi; exact absurd hi (by simp)⟩
+  | cons it rest ih =>
+      intro bs h
+      cases hit : rlpBytes? it with
+      | none => rw [List.mapM_cons, hit] at h; simp at h
+      | some b =>
+          cases hrest : rest.mapM rlpBytes? with
+          | none => rw [List.mapM_cons, hit, hrest] at h; simp at h
+          | some bs' =>
+              rw [List.mapM_cons, hit, hrest] at h
+              simp at h
+              subst h
+              have hb : it = .bytes b := by
+                cases it with
+                | bytes q => simp [rlpBytes?] at hit; rw [hit]
+                | list _ => simp [rlpBytes?] at hit
+              obtain ⟨hlen, hidx⟩ := ih bs' hrest
+              refine ⟨by simp [hlen], ?_⟩
+              intro i hi
+              cases i with
+              | zero => simp [hb]
+              | succ k =>
+                  simp only [List.getElem?_cons_succ, List.length_cons] at *
+                  have := hidx k (by omega)
+                  simpa using this
+
+/-- Inversion of a successful header decode, in vocabulary a caller can use:
+    the input decodes fully to a list of byte strings, of one of the two
+    permitted arities, and `number` is the big-endian value of field 8.
+
+    Needed because `rlpBytes?` is private, so `_decode_header` cannot be
+    inverted from outside this module. -/
+theorem decode_header_inv {hb : Bytes} {hdr : Header}
+    (h : _decode_header hb = .ok hdr) :
+    ∃ (items : List RLPItem) (bs : List Bytes),
+      decodeFully hb = some (.list items) ∧
+        bs.length = items.length ∧
+        (bs.length = 23 ∨ bs.length = 21) ∧
+        (∀ i, i < items.length → items[i]? = some (.bytes (bs.getD i []))) ∧
+        hdr.number = bytesBEtoNat (bs.getD 8 []) := by
+  unfold _decode_header at h
+  split at h
+  · rename_i items hfull
+    split at h
+    · exact absurd h (by simp)
+    · rename_i bs hmap
+      obtain ⟨hlen, hidx⟩ := mapM_rlpBytes_spec items bs hmap
+      split at h
+      · rename_i h23
+        refine ⟨items, bs, hfull, hlen, Or.inl h23, hidx, ?_⟩
+        rw [← Except.ok.inj h]
+        rfl
+      · split at h
+        · rename_i h21
+          refine ⟨items, bs, hfull, hlen, Or.inr h21, hidx, ?_⟩
+          rw [← Except.ok.inj h]
+          rfl
+        · exact absurd h (by simp)
+  · exact absurd h (by simp)
+
 /-! ## `validate_headers` (`stateless.py:255`) -/
 
 /-- Validate that a sequence of encoded headers forms a contiguous chain.
