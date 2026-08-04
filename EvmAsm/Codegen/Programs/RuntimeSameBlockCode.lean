@@ -65,7 +65,7 @@ def runtimeSameBlockDelegationCodeFunction : String :=
 #guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_state_lookup_current").length == 2
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
-#guard !(runtimeSameBlockDelegationCodeFunction.contains "account_state_lookup_current")
+#guard !(runtimeSameBlockDelegationCodeFunction.contains "code_state_lookup_current")
 
 /-- Scratch/output cells. `runtime_current_bal_*` kept zeroed (no producers after
     #11396) so any residual store is inert. `rsbd_hash` / `eahsr_*` / `ecc_*`
