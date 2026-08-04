@@ -15,7 +15,6 @@
 .Lbv_code_preimage_flag_done	load	bal_code_preimages_valid	yes	la t2, bv_bal_start; ld a0, 0(t2)
 .Lbv_code_preimage_flag_done	load	bal_storage_whitelist_clean	no	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 .Lbv_code_preimage_flag_done	load	bal_txs_independent	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
-.Lbv_mtx_storage	load	bal_all_accounts_tuple_sequences_consistent_skip_list	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 .Lbv_pregate_state_gas_ready	load	bgv_u64le	yes	la t2, bv_bal_len; ld a2, 0(t2)
 .Lbv_pregate_state_gas_ready	load	bgv_u64le	yes	la t2, bv_bal_start; ld a1, 0(t2)
 .Lbv_ret	store	bal_gas_valid_from_builder	yes	la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)

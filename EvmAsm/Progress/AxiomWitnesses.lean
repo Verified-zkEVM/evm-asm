@@ -34,6 +34,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
+
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
