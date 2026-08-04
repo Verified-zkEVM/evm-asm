@@ -32,6 +32,8 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
 
+#print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within

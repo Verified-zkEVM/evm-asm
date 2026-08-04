@@ -89,23 +89,37 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 | `rlp_list_nth_item` | `rlpListNthItem_spec_within` — `Codegen/Programs/RlpListNthItemSAsm.lean:733` | agrees | bridged | `decode_to_sequence` + index |
 | `rlp_field_to_u64` | `rlpFieldToU64_spec_within` — `Codegen/Programs/RlpFieldToU64WholeSAsm.lean:181` | agrees (U64 only) | inspection | `_deserialize_to_uint` at `U64` ∘ walk |
 | `rlp_field_to_u256_be` | `rlpFieldToU256Be_spec_within` — `Codegen/Programs/RlpFieldToU256BeWholeSAsm.lean:166` | agrees (U256 only) | inspection | `_deserialize_to_uint` at `U256` ∘ walk |
-| `rlp_bytes_encoded_size` | `rlpBytesEncodedSize_spec` — `Codegen/Programs/RlpBytesEncodedSizeSAsm.lean:539` | agrees | machine-only | `len(encode_bytes(...))` |
+| `rlp_bytes_encoded_size` | `rlpBytesEncodedSize_encode_spec` — `Codegen/Programs/RlpBytesEncodedSizeBridge.lean` (over the machine triple `RlpBytesEncodedSizeSAsm.lean:539`) | agrees | **bridged** (#11341) | `len(encode_bytes(...))` |
 | `rlp_list_encoded_size` | `rlpListEncodedSize_spec` — `Codegen/Programs/RlpListEncodedSizeSAsm.lean:364` | agrees | machine-only | `len(encode_sequence(...))` |
-| `rlp_encode_uint_be` | — (model layer complete; **no whole-routine triple**) | n/a — unproven | — | `encode(Uint)` — unbounded |
+| `rlp_encode_uint_be` | `reub_spec_within` — `Codegen/Programs/RlpEncodeUintBeSAsm.lean` | domain-restricted | bridged | `encode(Uint)` — unbounded |
 | `rlp_encode_list_prefix` | `…_short_pinned_spec_within:762`, `…_long1_pinned_spec_within:917` | domain-restricted | bridged | header of `encode_sequence` |
-| `rlp_encode_bytes` | — (drift guard only) | n/a — unproven | — | `encode_bytes` |
+| `rlp_encode_bytes` | `reb_spec_within` — `Codegen/Programs/RlpEncodeBytesComposeSAsm.lean` | agrees | bridged | `encode_bytes` |
 | `rlp_encode_u64` | — (drift guard only) | n/a — unproven | — | `encode(U64)` |
 | `rlp_list_truncate_to_n_fields` | — | no-counterpart | inspection | signing-hash truncation is guest-specific |
 | `rlp_prefix_to_buffer` | — (**no drift guard either**) | no-counterpart | inspection | header emission |
 
-**Counts** (kernel-checked): 10 agrees · 2 domain-restricted · 2 no-counterpart ·
-4 unproven · **0 stricter · 0 looser**.
+**Counts** (kernel-checked, **`rlp` family only** — 19 of the registry's 21 rows;
+the other two are `bal`): 12 agrees · 3 domain-restricted · 2 no-counterpart ·
+2 unproven · **0 stricter · 0 looser**. By basis: 8 bridged · 4 machine-only ·
+5 inspection · 2 none.
 
-> `rlp_encode_uint_be` reads as `domain-restricted` in prose — it has a
-> documented `≤ 55` domain — but with **no whole-routine triple** that is a
-> property of the *model layer*, not of the routine, so the honest verdict is
-> `unproven`. The registry's `verdict_requires_spec` theorem rejects the other
-> classification; an earlier revision of this page had it wrong.
+> These are read off `EvmAsm/Progress/Correspondence.lean`'s `by decide` censuses,
+> which are the authority — do not hand-count this table. An earlier revision said
+> `10 agrees · 2 domain-restricted · 2 no-counterpart · 4 unproven` and three of the
+> four numbers were wrong; the `rlp_encode_uint_be` and `rlp_encode_bytes` rows above
+> had likewise gone stale after their triples landed (#11040 / #10780). Corrected as
+> a #11341 rider. Note the scope trap that produced part of the drift: the registry's
+> `basis_counts` theorem is **registry-wide** while this line is family-scoped, so the
+> two legitimately differ (`none` is 3 registry-wide, 2 here — `bal_canonical_sort`
+> supplies the third).
+
+> ⚠️ An earlier revision of this page argued `rlp_encode_uint_be` had to read
+> `unproven` because the `≤ 55` bound was "a property of the model layer, not of the
+> routine". That reasoning expired when #11040 landed the whole-routine triple: the
+> bound is now a proven property of the *routine*, so `domain-restricted` is the
+> honest verdict and the registry records it. Kept here because the superseded
+> argument is still a correct reading of the pre-#11040 state, and the row's history
+> is otherwise confusing.
 
 ### Adjacent RLP-consuming routines
 
@@ -148,11 +162,15 @@ per-call-site obligation, not a routine defect.
 
 Divergences found: **none.** The rest is coverage and hygiene.
 
-1. **Inheritance bridges** for the five `machine-only` rows
-   (`rlp_content_to_u256_be`, `rlp_list_count_items`, `rlp_bytes_encoded_size`,
-   `rlp_list_encoded_size`, `withdrawal_decode`) — see method §4. A drift
-   between the local predicate and `EL.RLP` would be invisible to both the
-   differential and the proof.
+1. **Inheritance bridges** for the remaining `machine-only` rows
+   (`rlp_content_to_u256_be`, `rlp_list_count_items`, `rlp_list_encoded_size`,
+   `withdrawal_decode`) — see method §4, and GH #11341. A drift between the local
+   predicate and `EL.RLP` would be invisible to both the differential and the proof.
+   ✅ `rlp_bytes_encoded_size` closed by `rbesSize_eq_encodeBytes_length`
+   (`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`). Its sublemma
+   `u64ByteLen_eq_toBytesBE_length` — the guest's 9-way length-of-length ladder IS
+   `(Nat.toBytesBE ·).length` — is shared with `rlp_list_encoded_size`, so that row
+   is now the cheapest of the four remaining.
 2. **Typed-layer oracle** covering `_deserialize_to_uint` at `Uint`/`U64`/`U256`,
    moving the scalar rows from `inspection` to `diff`.
 3. **Call-site type audit** — every guest site decoding a header/withdrawal

@@ -61,6 +61,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
@@ -194,6 +195,15 @@ def routineRegistry : List RoutineEntry := [
       (notes := "total: computes `rbesSize` for any byte payload whose length "
         ++ "matches the `len` register; only ABI hyps (ptr/len consistency, "
         ++ "alignment, validity)"),
+  -- #11341: the same triple with its post restated over the SHARED MODEL
+  -- (`EL.RLP.encodeBytes`) instead of the local `rbesSize`, via the bridge
+  -- `rbesSize_eq_encodeBytes_length`. Both rows are kept: the machine-level
+  -- theorem is still the thing proved, and this one is what makes the
+  -- Correspondence row `.bridged` rather than `.machineOnly`.
+  routine "rlp_bytes_encoded_size" .proven (some "rlpBytesEncodedSize_encode_spec")
+      (notes := "model-facing restatement: `a0 = (EL.RLP.encodeBytes xs).length`. "
+        ++ "One rewrite over `rlpBytesEncodedSize_spec`; the extra `hbound` is a "
+        ++ "64-bit non-overflow guard on the register, an ABI hyp, not a domain gate"),
   routine "rlp_field_to_u256_be" .proven (some "rlpFieldToU256Be_spec_within")
       (notes := "whole-routine triple over the `…Whole` module; 32-byte output "
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
@@ -236,9 +246,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 21 := by decide
+theorem routineCount_eq : routineCount = 22 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 13 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 14 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -339,6 +349,9 @@ private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_wit
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
 private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
+-- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
+private noncomputable abbrev _rlp_bytes_encoded_size_encode_routine_witness :=
+  @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
