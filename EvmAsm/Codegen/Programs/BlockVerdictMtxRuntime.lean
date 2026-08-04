@@ -171,15 +171,26 @@ private def blockVerdictMtxOogMaterialize : String :=
     both now removed. -/
 def blockVerdictMtxRuntimeLoop : String :=
   -- Multi-transaction runtime gas loop (every non-empty block enters MTx).
-  -- #11183 Class-A note on bal_txs_independent (settled): returns 0 independent /
-  -- 1 interacting / 2 parse error. Only status 2 is load-bearing (bne → .Lbv_mtx_bail).
-  -- Values 0 and 1 do NOT select divergent gas lanes: both arms call
+  --
+  -- bvgr_runtime_count contract (live; do not delete — explains 11407 fallback):
+  -- zeroed at block_verdict entry. Set to bv_tx_count ONLY on success paths after
+  -- full MTx completion (.Lbv_mtx_publish / .Lbv_mtx_capture_only_post_root). Any
+  -- bail (.Lbv_mtx_bail, .Lbv_mtx_dispatch_unsupported, EOA/unsupported/capacity/
+  -- dispatch-miss, parse error, etc.) jumps to .Lbv_after_tx_gas_precharge with
+  -- count left 0, so arena_prepare sees a short count and the exact prior-state /
+  -- block-gas path is skipped (conservative). That count-left-0 behaviour is real.
+  --
+  -- #11183 Class-A note on bal_txs_independent at the CALLSITE (settled, narrow):
+  -- returns 0 independent / 1 interacting / 2 parse error. Only status 2 is
+  -- load-bearing here (bne → .Lbv_mtx_bail → count stays 0). Values 0 and 1 do
+  -- NOT select divergent lanes at :jal: both arms call
   -- block_verdict_all_direct_deposit_txs, both can set bv_deposit_capture_only from
-  -- THAT return (not from the 0/1 value), and both converge at .Lbv_mtx_independence_ok.
-  -- The a0==1 arm's only extra is bal_storage_whitelist_clean whose return is discarded
-  -- (always j .Lbv_mtx_independence_ok; retiring with PR 11404). So the Class-A row is
-  -- status-tested-only (parse bail), not SHAPE→ROUTE. Stale prose that claimed
-  -- independence gated per-tx pre-state dispatch is wrong on current main.
+  -- THAT return (not from 0/1), both converge at .Lbv_mtx_independence_ok. The
+  -- a0==1 arm's only extra is bal_storage_whitelist_clean whose return is discarded
+  -- (always j ok; 11404 retires the jal). So the Class-A row is status-tested-only,
+  -- not SHAPE→ROUTE from a0. Convergence at the join does NOT erase the later
+  -- count-left-0 contract above — that is driven by bail labels, not by a0∈{0,1}.
+  -- Interacting blocks that complete the loop still set count=tx_count.
   -- Production MTx selector: every block enters MTx, including the empty
   -- block; the loop iterates zero times there (matches execution-specs
   -- fork.py:913-914, which has no empty-block special case).  The former
