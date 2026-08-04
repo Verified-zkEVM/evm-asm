@@ -1158,14 +1158,10 @@ def emitDispatcherPrologue : String :=
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++   -- .61.8c-1: reset per-creator nonce table per tx
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
-  -- The comparator evidence heap is per dispatch in standalone mode, but is
-  -- block-lived while the MTx runtime is active: retained code bytes are the
-  -- backing store for cross-transaction execution reads.
-  "  la x5, runtime_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
-  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
-  ".Lrtd_code_log_kept:\n" ++
+  -- The comparator evidence heap is transaction-state for the callable
+  -- dispatcher, not a lane selector. The block verdict clears it once before
+  -- the universal transaction loop, and every callable dispatch (including
+  -- system re-entry) retains accumulated code effects for that block.
   "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++ -- AccountState pending journal is tx scoped
   "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
   "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
@@ -1232,7 +1228,7 @@ def emitDispatcherPrologue : String :=
 
     Intentionally sticky — do NOT clear:
     `auth_phase_halted`, `prepare_prefix_status`, `auth_state_charged`,
-    `runtime_mtx_active`, `runtime_tx_oog_hook`. -/
+    `runtime_tx_oog_hook`. -/
 def emitExceptionalExitModeTeardown : String :=
   -- Access-list seed triple (set by dispatch_tx_runtime_code / MTx; consumed by
   -- emitTxAccessListSeedLoop). OOG during auth prepare leaves the triple live;
@@ -1349,7 +1345,7 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   -- Mode/continuation teardown already ran at entry (`emitExceptionalExitModeTeardown`,
   -- #11250) — covers prepare_only (#11249), auth_exec_fn (#11247), and the seed/warm
   -- function-pointer triples (candidate #3). Intentionally sticky flags (auth_phase_halted,
-  -- prepare_prefix_status, auth_state_charged, runtime_mtx_active, oog_hook) are NOT
+  -- prepare_prefix_status, auth_state_charged, oog_hook) are NOT
   -- cleared there; oog_hook is invoked next.
   -- A transaction-aware caller may stage a process_transaction debit before
   -- entering the callable dispatcher. An exceptional halt can occur in the
@@ -2410,10 +2406,9 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- The callback publishes auth nonce effects before the state-gas boundary
   -- is checked.  Save append-only log cursors before it so an auth-phase OOG
   -- can roll those effects back without disturbing earlier transactions.
-  -- The direct single-tx lane snapshots the append-only log immediately
-  -- before its inline authorization call.  Do not overwrite that checkpoint
-  -- here after authorization has already run; MTx uses this callback as its
-  -- first authorization boundary and must snapshot here instead.
+  -- The universal transaction boundary snapshots the append-only log before
+  -- its authorization callback. An authorization-phase OOG must roll back
+  -- only the current transaction's effects on every caller.
   "  la x11, runtime_tx_auth_phase_halted; sd x0, 0(x11)\n" ++
   -- Deferred system re-entry (`system_call_mode=1`) must not re-run the user
   -- transaction's leftover `runtime_tx_auth_exec_fn` (eip7702_auth_state_prepare).
@@ -2421,7 +2416,6 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- auth-phase OOG re-applies rolled-back authority nonces into the block-lived
   -- nonstorage log (code44 NONCE_ONLY_AUTH / #11148 sibling shape).
   "  la x11, system_call_mode; ld x9, 0(x11); bnez x9, .runtime_tx_auth_state_used_done\n" ++
-  "  la x11, runtime_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
   "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_code_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_code_effect_count_checkpoint; sd x9, 0(x11)\n" ++
@@ -3072,11 +3066,9 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
-  "  la x5, runtime_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
-  "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
-  "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
-  ".Lrtdc_code_log_kept:\n" ++
+  -- The comparator evidence heap is transaction-state for the callable
+  -- dispatcher. The block verdict clears it once before the universal
+  -- transaction loop; user and system dispatches retain it across the loop.
   -- EIP-7702 preparation publishes accepted authorizations into the
   -- transaction-local AccountState overlay before entering this dispatcher.
   -- That overlay is the live execution state consumed by delegation
