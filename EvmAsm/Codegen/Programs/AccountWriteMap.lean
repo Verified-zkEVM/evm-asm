@@ -686,9 +686,14 @@ def accountResolvePreStateFunction : String :=
     The return is resolver-local state, not an `account_at_header_state_root`
     parser status: 0 absent, 1 live code, 2 present-but-empty, 3 deleted, and
     4 resolver-unavailable (a non-empty code hash missing from witness.codes).
-    A malformed authenticated lookup uses 5, so parser errors cannot be
-    confused with a genuine account state or with a code-table miss.  A map
-    code row is authoritative and its pointer/length is preserved.  Otherwise
+    Status 4 means a valid authenticated account lacks a witness.codes
+    preimage: a block may be valid, so a caller's rejection is a false reject
+    caused by witness incompleteness.  A malformed authenticated lookup uses 5:
+    that is malformed proof/input evidence, so its rejection is a genuine
+    reject rather than a witness-shortfall bail.  Keeping 4 and 5 separate is
+    therefore part of the ABI even though no producer routes through this
+    helper in this cut.  A map code row is authoritative and its pointer/length
+    is preserved.  Otherwise
     the authenticated account's code_hash is resolved with the RAW
     `witness_codes_lookup_by_hash` helper, never `code_read_fetch`: this path
     materialises state and must not record a code read or alter witness-code
