@@ -72,6 +72,11 @@ def blockVerdictFunctionTail : String :=
   -- and return normally to preserve call frames; reject the incomplete record here.
   "  la t0, create_nonce_table_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
   "  la t0, exec_code_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
+  -- AccountState producers can latch overflow during the post-dispatch commit
+  -- (after the MTx runtime gate), and that failure path jumps directly here.
+  -- Consume the latch at the common tail so commit overflow cannot bypass the
+  -- verdict rejection merely by arriving after the earlier per-dispatch check.
+  "  la t0, account_state_overflow; ld t0, 0(t0); bnez t0, .Lbv_fixed_arena_overflow_fail\n" ++
   -- B2.3 used to treat this latch as a reason to skip its comparison.  That
   -- turns a truncated non-storage execution log into an accepted block, so the
   -- common terminal gate consumes it exactly like the other fixed arenas.
