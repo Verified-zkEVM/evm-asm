@@ -268,7 +268,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
      -- plus createSameTxCollisionScanAsm. Matches top-level
      -- BlockVerdictMtxRuntime creation (status-1 only).
      "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-     "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
+     "  la a0, create_address_be; jal ra, account_state_lookup_current; mv t0, a0\n" ++
      "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
      "  ld a1, 584(x20)\n" ++
@@ -416,7 +416,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  bnez t1, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
+    "  la a0, create_address_be\n  jal ra, account_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT

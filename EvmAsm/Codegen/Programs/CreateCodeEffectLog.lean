@@ -83,8 +83,7 @@ def execCodeEffectLogCap : Nat := 1048576
 
     The historical `code_state_find`/`code_state_upsert` family below described
     a separate fixed table.  Those source strings are retained only as
-    migration scaffolding; the emitted execution path uses AccountState, and
-    `code_state_lookup_current` is a compatibility jump to its resolver.  Do
+    migration scaffolding; the emitted execution path uses AccountState.  Do
     not read these legacy constants as a live runtime container. -/
 def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
@@ -714,28 +713,6 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   "  li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
-
-/-! ## code_state_lookup_current
-
-    Shared execution-read compatibility resolver.  The emitted body forwards
-    to the AccountState layers; the CodeState name remains only for callers
-    that have not yet been mechanically renamed.
-
-    a0 = canonical 20-byte BE address pointer
-    returns a0 = 0 absent from both overlays, 1 existing with code,
-                 2 existing with empty code, 3 explicitly deleted;
-            a1 = code pointer, a2 = code length for status 1.
-
-    Callers fall back to the authenticated header/witness only on status 0.
-    This is deliberately the one shared state resolver used by CALL, NACC,
-    EXTCODE*, collision, and SELFDESTRUCT consumers; it prevents a per-opcode
-    recreation of the old log-vs-state divergence. -/
-def codeStateLookupCurrentFunction : String :=
-  "code_state_lookup_current:\n" ++
-  -- Compatibility symbol for the atomic tqj1m source cutover.  Every legacy
-  -- caller now reaches the one AccountState layered resolver; the historical
-  -- table strings are migration evidence only and are no longer a read source.
-  "  j account_state_lookup_current"
 
 /-! ## codeStateStatusIsLiveAsm
 

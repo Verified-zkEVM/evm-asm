@@ -300,12 +300,12 @@ def eip7702AuthStatePrepareFunction : String :=
   -- allocating twice would consume two block-lifetime slots for one auth.
   -- AccountState is execution state, so this producer is unconditional on the
   -- MTx-only AccountWrite path.
-  "  beqz s11, .L77prep_auth_code_null_ptr; la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add s8, t4, t3; addi t1, t1, 1; sd t1, 0(t0); li t0, 0xef; sb t0, 0(s8); li t0, 1; sb t0, 1(s8); sb zero, 2(s8); li t0, 0\n" ++
-  ".L77prep_auth_code_copy:\n" ++
-  "  li t1, 20; beq t0, t1, .L77prep_auth_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, s8, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_auth_code_copy\n" ++
-  ".L77prep_auth_code_null_ptr:\n" ++
+  "  beqz s11, .L77prep_state_code_null; la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add s8, t4, t3; addi t1, t1, 1; sd t1, 0(t0); li t0, 0xef; sb t0, 0(s8); li t0, 1; sb t0, 1(s8); sb zero, 2(s8); li t0, 0\n" ++
+  ".L77prep_state_code_copy:\n" ++
+  "  li t1, 20; beq t0, t1, .L77prep_state_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, s8, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_state_code_copy\n" ++
+  ".L77prep_state_code_null:\n" ++
   "  li s8, 0\n" ++
-  ".L77prep_auth_code_ready:\n" ++
+  ".L77prep_state_code_ready:\n" ++
   -- execution-specs `eoa_delegation.py:set_delegation` installs the authority
   -- code and increments its nonce here, before message execution.  Publish the
   -- append-only code effect and nonce effect at this same point: their
