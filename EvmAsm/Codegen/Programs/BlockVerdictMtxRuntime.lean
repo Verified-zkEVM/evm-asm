@@ -487,7 +487,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- and coinbase-credit writes, so it needs its own complete state transition
   -- rather than an inclusion-time snapshot here.
   "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasNonce ++ "; jal ra, account_write_record\n" ++
+  "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
   -- debit.  A preparation ExceptionalHalt must restore only auth-produced map

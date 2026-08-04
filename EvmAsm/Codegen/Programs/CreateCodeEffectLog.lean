@@ -519,6 +519,49 @@ def accountStateLookupCurrentFunction : String :=
   ".Laslc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
 
+/-! ## account_write_touch_current
+
+    First TOUCHED producer (#11329 / entry6). Snapshots the current
+    AccountState overlay into `account_writes` with mask bit TOUCHED (VALUE 32)
+    sticky-OR'd, so root enumeration sees the address even when no
+    BALANCE/NONCE/CODE delta is present.
+
+    a0 = canonical 20-byte BE address pointer.
+    Does NOT call `account_read_record` (touch is a write-side fact, not a read).
+    When an occupied AccountState row exists (pending first, then durable),
+    copies every authoritative component (balance bit5, nonce bit6, code bit2)
+    plus STATE + EXEC_FLAGS so baap map-mode can rebuild the account leaf.
+    Absent overlay → TOUCHED-only row (mask 32).
+
+    Clobbers only what `account_write_record` already restores. -/
+def accountWriteTouchCurrentFunction : String :=
+  "account_write_touch_current:\n" ++
+  -- Preserve full arg set: SSTORE callers hold x13=mem (a3) live across this call.
+  "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp); sd a3, 48(sp); sd a4, 56(sp); sd a5, 64(sp); sd a6, 72(sp)\n" ++
+  "  mv s0, a0\n" ++
+  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lawtc_hit\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lawtc_touch_only\n" ++
+  ".Lawtc_hit:\n" ++
+  "  mv s1, a0; ld t0, 88(s1); andi t1, t0, 16; beqz t1, .Lawtc_touch_only\n" ++
+  "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags + accountWriteHasState) ++ "\n" ++
+  "  mv a7, t0\n" ++
+  "  andi t1, t0, 2; snez a5, t1\n" ++
+  "  li a1, 0; li a2, 0; li a3, 0; li a4, 0\n" ++
+  "  andi t1, t0, 32; beqz t1, .Lawtc_nonce; ori a6, a6, " ++ toString accountWriteHasBalance ++ "; addi a1, s1, 32\n" ++
+  ".Lawtc_nonce:\n" ++
+  "  andi t1, t0, 64; beqz t1, .Lawtc_code; ori a6, a6, " ++ toString accountWriteHasNonce ++ "; ld a2, 64(s1)\n" ++
+  ".Lawtc_code:\n" ++
+  "  andi t1, t0, 4; beqz t1, .Lawtc_record; ori a6, a6, " ++ toString accountWriteHasCode ++ "; ld a3, 72(s1); ld a4, 80(s1)\n" ++
+  ".Lawtc_record:\n" ++
+  "  mv a0, s0; jal ra, account_write_record; j .Lawtc_ret\n" ++
+  ".Lawtc_touch_only:\n" ++
+  "  mv a0, s0; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasTouched ++ "; li a7, 0; jal ra, account_write_record\n" ++
+  ".Lawtc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
+  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); ld a4, 56(sp); ld a5, 64(sp); ld a6, 72(sp)\n" ++
+  "  addi sp, sp, 80; ret\n"
+
 /-! ## account_state_tombstone_balance_zero
 
     EIP-161 existence predicate for a delete-pending (bit4) AccountState
@@ -957,7 +1000,7 @@ def createRecordCodeEffectFunction : String :=
   -- Same expression as the sibling call, recomputed rather than carried because
   -- `account_state_record_code` and the two set helpers between them may clobber
   -- `t0`; `s3` is the entry offset and survives (callees preserve `s`).
-  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record\n" ++
+  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   ".Lcrce_overflow:\n" ++
