@@ -236,4 +236,11 @@ def blockVerdictMtxValidationTail : String :=
   --       42 (supplied seq vs exec log) with same gate over same bytes; 42
   --       and its exclusive callee chain unlinked (account/slot/exec_log
   --       tuple helpers). bv_mtx_skip_list KEPT — still feeds B1/B2.
+  -- The builder is complete at this validation seam, after the terminal state-root
+  -- publication and before the receipt/gas handoff. Keep the attribution check here
+  -- after retiring the granular stand-ins above; it compares the supplied BAL against
+  -- the surviving account-write builder rows and reports code 66 on mismatch.
+  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  "  jal ra, bal_map_builder_consistent\n" ++
+  "  bnez a0, .Lbv_bal_map_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"

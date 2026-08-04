@@ -73,6 +73,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
+import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
 import EvmAsm.Codegen.Programs.RlpListNthItemForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm

@@ -216,14 +216,21 @@ def balBuilderPersistentBytes : Nat :=
     account-write row is not, because that row is already canonical. Every entry below is
     a consequence of where its source came from.
 
+    The two verbatim scalar fields are caller contracts, not transformations performed by
+    this writer: `NonstorageEffectLog.lean` declares the balance producer's post buffer as
+    32-byte BE and `bal_builder_append_balance` copies it verbatim; the storage producer's
+    transaction row is an LE stack word (`StorageWriteMap.lean`, value stores at +64), and
+    `bal_emit_storage_changes` passes that row field verbatim to the builder. The serializer
+    reverses the balance row only into its private LE scalar scratch.
+
     | stream          | field | off | width | byte order                    |
     | storage_changes | addr  |   0 |    20 | BE20   (reversed on append)   |
     | storage_changes | bai   |  24 |     8 | native LE u64                 |
     | storage_changes | slot  |  32 |    32 | BE32   (reversed on append)   |
-    | storage_changes | value |  64 |    32 | LE     (passed VERBATIM)      |
+    | storage_changes | value |  64 |    32 | LE (StorageWriteMap tx row; verbatim) |
     | balance_changes | addr  |   0 |    20 | BE20   (already canonical)    |
     | balance_changes | bai   |  24 |     8 | native LE u64                 |
-    | balance_changes | post  |  32 |    32 | BE32  (reversed on serialize) |
+    | balance_changes | post  |  32 |    32 | BE32 (NonstorageEffectLog; verbatim row) |
     | nonce_changes   | addr  |   0 |    20 | BE20                          |
     | nonce_changes   | bai   |  24 |     8 | native LE u64                 |
     | nonce_changes   | nonce |  32 |     8 | native LE u64                 |
