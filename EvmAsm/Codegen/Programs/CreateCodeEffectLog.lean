@@ -804,7 +804,7 @@ def codeStateAddressSetFlagFunction : String :=
     `delete` sets use the same 32-byte padded-address key representation. -/
 def codeStateData : String :=
   ".balign 8\n" ++
-  "code_state_mtx_active:\n  .zero 8\n" ++
+  "runtime_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
   -- CodeState tables were retired after the atomic reader cutover; its small
   -- scalar names below remain only as compatibility guards for the retained
