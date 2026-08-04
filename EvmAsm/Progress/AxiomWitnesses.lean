@@ -264,6 +264,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.witnessLookupSpec_correct
 
+#print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
+
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u64_spec_within
