@@ -67,6 +67,22 @@ run_case \
 run_case \
   00609_test_bal_system_dequeue_consolidations_eip7251_fork_Amsterdam-blockchain_test-single_block_max_c \
   bal-system-dequeue-consolidations.expectation.json
+# N=0 withdrawal: exact coverage only, not a discriminator for N+1.
+run_case \
+  00568_test_bal_withdrawal_no_evm_execution_fork_Amsterdam-blockchain_test__b0 \
+  bal-withdrawal-no-evm.expectation.json
+# N=1 plus withdrawal: distinguishes post-exec N+1 from per-tx BAI.
+run_case \
+  00564_test_bal_withdrawal_and_transaction_fork_Amsterdam-blockchain_test__b0 \
+  bal-withdrawal-and-transaction.expectation.json
+# Zero-value CREATE: exact coverage only; no created-account balance row.
+run_case \
+  00323_test_bal_create_transaction_empty_code_fork_Amsterdam-blockchain_test__b0 \
+  bal-create-transaction-empty.expectation.json
+# Nonzero-value top-level CREATE: created-account balance row is present.
+run_case \
+  21086_test_create_transaction_success_fork_Amsterdam-blockchain_test_from_state_test__b0 \
+  bal-create-transaction-success.expectation.json
 run_case \
   00356_test_bal_intra_tx_sstores_same_slot_net_zero_fork_Amsterdam-blockchain_test-empty_pre_ephemeral_ \
   bal-net-zero-storage-empty-pre.expectation.json
