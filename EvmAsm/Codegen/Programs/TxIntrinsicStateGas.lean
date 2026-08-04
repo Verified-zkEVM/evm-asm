@@ -341,7 +341,7 @@ def eip7702AuthStatePrepareFunction : String :=
   -- and advertise that Optional-account state with the state-valid bit as well
   -- as nonce and code.  Retain TOUCHED: it is the sticky row-presence marker
   -- added by #11382, so an auth-only account cannot disappear from the map.
-  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next; la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, s8; li a4, 23; bnez s11, .L77prep_auth_code_record_emit; li a4, 0\n" ++
+  "  la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, s8; li a4, 23; bnez s11, .L77prep_auth_code_record_emit; li a4, 0\n" ++
   ".L77prep_auth_code_record_emit:\n" ++
   "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
