@@ -110,6 +110,25 @@ pre-tooling path (`cmp` matched the prior 256-byte output on the same fixture).
 | `SPIKE_BREAK_PC` | one-shot reg dump at a PC, then continue | step-1 until hit, then batch |
 | `SPIKE_COMMITLOG` | "what writes happened?" archaeology | huge files (~0.5 GB/fixture) |
 
+### Final-memory BAL producer dump
+
+For the tooling-only BAL producer differential, set both
+`SPIKE_DUMP_RANGES=addr:length,addr:length,...` and
+`SPIKE_DUMP_FILE=<file>`. The runner writes a self-describing `SPKDMP01`
+version-1 file after the guest halts. Ranges are explicit and checked for
+mapped memory; a missing variable or an unmapped byte is an error. The BAL
+probe derives these ranges from `nm` symbols and keeps `SPIKE_COMMITLOG` as a
+separate attempted-write audit.
+
+```bash
+SPIKE_DUMP_RANGES=0xb9d84948:0xb8,0xb9d84a00:3360000 \
+SPIKE_DUMP_FILE=/tmp/bal-final-memory.bin \
+scripts/spike/spike_run <guest.elf> <input> /tmp/output
+```
+
+Use `scripts/spike/bal_producer_diff.py` for the complete pre-registered
+fixture comparison; see `docs/bal-producer-differential.md`.
+
 ### 0. Resolve addresses
 
 ```bash
