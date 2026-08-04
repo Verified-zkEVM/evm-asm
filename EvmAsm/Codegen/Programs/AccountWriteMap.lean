@@ -135,17 +135,31 @@ def accountStateResolverCapacity : Nat := 38460
 
 /-- Per-row component-valid bits. A set bit says this transaction observed a
     final value for the component; it does not by itself mean the value differs
-    from the transaction's baseline. -/
+    from the transaction's baseline.
+
+    These are **VALUES** (powers of two), not bit indices. Callers and `andi`
+    immediates must use the VALUE: EXEC_FLAGS is 16, never 4 (which is CODE). -/
 def accountWriteHasBalance : Nat := 1
 def accountWriteHasNonce : Nat := 2
 def accountWriteHasCode : Nat := 4
 def accountWriteHasState : Nat := 8
+/-- VALUE 16 = bit index 4. When set, `execFlags@96` carries a full
+    AccountState-compatible flags word (see `CreateCodeEffectLog` flags@+88). -/
+def accountWriteHasExecFlags : Nat := 16
+/-- VALUE 32 = bit index 5. Sticky: once OR'd into the row mask it is never
+    cleared by a later write that omits it. Marks execution-touched accounts
+    for root enumeration even when no BALANCE/NONCE/CODE delta is present. -/
+def accountWriteHasTouched : Nat := 32
 
 /-! The fixed 128-byte row is `{addr_BE20@0, padding@20..31,
 balance@32, nonce@64, optionalState@72, codePtr@80, codeLen@88,
-reserved@96..111, validMask@112}`.  The 20-byte key is deliberately identical
-to the builder's address segment; the retained stride keeps the arena and its
-undo journal within their existing 2MiB reservations. -/
+execFlags@96, reserved@104..111, validMask@112, reserved@120}`.
+The 20-byte key is deliberately identical to the builder's address segment;
+the retained stride keeps the arena and its undo journal within their existing
+2MiB reservations. `execFlags@96` is a 1:1 mirror of AccountState flags@+88
+(occupied/exists/code-present/created-this-tx/delete-pending/code-resolved/
+auth-nonce). Undo push/restore already word-copies +96..+120 field-agnostically;
+live writers `.Lawr_store` / `.Lawb_store` are twins and must stay field-identical. -/
 
 /-! ## `account_write_record`
 
@@ -154,12 +168,13 @@ undo journal within their existing 2MiB reservations. -/
 
     Calling convention:
       a0 = address ptr  (canonical 20 B big-endian) — map key
-      a1 = balance ptr  (32 B), valid when mask has BALANCE
-      a2 = nonce        (u64, BY VALUE), valid when mask has NONCE
-      a3 = code ptr, valid when mask has CODE
-      a4 = code length, valid when mask has CODE
-      a5 = account state (1 = `Some Account`, 0 = spec `None`)
-      a6 = component-valid mask
+      a1 = balance ptr  (32 B), valid when mask has BALANCE (VALUE 1)
+      a2 = nonce        (u64, BY VALUE), valid when mask has NONCE (VALUE 2)
+      a3 = code ptr, valid when mask has CODE (VALUE 4)
+      a4 = code length, valid when mask has CODE (VALUE 4)
+      a5 = account state (1 = `Some Account`, 0 = spec `None`), valid when STATE (VALUE 8)
+      a6 = component-valid mask (VALUES 1|2|4|8|16|32)
+      a7 = execFlags word, valid when mask has EXEC_FLAGS (VALUE 16); ignored otherwise
       ra = return
       no result register.
 
@@ -180,7 +195,7 @@ def accountWriteRecordFunction : String :=
   "account_write_record:\n" ++
   "  addi sp, sp, -128\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp)\n" ++
+  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; li t4, 0\n" ++
   ".Lawr_scan:\n" ++
   "  bgeu t4, t1, .Lawr_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; ld t3, 64(sp)\n" ++
@@ -211,6 +226,11 @@ def accountWriteRecordFunction : String :=
   ".Lawr_no_code:\n" ++
   "  andi t3, t2, 8; beqz t3, .Lawr_no_state; ld t3, 104(sp); sd t3, 72(t5)\n" ++
   ".Lawr_no_state:\n" ++
+  -- EXEC_FLAGS VALUE 16: replace execFlags@96 from a7 (stack slot 120).
+  -- Twin of `.Lawb_store` EXEC_FLAGS arm — keep field handling identical.
+  "  andi t3, t2, 16; beqz t3, .Lawr_no_flags; ld t3, 120(sp); sd t3, 96(t5)\n" ++
+  ".Lawr_no_flags:\n" ++
+  -- TOUCHED VALUE 32 is mask-only (sticky via the OR below); no payload.
   "  ld t3, 112(t5); or t2, t2, t3; sd t2, 112(t5); j .Lawr_done\n" ++
   ".Lawr_overflow:\n" ++
   "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, account_writes_overflow; sd t1, 0(t0)\n" ++
@@ -263,6 +283,10 @@ def accountWritesBlockUpsertFunction : String :=
   ".Lawb_no_code:\n" ++
   "  andi t3, t2, 8; beqz t3, .Lawb_no_state; ld t3, 72(a0); sd t3, 72(t5)\n" ++
   ".Lawb_no_state:\n" ++
+  -- EXEC_FLAGS VALUE 16: copy execFlags@96 from tx row. Twin of `.Lawr_store`.
+  "  andi t3, t2, 16; beqz t3, .Lawb_no_flags; ld t3, 96(a0); sd t3, 96(t5)\n" ++
+  ".Lawb_no_flags:\n" ++
+  -- TOUCHED VALUE 32 sticky via mask OR (identical to `.Lawr_store`).
   "  ld t3, 112(t5); or t2, t2, t3; sd t2, 112(t5)\n" ++
   "  j .Lawb_done\n" ++
   ".Lawb_overflow:\n" ++
