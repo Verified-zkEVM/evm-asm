@@ -688,9 +688,9 @@ def accountResolvePreStateFunction : String :=
     4 resolver-unavailable (a non-empty code hash missing from witness.codes).
     Status 4 means a valid authenticated account lacks a witness.codes
     preimage: a block may be valid, so a caller's rejection is a false reject
-    caused by witness incompleteness.  A malformed authenticated lookup uses 5:
-    that is malformed proof/input evidence, so its rejection is a genuine
-    reject rather than a witness-shortfall bail.  Keeping 4 and 5 separate is
+    (FR) caused by witness incompleteness.  A malformed authenticated lookup
+    uses 5: that is malformed proof/input evidence, so its rejection is a
+    genuine reject rather than a witness-shortfall bail.  Keeping 4 and 5 separate is
     therefore part of the ABI even though no producer routes through this
     helper in this cut.  A map code row is authoritative and its pointer/length
     is preserved.  Otherwise
