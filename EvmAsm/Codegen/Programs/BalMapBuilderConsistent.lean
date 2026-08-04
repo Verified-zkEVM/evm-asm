@@ -155,26 +155,42 @@ def balMapAccountMatchesFunction : String :=
   ".Lbmam_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 112; ret\n"
 
-/-! Map-side value check.  The block map is authoritative for final values, but
-    it has no BAI field.  The builder remains the attribution source; this
-    routine only checks that each surviving builder row carries the map value
-    for the same address and component. -/
-def balMapAccountWriteMatchesFunction : String :=
-  "bal_map_account_write_matches:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; la t0, account_writes_count; ld s4, 0(t0); li t0, 0; li t1, 0xa28a0000\n" ++
-  ".Lbamw_scan:\n  bgeu t0, s4, .Lbamw_miss; slli t2, t0, 7; add t3, t1, t2; li t4, 20; mv t5, t3; mv t6, s0\n" ++
-  ".Lbamw_addr:\n  beqz t4, .Lbamw_hit; lbu a4, 0(t5); lbu a5, 0(t6); bne a4, a5, .Lbamw_next; addi t5, t5, 1; addi t6, t6, 1; addi t4, t4, -1; j .Lbamw_addr\n" ++
-  ".Lbamw_next:\n  addi t0, t0, 1; j .Lbamw_scan\n" ++
-  ".Lbamw_hit:\n  li t2, 1; beq s1, t2, .Lbamw_balance; li t2, 2; beq s1, t2, .Lbamw_nonce; li t2, 3; bne s1, t2, .Lbamw_miss; j .Lbamw_code\n" ++
-  ".Lbamw_balance:\n  li t2, 1; ld t4, 112(t3); and t4, t4, t2; beqz t4, .Lbamw_miss; li t2, 32; bne s3, t2, .Lbamw_miss; ld t4, 32(t3); ld t5, 0(s2); bne t4, t5, .Lbamw_miss; ld t4, 40(t3); ld t5, 8(s2); bne t4, t5, .Lbamw_miss; ld t4, 48(t3); ld t5, 16(s2); bne t4, t5, .Lbamw_miss; ld t4, 56(t3); ld t5, 24(s2); bne t4, t5, .Lbamw_miss; j .Lbamw_ok\n" ++
-  ".Lbamw_nonce:\n  li t2, 2; ld t4, 112(t3); and t4, t4, t2; beqz t4, .Lbamw_miss; li t2, 8; bne s3, t2, .Lbamw_miss; ld t4, 64(t3); ld t5, 0(s2); bne t4, t5, .Lbamw_miss; j .Lbamw_ok\n" ++
-  ".Lbamw_code:\n  li t2, 4; ld t4, 112(t3); and t4, t4, t2; beqz t4, .Lbamw_miss; ld t4, 88(t3); bne t4, s3, .Lbamw_miss; ld t4, 80(t3); li t5, 0\n" ++
-  ".Lbamw_code_bytes:\n  beq t5, s3, .Lbamw_ok; add t6, t4, t5; add a4, s2, t5; lbu a5, 0(t6); lbu a6, 0(a4); bne a5, a6, .Lbamw_miss; addi t5, t5, 1; j .Lbamw_code_bytes\n" ++
-  ".Lbamw_ok:\n  li a0, 0; j .Lbamw_ret\n" ++
-  ".Lbamw_miss:\n  li a0, 1\n" ++
-  ".Lbamw_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 64; ret\n"
+/-! Compare a block-map final value with the reduced highest-BAI builder rows
+    for the same address/component.  Balance and code use the last row at that
+    BAI; nonce uses the maximum nonce at that BAI, matching the Amsterdam
+    builder reducers.  A map row can be touched and then return to the
+    pre-state, so the absence of a surviving builder row is accepted; the
+    builder-side direction below remains the authority for rows that survive. -/
+def balMapFinalValueMatchesFunction : String :=
+  "bal_map_final_value_matches:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; li t0, 1; beq s1, t0, .Lbmfv_balance; li t0, 2; beq s1, t0, .Lbmfv_nonce; li t0, 3; beq s1, t0, .Lbmfv_code; j .Lbmfv_miss\n" ++
+  ".Lbmfv_balance:\n  ld t0, 112(s0); li t1, 1; and t0, t0, t1; beqz t0, .Lbmfv_ok; la t0, bal_builder_balance_count; ld s2, 0(t0); la s3, bal_builder_balance_changes; li s4, 0; li s7, 0\n" ++
+  ".Lbmfv_bal_loop:\n  bgeu s4, s2, .Lbmfv_bal_done; slli t0, s4, 6; add t1, s3, t0; li t2, 20; mv t3, t1; mv t4, s0\n" ++
+  ".Lbmfv_bal_addr:\n  beqz t2, .Lbmfv_bal_candidate; lbu t5, 0(t3); lbu t6, 0(t4); bne t5, t6, .Lbmfv_bal_next; addi t3, t3, 1; addi t4, t4, 1; addi t2, t2, -1; j .Lbmfv_bal_addr\n" ++
+  ".Lbmfv_bal_candidate:\n  ld t2, 24(t1); beqz s7, .Lbmfv_bal_take; bltu t2, s6, .Lbmfv_bal_next\n" ++
+  ".Lbmfv_bal_take:\n  mv s5, t1; mv s6, t2; li s7, 1\n" ++
+  ".Lbmfv_bal_next:\n  addi s4, s4, 1; j .Lbmfv_bal_loop\n" ++
+  ".Lbmfv_bal_done:\n  beqz s7, .Lbmfv_ok; ld t0, 32(s0); ld t1, 32(s5); bne t0, t1, .Lbmfv_miss; ld t0, 40(s0); ld t1, 40(s5); bne t0, t1, .Lbmfv_miss; ld t0, 48(s0); ld t1, 48(s5); bne t0, t1, .Lbmfv_miss; ld t0, 56(s0); ld t1, 56(s5); bne t0, t1, .Lbmfv_miss; j .Lbmfv_ok\n" ++
+  ".Lbmfv_nonce:\n  ld t0, 112(s0); li t1, 2; and t0, t0, t1; beqz t0, .Lbmfv_ok; la t0, bal_builder_nonce_count; ld s2, 0(t0); la s3, bal_builder_nonce_changes; li s4, 0; li s7, 0\n" ++
+  ".Lbmfv_non_loop:\n  bgeu s4, s2, .Lbmfv_non_done; slli t0, s4, 5; slli t2, s4, 3; add t0, t0, t2; add t1, s3, t0; li t2, 20; mv t3, t1; mv t4, s0\n" ++
+  ".Lbmfv_non_addr:\n  beqz t2, .Lbmfv_non_candidate; lbu t5, 0(t3); lbu t6, 0(t4); bne t5, t6, .Lbmfv_non_next; addi t3, t3, 1; addi t4, t4, 1; addi t2, t2, -1; j .Lbmfv_non_addr\n" ++
+  ".Lbmfv_non_candidate:\n  ld t2, 24(t1); beqz s7, .Lbmfv_non_take; bltu t2, s6, .Lbmfv_non_next; bne t2, s6, .Lbmfv_non_take; ld t3, 32(t1); ld t4, 32(s5); bgeu t4, t3, .Lbmfv_non_next\n" ++
+  ".Lbmfv_non_take:\n  mv s5, t1; mv s6, t2; li s7, 1\n" ++
+  ".Lbmfv_non_next:\n  addi s4, s4, 1; j .Lbmfv_non_loop\n" ++
+  ".Lbmfv_non_done:\n  beqz s7, .Lbmfv_ok; ld t0, 64(s0); ld t1, 32(s5); bne t0, t1, .Lbmfv_miss; j .Lbmfv_ok\n" ++
+  ".Lbmfv_code:\n  ld t0, 112(s0); li t1, 4; and t0, t0, t1; beqz t0, .Lbmfv_ok; la t0, bal_builder_code_count; ld s2, 0(t0); la s3, bal_builder_code_changes; li s4, 0; li s7, 0\n" ++
+  ".Lbmfv_code_loop:\n  bgeu s4, s2, .Lbmfv_code_done; slli t0, s4, 6; add t1, s3, t0; li t2, 20; mv t3, t1; mv t4, s0\n" ++
+  ".Lbmfv_code_addr:\n  beqz t2, .Lbmfv_code_candidate; lbu t5, 0(t3); lbu t6, 0(t4); bne t5, t6, .Lbmfv_code_next; addi t3, t3, 1; addi t4, t4, 1; addi t2, t2, -1; j .Lbmfv_code_addr\n" ++
+  ".Lbmfv_code_candidate:\n  ld t2, 24(t1); beqz s7, .Lbmfv_code_take; bltu t2, s6, .Lbmfv_code_next\n" ++
+  ".Lbmfv_code_take:\n  mv s5, t1; mv s6, t2; li s7, 1\n" ++
+  ".Lbmfv_code_next:\n  addi s4, s4, 1; j .Lbmfv_code_loop\n" ++
+  ".Lbmfv_code_done:\n  beqz s7, .Lbmfv_ok; ld s2, 88(s0); ld s3, 80(s0); ld s6, 32(s5); li s4, 0\n" ++
+  ".Lbmfv_code_bytes:\n  beq s4, s2, .Lbmfv_ok; add t0, s3, s4; add t1, s6, s4; lbu t2, 0(t0); lbu t3, 0(t1); bne t2, t3, .Lbmfv_miss; addi s4, s4, 1; j .Lbmfv_code_bytes\n" ++
+  ".Lbmfv_ok:\n  li a0, 0; j .Lbmfv_ret\n" ++
+  ".Lbmfv_miss:\n  li a0, 1\n" ++
+  ".Lbmfv_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 80; ret\n"
 
 /-! Top-level bidirectional check.  First every surviving builder row must be
     present in the supplied BAL; then every supplied balance/nonce/code tuple
@@ -183,12 +199,18 @@ def balMapBuilderConsistentFunction : String :=
   "bal_map_builder_consistent:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; la t0, bal_builder_balance_changes; mv s3, t0; la t0, bal_builder_balance_count; ld s2, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
-  ".Lbmb_bal:\n  ld t0, 72(sp); bgeu t0, s2, .Lbmb_nonce; slli t1, t0, 6; add t2, s3, t1; mv a0, t2; li a1, 1; addi a2, t2, 32; li a3, 32; jal ra, bal_map_account_write_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); slli t1, t0, 6; add t2, s3, t1; ld a1, 24(t2); addi a2, t2, 32; mv a0, t2; li a3, 32; li a4, 1; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_bal\n" ++
-  ".Lbmb_nonce:\n  la t0, bal_builder_nonce_changes; mv s5, t0; la t0, bal_builder_nonce_count; ld s4, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
-  ".Lbmb_non:\n  ld t0, 72(sp); bgeu t0, s4, .Lbmb_code; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t2, s5, t1; mv a0, t2; li a1, 2; addi a2, t2, 32; li a3, 8; jal ra, bal_map_account_write_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t2, s5, t1; ld a1, 24(t2); addi a2, t2, 32; mv a0, t2; li a3, 8; li a4, 2; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_non\n" ++
-  ".Lbmb_code:\n  la t0, bal_builder_code_changes; mv s7, t0; la t0, bal_builder_code_count; ld s6, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
-  ".Lbmb_cod:\n  ld t0, 72(sp); bgeu t0, s6, .Lbmb_supplied; slli t1, t0, 6; add t2, s7, t1; ld a3, 40(t2); ld a2, 32(t2); mv a0, t2; li a1, 3; jal ra, bal_map_account_write_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); slli t1, t0, 6; add t2, s7, t1; ld a1, 24(t2); ld a2, 32(t2); ld a3, 40(t2); li a4, 3; mv a0, t2; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_cod\n" ++
+  "  mv s0, a0; mv s1, a1; la t0, account_writes_count; ld s2, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_bal:\n  ld t0, 72(sp); bgeu t0, s2, .Lbmb_nonce; slli t1, t0, 7; li t2, 0xa28a0000; add t2, t2, t1; mv a0, t2; li a1, 1; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_bal\n" ++
+  ".Lbmb_nonce:\n  la t0, account_writes_count; ld s2, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_non:\n  ld t0, 72(sp); bgeu t0, s2, .Lbmb_code; slli t1, t0, 7; li t2, 0xa28a0000; add t2, t2, t1; mv a0, t2; li a1, 2; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_non\n" ++
+  ".Lbmb_code:\n  la t0, account_writes_count; ld s2, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_cod:\n  ld t0, 72(sp); bgeu t0, s2, .Lbmb_builder_bal; slli t1, t0, 7; li t2, 0xa28a0000; add t2, t2, t1; mv a0, t2; li a1, 3; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_cod\n" ++
+  ".Lbmb_builder_bal:\n  la t0, bal_builder_balance_changes; mv s3, t0; la t0, bal_builder_balance_count; ld s2, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_bbal:\n  ld t0, 72(sp); bgeu t0, s2, .Lbmb_builder_non; slli t1, t0, 6; add t2, s3, t1; ld a1, 24(t2); addi a2, t2, 32; mv a0, t2; li a3, 32; li a4, 1; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_bbal\n" ++
+  ".Lbmb_builder_non:\n  la t0, bal_builder_nonce_changes; mv s5, t0; la t0, bal_builder_nonce_count; ld s4, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_bnon:\n  ld t0, 72(sp); bgeu t0, s4, .Lbmb_builder_code; slli t1, t0, 5; slli t2, t0, 3; add t1, t1, t2; add t2, s5, t1; ld a1, 24(t2); addi a2, t2, 32; mv a0, t2; li a3, 8; li a4, 2; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_bnon\n" ++
+  ".Lbmb_builder_code:\n  la t0, bal_builder_code_changes; mv s7, t0; la t0, bal_builder_code_count; ld s6, 0(t0); li t0, 0; sd t0, 72(sp)\n" ++
+  ".Lbmb_bcod:\n  ld t0, 72(sp); bgeu t0, s6, .Lbmb_supplied; slli t1, t0, 6; add t2, s7, t1; ld a1, 24(t2); ld a2, 32(t2); ld a3, 40(t2); li a4, 3; mv a0, t2; mv a5, s0; mv a6, s1; jal ra, bal_map_find_supplied; bnez a0, .Lbmb_fail; ld t0, 72(sp); addi t0, t0, 1; sd t0, 72(sp); j .Lbmb_bcod\n" ++
   ".Lbmb_supplied:\n  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init; bnez a2, .Lbmb_fail; sd a0, 72(sp); sd a1, 80(sp)\n" ++
   ".Lbmb_accts:\n  ld t0, 72(sp); ld t1, 80(sp); beq t0, t1, .Lbmb_ok; mv a0, t0; mv a1, t1; jal ra, rlp_walk_next; bnez a1, .Lbmb_fail; sd a0, 72(sp); sub t2, a0, a2; mv t3, a2; mv a0, t2; mv a1, t3; jal ra, bal_map_account_check; bnez a0, .Lbmb_fail; j .Lbmb_accts\n" ++
   ".Lbmb_ok:\n  li a0, 0; j .Lbmb_ret\n" ++
@@ -214,7 +236,7 @@ def balMapBuilderConsistentFunctions : String :=
   balMapCheckAccountFieldFunction ++ "\n" ++
   balMapFindSuppliedFunction ++ "\n" ++
   balMapAccountMatchesFunction ++ "\n" ++
-  balMapAccountWriteMatchesFunction ++ "\n" ++
+  balMapFinalValueMatchesFunction ++ "\n" ++
   balMapBuilderConsistentFunction ++ "\n" ++
   balMapAccountCheckFunction
 
@@ -268,7 +290,7 @@ def ziskBalMapBuilderConsistentProbeUnit : BuildUnit := {
 
 #guard (balMapBuilderConsistentFunctions.splitOn "bal_map_builder_consistent:").length == 2
 #guard (balMapBuilderConsistentFunctions.splitOn "bal_map_builder_has_row:").length == 2
-#guard (balMapBuilderConsistentFunctions.splitOn "bal_map_account_write_matches:").length == 2
+#guard (balMapBuilderConsistentFunctions.splitOn "bal_map_final_value_matches:").length == 2
 #guard ziskBalMapBuilderConsistentPrologue.contains "bal_map_builder_consistent"
 
 end EvmAsm.Codegen
