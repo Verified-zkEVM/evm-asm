@@ -670,8 +670,9 @@ def statelessVerdictV2GuestClosure : String :=
   verifyPublicKeysSendersGuestFunctions ++ "\n" ++
   statelessVerdictV2Function ++ "\n" ++
   -- Keep the diagnostic verdict ELF linked with the same shared precompile
-  -- selector/pricing entry as the shipped guest.
-  precompileSharedSelectPriceFunction
+  -- selector/pricing + execution core as the shipped guest (#11163 item 2).
+  precompileSharedSelectPriceFunction ++ "\n" ++
+  precompileSharedExecuteFunction
 
 /-- Data section for the embedded verdict closure. -/
 def statelessVerdictV2GuestData : String :=

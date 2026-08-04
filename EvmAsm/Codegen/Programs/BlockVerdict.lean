@@ -56,6 +56,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
 
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Programs.PrecompileSharedExecute
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
@@ -485,6 +486,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   -- appended after the returning stateless entry, so it is a callable label
   -- and cannot alter the entry's fall-through control flow.
   precompileSharedSelectPriceFunction ++ "\n" ++
+  -- #11163 item 2: one execution core shared by depth-0 and CALL-family wrappers.
+  precompileSharedExecuteFunction ++ "\n" ++
   ".Lv2_pdone:"
 
 end EvmAsm.Codegen
