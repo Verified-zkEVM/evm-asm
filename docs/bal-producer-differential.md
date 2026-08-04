@@ -66,14 +66,18 @@ bytes, a second missing nonce row accounts for 3, an extra storage row adds 3,
 and one guest balance scalar is one byte wider, yielding
 `-35 - 3 + 3 + 1 = -34 = 460 - 494`.
 
-The balance mismatches also share a gas-shaped signature rather than being
-arbitrary serializer values. In 01087, Tx2's sender is lower by
-`16,259,889 * 10` wei and the fee recipient is higher by
-`16,259,889 * 3` wei. In 00612, each of Tx2 and Tx3 charges its sender an extra
-`43,190 * 10` wei and credits the fee recipient an extra `43,190 * 3` wei.
-These are candidate cross-transaction gas/account-write-stage defects, and
-are kept as field-level evidence for the shared investigation (see issue
-[#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362)).
+The balance mismatches have a gas-shaped signature rather than being arbitrary
+serializer values, but the two fixtures are not yet one defect class. In 01087,
+Tx2's sender is lower by `16,259,889 * 10` wei and the fee recipient is higher
+by `16,259,889 * 3` wei; this tracks the failed CREATE2 path that also leaves
+the factory's running nonce unadvanced. In 00612, each of Tx2 and Tx3 charges
+its sender an extra `43,190 * 10` wei and credits the fee recipient an extra
+`43,190 * 3` wei. The pinned test shows that both are the same plain CALL into
+the delegated counter, while the sole authorization is in Tx1, so this is
+evidence for a repeated delegated-call gas discrepancy, not an AUTH_BASE charge
+on Tx2/Tx3. Keep these as separate follow-ups until their execution paths are
+traced; issue [#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362)
+covers the 01087 collision case.
 
 Each expectation records the execution-specs pin and input SHA-256. Regenerate
 one only when deliberately changing its fixture:
