@@ -348,6 +348,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- its seed-only mode does not publish side-log or BAL rows until the
   -- terminal state-root replay.
   "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, -60; jal ra, system_write_descriptors\n" ++
+  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
+  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
+  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbv_mtx_oao_2935_done\n" ++
+  "  li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbv_mtx_oao_2935_done:\n" ++
   blockVerdictMtxGateSystemStorageSeed ++
   "  li t1, 1; la t0, bv_system_storage_map_seed_only; sd t1, 0(t0)\n" ++
   "  jal ra, append_modeled_system_storage_tuple_rows\n" ++

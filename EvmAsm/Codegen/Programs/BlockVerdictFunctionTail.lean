@@ -24,6 +24,17 @@ def blockVerdictFunctionTail : String :=
   -- Creation and otherwise unsupported execution shapes deliberately leave that
   -- arena incomplete; their pre-execution EIP-8037 admission was already checked
   -- by eip8037_tx_gas_gate above, so retain the conservative settlement skip.
+  -- Dynamic ancestor-coverage check (#11378): reject when the deepest
+  -- in-window ancestor actually accessed (BLOCKHASH per block.py:61, or the
+  -- parent tracked by the EIP-2935 system call per fork.py:908) exceeds the
+  -- supplied witness header count. execution-specs would fail witness
+  -- validation on such an access.  Must run AFTER the runtime loop (the mark
+  -- is fed during execution) and AFTER the gas-gate prelude: settlement paths
+  -- jump into the prelude at .Lbv_after_tx_gas_precharge, so a gate placed
+  -- before it is skipped on those paths.
+  "  la t5, evm_oldest_ancestor_offset; ld t4, 0(t5)\n" ++
+  "  la t5, svf_headers_count; ld t3, 0(t5)\n" ++
+  "  bgtu t4, t3, .Lbv_blockhash_headers_fail\n" ++
   "  bnez a0, .Lbv_after_gas_result_gate\n" ++
   -- The live per-transaction boundary has already populated
   -- bvgr_tx_state_gas.  Keep the common total-state and regular-settlement

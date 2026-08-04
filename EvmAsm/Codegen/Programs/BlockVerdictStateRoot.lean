@@ -301,6 +301,11 @@ def blockStateRootFunction : String :=
   "  mv s5, a5                   # out_root\n" ++
   "  # derive the system writes (SSZ_BASE in a6)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
+  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
+  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
+  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbsr_oao_2935_done\n" ++
+  "  li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lbsr_oao_2935_done:\n" ++
   -- v0.6.0: process_unchecked_system_transaction runs the CONTRACT's code
   -- (fork.py:890-905); an absent or codeless history/beacon-roots contract
   -- executes nothing and writes nothing. Gate each modeled startup write on
