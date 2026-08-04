@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "fixture_label": "00564_test_bal_withdrawal_and_transaction_fork_Amsterdam-blockchain_test__b0",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists_eip4895/bal_withdrawal_and_transaction.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "e6dbda44adffd11f2443e185e148c24f2317cdd7ec57320a43601b2591de20e0",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "b0c31b6b1ba00cbcdc8ed54b6a94a05355a8d26cd1e6f3761d7f6c974c837f4d",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "95d1be958d22adf294428c13cc71d89ff320bfd3",
+      "c0f6dc9e5836f54caadbf59cc69346c508e1992b",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 52299183798028654046165148584144631363093432215379852176862615166358228418957
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      }
+    ],
+    "balance": [
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 1023000
+      },
+      {
+        "address": "95d1be958d22adf294428c13cc71d89ff320bfd3",
+        "bai": 2,
+        "post": 10000000000
+      },
+      {
+        "address": "c0f6dc9e5836f54caadbf59cc69346c508e1992b",
+        "bai": 1,
+        "post": 5
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999997544795
+      }
+    ],
+    "nonce": [
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": []
+  }
+}
