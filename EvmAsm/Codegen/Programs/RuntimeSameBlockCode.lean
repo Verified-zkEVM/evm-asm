@@ -6,7 +6,7 @@
   set-code transaction, that current code can be the 0xef0100||address
   delegation marker even though the pre-state trie still has empty code.
 
-  #11396: reads execution AccountState / code overlay only — never the
+  #11396: reads execution AccountState overlay only — never the
   supplied BAL. Spec pin e5a8caf1b amsterdam fork.py:928-930 builds BAL
   after execution; provided BAL is not an execution input.
 -/
@@ -30,14 +30,14 @@ open EvmAsm.Rv64
            delegation marker; then rsbd_code_ptr/rsbd_code_len name those bytes.
       a0 = 1 otherwise (caller falls through to ordinary code lookup).
 
-    Source: `code_state_lookup_current` → AccountState pending/durable overlay
+    Source: `account_state_lookup_current` → AccountState pending/durable overlay
     written by `eip7702_auth_state_prepare` / code deposits — not BAL. -/
 def runtimeSameBlockDelegationCodeFunction : String :=
   "runtime_same_block_delegation_code:\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  jal ra, code_state_lookup_current\n" ++
+  "  jal ra, account_state_lookup_current\n" ++
   -- status 2 = empty-code account (7702 clear) → hit with empty bytes
   "  li t0, 2; beq a0, t0, .Lrsbd_empty_hit\n" ++
   -- status 1 = has code
@@ -62,9 +62,10 @@ def runtimeSameBlockDelegationCodeFunction : String :=
   "  addi sp, sp, 32; ret\n"
 
 #guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
-#guard (runtimeSameBlockDelegationCodeFunction.splitOn "code_state_lookup_current").length == 2
+#guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_state_lookup_current").length == 2
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
+#guard !(runtimeSameBlockDelegationCodeFunction.contains "code_state_lookup_current")
 
 /-- Scratch/output cells. `runtime_current_bal_*` kept zeroed (no producers after
     #11396) so any residual store is inert. `rsbd_hash` / `eahsr_*` / `ecc_*`
