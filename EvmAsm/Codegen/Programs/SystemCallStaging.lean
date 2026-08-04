@@ -75,6 +75,7 @@ def stageSystemCallPayloadFunction : String :=
   -- GH #11176: request-predeploy storage is read through the authenticated,
   -- demand-driven state path. Do not seed ordinary execution-log rows from
   -- BAL data before the call; both storage arguments are intentionally empty.
+  -- This literal-zero production contract is pinned by the guard below.
   "  la a0, scc_ctx\n  mv a1, s4\n  mv a2, s3\n  mv a3, s1\n  mv a4, s2\n" ++
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
@@ -107,6 +108,10 @@ def stageSystemCallPayloadFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
+
+/-! Production system-call staging keeps both generic preload arguments empty.
+    The retained nonzero input path is standalone/probe-only. -/
+#guard (stageSystemCallPayloadFunction.splitOn "  li a5, 0; li a6, 0\n").length = 2
 
 /-! ## stage_system_call (8uld3.2.1c) — compose the full system call -> return_data.
     a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length

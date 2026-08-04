@@ -935,7 +935,8 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     (cold clean-changing SSTORE-clear: 3000 cold access + 10000 write) + 50 pushes =
     151050 (full) -> gas_left = 0, log count = 10 preload + 10 SSTORE appends =
     20. (The probe originally pinned the d' undercharge — gas_left 25200 —
-    which had TWO causes, both fixed: the BAL preload keys were staged BE and
+    This is the sole remaining production consumer of the generic input-driven
+    preload path; production callers pass zero. The probe had TWO causes, both fixed: the BAL preload keys were staged BE and
     invisible to the LE exec-log scan, and this probe's own preload mirrored
     that BE staging.) Stages via stage_runtime_payload_code with the 10-slot
     LE preload; bundles the same dispatcher + frame-helper closure as the
