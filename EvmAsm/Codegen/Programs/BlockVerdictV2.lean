@@ -57,6 +57,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.BalMapBuilderConsistent
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.BalRlpEncode
@@ -142,6 +143,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Mirrored here for the same reason as the storage set: this unit has its own
     -- `.elf`, so an omission surfaces only as a link error inside an A/B leg.
     accountWriteMapFunctions ++ "\n" ++
+    balMapBuilderConsistentFunctions ++ "\n" ++
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
@@ -228,6 +230,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
     storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
+    balMapBuilderConsistentDataSection ++ "\n" ++
     balCanonicalSortDataSection ++ "\n" ++
     keccakIncrementalDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
@@ -535,6 +538,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- emitted so the assembler and linker see them, since an unreferenced routine is
   -- unverified code.  The change-emission slice adds the callers.
   accountWriteMapFunctions ++ "\n" ++
+  balMapBuilderConsistentFunctions ++ "\n" ++
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
@@ -660,6 +664,7 @@ def statelessVerdictV2GuestData : String :=
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
   accountWriteMapDataSection ++ "\n" ++
+  balMapBuilderConsistentDataSection ++ "\n" ++
   balCanonicalSortDataSection ++ "\n" ++
   keccakIncrementalDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++
