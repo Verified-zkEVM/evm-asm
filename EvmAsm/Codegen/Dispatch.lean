@@ -2444,6 +2444,12 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  la x11, runtime_tx_auth_exec_fn; sd x0, 0(x11); j .exit_outofgas\n" ++
   ".runtime_tx_auth_exec_done:\n" ++
   -- 2. authorization state-gas fold
+  -- AUTH_BASE is transaction preparation state, not a block-lifetime charge.
+  -- Only a type-4 transaction can have populated the auth-state cell; the
+  -- common MTx boundary also clears it before every transaction.  Keep the
+  -- condition at the fold so a stale cell cannot be charged to a later
+  -- ordinary transaction even if an alternate early route bypasses a reset.
+  "  la x11, runtime_tx_auth_type; ld x9, 0(x11); li x8, 4; bne x9, x8, .runtime_tx_auth_state_refund_done\n" ++
   "  la x11, runtime_tx_auth_state_refund\n" ++
   "  ld x9, 0(x11)\n" ++
   "  beqz x9, .runtime_tx_auth_state_refund_done\n" ++

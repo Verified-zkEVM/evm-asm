@@ -15,6 +15,17 @@ import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
+/-- Reset the transaction-local EIP-7702 preparation cells at the common MTx
+    boundary.  This is the only owner of the reset: creation, contract, and
+    EOA routes all pass through the loop header, while the type-4 dispatcher
+    repopulates the cells only when this transaction carries authorizations. -/
+private def blockVerdictMtxTxPreparationReset : String :=
+  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
+  "  la t0, teer_success_count; sd zero, 0(t0)\n"
+
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
     The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
     deliberately not a B2.3 reconstruction.  `account_state_latest_balance`
@@ -344,6 +355,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  bnez t2, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
+  -- Every supported route shares this transaction boundary.  Clear staged
+  -- authorization state before extracting the next context; a type-4
+  -- dispatcher repopulates it, while ordinary and creation transactions do
+  -- not.  Keeping the reset here prevents a prior authorization's AUTH_BASE
+  -- or ACCOUNT_WRITE cells from becoming a later transaction's preparation.
+  blockVerdictMtxTxPreparationReset ++
   -- The dispatcher resets this marker only when it is reached.  Every MTx
   -- iteration must begin phase-zero as well: a pre-dispatch rejection or an
   -- EOA/non-runtime route otherwise inherits a previous transaction's
@@ -926,7 +943,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0); la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_access_list_ptr; sd zero, 0(t0); la t0, runtime_tx_access_list_len; sd zero, 0(t0); la t0, runtime_tx_access_list_seed_fn; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_list_ptr; sd zero, 0(t0); la t0, runtime_tx_auth_list_len; sd zero, 0(t0); la t0, runtime_tx_auth_warm_fn; sd zero, 0(t0); la t0, runtime_tx_auth_count; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0); la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0); la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; ld t0, 160(t0); beqz t0, .Lbv_mtx_creation_access_done\n" ++
   "  li a2, 7; li t1, 1; beq t0, t1, .Lbv_mtx_creation_access_field; li a2, 8; li t1, 2; beq t0, t1, .Lbv_mtx_creation_access_field; li t1, 3; beq t0, t1, .Lbv_mtx_creation_access_field; j .Lbv_mtx_creation_unsupported\n" ++
   ".Lbv_mtx_creation_access_field:\n" ++
