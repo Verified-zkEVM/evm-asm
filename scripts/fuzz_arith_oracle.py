@@ -46,8 +46,18 @@ def evm_op(op: str, a: int, b: int, n: int) -> int:
         stack = [U256(b), U256(a)]
     else:
         stack = [U256(n), U256(b), U256(a)]
-    # Duck-typed frame: the handlers only touch .stack, .gas_left, .pc.
-    evm = SimpleNamespace(stack=stack, gas_left=Uint(10**9), pc=Uint(0))
+    # Duck-typed frame.  The handlers touch .stack, .gas_left and .pc, and --
+    # since Amsterdam split gas into regular and state dimensions -- charge_gas
+    # also accumulates .regular_gas_used (amsterdam/vm/gas.py:311).  Omitting a
+    # field the spec reads raises AttributeError *after* the operand rows and
+    # the evm-asm side are already produced, so the failure looks like a broken
+    # pipeline rather than a stale stub; see #11368.
+    evm = SimpleNamespace(
+        stack=stack,
+        gas_left=Uint(10**9),
+        pc=Uint(0),
+        regular_gas_used=Uint(0),
+    )
     fn(evm)
     return int(evm.stack[-1])
 
