@@ -170,20 +170,27 @@ private def blockVerdictMtxOogMaterialize : String :=
     `.Lbv_singletx` hop before it were duplicate tests of the same condition,
     both now removed. -/
 def blockVerdictMtxRuntimeLoop : String :=
-  -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
-  -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
-  -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
-  -- by more than one tx_index) AND every recipient is a self-contained contract,
-  -- dispatch each tx against the block-PRE state to measure its runtime gas,
-  -- populate the strided runtime-result arrays, and set bvgr_runtime_count=tx_count
-  -- so block_verdict_gas_result_arena_prepare + the EIP-7778/8037 block-gas gate
-  -- run. Independence makes per-tx pre-state dispatch exact; the per-tx refund is
-  -- read from evm_refund_acc (the dispatcher's EIP-3529 SSTORE refund accumulator,
-  -- reset per dispatch) so the receipt-gas increment (receipt_inc) is exact; the
-  -- EIP-7778 block-gas gate stays refund-independent (block_inc). Any non-independence / unsupported
-  -- tx shape / EOA recipient / dispatch miss bails to the conservative path
-  -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
-  -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
+  -- Multi-transaction runtime gas loop (every non-empty block enters MTx).
+  --
+  -- bvgr_runtime_count contract (live; do not delete — explains 11407 fallback):
+  -- zeroed at block_verdict entry. Set to bv_tx_count ONLY on success paths after
+  -- full MTx completion (.Lbv_mtx_publish / .Lbv_mtx_capture_only_post_root). Any
+  -- bail (.Lbv_mtx_bail, .Lbv_mtx_dispatch_unsupported, EOA/unsupported/capacity/
+  -- dispatch-miss, parse error, etc.) jumps to .Lbv_after_tx_gas_precharge with
+  -- count left 0, so arena_prepare sees a short count and the exact prior-state /
+  -- block-gas path is skipped (conservative). That count-left-0 behaviour is real.
+  --
+  -- #11183 Class-A note on bal_txs_independent at the CALLSITE (settled, narrow):
+  -- returns 0 independent / 1 interacting / 2 parse error. Only status 2 is
+  -- load-bearing here (bne → .Lbv_mtx_bail → count stays 0). Values 0 and 1 do
+  -- NOT select divergent lanes at :jal: both arms call
+  -- block_verdict_all_direct_deposit_txs, both can set bv_deposit_capture_only from
+  -- THAT return (not from 0/1), both converge at .Lbv_mtx_independence_ok. The
+  -- a0==1 arm's only extra is bal_storage_whitelist_clean whose return is discarded
+  -- (always j ok; 11404 retires the jal). So the Class-A row is status-tested-only,
+  -- not SHAPE→ROUTE from a0. Convergence at the join does NOT erase the later
+  -- count-left-0 contract above — that is driven by bail labels, not by a0∈{0,1}.
+  -- Interacting blocks that complete the loop still set count=tx_count.
   -- Production MTx selector: every block enters MTx, including the empty
   -- block; the loop iterates zero times there (matches execution-specs
   -- fork.py:913-914, which has no empty-block special case).  The former
@@ -220,25 +227,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_txs_independent\n" ++
+  -- #11183: a0∈{0,1} converge (no cell left different); only a0==2 bails.
   "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
   "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
   "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
-  -- bmvmx.5.5.10 whitelist v0: an interacting non-deposit block enters the full
-  -- sequential lane only when every BAL account with storage_changes rows is
-  -- whitelisted (the four request predeploys, EIP-2935/4788 modeled-system,
-  -- EIP-6110 deposit contract). Block-end system writes live in
-  -- bv_system_storage_log and per-tx user SSTOREs in bv_user_storage_log,
-  -- both consulted by the storage/tuple comparators. Any other interaction
-  -- shape keeps today's posture: conservative bail (fail-closed).
+  -- whitelist_clean return discarded (PR 11404 retires the jal); always join ok.
   "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
   "  jal ra, bal_storage_whitelist_clean\n" ++
-  -- The full multi-transaction runtime below materializes and receipt-checks
-  -- this substrate-backed path; do not retain the former whitelist-v0 FR gate.
   "  j .Lbv_mtx_independence_ok\n" ++
   ".Lbv_mtx_independent_deposit_check:\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
+  "  beqz a0, .Lbv_mtx_independence_ok              # deposit-check zero → join\n" ++
   ".Lbv_mtx_deposit_capture_mark:\n" ++
   "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
   ".Lbv_mtx_independence_ok:\n" ++
