@@ -359,7 +359,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_sum_withdrawals_to_address, bvSumWithdrawalsToAddress_prog),
   (GuestAddrs.access_list_count, accessListCount_prog),
   (GuestAddrs.intrinsic_gas_amsterdam_counts, intrinsicGasAmsterdamCounts_prog),
-  (GuestAddrs.eip8037_state_used_before_tx, eip8037StateUsedBeforeTx_prog),
   (GuestAddrs.eip8037_prior_state_used_exact, eip8037PriorStateUsedExact_prog),
   (GuestAddrs.eip8037_tx_gas_gate, eip8037TxGasGate_prog),
   (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
@@ -500,6 +499,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 345
+#guard guestImageEntries.length = 344
 
 end EvmAsm.Codegen

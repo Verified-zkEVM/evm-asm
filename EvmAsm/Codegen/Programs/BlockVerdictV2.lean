@@ -654,7 +654,7 @@ def statelessVerdictV2GuestClosure : String :=
   enrgU32leFunction ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: link dispatcher_capture_exec_state_gas so the verdict can
   -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
-  -- for the EIP-7778 2D state-dim; the array is filled but not yet read by eip8037_state_used_before_tx).
+  -- for the EIP-7778 2D state-dim).
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
   -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
   -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
