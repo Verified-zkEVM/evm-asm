@@ -47,6 +47,11 @@
   Base and stride are both 8-aligned, so every `ld`/`sd` below is 8-aligned as
   the RV64 operational semantics require.
 
+  `storage_root` is deliberately not another row field or mask bit.  Consumers
+  derive the account's new root from these storage slots through
+  `mpt_bounded_storage_root` at the point where the storage trie is rebuilt;
+  there is no stored map cell whose value could be read instead.
+
   ## It is a MAP, so the recorder upserts
 
   `set_storage` (`:489`) assigns `storage_writes[address][key] = value`, so the
