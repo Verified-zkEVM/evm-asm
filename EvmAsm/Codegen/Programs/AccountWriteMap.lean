@@ -615,6 +615,16 @@ def accountResolvePreStateFunction : String :=
     balance and nonce components only; storage and code coverage are the next
     ordered part of #11454 and are intentionally not fabricated here.
 
+    This slice also does not yet distinguish the four execution-map states
+    required by `get_account_optional`: a missing transaction row may fall
+    through, but a present `None` tombstone must terminate the lookup rather
+    than merge its fields with the block/parent account.  Until the absence
+    tier is added, producers must not be routed through this symbol for a
+    transaction that can destroy an account; doing so would resurrect its
+    authenticated pre-state.  Present-partial and present-complete rows are
+    likewise distinct and must preserve only the components whose mask bits
+    carry real values.
+
     ABI matches `account_resolve_pre_state`: a0 = canonical address, a1 = the
     output scratch (nonce@0, balance@8), a2/a3 = parent header RLP, a4/a5 =
     witness.  Returns a0 = 0 on success or 1 on malformed fallback lookup. -/
