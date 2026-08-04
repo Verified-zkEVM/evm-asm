@@ -86,7 +86,7 @@ def assembleAndLink (asmPath : System.FilePath) (bssStart : String := "0xa311000
     -- present, so the flag is harmless for programs that do not emit it.
     #["-Ttext=0x80000000", "-Tdata=0xa3000000",
       s!"--section-start=.bss={bssStart}",
-      -- CodeState's fixed 1.5 MiB block-lifetime tables extend `.bss` through
+      -- The fixed block-lifetime AccountState arenas extend `.bss` through
       -- 0xbf910fdf.  Keep the 6.5 MiB SSZ work region below the 0xc0000000
       -- guest-RAM ceiling while leaving a fixed 0x6f020-byte gap after `.bss`.
       "--section-start=.sszscratch=0xbf980000",

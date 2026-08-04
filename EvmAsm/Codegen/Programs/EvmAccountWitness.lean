@@ -155,7 +155,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  jal ra, account_state_tombstone_balance_zero\n" ++
     "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
     -- Execution code visibility is resolved from the layered mutable
-    -- CodeState, never from the append-only BAL comparison log.
+    -- AccountState, never from the append-only BAL comparison log.
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodehash_witness_check\n" ++
@@ -178,7 +178,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
-    -- A durable CodeState tombstone is a transaction-finalized EIP-6780
+    -- A durable AccountState tombstone is a transaction-finalized EIP-6780
     -- deletion.  It masks stale pre-block code and is non-existent for
     -- EXTCODEHASH (zero, unlike an existing empty-code account's keccak("")).
     ".Lextcodehash_codestate_deleted:\n" ++
@@ -346,7 +346,7 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  jal ra, account_state_lookup_current\n" ++
     "  li t3, 2; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
     "  li t3, 3; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
-    -- Consult the shared CodeState before the authenticated witness fallback.
+    -- Consult the shared AccountState before the authenticated witness fallback.
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, code_state_lookup_current\n" ++
     "  beqz a0, .Lextcodesize_witness_check\n" ++

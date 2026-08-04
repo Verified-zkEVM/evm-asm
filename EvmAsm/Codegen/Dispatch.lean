@@ -690,9 +690,9 @@ def emitCreateChildFrameData : String :=
   -- create_child_code so it is defined in every closure whose CREATE tail deposits into it.
   createCodeEffectLogData ++ "\n" ++
   -- The code-effect log above remains BAL comparator evidence.  Execution reads
-  -- use this bounded, real-address keyed CodeState overlay instead, so CREATE /
-  -- SELFDESTRUCT / recreate follow current Ethereum state rather than an
-  -- append-only event history.
+  -- use the AccountState execution overlay instead, so CREATE / SELFDESTRUCT /
+  -- recreate follow current Ethereum state rather than an append-only event
+  -- history.
   codeStateData ++ "\n" ++
   -- .61.8c-1: per-creator running-nonce table (multi-CREATE address correctness), co-located
   -- so the CREATE tail's create_creator_nonce_use resolves in every closure.
@@ -1159,9 +1159,9 @@ def emitDispatcherPrologue : String :=
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
   -- The comparator evidence heap is per dispatch in standalone mode, but is
-  -- block-lived while the MTx CodeState is active: retained code bytes are the
+  -- block-lived while the MTx runtime is active: retained code bytes are the
   -- backing store for cross-transaction execution reads.
-  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
+  "  la x5, runtime_mtx_active; ld x6, 0(x5); bnez x6, .Lrtd_code_log_kept\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
@@ -1232,7 +1232,7 @@ def emitDispatcherPrologue : String :=
 
     Intentionally sticky — do NOT clear:
     `auth_phase_halted`, `prepare_prefix_status`, `auth_state_charged`,
-    `code_state_mtx_active`, `runtime_tx_oog_hook`. -/
+    `runtime_mtx_active`, `runtime_tx_oog_hook`. -/
 def emitExceptionalExitModeTeardown : String :=
   -- Access-list seed triple (set by dispatch_tx_runtime_code / MTx; consumed by
   -- emitTxAccessListSeedLoop). OOG during auth prepare leaves the triple live;
@@ -1349,7 +1349,7 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   -- Mode/continuation teardown already ran at entry (`emitExceptionalExitModeTeardown`,
   -- #11250) — covers prepare_only (#11249), auth_exec_fn (#11247), and the seed/warm
   -- function-pointer triples (candidate #3). Intentionally sticky flags (auth_phase_halted,
-  -- prepare_prefix_status, auth_state_charged, code_state_mtx_active, oog_hook) are NOT
+  -- prepare_prefix_status, auth_state_charged, runtime_mtx_active, oog_hook) are NOT
   -- cleared there; oog_hook is invoked next.
   -- A transaction-aware caller may stage a process_transaction debit before
   -- entering the callable dispatcher. An exceptional halt can occur in the
@@ -2422,7 +2422,7 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- auth-phase OOG re-applies rolled-back authority nonces into the block-lived
   -- nonstorage log (code44 NONCE_ONLY_AUTH / #11148 sibling shape).
   "  la x11, system_call_mode; ld x9, 0(x11); bnez x9, .runtime_tx_auth_state_used_done\n" ++
-  "  la x11, code_state_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
+  "  la x11, runtime_mtx_active; ld x9, 0(x11); beqz x9, .runtime_tx_auth_checkpoint_done\n" ++
   "  la x11, exec_nonstorage_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_effect_count_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_nonstorage_effect_overflow; ld x9, 0(x11); la x11, runtime_tx_auth_effect_overflow_checkpoint; sd x9, 0(x11)\n" ++
   "  la x11, exec_code_effect_count; ld x9, 0(x11); la x11, runtime_tx_auth_code_effect_count_checkpoint; sd x9, 0(x11)\n" ++
@@ -3073,7 +3073,7 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, create_nonce_table_count; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_table_overflow; sd x0, 0(x5)\n" ++
   "  la x5, create_nonce_undo_count; sd x0, 0(x5)\n" ++
-  "  la x5, code_state_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
+  "  la x5, runtime_mtx_active; ld x6, 0(x5); bnez x6, .Lrtdc_code_log_kept\n" ++
   "  la x5, exec_code_effect_count; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++

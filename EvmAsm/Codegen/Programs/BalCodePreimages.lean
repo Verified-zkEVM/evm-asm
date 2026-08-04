@@ -1234,7 +1234,7 @@ def balCodePreimagesValidFunction : String :=
   "  j .Lbsbd_ret\n" ++
   -- A delegation target created earlier in this transaction remains executable
   -- until transaction finalization.  Resolve it through the same layered
-  -- CodeState used by CALL and EXTCODE*, not through comparison evidence.
+  -- AccountState used by CALL and EXTCODE*, not through comparison evidence.
   ".Lbsbd_target_create_effect:\n" ++
   "  addi a0, s9, 3\n" ++
   "  jal ra, code_state_lookup_current\n" ++
