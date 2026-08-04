@@ -563,19 +563,6 @@ def accountStateLatestNonceFunction : String :=
   ".Laslnc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
-/-! ## account_state_lookup_current
-
-    Shared execution-read resolver for the AccountState layers.
-
-    a0 = canonical 20-byte BE address pointer
-    returns a0 = 0 absent from both overlays, 1 existing with code,
-                 2 existing with empty code, 3 explicitly deleted;
-            a1 = code pointer, a2 = code length for status 1.
-
-    Callers fall back to the authenticated header/witness only on status 0.
-    This is deliberately the one shared state resolver used by CALL, NACC,
-    EXTCODE*, collision, and SELFDESTRUCT consumers; it prevents a per-opcode
-    recreation of the old log-vs-state divergence. -/
 def accountStateLookupCurrentFunction : String :=
   "account_state_lookup_current:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0\n" ++
