@@ -392,4 +392,78 @@ theorem decodeFully_shortList_four_chain (pfx : Byte) (payload r1 r2 r3 r4 : Lis
         item0 item1 item2 item3 k h0 h1 h2 h3 hend
   simp [decodeFully, hdec]
 
+/-! ## Arity-N composition (GH #11351)
+
+    The helpers above are hard-coded to **four** items, written for the withdrawal
+    4-tuple. `_decode_header` walks 21 or 23, so the header rows need the general form.
+
+    ⭐ The generalisation is stated **relationally** rather than by indexing the offsets
+    with `getD`: an indexed form makes both the statement and every proof obligation
+    unreadable, whereas a chain predicate lets one induction do the work and reuses
+    `decodeItems_cons_of_decodeAux` unchanged as the step.
+
+    ⚠️ Each link demands fuel-insensitivity (`∀ m`), which is sound only for
+    **byte-string** items (`decodeAux_bytes_all_fuel_of_decode`). Header fields all are.
+    This is the same restriction that makes the nested-list case of #11341 unprovable —
+    a nested list's decode *is* fuel-sensitive. -/
+
+/-- A chain of byte-string decodes: starting at `off`, each item advances the offset,
+    ending exactly at `offEnd`. -/
+def DecodeChain (bytes : List Byte) : Nat → List RLPItem → Nat → Prop
+  | off, [], offEnd => off = offEnd
+  | off, item :: rest, offEnd =>
+      ∃ off', (∀ m, decodeAux (m + 1) (bytes.drop off) = some (item, bytes.drop off'))
+        ∧ DecodeChain bytes off' rest offEnd
+
+/-- ⭐ **Arity-N `decodeItems` composition.** A decode chain ending at the end of input
+    composes to a full `decodeItems` run over exactly those items. Generalises
+    `decodeItems_four_of_decodeAux` to any length. -/
+theorem decodeItems_of_chain (bytes : List Byte) :
+    ∀ (items : List RLPItem) (off offEnd : Nat),
+      DecodeChain bytes off items offEnd → bytes.drop offEnd = [] →
+      ∀ k, decodeItems (k + items.length + 1) (bytes.drop off) = some (items, []) := by
+  intro items
+  induction items with
+  | nil =>
+    intro off offEnd hc hend k
+    subst hc
+    rw [hend]
+    rfl
+  | cons item rest ih =>
+    intro off offEnd hc hend k
+    obtain ⟨off', hitem, hrest⟩ := hc
+    have hne : bytes.drop off ≠ [] := by
+      intro hnil
+      have h0 := hitem 0
+      rw [hnil, decodeAux_nil] at h0
+      simp at h0
+    have hIH := ih off' offEnd hrest hend k
+    have hcomp := decodeItems_cons_of_decodeAux bytes off off' item rest []
+      (k + rest.length) hne (hitem (k + rest.length)) hIH
+    have harith : k + (item :: rest).length + 1 = k + rest.length + 2 := by
+      simp [List.length_cons]
+      omega
+    rw [harith]
+    exact hcomp
+
+/-- **Non-vacuity: the existing arity-four helper is an instance.** Reproducing
+    `decodeItems_four_of_decodeAux`'s exact statement from the general lemma is the
+    strongest available check that the generalisation is faithful — a chain predicate
+    that had drifted from what the four-item version means would fail here.
+
+    The arity-four helpers are left in place; this only demonstrates they are now
+    derivable, so they can be retired in a follow-up if that is wanted. -/
+example (bytes : List Byte) (off0 off1 off2 off3 off4 : Nat)
+    (item0 item1 item2 item3 : RLPItem) (k : Nat)
+    (h0 : ∀ m, decodeAux (m + 1) (bytes.drop off0) = some (item0, bytes.drop off1))
+    (h1 : ∀ m, decodeAux (m + 1) (bytes.drop off1) = some (item1, bytes.drop off2))
+    (h2 : ∀ m, decodeAux (m + 1) (bytes.drop off2) = some (item2, bytes.drop off3))
+    (h3 : ∀ m, decodeAux (m + 1) (bytes.drop off3) = some (item3, bytes.drop off4))
+    (hend : bytes.drop off4 = []) :
+    decodeItems (k + 5) (bytes.drop off0) = some ([item0, item1, item2, item3], []) := by
+  have hc : DecodeChain bytes off0 [item0, item1, item2, item3] off4 :=
+    ⟨off1, h0, off2, h1, off3, h2, off4, h3, rfl⟩
+  have hgen := decodeItems_of_chain bytes [item0, item1, item2, item3] off0 off4 hc hend k
+  simpa using hgen
+
 end EvmAsm.Rv64.RLP
