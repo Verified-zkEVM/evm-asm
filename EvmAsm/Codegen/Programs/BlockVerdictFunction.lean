@@ -250,10 +250,9 @@ def blockVerdictFunction : String :=
   "  ld a3, 16(s0)                 # parent header RLP length\n" ++
   "  ld a4, 80(s0)                 # witness.state ptr\n" ++
   "  ld a5, 88(s0)                 # witness.state len\n" ++
-  "  la t2, svf_codes_ptr; ld a6, 0(t2)\n" ++
-  "  la t2, svf_codes_len; ld a7, 0(t2)\n" ++
-  "  jal ra, bal_code_preimages_valid\n" ++
-  "  bnez a0, .Lbv_code_preimage_fail\n" ++
+  "  # GH #11410: the static BAL row-shape preimage scan is retired. Preimage\n" ++
+  "  # coverage is enforced dynamically from the execution code-read set\n" ++
+  "  # (code_read_fetch) in the receipts tail (fail 11, .Lbv_code_preimage_fail).\n" ++
   "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++
