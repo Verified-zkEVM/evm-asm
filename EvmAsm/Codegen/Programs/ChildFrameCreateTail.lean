@@ -253,17 +253,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_address_be; jal ra, account_read_record\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    -- If an account-witness context is attached, apply the EIP-684
-    -- code-or-nonce collision check to the derived target address.  The
-    -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
-    -- overrides a header miss, while a durable same-tx-delete mask permits a
-    -- later recreate.  Only an overlay miss consults block-pre witness data.
-    "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-    "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
-    "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
-    "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  li t1, 2; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
-    "  ld a1, 584(x20)\n" ++
+     -- If an account-witness context is attached, apply the EIP-684
+     -- code-or-nonce collision check to the derived target address.  The
+     -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
+     -- overrides a header miss, while a durable same-tx-delete mask permits a
+     -- later recreate.  Only an overlay miss consults block-pre witness data.
+     --
+     -- Pin account_deployable (execution-specs state_tracker.py:377-388): False
+     -- iff nonce≠0 OR code_hash≠EMPTY OR has_storage — never balance alone.
+     -- Status 1 (has code) is always a collision. Status 2 (empty-code exists)
+     -- is NOT a hard collision: an EIP-6780 tombstone is status 2 with nonce
+     -- cleared by account_state_commit_pending, and must remain deployable.
+     -- Nonce/storage occupancy is covered by the header has_code_or_nonce path
+     -- plus createSameTxCollisionScanAsm. Matches top-level
+     -- BlockVerdictMtxRuntime creation (status-1 only).
+     "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+     "  la a0, create_address_be; jal ra, code_state_lookup_current; mv t0, a0\n" ++
+     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+     "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+     "  ld a1, 584(x20)\n" ++
     "  beqz a1, 6f\n" ++
     "  mv s9, x13\n" ++
     "  mv s10, x10\n" ++
@@ -411,7 +419,25 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    codeStateStatusIsLiveAsm "t1" ++
+    -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT
+    -- (system.py:110-112). EMPTY = nonce0 AND balance0 AND code empty.
+    -- BALANCE PREMISE (instruction-level, FINDING 3): immediately above,
+    -- `jal balance_at_header_state_root` writes `cr_alive_bal`; then
+    -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
+    -- so any nonzero limb sets alive and never reaches this status/nonce arm.
+    -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.
+    -- Then account_state_latest_nonce: nonce≠0 → alive; nonce==0 → EMPTY → charge.
+    -- Composed: charge iff bal==0 AND code-empty AND nonce==0. Funded never-used
+    -- EOA (status2, nonce0, bal≠0) takes alive_set via the OR and is NOT charged.
+    "  li t0, 1; beq t1, t0, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, create_address_be; la a1, create_nonce_latest\n" ++
+    "  jal ra, account_state_latest_nonce\n" ++
+    "  mv t1, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    "  la t0, create_nonce_latest; ld t1, 0(t0)\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     ".Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  la t0, create_target_alive_current_tx\n  li t1, 1\n  sd t1, 0(t0)\n" ++

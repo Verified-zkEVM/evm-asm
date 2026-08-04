@@ -61,11 +61,15 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
+import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.BgvU32leSpec
+import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 
 namespace EvmAsm.Progress
@@ -194,6 +198,15 @@ def routineRegistry : List RoutineEntry := [
       (notes := "total: computes `rbesSize` for any byte payload whose length "
         ++ "matches the `len` register; only ABI hyps (ptr/len consistency, "
         ++ "alignment, validity)"),
+  -- #11341: the same triple with its post restated over the SHARED MODEL
+  -- (`EL.RLP.encodeBytes`) instead of the local `rbesSize`, via the bridge
+  -- `rbesSize_eq_encodeBytes_length`. Both rows are kept: the machine-level
+  -- theorem is still the thing proved, and this one is what makes the
+  -- Correspondence row `.bridged` rather than `.machineOnly`.
+  routine "rlp_bytes_encoded_size" .proven (some "rlpBytesEncodedSize_encode_spec")
+      (notes := "model-facing restatement: `a0 = (EL.RLP.encodeBytes xs).length`. "
+        ++ "One rewrite over `rlpBytesEncodedSize_spec`; the extra `hbound` is a "
+        ++ "64-bit non-overflow guard on the register, an ABI hyp, not a domain gate"),
   routine "rlp_field_to_u256_be" .proven (some "rlpFieldToU256Be_spec_within")
       (notes := "whole-routine triple over the `…Whole` module; 32-byte output "
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
@@ -202,6 +215,15 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
+  -- #11341: the same triple restated over the SHARED MODEL
+  -- (`(EL.RLP.encode (.list items)).length`) via `rlesSize_eq_encode_list_length`.
+  -- The machine row above states its formula INLINE and unnamed; `rlesSize` in the
+  -- bridge module names it (definitionally the same), which is what made the
+  -- comparison statable at all.
+  routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_encode_spec")
+      (notes := "model-facing restatement: `a0 = (EL.RLP.encode (.list items)).length` "
+        ++ "for any item list whose encoded payload is `a0` bytes long. One rewrite "
+        ++ "over `rlpListEncodedSize_spec`; `hbound` is 64-bit non-overflow, an ABI hyp"),
   routine "rlp_list_nth_item" .proven (some "rlpListNthItem_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.rlp_list_nth_item`; the "
         ++ "consumer of the account decode / apply paths"),
@@ -224,7 +246,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "all four RLP fields and returns `a0 = 0` with a `Decoded` verdict or "
         ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
         ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
-        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes")
+        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes"),
+  -- #11352: `bgv_u32le`, row 10 of docs/leaf-routine-targets.md. Guest-input u32
+  -- accessor with 8 fixture in-edges. The flat triple is DERIVED from the SAsm
+  -- `bgvU32leFn_spec` by `Fn.retSpecFlat`, so the machine reasoning is the SAsm proof.
+  routine "bgv_u32le" .proven (some "bgvU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le`: `a0 = leU32 bs 0` for "
+        ++ "a read-only region of >= 4 bytes, region intact. Only ABI hyps (pointer in "
+        ++ "a0, region wf, aligned ra). Tied to the reference by "
+        ++ "`leU32_eq_bytesLEtoNat`"),
+
+  -- #11349: `check_gas_limit`, row 7 of docs/leaf-routine-targets.md. The machine
+  -- triple already existed byte-transparently at the guest address; what this row
+  -- registers is the model-facing restatement.
+  routine "check_gas_limit" .proven (some "checkGasLimit_ref_spec")
+      (notes := "whole-routine triple at `GuestAddrs.check_gas_limit`, post additionally "
+        ++ "records `a0 = 0` iff `SpecRef.check_gas_limit` accepts. Full domain, NO "
+        ++ "envelope hypothesis: the guest never forms the reference's two sums, it "
+        ++ "compares |new - parent| against parent/1024")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -236,9 +275,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 21 := by decide
+theorem routineCount_eq : routineCount = 25 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 13 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 17 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -253,7 +292,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 17 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -339,12 +378,18 @@ private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_wit
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
 private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
+-- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
+private noncomputable abbrev _rlp_bytes_encoded_size_encode_routine_witness :=
+  @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
+-- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
+private noncomputable abbrev _rlp_list_encoded_size_encode_routine_witness :=
+  @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
 private noncomputable abbrev _rlp_list_nth_item_routine_witness :=
   @EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within
 private noncomputable abbrev _rlp_list_count_items_routine_witness :=
@@ -352,6 +397,10 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
+private noncomputable abbrev _bgv_u32le_routine_witness :=
+  @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
+private noncomputable abbrev _check_gas_limit_routine_witness :=
+  @EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 

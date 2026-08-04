@@ -32,6 +32,12 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
 
+#print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
+
+#print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
@@ -49,6 +55,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
+
+#print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 
@@ -259,6 +267,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Evm64.witnessIndexIs_split_at
 
 #print axioms EvmAsm.Evm64.witnessLookupSpec_correct
+
+#print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
 
