@@ -90,7 +90,7 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 | `rlp_field_to_u64` | `rlpFieldToU64_spec_within` — `Codegen/Programs/RlpFieldToU64WholeSAsm.lean:181` | agrees (U64 only) | inspection | `_deserialize_to_uint` at `U64` ∘ walk |
 | `rlp_field_to_u256_be` | `rlpFieldToU256Be_spec_within` — `Codegen/Programs/RlpFieldToU256BeWholeSAsm.lean:166` | agrees (U256 only) | inspection | `_deserialize_to_uint` at `U256` ∘ walk |
 | `rlp_bytes_encoded_size` | `rlpBytesEncodedSize_encode_spec` — `Codegen/Programs/RlpBytesEncodedSizeBridge.lean` (over the machine triple `RlpBytesEncodedSizeSAsm.lean:539`) | agrees | **bridged** (#11341) | `len(encode_bytes(...))` |
-| `rlp_list_encoded_size` | `rlpListEncodedSize_spec` — `Codegen/Programs/RlpListEncodedSizeSAsm.lean:364` | agrees | machine-only | `len(encode_sequence(...))` |
+| `rlp_list_encoded_size` | `rlpListEncodedSize_encode_spec` — `Codegen/Programs/RlpListEncodedSizeBridge.lean` (over the machine triple `RlpListEncodedSizeSAsm.lean:364`) | agrees | **bridged** (#11341) | `len(encode_sequence(...))` |
 | `rlp_encode_uint_be` | `reub_spec_within` — `Codegen/Programs/RlpEncodeUintBeSAsm.lean` | domain-restricted | bridged | `encode(Uint)` — unbounded |
 | `rlp_encode_list_prefix` | `…_short_pinned_spec_within:762`, `…_long1_pinned_spec_within:917` | domain-restricted | bridged | header of `encode_sequence` |
 | `rlp_encode_bytes` | `reb_spec_within` — `Codegen/Programs/RlpEncodeBytesComposeSAsm.lean` | agrees | bridged | `encode_bytes` |
@@ -100,7 +100,7 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 
 **Counts** (kernel-checked, **`rlp` family only** — 19 of the registry's 21 rows;
 the other two are `bal`): 12 agrees · 3 domain-restricted · 2 no-counterpart ·
-2 unproven · **0 stricter · 0 looser**. By basis: 8 bridged · 4 machine-only ·
+2 unproven · **0 stricter · 0 looser**. By basis: 9 bridged · 3 machine-only ·
 5 inspection · 2 none.
 
 > These are read off `EvmAsm/Progress/Correspondence.lean`'s `by decide` censuses,
@@ -163,14 +163,22 @@ per-call-site obligation, not a routine defect.
 Divergences found: **none.** The rest is coverage and hygiene.
 
 1. **Inheritance bridges** for the remaining `machine-only` rows
-   (`rlp_content_to_u256_be`, `rlp_list_count_items`, `rlp_list_encoded_size`,
-   `withdrawal_decode`) — see method §4, and GH #11341. A drift between the local
-   predicate and `EL.RLP` would be invisible to both the differential and the proof.
-   ✅ `rlp_bytes_encoded_size` closed by `rbesSize_eq_encodeBytes_length`
-   (`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`). Its sublemma
-   `u64ByteLen_eq_toBytesBE_length` — the guest's 9-way length-of-length ladder IS
-   `(Nat.toBytesBE ·).length` — is shared with `rlp_list_encoded_size`, so that row
-   is now the cheapest of the four remaining.
+   (`rlp_content_to_u256_be`, `rlp_list_count_items`, `withdrawal_decode`) — see
+   method §4, and GH #11341. A drift between the local predicate and `EL.RLP` would
+   be invisible to both the differential and the proof.
+   - ✅ `rlp_bytes_encoded_size` — `rbesSize_eq_encodeBytes_length`
+     (`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`).
+   - ✅ `rlp_list_encoded_size` — `rlesSize_eq_encode_list_length`
+     (`Codegen/Programs/RlpListEncodedSizeBridge.lean`), which also had to *name*
+     the formula (`rlesSize`): the machine theorem stated it inline, so there was
+     nothing to compare against the reference.
+   - Both rest on `u64ByteLen_eq_toBytesBE_length` — the guest's 9-way
+     length-of-length ladder IS `(Nat.toBytesBE ·).length` — proved once for the
+     first and reused by the second.
+   - Of the three left, `withdrawal_decode` is the one whose model side is mostly
+     built already (`EL.decodeWithdrawal`, `EL/Withdrawal.lean:46`, plus five helpers
+     at `Rv64/RLP/WithdrawalDecode.lean:1143-1219`); the obstacle there is that those
+     helpers belong to the *other* withdrawal-decode effort — see the warning above.
 2. **Typed-layer oracle** covering `_deserialize_to_uint` at `Uint`/`U64`/`U256`,
    moving the scalar rows from `inspection` to `diff`.
 3. **Call-site type audit** — every guest site decoding a header/withdrawal
