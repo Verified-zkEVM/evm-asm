@@ -29,7 +29,13 @@ namespace EvmAsm.Codegen
     capacity is therefore the conservative three-term bound: 20,480 account
     rows + 16,384 storage rows + 2 system owners = 36,866.  Keep this tied to
     the authenticated map caps rather than to the 64-entry runtime
-    access-account scratch table. -/
+    access-account scratch table.
+
+    Each 32-byte entry carries a one-byte origin tag at offset 20: `1` is a
+    modeled-system seed, `2` an account-map owner, and `3` a storage-map owner.
+    An account-map hit on a modeled seed promotes that entry in place, so the
+    union remains deduplicated while the map post can replace the earlier
+    modeled-system value. -/
 def bsrMapOwnerCapacity : Nat :=
   blockAccountWritesCapacity + storageWritesCapacity + bsrModeledSystemChanges
 
