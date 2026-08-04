@@ -311,15 +311,42 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `bal_storage_whitelist_clean` scan (#11402 / PR #11404), the BAL-sourced recipient
   state-charge arm across all four arms via one shared template (#11398 / PR #11403), and
   `eip8037`'s redundant duplicate BAL loads (PR #11405). Still live:
-  `bal_same_block_delegation_code_resolve` at **15 emitted sites** (#11406 — blocked on
-  publishing the 23-byte auth marker into AccountState first, since **write maps are
-  attribution, not state**, and the spec reads code from `tx_state.code_writes`,
-  `state_tracker.py:248-274`), `eip8037_state_used_before_tx` (#11407 — the supplied BAL is the
-  prior-state-gas source for **later transactions** of non-independent/EOA blocks, because
-  `bvgr_runtime_count` is 0 there and the gas gate runs before `arena_prepare`; not deletable
-  until a per-tx storage-set counter exists, as `storage_writes` is a cumulative latest-value
-  map cleared by `write_sets_incorporate_tx`), and the BAL-shaped *selection* in the preimage
-  gate (#11410 — C-class re-derivation from actual code reads, not a deletion).
+  `bal_same_block_delegation_code_resolve` at **15 emitted sites** (#11406) and the BAL-shaped
+  *selection* in the preimage gate (#11410 — C-class re-derivation from actual code reads, not a
+  deletion).
+
+  ⭐ **#11406's root cause, because four wrong hypotheses were tried first and each cost a
+  candidate build.** It is **not** a missing producer, a wiped journal, a key mismatch, or an
+  absent source for the delegate target's code. The generic code lookup **finds the 23-byte
+  `ef0100` marker and the handler treats it as ordinary code**, bypassing delegation resolution
+  — so the marker is *executed* instead of *followed*. The spec does the same lookup and then
+  recognises the designator: `is_valid_delegation` (`vm/eoa_delegation.py:40`) tests
+  `len(code) == EOA_DELEGATED_CODE_LENGTH` plus the `EOA_DELEGATION_MARKER` prefix, and
+  `get_delegated_code_address` (`:62`) extracts the target. **Recognition is a property of the
+  code bytes, not of which store they came from** — which is why the old BAL path worked by
+  accident: it *missed* in CodeState and so never had a marker to mistake for code. The fix
+  re-enters the existing `.Lcd_header_lookup` marker path, keeping one marker-follower rather
+  than two that can drift.
+
+  ⚠️ And why the diagnosis took seven candidates: `0xEF` is a **reserved invalid opcode**
+  (EIP-3541), so executing the marker halts exceptionally and burns the frame's gas *without
+  mutating state*. The post-state root therefore **matched** while `succ` did not — and
+  root-matching was read as reassurance rather than as evidence about where the failure was
+  **not**. When a root matches and the block still rejects, the defect is downstream of state.
+
+  **#11407 resolved as a deletion** (PR #11424, merged via #11437): the fallback computed
+  `97,920 × prior-tx storage-set count` while the primary sums *all* prior state gas — never
+  equivalent, **FA-lax** (under-reporting loosens the `tx.gas` rejection), and **unreachable on
+  any accepting path**, since the routes that starve `bvgr_runtime_count` also set
+  `bv_dispatch_runtime_status` nonzero and the receipts tail rejects at fail64. No counter was
+  built. ⭐ **No sweep could have found it** — the path is unexercised by the corpus, so only
+  computing *both* quantities on the rows where the primary succeeds compared the two
+  definitions. Decode gas figures by ÷1530 to read byte counts; that is what turned
+  "183600 vs 0" into "120 bytes of creation charge" and named the cause.
+
+  Its dead **transport** outlived its consumer and needed its own cut (#11428 / PR #11437) —
+  the prelude still loaded `bv_bal_start`/`bv_bal_len` and the gate still saved them into
+  `s1`/`s2` with nothing reading them, a recurrence of #11405's defect one register pair later.
 
   **A ratchet, not an assertion** (PR #11409): `scripts/check-bal-class-a-ratchet.py` plus a
   33-path baseline fails on any **new** `bv_bal_start`/`bv_bal_len` edge *and* on a **silent
