@@ -39,8 +39,11 @@ theorem strictNthItem_of_chain
       DecodeChain bytes off items offEnd → offEnd ≤ endOff →
       (∀ it ∈ items, ∃ q, it = RLPItem.bytes q) →
       items[index]? = some (RLPItem.bytes p) →
-      ∃ next, StrictNthItem bytes base (base + BitVec.ofNat 64 endOff) index off next
-        (BitVec.ofNat 64 p.length) := by
+      ∃ next off', next = base + BitVec.ofNat 64 off' ∧
+        StrictNthItem bytes base (base + BitVec.ofNat 64 endOff) index off next
+          (BitVec.ofNat 64 p.length) ∧
+        (bytes.drop (off' - p.length)).take p.length = p ∧ p.length ≤ off' ∧
+        off' ≤ endOff := by
   intro index
   induction index with
   | zero =>
@@ -54,10 +57,12 @@ theorem strictNthItem_of_chain
           have hoff'le : off' ≤ offEnd :=
             DecodeChain.le_of_bytes rest off' offEnd hrest (by omega)
               (fun it hit => hbytes it (List.mem_cons_of_mem _ hit))
-          refine ⟨base + BitVec.ofNat 64 off', ?_⟩
-          exact .zero off _ _
-            (rlpItemDecode_of_decodeAux_bytes bytes base off off' endOff 0 p
-              (hdec 0) (by omega) hendOff hover)
+          refine ⟨base + BitVec.ofNat 64 off', off', rfl, ?_, ?_⟩
+          · exact .zero off _ _
+              (rlpItemDecode_of_decodeAux_bytes bytes base off off' endOff 0 p
+                (hdec 0) (by omega) hendOff hover)
+          · obtain ⟨hc, hb⟩ := decodeAux_bytes_content bytes off off' 0 p (hdec 0) (by omega)
+            exact ⟨hc, by omega, by omega⟩
   | succ index ih =>
       intro items off offEnd p hchain hle hbytes hidx
       cases items with
@@ -76,8 +81,8 @@ theorem strictNthItem_of_chain
             (fun it hit => hbytes it (List.mem_cons_of_mem _ hit)) hidx
           have hback : ((base + BitVec.ofNat 64 off') - base).toNat = off' :=
             sub_base_of_base_add (bound := bytes.length) (by omega) hover
-          obtain ⟨next, h⟩ := hrec
-          refine ⟨next, ?_⟩
+          obtain ⟨next, off'', hnexteq, h, hcont, hple, hoe⟩ := hrec
+          refine ⟨next, off'', hnexteq, ?_, hcont, hple, hoe⟩
           exact .succ index off _ _ _ _ hhead (by rw [hback]; exact h)
 
 /-! ## The outer list header -/
@@ -147,8 +152,8 @@ theorem success_forward
     (hlistLen : listLen ≤ bytes.length)
     (hover : base.toNat + bytes.length < 2 ^ 64) :
     ∃ offset, Success bytes base listLen index offset (BitVec.ofNat 64 p.length) := by
-  obtain ⟨next, h⟩ := strictNthItem_of_chain bytes base listLen hlistLen hover index items
-    cursorOff listLen p hchain (le_refl _) hbytes hidx
+  obtain ⟨next, -, -, h, -, -, -⟩ := strictNthItem_of_chain bytes base listLen hlistLen hover
+    index items cursorOff listLen p hchain (le_refl _) hbytes hidx
   exact ⟨_, cursorOff, base + BitVec.ofNat 64 listLen, next, hpayload, h, rfl⟩
 
 /-! ## Non-vacuity

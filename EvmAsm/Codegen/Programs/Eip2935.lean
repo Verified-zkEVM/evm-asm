@@ -5,8 +5,11 @@
   fork, recent block hashes are stored at
   `HISTORY_STORAGE_ADDRESS` (`0x0000F90827F1C53a10cb7A02335B175320002935`)
   under the slot `block_number % HISTORY_SERVE_WINDOW`
-  (HISTORY_SERVE_WINDOW = 8191). The BLOCKHASH opcode now consults
-  that storage rather than walking witness.headers.
+  (HISTORY_SERVE_WINDOW = 8191). A BLOCKHASH-via-storage path exists here
+  as a probe primitive (`eip2935_blockhash_lookup`, registered for probes
+  only, not on the production path). The production BLOCKHASH handler does
+  not consult this contract's storage: it answers from the witness-header
+  block-hash table built by `stage_blockhash_m29` (`evm_block_hashes`).
 
   Currently hosts `eip2935_blockhash_lookup`; future PRs may add
   the system-transaction-side primitive that WRITES to the

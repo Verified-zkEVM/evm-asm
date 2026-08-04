@@ -38,6 +38,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
+#print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
