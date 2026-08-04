@@ -35,6 +35,18 @@ def blockHashHandlers : List OpcodeHandlerSpec :=
       -- age > count guards route to a zero push; a valid target copies
       -- `evm_block_hashes[count - (cur - target)]` onto the stack top.
     , preBody := stackUnderflowGuardAsm 1 ++ "\n" ++
+                 "  # GH #11378: track the oldest accessed ancestor (spec\n" ++
+                 "  # track_ancestor_access, amsterdam vm/instructions/block.py:61;\n" ++
+                 "  # max-wins update per state_tracker.py:928-949).\n" ++
+                 "  ld x14, 8(x12); bnez x14, .Lbh_oao_skip\n" ++
+                 "  ld x14, 16(x12); bnez x14, .Lbh_oao_skip\n" ++
+                 "  ld x14, 24(x12); bnez x14, .Lbh_oao_skip\n" ++
+                 "  ld x14, 0(x12); ld x16, 552(x20); bgeu x14, x16, .Lbh_oao_skip\n" ++
+                 "  sub x14, x16, x14\n" ++
+                 "  li x16, 256; bltu x16, x14, .Lbh_oao_skip\n" ++
+                 "  la x19, evm_oldest_ancestor_offset; ld x16, 0(x19); bgeu x16, x14, .Lbh_oao_skip\n" ++
+                 "  sd x14, 0(x19)\n" ++
+                 ".Lbh_oao_skip:\n" ++
                  "  la x18, evm_block_hashes"
     , body := EvmAsm.Evm64.BlockHash.evm_blockhash .x20 .x18 .x14 .x16 .x19
     , tail := .advanceAndRet 1 } ]
