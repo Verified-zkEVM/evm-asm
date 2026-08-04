@@ -50,9 +50,15 @@ is exactly the "leaf means leaf in the TRANSITIVE call graph" trap.
 | 10 | `bgv_u32le` (leaf; 8 fixture in-edges; caller `EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean:681`) | the fixed-width LE reads of `deserialize_stateless_input` (`EvmAsm/Stateless/SpecRef/Guest.lean:29`) — the u32 accessor those reads reduce to | guest input blob (witness section offsets) | `bytesRegion`; proving this one leaf discharges a step in every one of its 8 callers |
 
 Row 9 is the representative of a **family**: `header_extract_logs_bloom`,
-`header_validate_extra_data_length`, and the seven `chain_validate_*` routines have the same
-shape (verified RLP callees only, one `_decode_header` field or one header rule each). Once
-row 9's pattern exists, the siblings are mechanical forks.
+`header_validate_extra_data_length`, and **six of the seven** `chain_validate_*` routines
+have the same shape (verified RLP callees only, one `_decode_header` field or one header
+rule each). Once row 9's pattern exists, those **eight** siblings are mechanical forks.
+
+⚠️ The seventh, `chain_validate_post_merge_full` (`GuestAddrs.lean:453`), is **not** a fork:
+it has no whole-routine triple at all — `ChainValidatePostMerge.lean` carries only the
+string↔`Program` byte-identity theorem (`:608`). It is an unproven routine, and counting it
+with the forks overstates what row 9's pattern buys. Measured on `origin/main`; an earlier
+revision of this paragraph said "seven".
 
 ## Runners-up (not in the ten, recorded so the cut is visible)
 
