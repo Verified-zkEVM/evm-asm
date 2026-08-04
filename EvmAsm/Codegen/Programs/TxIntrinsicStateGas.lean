@@ -295,6 +295,17 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
+  -- Build the stable delegation designator before publishing AccountState.
+  -- The same pointer is reused by the optional AccountWrite producer below;
+  -- allocating twice would consume two block-lifetime slots for one auth.
+  -- AccountState is execution state, so this producer is unconditional on the
+  -- MTx-only AccountWrite path.
+  "  beqz s11, .L77prep_auth_code_null_ptr; la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add s8, t4, t3; addi t1, t1, 1; sd t1, 0(t0); li t0, 0xef; sb t0, 0(s8); li t0, 1; sb t0, 1(s8); sb zero, 2(s8); li t0, 0\n" ++
+  ".L77prep_auth_code_copy:\n" ++
+  "  li t1, 20; beq t0, t1, .L77prep_auth_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, s8, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_auth_code_copy\n" ++
+  ".L77prep_auth_code_null_ptr:\n" ++
+  "  li s8, 0\n" ++
+  ".L77prep_auth_code_ready:\n" ++
   -- execution-specs `eoa_delegation.py:set_delegation` installs the authority
   -- code and increments its nonce here, before message execution.  Publish the
   -- append-only code effect and nonce effect at this same point: their
@@ -303,7 +314,7 @@ def eip7702AuthStatePrepareFunction : String :=
   -- execution-state mutation, so the companion producers must not append it a
   -- second time.  Body REVERT restores only the post-preparation snapshot, so
   -- this auth record persists through a reverted message as in the spec.
-  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; mv a3, s8; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
   -- The code-effect log is deliberately written before runtime.  It is the
   -- execution-time source used by code-read suppression and code-effect
   -- comparators; the AccountWrite map below carries the actual marker bytes to
@@ -320,25 +331,18 @@ def eip7702AuthStatePrepareFunction : String :=
   "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".L77prep_code_done:\n" ++
   "  la a0, b1an_authority; la a1, nse_zero_bal; la a2, nse_zero_bal; ld a3, 112(sp); addi a4, a3, 1; jal ra, record_nonstorage_effect_nonce_only_after_account_state; bnez a0, .L77prep_bad_record\n" ++
-  -- Both transaction lanes record the same accepted authorization into the
-  -- transaction map, with a block-lifetime code slot: the map retains code
-  -- pointers past tx-map clear, so a reusable authorization scratch would
-  -- corrupt earlier authorities.
+  -- The direct single-tx lane has no account-write builder pass.  MTx records
+  -- the same accepted authorization into the transaction map, reusing the
+  -- AccountState producer's block-lifetime slot so the two consumers cannot
+  -- observe different marker bytes.
   -- `set_delegation` in execution-specs (eoa_delegation.py:223-229) calls
   -- `set_code` and `increment_nonce`; both go through `modify_state`, so even
   -- an absent authority is written back as `Some Account`.  Keep `a5 = 1`
   -- and advertise that Optional-account state with the state-valid bit as well
   -- as nonce and code (mask 14, not mask 6).
-  "  la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add t4, t4, t3; addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  beqz s11, .L77prep_auth_code_ready; li t0, 0xef; sb t0, 0(t4); li t0, 1; sb t0, 1(t4); sb zero, 2(t4); li t0, 0\n" ++
-  ".L77prep_auth_code_copy:\n" ++
-  "  li t1, 20; beq t0, t1, .L77prep_auth_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, t4, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_auth_code_copy\n" ++
-  ".L77prep_auth_code_ready:\n" ++
-  "  la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, t4; beqz s11, .L77prep_auth_code_null; li a4, 23; j .L77prep_auth_code_record\n" ++
-  ".L77prep_auth_code_null:\n" ++
-  "  li a4, 0\n" ++
-  ".L77prep_auth_code_record:\n" ++
-  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
+  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next; la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, s8; li a4, 23; bnez s11, .L77prep_auth_code_record_emit; li a4, 0\n" ++
+  ".L77prep_auth_code_record_emit:\n" ++
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
