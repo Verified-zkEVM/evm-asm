@@ -232,9 +232,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
   "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
-  -- whitelist_clean return discarded (PR 11404 retires the jal); always join ok.
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  jal ra, bal_storage_whitelist_clean\n" ++
+  -- The former whitelist-v0 scan was not a live route selector: its result was
+  -- discarded before the unconditional jump below. Keep the BAL independence
+  -- parser above (its return status still rejects malformed BALs), but do not
+  -- reparse the supplied BAL through that unfed helper.
   "  j .Lbv_mtx_independence_ok\n" ++
   ".Lbv_mtx_independent_deposit_check:\n" ++
   "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
