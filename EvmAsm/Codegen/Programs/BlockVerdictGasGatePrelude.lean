@@ -33,9 +33,7 @@ def blockVerdictGasGatePrelude : String :=
   ".Lbv_pregate_state_gas_ready:\n" ++
   "  # EIP-8037 tx inclusion gas gate: reject parse-supported legacy tx blocks\n" ++
   "  # whose worst regular/state gas exceeds the remaining 2D block budget.\n" ++
-  "  la t2, bv_exec_p; ld a0, 0(t2)             # exec_payload\n" ++
-  "  la t2, bv_bal_start; ld a1, 0(t2)          # bal_start\n" ++
-  "  la t2, bv_bal_len; ld a2, 0(t2)            # bal_len\n" ++
+  "  # #11428: supplied-BAL a1/a2 transport retired (consumer deleted in #11424).\n" ++
   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 412; jal ra, bgv_u64le\n" ++
   "  mv a3, a0                                  # gas_limit\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++

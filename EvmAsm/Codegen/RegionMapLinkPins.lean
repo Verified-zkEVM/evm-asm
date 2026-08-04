@@ -18,7 +18,7 @@
 
 namespace EvmAsm.Codegen.RegionMapLinkPins
 
-abbrev textSizeBytes : Nat := 0x59b0c
+abbrev textSizeBytes : Nat := 0x59ae0
 abbrev dataSizeBytes : Nat := 0x5370
 abbrev bssSizeBytes : Nat := 0x194bdb40
 

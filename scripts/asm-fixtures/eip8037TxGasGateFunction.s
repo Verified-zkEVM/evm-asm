@@ -14,8 +14,6 @@ eip8037_tx_gas_gate:
   sd x26, 88(x2)
   sd x27, 96(x2)
   mv x8, x10
-  mv x9, x11
-  mv x18, x12
   mv x19, x13
   li x20, 0
   la x5, bsg_min_block_gas
