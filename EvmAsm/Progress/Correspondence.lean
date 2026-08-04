@@ -317,6 +317,25 @@ encoded-byte), per-index orders, and the read/write exclusion" },
     note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
 cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
 
+  -- #11344: MPT key expansion. Row mandatory once the symbol is witnessed (#11342).
+  { family := "mpt", routine := "bytes_to_nibbles",
+    spec := some "bytesToNibblesFlat_spec",
+    verdict := .agrees, basis := .ported,
+    reference := "keyToNibbles (SpecRef/WitnessState.lean:78); also the \
+nibble-expansion half of compact_to_nibbles",
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). The reference is a \
+one-line `List.flatMap` producing `[b >>> 4, b &&& 0x0F]` per byte. TWO clauses differ \
+from the guest, both PROVED not assumed: (1) the machine writes `BitVec.truncate 8 \
+(b.zeroExtend 64 >>> 4)` where the reference writes `BitVec.ofNat 8 (b.toNat >>> 4)` — \
+`highNibble_eq`; (2) the machine ANDs against `signExtend12 15` where the reference uses \
+`&&& 0x0F` — `lowNibble_eq`. The accumulator/flatMap shape difference is the third and \
+largest: `nibblePrefix` appends on the RIGHT while `flatMap` builds on the LEFT, tied by \
+`nibblePrefix_eq_keyToNibbles_take` (induction via `List.take_add_one`). Nothing else \
+differs. WHY `.ported` AND NOT `.bridged`: the MPT/witness family has no executable \
+differential, so there is no `diff` result to inherit. FULL DOMAIN: the only side \
+conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
+is the ABI contract, not an input-domain gate" },
+
   -- #11349: the header gas-limit rule. Row is mandatory once the symbol is witnessed
   -- in Routines.lean -- #11342 showed an absent row passes the cross-registry gate
   -- vacuously.
@@ -378,22 +397,24 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 23 := by decide
+theorem registry_size : registry.length = 24 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349. No differential for this family -- see the row's note. -/
 theorem header_rows : countFamily "header" = 1 := by decide
+/-- #11344. No differential for this family -- see the row's note. -/
+theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 15 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .ported = 2 ∧
+    countBasis .ported = 3 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 

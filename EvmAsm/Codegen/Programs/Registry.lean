@@ -62,6 +62,7 @@ import EvmAsm.Codegen.Programs.Bls12Pairing
 import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Bls12Kzg
 import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.Bn254Fp2
@@ -114,7 +115,6 @@ import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
-import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
@@ -342,6 +342,7 @@ def lookupProgram : String → Option BuildUnit
   | "runtime_dispatcher_gas_capture_probe" => some runtimeDispatcherGasCaptureProbeUnit
   | "zisk_runtime_access_list_seeded_sload" => some ziskRuntimeAccessListSeededSloadProbeUnit
   | "stateless_guest"           => some statelessGuestUnit
+  | "account_write_touch_e2e"   => some accountWriteTouchE2eProbeUnit
   | "zisk_keccak_probe"         => some ziskKeccakProbeUnit
   | "zisk_keccak256_empty"      => some ziskKeccak256EmptyProbeUnit
   | "zisk_keccak256_abc"        => some ziskKeccak256AbcProbeUnit

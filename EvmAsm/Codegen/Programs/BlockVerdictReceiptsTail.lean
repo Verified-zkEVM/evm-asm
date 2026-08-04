@@ -221,10 +221,11 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 31; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11118: removed dead sinks storage_mismatch(34), recipient_field(35), reads(38).
   -- NOTE: code 35 remains live on .Lbv_block_state_gas_fail above (unrelated).
-  -- NOTE: bal_storage_matches_exec_log ROUTINE stays — live callee of allaccounts 37.
+  -- NOTE: bal_storage_matches_exec_log unlinked from guest (#10681 dead subtree).
   -- storage_omit(36): sink retained for the named property; currently unreachable
-  -- (#11119 / PR #11131 retargeted dispatch bail to code 64). Real reverse storage
-  -- lives inside allaccounts (37). Standalone 36 waits on container convergence.
+  -- (#11119 / PR #11131 retargeted dispatch bail to code 64). Reverse storage
+  -- allaccounts (37) unlinked #10681 (hash survivor). Standalone 36 waits on
+  -- container convergence.
   ".Lbv_bal_storage_omit_fail:\n" ++       -- bmvmx.1.6.5 named property; unreachable (#11119)
   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
@@ -245,8 +246,7 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 59; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_tuple_fail:\n" ++              -- bmvmx.1.6.6: a non-recipient account's per-slot (block_access_index,value) tuple sequence != exec
-  "  li t0, 42; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11245: removed dead sink .Lbv_bal_tuple_fail (code 42); rejection now via hash 60/61.
   -- #11118: removed dead sinks code_covers(43), code_consistent(46).
   ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
   "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++

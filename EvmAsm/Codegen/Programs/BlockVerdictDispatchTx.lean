@@ -110,7 +110,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- A delegation target may itself have been successfully CREATEd by an
   -- earlier transaction in this block.  CodeState is the current execution
   -- state, so consult it before the immutable block-pre witness.
-  "  la a0, dtrc_deleg_target; jal ra, code_state_lookup_current\n" ++
+  "  la a0, dtrc_deleg_target; jal ra, account_state_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
   "  mv x21, a1; sd a2, 496(x20); j .Ldtrc_materialize_done\n" ++
   ".Ldtrc_materialize_not_codestate:\n" ++
@@ -246,7 +246,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- code use the shared mutable CodeState first: a tx1 CREATE is visible to a
   -- tx2 top-level call even though it is absent from the block-pre witness.
   "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
-  "  addi a0, s2, 72; jal ra, code_state_lookup_current\n" ++
+  "  addi a0, s2, 72; jal ra, account_state_lookup_current\n" ++
   "  ld s2, 0(sp); addi sp, sp, 16\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_not_codestate_code\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); sub t1, a1, t1\n" ++
@@ -670,8 +670,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_auth_exec_ready:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
-  "  la t4, bv_bal_start; ld t5, 0(t4); la t4, runtime_current_bal_ptr; sd t5, 0(t4)\n" ++
-  "  la t4, bv_bal_len; ld t5, 0(t4); la t4, runtime_current_bal_len; sd t5, 0(t4)\n" ++
+  -- #11396: no runtime_current_bal_ptr handoff — same-block delegation reads
+  -- AccountState via account_state_lookup_current, not the supplied BAL.
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
@@ -728,8 +728,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- create_frame_descend and is consumed here into the ordinary nonzero
   -- dispatch return that the verdict's final accept gate rejects.
   "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
-  "  la t4, runtime_current_bal_ptr; sd zero, 0(t4)\n" ++
-  "  la t4, runtime_current_bal_len; sd zero, 0(t4)\n" ++
+  -- #11396: runtime_current_bal_* no longer set; clear omitted
   "  la t4, runtime_tx_post_top_frame_fn; sd zero, 0(t4)\n" ++
   "  la t4, dtrc_deleg_materialize_status; ld t4, 0(t4); bnez t4, .Ldtrc_code_lookup_unsupported\n" ++
   -- nxio8: spec-exact per-tx settlement fold (EIP-8037). dispatcher_tx_gas_settle

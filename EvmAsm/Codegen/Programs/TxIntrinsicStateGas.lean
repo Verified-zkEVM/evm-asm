@@ -338,7 +338,7 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_auth_code_null:\n" ++
   "  li a4, 0\n" ++
   ".L77prep_auth_code_record:\n" ++
-  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
@@ -366,7 +366,7 @@ def eip7702AuthStatePrepareFunction : String :=
 -- presence all valid.  Keep the state bit pinned so a future mask edit cannot
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
-  "li a5, 1; li a6, 14; jal ra, account_write_record"
+  "li a5, 1; li a6, 46; jal ra, account_write_record"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 

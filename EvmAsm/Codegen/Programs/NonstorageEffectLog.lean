@@ -162,6 +162,8 @@ def recordNonstorageEffectFunction : String :=
   ".Lrnse_aw_nonce:\n" ++
   "  beq s3, s4, .Lrnse_aw_record; ori a6, a6, " ++ toString accountWriteHasNonce ++ "\n" ++
   ".Lrnse_aw_record:\n" ++
+  -- #11329: every nonstorage effect is an execution touch (TOUCHED sticky).
+  "  ori a6, a6, " ++ toString accountWriteHasTouched ++ "\n" ++
   "  mv a0, s0; mv a1, s2; mv a2, s4; li a3, 0; li a4, 0; li a5, 0; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lrnse_ret\n" ++
