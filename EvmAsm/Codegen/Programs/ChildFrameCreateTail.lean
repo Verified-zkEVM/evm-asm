@@ -419,14 +419,16 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_address_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    -- pin is_account_alive (state_tracker.py:462-463) + NEW_ACCOUNT charge
-    -- (system.py:110-112): charge only when not is_account_alive. EMPTY_ACCOUNT
-    -- is nonce0/balance0/code empty. A status-2 tombstone with bal already
-    -- proven zero here is EMPTY iff nonce=0 (after tombstone writer clears it)
-    -- and must charge NEW_ACCOUNT 183600 on recreate. 01087: guest was LOW by
-    -- 183600 because codeStateStatusIsLiveAsm (status 1|2) treated every
-    -- status-2 as alive. Status 1 → alive; status 2 + nonce≠0 → EOA alive;
-    -- status 2 + nonce0 → not alive; status 0/3 → not alive.
+    -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT
+    -- (system.py:110-112). EMPTY = nonce0 AND balance0 AND code empty.
+    -- BALANCE PREMISE (instruction-level, FINDING 3): immediately above,
+    -- `jal balance_at_header_state_root` writes `cr_alive_bal`; then
+    -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
+    -- so any nonzero limb sets alive and never reaches this status/nonce arm.
+    -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.
+    -- Then account_state_latest_nonce: nonce≠0 → alive; nonce==0 → EMPTY → charge.
+    -- Composed: charge iff bal==0 AND code-empty AND nonce==0. Funded never-used
+    -- EOA (status2, nonce0, bal≠0) takes alive_set via the OR and is NOT charged.
     "  li t0, 1; beq t1, t0, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++

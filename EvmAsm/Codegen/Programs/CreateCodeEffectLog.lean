@@ -760,10 +760,14 @@ def codeStateLookupCurrentFunction : String :=
 
 /-! ## codeStateStatusIsLiveAsm
 
-    Converts the shared resolver's status into the execution-spec `is_account_alive`
-    answer needed by NEW_ACCOUNT state-gas consumers. Status 1 has code and
-    status 2 is an existing empty-code account; status 3 is a finalized deletion
-    and is not live. -/
+    Coarse status→live map: status ∈ {1,2} → 1, else 0. This is **not** full
+    pin `is_account_alive` (state_tracker.py:445-463 = account ≠ EMPTY_ACCOUNT).
+    Status 2 conflates funded EOAs / bal-preserved tombstones (alive) with
+    bal-zero EIP-6780 tombstones (EMPTY after nonce clear). Every NEW_ACCOUNT
+    consumer must gate status-2 through balance (and nonce where relevant)
+    before trusting this helper — see ChildFrameHandlers nacc/ibnacc,
+    Selfdestruct beneficiary surcharge, and ChildFrameCreateTail
+    (balance_at_header_state_root + nonce). -/
 def codeStateStatusIsLiveAsm (statusReg : String) : String :=
   "  addi t0, " ++ statusReg ++ ", -1\n" ++
   "  sltiu " ++ statusReg ++ ", t0, 2\n"
