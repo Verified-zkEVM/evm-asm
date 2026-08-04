@@ -229,7 +229,11 @@ theorem baapDeleteSingleLeafStorageFunction_eq_prog :
 
 #guard baapDeleteSingleLeafStorageFunction.startsWith "baap_delete_single_leaf_storage:\n"
 #guard baapDeleteSingleLeafStorage_prog.length = 137
-/-! ## bal_account_apply_post_fields -- account RLP + BAL item -> post account RLP
+/-! ## map_account_apply_post_fields -- account RLP + changes shell -> post account RLP
+
+    #11384: on the map-authoritative path (`bsr_account_from_map=1`), nonce/
+    balance/code/storage come from `account_writes` / `storage_writes`, not from
+    BAL AccountChanges field lists. a2/a3 may be the synthetic empty shell.
 
     a0 = account RLP ptr        a1 = account RLP length
     a2 = AccountChanges ptr     a3 = AccountChanges length
@@ -247,8 +251,8 @@ theorem baapDeleteSingleLeafStorageFunction_eq_prog :
 -- adjacent to each unit's allocation and check the complete 40-byte envelope
 -- (32-byte payload rounded up to an 8-byte boundary) before encoding or
 -- advancing the cursor; the map/count guards alone do not prove this bound.
-def balAccountApplyPostFieldsFunction : String :=
-  "bal_account_apply_post_fields:\n" ++
+def mapAccountApplyPostFieldsFunction : String :=
+  "map_account_apply_post_fields:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp)\n" ++
   "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -698,7 +702,7 @@ def balAccountApplyPostFieldsFunction : String :=
   "  addi sp, sp, 96\n" ++
   "  ret"
 
-/-- `zisk_bal_account_apply_post_fields`: probe BuildUnit.
+/-- `zisk_map_account_apply_post_fields`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account RLP length (u64)
       +16 AccountChanges RLP length (u64)
@@ -709,7 +713,7 @@ def balAccountApplyPostFieldsFunction : String :=
       OUTPUT+8   : new account RLP bytes
       OUTPUT+240 : internal fail code (0 on success)
       OUTPUT+248 : status -/
-def ziskBalAccountApplyPostFieldsPrologue : String :=
+def ziskMapAccountApplyPostFieldsPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++
   "  ld a1, 8(t0)                # account_len\n" ++
@@ -719,7 +723,7 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   "  addi a2, a2, 7; andi a2, a2, -8\n" ++
   "  li a4, 0xa0010008           # out account bytes at OUTPUT+8\n" ++
   "  li a5, 0xa0010000           # out account length at OUTPUT+0\n" ++
-  "  jal ra, bal_account_apply_post_fields\n" ++
+  "  jal ra, map_account_apply_post_fields\n" ++
   "  la t1, baap_fail_code; ld t2, 0(t1); li t0, 0xa00100f0; sd t2, 0(t0)   # fail_code at OUTPUT+240\n" ++
   "  li t0, 0xa00100f8; sd a0, 0(t0)   # status at OUTPUT+248\n" ++
   "  j .Lbaap_pdone\n" ++
@@ -766,10 +770,10 @@ def ziskBalAccountApplyPostFieldsPrologue : String :=
   rlpWalkHelpersClosure ++ "\n" ++
   storageWritesBlockLatestValueFunction ++ "\n" ++
   baapDeleteSingleLeafStorageFunction ++ "\n" ++
-  balAccountApplyPostFieldsFunction ++ "\n" ++
+  mapAccountApplyPostFieldsFunction ++ "\n" ++
   ".Lbaap_pdone:"
 
-def ziskBalAccountApplyPostFieldsDataSection : String :=
+def ziskMapAccountApplyPostFieldsDataSection : String :=
   storageWriteMapDataSection ++ "\n" ++
   ziskMptStateRootInsDataSection ++ "\n" ++
   -- The bounded storage-root fallback closure reopens constructed children by
@@ -877,10 +881,10 @@ def ziskBalAccountApplyPostFieldsDataSection : String :=
   "baap_storage_values:\n  .zero 3840000\nbaap_storage_values_end:\n" ++
   "baap_out_pad:\n  .zero 8"
 
-def ziskBalAccountApplyPostFieldsProbeUnit : BuildUnit := {
+def ziskMapAccountApplyPostFieldsProbeUnit : BuildUnit := {
   body        := NOP
-  prologueAsm := ziskBalAccountApplyPostFieldsPrologue
-  dataAsm     := ziskBalAccountApplyPostFieldsDataSection
+  prologueAsm := ziskMapAccountApplyPostFieldsPrologue
+  dataAsm     := ziskMapAccountApplyPostFieldsDataSection
 }
 
 end EvmAsm.Codegen

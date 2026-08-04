@@ -169,8 +169,8 @@ stateless_guest	bal_account_has_state_change	0x8000d91c	.text	LINK_DEPENDENT
 stateless_guest	bal_account_path	0x8000d9e0	.text	LINK_DEPENDENT
 stateless_guest	bal_account_post_fields	0x8000da58	.text	LINK_DEPENDENT
 stateless_guest	baap_delete_single_leaf_storage	0x8000dccc	.text	LINK_DEPENDENT
-stateless_guest	bal_account_apply_post_fields	0x8000def0	.text	LINK_DEPENDENT
-stateless_guest	bal_account_change_value	0x8000f1d4	.text	LINK_DEPENDENT
+stateless_guest	map_account_apply_post_fields	0x8000def0	.text	LINK_DEPENDENT
+stateless_guest	map_account_change_value	0x8000f1d4	.text	LINK_DEPENDENT
 stateless_guest	bal_account_change_descriptor	0x8000f2ac	.text	LINK_DEPENDENT
 stateless_guest	bal_account_record_array	0x8000f3dc	.text	LINK_DEPENDENT
 stateless_guest	bal_account_is_modeled_system	0x8000f64c	.text	LINK_DEPENDENT

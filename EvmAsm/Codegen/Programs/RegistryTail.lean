@@ -82,8 +82,8 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_bal_gas_valid" => some ziskBalGasValidProbeUnit
   | "zisk_bal_section_info" => some ziskBalSectionInfoProbeUnit
   | "zisk_bal_account_post_fields" => some ziskBalAccountPostFieldsProbeUnit
-  | "zisk_bal_account_apply_post_fields" => some ziskBalAccountApplyPostFieldsProbeUnit
-  | "zisk_bal_account_change_value" => some ziskBalAccountChangeValueProbeUnit
+  | "zisk_map_account_apply_post_fields" => some ziskMapAccountApplyPostFieldsProbeUnit
+  | "zisk_map_account_change_value" => some ziskMapAccountChangeValueProbeUnit
   | "zisk_bal_account_change_descriptor" => some ziskBalAccountChangeDescriptorProbeUnit
   | "zisk_bal_account_nth_descriptor" => some ziskBalAccountNthDescriptorProbeUnit
   | "zisk_bal_account_descriptor_array" => some ziskBalAccountDescriptorArrayProbeUnit
