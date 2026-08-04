@@ -320,16 +320,15 @@ def eip7702AuthStatePrepareFunction : String :=
   "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".L77prep_code_done:\n" ++
   "  la a0, b1an_authority; la a1, nse_zero_bal; la a2, nse_zero_bal; ld a3, 112(sp); addi a4, a3, 1; jal ra, record_nonstorage_effect_nonce_only_after_account_state; bnez a0, .L77prep_bad_record\n" ++
-  -- The direct single-tx lane has no account-write builder pass.  MTx records
-  -- the same accepted authorization into the transaction map, with a
-  -- block-lifetime code slot: the map retains code pointers past tx-map clear,
-  -- so a reusable authorization scratch would corrupt earlier authorities.
+  -- Both transaction lanes record the same accepted authorization into the
+  -- transaction map, with a block-lifetime code slot: the map retains code
+  -- pointers past tx-map clear, so a reusable authorization scratch would
+  -- corrupt earlier authorities.
   -- `set_delegation` in execution-specs (eoa_delegation.py:223-229) calls
   -- `set_code` and `increment_nonce`; both go through `modify_state`, so even
   -- an absent authority is written back as `Some Account`.  Keep `a5 = 1`
   -- and advertise that Optional-account state with the state-valid bit as well
   -- as nonce and code (mask 14, not mask 6).
-  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next\n" ++
   "  la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add t4, t4, t3; addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  beqz s11, .L77prep_auth_code_ready; li t0, 0xef; sb t0, 0(t4); li t0, 1; sb t0, 1(t4); sb zero, 2(t4); li t0, 0\n" ++
   ".L77prep_auth_code_copy:\n" ++
