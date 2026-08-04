@@ -683,5 +683,9 @@ private noncomputable abbrev _account_balance_slot_witness :=
   @EvmAsm.Stateless.bytesBEtoNat_beBytes32
 private noncomputable abbrev _account_rlp_length_witness :=
   @EvmAsm.Stateless.accountRlp_length_le
+-- #11345: the reference-side inversion. Witnessed here so the axiom gate covers
+-- it mechanically rather than relying on someone remembering to look.
+private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
+  @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 
 end EvmAsm.Progress
