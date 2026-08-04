@@ -128,6 +128,12 @@ def blockVerdictDirectDepositFallback : String :=
   ".Lbv_deposit_direct_loop:\n" ++
   "  beq s3, s4, .Lbv_deposit_direct_done\n" ++
   "  la a0, bv_mtx_skip_ctx; mv a1, s3; jal ra, multi_tx_nth_context\n" ++
+  -- Direct request derivation is a fallback for missing runtime deposit logs,
+  -- not an independent transaction executor.  A reverted transaction can
+  -- retain the canonical calldata shape while its receipt status is zero;
+  -- execution-specs derives EIP-6110 requests from successful receipt logs,
+  -- so do not synthesize a request for that transaction.
+  "  slli t0, s3, 3; la t1, bv_tx_status_arr; add t1, t1, t0; ld t1, 0(t1); beqz t1, .Lbv_deposit_direct_noappend\n" ++
   "  la a0, bv_mtx_skip_ctx; mv a1, s2; mv a2, s5; jal ra, block_verdict_append_direct_deposit\n" ++
   "  mv s2, a1\n" ++
   "  beqz a0, .Lbv_deposit_direct_noappend\n" ++
