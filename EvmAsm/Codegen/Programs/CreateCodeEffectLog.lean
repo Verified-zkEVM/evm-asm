@@ -333,7 +333,19 @@ def accountStateRecordNonstorageFunction : String :=
   -- transition must not overwrite an already-recorded authorization increment.
   "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
-  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_unchanged; sd s2, 64(t0)\n" ++
+  -- Monotonic nonce merge. When this producer publishes a real nonce
+  -- transition (pre≠post), also set bit 6 so account_state_latest_nonce
+  -- trusts the field. Bit 5 alone is balance-present (#10619 split): a
+  -- balance-only snapshot with dummy equal nonces must NOT set bit 6 or a
+  -- zero nonce would shadow authenticated pre-state. Creator CREATE/CREATE2
+  -- bumps (pin system.py generic_create increment_nonce at BOTH the collide
+  -- :118 and deployable :132 sites — unconditional w.r.t. deployability)
+  -- rely on bit 6 so a later tx seeds create_nonce from the durable
+  -- post-nonce. 01087 factory: writer DID fire (nonce field written) but
+  -- missing the BIT (ori 35 only), not a missing writer branch.
+  "  ld t2, 64(t0); bgeu t2, s2, .Lasrn_nonce_mark; sd s2, 64(t0)\n" ++
+  ".Lasrn_nonce_mark:\n" ++
+  "  ld t2, 32(sp); beq t2, s2, .Lasrn_nonce_unchanged; ori t1, t1, 64\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
   "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
