@@ -1026,248 +1026,74 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret\n" ++
   "\n" ++
-  "# Resolve a same-block EIP-7702 delegation marker from the BAL.\n" ++
-  "# a0 = 20-byte target address ptr, a1/a2 = witness.state ptr/len, a3 = charge delegation access.\n" ++
-  "# On success, cahsr_code_offset/cahsr_code_length name the delegated pre-state code.\n" ++
-  "bal_same_block_delegation_code_resolve:\n" ++
+  "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
+  "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
+  "# a3 = access mode (0 charge, 1 free/warm, 2 probe), a4 = codes base.\n" ++
+  "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
+  "# and 2 for empty/deleted or precompile targets.\n" ++
+  "account_state_delegation_code_resolve:\n" ++
   "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd x20, 104(sp)\n" ++
-  "  mv s0, a0                  # target address ptr\n" ++
-  "  mv s1, a1                  # witness.state ptr\n" ++
-  "  mv s2, a2                  # witness.state len\n" ++
-  "  mv s10, a3                 # charge delegated access when nonzero\n" ++
-  -- evm-asm-uzb6b: the codes base that cahsr_code_offset is re-based against is
-  -- an explicit argument (a4), NOT the caller's x20. Top-level callers
-  -- (dispatch_tx_runtime_code / block_verdict contract + mtx paths) have no
-  -- runtime env in x20 (x20 is evm_env scratch there, slot 608 unread zero-page
-  -- .bss), so reading *(x20+608) subtracted a garbage base and the top-level
-  -- `.Ldtrc_have_code` re-add of *svf_codes_ptr produced a wild code pointer
-  -- (load-access fault in bytecode_is_self_contained on the EIP-7702
-  -- chain/self-delegation + pointer_to_pointer cluster). Callers pass
-  -- a4 = *svf_codes_ptr (top level) or a4 = 608(x20) (nested CALL frames).
-  "  sd a4, 112(sp)             # codes base for the cahsr_code_offset re-base\n" ++
-  "  la t0, bsbd_code_from_bal; sd zero, 0(t0)\n" ++
-  "  la t0, bv_bal_start; ld s3, 0(t0)\n" ++
-  "  la t0, bv_bal_len; ld s4, 0(t0)\n" ++
-  "  beqz s3, .Lbsbd_no\n" ++
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbsbd_no\n" ++
-  "  mv s5, a0                  # BAL row cursor\n" ++
-  "  mv s6, a1                  # BAL row end\n" ++
-  ".Lbsbd_loop:\n" ++
-  "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next\n" ++
-  "  li t0, 2; beq a1, t0, .Lbsbd_no\n" ++
-  "  bnez a1, .Lbsbd_no\n" ++
-  "  mv s5, a0; sub s7, a0, a2 # BAL account row ptr\n" ++
-  "  mv s8, a2                 # BAL account row len\n" ++
-  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbsbd_no\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbsbd_no\n" ++
-  "  li t2, 20; bne a2, t2, .Lbsbd_next\n" ++
-  "  sub s9, a0, a2            # row address ptr\n" ++
-  "  mv a0, s0; mv a1, s9\n" ++
-  "  jal ra, bbcv_addr_eq20\n" ++
-  "  beqz a0, .Lbsbd_next\n" ++
-  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_source_final\n" ++
-  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_code_at_or_before\n" ++
-  "  j .Lbsbd_source_selected\n" ++
-  ".Lbsbd_source_final:\n" ++
-  "  mv a0, s7; mv a1, s8; la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  ".Lbsbd_source_selected:\n" ++
-  "  bnez a0, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_no\n" ++
-  -- The last BAL code change is the tx-state code seen by execution-specs.
-  -- An empty final value is therefore authoritative delegation clearing, not
-  -- a lookup miss that may fall back to the stale pre-state marker.
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_cleared\n" ++
-  "  li t2, 23; bne t1, t2, .Lbsbd_no\n" ++
-  "  la t0, bacc_finals; ld t1, 64(t0); add s9, s7, t1\n" ++
-  "  lbu t0, 0(s9); li t1, 0xef; bne t0, t1, .Lbsbd_no\n" ++
-  "  lbu t0, 1(s9); li t1, 0x01; bne t0, t1, .Lbsbd_no\n" ++
-  "  lbu t0, 2(s9); bnez t0, .Lbsbd_no\n" ++
-  -- 5tmlt (Part A): on a no-charge (free) resolution, WARM the delegated target (s9+3)
-  -- here, BEFORE the code lookup (which can bail .Lbsbd_no). The spec adds the
-  -- delegated_address to accessed_addresses at the first/free access to the delegated
-  -- account, independent of resolving the target's code. The CHARGE path (s10!=0) keeps
-  -- runtime_access_account_charge's charge-then-insert. Paired with the post-reset
-  -- warming call in emitRuntimeDispatcherSetup (Part B) so the seed lands in the
-  -- EXECUTION phase (the pre-reset resolutions are wiped by runtime_access_seed_initial_accounts).
-  -- runtime_access_account_seed preserves s-regs (s9/s10 intact); a0..a3 reloaded below.
-  -- v0.6.0 (C7): export the delegate address for the warm/cold
-  -- top-frame access decision at the staging sites.
-  -- a3=2 is a pure PROBE: resolve without charging AND without warming. The
-  -- value-CALL aliveness check uses it — the spec's is_account_alive(to) never
-  -- touches accessed_addresses, and a free-warm here made the later charged
-  -- resolution of the same CALL see the delegate WARM (100) where the spec
-  -- charges COLD (3000): a 2,900 receipt under-count on every first delegated
-  -- access behind a value CALL (set_code_to_system_contract bv_fail=53).
-  "  la t0, bsbd_deleg_target; addi t1, s9, 3; li t2, 20\n" ++
-  ".Lbsbd_deleg_export:\n" ++
-  "  beqz t2, .Lbsbd_deleg_exported\n" ++
-  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lbsbd_deleg_export\n" ++
-  ".Lbsbd_deleg_exported:\n" ++
-  "  bnez s10, .Lbsbd_skip_freewarm\n" ++
-  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
-  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
-  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_seed\n" ++
-  ".Lbsbd_skip_freewarm:\n" ++
-  -- Charge the delegation target access (100 floor + cold delta) BEFORE target
-  -- resolution. The spec (calculate_delegation_cost) charges this regardless of
-  -- whether the target's code exists; previously the charge was only on the
-  -- resolution-SUCCESS paths, so unresolved targets (empty / nonexistent code)
-  -- skipped it -> gas under-counted -> bv_fail=34 on EIP-7702 fixtures.
-  -- x20 is the caller runtime env; reload the saved env pointer before
-  -- touching env.gasRemaining. s4 is this helper's BAL length, not an env ptr.
-  "  li t2, 1; bne s10, t2, .Lbsbd_skip_charge\n" ++
-  "  sd s4, 96(sp); ld x20, 104(sp)\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd a4, 96(sp); sd x20, 104(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s10, a3\n" ++
+  "  jal ra, account_state_lookup_current\n" ++
+  "  mv s5, a0; mv s6, a1; mv s7, a2\n" ++
+  "  li t0, 1; bne s5, t0, .Lasd_no\n" ++
+  "  li t0, 23; bne s7, t0, .Lasd_no\n" ++
+  "  lbu t0, 0(s6); li t1, 0xef; bne t0, t1, .Lasd_no\n" ++
+  "  lbu t0, 1(s6); li t1, 1; bne t0, t1, .Lasd_no\n" ++
+  "  lbu t0, 2(s6); bnez t0, .Lasd_no\n" ++
+  "  la t0, bsbd_deleg_target; addi t1, s6, 3; li t2, 20\n" ++
+  ".Lasd_copy_target:\n" ++
+  "  beqz t2, .Lasd_target_copied\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lasd_copy_target\n" ++
+  ".Lasd_target_copied:\n" ++
+  "  li t0, 2; beq s10, t0, .Lasd_access_done\n" ++
+  "  beqz s10, .Lasd_free_warm\n" ++
+  "  ld x20, 104(sp)\n" ++
+  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
   s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
-  "  addi a0, s9, 3; la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
-  "  la a2, " ++ runtimeAccessAccountCountLabel ++ "\n" ++
-  "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_charge\n" ++
-  -- A charged delegated CALL resolves the delegate through `get_account`.
-  -- The marker is `0xef0100 || address`, so `s9 + 3` is its 20-byte target.
-  -- Record it here because this resolver also serves nested calls, whereas
-  -- the root post-frame callback does not run on those paths.
-  "  addi a0, s9, 3; jal ra, account_read_record\n" ++
-  "  ld s4, 96(sp)\n" ++
-  ".Lbsbd_skip_charge:\n" ++
-  -- EIP-7702: a delegation target that is an active precompile has empty code
-  -- for CALL/CALLCODE/STATICCALL/DELEGATECALL purposes. Return a distinct
-  -- nonzero status so top-level callers keep their EOA/no-code path, while
-  -- nested CALL can push the empty-code success word instead of attempting the
-  -- precompile with the delegated account's gas.
-  "  addi t0, s9, 3\n" ++
-  "  li t1, 0\n" ++
-  ".Lbsbd_pc_prefix:\n" ++
-  "  li t2, 18; beq t1, t2, .Lbsbd_pc_low16\n" ++
-  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lbsbd_not_precompile\n" ++
-  "  addi t1, t1, 1; j .Lbsbd_pc_prefix\n" ++
-  ".Lbsbd_pc_low16:\n" ++
-  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4\n" ++
-  "  li t4, 1; bltu t3, t4, .Lbsbd_not_precompile\n" ++
-  "  li t4, 17; bgeu t4, t3, .Lbsbd_precompile_empty\n" ++
-  "  li t4, 256; beq t3, t4, .Lbsbd_precompile_empty\n" ++
-  ".Lbsbd_not_precompile:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
-  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  addi a2, s9, 3             # delegated address ptr\n" ++
-  "  mv a3, s1; mv a4, s2\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lbsbd_target_sameblock\n" ++
-  -- charge already applied above; a0=0 from code_at_header_state_root.
-  "  j .Lbsbd_ret\n" ++
-  -- coc3g.5 (multi-hop chain/loop): the single-hop delegated target's code is NOT in
-  -- the pre-state witness because the target is ITSELF a same-block-delegated authority
-  -- (its 0xef0100||addr marker was installed THIS block by another authorization, e.g.
-  -- 0xc0f6dc9e -> 0x95d1be95 where 0x95d1be95's code is also a same-block marker). The
-  -- spec's calculate_delegation_cost / get_code(code_address) is SINGLE-HOP: it returns
-  -- whatever code the target has in tx_state (here a marker), and the CALL runs THOSE
-  -- bytes raw -> the 0xef byte is an invalid opcode -> the child frame halts
-  -- exceptionally -> the CALL returns 0 -> SSTORE writes 0 (bal_7702_multi_hop_delegation_chain
-  -- chain/loop: guest descended on empty pre-state -> CALL returned 1 -> SSTORE wrote 1
-  -- -> bal_storage_matches_exec_log bv_fail=34). Locate the target's same-block final code
-  -- in the BAL and point cahsr_code_* at it so the descend runs the marker bytes (-> invalid
-  -- opcode -> 0). Soundness: descending runs the EXACT single-hop code the spec runs;
-  -- the BAL comparator independently checks each declared final, so this can only fix a
-  -- false-REJECT. s9 (target marker ptr), s10 (charge flag) are callee-saved by both helpers.
-  ".Lbsbd_target_sameblock:\n" ++
-  -- The BAL contains the block-final code, but an address currently being
-  -- CREATEd has empty code until its constructor returns successfully and the
-  -- deposit completes.  In particular, an EIP-7702 pointer may target its own
-  -- not-yet-created delegate from inside that delegate's initcode.  Do not make
-  -- the final BAL bytes visible early: scan all active CREATE ancestors and
-  -- resolve a matching target as empty code.  The delegation access charge was
-  -- already applied above, so only code visibility changes here.
-  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
-  "  la t2, create_frame_flag; la t3, create_address_by_depth\n" ++
-  ".Lbsbd_active_create_scan:\n" ++
-  "  beqz t1, .Lbsbd_active_create_done\n" ++
-  "  slli t4, t1, 3; add t5, t2, t4; ld t5, 0(t5); beqz t5, .Lbsbd_active_create_next\n" ++
-  "  slli t4, t1, 5; add t5, t3, t4; addi t6, s9, 3; li a0, 20\n" ++
-  ".Lbsbd_active_create_cmp:\n" ++
-  "  beqz a0, .Lbsbd_active_create_empty\n" ++
-  "  lbu a1, 0(t5); lbu a2, 0(t6); bne a1, a2, .Lbsbd_active_create_next\n" ++
-  "  addi t5, t5, 1; addi t6, t6, 1; addi a0, a0, -1; j .Lbsbd_active_create_cmp\n" ++
-  ".Lbsbd_active_create_next:\n" ++
-  "  addi t1, t1, -1; j .Lbsbd_active_create_scan\n" ++
-  ".Lbsbd_active_create_done:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  addi a2, s9, 3             # single-hop target address ptr\n" ++
-  "  la a3, bsbd_tgt_ptr; la a4, bsbd_tgt_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbsbd_target_create_effect\n" ++        -- target absent from final BAL: try same-tx CREATE code
-  "  la t0, bsbd_tgt_ptr; ld a0, 0(t0); la t0, bsbd_tgt_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
-  "  la t0, current_block_access_index; ld a3, 0(t0); beqz a3, .Lbsbd_target_final\n" ++
-  "  jal ra, bal_account_code_at_or_before\n" ++
-  "  j .Lbsbd_target_selected\n" ++
-  ".Lbsbd_target_final:\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  ".Lbsbd_target_selected:\n" ++
-  "  bnez a0, .Lbsbd_target_create_effect\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Lbsbd_target_create_effect\n" ++
-  -- cahsr_code_length = target final code length; cahsr_code_offset = absolute code bytes
-  -- ptr (bsbd_tgt_ptr + bacc_finals.code_off) minus the codes base passed by the
-  -- caller in a4 (saved at 112(sp)): *svf_codes_ptr at top level (whose
-  -- `.Ldtrc_have_code` re-adds *svf_codes_ptr), 608(x20) in nested CALL frames
-  -- (whose `.Lcd_descend_` re-adds 608(x20)).
-  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
-  "  la t0, bsbd_tgt_ptr; ld t3, 0(t0); la t0, bacc_finals; ld t4, 64(t0); add t3, t3, t4\n" ++
-  "  ld t5, 112(sp); sub t3, t3, t5\n" ++
-  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
-  "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
-  -- charge already applied above (.Lbsbd_skip_charge)
-  "  li a0, 0\n" ++
-  "  j .Lbsbd_ret\n" ++
-  ".Lbsbd_active_create_empty:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lbsbd_ret\n" ++
-  -- A delegation target created earlier in this transaction remains executable
-  -- until transaction finalization.  Resolve it through the same layered
-  -- AccountState used by CALL and EXTCODE*, not through comparison evidence.
-  ".Lbsbd_target_create_effect:\n" ++
-  "  addi a0, s9, 3\n" ++
-  "  jal ra, code_state_lookup_current\n" ++
-  "  mv t3, a1; mv t1, a2\n" ++
-  -- The delegation marker was found and its target access was already charged.
-  -- If no committed CREATE effect exists, the target has empty code (for
-  -- example because its CREATE frame reverted); do not report a generic miss,
-  -- which makes the caller fall back to and charge the stale pre-state marker.
-  "  li t0, 1; bne a0, t0, .Lbsbd_active_create_empty\n" ++
-  "  la t2, cahsr_code_length; sd t1, 0(t2)\n" ++
-  "  ld t2, 112(sp); sub t3, t3, t2\n" ++
-  "  la t2, cahsr_code_offset; sd t3, 0(t2)\n" ++
-  "  li t0, 1; la t2, bsbd_code_from_bal; sd t0, 0(t2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbsbd_ret\n" ++
-  ".Lbsbd_precompile_empty:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lbsbd_ret\n" ++
-  ".Lbsbd_cleared:\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lbsbd_ret\n" ++
-  ".Lbsbd_next:\n" ++
-  "  j .Lbsbd_loop\n" ++
-  ".Lbsbd_no:\n" ++
+  "  la a0, bsbd_deleg_target; jal ra, account_read_record\n" ++
+  "  j .Lasd_access_done\n" ++
+  ".Lasd_free_warm:\n" ++
+  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "; jal ra, runtime_access_account_seed\n" ++
+  ".Lasd_access_done:\n" ++
+  "  la t0, bsbd_deleg_target; li t1, 0\n" ++
+  ".Lasd_pc_prefix:\n" ++
+  "  li t2, 18; beq t1, t2, .Lasd_pc_low16\n" ++
+  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lasd_not_precompile\n" ++
+  "  addi t1, t1, 1; j .Lasd_pc_prefix\n" ++
+  ".Lasd_pc_low16:\n" ++
+  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4; li t4, 1; bltu t3, t4, .Lasd_not_precompile; li t4, 17; bgeu t4, t3, .Lasd_empty; li t4, 256; beq t3, t4, .Lasd_empty\n" ++
+  ".Lasd_not_precompile:\n" ++
+  -- A same-transaction authorization can install the delegated target's
+  -- marker after the header witness was fixed.  Consult AccountState first:
+  -- the header lookup below is only the pre-state fallback, while the old
+  -- CodeState fallback cannot see an AccountState-only authorization row.
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  li t0, 1; beq a0, t0, .Lasd_account_state_code\n" ++
+  "  li t0, 2; beq a0, t0, .Lasd_empty\n" ++
+  "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Lasd_resolved\n" ++
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
+  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  "  j .Lasd_resolved\n" ++
+  ".Lasd_account_state_code:\n" ++
+  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  ".Lasd_resolved:\n" ++
+  "  li a0, 0; j .Lasd_ret\n" ++
+  ".Lasd_empty:\n" ++
+  "  li a0, 2; j .Lasd_ret\n" ++
+  ".Lasd_no:\n" ++
   "  li a0, 1\n" ++
-  ".Lbsbd_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret\n" ++
+  ".Lasd_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp); addi sp, sp, 128; ret\n" ++
   "\n" ++
+  "# Resolve a same-block EIP-7702 delegation marker from the BAL.\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
   "# Reads bv_exec_p/bv_tx_off populated by block_verdict. Malformed or typed\n" ++
   "# transactions are treated conservatively as no match.\n" ++

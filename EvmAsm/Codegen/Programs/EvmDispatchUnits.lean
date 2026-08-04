@@ -369,7 +369,7 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     "account_at_header_state_root:\n  li a0, 1\n  ret\n" ++
     "account_extract_nonce:\n  li a0, 1\n  ret\n" ++
     "code_at_header_state_root:\n  li a0, 5\n  ret\n" ++
-    "bal_same_block_delegation_code_resolve:\n  li a0, 1\n  ret\n" ++
+    "account_state_delegation_code_resolve:\n  li a0, 1\n  ret\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
   dataAsm     :=

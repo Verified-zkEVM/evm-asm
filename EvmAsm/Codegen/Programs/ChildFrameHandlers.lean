@@ -593,7 +593,7 @@ def callDescendFallThrough
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 2\n" ++
     "  ld a4, 608(x20)\n" ++                                -- evm-asm-uzb6b: resolver codes base (descend re-adds 608(x20))
-    "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+    "  jal ra, account_state_delegation_code_resolve\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
@@ -607,7 +607,7 @@ def callDescendFallThrough
     -- tombstone discriminant below (pin is_account_alive); status 3 is a
     -- finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
@@ -693,7 +693,7 @@ def callDescendFallThrough
   -- masks stale header code.  Only an overlay miss may query the witness.
   "  addi sp, sp, -64\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
   "  bnez t0, .Lcd_acst_done_" ++ tag ++ "\n" ++
@@ -714,7 +714,21 @@ def callDescendFallThrough
   "  li t3, 1; bne t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   "  la t3, cahsr_code_length; sd t2, 0(t3)\n" ++
   "  ld t3, 608(x20); sub t1, t1, t3; la t3, cahsr_code_offset; sd t1, 0(t3)\n" ++
-  "  j .Lcd_descend_" ++ tag ++ "\n" ++
+  -- A current CodeState entry may itself be the 23-byte EIP-7702
+  -- delegation designator.  Treating that marker as executable code skips
+  -- the mode-0 resolver below (the old header path did not have this entry),
+  -- so the delegated target is never selected and the child returns failure.
+  -- Re-enter the existing header/marker path instead of duplicating its
+  -- status handling: it invokes the mode-0 resolver for same-block markers,
+  -- preserves status-2 precompile/empty bails, and falls through to the
+  -- established prior-block mode-1 path when the immutable header supplies
+  -- the marker.  Non-marker CodeState remains the direct descend path.
+  "  li t4, 23; bne t2, t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++
+  "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 2(t3); bnez t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  j .Lcd_header_lookup_" ++ tag ++ "\n" ++
   ".Lcd_header_lookup_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
@@ -766,7 +780,7 @@ def callDescendFallThrough
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
   "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
   "  ld a4, 608(x20)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -796,7 +810,7 @@ def callDescendFallThrough
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
   "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
   "  ld a4, 608(x20)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -830,7 +844,7 @@ def callDescendFallThrough
   -- cross-transaction visibility use one current-state rule.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  mv t4, a0; mv t5, a1; mv t6, a2\n" ++             -- status, code ptr, code len
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -913,7 +927,7 @@ def callDescendFallThrough
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
        -- created this tx -> alive -> no charge
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n  mv t6, a0\n" ++
+        "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n  mv t6, a0\n" ++
         "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
         -- pin is_account_alive (state_tracker.py:445-463) + system.py:465: same
         -- status-2 / bal-zero-tombstone split as the main nacc site (#11334 /

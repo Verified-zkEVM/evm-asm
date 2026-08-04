@@ -540,7 +540,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   -- #11163: empty-code (BAL hit or miss) enters the shared message processor
   -- the same way as contracts.  The depth-0 precompile arm inside
   -- `runtime_dispatcher_call` classifies after move_ether; inactive falls
@@ -877,7 +877,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- durable tombstone is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).
-  "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
+  "  la a0, bv_create_addr; jal ra, account_state_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
   -- Only status 1 (an existing account with code) is an EIP-684 collision.
