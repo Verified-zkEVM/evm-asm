@@ -609,8 +609,23 @@ def callDescendFallThrough
     "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
+    -- (alive, clear_account_preserving_balance) with a balance-zero one
+    -- (dropped from the trie, must read as non-existent), because the writer
+    -- keys the tombstone flags on balance OR nonce.  The 32 balance bytes are
+    -- the discriminant: only when the tombstone balance is all zero does the
+    -- status-2 callee fail is_account_alive and owe the new-account charge.
+    "  li t5, 2; bne t6, t5, .Lcd_nacc_std_" ++ tag ++ "\n" ++
+    "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_state_tombstone_balance_zero\n" ++
+    "  mv t5, a0\n" ++
+    "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+    "  bnez t5, .Lcd_nacc_seenentry_" ++ tag ++ "\n" ++
+    "  li t6, 2\n" ++
+    ".Lcd_nacc_std_" ++ tag ++ ":\n" ++
     codeStateStatusIsLiveAsm "t6" ++
     "  bnez t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++           -- created this tx -> alive -> no charge
+    ".Lcd_nacc_seenentry_" ++ tag ++ ":\n" ++
     -- SELFDESTRUCT moves the origin balance to zero but leaves the account alive until tx end.
     "  la t0, evm_selfdestruct_seen_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
     "  la t0, evm_selfdestruct_seen_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_seen_done_" ++ tag ++ "\n" ++
@@ -680,7 +695,21 @@ def callDescendFallThrough
   "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
-  "  beqz t0, .Lcd_header_lookup_" ++ tag ++ "\n" ++
+  "  bnez t0, .Lcd_acst_done_" ++ tag ++ "\n" ++
+  -- CodeState missed: a transaction-finalized EIP-6780 deletion (AccountState
+  -- delete-pending tombstone, written by account_state_commit_pending) makes
+  -- the callee non-existent in every later transaction, so descend on empty
+  -- code rather than stale witness bytes.  Within the destroying transaction
+  -- no tombstone exists yet, so same-tx semantics are unchanged.
+  "  addi sp, sp, -64\n" ++
+  "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
+  "  sd a0, 24(sp)\n" ++
+  "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); addi sp, sp, 64\n" ++
+  "  li t3, 2; beq t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  "  li t3, 3; beq t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  "  j .Lcd_header_lookup_" ++ tag ++ "\n" ++
+  ".Lcd_acst_done_" ++ tag ++ ":\n" ++
   "  li t3, 1; bne t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   "  la t3, cahsr_code_length; sd t2, 0(t3)\n" ++
   "  ld t3, 608(x20); sub t1, t1, t3; la t3, cahsr_code_offset; sd t1, 0(t3)\n" ++

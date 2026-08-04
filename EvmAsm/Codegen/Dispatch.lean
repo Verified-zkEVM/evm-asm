@@ -1959,6 +1959,7 @@ def emitDispatcherEpilogueCore
     accountStateLatestBalanceFunction ++ "\n" ++
     accountStateLatestNonceFunction ++ "\n" ++
     accountStateLookupCurrentFunction ++ "\n" ++
+    accountStateTombstoneBalanceZeroFunction ++ "\n" ++
     accountStateCreatedContainsFunction ++ "\n" ++
     codeStateLookupCurrentFunction ++ "\n" ++
     codeStateAddressSetInsertFunction ++ "\n" ++
@@ -3245,6 +3246,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   accountStateLatestBalanceFunction ++ "\n" ++
   accountStateLatestNonceFunction ++ "\n" ++
   accountStateLookupCurrentFunction ++ "\n" ++
+  accountStateTombstoneBalanceZeroFunction ++ "\n" ++
   accountStateCreatedContainsFunction ++ "\n" ++
   codeStateLookupCurrentFunction ++ "\n" ++
   codeStateAddressSetInsertFunction ++ "\n" ++
