@@ -390,13 +390,18 @@ def accountStateRecordCodeFunction : String :=
     An accepted authorization mutates account existence, nonce, and delegation
     before message execution.  Store those execution facts in the same pending
     overlay as CREATE so the next transaction reads the committed prior-tx
-    state, never a post-state BAL reconstruction.  Flag bit 3 denotes a known
-    delegation designator; bit 6 is the auth-only nonce snapshot.  Auth nonce
-    state must remain visible to the authorization resolver without making the
-    generic balance/nonce readers authoritative for the BAL comparator. -/
+    state, never a post-state BAL reconstruction.  AccountState flags use bit
+    16 for execution-known, bit 4 for code-present, bit 2 for account-present,
+    bit 8 for delegation state, and bit 6 for the auth-only nonce snapshot.
+    Auth nonce state must remain visible to the authorization resolver without
+    making the generic balance/nonce readers authoritative for the BAL
+    comparator. -/
 def accountStateRecordAuthFunction : String :=
   "account_state_record_auth:\n" ++
-  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  -- a3 is the stable 23-byte delegation-designator slot, or zero for a clear.
+  -- AccountState rows use a different layout from AccountWrite rows: code
+  -- pointer/length are +72/+80 and the execution-known bit is +16.
+  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
   "  la t0, account_state_scratch; li t1, 0\n" ++
@@ -409,7 +414,12 @@ def accountStateRecordAuthFunction : String :=
   ".Lasra_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lasra_nonce; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasra_addr\n" ++
   ".Lasra_nonce:\n" ++
-  "  sd s1, 64(t0); ld t1, 88(t0); ori t1, t1, 67; li t2, -9; and t1, t1, t2; beqz s2, .Lasra_flags; ori t1, t1, 8\n" ++
+  -- Keep the nonce/delegation bits from the old producer, but also advertise
+  -- that this AccountState row is execution-known and carries code when the
+  -- accepted target is nonzero.  Clear the code/delegation-present bits first
+  -- so a later authorization clearing a delegation cannot inherit stale code;
+  -- retain bit 16, the execution-known marker required by the consumer.
+  "  sd s1, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 88(t0); ori t1, t1, 83; li t2, -13; and t1, t1, t2; beqz s2, .Lasra_flags; sd s3, 72(t0); li t2, 23; sd t2, 80(t0); ori t1, t1, 12\n" ++
   ".Lasra_flags:\n" ++
   "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasra_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lasra_ret:\n" ++
