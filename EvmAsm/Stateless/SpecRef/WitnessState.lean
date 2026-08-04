@@ -125,6 +125,37 @@ def decode_account_from_leaf (leaf_value : Bytes) :
       pure ({ nonce, balance, codeHash }, storageRoot)
   | _ => .error .accountLeafMalformed
 
+/-- Inversion of a successful account-leaf decode, in a form a caller can use
+    without re-deriving the four-way pattern match.
+
+    ⚠️ Note what the reference ACCEPTS, because the guest is stricter on every
+    field: the nonce and balance fields may be ANY length (`bytesBEtoNat` has no
+    width cap), and an EMPTY storage-root or code-hash field is folded to
+    `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH` rather than rejected.  `account_decode`
+    caps nonce at 8 bytes and balance at 32, and requires both hash fields to be
+    EXACTLY 32 bytes — so it rejects leaves this function accepts.  That gap is
+    the substance of #11345's domain restriction, and it is invisible from
+    `AccountRecord.WF`, which is defined as the guest's checks. -/
+theorem decode_account_from_leaf_inv {leaf : Bytes} {acct : Account} {root : Root}
+    (h : decode_account_from_leaf leaf = .ok (acct, root)) :
+    ∃ n b sr ch,
+      decodeFully leaf = some (.list [.bytes n, .bytes b, .bytes sr, .bytes ch]) ∧
+      acct.nonce = (if n.isEmpty then 0 else bytesBEtoNat n) ∧
+      acct.balance = (if b.isEmpty then 0 else bytesBEtoNat b) ∧
+      root = (if sr.isEmpty then EMPTY_TRIE_ROOT else sr) ∧
+      acct.codeHash = (if ch.isEmpty then EMPTY_CODE_HASH else ch) := by
+  unfold decode_account_from_leaf at h
+  split at h
+  · rename_i n b sr ch hfull
+    have hpair := Except.ok.inj h
+    have h1 := congrArg Prod.fst hpair
+    have h2 := congrArg Prod.snd hpair
+    simp only at h1 h2
+    subst h1
+    subst h2
+    exact ⟨n, b, sr, ch, hfull, rfl, rfl, rfl, rfl⟩
+  · exact absurd h (by simp)
+
 /-! ## Sanity checks -/
 
 -- build_node_db keys are the keccak256 of the entries.

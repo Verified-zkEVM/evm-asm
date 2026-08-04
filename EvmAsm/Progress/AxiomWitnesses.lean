@@ -284,6 +284,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 
+#print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 
 #print axioms EvmAsm.Stateless.bytesBEtoNat_beBytes32
