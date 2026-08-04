@@ -34,9 +34,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictDispatchTx
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
-import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
-import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
-import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 -- #11118: CodeCovers/Code/AccountCodeConsistent/StorageReadsExecLog unlinked (dead 43/46/38).
 import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.TxPubkey
@@ -163,12 +160,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     readSetsDiscardTxFunction ++ "\n" ++
     -- F3 retirement: no eager BAL-account seed producer is linked.
     balAddrToExecLogKeyFunction ++ "\n" ++
-    -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, now referenced by
-    -- block_verdict's contract-dispatch tail (rlp_list_nth_item/count_items already present).
+    -- bmvmx.1.6.2: bal_storage_change_values (tuple path). matches/covers unlinked #10681.
     balStorageChangeValuesFunction ++ "\n" ++
-    balStorageMatchesExecLogFunction ++ "\n" ++
-    balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
-  balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
@@ -177,7 +170,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: KEEP — embeds live skip_list body
   -- #11118: bal_storage_reads_in_exec_log / code_covers / code_consistent unlinked (dead labels 38/43/46).
-  -- bal_storage_matches_exec_log + covers KEEP — live callees of allaccounts 37.
+  -- #10681: bal_storage_matches/covers + all_accounts_storage_consistent unlinked (0 live jal; hash survivor).
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
   blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
   headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
@@ -516,12 +509,8 @@ def statelessVerdictV2GuestClosure : String :=
   secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
   -- F3 retirement: no eager BAL-account seed producer is linked.
   balAddrToExecLogKeyFunction ++ "\n" ++
-  -- bmvmx.1.6.2: exec-vs-BAL recipient storage consistency callees, referenced by
-  -- block_verdict's contract-dispatch tail. rlp_list_nth_item/count_items already in closure.
+  -- bmvmx.1.6.2: bal_storage_change_values (tuple path). matches/covers unlinked #10681.
   balStorageChangeValuesFunction ++ "\n" ++
-  balStorageMatchesExecLogFunction ++ "\n" ++
-  balStorageCoversExecLogFunction ++ "\n" ++   -- bmvmx.1.6.5: exec ⊆ BAL (omission detection)
-  balAllAccountsStorageConsistentFunction ++ "\n" ++   -- bmvmx.1.6.4.3: all-accounts forward+reverse
   balSlotTupleSequenceFunction ++ "\n" ++
   execLogSlotTuplesFunction ++ "\n" ++
   systemUserExecLogSlotTuplesFunction ++ "\n" ++
@@ -530,7 +519,8 @@ def statelessVerdictV2GuestClosure : String :=
   slotTupleSequencesMatchFunction ++ "\n" ++
   accountTupleSequencesConsistentFunction ++ "\n" ++
   balAllAccountsTupleSequencesConsistentFunction ++ "\n" ++   -- bmvmx.1.6.6: KEEP — embeds live skip_list body
-  -- #11118: dead BAL labels 38/43/46 unlinked (reads/code_covers/code_consistent). matches+covers stay (37).
+  -- #11118: dead BAL labels 38/43/46 unlinked (reads/code_covers/code_consistent).
+  -- #10681: bal_storage_matches/covers + all_accounts_storage_consistent unlinked (0 live jal).
   -- GH #10619: producer for the storage_reads CONTAINER (spec set semantics,
   -- block lifetime, untouched by rollback).  Called from the SLOAD/SSTORE
   -- handler preBody so the verified evm_sload body stays byte-identical.

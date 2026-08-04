@@ -11,14 +11,12 @@ import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
+import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
-import EvmAsm.Codegen.Programs.BalStorageMatchesExecLog
-import EvmAsm.Codegen.Programs.BalStorageCoversExecLog
-import EvmAsm.Codegen.Programs.BalAllAccountsStorage
 -- #11118: BalAllAccountsCodeCovers / BalStorageReadsExecLog data unlinked with dead 43/38.
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
 import EvmAsm.Codegen.Programs.AccountWriteMap
@@ -541,14 +539,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bvcd_code_len:\n  .zero 8\n" ++
   "bvcd_acct_ptr:\n  .zero 8\n" ++
   "bvcd_acct_len:\n  .zero 8\n" ++
-  -- bmvmx.1.6.2 exec-vs-BAL recipient storage check scratch (bal_storage_change_values +
-  -- bal_storage_matches_exec_log), now linked into the verdict's contract-dispatch tail.
+  -- bmvmx.1.6.2 bal_storage_change_values scratch (tuple path). matches/covers/allaccounts data unlinked #10681.
   balStorageChangeValuesData ++
-  balStorageMatchesExecLogData ++
-  -- bmvmx.1.6.5 exec ⊆ BAL omission-detection scratch (bal_storage_covers_exec_log).
-  balStorageCoversExecLogData ++
-  -- bmvmx.1.6.4.3 all-accounts storage check scratch (bal_all_accounts_storage_consistent, c2bal_*).
-  balAllAccountsStorageConsistentData ++
   -- #11118: bacov_*/bsr_krev guest data removed with dead code_covers (43) and reads (38).
   -- bmvmx.1.6.3 recipient nonce/code-change emptiness probe (rlp_list_nth_item out cells).
   "bv_rcf_off:\n  .zero 8\n" ++
