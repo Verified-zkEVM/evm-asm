@@ -317,17 +317,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  -- Execution CodeState is block-lived in the sequential lane. The callable
+  -- Execution AccountState is block-lived in the sequential lane. The callable
   -- dispatcher resets transaction-local pending overlays, including
   -- `account_state_pending_count`; it does not preserve that AccountState
   -- journal across dispatches. This reset is the live durability boundary in
   -- GH #10876: sender effects needed after dispatch must be materialized in
   -- durable state rather than left in the pending journal. Durable state and
   -- retained comparator bytes survive until this loop finishes.
-  -- CodeState is the sole execution code/existence model for every block,
-  -- including the one-transaction case.  The immutable witness is consulted
-  -- only after its pending and durable overlays miss.
-  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  -- AccountState is the sole emitted execution code/existence model for every
+  -- block, including the one-transaction case.  The immutable witness is
+  -- consulted only after its pending and durable overlays miss; CodeState
+  -- names are compatibility aliases, not a separate table.
+  "  la t0, runtime_mtx_active; li t1, 1; sd t1, 0(t0); la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
@@ -698,7 +699,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, capture_system_storage_exec_rows\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_capture_done:\n" ++
-  -- Commit the just-successful transaction's current CodeState overlay before
+  -- Commit the just-successful transaction's current AccountState overlay before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
   -- Match `process_message`'s two snapshots: a successful body commits all
@@ -871,7 +872,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
-  -- A durable CodeState entry is a prior-tx live account and collides; a
+  -- A durable AccountState entry is a prior-tx live account and collides; a
   -- durable tombstone is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).

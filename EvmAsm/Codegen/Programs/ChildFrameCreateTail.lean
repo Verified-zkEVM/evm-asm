@@ -255,7 +255,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      -- If an account-witness context is attached, apply the EIP-684
      -- code-or-nonce collision check to the derived target address.  The
-     -- mutable CodeState layer is checked first: a durable earlier-tx CREATE
+     -- mutable AccountState layer is checked first: a durable earlier-tx CREATE
      -- overrides a header miss, while a durable same-tx-delete mask permits a
      -- later recreate.  Only an overlay miss consults block-pre witness data.
      --
@@ -405,7 +405,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- spec is_account_alive(target) on mutable tx_state (state_tracker.py):
     -- LIVE balance via balance_at_header_state_root (live-first, #11019), not
     -- pure header. Code/nonce holders already took the collision branch; plus
-    -- the shared current CodeState overlay for prior same-tx creation.
+    -- the shared current AccountState overlay for prior same-tx creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
     "  jal ra, balance_at_header_state_root\n" ++

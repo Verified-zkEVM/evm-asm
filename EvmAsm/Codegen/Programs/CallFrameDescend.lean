@@ -500,7 +500,7 @@ def callFrameDescendFunction : String :=
   bodyStateCaptureScalarAsm "exec_code_effect_count" "t1" 16 "t4" "t0" ++
   bodyStateCaptureScalarAsm "exec_code_effect_next" "t1" 24 "t4" "t0" ++
   bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t1" 32 "t4" "t0" ++
-  -- The mutable CodeState is a transaction overlay, so it needs the same
+  -- The mutable AccountState is a transaction overlay, so it needs the same
   -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
   -- the checkpoints depth-indexed rather than extending the packed env ABI.
   bodyStateCaptureScalarAsm "account_state_pending_count" "t1" 72 "t4" "t0" ++

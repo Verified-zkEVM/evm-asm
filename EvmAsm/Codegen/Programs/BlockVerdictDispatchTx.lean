@@ -108,7 +108,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   -- A delegation target may itself have been successfully CREATEd by an
-  -- earlier transaction in this block.  CodeState is the current execution
+  -- earlier transaction in this block.  AccountState is the current execution
   -- state, so consult it before the immutable block-pre witness.
   "  la a0, dtrc_deleg_target; jal ra, account_state_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
@@ -243,7 +243,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   -- The BAL resolver only owns EIP-7702 delegation designators.  For ordinary
-  -- code use the shared mutable CodeState first: a tx1 CREATE is visible to a
+  -- code use the shared mutable AccountState first: a tx1 CREATE is visible to a
   -- tx2 top-level call even though it is absent from the block-pre witness.
   "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
   "  addi a0, s2, 72; jal ra, account_state_lookup_current\n" ++

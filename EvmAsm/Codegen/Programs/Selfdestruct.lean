@@ -40,7 +40,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- get_account(current_target).balance != 0). A zero-header-balance contract
   -- funded THIS tx (the tx value credit, or an earlier same-tx transfer) must
   -- still charge; prefer the journaled latest balance over the header value.
-  -- The layered CodeState lookup uses the standard caller-saved a0-a3
+  -- The layered AccountState lookup uses the standard caller-saved a0-a3
   -- registers.  Preserve the live EVM stack cursor (x13) as well as the
   -- runtime context registers across the lookup.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
@@ -185,9 +185,9 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  j .L_selfdestruct_surcharge_done\n" ++   -- beneficiary==self AND created-in-tx (alive) -> no NEW_ACCOUNT state gas
   ".L_selfdestruct_csg_not_ctit:\n" ++
   -- Mirror is_account_alive's created_accounts membership through the shared
-  -- current CodeState: a beneficiary created in this transaction is alive,
+  -- current AccountState: a beneficiary created in this transaction is alive,
   -- including an empty-code CREATE, so skip the charge.
-  -- The layered CodeState lookup uses the standard caller-saved a0-a3
+  -- The layered AccountState lookup uses the standard caller-saved a0-a3
   -- registers. Preserve the live EVM stack cursor (x13) with the runtime
   -- context registers across the lookup.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++

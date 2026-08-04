@@ -32,8 +32,8 @@
   future retirement must first move the byte heap into its own retained code
   store, or preserve it verbatim; deleting/reusing this arena with live
   AccountState/BAL pointers is invalid.  This module deliberately does not
-  perform that layout split, because the current variable-stride cursor and all
-  CodeState readers use the packed record base.
+  perform that layout split, because the current variable-stride cursor and the
+  retained AccountState/code-byte readers use the packed record base.
 
   The CREATE-tail deposit call site (`create_record_code_effect(create_address_be,
   create_child_code, create_child_code_len)`) + EIP-3541 / MAX_CODE_SIZE / nonce
@@ -73,7 +73,7 @@ open EvmAsm.Rv64
     consumes that flag as a rejection. -/
 def execCodeEffectLogCap : Nat := 1048576
 
-/-! ## Bounded execution CodeState
+/-! ## Legacy CodeState source helpers (not emitted)
 
     `exec_code_effect_log` is an append-only comparison record: BAL's code
     comparator needs to see every execution-produced code change.  It is not a
@@ -81,33 +81,23 @@ def execCodeEffectLogCap : Nat := 1048576
     same address must replace an earlier one, and EIP-6780 deletion is scoped
     to the transaction which created the account).
 
-    The multi-transaction runtime therefore keeps its execution-facing code
-    state in fixed, real-address keyed tables.  A table entry is 64 bytes:
-
-      +0  address (20-byte BE, zero-padded to 32)
-      +32 code pointer
-      +40 code length
-      +48 flags (bit 0: occupied; bit 1: account exists; bit 2: code is available)
-      +56 reserved
-
-    There are separate pending and durable tables.  Pending entries are the
-    current transaction overlay; successful transaction finalization merges
-    them into durable state, while a failed transaction discards the pending
-    count.  The capacity is gas bounded: CREATE costs at least 32,000 gas, so
-    a 200M-gas block can create at most 6,250 accounts; 8,192 leaves margin
-    without scaling memory with untrusted input. -/
+    The historical `code_state_find`/`code_state_upsert` family below described
+    a separate fixed table.  Those source strings are retained only as
+    migration scaffolding; the emitted execution path uses AccountState, and
+    `code_state_lookup_current` is a compatibility jump to its resolver.  Do
+    not read these legacy constants as a live runtime container. -/
 def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
 def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 
 /-! ## Bounded execution AccountState
 
-    The old CodeState owns only code/existence while value and nonce readers
-    reconstruct their state from an append-only comparison log.  AccountState
-    is the replacement execution model: a complete account snapshot is written
-    for every execution mutation, so a later read has one layered source of
-    truth.  Pending entries form a per-transaction journal; durable entries
-    retain the latest successful block state.  Both are fixed arenas.
+    AccountState is the emitted execution model: a complete account snapshot
+    is written for every execution mutation, so a later read has one layered
+    source of truth.  Pending entries form a per-transaction journal; durable
+    entries retain the latest successful block state.  CodeState-named helpers
+    are compatibility aliases or source-only migration scaffolding, not a
+    second execution authority.  Both AccountState layers are fixed arenas.
 
     38,460 entries is the gas-derived bound.  The lowest-cost operation that
     changes two accounts is a value transfer; the existing 200M-gas bound is
@@ -706,10 +696,10 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   -- pre-block balance/nonce.  This is normally an absent same-tx CREATE,
   -- therefore EIP-161-empty, but also handles a pre-funded CREATE target.
   ".Lcsfb_preblock:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, code_state_pre_acct; jal ra, account_at_header_state_root\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_resolver_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lcsfb_pre_found; li t0, 1; bne a0, t0, .Lcsfb_unavailable; li a0, 0; j .Lcsfb_zero\n" ++
   ".Lcsfb_pre_found:\n" ++
-  "  la t0, code_state_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
+  "  la t0, account_resolver_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_unavailable:\n" ++
   "  li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
@@ -717,7 +707,9 @@ def codeStateFinalBalanceNonzeroFunction : String :=
 
 /-! ## code_state_lookup_current
 
-    Shared execution-read resolver for the CodeState layers.
+    Shared execution-read compatibility resolver.  The emitted body forwards
+    to the AccountState layers; the CodeState name remains only for callers
+    that have not yet been mechanically renamed.
 
     a0 = canonical 20-byte BE address pointer
     returns a0 = 0 absent from both overlays, 1 existing with code,
@@ -731,8 +723,8 @@ def codeStateFinalBalanceNonzeroFunction : String :=
 def codeStateLookupCurrentFunction : String :=
   "code_state_lookup_current:\n" ++
   -- Compatibility symbol for the atomic tqj1m source cutover.  Every legacy
-  -- caller now reaches the one AccountState layered resolver; the old table
-  -- remains comparison/migration evidence only and is no longer a read source.
+  -- caller now reaches the one AccountState layered resolver; the historical
+  -- table strings are migration evidence only and are no longer a read source.
   "  j account_state_lookup_current"
 
 /-! ## codeStateStatusIsLiveAsm
@@ -800,11 +792,11 @@ def codeStateAddressSetFlagFunction : String :=
   ".Lcsasf_miss:\n" ++
   "  li a0, 1; ld a3, 0(sp); addi sp, sp, 16; ret"
 
-/-- Fixed static data for the execution CodeState overlay.  `created` and
-    `delete` sets use the same 32-byte padded-address key representation. -/
+/-! Fixed static data for the AccountState execution overlay.  The `created`
+    and `delete` sets use the same 32-byte padded-address key representation. -/
 def codeStateData : String :=
   ".balign 8\n" ++
-  "code_state_mtx_active:\n  .zero 8\n" ++
+  "runtime_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
   -- CodeState tables were retired after the atomic reader cutover; its small
   -- scalar names below remain only as compatibility guards for the retained
@@ -815,7 +807,7 @@ def codeStateData : String :=
   "account_state_delete_count:\n  .zero 8\n" ++
   "account_state_overflow:\n  .zero 8\n" ++
   -- BAL final-account scratch for the EIP-161 deferred-delete decision.
-  "code_state_pre_acct:\n  .zero 48\n" ++
+  "account_resolver_pre_acct:\n  .zero 48\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
