@@ -226,6 +226,18 @@ not here — this file deliberately does not import Codegen (see the Witnesses b
   { family := "rlp", routine := "rlp_prefix_to_buffer",
     verdict := .noCounterpart, basis := .inspection,
     note := "header emission; no standalone counterpart. Also has NO drift guard" },
+  { family := "rlp", routine := "withdrawal_decode",
+    spec := some "withdrawal_decode_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "inverse of withdrawalToRlpItem (SpecRef/BlocksRlp): RLP → (index, \
+validatorIndex, address, amount)",
+    note := "whole-routine triple `wdPrologue ;; wdBBField0` proven against LOCAL \
+`Decoded`/`DecodeFailure` predicates. SpecRef carries withdrawal ENCODE (`withdrawalToRlpItem`) \
+and SSZ decode (`sszToWithdrawal`) but NO RLP decoder, so there is nothing to bridge to and the \
+differential does not transfer — `machineOnly`, not `bridged`. Registered in #11291; this row \
+added in #11342 because a witnessed routine with no Correspondence row passed the #11335 gate \
+vacuously (absence is weaker than an `unproven` row yet was not caught). Witnessed in \
+`Progress/Routines.lean`, not here — this file deliberately does not import Codegen." },
 
   -- BAL canonical ordering. The model is differential-backed; every guest
   -- routine is unproven because BalCanonicalSort.lean defines only Strings —
@@ -258,18 +270,18 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 20 := by decide
-theorem rlp_rows : countFamily "rlp" = 18 := by decide
+theorem registry_size : registry.length = 21 := by decide
+theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 12 ∧ countVerdict .domainRestricted = 3 ∧
+    countVerdict .agrees = 13 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 7 ∧
-    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 5 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
