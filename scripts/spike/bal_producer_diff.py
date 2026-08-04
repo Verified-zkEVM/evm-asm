@@ -191,11 +191,17 @@ def lean_nat(source: Path, name: str) -> int:
     text = source.read_text()
     match = re.search(rf"def {re.escape(name)} : Nat := (\d+)", text)
     if not match:
+        # Some capacity definitions are intentionally expressed as a formula;
+        # their kernel-checked #guard still records the concrete value.
+        match = re.search(rf"#guard {re.escape(name)} = (\d+)", text)
+    if not match:
         fail(f"cannot find {name} in {source}")
     return int(match.group(1))
 
 
-def dump_ranges(elf: Path, program_source: Path) -> tuple[str, dict[str, int], dict[str, int]]:
+def dump_ranges(
+    elf: Path, program_source: Path, code_source: Path, params_source: Path
+) -> tuple[str, dict[str, int], dict[str, int]]:
     symbols = nm_symbols(elf)
     required = [
         "bal_builder_current_bai",
@@ -214,6 +220,8 @@ def dump_ranges(elf: Path, program_source: Path) -> tuple[str, dict[str, int], d
         "bal_builder_balance_changes",
         "bal_builder_nonce_changes",
         "bal_builder_code_changes",
+        "exec_code_effect_log",
+        "eip7702_auth_code_slots",
         "bal_serializer_surviving_read_count",
         "bal_serializer_sort_status",
         "bal_serializer_rebuilt_hash",
@@ -237,6 +245,10 @@ def dump_ranges(elf: Path, program_source: Path) -> tuple[str, dict[str, int], d
         "nonce": lean_nat(program_source, "balBuilderNonceRowBytes"),
         "code": lean_nat(program_source, "balBuilderCodeRowBytes"),
     }
+    code_effect_log_bytes = lean_nat(code_source, "execCodeEffectLogCap")
+    eip7702_auth_code_bytes = (
+        lean_nat(params_source, "bvEip7702AuthEntryCapacity") * 24
+    )
     arrays = {
         "accounts": "bal_builder_accounts",
         "storage": "bal_builder_storage_changes",
@@ -250,13 +262,20 @@ def dump_ranges(elf: Path, program_source: Path) -> tuple[str, dict[str, int], d
     for name in ("accounts", "storage", "balance", "nonce", "code"):
         ranges.append((symbols[arrays[name]], capacities[name] * strides[name]))
     ranges += [
+        (symbols["exec_code_effect_log"], code_effect_log_bytes),
+        (symbols["eip7702_auth_code_slots"], eip7702_auth_code_bytes),
         (symbols["bal_serializer_surviving_read_count"], 8),
         (symbols["bal_serializer_sort_status"], 8),
         (symbols["bal_serializer_rebuilt_hash"], 32),
         (symbols["bal_serializer_supplied_hash"], 32),
     ]
     dump = ",".join(f"0x{address:x}:{length}" for address, length in ranges)
-    return dump, symbols, {**capacities, **{f"{name}_stride": value for name, value in strides.items()}}
+    return dump, symbols, {
+        **capacities,
+        **{f"{name}_stride": value for name, value in strides.items()},
+        "code_effect_log_bytes": code_effect_log_bytes,
+        "eip7702_auth_code_bytes": eip7702_auth_code_bytes,
+    }
 
 
 def read_dump(path: Path) -> dict[int, bytes]:
@@ -292,6 +311,14 @@ def read_at(ranges: dict[int, bytes], address: int, length: int) -> bytes:
     fail(f"dump does not cover 0x{address:x}+{length}")
 
 
+def maybe_read_at(ranges: dict[int, bytes], address: int, length: int) -> bytes | None:
+    for base, data in ranges.items():
+        if base <= address and address + length <= base + len(data):
+            offset = address - base
+            return data[offset : offset + length]
+    return None
+
+
 def u64_at(ranges: dict[int, bytes], address: int) -> int:
     return int.from_bytes(read_at(ranges, address, 8), "little")
 
@@ -321,6 +348,7 @@ def decode_rows(
         }.items()
     }
     rows: dict[str, list[Any]] = {name: [] for name in count_symbols}
+    undecodable = 0
     bases = {
         "accounts": "bal_builder_accounts",
         "storage": "bal_builder_storage_changes",
@@ -357,12 +385,19 @@ def decode_rows(
                     {"address": address, "bai": bai, "nonce": int.from_bytes(row[32:40], "little")}
                 )
             else:
+                code_ptr = int.from_bytes(row[32:40], "little")
+                code_len = int.from_bytes(row[40:48], "little")
+                code = maybe_read_at(ranges, code_ptr, code_len)
+                if code is None:
+                    undecodable += 1
+                    code_hex = None
+                else:
+                    code_hex = code.hex()
                 rows[name].append(
                     {
                         "address": address,
                         "bai": bai,
-                        "code_ptr": int.from_bytes(row[32:40], "little"),
-                        "code_len": int.from_bytes(row[40:48], "little"),
+                        "code": code_hex,
                     }
                 )
     hashes = {
@@ -373,7 +408,7 @@ def decode_rows(
         "sort_status": u64_at(ranges, symbols["bal_serializer_sort_status"]),
         "surviving_reads": u64_at(ranges, symbols["bal_serializer_surviving_read_count"]),
     }
-    return rows, counts, {"overflows": overflows, "hashes": hashes}
+    return rows, counts, {"overflows": overflows, "hashes": hashes, "undecodable": undecodable}
 
 
 def main() -> int:
@@ -391,6 +426,18 @@ def main() -> int:
         help="BlockAccessListBuilder.lean (defaults to the checkout source)",
     )
     parser.add_argument(
+        "--code-source",
+        type=Path,
+        default=None,
+        help="CreateCodeEffectLog.lean (defaults to the checkout source)",
+    )
+    parser.add_argument(
+        "--params-source",
+        type=Path,
+        default=None,
+        help="BlockVerdictParams.lean (defaults to the checkout source)",
+    )
+    parser.add_argument(
         "--register-expectation",
         action="store_true",
         help="derive and write the expectation before executing the guest",
@@ -401,6 +448,8 @@ def main() -> int:
     root = Path(__file__).resolve().parents[2]
     specs_dir = args.execution_specs or root / "execution-specs"
     source = args.program_source or root / "EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean"
+    code_source = args.code_source or root / "EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean"
+    params_source = args.params_source or root / "EvmAsm/Codegen/Programs/BlockVerdictParams.lean"
     row = load_manifest(args.manifest, args.label)
     input_file = input_path(args.manifest, row)
     if not input_file.is_file():
@@ -427,7 +476,7 @@ def main() -> int:
         fail("pre-registered rows differ from the pinned execution-specs reference")
     expected_rows = expectation["rows"]
 
-    dump, symbols, layout = dump_ranges(args.guest_elf, source)
+    dump, symbols, layout = dump_ranges(args.guest_elf, source, code_source, params_source)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     dump_file = args.out_dir / "bal-final-memory.bin"
     output_file = args.out_dir / "guest-output.bin"
@@ -446,8 +495,8 @@ def main() -> int:
 
     actual_rows, counts, diagnostics = decode_rows(read_dump(dump_file), symbols, layout)
     attempted = sum(counts.values())
-    skipped = counts["code"] if counts["code"] else 0
-    undecodable = 0
+    skipped = 0
+    undecodable = diagnostics["undecodable"]
     decoded = attempted - skipped
     mismatches = [name for name in actual_rows if actual_rows[name] != expected_rows.get(name, [])]
     overflowed = {name: value for name, value in diagnostics["overflows"].items() if value}

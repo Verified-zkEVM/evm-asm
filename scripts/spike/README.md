@@ -126,8 +126,9 @@ SPIKE_DUMP_FILE=/tmp/bal-final-memory.bin \
 scripts/spike/spike_run <guest.elf> <input> /tmp/output
 ```
 
-Use `scripts/spike/bal_producer_diff.py` for the complete pre-registered
-fixture comparison; see `docs/bal-producer-differential.md`.
+Use `scripts/spike/bal_producer_set.sh` for the complete pre-registered
+fixture comparison; it checks exact row contents before the secondary hash
+cross-check. See `docs/bal-producer-differential.md`.
 
 ### 0. Resolve addresses
 
