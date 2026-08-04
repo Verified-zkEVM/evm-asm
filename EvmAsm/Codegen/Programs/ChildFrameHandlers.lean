@@ -603,11 +603,10 @@ def callDescendFallThrough
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
     -- 183600 new-account state gas -> OOG (.exit_outofgas) -> the value-CALL exceptional-fails and the
-    -- child never descends/runs.  Status 1 is live; status 2 needs the bal-zero
-    -- tombstone discriminant below (pin is_account_alive); status 3 is a
-    -- finalized deletion and must charge.
+    -- child never descends/runs.  Only resolver statuses 1 and 2 prove a
+    -- current account state; status 3 is a finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
@@ -693,7 +692,7 @@ def callDescendFallThrough
   -- masks stale header code.  Only an overlay miss may query the witness.
   "  addi sp, sp, -64\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
   "  bnez t0, .Lcd_acst_done_" ++ tag ++ "\n" ++
@@ -844,7 +843,7 @@ def callDescendFallThrough
   -- cross-transaction visibility use one current-state rule.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  mv t4, a0; mv t5, a1; mv t6, a2\n" ++             -- status, code ptr, code len
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -927,24 +926,12 @@ def callDescendFallThrough
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
        -- created this tx -> alive -> no charge
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n  mv t6, a0\n" ++
-        "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-        -- pin is_account_alive (state_tracker.py:445-463) + system.py:465: same
-        -- status-2 / bal-zero-tombstone split as the main nacc site (#11334 /
-        -- #11362). Bare codeStateStatusIsLiveAsm treats every status-2 as alive
-        -- and undercharges NEW_ACCOUNT 183600 on EMPTY EIP-6780 tombstones.
-        "  li t5, 2; bne t6, t5, .Lcd_ibnacc_std_" ++ tag ++ "\n" ++
-        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, account_state_tombstone_balance_zero\n" ++
-        "  mv t5, a0\n" ++
-        "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-        "  bnez t5, .Lcd_ibnacc_sdskip_done_" ++ tag ++ "\n" ++
-        "  li t6, 2\n" ++
-        ".Lcd_ibnacc_std_" ++ tag ++ ":\n" ++
-        codeStateStatusIsLiveAsm "t6" ++
-        "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
-        -- c83ty.2: same-tx SELFDESTRUCTed accounts are alive until transaction end, so an
-        -- insufficient-balance CALL to one also skips NEW_ACCOUNT state gas.
+       "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n  mv t6, a0\n" ++
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       codeStateStatusIsLiveAsm "t6" ++
+       "  bnez t6, .Lcd_ibnacc_done_" ++ tag ++ "\n" ++
+       -- c83ty.2: same-tx SELFDESTRUCTed accounts are alive until transaction end, so an
+       -- insufficient-balance CALL to one also skips NEW_ACCOUNT state gas.
        "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_ibnacc_sdskip_done_" ++ tag ++ "\n" ++
        "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_ibnacc_sdskip_done_" ++ tag ++ "\n" ++
        "  la t2, evm_selfdestruct_destroyed_table\n" ++

@@ -715,28 +715,6 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   ".Lcsfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
 
-/-! ## code_state_lookup_current
-
-    Shared execution-read compatibility resolver.  The emitted body forwards
-    to the AccountState layers; the CodeState name remains only for callers
-    that have not yet been mechanically renamed.
-
-    a0 = canonical 20-byte BE address pointer
-    returns a0 = 0 absent from both overlays, 1 existing with code,
-                 2 existing with empty code, 3 explicitly deleted;
-            a1 = code pointer, a2 = code length for status 1.
-
-    Callers fall back to the authenticated header/witness only on status 0.
-    This is deliberately the one shared state resolver used by CALL, NACC,
-    EXTCODE*, collision, and SELFDESTRUCT consumers; it prevents a per-opcode
-    recreation of the old log-vs-state divergence. -/
-def codeStateLookupCurrentFunction : String :=
-  "code_state_lookup_current:\n" ++
-  -- Compatibility symbol for the atomic tqj1m source cutover.  Every legacy
-  -- caller now reaches the one AccountState layered resolver; the historical
-  -- table strings are migration evidence only and are no longer a read source.
-  "  j account_state_lookup_current"
-
 /-! ## codeStateStatusIsLiveAsm
 
     Coarse status→live map: status ∈ {1,2} → 1, else 0. This is **not** full

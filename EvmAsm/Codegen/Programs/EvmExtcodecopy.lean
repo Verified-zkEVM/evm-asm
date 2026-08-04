@@ -296,7 +296,7 @@ private def extcodecopyWitnessTail : HandlerTail :=
 " ++
     "  la a0, ecc_address_scratch
 " ++
-    "  jal ra, code_state_lookup_current
+    "  jal ra, account_state_lookup_current
 " ++
     "  mv t0, a0; mv t2, a2; sd a1, 56(sp); ld t1, 56(sp)
 " ++

@@ -192,7 +192,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- context registers across the lookup.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, evm_selfdestruct_beneficiary\n" ++
-  "  jal ra, code_state_lookup_current\n" ++
+  "  jal ra, account_state_lookup_current\n" ++
   "  mv t1, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   -- pin is_account_alive (state_tracker.py:445-463) + system.py:669

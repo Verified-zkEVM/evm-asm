@@ -1078,7 +1078,7 @@ def balCodePreimagesValidFunction : String :=
   "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  beqz a0, .Lasd_resolved\n" ++
-  "  la a0, bsbd_deleg_target; jal ra, code_state_lookup_current\n" ++
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
   "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
   "  j .Lasd_resolved\n" ++

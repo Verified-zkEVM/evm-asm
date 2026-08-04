@@ -877,7 +877,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- durable tombstone is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).
-  "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
+  "  la a0, bv_create_addr; jal ra, account_state_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
   -- Only status 1 (an existing account with code) is an EIP-684 collision.
