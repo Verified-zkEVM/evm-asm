@@ -425,7 +425,6 @@ def statelessVerdictV2GuestClosure : String :=
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++
   blockStateRootFunction ++ "\n" ++
-  codesBlockhashRequiredHeadersFunction ++ "\n" ++
   chainConfigValidFunction ++ "\n" ++
   publicKeysValidFunction ++ "\n" ++
   receiptRecordsFunction ++ "\n" ++

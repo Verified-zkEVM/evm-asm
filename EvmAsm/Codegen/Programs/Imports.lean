@@ -280,7 +280,6 @@ import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 import EvmAsm.Codegen.Programs.HeaderSummaryStruct
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
-import EvmAsm.Codegen.Programs.BlockhashRequiredHeaders
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StorageRoot

@@ -145,17 +145,6 @@ def blockVerdictFunction : String :=
   "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
   "  beqz a0, .Lbv_zero_gas_used\n" ++
-  "  # Witness headers must cover concrete in-window BLOCKHASH ancestor accesses\n" ++
-  "  # visible in transaction code. execution-specs indexes block_hashes and\n" ++
-  "  # fails validation if an accessed ancestor is absent.\n" ++
-  "  la t5, svf_codes_ptr; ld a0, 0(t5)\n" ++
-  "  la t5, svf_codes_len; ld a1, 0(t5)\n" ++
-  "  la a2, bv_blockhash_required_headers\n" ++
-  "  jal ra, codes_blockhash_required_headers\n" ++
-  "  bnez a0, .Lbv_blockhash_headers_fail\n" ++
-  "  la t5, bv_blockhash_required_headers; ld t4, 0(t5)\n" ++
-  "  la t5, svf_headers_count; ld t3, 0(t5)\n" ++
-  "  bgtu t4, t3, .Lbv_blockhash_headers_fail\n" ++
   ".Lbv_after_tx_gate:\n" ++
   "  # execution-specs is_valid_versioned_hashes: SSZ NPR.versioned_hashes must\n" ++
   "  # equal the concatenation of all EIP-4844 tx blob_versioned_hashes.\n" ++

@@ -163,7 +163,6 @@ chainValidatePostMergeFullFunction	EvmAsm/Codegen/Programs/ChainValidatePostMerg
 checkGasLimitFunction	EvmAsm/Codegen/Programs/Header.lean
 codeAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/StateCompose.lean
 codeHashAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/AccountFieldGetters.lean
-codesBlockhashRequiredHeadersFunction	EvmAsm/Codegen/Programs/BlockhashRequiredHeaders.lean
 copyWordGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 createExecuteInitcodeFrameRuntimeFunction	EvmAsm/Codegen/Dispatch.lean
 createStageInitcodeFrameRuntimeFunction	EvmAsm/Codegen/Dispatch.lean

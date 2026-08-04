@@ -348,7 +348,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_state_status:\n  .zero 8\n" ++
   "bv_tx_root_status:\n  .zero 8\n" ++
   "bv_block_rlp_len:\n  .zero 8\n" ++
-  "bv_blockhash_required_headers:\n  .zero 8\n" ++
   "bv_versioned_hashes_len:\n  .zero 8\n" ++
   "bv_blob_gas_expected:\n  .zero 8\n" ++
   "bv_blob_gas_observed:\n  .zero 8\n" ++
