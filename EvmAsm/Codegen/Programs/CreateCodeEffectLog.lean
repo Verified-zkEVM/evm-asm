@@ -83,8 +83,7 @@ def execCodeEffectLogCap : Nat := 1048576
 
     The historical `code_state_find`/`code_state_upsert` family below described
     a separate fixed table.  Those source strings are retained only as
-    migration scaffolding; the emitted execution path uses AccountState, and
-    `code_state_lookup_current` is a compatibility jump to its resolver.  Do
+    migration scaffolding; the emitted execution path uses AccountState.  Do
     not read these legacy constants as a live runtime container. -/
 def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
