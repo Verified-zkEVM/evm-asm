@@ -367,6 +367,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- successful preparation and incorrectly retains staged authorization gas.
   "  la t0, runtime_tx_post_preparation_reached; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_phase_halted; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_prepared; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t2, t1, 3; la t0, bv_tx_auth_phase_applied_arr; add t0, t0, t2; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; sd zero, 0(t0)\n" ++

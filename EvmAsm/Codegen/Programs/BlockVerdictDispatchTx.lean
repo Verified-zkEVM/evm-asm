@@ -666,7 +666,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- The common dispatcher owns the execution-time auth callback.  Preserve
   -- the inner envelope and type here; the caller supplies the sender pointer
   -- because MTx and the single-tx contract path use different sender cells.
-  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1); li t1, 4; bne t0, t1, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_exec_fn; la t2, eip7702_auth_state_prepare; sd t2, 0(t1)\n" ++
+  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1); li t1, 4; bne t0, t1, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_prepared; ld t2, 0(t1); bnez t2, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_exec_fn; la t2, eip7702_auth_state_prepare; sd t2, 0(t1)\n" ++
   ".Ldtrc_auth_exec_ready:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
