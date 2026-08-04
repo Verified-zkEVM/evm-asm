@@ -3008,13 +3008,13 @@ stateless_guest	exec_code_effect_count	0xba98bd00	.bss	LINK_DEPENDENT
 stateless_guest	exec_code_effect_next	0xba98bd08	.bss	LINK_DEPENDENT
 stateless_guest	exec_code_effect_overflow	0xba98bd10	.bss	LINK_DEPENDENT
 stateless_guest	exec_code_effect_log	0xba98bd18	.bss	LINK_DEPENDENT
-stateless_guest	runtime_mtx_active	0xbaa8bd18	.bss	LINK_DEPENDENT
+stateless_guest	code_state_mtx_active	0xbaa8bd18	.bss	LINK_DEPENDENT
 stateless_guest	account_state_pending_count	0xbaa8bd20	.bss	LINK_DEPENDENT
 stateless_guest	account_state_durable_count	0xbaa8bd28	.bss	LINK_DEPENDENT
 stateless_guest	account_state_created_count	0xbaa8bd30	.bss	LINK_DEPENDENT
 stateless_guest	account_state_delete_count	0xbaa8bd38	.bss	LINK_DEPENDENT
 stateless_guest	account_state_overflow	0xbaa8bd40	.bss	LINK_DEPENDENT
-stateless_guest	account_resolver_pre_acct	0xbaa8bd48	.bss	LINK_DEPENDENT
+stateless_guest	code_state_pre_acct	0xbaa8bd48	.bss	LINK_DEPENDENT
 stateless_guest	account_state_scratch	0xbaa8bd80	.bss	LINK_DEPENDENT
 stateless_guest	account_state_durable	0xbaa8be00	.bss	LINK_DEPENDENT
 stateless_guest	create_nonce_table_count	0xbaf3dc00	.bss	LINK_DEPENDENT
