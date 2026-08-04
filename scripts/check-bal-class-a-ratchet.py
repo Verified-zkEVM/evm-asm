@@ -9,6 +9,8 @@ baseline:
   * BASELINE path disappeared → fail (force explicit baseline shrink on retirement)
 
 Per path, record whether a following direct jal's return status (a0) is tested.
+The same gate validates the merge-safe rationale sidecar and counts its explicit
+bullet annotations, so regeneration cannot silently erase review context.
 
 Operates on the EMITTED stateless_guest.s only — not Lean source strings.
 
@@ -29,6 +31,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import re
 import subprocess
 import sys
@@ -36,6 +39,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
+DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
+EXPECTED_ANNOTATION_COUNT = 3
 SEEDS = ("bv_bal_start", "bv_bal_len")
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
@@ -197,6 +202,112 @@ def load_baseline(path: Path) -> set[str]:
     return keys
 
 
+ANNOTATION_COUNT_RE = re.compile(r"^\s*<!--\s*annotation-count:\s*(\d+)\s*-->\s*$")
+ANNOTATION_KEY_RE = re.compile(r"^##\s+key:\s*(.*?)\s*\|\s*(\S+)\s*$")
+
+
+def load_annotation_notes(path: Path) -> dict[tuple[str, str], list[str]]:
+    """Load merge-safe bullet annotations keyed by emitted function and jal/sink."""
+    if not path.is_file():
+        raise ValueError(f"missing annotation sidecar {path}")
+
+    notes: dict[tuple[str, str], list[str]] = {}
+    declared_count: int | None = None
+    current_key: tuple[str, str] | None = None
+    current_body: list[str] = []
+
+    def finish_entry() -> None:
+        nonlocal current_key, current_body
+        if current_key is None:
+            return
+        annotations = []
+        for line in current_body:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if not stripped.startswith("- "):
+                raise ValueError(
+                    f"annotation {current_key!r} must use one bullet per rationale"
+                )
+            annotations.append(stripped[2:].strip())
+        if not annotations:
+            raise ValueError(f"annotation {current_key!r} has no rationale text")
+        if current_key in notes:
+            raise ValueError(f"duplicate annotation key {current_key!r}")
+        notes[current_key] = annotations
+        current_key = None
+        current_body = []
+
+    for line in path.read_text().splitlines():
+        count_match = ANNOTATION_COUNT_RE.match(line)
+        if count_match:
+            if declared_count is not None:
+                raise ValueError("annotation sidecar declares its count more than once")
+            declared_count = int(count_match.group(1))
+            continue
+
+        key_match = ANNOTATION_KEY_RE.match(line)
+        if key_match:
+            finish_entry()
+            current_key = (key_match.group(1), key_match.group(2))
+            continue
+
+        if current_key is not None:
+            current_body.append(line)
+
+    finish_entry()
+
+    if declared_count != EXPECTED_ANNOTATION_COUNT:
+        raise ValueError(
+            "annotation sidecar declares "
+            f"{declared_count!r} annotations; expected {EXPECTED_ANNOTATION_COUNT}"
+        )
+    annotation_count = sum(len(annotations) for annotations in notes.values())
+    if annotation_count == 0:
+        raise ValueError(
+            "annotation sidecar has zero annotations; the rationale was lost"
+        )
+    if annotation_count != EXPECTED_ANNOTATION_COUNT:
+        raise ValueError(
+            f"annotation sidecar has {annotation_count} annotations; "
+            f"expected {EXPECTED_ANNOTATION_COUNT}"
+        )
+    return notes
+
+
+def validate_annotation_notes(
+    path: Path, rows: list[dict[str, str]]
+) -> int:
+    """Require every durable annotation to identify exactly one current edge."""
+    try:
+        notes = load_annotation_notes(path)
+    except ValueError as exc:
+        print(f"check-bal-class-a-ratchet: FAIL — {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    row_counts = Counter((r["function"], r["jal_or_sink"]) for r in rows)
+    missing = sorted(key for key in notes if row_counts[key] == 0)
+    ambiguous = sorted(key for key in notes if row_counts[key] > 1)
+    if missing or ambiguous:
+        print("check-bal-class-a-ratchet: FAIL — annotation key drift", file=sys.stderr)
+        for key in missing:
+            print(f"  missing emitted edge: {key[0]} | {key[1]}", file=sys.stderr)
+        for key in ambiguous:
+            print(
+                f"  ambiguous emitted edge ({row_counts[key]} rows): {key[0]} | {key[1]}",
+                file=sys.stderr,
+            )
+        raise SystemExit(1)
+
+    annotation_count = sum(len(annotations) for annotations in notes.values())
+    print(
+        f"check-bal-class-a-ratchet: annotation sidecar OK "
+        f"({annotation_count}/{EXPECTED_ANNOTATION_COUNT} sidecar bullet annotations; "
+        f"{len(notes)} keyed edges)"
+    )
+    return annotation_count
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -206,6 +317,12 @@ def main() -> int:
         help="dir containing stateless_guest.s (skip rebuild if present)",
     )
     ap.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
+    ap.add_argument(
+        "--notes",
+        type=Path,
+        default=DEFAULT_NOTES,
+        help="merge-safe annotation sidecar (default scripts/bal-class-a-notes.md)",
+    )
     ap.add_argument(
         "--write-baseline",
         action="store_true",
@@ -237,9 +354,14 @@ def main() -> int:
         )
         return 1
 
+    annotation_count = validate_annotation_notes(args.notes, rows)
+
     if args.write_baseline:
         write_baseline(args.baseline, rows)
-        print(f"wrote {args.baseline} ({len(rows)} paths) from {s_path}")
+        print(
+            f"wrote {args.baseline} ({len(rows)} paths; "
+            f"{annotation_count} annotations) from {s_path}"
+        )
         return 0
 
     if not args.baseline.is_file():
@@ -274,7 +396,8 @@ def main() -> int:
 
     print(
         f"check-bal-class-a-ratchet: OK ({len(rows)} baselined paths; "
-        f"no new Class-A edges; no silent shrink)"
+        f"no new Class-A edges; no silent shrink; "
+        f"{annotation_count} sidecar bullet annotations present)"
     )
     return 0
 
