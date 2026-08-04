@@ -112,7 +112,6 @@ import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Recover
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
-import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
@@ -338,7 +337,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_scalar_mul, secp256k1ScalarMul_prog),
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
-  (GuestAddrs.slot_tuple_sequences_match, slotTupleSequencesMatch_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
@@ -498,6 +496,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 344
+#guard guestImageEntries.length = 343
 
 end EvmAsm.Codegen
