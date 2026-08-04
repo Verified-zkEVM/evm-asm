@@ -3078,10 +3078,25 @@ def emitRuntimeDispatcherCallableSetup : String :=
   "  la x5, exec_code_effect_next; sd x0, 0(x5)\n" ++
   "  la x5, exec_code_effect_overflow; sd x0, 0(x5)\n" ++
   ".Lrtdc_code_log_kept:\n" ++
+  -- EIP-7702 preparation publishes accepted authorizations into the
+  -- transaction-local AccountState overlay before entering this dispatcher.
+  -- That overlay is the live execution state consumed by delegation
+  -- resolution; clearing it here would erase the just-published rows before
+  -- the first delegated target is resolved.  Ordinary transactions still
+  -- take the reset path, while an auth-prepared transaction keeps its whole
+  -- AccountState journal across the dispatcher entry.  Keep pending, created,
+  -- and deleted counts together: account_state_commit_pending consumes these
+  -- as one coherent journal, so preserving only pending would desynchronize
+  -- the created/delete sets from their shared cursor state.
+  -- Preserve the overflow latch with them deliberately: clearing an
+  -- authorization-arena overflow at this boundary would turn a required
+  -- rejection into a later execution attempt.
+  "  la x5, runtime_tx_auth_prepared; ld x6, 0(x5); bnez x6, .Lrtdc_account_state_kept\n" ++
   "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
+  ".Lrtdc_account_state_kept:\n" ++
   "  la x5, evm_log_data_used; sd x0, 0(x5)\n" ++
   "  la x5, evm_log_data_overflow; sd x0, 0(x5)\n" ++
   emitRuntimeDispatcherSetupWithInputAsm
