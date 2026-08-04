@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 
 namespace EvmAsm.Progress
@@ -244,7 +245,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "all four RLP fields and returns `a0 = 0` with a `Decoded` verdict or "
         ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
         ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
-        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes")
+        ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes"),
+  -- #11352: `bgv_u32le`, row 10 of docs/leaf-routine-targets.md. Guest-input u32
+  -- accessor with 8 fixture in-edges. The flat triple is DERIVED from the SAsm
+  -- `bgvU32leFn_spec` by `Fn.retSpecFlat`, so the machine reasoning is the SAsm proof.
+  routine "bgv_u32le" .proven (some "bgvU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le`: `a0 = leU32 bs 0` for "
+        ++ "a read-only region of >= 4 bytes, region intact. Only ABI hyps (pointer in "
+        ++ "a0, region wf, aligned ra). Tied to the reference by "
+        ++ "`leU32_eq_bytesLEtoNat`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -256,9 +265,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 23 := by decide
+theorem routineCount_eq : routineCount = 24 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 15 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 16 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -273,7 +282,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 15 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 16 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -378,6 +387,8 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
+private noncomputable abbrev _bgv_u32le_routine_witness :=
+  @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
