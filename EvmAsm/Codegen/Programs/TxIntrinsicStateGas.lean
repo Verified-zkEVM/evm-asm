@@ -393,22 +393,17 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
-  -- The direct single-tx lane has no callable dispatcher seam.  Preserve its
-  -- historical execution ordering by running the same writer immediately
-  -- after ordinary intrinsic decoding, while the sequential MTx lane uses the
-  -- post-reservoir callback below.  The active flag is set only by MTx setup.
-  -- Direct transactions run authorization preparation here, before the
-  -- dispatcher-side checkpoint. Snapshot both append-only effect logs at the
-  -- same boundary so an authorization-phase OOG can roll them back too.
+  -- This is the universal per-transaction boundary: every transaction enters
+  -- the same authorization-preparation seam before the callable dispatcher.
+  -- Snapshot both append-only effect logs at that boundary so an
+  -- authorization-phase OOG can roll them back too.
   "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_next; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
   -- The ordered transaction boundary is before recipient/code resolution in
   -- the guest, just as `process_message` applies `set_delegation` before
-  -- `prepare_dispatch` (interpreter.py:356-365).  MTx used to skip this call
-  -- because the dispatcher callback was expected to run later; that left the
-  -- resolver ahead of AccountState publication.  Run the existing aggregate
-  -- helper here at the MTx boundary, with the already-live state-gas pointer
-  -- and rollback checkpoint, and let the dispatcher consume only the
-  -- accumulated charge after this marker is set.
+  -- `prepare_dispatch` (interpreter.py:356-365).  Run the aggregate helper at
+  -- this single boundary, with the already-live state-gas pointer and
+  -- rollback checkpoint, and let the dispatcher consume only the accumulated
+  -- charge after this marker is set.
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, -1; jal ra, eip7702_auth_state_prepare\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 48(sp); li t1, 4; bne t0, t1, .Lbvtgip_ret\n" ++
