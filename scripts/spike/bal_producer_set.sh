@@ -46,3 +46,33 @@ run_case \
 run_case \
   00317_test_bal_all_transaction_types_fork_Amsterdam-blockchain_test__b0 \
   bal-all-transaction-types.expectation.json
+run_case \
+  00327_test_bal_cross_tx_balance_dependency_fork_Amsterdam-blockchain_test-funding_method_selfdestruct_ \
+  bal-cross-tx-balance-dependency.expectation.json
+run_case \
+  00505_test_bal_selfdestruct_to_coinbase_fork_Amsterdam-blockchain_test_from_state_test-pre_deploy__b0 \
+  bal-selfdestruct-to-coinbase.expectation.json
+run_case \
+  01114_test_bal_create_storage_op_then_selfdestruct_same_tx_fork_Amsterdam-create_opcode_CREATE-blockch \
+  bal-create-storage-selfdestruct.expectation.json
+run_case \
+  00613_test_bal_7702_delegated_storage_access_fork_Amsterdam-blockchain_test__b0 \
+  bal-7702-delegated-storage.expectation.json
+run_case \
+  00620_test_bal_7702_delegation_create_fork_Amsterdam-blockchain_test-self_funded__b0 \
+  bal-7702-delegation-create.expectation.json
+run_case \
+  00511_test_bal_system_contract_noop_filtering_fork_Amsterdam-blockchain_test__b0 \
+  bal-system-noop.expectation.json
+run_case \
+  00609_test_bal_system_dequeue_consolidations_eip7251_fork_Amsterdam-blockchain_test-single_block_max_c \
+  bal-system-dequeue-consolidations.expectation.json
+run_case \
+  00356_test_bal_intra_tx_sstores_same_slot_net_zero_fork_Amsterdam-blockchain_test-empty_pre_ephemeral_ \
+  bal-net-zero-storage-empty-pre.expectation.json
+run_case \
+  00357_test_bal_intra_tx_sstores_same_slot_net_zero_fork_Amsterdam-blockchain_test-nonzero_pre_returns_ \
+  bal-net-zero-storage-nonzero-pre.expectation.json
+run_case \
+  00364_test_bal_nested_delegatecall_storage_writes_net_zero_fork_Amsterdam-blockchain_test-depth_1__b0 \
+  bal-net-zero-nested-delegatecall.expectation.json
