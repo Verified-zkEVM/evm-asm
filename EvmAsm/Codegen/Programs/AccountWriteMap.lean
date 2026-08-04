@@ -596,6 +596,66 @@ def accountResolvePreStateFunction : String :=
   ".Larp_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
 
+/-! ## `account_resolve_execution_state`
+
+    Resolve an execution-time account with the three-tier precedence from
+    `state_tracker.py:get_account_optional` (pinned `e5a8caf1b`, lines
+    179-203): transaction writes, then the block-cumulative map, then the
+    authenticated parent state.  This is deliberately a separate symbol from
+    `account_resolve_pre_state`.  The latter implements
+    `block_access_lists.py:_get_pre_tx_account` and is called by the BAL builder
+    while it is walking `tx_account_writes`; letting that helper see the tx map
+    would make the builder compare each row against itself and accept a missing
+    BAL entry.
+
+    The execution resolver owns only the first tier.  It delegates the
+    remaining fields to the existing pre-state resolver, preserving one
+    implementation of the block-map/parent fallback and its authenticated
+    absence semantics.  As with the existing helper, this slice resolves the
+    balance and nonce components only; storage and code coverage are the next
+    ordered part of #11454 and are intentionally not fabricated here.
+
+    ABI matches `account_resolve_pre_state`: a0 = canonical address, a1 = the
+    output scratch (nonce@0, balance@8), a2/a3 = parent header RLP, a4/a5 =
+    witness.  Returns a0 = 0 on success or 1 on malformed fallback lookup. -/
+def accountResolveExecutionStateFunction : String :=
+  "account_resolve_execution_state:\n" ++
+  "  addi sp, sp, -208\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0\n" ++
+  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
+  -- First source: the current transaction's account_writes map.  A valid
+  -- component in this keyed overlay is the execution-time value and must win
+  -- over both the prior block state and the authenticated parent.
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lare_tx_scan:\n" ++
+  "  bgeu t3, t1, .Lare_tx_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
+  ".Lare_tx_cmp:\n" ++
+  "  beqz t6, .Lare_tx_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lare_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lare_tx_cmp\n" ++
+  ".Lare_tx_next:\n" ++
+  "  addi t3, t3, 1; j .Lare_tx_scan\n" ++
+  ".Lare_tx_hit:\n" ++
+  "  mv s6, t5; ld t0, 112(s6); andi t1, t0, 1; beqz t1, .Lare_tx_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
+  ".Lare_tx_nonce:\n" ++
+  "  andi t1, t0, 2; beqz t1, .Lare_tx_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
+  -- A partial tx row still needs the lower-priority fields.  Delegating to
+  -- the existing two-tier resolver keeps the builder's pre-tx contract out of
+  -- this symbol's first-tier decision while avoiding a second fallback body.
+  ".Lare_tx_done:\n" ++
+  "  li t0, 3; beq s7, t0, .Lare_ok\n" ++
+  "  mv a0, s0; addi a1, sp, 96; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, account_resolve_pre_state\n" ++
+  "  bnez a0, .Lare_fail\n" ++
+  "  andi t0, s7, 1; bnez t0, .Lare_nonce\n" ++
+  "  addi t1, sp, 96; ld t2, 8(t1); sd t2, 8(s1); ld t2, 16(t1); sd t2, 16(s1); ld t2, 24(t1); sd t2, 24(s1); ld t2, 32(t1); sd t2, 32(s1); ori s7, s7, 1\n" ++
+  ".Lare_nonce:\n" ++
+  "  andi t0, s7, 2; bnez t0, .Lare_ok; addi t1, sp, 96; ld t2, 0(t1); sd t2, 0(s1); ori s7, s7, 2\n" ++
+  ".Lare_ok:\n" ++
+  "  li a0, 0; j .Lare_ret\n" ++
+  ".Lare_fail:\n" ++
+  "  li a0, 1\n" ++
+  ".Lare_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
+
 /-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
     Never jal'd. Storage twin `write_sets_discard_tx` is live on status=0.
@@ -803,7 +863,8 @@ def accountWriteMapFunctions : String :=
   accountWritesIncorporateTxFunction ++
   accountWritesUndoPushFunction ++
   accountWritesRestoreFrameFunction ++
-  accountResolvePreStateFunction
+  accountResolvePreStateFunction ++
+  accountResolveExecutionStateFunction
 
 /-! ## Structural guards
 
@@ -857,6 +918,12 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_undo_push:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_resolve_pre_state:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_resolve_execution_state:").length == 2
+-- The BAL builder must retain the two-tier pre-transaction resolver.  Retargeting
+-- this call to the execution resolver would let the builder read its own tx map,
+-- self-baseline a row, and silently accept a malformed BAL; the emitted bytes can
+-- remain self-consistent, so the ordinary build and random A/B gates need not see it.
+#guard (accountWritesEmitBuilderTxFunction.splitOn "jal ra, account_resolve_pre_state").length == 2
 
 -- The clear in `incorporate` must reset the undo journal too: its entries index
 -- the tx-level map, so a retained mark would unwind the NEXT transaction's writes
