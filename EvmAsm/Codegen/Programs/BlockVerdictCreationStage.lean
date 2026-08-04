@@ -319,6 +319,9 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la a1, bv_runtime_payload\n" ++
   "  mv a2, s1\n" ++
   "  ld a3, 56(s0); ld a4, 40(sp)\n" ++
+  -- Production creation staging uses the authenticated demand-driven storage
+  -- path. Keep the generic input-preload arguments literal-zero; the guard
+  -- below makes this no-preload contract visible to the build.
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  ld t0, 40(sp); sd t0, 64(s0)\n" ++
@@ -733,5 +736,8 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
+
+/-! Production creation staging is intentionally not a generic preload caller. -/
+#guard (blockVerdictCreationRuntimeFunction.splitOn "  li a5, 0; li a6, 0\n").length = 2
 
 end EvmAsm.Codegen
