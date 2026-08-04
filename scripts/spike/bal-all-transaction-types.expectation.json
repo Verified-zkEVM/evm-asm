@@ -1,0 +1,167 @@
+{
+  "schema": 1,
+  "fixture_label": "00317_test_bal_all_transaction_types_fork_Amsterdam-blockchain_test__b0",
+  "fixture_relpath": "blockchain_tests/for_amsterdam/amsterdam/eip7928_block_level_access_lists/block_access_lists/bal_all_transaction_types.json",
+  "manifest_sha256": "b40b7e3f7d4b3bde03c7298c98d3b9117ea146f76c2a2a914f1cbafa78c3ad07",
+  "input_sha256": "23bcd10d261c73ef886e67022501387f510303d3e1095f70ea3ffbc9b58b2de4",
+  "execution_specs_commit": "e5a8caf1b8055e4d805c7fb169edfa710914b7da",
+  "reference": "execution-specs Amsterdam BlockAccessList decoded from fixture payload",
+  "payload_bal_sha256": "3cbce1dff94bdc14de7e69e831fc66b762e8bcddc790c405ef34882fdfa5f842",
+  "rows": {
+    "accounts": [
+      "00000961ef480eb55e80d19ad83579a64c007002",
+      "000064d678505ad48f8ccb093bc65613800e8282",
+      "0000bbddc7ce488642fb579f8b00f3a590007251",
+      "0000bff46984e3725691fa540a8c7589300d8282",
+      "0000f90827f1c53a10cb7a02335b175320002935",
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+      "01b21d91b88d2dcaaa7231c6f2566681b89807a6",
+      "19c053cc13903a26dfa9c22d64724112a6fda2a4",
+      "1cc4c16789df2018bfcd72c9b0a5136af279431a",
+      "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+      "40453da9a9607b627b3202ae87edef86591bfe45",
+      "8d1010d9d0ecb443674d601ebb123b5ac7efbad7",
+      "94d37e3fa2381d19a38dc58f8e77344f84f0cb29",
+      "b0bd1179e5b9b1df82498b92bca957d8882712b7",
+      "c9b9a62963aa4aaef854f05195c12fb419cda45f",
+      "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+      "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+      "f705653af205a2c003d7b8011637684f0ba4c97e"
+    ],
+    "storage": [
+      {
+        "address": "0000f90827f1c53a10cb7a02335b175320002935",
+        "bai": 0,
+        "slot": 0,
+        "value": 87776279436343418067752407780281175652954332305329429635823042920810585315649
+      },
+      {
+        "address": "000f3df6d732807ef1319fb7b8bb8522d0beac02",
+        "bai": 0,
+        "slot": 12,
+        "value": 12
+      },
+      {
+        "address": "01b21d91b88d2dcaaa7231c6f2566681b89807a6",
+        "bai": 2,
+        "slot": 1,
+        "value": 2
+      },
+      {
+        "address": "1cc4c16789df2018bfcd72c9b0a5136af279431a",
+        "bai": 3,
+        "slot": 1,
+        "value": 3
+      },
+      {
+        "address": "8d1010d9d0ecb443674d601ebb123b5ac7efbad7",
+        "bai": 5,
+        "slot": 1,
+        "value": 5
+      },
+      {
+        "address": "b0bd1179e5b9b1df82498b92bca957d8882712b7",
+        "bai": 1,
+        "slot": 1,
+        "value": 1
+      },
+      {
+        "address": "f705653af205a2c003d7b8011637684f0ba4c97e",
+        "bai": 4,
+        "slot": 1,
+        "value": 4
+      }
+    ],
+    "balance": [
+      {
+        "address": "19c053cc13903a26dfa9c22d64724112a6fda2a4",
+        "bai": 3,
+        "post": 999999999999999999998487172
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 1,
+        "post": 378207
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 2,
+        "post": 769254
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 3,
+        "post": 1399599
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 4,
+        "post": 2029944
+      },
+      {
+        "address": "2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+        "bai": 5,
+        "post": 2929604
+      },
+      {
+        "address": "40453da9a9607b627b3202ae87edef86591bfe45",
+        "bai": 4,
+        "post": 999999999999999999998356100
+      },
+      {
+        "address": "c9b9a62963aa4aaef854f05195c12fb419cda45f",
+        "bai": 5,
+        "post": 999999999999999999997840816
+      },
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "post": 999999999999999999998696510
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "post": 999999999999999999998739310
+      }
+    ],
+    "nonce": [
+      {
+        "address": "19c053cc13903a26dfa9c22d64724112a6fda2a4",
+        "bai": 3,
+        "nonce": 1
+      },
+      {
+        "address": "40453da9a9607b627b3202ae87edef86591bfe45",
+        "bai": 4,
+        "nonce": 1
+      },
+      {
+        "address": "8d1010d9d0ecb443674d601ebb123b5ac7efbad7",
+        "bai": 5,
+        "nonce": 1
+      },
+      {
+        "address": "c9b9a62963aa4aaef854f05195c12fb419cda45f",
+        "bai": 5,
+        "nonce": 1
+      },
+      {
+        "address": "ccbcccb8575994e288e5bd021cc371dd8a8ff1eb",
+        "bai": 2,
+        "nonce": 1
+      },
+      {
+        "address": "f6c3a9edc1afa0ad5b720e4d42e1437c43d3b3ff",
+        "bai": 1,
+        "nonce": 1
+      }
+    ],
+    "code": [
+      {
+        "address": "8d1010d9d0ecb443674d601ebb123b5ac7efbad7",
+        "bai": 5,
+        "code": "ef010094d37e3fa2381d19a38dc58f8e77344f84f0cb29"
+      }
+    ]
+  }
+}
