@@ -360,15 +360,30 @@ def accountWritesApplyDeletesFunction : String :=
 
 /-! ## `account_writes_is_absent`
 
-    Execution-time read of map absence (`Optional[Account] = None`).
+    Three-state read of `account_writes` matching
+    `get_account_optional` (state_tracker.py:199-203), GH #11328 / PR #11453:
 
-    Scans the transaction map first, then the block-cumulative map.  A hit
-    whose STATE bit is valid and `optionalState@72 = 0` is absence (deleted).
-    A hit without STATE, or STATE=Some, is not absence.  A total miss falls
-    through to the caller (pre-state / durable AccountState).
+    | map state                         | a0 out | meaning                                      |
+    |-----------------------------------|--------|----------------------------------------------|
+    | key **missing**                   | 0      | unknown here — caller falls through          |
+    | key present, `optionalState@72=0` | 1      | **destroyed** (Present-None tombstone)       |
+    | key present, `optionalState@72=1` | 0      | Present Account (or STATE bit unset → not None) |
 
-    a0 = address ptr (20 B BE).  a0 out = 1 if map says deleted/absent, else 0.
-    Clobbers t0-t6 and a1/a2 (byte-compare temps). Caller must not rely on a1/a2. -/
+    Scans tx map first, then block-cumulative.  Only a **present** row with
+    STATE valid and `optionalState@72 = 0` returns 1.  Missing row and Present
+    Account both return 0 — they are **not** conflated with Present-None.
+
+    **Same-tx completeness (coord Q on #11453):** Present-None is stamped by
+    `account_writes_apply_deletes` at the **tx boundary** (spec
+    `destroy_account` after `accounts_to_delete`).  Mid-tx create+SD still
+    leaves an empty-code account until finalize (EIP-1052 EMPTY_CODE_HASH,
+    not 0).  That mid-tx flag is still `evm_selfdestruct_destroyed_table`; it
+    is **not** the same fact as Present-None (0 after finalize).  Table stays
+    until mid-tx empty-code is carried by Present Account without a side list.
+    ANSWER: tombstone read is genuine for Present-None; same-tx EMPTY_CODE_HASH
+    is a different obligation — table not yet redundant.
+
+    a0 = address ptr (20 B BE).  Clobbers t0-t6 and a1/a2. -/
 def accountWritesIsAbsentFunction : String :=
   "account_writes_is_absent:\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
