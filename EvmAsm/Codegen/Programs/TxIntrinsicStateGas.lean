@@ -320,16 +320,15 @@ def eip7702AuthStatePrepareFunction : String :=
   "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".L77prep_code_done:\n" ++
   "  la a0, b1an_authority; la a1, nse_zero_bal; la a2, nse_zero_bal; ld a3, 112(sp); addi a4, a3, 1; jal ra, record_nonstorage_effect_nonce_only_after_account_state; bnez a0, .L77prep_bad_record\n" ++
-  -- The direct single-tx lane has no account-write builder pass.  MTx records
-  -- the same accepted authorization into the transaction map, with a
-  -- block-lifetime code slot: the map retains code pointers past tx-map clear,
-  -- so a reusable authorization scratch would corrupt earlier authorities.
+  -- Both transaction lanes record the same accepted authorization into the
+  -- transaction map, with a block-lifetime code slot: the map retains code
+  -- pointers past tx-map clear, so a reusable authorization scratch would
+  -- corrupt earlier authorities.
   -- `set_delegation` in execution-specs (eoa_delegation.py:223-229) calls
   -- `set_code` and `increment_nonce`; both go through `modify_state`, so even
   -- an absent authority is written back as `Some Account`.  Keep `a5 = 1`
   -- and advertise that Optional-account state with the state-valid bit as well
   -- as nonce and code (mask 14, not mask 6).
-  "  la t0, code_state_mtx_active; ld t0, 0(t0); beqz t0, .L77prep_next\n" ++
   "  la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add t4, t4, t3; addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  beqz s11, .L77prep_auth_code_ready; li t0, 0xef; sb t0, 0(t4); li t0, 1; sb t0, 1(t4); sb zero, 2(t4); li t0, 0\n" ++
   ".L77prep_auth_code_copy:\n" ++
@@ -397,10 +396,18 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- dispatcher-side checkpoint. Snapshot both append-only effect logs at the
   -- same boundary so an authorization-phase OOG can roll them back too.
   "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_next; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
-  "  la t3, code_state_mtx_active; ld t3, 0(t3); bnez t3, .Lbvtgip_ret\n" ++
+  -- The ordered transaction boundary is before recipient/code resolution in
+  -- the guest, just as `process_message` applies `set_delegation` before
+  -- `prepare_dispatch` (interpreter.py:356-365).  MTx used to skip this call
+  -- because the dispatcher callback was expected to run later; that left the
+  -- resolver ahead of AccountState publication.  Run the existing aggregate
+  -- helper here at the MTx boundary, with the already-live state-gas pointer
+  -- and rollback checkpoint, and let the dispatcher consume only the
+  -- accumulated charge after this marker is set.
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, -1; jal ra, eip7702_auth_state_prepare\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
-  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1); la t3, runtime_tx_auth_state_refund; ld t3, 0(t3); add t2, t2, t3; sd t2, 0(t1); j .Lbvtgip_ret\n" ++
+  "  ld t0, 48(sp); li t1, 4; bne t0, t1, .Lbvtgip_ret\n" ++
+  "  li t1, 1; la t0, runtime_tx_auth_prepared; sd t1, 0(t0); j .Lbvtgip_ret\n" ++
   ".Lbvtgip_restore:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
