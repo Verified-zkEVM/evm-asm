@@ -370,7 +370,7 @@ def eip7702AuthStatePrepareFunction : String :=
 -- presence all valid.  Keep the state bit pinned so a future mask edit cannot
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
-  "li a5, 1; li a6, 46; jal ra, account_write_record"
+  "li a5, 1; li a6, 14; jal ra, account_write_record"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
