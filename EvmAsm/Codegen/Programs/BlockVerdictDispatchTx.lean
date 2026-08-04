@@ -228,6 +228,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
+  -- #11419: set_delegation MUST precede prepare_dispatch (interpreter.py:356-365,
+  -- pin e5a8caf1b). Sole live caller (BlockVerdictMtxRuntime) runs
+  -- eip7702_auth_state_prepare via block_verdict_tx_state_gas_inline_prepare and
+  -- sets runtime_tx_auth_prepared=1 for type-4 before this entry. Assert that
+  -- contract here — fail closed rather than installing a second latent auth
+  -- writer (unreachable dual path cannot be sweep-validated). Nested CALL
+  -- resolve stays depth>0 and is out of scope (spec set_delegation is depth 0).
+  "  ld t0, 160(s2); li t1, 4; bne t0, t1, .Ldtrc_auth_precondition_ok\n" ++
+  "  la t0, runtime_tx_auth_prepared; ld t1, 0(t0); bnez t1, .Ldtrc_auth_precondition_ok\n" ++
+  "  j .Ldtrc_auth_not_prepared\n" ++
+  ".Ldtrc_auth_precondition_ok:\n" ++
   -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
   -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
   -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
@@ -663,10 +674,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 176(s2); la t0, dtrc_auth_off; ld t0, 0(t0); add a0, a0, t0; la t0, dtrc_auth_len; ld a1, 0(t0); la a2, runtime_tx_auth_count; jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Ldtrc_auth_done\n" ++
   ".Ldtrc_auth_done:\n" ++
-  -- The common dispatcher owns the execution-time auth callback.  Preserve
-  -- the inner envelope and type here; the caller supplies the sender pointer
-  -- because MTx and the single-tx contract path use different sender cells.
-  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1); li t1, 4; bne t0, t1, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_prepared; ld t2, 0(t1); bnez t2, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_exec_fn; la t2, eip7702_auth_state_prepare; sd t2, 0(t1)\n" ++
+  -- #11419: auth already applied at the MTx boundary (inline_prepare →
+  -- eip7702_auth_state_prepare); entry assert requires runtime_tx_auth_prepared
+  -- for type-4. Do NOT install a late auth_exec_fn — that was the latent
+  -- resolve-before-set_delegation path. Preserve inner envelope + type for
+  -- gas/warm bookkeeping; caller supplies sender pointer.
+  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1)\n" ++
   ".Ldtrc_auth_exec_ready:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
@@ -793,7 +806,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_stage_unsupported:\n" ++
   "  li a0, 6; j .Ldtrc_ret\n" ++
   ".Ldtrc_access_list_unsupported:\n" ++
-  "  li a0, 7\n" ++
+  "  li a0, 7; j .Ldtrc_ret\n" ++
+  -- #11419: type-4 reached dispatch without runtime_tx_auth_prepared (set_delegation
+  -- did not run before prepare_dispatch). Fail closed; never resolve/execute.
+  ".Ldtrc_auth_not_prepared:\n" ++
+  "  li a0, 9\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
