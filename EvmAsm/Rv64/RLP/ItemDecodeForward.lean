@@ -63,6 +63,16 @@ theorem sub_base_add_ofNat {base : Word} {i j bound : Nat}
       = 2 ^ 64 + (j - i) := by omega
   rw [hsplit, Nat.add_mod_left, Nat.mod_eq_of_lt hdlt]
 
+/-- Recovering an offset from its cursor — the form `StrictNthItem.succ` needs,
+    since it re-enters the chain at `(next - base).toNat`. -/
+theorem sub_base_of_base_add {base : Word} {k bound : Nat}
+    (hk : k ≤ bound) (hover : base.toNat + bound < 2 ^ 64) :
+    ((base + BitVec.ofNat 64 k) - base).toNat = k := by
+  have hklt : k < 2 ^ 64 := by omega
+  rw [BitVec.toNat_sub, toNat_base_add_ofNat hk hover]
+  have hsplit : 2 ^ 64 - base.toNat + (base.toNat + k) = 2 ^ 64 + k := by omega
+  rw [hsplit, Nat.add_mod_left, Nat.mod_eq_of_lt hklt]
+
 /-- `drop` is injective on offsets bounded by the length: the residues have
     different lengths otherwise.  This is what lets a `decodeAux` residue of the
     form `bytes.drop off'` pin `off'` itself. -/
@@ -489,6 +499,126 @@ theorem rlpItemDecode_of_decodeAux_bytes
                 | some ir =>
                     obtain ⟨items, leftover⟩ := ir
                     simp [hread, hshort, htake, hitems] at hdec
+
+/-! ## Offset advance
+
+Chaining items needs to know each decode *advances*.  There is no general
+"the `decodeAux` residue is a proper suffix" lemma in the tree, so this
+re-runs the prefix case split, but only to read off the offset — none of the
+`rlpItemDecode` construction is repeated.  It needs `off' ≤ bytes.length`
+alone, **not** the window bound, which is what keeps it usable as the
+termination fact in the chain induction (the window bound is what the
+induction is trying to establish). -/
+
+theorem decodeAux_bytes_advance
+    (bytes : List Byte) (off off' n : Nat) (p : List Byte)
+    (hdec : decodeAux (n + 1) (bytes.drop off) = some (.bytes p, bytes.drop off'))
+    (hoff'len : off' ≤ bytes.length) :
+    off < off' := by
+  obtain ⟨b, hget, hdrop⟩ := exists_prefix_of_decodeAux hdec
+  have hofflt : off < bytes.length := by
+    rw [List.getElem?_eq_some_iff] at hget; exact hget.1
+  rw [hdrop] at hdec
+  cases hclass : classifyPrefix b with
+  | singleByte =>
+      obtain ⟨_, hrest⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_singleByte_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      have : off' = off + 1 := drop_inj_of_le hoff'len (by omega) hrest.symm
+      omega
+  | shortBytes =>
+      obtain ⟨payload, htake, hpay, _⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      subst hpay
+      obtain ⟨hcat, _⟩ := takeBytes_eq_some_imp htake
+      have hfits : off + 1 + payload.length ≤ bytes.length := by
+        have := congrArg List.length hcat
+        rw [List.length_append, List.length_drop, List.length_drop] at this
+        omega
+      have hrest : bytes.drop off' = bytes.drop (off + 1 + payload.length) := by
+        have hdropEq : bytes.drop (off + 1 + payload.length)
+            = (bytes.drop (off + 1)).drop payload.length := by
+          rw [List.drop_drop]
+        rw [hdropEq, hcat, List.drop_left]
+      have : off' = off + 1 + payload.length := drop_inj_of_le hoff'len (by omega) hrest
+      omega
+  | longBytes =>
+      obtain ⟨hlo, hhi⟩ := (classifyPrefix_longBytes_iff b).mp hclass
+      obtain ⟨lenVal, restLen, hread, _, htake⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_longBytes_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      have hlolEq : rlpPrefixLongBytesLenOfLen b = b.toNat - 0xB7 := rfl
+      rw [hlolEq] at hread
+      obtain ⟨hklen, _, hrestLen, _⟩ := readLength_inv (by omega) hread
+      obtain ⟨hcat, _⟩ := takeBytes_eq_some_imp htake
+      have hrestLenEq : restLen = bytes.drop (off + 1 + (b.toNat - 0xB7)) := by
+        rw [hrestLen, List.drop_drop]
+      have hfits : off + 1 + (b.toNat - 0xB7) + p.length ≤ bytes.length := by
+        have := congrArg List.length hcat
+        rw [List.length_append, hrestLenEq, List.length_drop] at this
+        rw [List.length_drop] at hklen
+        omega
+      have hrest : bytes.drop off'
+          = bytes.drop (off + 1 + (b.toNat - 0xB7) + p.length) := by
+        have hdropEq : bytes.drop (off + 1 + (b.toNat - 0xB7) + p.length)
+            = restLen.drop p.length := by
+          rw [hrestLenEq, List.drop_drop]
+        rw [hdropEq, hcat, List.drop_left]
+      have : off' = off + 1 + (b.toNat - 0xB7) + p.length :=
+        drop_inj_of_le hoff'len (by omega) hrest
+      omega
+  | shortList =>
+      exfalso
+      rw [decodeAux_cons_shortList_of_classifyPrefix n b (bytes.drop (off + 1)) hclass] at hdec
+      cases htake : takeBytes (bytes.drop (off + 1)) (rlpPrefixShortListPayloadLen b) with
+      | none => simp [htake] at hdec
+      | some pr =>
+          obtain ⟨payload, rest'⟩ := pr
+          cases hitems : decodeItems n payload with
+          | none => simp [htake, hitems] at hdec
+          | some ir =>
+              obtain ⟨items, leftover⟩ := ir
+              simp [htake, hitems] at hdec
+  | longList =>
+      exfalso
+      rw [decodeAux_cons_longList_of_classifyPrefix n b (bytes.drop (off + 1)) hclass] at hdec
+      cases hread : readLength (bytes.drop (off + 1)) (rlpPrefixLongListLenOfLen b) with
+      | none => simp [hread] at hdec
+      | some pr =>
+          obtain ⟨lenVal, rest'⟩ := pr
+          by_cases hshort : lenVal ≤ 55
+          · simp [hread, hshort] at hdec
+          · cases htake : takeBytes rest' lenVal with
+            | none => simp [hread, hshort, htake] at hdec
+            | some pr2 =>
+                obtain ⟨payload, rest''⟩ := pr2
+                cases hitems : decodeItems n payload with
+                | none => simp [hread, hshort, htake, hitems] at hdec
+                | some ir =>
+                    obtain ⟨items, leftover⟩ := ir
+                    simp [hread, hshort, htake, hitems] at hdec
+
+/-- A byte-string `DecodeChain` never runs past its own end offset.  Proved by
+    induction on the item list: the tail bounds `off'`, and `decodeAux_bytes_advance`
+    then bounds `off` below it. -/
+theorem DecodeChain.le_of_bytes {bytes : List Byte} :
+    ∀ (items : List RLPItem) (off offEnd : Nat),
+      DecodeChain bytes off items offEnd → offEnd ≤ bytes.length →
+      (∀ it ∈ items, ∃ q, it = RLPItem.bytes q) →
+      off ≤ offEnd := by
+  intro items
+  induction items with
+  | nil => intro off offEnd hchain _ _; exact le_of_eq hchain
+  | cons item rest ih =>
+      intro off offEnd hchain hend hbytes
+      obtain ⟨off', hdec, hrest⟩ := hchain
+      have hrestle : off' ≤ offEnd :=
+        ih off' offEnd hrest hend (fun it hit => hbytes it (List.mem_cons_of_mem _ hit))
+      obtain ⟨q, hq⟩ := hbytes item (List.mem_cons_self ..)
+      subst hq
+      have := decodeAux_bytes_advance bytes off off' 0 q (hdec 0) (by omega)
+      omega
 
 /-! ## Non-vacuity
 
