@@ -26,8 +26,6 @@ eip8037_tx_gas_gate:
   li t0, 16; bgtu s7, t0, .Letg_ok
   mv a0, s5; mv a1, s6; mv a2, s7; la a3, bvgr_tx_state_gas
   la t2, teer_records_ptr; la t3, basr_records; sd t3, 0(t2)
-  la t2, bv_bal_start; ld a4, 0(t2)
-  la t2, bv_bal_len; ld a5, 0(t2)
   la t2, bv_chain_id; ld a6, 0(t2)
   li a0, 0
   bnez a0, .Letg_state_array_ready
