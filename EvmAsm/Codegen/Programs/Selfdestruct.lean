@@ -195,8 +195,24 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  jal ra, code_state_lookup_current\n" ++
   "  mv t1, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
+  -- pin is_account_alive (state_tracker.py:445-463) + system.py:669
+  -- selfdestruct NEW_ACCOUNT on beneficiary. Status-2 bal-zero EIP-6780
+  -- tombstone is EMPTY (after tombstone writer clears nonce) and must charge;
+  -- status-2 with nonzero balance is alive (funded EOA / bal-preserved tombstone).
+  -- Mirror ChildFrameHandlers nacc (#11334/#11362); do not use bare
+  -- codeStateStatusIsLiveAsm alone.
+  "  li t0, 2; bne t1, t0, .L_selfdestruct_csg_std\n" ++
+  "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+  "  la a0, evm_selfdestruct_beneficiary\n" ++
+  "  jal ra, account_state_tombstone_balance_zero\n" ++
+  "  mv t0, a0\n" ++
+  "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
+  "  bnez t0, .L_selfdestruct_csg_not_live\n" ++
+  "  li t1, 2\n" ++
+  ".L_selfdestruct_csg_std:\n" ++
   codeStateStatusIsLiveAsm "t1" ++
-  "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary created this tx (alive) -> no NEW_ACCOUNT state gas
+  "  bnez t1, .L_selfdestruct_surcharge_done\n" ++   -- beneficiary alive -> no NEW_ACCOUNT state gas
+  ".L_selfdestruct_csg_not_live:\n" ++
   -- SELFDESTRUCT to a new (not-alive) beneficiary with a non-zero originator
   -- balance creates the beneficiary account. Amsterdam execution-specs charges
   -- regular gas first: base(5000, dispatch) + cold access(3000, above) +
