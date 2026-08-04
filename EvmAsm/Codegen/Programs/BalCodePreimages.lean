@@ -1026,12 +1026,11 @@ def balCodePreimagesValidFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret\n" ++
   "\n" ++
-  "# Resolve the delegation marker from the AccountState overlay.  The former\n" ++
-  "# The former BAL walker is intentionally not used by consumers after the AccountState\n" ++
-  "# producer lands.  The return codes retain the caller protocol: 0 means the\n" ++
-  "# current marker was resolved and cahsr_* names its target code, 1 means no\n" ++
-  "# current marker (caller may use the authenticated header), and 2 means an\n" ++
-  "# empty/deleted or precompile target.\n" ++
+  "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
+  "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
+  "# a3 = access mode (0 charge, 1 free/warm, 2 probe), a4 = codes base.\n" ++
+  "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
+  "# and 2 for empty/deleted or precompile targets.\n" ++
   "account_state_delegation_code_resolve:\n" ++
   "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -1083,6 +1082,7 @@ def balCodePreimagesValidFunction : String :=
   ".Lasd_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp); addi sp, sp, 128; ret\n" ++
   "\n" ++
+  "# Resolve a same-block EIP-7702 delegation marker from the BAL.\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++
   "# Reads bv_exec_p/bv_tx_off populated by block_verdict. Malformed or typed\n" ++
   "# transactions are treated conservatively as no match.\n" ++

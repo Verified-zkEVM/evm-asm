@@ -270,7 +270,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bfa_out_len:\n  .zero 8\n" ++
   "bfa_addr_hit:\n  .zero 20\n" ++
   "bfa_addr_miss:\n  .zero 20\n" ++
-  -- coc3g.5 multi-hop: AccountState delegation target scratch.
+  -- coc3g.5 multi-hop: account_state_delegation_code_resolve target-same-block-code
   -- fallback scratch (the single-hop target account record found in the BAL when the
   -- target's code is ALSO same-block-installed, not in the pre-state witness).
   ".balign 8\n" ++
@@ -570,8 +570,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n" ++
   -- #11118: baac_* account-iteration scratch removed with dead code_consistent (46).
   -- bacc_finals KEPT: shared 88B finals scratch still used live by
-  -- AccountState delegation resolution and BlockVerdictStateRoot (not only by
-  -- unlinked bal_account_code_consistent).
+  -- account_state_delegation_code_resolve (BalCodePreimages) and
+  -- BlockVerdictStateRoot (not only by unlinked bal_account_code_consistent).
   ".balign 8\n" ++
   "bacc_finals:\n  .zero 88\n" ++
   -- yisv8.1: recipient self-balance scratch for the env.SELFBALANCE (word 1) staging.
