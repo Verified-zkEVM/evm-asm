@@ -70,12 +70,18 @@ The balance mismatches have a gas-shaped signature rather than being arbitrary
 serializer values, but the two fixtures are not yet one defect class. In 01087,
 Tx2's sender is lower by `16,259,889 * 10` wei and the fee recipient is higher
 by `16,259,889 * 3` wei; this tracks the failed CREATE2 path that also leaves
-the factory's running nonce unadvanced. In 00612, each of Tx2 and Tx3 charges
+the factory's running nonce unadvanced (the nonce omission is tracked
+separately in [#11363](https://github.com/Verified-zkEVM/evm-asm/issues/11363)). In 00612, each of Tx2 and Tx3 charges
 its sender an extra `43,190 * 10` wei and credits the fee recipient an extra
 `43,190 * 3` wei. The pinned test shows that both are the same plain CALL into
 the delegated counter, while the sole authorization is in Tx1, so this is
 evidence for a repeated delegated-call gas discrepancy, not an AUTH_BASE charge
-on Tx2/Tx3. Keep these as separate follow-ups until their execution paths are
+on Tx2/Tx3. The reference post-balances imply gas-used values 129,032 for Tx2
+and 31,112 for Tx3; their 97,920 difference is the Amsterdam zero-to-nonzero
+storage-set state charge (`64 * 1530`). The guest records `35,190` state gas
+for each transaction (`AUTH_BASE = 23 * 1530`) and an additional `8,000`
+regular `ACCOUNT_WRITE`, exactly explaining the `43,190` excess on both later
+CALLs. Keep these as separate follow-ups until their execution paths are
 traced; issue [#11362](https://github.com/Verified-zkEVM/evm-asm/issues/11362)
 covers the 01087 collision case.
 
