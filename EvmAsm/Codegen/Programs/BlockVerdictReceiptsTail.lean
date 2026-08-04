@@ -264,11 +264,9 @@ def blockVerdictReceiptsTail : String :=
   -- binding; and MTx setup/materialization/inclusion/state-gas helper failures reach it.
   ".Lbv_sender_nonce_fail:\n" ++
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  -- Retirement-scoped: declared-versus-execution BAL final-nonce comparison.
-  -- Code 59 retires with the storage/nonstorage BAL families in the 10680 inventory;
-  -- code 40's transaction-validity/auth reachers deliberately do not.
-  ".Lbv_mtx_sender_final_nonce_fail:\n" ++  -- bmvmx.5.5.2: declared BAL sender final nonce != execution-derived final nonce
-  "  li t0, 59; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11183 ORDER-1: removed dead sinks .Lbv_mtx_sender_final_nonce_fail (59) and
+  -- .Lbv_mtx_sender_balance_fail (57) — B1/B2.3 BAL field compares retired; no live jal.
+  -- Rejection of wrong BAL content is via hash 60/61 (spec fork.py:390 only).
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11245: removed dead sink .Lbv_bal_tuple_fail (code 42); rejection now via hash 60/61.
@@ -283,8 +281,6 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject
   "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_mtx_sender_balance_fail:\n" ++    -- bmvmx.5.5.2.2.3 (B2.3): a multi-tx pure-payer sender's BAL final balance != pre - Σ(actual gas+value debit)
-  "  li t0, 57; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_fixed_arena_overflow_fail:\n" ++
   "  li t0, 58; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++
