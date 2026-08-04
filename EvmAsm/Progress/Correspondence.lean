@@ -47,6 +47,7 @@ import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.ContentToU256Be
+import EvmAsm.Rv64.RLP.ContentToU256BeBridge
 
 namespace EvmAsm.Progress.Correspondence
 
@@ -154,10 +155,29 @@ def registry : List Entry := [
     note := "canonical-strict (len>8 → status 2, leading zero → status 3); \
 matches U64 exactly, stricter on a Uint field — differential does not reach the typed layer" },
   { family := "rlp", routine := "rlp_content_to_u256_be",
-    spec := some "rlp_content_to_u256_be_spec_within",
-    verdict := .agrees, basis := .machineOnly,
+    spec := some "rlp_content_to_u256_be_scalar_spec_within",
+    verdict := .agrees, basis := .bridged,
     reference := "_deserialize_to_uint at U256",
-    note := "local predicates only; U256 fields only" },
+    note := "was machineOnly — the machine triple states its outcome as a right-aligned \
+`copyN` plus the literal byte test `getByteAt srcBytes srcOff = 0`, mentioning no model \
+function. Bridged in #11341 (`Rv64/RLP/ContentToU256BeBridge.lean`) by \
+`ctu256_reject_iff_decodeScalar_none` (the byte test IS `decodeScalar`'s leading-zero \
+rule) and `ctu256_accept_decodeScalar` (the 32-byte buffer denotes exactly the value \
+`decodeScalar` returns, via `fromBytesBE_replicate_zero_append` — right-alignment is \
+value-preserving). The row names the consumer, which restates the triple's outcome \
+disjunction over `decodeScalar`. U256 FIELDS ONLY, and now precisely: the bridge is \
+scoped to `len ≤ 32`, so the status-2 arm is excluded — that arm is the U256 width \
+rejection and `decodeScalar` is untyped, so it is the one outcome the shared model does \
+not speak to (`from_be_bytes` at U256 is a layer above it). ⚠️ `len > 32` IS REACHABLE — \
+`a1` is the content length `rlp_walk_next` returns, unclamped, and all 7 call sites \
+(`accountExtractBalance`, `txEip2930Decode` x4, `txEip1559Decode`, `headerExtendedDecode`, \
+`balAccountNonstorageFinals`) test `bnez a0` and fail, i.e. they RELY on the status-2 \
+rejection. So `hle32` is not an ABI hypothesis the way `hbound` is on the size rows; it \
+scopes the BRIDGE, not the routine. The verdict stays `.agrees` because the reference \
+is `_deserialize_to_uint` AT U256, which rejects >32 bytes exactly as the guest does — \
+the two agree on the whole domain. What `len > 32` limits is the BASIS: that one arm \
+has no counterpart in the untyped shared model, so it rests on the machine triple \
+(which does cover it) rather than on the differential" },
   { family := "rlp", routine := "rlp_item_size",
     spec := some "rlp_item_size_spec_within",
     verdict := .domainRestricted, basis := .bridged,
@@ -301,8 +321,8 @@ theorem verdict_counts :
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 9 ∧
-    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
+    countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
 /-! ## Invariants
@@ -374,5 +394,10 @@ private noncomputable abbrev _rlp_content_to_u64_witness :=
   @EvmAsm.Rv64.RLP.rlp_content_to_u64_spec_within
 private noncomputable abbrev _rlp_content_to_u256_be_witness :=
   @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
+-- #11341: the model-facing counterpart, named by the `.bridged` row above. Witnessed
+-- here rather than in `Routines.lean` because this file already imports the Rv64 spec
+-- module — the Codegen-side bridges cannot do that, which is why they live over there.
+private noncomputable abbrev _rlp_content_to_u256_be_scalar_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
 
 end EvmAsm.Progress.Correspondence

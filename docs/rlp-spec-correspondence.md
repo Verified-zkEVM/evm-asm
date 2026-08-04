@@ -82,7 +82,7 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 | `rlp_walk_init` | `rlp_walk_init_spec_within` — `Rv64/RLP/WalkInit.lean:1590` | agrees | bridged | `decode_to_sequence` entry |
 | `rlp_walk_next` | `rlp_walk_next_spec_within` — `Rv64/RLP/WalkNext.lean:3924` | agrees | bridged | `decode_item_length` + `decode_joined_encodings` loop |
 | `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` — `Rv64/RLP/ContentToU64.lean:865` | agrees (U64 fields only) | inspection | `_deserialize_to_uint` at `U64` |
-| `rlp_content_to_u256_be` | `rlp_content_to_u256_be_spec_within` — `Rv64/RLP/ContentToU256Be.lean:998` | agrees (U256 fields only) | machine-only | `_deserialize_to_uint` at `U256` |
+| `rlp_content_to_u256_be` | `rlp_content_to_u256_be_scalar_spec_within` — `Rv64/RLP/ContentToU256BeBridge.lean` (over the machine triple `ContentToU256Be.lean:1040`) | agrees (U256 fields only) | **bridged** (#11341) | `_deserialize_to_uint` at `U256` |
 | `rlp_item_size` | `rlp_item_size_spec_within` — `Codegen/Programs/RlpSpliceHelperSpec.lean:703` | domain-restricted | bridged | `decode_item_length` |
 | `rlp_item_span` | — (cursor algebra + `CodeReq` plumbing only) | n/a — unproven | — | `decode_item_length` |
 | `rlp_list_count_items` | `rlp_list_count_items_spec_within` — `Codegen/Programs/RlpListCountItemsSAsm.lean:131` | agrees | machine-only | `decode_joined_encodings` |
@@ -100,7 +100,7 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 
 **Counts** (kernel-checked, **`rlp` family only** — 19 of the registry's 21 rows;
 the other two are `bal`): 12 agrees · 3 domain-restricted · 2 no-counterpart ·
-2 unproven · **0 stricter · 0 looser**. By basis: 9 bridged · 3 machine-only ·
+2 unproven · **0 stricter · 0 looser**. By basis: 10 bridged · 2 machine-only ·
 5 inspection · 2 none.
 
 > These are read off `EvmAsm/Progress/Correspondence.lean`'s `by decide` censuses,
@@ -175,7 +175,15 @@ Divergences found: **none.** The rest is coverage and hygiene.
    - Both rest on `u64ByteLen_eq_toBytesBE_length` — the guest's 9-way
      length-of-length ladder IS `(Nat.toBytesBE ·).length` — proved once for the
      first and reused by the second.
-   - Of the three left, `withdrawal_decode` is the one whose model side is mostly
+   - ✅ `rlp_content_to_u256_be` — `ctu256_reject_iff_decodeScalar_none` (the guest's
+     byte test IS `decodeScalar`'s leading-zero rule) and `ctu256_accept_decodeScalar`
+     (the 32-byte buffer denotes exactly the value the model returns, because
+     right-alignment is value-preserving). Scoped to `len ≤ 32`: the status-2 arm is
+     the **U256 width** rejection, and `decodeScalar` is untyped, so that one arm has
+     no shared-model counterpart — `from_be_bytes` at `U256` sits a layer above it.
+     This is the long-standing "U256 fields only" caveat, now pinned to the specific
+     arm it applies to instead of the whole row.
+   - Of the two left, `withdrawal_decode` is the one whose model side is mostly
      built already (`EL.decodeWithdrawal`, `EL/Withdrawal.lean:46`, plus five helpers
      at `Rv64/RLP/WithdrawalDecode.lean:1143-1219`); the obstacle there is that those
      helpers belong to the *other* withdrawal-decode effort — see the warning above.
