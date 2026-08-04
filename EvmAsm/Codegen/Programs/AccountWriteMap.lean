@@ -673,32 +673,39 @@ def accountResolvePreStateFunction : String :=
     would make the builder compare each row against itself and accept a missing
     BAL entry.
 
-    The execution resolver owns only the first tier.  It delegates the
-    remaining fields to the existing pre-state resolver, preserving one
-    implementation of the block-map/parent fallback and its authenticated
-    absence semantics.  As with the existing helper, this slice resolves the
-    balance and nonce components only; storage and code coverage are the next
-    ordered part of #11454 and are intentionally not fabricated here.
+    Part two adds the code projection without routing any producer through this
+    symbol yet.  The ABI is:
 
-    This slice also does not yet distinguish the four execution-map states
-    required by `get_account_optional`: a missing transaction row may fall
-    through, but a present `None` tombstone must terminate the lookup rather
-    than merge its fields with the block/parent account.  Until the absence
-    tier is added, producers must not be routed through this symbol for a
-    transaction that can destroy an account; doing so would resurrect its
-    authenticated pre-state.  Present-partial and present-complete rows are
-    likewise distinct and must preserve only the components whose mask bits
-    carry real values.
+      a0 = canonical address (20-byte BE)
+      a1 = output scratch: nonce@0, balance@8..40, code_ptr@40,
+           code_len@48, present@56
+      a2/a3 = parent header RLP pointer/length
+      a4/a5 = witness.state pointer/length
+      a6/a7 = witness.codes pointer/length
 
-    ABI matches `account_resolve_pre_state`: a0 = canonical address, a1 = the
-    output scratch (nonce@0, balance@8), a2/a3 = parent header RLP, a4/a5 =
-    witness.  Returns a0 = 0 on success or 1 on malformed fallback lookup. -/
+    The return is resolver-local state, not an `account_at_header_state_root`
+    parser status: 0 absent, 1 live code, 2 present-but-empty, 3 deleted, and
+    4 resolver-unavailable (a non-empty code hash missing from witness.codes).
+    A malformed authenticated lookup uses 5, so parser errors cannot be
+    confused with a genuine account state or with a code-table miss.  A map
+    code row is authoritative and its pointer/length is preserved.  Otherwise
+    the authenticated account's code_hash is resolved with the RAW
+    `witness_codes_lookup_by_hash` helper, never `code_read_fetch`: this path
+    materialises state and must not record a code read or alter witness-code
+    selection.  Account absence and EMPTY_CODE_HASH are truthful zero-length
+    code; a non-empty hash miss is never fabricated as empty.
+
+    EIP-7702 designators are preserved and followed by the existing dispatch
+    path, never executed as bytecode.  Marker recognition is by the `ef 01 00`
+    prefix after a three-byte length check, not by assuming every 23-byte code
+    blob is a marker.  Storage root remains out of scope: the storage path
+    derives it with `mpt_bounded_storage_root` (#11385). -/
 def accountResolveExecutionStateFunction : String :=
   "account_resolve_execution_state:\n" ++
   "  addi sp, sp, -208\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0\n" ++
-  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; li s8, 0\n" ++
+  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1); sd zero, 40(s1); sd zero, 48(s1); sd zero, 56(s1)\n" ++
   -- First source: the current transaction's account_writes map.  A valid
   -- component in this keyed overlay is the execution-time value and must win
   -- over both the prior block state and the authenticated parent.
@@ -710,24 +717,85 @@ def accountResolveExecutionStateFunction : String :=
   ".Lare_tx_next:\n" ++
   "  addi t3, t3, 1; j .Lare_tx_scan\n" ++
   ".Lare_tx_hit:\n" ++
-  "  mv s6, t5; ld t0, 112(s6); andi t1, t0, 1; beqz t1, .Lare_tx_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
+  "  mv t6, t5; ld t0, 112(t6); andi t1, t0, 1; beqz t1, .Lare_tx_nonce; ld t1, 32(t6); sd t1, 8(s1); ld t1, 40(t6); sd t1, 16(s1); ld t1, 48(t6); sd t1, 24(s1); ld t1, 56(t6); sd t1, 32(s1); ori s8, s8, 1\n" ++
   ".Lare_tx_nonce:\n" ++
-  "  andi t1, t0, 2; beqz t1, .Lare_tx_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
-  -- A partial tx row still needs the lower-priority fields.  Delegating to
-  -- the existing two-tier resolver keeps the builder's pre-tx contract out of
-  -- this symbol's first-tier decision while avoiding a second fallback body.
+  "  andi t1, t0, 2; beqz t1, .Lare_tx_code; ld t1, 64(t6); sd t1, 0(s1); ori s8, s8, 2\n" ++
+  ".Lare_tx_code:\n" ++
+  "  andi t1, t0, 4; beqz t1, .Lare_tx_state; ld t1, 80(t6); sd t1, 40(s1); ld t1, 88(t6); sd t1, 48(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 4\n" ++
+  ".Lare_tx_state:\n" ++
+  "  andi t1, t0, 8; beqz t1, .Lare_tx_done; ld t1, 72(t6); sd t1, 56(s1); ori s8, s8, 8\n" ++
   ".Lare_tx_done:\n" ++
-  "  li t0, 3; beq s7, t0, .Lare_ok\n" ++
+  -- A present-None transaction row is a terminal tombstone.  Only a missing
+  -- key falls through to the lower tiers; the state bit is therefore checked
+  -- before the block/parent scans.
+  "  andi t0, s8, 8; beqz t0, .Lare_block_scan\n" ++
+  "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
+  ".Lare_block_scan:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lare_block_loop:\n" ++
+  "  bgeu t3, t1, .Lare_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
+  ".Lare_block_cmp:\n" ++
+  "  beqz t6, .Lare_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lare_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lare_block_cmp\n" ++
+  ".Lare_block_next:\n" ++
+  "  addi t3, t3, 1; j .Lare_block_loop\n" ++
+  ".Lare_block_hit:\n" ++
+  -- Transaction writes take precedence over block-cumulative writes.  In
+  -- particular, do not let a block row overwrite a code or state value that
+  -- was already supplied by the current transaction tier.
+  "  mv t6, t5; ld t0, 112(t6); andi t1, s8, 4; bnez t1, .Lare_block_state; andi t1, t0, 4; beqz t1, .Lare_block_state; ld t1, 80(t6); sd t1, 40(s1); ld t1, 88(t6); sd t1, 48(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 4\n" ++
+  ".Lare_block_state:\n" ++
+  "  andi t1, s8, 8; bnez t1, .Lare_block_done; andi t1, t0, 8; beqz t1, .Lare_block_done; ld t1, 72(t6); sd t1, 56(s1); ori s8, s8, 8\n" ++
+  ".Lare_block_done:\n" ++
+  "  andi t0, s8, 8; beqz t0, .Lare_parent\n" ++
+  "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
+  -- A code component in either execution map is already a truthful pointer/
+  -- length.  Do not look it up again: the map writer supplied the actual
+  -- bytes, including an EF0100 delegation designator when one is present.
+  "  andi t0, s8, 4; bnez t0, .Lare_classify_code\n" ++
+  ".Lare_parent:\n" ++
+  -- The existing pre-state resolver supplies nonce/balance with the BAL
+  -- two-tier contract.  Code is resolved separately below from the raw parent
+  -- account and witness.codes table.
   "  mv a0, s0; addi a1, sp, 96; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, account_resolve_pre_state\n" ++
-  "  bnez a0, .Lare_fail\n" ++
-  "  andi t0, s7, 1; bnez t0, .Lare_nonce\n" ++
-  "  addi t1, sp, 96; ld t2, 8(t1); sd t2, 8(s1); ld t2, 16(t1); sd t2, 16(s1); ld t2, 24(t1); sd t2, 24(s1); ld t2, 32(t1); sd t2, 32(s1); ori s7, s7, 1\n" ++
+  "  bnez a0, .Lare_malformed\n" ++
+  "  andi t0, s8, 1; bnez t0, .Lare_nonce\n" ++
+  "  addi t1, sp, 96; ld t2, 8(t1); sd t2, 8(s1); ld t2, 16(t1); sd t2, 16(s1); ld t2, 24(t1); sd t2, 24(s1); ld t2, 32(t1); sd t2, 32(s1); ori s8, s8, 1\n" ++
   ".Lare_nonce:\n" ++
-  "  andi t0, s7, 2; bnez t0, .Lare_ok; addi t1, sp, 96; ld t2, 0(t1); sd t2, 0(s1); ori s7, s7, 2\n" ++
-  ".Lare_ok:\n" ++
-  "  li a0, 0; j .Lare_ret\n" ++
-  ".Lare_fail:\n" ++
-  "  li a0, 1\n" ++
+  "  andi t0, s8, 2; bnez t0, .Lare_code_source; addi t1, sp, 96; ld t2, 0(t1); sd t2, 0(s1); ori s8, s8, 2\n" ++
+  -- The authenticated account output is the only source of code_hash.  It is
+  -- deliberately the tracked account read, while the code preimage lookup is
+  -- the raw witness helper so this resolver does not mutate code_reads.
+  ".Lare_code_source:\n" ++
+  "  andi t0, s8, 4; bnez t0, .Lare_classify_code\n" ++
+  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; addi a6, sp, 96; jal ra, account_at_header_state_root_tracked\n" ++
+  "  beqz a0, .Lare_parent_found; li t0, 1; beq a0, t0, .Lare_absent; j .Lare_malformed\n" ++
+  ".Lare_parent_found:\n" ++
+  "  andi t0, s8, 8; bnez t0, .Lare_code_hash; addi t3, sp, 96; ld t1, 0(t3); sd t1, 0(s1); ld t1, 8(t3); sd t1, 8(s1); ld t1, 16(t3); sd t1, 16(s1); ld t1, 24(t3); sd t1, 24(s1); ld t1, 32(t3); sd t1, 32(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 3\n" ++
+  ".Lare_code_hash:\n" ++
+  "  addi t3, sp, 96; la t0, chahsr_empty_code_hash; ld t1, 72(t3); ld t2, 0(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 80(t3); ld t2, 8(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 88(t3); ld t2, 16(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 96(t3); ld t2, 24(t0); bne t1, t2, .Lare_hash_nonempty; j .Lare_empty\n" ++
+  ".Lare_hash_nonempty:\n" ++
+  "  mv a0, s6; mv a1, s7; addi a2, sp, 168; addi a3, sp, 80; addi a4, sp, 88; sd zero, 80(sp); sd zero, 88(sp); jal ra, witness_codes_lookup_by_hash\n" ++
+  "  bnez a0, .Lare_unavailable; ld t0, 80(sp); add t0, s6, t0; sd t0, 40(s1); ld t1, 88(sp); sd t1, 48(s1); j .Lare_classify_code\n" ++
+  -- Prefix recognition is intentionally independent of length.  Both branches
+  -- preserve the returned bytes; dispatch follows EF0100 designators later.
+  ".Lare_classify_code:\n" ++
+  "  ld t0, 48(s1); li t1, 3; bltu t0, t1, .Lare_classify_plain; ld t0, 40(s1); lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lare_classify_plain; lbu t1, 1(t0); li t2, 1; bne t1, t2, .Lare_classify_plain; lbu t1, 2(t0); bnez t1, .Lare_classify_plain; j .Lare_classify_marker\n" ++
+  ".Lare_classify_marker:\n" ++
+  "  li a0, 1; j .Lare_ret\n" ++
+  ".Lare_classify_plain:\n" ++
+  "  ld t0, 48(s1); beqz t0, .Lare_empty; li a0, 1; j .Lare_ret\n" ++
+  ".Lare_empty:\n" ++
+  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 2; j .Lare_ret\n" ++
+  ".Lare_absent:\n" ++
+  "  andi t0, s8, 8; beqz t0, .Lare_absent_zero; ld t1, 56(s1); bnez t1, .Lare_empty\n" ++
+  ".Lare_absent_zero:\n" ++
+  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 0; j .Lare_ret\n" ++
+  ".Lare_deleted:\n" ++
+  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 3; j .Lare_ret\n" ++
+  ".Lare_unavailable:\n" ++
+  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 4; j .Lare_ret\n" ++
+  ".Lare_malformed:\n" ++
+  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 5\n" ++
   ".Lare_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
 
@@ -996,6 +1064,13 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_restore_frame:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_resolve_pre_state:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_resolve_execution_state:").length == 2
+-- Part two must use the raw witness-code lookup, not `code_read_fetch`, whose
+-- side effect records a code read and therefore changes witness selection.
+#guard (accountResolveExecutionStateFunction.splitOn "jal ra, witness_codes_lookup_by_hash").length == 2
+#guard (accountResolveExecutionStateFunction.splitOn "code_read_fetch").length == 1
+-- Marker recognition is prefix-based and length-guarded; no 23-byte shortcut.
+#guard (accountResolveExecutionStateFunction.splitOn "lbu t1, 0(t0); li t2, 0xef").length == 2
+#guard (accountResolveExecutionStateFunction.splitOn "li t1, 3; bltu t0, t1").length == 2
 -- The BAL builder must retain the two-tier pre-transaction resolver.  Retargeting
 -- this call to the execution resolver would let the builder read its own tx map,
 -- self-baseline a row, and silently accept a malformed BAL; the emitted bytes can
