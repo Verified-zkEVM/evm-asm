@@ -609,6 +609,112 @@ theorem decodeAux_bytes_residue
                     obtain ⟨items, leftover⟩ := ir
                     simp [hread, hshort, htake, hitems] at hdec
 
+/-- The payload occupies exactly the LAST `p.length` bytes of the item's span,
+    in all three byte-string forms — the single byte is its own content, and the
+    short and long forms put the content immediately after their header.  So one
+    equation covers all three, at offset `off' - p.length`.
+
+    `decodeAux_bytes_residue` gives the span; this gives what is inside it.
+    Callers that must relate a guest-side content slice to the model's field
+    bytes need both. -/
+theorem decodeAux_bytes_content
+    (bytes : List Byte) (off off' n : Nat) (p : List Byte)
+    (hdec : decodeAux (n + 1) (bytes.drop off) = some (.bytes p, bytes.drop off'))
+    (hoff'len : off' ≤ bytes.length) :
+    (bytes.drop (off' - p.length)).take p.length = p ∧ off + p.length ≤ off' := by
+  obtain ⟨b, hget, hdrop⟩ := exists_prefix_of_decodeAux hdec
+  have hofflt : off < bytes.length := by
+    rw [List.getElem?_eq_some_iff] at hget; exact hget.1
+  rw [hdrop] at hdec
+  cases hclass : classifyPrefix b with
+  | singleByte =>
+      obtain ⟨hp, hrest⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_singleByte_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      have hoffeq : off' = off + 1 := drop_inj_of_le hoff'len (by omega) hrest.symm
+      subst hoffeq
+      rw [← hp]
+      simp only [List.length_cons, List.length_nil]
+      refine ⟨?_, by omega⟩
+      rw [show off + 1 - 1 = off from by omega, hdrop]
+      rfl
+  | shortBytes =>
+      obtain ⟨payload, htake, hpay, _⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      subst hpay
+      obtain ⟨hcat, _⟩ := takeBytes_eq_some_imp htake
+      have hfits : off + 1 + payload.length ≤ bytes.length := by
+        have := congrArg List.length hcat
+        rw [List.length_append, List.length_drop, List.length_drop] at this
+        omega
+      have hrest : bytes.drop off' = bytes.drop (off + 1 + payload.length) := by
+        have hdropEq : bytes.drop (off + 1 + payload.length)
+            = (bytes.drop (off + 1)).drop payload.length := by
+          rw [List.drop_drop]
+        rw [hdropEq, hcat, List.drop_left]
+      have hoffeq : off' = off + 1 + payload.length :=
+        drop_inj_of_le hoff'len (by omega) hrest
+      subst hoffeq
+      exact ⟨by rw [show off + 1 + payload.length - payload.length = off + 1 from by omega,
+        hcat, List.take_left], by omega⟩
+  | longBytes =>
+      obtain ⟨hlo, hhi⟩ := (classifyPrefix_longBytes_iff b).mp hclass
+      obtain ⟨lenVal, restLen, hread, _, htake⟩ :=
+        (ByteStringDecodeBridge.decodeAux_cons_longBytes_eq_some_iff n b
+          (bytes.drop (off + 1)) hclass p (bytes.drop off')).mp hdec
+      have hlolEq : rlpPrefixLongBytesLenOfLen b = b.toNat - 0xB7 := rfl
+      rw [hlolEq] at hread
+      obtain ⟨hklen, _, hrestLen, _⟩ := readLength_inv (by omega) hread
+      obtain ⟨hcat, _⟩ := takeBytes_eq_some_imp htake
+      have hrestLenEq : restLen = bytes.drop (off + 1 + (b.toNat - 0xB7)) := by
+        rw [hrestLen, List.drop_drop]
+      have hfits : off + 1 + (b.toNat - 0xB7) + p.length ≤ bytes.length := by
+        have := congrArg List.length hcat
+        rw [List.length_append, hrestLenEq, List.length_drop] at this
+        rw [List.length_drop] at hklen
+        omega
+      have hrest : bytes.drop off'
+          = bytes.drop (off + 1 + (b.toNat - 0xB7) + p.length) := by
+        have hdropEq : bytes.drop (off + 1 + (b.toNat - 0xB7) + p.length)
+            = restLen.drop p.length := by
+          rw [hrestLenEq, List.drop_drop]
+        rw [hdropEq, hcat, List.drop_left]
+      have hoffeq : off' = off + 1 + (b.toNat - 0xB7) + p.length :=
+        drop_inj_of_le hoff'len (by omega) hrest
+      subst hoffeq
+      exact ⟨by rw [show off + 1 + (b.toNat - 0xB7) + p.length - p.length
+        = off + 1 + (b.toNat - 0xB7) from by omega, ← hrestLenEq, hcat, List.take_left],
+        by omega⟩
+  | shortList =>
+      exfalso
+      rw [decodeAux_cons_shortList_of_classifyPrefix n b (bytes.drop (off + 1)) hclass] at hdec
+      cases htake : takeBytes (bytes.drop (off + 1)) (rlpPrefixShortListPayloadLen b) with
+      | none => simp [htake] at hdec
+      | some pr =>
+          obtain ⟨payload, rest'⟩ := pr
+          cases hitems : decodeItems n payload with
+          | none => simp [htake, hitems] at hdec
+          | some ir => obtain ⟨items, leftover⟩ := ir; simp [htake, hitems] at hdec
+  | longList =>
+      exfalso
+      rw [decodeAux_cons_longList_of_classifyPrefix n b (bytes.drop (off + 1)) hclass] at hdec
+      cases hread : readLength (bytes.drop (off + 1)) (rlpPrefixLongListLenOfLen b) with
+      | none => simp [hread] at hdec
+      | some pr =>
+          obtain ⟨lenVal, rest'⟩ := pr
+          by_cases hshort : lenVal ≤ 55
+          · simp [hread, hshort] at hdec
+          · cases htake : takeBytes rest' lenVal with
+            | none => simp [hread, hshort, htake] at hdec
+            | some pr2 =>
+                obtain ⟨payload, rest''⟩ := pr2
+                cases hitems : decodeItems n payload with
+                | none => simp [hread, hshort, htake, hitems] at hdec
+                | some ir =>
+                    obtain ⟨items, leftover⟩ := ir
+                    simp [hread, hshort, htake, hitems] at hdec
+
 /-- Specialisation of `decodeAux_bytes_residue` to a residue already in offset
     form: the decode strictly advances. -/
 theorem decodeAux_bytes_advance

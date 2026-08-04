@@ -172,6 +172,54 @@ theorem success_of_decodeFully_list
   exact success_forward bytes base bytes.length cursorOff index items p hpay hchain
     hbytes hidx (le_refl _) hover
 
+/-- `success_of_decodeFully_list` together with the **content** of the selected
+    field: the bytes the guest will read at `Success`'s reported offset are
+    exactly the model's payload.
+
+    Callers tying a guest output value to a model field need this as well as the
+    `Success` predicate — the predicate alone pins the payload's *length*, not
+    its bytes. -/
+theorem success_content_of_decodeFully_list
+    (bytes : List Byte) (base : Word) (items : List RLPItem) (index : Nat) (p : List Byte)
+    (hdec : decodeFully bytes = some (.list items))
+    (hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q)
+    (hidx : items[index]? = some (RLPItem.bytes p))
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    ∃ offset, Success bytes base bytes.length index offset (BitVec.ofNat 64 p.length) ∧
+      (bytes.drop offset.toNat).take p.length = p := by
+  obtain ⟨cursorOff, hpay, hchain⟩ :=
+    listPayload_chain_of_decodeFully bytes base items hdec hbytes
+  obtain ⟨next, off', hnexteq, hnth, hcont, hple, hoe⟩ :=
+    strictNthItem_of_chain bytes base bytes.length (le_refl _) hover index items
+      cursorOff bytes.length p hchain (le_refl _) hbytes hidx
+  refine ⟨next - BitVec.ofNat 64 p.length - base, ⟨cursorOff,
+    base + BitVec.ofNat 64 bytes.length, next, hpay, hnth, rfl⟩, ?_⟩
+  -- the reported offset is `off' - p.length` once the word arithmetic is done
+  have hoff : (next - BitVec.ofNat 64 p.length - base).toNat = off' - p.length := by
+    rw [hnexteq]
+    have h1 : base + BitVec.ofNat 64 off' - BitVec.ofNat 64 p.length - base
+        = BitVec.ofNat 64 (off' - p.length) := by
+      apply BitVec.eq_of_toNat_eq
+      have hlt : off' - p.length < 2 ^ 64 := by omega
+      rw [BitVec.toNat_sub, BitVec.toNat_sub,
+        toNat_base_add_ofNat (bound := bytes.length) (by omega) hover,
+        BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt (show p.length < 2 ^ 64 by omega), Nat.mod_eq_of_lt hlt]
+      have hsplit : (2 ^ 64 - base.toNat +
+          (2 ^ 64 - p.length + (base.toNat + off')) % 2 ^ 64) % 2 ^ 64
+          = off' - p.length := by
+        have e1 : 2 ^ 64 - p.length + (base.toNat + off')
+            = 2 ^ 64 + (base.toNat + off' - p.length) := by omega
+        rw [e1, Nat.add_mod_left,
+          Nat.mod_eq_of_lt (show base.toNat + off' - p.length < 2 ^ 64 by omega)]
+        have e2 : 2 ^ 64 - base.toNat + (base.toNat + off' - p.length)
+            = 2 ^ 64 + (off' - p.length) := by omega
+        rw [e2, Nat.add_mod_left, Nat.mod_eq_of_lt hlt]
+      exact hsplit
+    rw [h1, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  rw [hoff]
+  exact hcont
+
 /-! ## Non-vacuity
 
 `c4 83 01 02 03` decoded by the **model** (not hand-assembled), driven all the
