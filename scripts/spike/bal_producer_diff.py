@@ -411,6 +411,54 @@ def decode_rows(
     return rows, counts, {"overflows": overflows, "hashes": hashes, "undecodable": undecodable}
 
 
+def row_key(category: str, row: Any) -> tuple[Any, ...]:
+    """Return the attribution key used by the diagnostic, not the gate."""
+    if category == "accounts":
+        return (row,)
+    key = (row["address"], row["bai"])
+    if category == "storage":
+        return key + (row["slot"],)
+    return key
+
+
+def row_differences(
+    expected: dict[str, list[Any]], actual: dict[str, list[Any]]
+) -> dict[str, dict[str, list[Any]]]:
+    """Expose attribution differences while preserving the exact list gate.
+
+    The production check remains whole-list equality (including order and
+    duplicates).  These keyed views are diagnostics only: they make missing
+    and extra ``(address, BAI, value)`` rows, and same-key value changes,
+    readable without weakening that gate.
+    """
+    result: dict[str, dict[str, list[Any]]] = {}
+    for category, expected_rows in expected.items():
+        actual_rows = actual.get(category, [])
+        expected_by_key = {row_key(category, row): row for row in expected_rows}
+        actual_by_key = {row_key(category, row): row for row in actual_rows}
+        only_expected = [
+            row for row in expected_rows if row_key(category, row) not in actual_by_key
+        ]
+        only_actual = [
+            row for row in actual_rows if row_key(category, row) not in expected_by_key
+        ]
+        value_mismatch = [
+            {
+                "key": list(key),
+                "expected": expected_by_key[key],
+                "actual": actual_by_key[key],
+            }
+            for key in expected_by_key.keys() & actual_by_key.keys()
+            if expected_by_key[key] != actual_by_key[key]
+        ]
+        result[category] = {
+            "only_expected": only_expected,
+            "only_actual": only_actual,
+            "value_mismatch": value_mismatch,
+        }
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--spike", type=Path, required=True)
@@ -498,10 +546,12 @@ def main() -> int:
     skipped = 0
     undecodable = diagnostics["undecodable"]
     decoded = attempted - skipped
+    row_diff = row_differences(expected_rows, actual_rows)
     mismatches = [name for name in actual_rows if actual_rows[name] != expected_rows.get(name, [])]
     overflowed = {name: value for name, value in diagnostics["overflows"].items() if value}
     if mismatches:
-        fail(f"row mismatch in {', '.join(mismatches)}")
+        detail = {name: row_diff[name] for name in mismatches}
+        fail(f"row mismatch in {', '.join(mismatches)}; detail={json.dumps(detail, sort_keys=True)}")
     if skipped or undecodable:
         fail(f"rows silently skipped or undecodable: skipped={skipped} undecodable={undecodable}")
     if overflowed:
@@ -521,6 +571,7 @@ def main() -> int:
         "undecodable": undecodable,
         "overflow": overflowed,
         "final_counts": counts,
+        "row_diff": row_diff,
         "serializer_hash": diagnostics["hashes"],
         "dump_file": str(dump_file),
     }
