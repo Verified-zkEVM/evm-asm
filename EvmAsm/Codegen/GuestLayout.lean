@@ -56,6 +56,9 @@ structure GuestLayout where
   priority_fee_per_gas_eip1559 : Nat
   u256_sub_be : Nat
   u256_min : Nat
+  -- CallFrameBase (frame_base: arena base + own entry for la PC).
+  call_frame_arena : Nat
+  frame_base : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -73,6 +76,8 @@ def GuestLayout.zero : GuestLayout :=
     u256_mul_u64_be := 0
     priority_fee_per_gas_eip1559 := 0
     u256_sub_be := 0
-    u256_min := 0 }
+    u256_min := 0
+    call_frame_arena := 0
+    frame_base := 0 }
 
 end EvmAsm.Codegen

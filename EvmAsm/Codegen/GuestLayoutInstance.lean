@@ -36,6 +36,8 @@ def guestLayout : GuestLayout :=
     u256_mul_u64_be := GuestAddrs.u256_mul_u64_be
     priority_fee_per_gas_eip1559 := GuestAddrs.priority_fee_per_gas_eip1559
     u256_sub_be := GuestAddrs.u256_sub_be
-    u256_min := GuestAddrs.u256_min }
+    u256_min := GuestAddrs.u256_min
+    call_frame_arena := GuestAddrs.call_frame_arena
+    frame_base := GuestAddrs.frame_base }
 
 end EvmAsm.Codegen
