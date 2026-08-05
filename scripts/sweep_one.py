@@ -12,7 +12,9 @@ Classification (per fixture):
   * FR    (false-reject):               guest succ=0 but oracle succ=1.
   * OK:    guest and oracle agree (and, for accepted blocks, the output bytes
            match the manifest's expected prefix).
-  * FAULT: emulator non-zero exit, timeout, or missing/short output.
+  * FAULT: emulator non-zero exit, timeout, missing/short output, or an output
+           buffer without a complete verdict. Faults take precedence over the
+           verdict byte, which may be unwritten or only partially written.
 
 For an A/B, run this twice (candidate ELF and a freshly-rebuilt parent ELF) over
 the SAME manifest and diff the two TSVs. FA=0 is the inviolable gate; FR deltas
@@ -32,6 +34,15 @@ import tempfile
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+
+
+# A clean rejected output has five non-zero bytes in its fixed header plus the
+# remaining output fields; clean outputs observed in the corpus have at least
+# 44 non-zero bytes. A fault can leave only the five header bytes behind, so a
+# strictly larger count is the positive signal that the complete verdict was
+# written. Keep this local to the instrument: the guest ABI does not expose a
+# separate output-commit bit.
+MIN_COMPLETE_OUTPUT_NONZERO_BYTES = 6
 
 
 def default_spike():
@@ -114,6 +125,11 @@ def run_one(spike, elf, inp, tmpdir, timeout, dump_len):
     out = os.path.join(tmpdir, "o.bin")
     env = dict(os.environ)
     env["SPIKE_OUTPUT_LEN"] = str(dump_len)
+    # Some emulators materialize an output file even when the guest faults
+    # before writing its verdict. Start from a known state so an unwritten
+    # byte cannot inherit data from a reused path or emulator implementation.
+    with open(out, "wb") as f:
+        f.write(b"\x00" * int(dump_len))
     try:
         r = subprocess.run(
             [spike, elf, inp, out],
@@ -141,10 +157,15 @@ def classify(spike, elf, timeout, dump_len, label, inp, exp_hex, oracle_succ):
         rc, data, succ = run_one(spike, elf, inp, tmpdir, timeout, dump_len)
         match = (data is not None) and (data[:nbytes].hex() == exp_hex)
         fault = (rc not in (0,)) or (data is None) or (succ is None)
+        if data is not None:
+            nonzero_count = sum(byte != 0 for byte in data)
+            fault = fault or nonzero_count < MIN_COMPLETE_OUTPUT_NONZERO_BYTES
         s = str(succ) if succ is not None else "?"
+        if fault:
+            return (label, oracle_succ, s, match, rc, len(data) if data else 0, "FAULT")
         fa = (s == "1" and oracle_succ == "0")
         fr = (s == "0" and oracle_succ == "1")
-        cat = "FA" if fa else ("FR" if fr else ("FAULT" if fault else "OK"))
+        cat = "FA" if fa else ("FR" if fr else "OK")
         return (label, oracle_succ, s, match, rc, len(data) if data else 0, cat)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
