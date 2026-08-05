@@ -76,7 +76,7 @@ def bloomAddValue_prog_of (L : GuestLayout) : Program :=
     .ADDI .x5 .x5 (laLo L.bav_hash (L.bloom_add_value + 52)),
     .LI .x6 (0 : Word),
     .LI .x7 (6 : Word),
-    .BGE .x6 .x7 (84 : BitVec 13),
+    .BGE .x6 .x7 (brOff (L.bloom_add_value + 152) (L.bloom_add_value + 68)),
     .ADD .x28 .x5 .x6,
     .LBU .x29 .x28 (0 : BitVec 12),
     .LBU .x30 .x28 (1 : BitVec 12),
@@ -96,7 +96,7 @@ def bloomAddValue_prog_of (L : GuestLayout) : Program :=
     .OR .x29 .x29 .x31,
     .SB .x30 .x29 (0 : BitVec 12),
     .ADDI .x6 .x6 (2 : BitVec 12),
-    .JAL .x0 (-84 : BitVec 21),
+    .JAL .x0 (jalOff (L.bloom_add_value + 64) (L.bloom_add_value + 148)),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -129,5 +129,4 @@ theorem bloomAddValueFunction_eq_prog :
 
 #guard bloomAddValueFunction.startsWith "bloom_add_value:\n"
 #guard (bloomAddValue_prog_of .zero).length = 45
-
 end EvmAsm.Codegen
