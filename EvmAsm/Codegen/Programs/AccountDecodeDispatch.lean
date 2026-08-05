@@ -340,12 +340,19 @@ theorem adBalLenCheck (v5old v6old v7old len : Word) :
 #print axioms adBalLenCheck
 
 set_option maxRecDepth 8000 in
-/-- Field-2 (storage_root) length check [81]-[85] (`AB+324 → 504/344`): `bne len, 32`. -/
+/-- Field-2 (storage_root) length check [81]-[85] (`AB+324 → 544/344`): `bne len, 32`.
+
+    ⚠️ Post-#11483 the taken edge is **no longer the failure block**.  `len ≠ 32`
+    now lands on the zero-length dispatch at `AB+544` (`adRootZeroDispatch`),
+    which folds `len = 0` to `EMPTY_TRIE_ROOT` and only then falls through to the
+    shared failure block.  So this theorem no longer says "len ≠ 32 → fail"; the
+    guest's field-2 length contract is "len ∉ {0, 32} → fail", and it takes both
+    this branch and `adRootZeroDispatch` to state it. -/
 theorem adRootLenCheck (v5old v6old v7old len : Word) :
     cpsBranchWithin 5 (AB + 324) fullCode
       (((.x5 : Reg) ↦ᵣ v5old) ** ((.x6 : Reg) ↦ᵣ v6old) **
        ((.x7 : Reg) ↦ᵣ v7old) ** (adLengthAddr ↦ₘ len))
-      (AB + 504)
+      (AB + 544)
         ((((.x6 : Reg) ↦ᵣ len) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ⌜len ≠ (32 : Word)⌝) **
          ((.x5 : Reg) ↦ᵣ adLengthAddr) ** (adLengthAddr ↦ₘ len))
       (AB + 344)
@@ -379,8 +386,8 @@ theorem adRootLenCheck (v5old v6old v7old len : Word) :
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaf hldf
   have sStraight := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hlif
   have hbne := bne_spec_gen_within .x6 .x7 (204 : BitVec 13) len (32 : Word) (AB + 340)
-  rw [show (AB + 340 : Word) + signExtend13 (164 : BitVec 13) = AB + 504 from by
-    rw [show signExtend13 (164 : BitVec 13) = (164 : Word) from by decide]; bv_omega,
+  rw [show (AB + 340 : Word) + signExtend13 (204 : BitVec 13) = AB + 544 from by
+    rw [show signExtend13 (204 : BitVec 13) = (204 : Word) from by decide]; bv_omega,
     show (AB + 340 : Word) + 4 = AB + 344 from by bv_omega] at hbne
   have hbnee := cpsBranchWithin_extend_code ad_mono
     (cpsBranchWithin_extend_code
@@ -397,12 +404,16 @@ theorem adRootLenCheck (v5old v6old v7old len : Word) :
 #print axioms adRootLenCheck
 
 set_option maxRecDepth 8000 in
-/-- Field-3 (code_hash) length check [107]-[111] (`AB+428 → 504/448`): `bne len, 32`. -/
+/-- Field-3 (code_hash) length check [107]-[111] (`AB+428 → 596/448`): `bne len, 32`.
+
+    ⚠️ Post-#11483 the taken edge is **no longer the failure block** — see
+    `adRootLenCheck`.  `len ≠ 32` lands on `adCodeZeroDispatch` (`AB+596`), which
+    folds `len = 0` to `EMPTY_CODE_HASH` before failing for any other length. -/
 theorem adCodeLenCheck (v5old v6old v7old len : Word) :
     cpsBranchWithin 5 (AB + 428) fullCode
       (((.x5 : Reg) ↦ᵣ v5old) ** ((.x6 : Reg) ↦ᵣ v6old) **
        ((.x7 : Reg) ↦ᵣ v7old) ** (adLengthAddr ↦ₘ len))
-      (AB + 504)
+      (AB + 596)
         ((((.x6 : Reg) ↦ᵣ len) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ⌜len ≠ (32 : Word)⌝) **
          ((.x5 : Reg) ↦ᵣ adLengthAddr) ** (adLengthAddr ↦ₘ len))
       (AB + 448)
@@ -436,8 +447,8 @@ theorem adCodeLenCheck (v5old v6old v7old len : Word) :
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaf hldf
   have sStraight := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hlif
   have hbne := bne_spec_gen_within .x6 .x7 (152 : BitVec 13) len (32 : Word) (AB + 444)
-  rw [show (AB + 444 : Word) + signExtend13 (60 : BitVec 13) = AB + 504 from by
-    rw [show signExtend13 (60 : BitVec 13) = (60 : Word) from by decide]; bv_omega,
+  rw [show (AB + 444 : Word) + signExtend13 (152 : BitVec 13) = AB + 596 from by
+    rw [show signExtend13 (152 : BitVec 13) = (152 : Word) from by decide]; bv_omega,
     show (AB + 444 : Word) + 4 = AB + 448 from by bv_omega] at hbne
   have hbnee := cpsBranchWithin_extend_code ad_mono
     (cpsBranchWithin_extend_code
@@ -452,5 +463,100 @@ theorem adCodeLenCheck (v5old v6old v7old len : Word) :
   exact cpsBranchWithin_mono_nSteps (by omega) hcomposed
 
 #print axioms adCodeLenCheck
+
+/-! ## The zero-length hash dispatch (GH #11483)
+
+    `witness_state.py:114-119` folds a **zero-length** `storage_root` /
+    `code_hash` field to `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH` rather than
+    rejecting it.  The guest mirrors that with a second-level dispatch appended
+    after the epilogue: each exact-32 `BNE` above now targets a `BEQ x6, x0`
+    arm whose **taken** edge stores the 32-byte constant and rejoins the field's
+    normal continuation, and whose **fall-through** is a `JAL` back into the
+    shared failure block at `AB+504`.
+
+    Consequently the field-2/3 length contract is no longer expressible as one
+    branch: `adRootLenCheck ⨾ adRootZeroDispatch` together say
+    "`len ∉ {0, 32}` → fail", which is what the program now does. -/
+
+set_option maxRecDepth 8000 in
+/-- Field-2 zero-length dispatch [136] (`AB+544 → 552/548`): `beq len, x0`.
+    Taken (`len = 0`) enters the `EMPTY_TRIE_ROOT` store at `AB+552`;
+    fall-through (`len ∉ {0, 32}`, given `adRootLenCheck`'s taken edge) is the
+    `JAL` at `AB+548` into the shared failure block. -/
+theorem adRootZeroDispatch (len : Word) :
+    cpsBranchWithin 1 (AB + 544) fullCode
+      (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (AB + 552)
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜len = (0 : Word)⌝)
+      (AB + 548)
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜len ≠ (0 : Word)⌝) := by
+  have hbeq := beq_spec_gen_within .x6 .x0 (8 : BitVec 13) len (0 : Word) (AB + 544)
+  rw [show (AB + 544 : Word) + signExtend13 (8 : BitVec 13) = AB + 552 from by
+    rw [show signExtend13 (8 : BitVec 13) = (8 : Word) from by decide]; bv_omega,
+    show (AB + 544 : Word) + 4 = AB + 548 from by bv_omega] at hbeq
+  exact cpsBranchWithin_extend_code ad_mono
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 544) accountDecode_prog 136
+        (.BEQ .x6 .x0 (8 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
+        rfl (by rw [ad_length]; decide)) hbeq)
+
+#print axioms adRootZeroDispatch
+
+set_option maxRecDepth 8000 in
+/-- Field-2 zero-dispatch fall-through [137] (`AB+548 → AB+504`): the `JAL` into
+    the shared failure block, taken when the `storage_root` field length is
+    neither 0 nor 32.  This is where the pre-#11483 `adRootLenCheck` taken edge
+    used to land directly. -/
+theorem adRootFoldFailJal :
+    cpsTripleWithin 1 (AB + 548) (AB + 504) fullCode empAssertion empAssertion := by
+  have hjal := jal_x0_spec_gen_within (-44 : BitVec 21) (AB + 548)
+  rw [show (AB + 548 : Word) + signExtend21 (-44 : BitVec 21) = AB + 504 from by
+    rw [show signExtend21 (-44 : BitVec 21) = (-44 : Word) from by decide]; bv_omega] at hjal
+  exact cpsTripleWithin_extend_code ad_mono
+    (cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 548) accountDecode_prog 137
+        (.JAL .x0 (-44 : BitVec 21)) (by bv_omega) (by rw [ad_length]; decide)
+        rfl (by rw [ad_length]; decide)) hjal)
+
+#print axioms adRootFoldFailJal
+
+set_option maxRecDepth 8000 in
+/-- Field-3 zero-length dispatch [149] (`AB+596 → 604/600`): `beq len, x0`.
+    Taken (`len = 0`) enters the `EMPTY_CODE_HASH` store at `AB+604`;
+    fall-through is the `JAL` at `AB+600` into the shared failure block. -/
+theorem adCodeZeroDispatch (len : Word) :
+    cpsBranchWithin 1 (AB + 596) fullCode
+      (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (AB + 604)
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜len = (0 : Word)⌝)
+      (AB + 600)
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜len ≠ (0 : Word)⌝) := by
+  have hbeq := beq_spec_gen_within .x6 .x0 (8 : BitVec 13) len (0 : Word) (AB + 596)
+  rw [show (AB + 596 : Word) + signExtend13 (8 : BitVec 13) = AB + 604 from by
+    rw [show signExtend13 (8 : BitVec 13) = (8 : Word) from by decide]; bv_omega,
+    show (AB + 596 : Word) + 4 = AB + 600 from by bv_omega] at hbeq
+  exact cpsBranchWithin_extend_code ad_mono
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 596) accountDecode_prog 149
+        (.BEQ .x6 .x0 (8 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
+        rfl (by rw [ad_length]; decide)) hbeq)
+
+#print axioms adCodeZeroDispatch
+
+set_option maxRecDepth 8000 in
+/-- Field-3 zero-dispatch fall-through [150] (`AB+600 → AB+504`): the `JAL` into
+    the shared failure block, for a `code_hash` length that is neither 0 nor 32. -/
+theorem adCodeFoldFailJal :
+    cpsTripleWithin 1 (AB + 600) (AB + 504) fullCode empAssertion empAssertion := by
+  have hjal := jal_x0_spec_gen_within (-96 : BitVec 21) (AB + 600)
+  rw [show (AB + 600 : Word) + signExtend21 (-96 : BitVec 21) = AB + 504 from by
+    rw [show signExtend21 (-96 : BitVec 21) = (-96 : Word) from by decide]; bv_omega] at hjal
+  exact cpsTripleWithin_extend_code ad_mono
+    (cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at AB (AB + 600) accountDecode_prog 150
+        (.JAL .x0 (-96 : BitVec 21)) (by bv_omega) (by rw [ad_length]; decide)
+        rfl (by rw [ad_length]; decide)) hjal)
+
+#print axioms adCodeFoldFailJal
 
 end EvmAsm.Codegen.AccountDecodeSpec
