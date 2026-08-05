@@ -65,6 +65,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
+import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
@@ -417,6 +418,12 @@ private noncomputable abbrev _account_decode_matches_specRef_witness :=
   @EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 private noncomputable abbrev _account_decode_output_witness :=
   @EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
+-- #11346 item 2: the leniency agreement, plus the identity that lets #11345's
+-- `beAccum_eq_fromBytesBE` transfer to `beAccFrom` instead of being re-proved.
+private noncomputable abbrev _account_eip161_leniency_witness :=
+  @EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
+private noncomputable abbrev _beAccFrom_eq_beAccum_witness :=
+  @EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
