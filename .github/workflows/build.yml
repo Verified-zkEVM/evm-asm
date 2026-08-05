@@ -54,6 +54,8 @@ jobs:
           scripts/check-registry-crosscheck.sh
       - name: Layering invariants (verified core must not import Codegen / Progress)
         run: scripts/check-layering.sh
+      - name: "code_at_header empty-hash guard (#11520; raise→reject, not fallback)"
+        run: scripts/check-code-preimage-empty-hash.sh
       - name: Opcode-structure (AddrNorm pairing; advisory checklist for new complex dirs)
         run: scripts/check-opcode-structure.sh
       # Advisory naming nudge (camelCase hypotheses newly added in the PR);

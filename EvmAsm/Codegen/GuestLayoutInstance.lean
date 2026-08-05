@@ -47,6 +47,9 @@ def guestLayout : GuestLayout :=
     bams_addr_ptr := GuestAddrs.bams_addr_ptr
     bams_addr_2935 := GuestAddrs.bams_addr_2935
     bams_addr_4788 := GuestAddrs.bams_addr_4788
-    bal_account_is_modeled_system := GuestAddrs.bal_account_is_modeled_system }
+    bal_account_is_modeled_system := GuestAddrs.bal_account_is_modeled_system
+    bal_account_nonstorage_finals := GuestAddrs.bal_account_nonstorage_finals
+    rlp_content_to_u256_be := GuestAddrs.rlp_content_to_u256_be
+    rlp_content_to_u64 := GuestAddrs.rlp_content_to_u64 }
 
 end EvmAsm.Codegen
