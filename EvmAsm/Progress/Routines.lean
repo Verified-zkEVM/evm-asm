@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
+import EvmAsm.Codegen.Programs.AccountDecodeCompose
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
@@ -409,6 +410,13 @@ private noncomputable abbrev _header_extract_number_routine_witness :=
 -- deliberately does not import Codegen, so the witness abbrev lives here.
 private noncomputable abbrev _header_number_of_decode_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
+-- #11345: the model-facing consumer joining `account_decode`'s output struct to
+-- `AccountRecord` and thence to `SpecRef.decode_account_from_leaf`. Codegen-side,
+-- so like the #11351 witness above it lives here rather than in Correspondence.
+private noncomputable abbrev _account_decode_matches_specRef_witness :=
+  @EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
+private noncomputable abbrev _account_decode_output_witness :=
+  @EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.

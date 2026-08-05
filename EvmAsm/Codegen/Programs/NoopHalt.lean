@@ -246,6 +246,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
 " ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
+      -- CREATE code publication is resolver-gated.  Any nonzero result,
+      -- including status 4 (witness-incomplete) and status 5 (malformed
+      -- authenticated lookup), must take the existing CREATE failure edge;
+      -- continuing would append a non-storage row for code that was never
+      -- authoritatively resolved.
+      "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
       -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre balance captured
       -- before the CREATE frame; post nonce is the initcode's final nonce, balance = C's FINAL balance). The target may already be
       -- present with a nonzero balance, so its pre balance is nse_create_pre_bal rather than a fabricated
