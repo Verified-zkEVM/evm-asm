@@ -2,7 +2,7 @@
   EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 
   Multi-tx validation tail of block_verdict (the .Lbv_mtx_done block: A1 skip-list
-  builder, B2 running-balance underflow, map_builder_consistent). B1/B2.3 BAL
+  builder, B2 running-balance underflow, map↔builder DIR A). B1/B2.3 BAL
   field compares retired #11183 ORDER-1. Pure asm-string fragment.
 -/
 
@@ -158,11 +158,9 @@ def blockVerdictMtxValidationTail : String :=
   --       42 (supplied seq vs exec log) with same gate over same bytes; 42
   --       and its exclusive callee chain unlinked (account/slot/exec_log
   --       tuple helpers). bv_mtx_skip_list KEPT — still feeds B1/B2.
-  -- The builder is complete at this validation seam, after the terminal state-root
-  -- publication and before the receipt/gas handoff. Keep the attribution check here
-  -- after retiring the granular stand-ins above; it compares the supplied BAL against
-  -- the surviving account-write builder rows and reports code 66 on mismatch.
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
+  -- #11183 DIR A only: map finals ↔ highest-BAI builder (guest-internal fail-safe).
+  -- DIR B/C (supplied BAL body) dropped — serialised fields ⊆ hash 60/61.
+  -- No bv_bal_start/len: not a Class-A edge. Code 66 on map↔builder desync.
   "  jal ra, bal_map_builder_consistent\n" ++
   "  bnez a0, .Lbv_bal_map_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"
