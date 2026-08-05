@@ -483,6 +483,35 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, u256_lt_be\n" ++
   "  la t0, bv_upfront_islt; ld t0, 0(t0)\n" ++
   "  bnez t0, .Lbv_sender_upfront_fail\n" ++                    -- pre_balance < upfront -> reject
+  -- fork.py:668-677 InvalidSender ("not EOA"): get_code(sender) then require
+  -- EMPTY_CODE_HASH or is_valid_delegation.  Missing marker preimage (status 5
+  -- with non-empty hash) rejects — closes 02970 missing_sender_delegation_marker.
+  -- Live path: MTx boundary (eas_write_entry is frozen behind j .Lbv_mtx_state_init).
+  -- Layout: have_code first, empty-hash compare last so #11520 gate window is clean.
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bv_mtx_sender_addr\n" ++
+  "  la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  "  li t0, 1; beq a0, t0, .Lbv_mtx_sender_eoa_ok\n" ++          -- absent → empty EOA
+  "  li t0, 5; beq a0, t0, .Lbv_mtx_sender_st5\n" ++
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                       -- 2/3/4 malformed
+  -- status 0: is_valid_delegation (len 23 + 0xef0100)
+  "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
+  "  lbu t1, 0(t0); li t2, 239; bne t1, t2, .Lbv_sender_nonce_fail\n" ++
+  "  lbu t1, 1(t0); li t2, 1; bne t1, t2, .Lbv_sender_nonce_fail\n" ++
+  "  lbu t1, 2(t0); bnez t1, .Lbv_sender_nonce_fail\n" ++
+  "  j .Lbv_mtx_sender_eoa_ok\n" ++
+  ".Lbv_mtx_sender_st5:\n" ++
+  -- status 5: only EMPTY_CODE_HASH is acceptable (raise→reject #11520)
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lbv_sender_nonce_fail\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lbv_sender_nonce_fail\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbv_sender_nonce_fail\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbv_sender_nonce_fail\n" ++
+  "  j .Lbv_mtx_sender_eoa_ok\n" ++
+  ".Lbv_mtx_sender_eoa_ok:\n" ++
   -- `process_transaction` increments the sender nonce before preparation.
   -- Publish that monotone execution fact both to the durable execution overlay
   -- and to the transaction-local BAL map. This is deliberately before the

@@ -35,8 +35,27 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   "  jal ra, code_at_header_state_root\n" ++
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-  -- not found / error -> not delegated -> no charge
-  "  bnez t2, .Lcdac_done_" ++ tag ++ "\n" ++
+  -- #11526 / #11508 family: raise compiles to rejection, not "not delegated".
+  -- code_at_header_state_root a0:
+  --   0 = code found → inspect marker below
+  --   1 = account absent from trie → empty account, not delegated → no charge
+  --   2/3/4 = MPT / account_decode / header malform → REJECT (spec would not
+  --           reach calculate_delegation_cost with a broken witness)
+  --   5 = code_hash missing from witness.codes → only EMPTY_CODE_HASH is a
+  --       legitimate empty EOA (witness_state.py:204-212); any other hash is
+  --       a missing preimage raise → REJECT. Match → not a marker → no charge.
+  -- Branch targets MUST differ (11527 conv lesson): done ≠ fail.
+  "  beqz t2, .Lcdac_have_code_" ++ tag ++ "\n" ++
+  "  li t3, 1; beq t2, t3, .Lcdac_done_" ++ tag ++ "\n" ++
+  "  li t3, 5; bne t2, t3, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  la t3, cd_empty_code_hash\n" ++
+  "  la t4, cahsr_acct_struct\n" ++
+  "  ld t5, 0(t3); ld t6, 72(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5, 8(t3); ld t6, 80(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5, 16(t3); ld t6, 88(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5, 24(t3); ld t6, 96(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  j .Lcdac_done_" ++ tag ++ "\n" ++
+  ".Lcdac_have_code_" ++ tag ++ ":\n" ++
   "  la t3, cahsr_code_length; ld t3, 0(t3); li t4, 23; bne t3, t4, .Lcdac_done_" ++ tag ++ "\n" ++
   "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++  -- t3 = code ptr
   "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcdac_done_" ++ tag ++ "\n" ++

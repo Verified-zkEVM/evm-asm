@@ -261,12 +261,34 @@ def bv(v, bits): return f"({v} : BitVec {bits})"
 # stays byte-identical when the geometry was already correct.
 BR_NAMED_THRESHOLD = 64
 
+# Same-function J-type immediates use the same policy threshold as B-type
+# immediates.  JAL has a wider encoding range, but long local loop/epilogue
+# transfers still need a symbolic target so body edits cannot silently move
+# their destination (#11512).  Short jumps remain numeric for readable output.
+# Keep this as a reference, not a second literal: the two relocation policies
+# must not drift unless a future change has a separately justified threshold.
+JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
+
+# Transitional ratchet for the local-J migration.  The count is by source
+# program file (not by instruction or definition): update it downward in the
+# same commit that removes a bare long local J from a file.  Keeping this next
+# to the B/J policy makes the dual-accept window measurable instead of
+# permanent permission for a new hardcoded target.
+EXPECTED_BARE_J_PROGRAM_FILES = 72
+
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
     if abs(off) >= BR_NAMED_THRESHOLD:
         tgt = cur + off
         return f"(brOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
     return bv(off, 13)
+
+def jal_imm(off, entry, cur):
+    """Render a same-function J-type byte offset; long arms use `jalOff`."""
+    if abs(off) >= JAL_NAMED_THRESHOLD:
+        tgt = cur + off
+        return f"(jalOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+    return bv(off, 21)
 
 def render_insn(mn, ops, off_of):
     R = reg
@@ -389,9 +411,12 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         elif len(ops) == 1:           rd, tgt = 'ra', ops[0]
         else:                         rd, tgt = ops[0], ops[1]
         tgt = tgt.strip()
-        # local (label or PC-relative) targets keep the ordinary single-JAL path
+        # local (label or PC-relative) targets keep the ordinary single-JAL path;
+        # long transfers use the same named-target policy as B-type branches.
         if tgt in label_addr or tgt.startswith('.'):
-            return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
+            off = off_of(tgt)
+            lean = [f".JAL {reg(rd)} {jal_imm(off, entry, cur)}"]
+            return lean, [py_emit_line(mn, ops, off_of)], None
         # cross-function symbol target -> resolved PC-relative offset
         if entry_addr is None:
             raise ConvError(f"{mn}: entry {entry!r} address unknown (BLOCKED_ON_.6)")
@@ -1022,7 +1047,11 @@ def rewrite_file(path, funcs):
         entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         if not ok:
             raise ConvError(f"{fn}: guest-linked .text differs -- refusing to rewrite")
-        if relocs: uses_reloc=True   # references la/cross-jal externals
+        # A local long B/J also names the entry through `brOff`/`jalOff`, so it
+        # needs the same AsmReloc + GuestAddrs imports as a cross-function
+        # relocation even though it has no side-table entry.
+        if relocs or any(('brOff ' in r or 'jalOff ' in r) for r in renders):
+            uses_reloc=True
         open(fixture_path(fn),'w').write(asm if asm.endswith('\n') else asm+'\n')
         prog=lean_camel(entry)+'_prog'
         block=gen_lean(entry, renders, fn, prog, relocs)
@@ -1211,12 +1240,21 @@ SOURCE_DRIFT_ALLOW = {
 }
 
 
-def _gen_with_br_threshold(asm, fn, prog, relocs, layout, thr):
-    """Re-render with a temporary BR_NAMED_THRESHOLD (module-global)."""
+def _gen_with_br_threshold(asm, fn, prog, relocs, layout, thr, jal_thr=None):
+    """Re-render with temporary B/J named-target thresholds (module globals).
+
+    The source-drift transition accepts the pre-symbolic bare form for both
+    relocation kinds while existing hand-written blocks are migrated.  The
+    optional ``jal_thr`` lets the transition accept a mixed tree where the
+    B-type migration has landed but the J-type migration has not (or vice
+    versa).
+    """
     import sys
     mod = sys.modules[__name__]
     saved = mod.BR_NAMED_THRESHOLD
+    saved_jal = mod.JAL_NAMED_THRESHOLD
     mod.BR_NAMED_THRESHOLD = thr
+    mod.JAL_NAMED_THRESHOLD = thr if jal_thr is None else jal_thr
     try:
         entry, renders, _em, _ok, _la, _lb, relocs2 = do_asm(asm)
         if layout:
@@ -1224,6 +1262,91 @@ def _gen_with_br_threshold(asm, fn, prog, relocs, layout, thr):
         return gen_lean(entry, renders, fn, prog, relocs2).rstrip()
     finally:
         mod.BR_NAMED_THRESHOLD = saved
+        mod.JAL_NAMED_THRESHOLD = saved_jal
+
+def _local_long_jal_sites(asm):
+    """Return local `j`/`jal` sites at the named-target threshold or above."""
+    items=tokenize(asm)
+    labels={}; addr=0; seq=[]
+    for it in items:
+        if it[0]=='label':
+            labels[it[1]]=addr
+        else:
+            _,mn,ops=it
+            seq.append((addr,mn,ops))
+            addr += insn_size(mn,ops)
+    hits=[]
+    for cur,mn,ops in seq:
+        if mn=='j':
+            target=ops[0]
+        elif mn=='jal':
+            target=ops[0] if len(ops)==1 else ops[1]
+        else:
+            continue
+        target=target.strip()
+        if target.startswith('.+'):
+            off=int(target[2:])
+        elif target.startswith('.-'):
+            off=-int(target[2:])
+        elif target in labels:
+            off=labels[target]-cur
+        else:
+            # A symbol outside this function is a cross-function relocation,
+            # not a local target covered by this ratchet.
+            continue
+        if abs(off) >= JAL_NAMED_THRESHOLD:
+            hits.append((cur,mn,off,target))
+    return hits
+
+def count_bare_j_program_files(man=None):
+    """Count manifest source files that still carry a bare long local J.
+
+    This intentionally includes the two blocked manifest rows: a converter
+    failure must not make a surviving hardcoded target disappear from the
+    ratchet.  For convertible rows, compare the checked-in source against the
+    named-J and mixed/bare transitional renders used by ``check_file``.
+    Returns ``(file_count, definition_count, site_count)``.
+    """
+    if man is None:
+        man=_load_manifest()
+    files=set(); defs=0; sites=0
+    for fn,rel in man.items():
+        path=os.path.join(REPO,rel)
+        asm_path=fixture_path(fn)
+        if not os.path.exists(asm_path):
+            continue
+        asm=open(asm_path).read()
+        hits=_local_long_jal_sites(asm)
+        if not hits:
+            continue
+        sites += len(hits)
+        try:
+            entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
+        except ConvError:
+            # Unlinked/blocked functions cannot be regenerated into a named
+            # block yet; count them until their blocker is retired.
+            files.add(rel); defs += 1
+            continue
+        prog=lean_camel(entry)+'_prog'
+        leaf=layout_leaf_path(path)
+        if leaf:
+            source=open(leaf).read()
+            j_bare=_gen_with_br_threshold(asm,fn,prog,relocs,True,
+                                          BR_NAMED_THRESHOLD,
+                                          jal_thr=10**9)[0]
+            both_bare=_gen_with_br_threshold(asm,fn,prog,relocs,True,
+                                             10**9)[0]
+        else:
+            source=open(path).read()
+            j_bare=_gen_with_br_threshold(asm,fn,prog,relocs,False,
+                                          BR_NAMED_THRESHOLD,
+                                          jal_thr=10**9)
+            both_bare=_gen_with_br_threshold(asm,fn,prog,relocs,False,
+                                             10**9)
+        if j_bare.rstrip() in source or both_bare.rstrip() in source:
+            files.add(os.path.relpath(leaf,REPO) if leaf else rel)
+            defs += 1
+    return len(files), defs, sites
 
 def check_file(path, funcs, rendered=None):
     """CI drift guard for one file. For each func, confirm:
@@ -1358,8 +1481,18 @@ def check_file(path, funcs, rendered=None):
             if leaf_block.rstrip() not in leaf_text:
                 # Transitional (#11512): accept bare-imm form until module is
                 # rewritten; assemble gates above already proved byte-identity.
-                leaf_bare = _gen_with_br_threshold(asm, fn, prog, relocs, layout=True, thr=10**9)[0]
-                if leaf_bare.rstrip() not in leaf_text:
+                # B and J migrations can land independently, so accept all
+                # three mixed states rather than requiring one migration to
+                # roll back when the other is still pending.
+                leaf_forms = [
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=True,
+                                          thr=10**9)[0],
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=True,
+                                          thr=10**9, jal_thr=JAL_NAMED_THRESHOLD)[0],
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=True,
+                                          thr=BR_NAMED_THRESHOLD, jal_thr=10**9)[0],
+                ]
+                if not any(form.rstrip() in leaf_text for form in leaf_forms):
                     problems.append(f"{fn}: generated LEAF block not found verbatim in "
                                     f"{os.path.basename(leaf_path)} (source drift)")
             if bridge_block.rstrip() not in text:
@@ -1367,8 +1500,15 @@ def check_file(path, funcs, rendered=None):
         elif fn not in SOURCE_DRIFT_ALLOW:
             block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
             if block not in text:
-                bare = _gen_with_br_threshold(asm, fn, prog, relocs, layout=False, thr=10**9)
-                if bare not in text:
+                forms = [
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=False,
+                                          thr=10**9),
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=False,
+                                          thr=10**9, jal_thr=JAL_NAMED_THRESHOLD),
+                    _gen_with_br_threshold(asm, fn, prog, relocs, layout=False,
+                                          thr=BR_NAMED_THRESHOLD, jal_thr=10**9),
+                ]
+                if not any(form in text for form in forms):
                     problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
@@ -1565,11 +1705,20 @@ def main():
         except ConvError as e:
             gaprob=[f"GuestAddrs: {e}"]
         allprob+=gaprob
+        bare_j_files,bare_j_defs,bare_j_sites=count_bare_j_program_files(man)
+        if bare_j_files != EXPECTED_BARE_J_PROGRAM_FILES:
+            allprob.append(
+                f"bare local J ratchet: expected {EXPECTED_BARE_J_PROGRAM_FILES} "
+                f"source files, found {bare_j_files} "
+                f"({bare_j_defs} defs / {bare_j_sites} sites); update the "
+                "constant only with the corresponding migration")
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)
             sys.exit(1)
-        print(f"check-all: CLEAN ({len(man)} converted defs across {len(byfile)} files)")
+        print(f"check-all: CLEAN ({len(man)} converted defs across {len(byfile)} files; "
+              f"bare local J ratchet {bare_j_files} files / {bare_j_defs} defs / "
+              f"{bare_j_sites} sites)")
         return
     if args.command in ('rewrite','check-file'):
         funcs=[f.strip() for f in args.funcs.split(',') if f.strip()]
