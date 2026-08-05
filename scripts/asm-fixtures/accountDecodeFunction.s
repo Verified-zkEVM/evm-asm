@@ -19,8 +19,21 @@ account_decode:
   bnez a0, .Lad_fail
   la t0, ad_length; ld t1, 0(t0)
   li t2, 8
-  bgtu t1, t2, .Lad_fail      # nonce > 8 bytes
   la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
+  bgtu t1, t2, .Lad_nonce_long
+  j .Lad_nonce_acc_init
+.Lad_nonce_long:
+  sub t6, t1, t2              # leading bytes beyond the u64 width
+.Lad_nonce_pad_loop:
+  beqz t6, .Lad_nonce_pad_done
+  lbu t4, 0(t3)
+  bnez t4, .Lad_fail           # padding must be zero
+  addi t3, t3, 1
+  addi t6, t6, -1
+  j .Lad_nonce_pad_loop
+.Lad_nonce_pad_done:
+  mv t1, t2                   # consume exactly the low eight bytes
+.Lad_nonce_acc_init:
   li t2, 0                   # accumulator
 .Lad_nonce_loop:
   beqz t1, .Lad_nonce_done
@@ -42,13 +55,26 @@ account_decode:
   bnez a0, .Lad_fail
   la t0, ad_length; ld t1, 0(t0)
   li t2, 32
-  bgtu t1, t2, .Lad_fail      # balance > 32 bytes
+  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
+  bgtu t1, t2, .Lad_bal_long
+  j .Lad_bal_len_ok
+.Lad_bal_long:
+  sub t6, t1, t2              # leading bytes beyond the u256 width
+.Lad_bal_pad_loop:
+  beqz t6, .Lad_bal_pad_done
+  lbu t5, 0(t3)
+  bnez t5, .Lad_fail           # padding must be zero
+  addi t3, t3, 1
+  addi t6, t6, -1
+  j .Lad_bal_pad_loop
+.Lad_bal_pad_done:
+  mv t1, t2                   # copy exactly the low 32 bytes
+.Lad_bal_len_ok:
   # Zero balance_out
   sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)
   # Right-align: write to s3 + (32 - length)
   sub t2, t2, t1             # 32 - length
   add t4, s3, t2             # dst
-  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
 .Lad_bal_loop:
   beqz t1, .Lad_bal_done
   lbu t5, 0(t3)
