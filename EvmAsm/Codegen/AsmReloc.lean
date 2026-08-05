@@ -74,6 +74,13 @@ def laLo (sym pc : Nat) : BitVec 12 :=
 def jalOff (target pc : Nat) : BitVec 21 :=
   BitVec.ofInt 21 ((target : Int) - (pc : Int))
 
+/-- Intra-function conditional-branch byte offset: `target − pc` as a signed
+    13-bit PC-relative displacement (`pc` = the branch's own absolute address).
+    Prefer this over a bare `BitVec 13` literal when the target is a named
+    epilogue/join point — hardcoded distances drift when the body moves (#11510). -/
+def brOff (target pc : Nat) : BitVec 13 :=
+  BitVec.ofInt 13 ((target : Int) - (pc : Int))
+
 /-! Reduction sanity checks: the helpers must evaluate under the kernel so the
     per-function `#guard` length/prefix pins (which force `emitProgram`) hold.
     Positive, negative, and boundary deltas.  (Real-address correctness is the
@@ -95,5 +102,7 @@ example : laLo 0 0x1000 = (0 : BitVec 12) := by decide
 -- `jal` offsets, forward and backward.
 example : jalOff 0x100 0 = (0x100 : BitVec 21) := by decide
 example : jalOff 0 0x100 = (-0x100 : BitVec 21) := by decide
+example : brOff 0x100 0 = (0x100 : BitVec 13) := by decide
+example : brOff 0 0x100 = (-0x100 : BitVec 13) := by decide
 
 end EvmAsm.Codegen

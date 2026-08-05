@@ -28,16 +28,16 @@ eip8037_tx_gas_gate:
   sub x22, x10, x10
   add x5, x8, x10
   sub x22, x5, x21
-  bltu x5, x21, .+2076
-  beq x22, x0, .+2072
+  bltu x5, x21, .+2052
+  beq x22, x0, .+2048
   mv x10, x21
   jal x1, bgv_u32le
   andi x5, x10, 3
-  bne x5, x0, .+2056
+  bne x5, x0, .+2032
   srli x23, x10, 2
-  beq x23, x0, .+2048
+  beq x23, x0, .+2024
   li x5, 16
-  bltu x5, x23, .+2040
+  bltu x5, x23, .+2016
   mv x10, x21
   mv x11, x22
   mv x12, x23
@@ -55,7 +55,7 @@ eip8037_tx_gas_gate:
   li x24, 0
   la x5, bsg_blob_gas_accum
   sd x0, 0(x5)
-  beq x24, x23, .+1944
+  beq x24, x23, .+1920
   slli x5, x24, 2
   add x6, x21, x5
   mv x10, x6
@@ -69,7 +69,7 @@ eip8037_tx_gas_gate:
   jal x1, bgv_u32le
   jal x0, .+8
   mv x10, x22
-  bltu x10, x25, .+1888
+  bltu x10, x25, .+1864
   sub x26, x10, x25
   add x25, x21, x25
   mv x10, x25
@@ -77,10 +77,10 @@ eip8037_tx_gas_gate:
   la x12, bsg_tx_type
   la x13, bsg_tx_inner
   jal x1, tx_type_dispatch
-  bne x10, x0, .+1848
+  bne x10, x0, .+1824
   la x5, bsg_tx_inner
   ld x7, 0(x5)
-  bltu x26, x7, .+1832
+  bltu x26, x7, .+1808
   add x25, x25, x7
   sub x26, x26, x7
   la x5, bsg_tx_type
@@ -94,7 +94,7 @@ eip8037_tx_gas_gate:
   li x5, 4
   beq x6, x5, .+308
   beq x6, x0, .+8
-  jal x0, .+1772
+  jal x0, .+1748
   li x5, 2
   la x6, bsg_gas_field
   sd x5, 0(x6)
@@ -175,7 +175,7 @@ eip8037_tx_gas_gate:
   mv x11, x26
   la x13, bsg_tx_gas
   jal x1, rlp_field_to_u64
-  bne x10, x0, .+1344
+  bne x10, x0, .+1320
   la x5, bsg_tx_gas
   ld x6, 0(x5)
   la x5, bsg_value_field
@@ -185,7 +185,7 @@ eip8037_tx_gas_gate:
   la x13, bsg_value_off
   la x14, bsg_value_len
   jal x1, rlp_list_nth_item
-  bne x10, x0, .+1288
+  bne x10, x0, .+1264
   la x5, bsg_data_field
   ld x12, 0(x5)
   mv x10, x25
@@ -193,7 +193,7 @@ eip8037_tx_gas_gate:
   la x13, bsg_data_off
   la x14, bsg_data_len
   jal x1, rlp_list_nth_item
-  bne x10, x0, .+1244
+  bne x10, x0, .+1220
   la x5, bsg_data_off
   ld x6, 0(x5)
   add x6, x25, x6
@@ -206,14 +206,14 @@ eip8037_tx_gas_gate:
   la x13, bsg_to_off
   la x14, bsg_to_len
   jal x1, rlp_list_nth_item
-  bne x10, x0, .+1172
+  bne x10, x0, .+1148
   la x5, bsg_to_len
   ld x6, 0(x5)
   bne x6, x0, .+24
   la x5, bsg_data_len
   ld x6, 0(x5)
   lui x7, 0x20
-  bltu x7, x6, .+1128
+  bltu x7, x6, .+1112
   la x5, bsg_access_addrs
   sd x0, 0(x5)
   la x5, bsg_access_slots
@@ -230,7 +230,7 @@ eip8037_tx_gas_gate:
   la x13, bsg_access_off
   la x14, bsg_access_len
   jal x1, rlp_list_nth_item
-  bne x10, x0, .+1044
+  bne x10, x0, .+1020
   la x5, bsg_access_off
   ld x6, 0(x5)
   add x10, x25, x6
@@ -239,7 +239,7 @@ eip8037_tx_gas_gate:
   la x12, bsg_access_addrs
   la x13, bsg_access_slots
   jal x1, access_list_count
-  bne x10, x0, .+992
+  bne x10, x0, .+968
   la x5, bsg_auth_field
   ld x6, 0(x5)
   li x7, -1
@@ -250,7 +250,7 @@ eip8037_tx_gas_gate:
   la x13, bsg_auth_off
   la x14, bsg_auth_len
   jal x1, rlp_list_nth_item
-  bne x10, x0, .+936
+  bne x10, x0, .+912
   la x5, bsg_auth_off
   ld x6, 0(x5)
   add x10, x25, x6
@@ -258,7 +258,7 @@ eip8037_tx_gas_gate:
   ld x11, 0(x5)
   la x12, bsg_auth_count
   jal x1, rlp_list_count_items
-  bne x10, x0, .+892
+  bne x10, x0, .+868
   la x5, bsg_tx_type
   ld x6, 0(x5)
   li x7, 3
@@ -267,7 +267,7 @@ eip8037_tx_gas_gate:
   mv x11, x26
   la x12, tcbg_struct
   jal x1, tx_eip4844_decode
-  bne x10, x0, .+840
+  bne x10, x0, .+824
   la x5, tcbg_struct
   lwu x6, 168(x5)
   lwu x7, 172(x5)
@@ -275,38 +275,38 @@ eip8037_tx_gas_gate:
   mv x11, x7
   la x12, bsg_blob_count
   jal x1, rlp_list_count_items
-  bne x10, x0, .+800
+  bne x10, x0, .+784
   la x5, bsg_blob_count
   ld x6, 0(x5)
-  beq x6, x0, .+784
+  beq x6, x0, .+768
   li x7, 6
-  bltu x7, x6, .+776
+  bltu x7, x6, .+760
   slli x6, x6, 17
   la x5, bsg_blob_gas_accum
   ld x7, 0(x5)
   add x7, x7, x6
   lui x28, 0x2a0
-  bltu x28, x7, .+748
+  bltu x28, x7, .+732
   la x5, bsg_blob_gas_accum
   sd x7, 0(x5)
   addi x10, x8, 520
   jal x1, bgv_u64le
   la x11, bsg_blob_price_be
   jal x1, amsterdam_blob_gas_price_u256
-  bne x10, x0, .+712
+  bne x10, x0, .+696
   la x10, tcbg_blob_fee_be
   la x11, bsg_blob_price_be
   la x12, bsg_blob_lt_out
   jal x1, u256_lt_be
   la x5, bsg_blob_lt_out
   ld x5, 0(x5)
-  bne x5, x0, .+668
+  bne x5, x0, .+652
   mv x10, x25
   mv x11, x26
   li x12, 6
   la x13, bsg_blob_count
   jal x1, tx_eip4844_validate_blob_hashes
-  bne x10, x0, .+640
+  bne x10, x0, .+624
   la x5, bsg_tx_type
   ld x6, 0(x5)
   li x7, 4
@@ -316,10 +316,10 @@ eip8037_tx_gas_gate:
   jal x0, .+36
   la x5, bsg_auth_count
   ld x7, 0(x5)
-  beq x7, x0, .+592
+  beq x7, x0, .+576
   la x5, bsg_to_len
   ld x7, 0(x5)
-  beq x7, x0, .+576
+  beq x7, x0, .+560
   li x31, 0
   la x5, bsg_to_len
   ld x6, 0(x5)
@@ -373,7 +373,7 @@ eip8037_tx_gas_gate:
   sd x31, 8(x2)
   jal x1, intrinsic_gas_amsterdam_counts
   addi x2, x2, 16
-  bne x10, x0, .+312
+  bne x10, x0, .+288
   la x5, bsg_floor_gas
   ld x6, 0(x5)
   slli x7, x24, 3
@@ -394,11 +394,11 @@ eip8037_tx_gas_gate:
   bgeu x5, x31, .+8
   mv x5, x31
   lui x29, 0x1000
-  bltu x29, x5, .+196
+  bltu x29, x5, .+180
   mv x29, x27
   bgeu x29, x31, .+8
   mv x29, x31
-  bltu x6, x29, .+180
+  bltu x6, x29, .+164
   la x30, bsg_min_block_gas
   ld x7, 0(x30)
   bltu x19, x7, .+148
@@ -411,7 +411,7 @@ eip8037_tx_gas_gate:
   bltu x28, x5, .+120
   add x7, x7, x5
   sd x7, 0(x30)
-  bltu x6, x27, .+132
+  bltu x6, x27, .+108
   sub x7, x6, x27
   la x5, bsg_worst_state
   sd x7, 0(x5)
@@ -434,6 +434,7 @@ eip8037_tx_gas_gate:
   jal x0, .+16
   li x10, 3
   jal x0, .+8
+  # #11510 neutral fail/ok epilogue entry (full restore). Fail branches must target HERE.
   li x10, 0
   ld x1, 0(x2)
   ld x8, 8(x2)
