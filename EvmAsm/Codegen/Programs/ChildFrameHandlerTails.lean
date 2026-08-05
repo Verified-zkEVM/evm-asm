@@ -80,7 +80,7 @@ def precompileMessageProcessorAsm
     "  jal ra, account_read_record\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     -- A delegated marker additionally records its resolved code address.
-    callDelegationAccessChargeAsm tag ++
+    callDelegationAccessChargeAsm tag valueOff? ++
     -- Materialize the route-neutral descriptor and call the one emitted
     -- selector/pricing kernel.  Save the dispatcher ABI because the shared
     -- routine is intentionally free to use caller-saved registers.
