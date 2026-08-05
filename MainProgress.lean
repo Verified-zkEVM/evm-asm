@@ -150,7 +150,10 @@ private def kindLabel : EvmAsm.Progress.Correspondence.Layer → String
 
 private def fmtCorrRow (e : EvmAsm.Progress.Correspondence.Entry) : String :=
   let spec := match e.spec with | some t => s!"`{t}`" | none => "—"
-  s!"| `{e.family}` | {kindLabel e.kind} | `{e.routine}` | {spec} | {verdictLabel e.verdict} | {basisLabel e.basis} | {e.reference} |"
+  let port := match e.portDefect with
+    | some i => s!" **+ port defect (#{i})**"
+    | none => ""
+  s!"| `{e.family}` | {kindLabel e.kind} | `{e.routine}` | {spec} | {verdictLabel e.verdict}{port} | {basisLabel e.basis} | {e.reference} |"
 
 private def renderCorrespondence : String :=
   let rows := String.intercalate "\n" (EvmAsm.Progress.Correspondence.registry.map fmtCorrRow)
@@ -172,6 +175,7 @@ Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.m
 | stricter | {countVerdict EvmAsm.Progress.Correspondence.Verdict.stricter} |
 | **looser** | {countVerdict EvmAsm.Progress.Correspondence.Verdict.looser} |
 | no counterpart | {countVerdict EvmAsm.Progress.Correspondence.Verdict.noCounterpart} |
+| *(rows with a `SpecRef` port defect — an orthogonal axis, not a verdict)* | {EvmAsm.Progress.Correspondence.countPortDefect} |
 | n/a — unproven | {countVerdict EvmAsm.Progress.Correspondence.Verdict.unproven} |
 
 | Basis | Count | Meaning |
