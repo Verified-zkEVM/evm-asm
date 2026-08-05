@@ -556,28 +556,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- failed here was never a missing check -- it was a comment that said the opposite of what the
   -- code did, so a reader who came to ask whether attribution was handled found prose saying yes.
   --
-  -- THIS PATH IS THE ONE THAT DID NOT STAMP IT.  The four recipient-code-hash `bne`s above jump
-  -- straight to this label, PAST the EOA-recipient store, so a contract recipient -- the only tx
-  -- class that can execute SSTORE at all -- reached `dispatch_tx_runtime_code` with the index
-  -- still holding its static default 1, or whatever the last EOA/creation tx left behind.  The
-  -- SSTORE handler stamps `exec_log_txindex[row]` from it (.Lsstore_append_entry), so those rows
-  -- carried a value the transaction never wrote.  Measured: 398/400 rows disagreeing with i+1.
-  --
-  -- And the comment that used to sit here asserted the stamp WAS on this path, quoting the same
-  -- EIP-7928 rule, while the next emitted line stamped `dtrc_use_pre_header`, an unrelated flag.
-  --
-  -- The same old comment also called the consumers "still-unwired".  They are not:
-  -- `exec_log_txindex` is the a4 base of `bal_all_accounts_tuple_sequences_consistent_skip_list`
-  -- at both the mtx and single-tx call sites, and a nonzero return from either rejects the block.
-  -- Nothing objects today only because that comparator's per-change loop iterates zero times
-  -- (#10681) -- i.e. IT CANNOT BE MADE NON-VACUOUS UNTIL THIS STAMP EXISTS, because the first
-  -- thing a working comparator does is read a transaction index no contract tx ever wrote.
-  --
-  -- Demonstrated end to end on the EEST case `bal_cross_tx_storage_write[tx2_reverts_to_zero]`,
-  -- two transactions to the same contract (`0x600035600055`), whose declared BAL carries
-  -- blockAccessIndex 1 and 2 for the written slot.  Probing the max/min index the SSTORE handler
-  -- actually stamps, over two appends: WITHOUT this store min=max=1 (both transactions tagged 1);
-  -- WITH it min=1 max=2, matching the fixture's declared indices.  Verdict-neutral on that case.
+  -- The current block-access index remains live for the map-builder/account-write
+  -- seams below; it is no longer mirrored into a retired execution-log metadata
+  -- array.
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
@@ -682,18 +663,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- a zero receipt status retains only intrinsic/auth state gas after a body
   -- rollback, while a successful status includes the captured execution part.
   "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
-  -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
-  -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
-  -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
-  -- (mirrors state clearing), so capture only on success. The capture helper
-  -- filters seed/preload rows through explicit per-row provenance rather than
-  -- assuming they occupy a stable prefix of the live log.
-  -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
-  "  beqz a4, .Lbv_mtx_capture_done\n" ++
-  "  li a0, 0; la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  bnez a0, .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_capture_done:\n" ++
   -- Commit the just-successful transaction's current AccountState overlay before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
@@ -753,13 +722,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- fact with its own cursor, rather than reusing the dead frame checkpoint.
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
-  -- `blockVerdictMtxRecordSenderRefund` and the rollback helper both use
-  -- caller-saved a1/a2.  The snapshot ABI takes this transaction's captured
-  -- slice, not the cumulative `bv_user_storage_log`: a preparation halt has
-  -- no such rows, so restore base + length zero explicitly.  Do not reconstruct
-  -- from capture counters, which may still describe tx N-1 (and must remain
-  -- available to the later BAL consumer through the cumulative arena).
-  "  la a1, bv_user_storage_log; li a2, 0\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
