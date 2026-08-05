@@ -73,9 +73,13 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
     by `hashCell_zero` (the copy arm uses `hashCell_of_ne_zero`). That
     generalisation is why both arms can share the field-3 backbone.
 
-    ⚠️ Both arms need `adFoldConstants` in scope at `AB+552`/`AB+604`, so it has to
-    be threaded into the pre AND post of `adBBField2`, `adBBField3`, both
-    `adField*ContEpi`, both `adField*Success`, and `account_decode_spec_within` —
+    ⚠️ **Do the threading first.** `adFoldConstants` is not in scope at `AB+552` /
+    `AB+604` — `adContFrame` (`Close4:149`) carries `x0`, `x28`, `x29` and the input
+    region, but no `.data`. So `adRoot/adCodeFoldStore` cannot even be *applied* at
+    the two sites until the region reaches them, which makes the signature threading
+    a prerequisite rather than cleanup. It goes into the pre AND post of
+    `adBBField2`, `adBBField3`, both `adField*ContEpi`, `adField2Success`, and
+    `account_decode_spec_within` —
     the region is read and returned unchanged, so it frames straight through. This
     is a genuine new caller obligation: `account_decode` did not touch guest data
     before #11483. It ripples nowhere outside this chain, because
