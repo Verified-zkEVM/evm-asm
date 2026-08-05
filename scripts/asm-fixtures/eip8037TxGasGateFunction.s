@@ -427,7 +427,7 @@ eip8037_tx_gas_gate:
   sub x29, x19, x28
   bltu x29, x6, .+20
   addi x24, x24, 1
-  jal x0, .-1916
+  jal x0, .-1892
   li x10, 1
   jal x0, .+24
   li x10, 2
