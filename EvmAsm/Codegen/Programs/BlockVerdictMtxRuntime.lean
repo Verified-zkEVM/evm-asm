@@ -121,7 +121,11 @@ private def blockVerdictMtxRecordSenderRefund : String :=
     The terminal root pass remains authoritative for malformed witness handling;
     this early guard only prevents a speculative map seed. -/
 private def blockVerdictMtxGateSystemStorageSeed : String :=
-  "  la a0, bsr_addr_2935; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
+  -- account_at_header_state_root ABI: a0/a1 = header RLP, a2/a3 = address,
+  -- a4/a5 = witness state, a6 = out. (Swapped a0↔a2 made status=4 header-parse
+  -- fail, zeroed all system vlens, and left MTx seed a no-op — SLOAD never saw
+  -- 2935/4788 block-start writes; code-1 beacon CALL cluster.)
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bsr_addr_2935; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_sys2935_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys2935_code_cmp:\n" ++
@@ -136,7 +140,7 @@ private def blockVerdictMtxGateSystemStorageSeed : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_ident_cmp\n" ++
   ".Lbv_mtx_sys2935_present:\n" ++
-  "  la a0, bsr_addr_4788; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
+  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bsr_addr_4788; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_sys4788_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys4788_code_cmp:\n" ++
@@ -731,8 +735,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:
-  -- sender refund, coinbase fee, then incorporation.  In particular the fee
-  -- helper's balance lookup records a coinbase account read even when its
+  -- sender refund, coinbase fee, then incorporation.  In particular the
+  -- existing `account_state_latest_balance` wrapper records the coinbase
+  -- account read immediately before its balance lookup, even when the
   -- priority-fee credit is zero; promote that final per-transaction read at
   -- this transaction's incorporation boundary.
   -- The block-storage incorporation above is complete; retain the existing
