@@ -429,9 +429,13 @@ tolerates both. The reference decodes via `rlp.decode_to(Header, ...)` -- a TYPE
 rejects both -- so the guest matches the Python and only the port is lenient. WHY \
 `.specRefBug` AND NOT `.stricter`: `.stricter` records a false-reject against the GUEST, and \
 here the guest is the correct side; the divergence is #11513, which also covers the other \
-eight `getN` fields. ⚠️ The `rlp.decode_to` claim is NOT checkable against the submodule pin: \
-`ethereum_rlp` is an external package constrained only as a range (`pyproject.toml:28`, \
-`>=0.1.6,<0.2`), so this clause cites behaviour outside the pin -- see #11513. Tied by \
+eight `getN` fields. ⚠️ CITATION KIND, since `.ported` requires a clause table: the \
+`rlp.decode_to` clause cites an EXTERNAL package (`ethereum_rlp`), not the vendored tree, so \
+`scripts/check-spec-refs.sh` cannot machine-check it the way it checks a `forks/.../x.py:NNN` \
+line -- it is read, not verified. The VERSION is not the risk: `uv.lock` resolves \
+`ethereum-rlp == 0.1.6` exactly with a sha256, and 0.1.6 is precisely the version that \
+tightened decoding (`pyproject.toml`'s `>=0.1.6,<0.2` is a range, but only the lock is \
+authoritative -- see docs/agents/spec-correspondence.md 6a). See #11513. Tied by \
 `header_number_of_decode` \
 (`Codegen/Programs/HeaderExtractNumberBridge.lean`), consuming the machine triple \
 `header_extract_number_spec_within` and `decode_header_inv`. NOT NEEDED: any byte-string \
