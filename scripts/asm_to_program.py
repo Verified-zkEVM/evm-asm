@@ -274,11 +274,11 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # same commit that removes a bare long local J from a file.  Keeping this next
 # to the B/J policy makes the dual-accept window measurable instead of
 # permanent permission for a new hardcoded target.
-EXPECTED_BARE_J_PROGRAM_FILES = 58
+EXPECTED_BARE_J_PROGRAM_FILES = 53
 # Monotonic site-level ratchet for the same migration.  A conversion may
 # reduce this number, but a newly-bare long local J must fail check-all rather
 # than hide behind the mixed B/J transition.
-EXPECTED_BARE_J_SITES = 201
+EXPECTED_BARE_J_SITES = 190
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""

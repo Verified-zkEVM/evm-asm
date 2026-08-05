@@ -11,6 +11,8 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -280,7 +282,7 @@ def b1SenderTableFind_prog : Program :=
     .MV .x18 .x12,
     .LI .x19 (0 : Word),
     .MV .x20 .x9,
-    .BGEU .x19 .x20 (96 : BitVec 13),
+    .BGEU .x19 .x20 (brOff (GuestAddrs.b1_sender_table_find + 148) (GuestAddrs.b1_sender_table_find + 52)),
     .ADD .x21 .x19 .x20,
     .SRLI .x21 .x21 (1 : BitVec 6),
     .LI .x5 (40 : Word),
@@ -298,9 +300,9 @@ def b1SenderTableFind_prog : Program :=
     .ADDI .x7 .x7 (1 : BitVec 12),
     .JAL .x0 (-36 : BitVec 21),
     .ADDI .x19 .x21 (1 : BitVec 12),
-    .JAL .x0 (-72 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.b1_sender_table_find + 52) (GuestAddrs.b1_sender_table_find + 124)),
     .MV .x20 .x21,
-    .JAL .x0 (-80 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.b1_sender_table_find + 52) (GuestAddrs.b1_sender_table_find + 132)),
     .LI .x10 (0 : Word),
     .MV .x11 .x6,
     .JAL .x0 (8 : BitVec 21),
