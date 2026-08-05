@@ -349,7 +349,8 @@ def accountStateRecordNonstorageFunction : String :=
     updating code/existence.  `created-this-tx` is retained as an explicit
     bit for EIP-6780 finalization after the source switch.
 
-    a0 = address, a1 = retained code pointer, a2 = code length.
+    a0 = address, a1 = retained code pointer, a2 = code length, a3 = optional
+    execution-state resolver output (zero for the standalone probe).
     Returns zero on success and one on bounded-arena failure. -/
 def accountStateRecordCodeFunction : String :=
   "account_state_record_code:\n" ++
@@ -358,7 +359,14 @@ def accountStateRecordCodeFunction : String :=
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrc_clone\n" ++
   "  la t0, account_state_scratch; li t1, 0\n" ++
   ".Lasrc_zero:\n" ++
-  "  li t2, 128; beq t1, t2, .Lasrc_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrc_zero\n" ++
+  "  li t2, 128; beq t1, t2, .Lasrc_seed; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrc_zero\n" ++
+  -- Seed only the pre-state fields when the CREATE target was absent from
+  -- both execution overlays.  These fields are a baseline for the later
+  -- non-storage producer, not authoritative execution components, so the
+  -- code row keeps its existing mask.  A zero a3 preserves the standalone
+  -- probe's old contract.
+  ".Lasrc_seed:\n" ++
+  "  ld t4, 32(sp); beqz t4, .Lasrc_fields; ld t1, 8(t4); sd t1, 32(t0); ld t1, 16(t4); sd t1, 40(t0); ld t1, 24(t4); sd t1, 48(t0); ld t1, 32(t4); sd t1, 56(t0); ld t1, 0(t4); sd t1, 64(t0); j .Lasrc_fields\n" ++
   ".Lasrc_clone:\n" ++
   "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
   ".Lasrc_fields:\n" ++
@@ -797,6 +805,10 @@ def codeStateData : String :=
   "account_state_overflow:\n  .zero 8\n" ++
   -- BAL final-account scratch for the EIP-161 deferred-delete decision.
   "account_resolver_pre_acct:\n  .zero 48\n" ++
+  -- account_resolve_execution_state output for CREATE code publication:
+  -- nonce@0, balance@8..40, code pointer@40, code length@48, present@56.
+  ".balign 8\n" ++
+  "create_resolved_account_state:\n  .zero 64\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
@@ -813,7 +825,7 @@ def codeStateData : String :=
     Returns:
       a0 = 0 appended ok / 1 capacity overflow (record NOT written; overflow flag set)
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
-def createRecordCodeEffectFunction : String :=
+def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : String :=
   "create_record_code_effect:\n" ++
   -- Record empty-code CREATEs with has_code_change=0 so that EXTCODEHASH/EXTCODESIZE
   -- (#9525 fix) can find the address and return keccak("")/0 respectively, while the
@@ -829,6 +841,15 @@ def createRecordCodeEffectFunction : String :=
   "  add t1, s3, t0                                    # t1 = new free offset\n" ++
   "  li t2, " ++ toString execCodeEffectLogCap ++ "\n" ++
   "  bgtu t1, t2, .Lcrce_overflow\n" ++
+  (if resolveExecutionState then
+    -- Resolve the complete execution account before publishing either the code
+    -- effect row or its AccountState mirror.  Status 4 is witness
+    -- incompleteness (a valid block may lack a code preimage); status 5 is a
+    -- malformed authenticated lookup.  Neither status may fall back to
+    -- fabricated empty code or append a partial row.
+    "  la a1, create_resolved_account_state; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la t0, svf_codes_ptr; ld a6, 0(t0); la t0, svf_codes_len; ld a7, 0(t0); mv a0, s0; jal ra, account_resolve_execution_state\n" ++
+    "  li t0, 4; beq a0, t0, .Lcrce_resolver_unavailable; li t0, 5; beq a0, t0, .Lcrce_resolver_malformed\n"
+  else "") ++
   "  la t3, exec_code_effect_log; add t3, t3, s3       # t3 = entry base\n" ++
   "  sd x0, 0(t3); sd x0, 8(t3); sd x0, 16(t3); sd x0, 24(t3)   # zero 32B addr field\n" ++
   "  mv t4, s0; mv t5, t3; li t6, 20\n" ++
@@ -849,7 +870,9 @@ def createRecordCodeEffectFunction : String :=
   "  la t0, exec_code_effect_next; addi t1, s2, 55; andi t1, t1, -8; add t1, s3, t1; sd t1, 0(t0)\n" ++
   -- Publish the successful deposit into AccountState from the retained heap
   -- copy, never from the reusable create-child scratch.
-  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
+  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; " ++
+  (if resolveExecutionState then "la a3, create_resolved_account_state; " else "li a3, 0; ") ++
+  "jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
   ".Lcrce_account_state_ok:\n" ++
   -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
@@ -914,6 +937,12 @@ def createRecordCodeEffectFunction : String :=
   "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
+  (if resolveExecutionState then
+    ".Lcrce_resolver_unavailable:\n" ++
+    "  la t0, create_deposit_witness_incomplete_flag; li t1, 1; sd t1, 0(t0); li a0, 2; j .Lcrce_ret\n" ++
+    ".Lcrce_resolver_malformed:\n" ++
+    "  la t0, create_deposit_malformed_flag; li t1, 1; sd t1, 0(t0); li a0, 3; j .Lcrce_ret\n"
+  else "") ++
   ".Lcrce_overflow:\n" ++
   "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
@@ -1045,7 +1074,7 @@ def ziskCreateCodeEffectLogPrologue : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); sd t1, 64(s0)\n" ++  -- count
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lccel_done\n" ++
-  createRecordCodeEffectFunction ++ "\n" ++
+  createRecordCodeEffectFunction false ++ "\n" ++
   accountStateFindFunction ++ "\n" ++
   accountStateCopyFunction ++ "\n" ++
   accountStateAppendPendingFunction ++ "\n" ++

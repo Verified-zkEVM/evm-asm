@@ -24,7 +24,9 @@ private def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
-  "  la t0, teer_success_count; sd zero, 0(t0)\n"
+  "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n"
 
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
     The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
