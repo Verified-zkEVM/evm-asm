@@ -7,7 +7,7 @@
   ##  These "working-RAM anchors" are the layout contract for the           ##
   ##  in-progress `EvmAsm/Stateless/` port, which does NOT drive the        ##
   ##  emitted `stateless_guest` today. With one partial exception           ##
-  ##  (`STATE_TRACKER_AREA`, wired into the M24 storage exec-logs), NO      ##
+  ##  (`STATE_TRACKER_AREA`, a legacy M24 port-contract anchor), NO         ##
   ##  emitted guest instruction references any anchor below; the guest's    ##
   ##  real EVM memory / value stack / node & code tables live in `.data`    ##
   ##  (`-Tdata=0xa3000000`) and in place in the INPUT blob. Worse, the      ##
@@ -87,7 +87,7 @@
   | `EXECUTION_WITNESS_AREA`     | `0xa0030000`     | 1 MiB       |
   | `NODE_DB_BUCKETS`            | `0xa0130000`     | 4 MiB       |
   | `CODE_DB_BUCKETS`            | `0xa0530000`     | 1 MiB       |
-  | `STATE_TRACKER_AREA`         | `0xa0630000`     | 4 MiB       |
+  | `STATE_TRACKER_AREA`         | `0xa0630000`     | 4 MiB legacy |
   | `EVM_FRAME_STACK`            | `0xa0a30000`     | 256 KiB     |
   | `EVM_VALUE_STACK`            | `0xa0a70000`     | 1 MiB       |
   | `EVM_MEMORY_AREA`            | `0xa0b70000`     | 16 MiB      |
@@ -173,12 +173,11 @@ def NODE_DB_BUCKETS         : Word := 0xa0130000
     `WitnessCodeLookup.lean`); assertion vocabulary in
     `EvmAsm/Evm64/WitnessAssertions.lean`. -/
 def CODE_DB_BUCKETS         : Word := 0xa0530000
-/-- **LIVE (the one wired-in anchor)**: the M24 storage exec-logs —
-    persistent log at `0xa0630000`, transient at `0xa0830000`, 128-byte
-    entries, 2 MiB live extent (`Codegen/Programs/Storage.lean`,
-    `RegionMap.lean` `state_tracker_live`); assertion vocabulary in
-    `EvmAsm/Evm64/StorageAssertions.lean`. The remaining 2 MiB of the
-    4 MiB budget is unused. -/
+/-- **LEGACY M24 port-contract anchor**: the persistent 2 MiB runtime arena at
+    `0xa0630000` has been retired. The emitted guest keeps the transient
+    128-byte-row log at `0xa0830000`, modeled by `RegionMap`'s
+    `transient_storage_log` region. The address remains here because the
+    aspirational port and legacy Evm64 assertions still use the 4 MiB contract. -/
 def STATE_TRACKER_AREA      : Word := 0xa0630000
 /-- ASPIRATIONAL — `Stateless/VM/Message.lean` is scaffold-only. Emitted
     reality: per-frame slots live in `call_frame_arena` in `.data`
@@ -224,7 +223,7 @@ def SHA256_SCRATCH          : Word := 0xa1b90000
     spec's own words: these are *"shared references that survive rollback (reads
     from failed calls still appear in the Block Access List)"*.
 
-    The guest previously had **no read container at all** — one array of
+    The original guest had **no read container at all** — one array of
     128-byte rows (`STATE_TRACKER_AREA`) where a read was the *derived* case
     `current == original`. That collapse is what these regions remove: rollback
     truncates writes, and reads live here where rollback does not reach.

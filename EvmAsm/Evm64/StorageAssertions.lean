@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Evm64.StorageAssertions
+  EvmAsm.Evm64.StorageAssertions (legacy Option-A persistent-log model)
 
   Separation-logic assertions for the guest's storage data structures —
   the append-only storage exec-logs SLOAD/SSTORE (and TLOAD/TSTORE)
@@ -7,8 +7,12 @@
 
   ## Layout faithfulness (what this describes)
 
-  Derived from `EvmAsm/Codegen/Programs/Storage.lean` (M24 "Option A"
-  handlers), the authoritative layout:
+  This file preserves the verified M24 "Option A" persistent-log model for
+  legacy proofs. The emitted guest has retired that persistent arena and now
+  uses the transaction write/authenticated maps for SLOAD/SSTORE; the
+  transient-log assertions remain the live emitted storage-log model.
+
+  The legacy layout was derived from `EvmAsm/Codegen/Programs/Storage.lean`:
 
   * Two logs live in `STATE_TRACKER_AREA` (`0xa0630000`, 4 MiB —
     `EvmAsm/Stateless/MemoryLayout.lean`): the persistent storage log at
@@ -22,9 +26,8 @@
     limbs, low limb first — i.e. exactly the existing `evmWordIs`
     convention (`EvmAsm/Evm64/Stack.lean`); `addrHash` is compared
     dword-wise in the same shape.
-  * Entry `i` sits at `base + i * 128`; SSTORE **always appends** at
-    `base + logLength * 128` (the guest computes it as
-    `slli x16, x15, 7`, `Storage.lean:421`), never mutating prior
+  * In this legacy model, entry `i` sits at `base + i * 128`; SSTORE
+    **always appends** at `base + logLength * 128`, never mutating prior
     entries — REVERT is a log-length truncation.
   * Log lengths are u64 cells in the env block
     (`EvmAsm/Evm64/Environment/Layout.lean`): `env+448`
@@ -33,14 +36,10 @@
 
   ## Static sizing (the capacity parameter)
 
-  The persistent log arena is **statically capped at 16384 entries**
-  (`Storage.lean:381`, `Dispatch.lean:2242`; `Codegen/RegionMap.lean:155`
-  records the live extent `0xa0630000..0xa0830000` = 2 MiB = 16384 × 128).
-  The block gas limit bounds how many SSTOREs (≥ 100 gas each) a tx can
-  ever perform, so the fixed arena never overflows in valid executions;
-  the guest still guards the cap at runtime. `STORAGE_LOG_CAPACITY`
-  carries that constant; the placement lemmas below are stated for any
-  in-capacity index.
+  The legacy persistent log arena is **statically capped at 16384 entries**;
+  `STORAGE_LOG_CAPACITY` carries that constant and the placement lemmas below
+  are stated for any in-capacity index. The emitted guest no longer allocates
+  this arena or enforces its append guard.
 
   ## Canonical block write map
 
@@ -66,18 +65,16 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-! ## Constants (cited from the guest) -/
+/-! ## Constants (legacy Option-A model) -/
 
-/-- Bytes per storage-log entry (`Storage.lean` entry format). -/
+/-- Bytes per storage-log entry in the legacy Option-A format. -/
 def STORAGE_LOG_ENTRY_BYTES : Nat := 128
 
-/-- Static entry capacity of the persistent log arena
-    (`Storage.lean:381`, `Dispatch.lean:2242`): 16384 × 128 B = 2 MiB,
-    the live extent `0xa0630000..0xa0830000` recorded in
-    `Codegen/RegionMap.lean`. -/
+/-- Static entry capacity of the legacy persistent log arena: 16384 × 128 B
+    = 2 MiB. The emitted guest has retired this arena. -/
 def STORAGE_LOG_CAPACITY : Nat := 16384
 
-/-- Base of the persistent storage log — the bottom of
+/-- Base of the legacy persistent storage log — the bottom of
     `STATE_TRACKER_AREA`. -/
 def PERSISTENT_STORAGE_LOG_BASE : Word := Stateless.STATE_TRACKER_AREA
 

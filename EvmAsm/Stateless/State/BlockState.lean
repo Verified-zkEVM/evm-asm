@@ -38,10 +38,12 @@
 
   ## Working RAM
 
-  Lives in `STATE_TRACKER_AREA` (`MemoryLayout.lean`), sized
-  4 MiB. Account changes are keyed by address (20 bytes); storage
-  changes by (address, slot) pairs (52 bytes); code changes by
-  32-byte hash.
+  The aspirational port contract reserves `STATE_TRACKER_AREA`
+  (`MemoryLayout.lean`), sized 4 MiB. The emitted guest's persistent
+  storage path uses maps instead; only the separate transient-log sibling
+  remains live at `0xa0830000`. Account changes are keyed by address (20
+  bytes); storage changes by (address, slot) pairs (52 bytes); code changes
+  by 32-byte hash.
 
   ## PR-K10 status
 

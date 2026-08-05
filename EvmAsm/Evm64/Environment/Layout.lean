@@ -89,19 +89,16 @@ def callDataLenOff : Nat := 424
 def returnDataPtrOff : Nat := 432
 /-- Byte offset of `returnDataSize` within the env block. -/
 def returnDataSizeOff : Nat := 440
-/-- M24 — byte offset of `persistentLogLength` (u64) within the env
-    block. Live counter of entries in the persistent storage log at
-    `STATE_TRACKER_AREA = 0xa0630000`. Each entry is 128 B
-    `(addrHash:32, slotKey:32, original:32, current:32)`. Renamed from
-    M22's `slotTableCountOff` (semantic shift: was a count of M22's
-    64-B (key, value) entries in the dispatcher `.data` block; now a
-    count of M24's 128-B Option A entries in `STATE_TRACKER_AREA`). -/
+/-- M24 — byte offset of the retired `persistentLogLength` (u64) within the
+    env block. The emitted guest keeps this cell at zero for env-layout
+    compatibility; the legacy Option-A model uses it as the count of 128-B
+    `(addrHash:32, slotKey:32, original:32, current:32)` rows at
+    `STATE_TRACKER_AREA = 0xa0630000`. Renamed from M22's `slotTableCountOff`
+    (which counted 64-B `(key, value)` entries in the dispatcher `.data`). -/
 def persistentLogLengthOff : Nat := 448
-/-- M24 — byte offset of `persistentLogCheckpoint` (u64). Saved log
-    length captured at the end of the dispatcher prologue (post-
-    preload). REVERT restores `persistentLogLengthOff` to this value
-    to roll back any SSTORE entries appended during execution. The
-    log itself is the journal — no inverse-replay needed. -/
+/-- M24 legacy Option-A byte offset of `persistentLogCheckpoint` (u64). The
+    emitted guest no longer captures or restores a persistent-log checkpoint;
+    the cell remains reserved because env layout is shared with legacy proofs. -/
 def persistentLogCheckpointOff : Nat := 456
 /-- M24 — byte offset of `transientLogLength` (u64). Live counter of
     entries in the transient storage log at `0xa0830000` (EIP-1153

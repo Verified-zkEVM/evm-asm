@@ -185,8 +185,8 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     satWithin_ramRegion 0xa0020000 0x30000 (by omega) (by omega)
       (by omega) (by omega)
   have t4 : (regionScratch RegionMap.stateTrackerLiveRegion).SatWithin
-      0xa0630000 0xa0830000 :=
-    satWithin_ramRegion 0xa0630000 0x200000 (by omega) (by omega)
+      0xa0830000 0xa0a30000 :=
+    satWithin_ramRegion 0xa0830000 0x200000 (by omega) (by omega)
       (by omega) (by omega)
   -- Link pins are `abbrev` from RegionMapLinkPins (#11230). Use `decide` (not
   -- omega) so inequalities reduce through abbrevs; no hand-typed end/size hex.
