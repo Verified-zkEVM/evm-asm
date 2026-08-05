@@ -731,8 +731,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:
-  -- sender refund, coinbase fee, then incorporation.  In particular the fee
-  -- helper's balance lookup records a coinbase account read even when its
+  -- sender refund, coinbase fee, then incorporation.  In particular the
+  -- existing `account_state_latest_balance` wrapper records the coinbase
+  -- account read immediately before its balance lookup, even when the
   -- priority-fee credit is zero; promote that final per-transaction read at
   -- this transaction's incorporation boundary.
   -- The block-storage incorporation above is complete; retain the existing
