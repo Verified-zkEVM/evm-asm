@@ -2,13 +2,12 @@
   EvmAsm.Codegen.Programs.Storage
 
   M24 Option A storage handlers (SLOAD, SSTORE, TLOAD, TSTORE).
-  Supersedes M22's `(slotKey, value)` 64-byte-entry slot-table
-  approach with the Option A spec from issue #7130: a 128-byte
-  per-entry append-only log keyed by `(addrHash, slotKey)` with
-  separate `original` and `current` value cells.
+  The persistent compatibility/output bridge and transient log use 128-byte
+  entries keyed by `(addrHash, slotKey)`; canonical persistent reads and writes
+  now resolve through the transaction write map and authenticated fallbacks.
 
-  Two logs live in `STATE_TRACKER_AREA`:
-    0xa0630000  persistent storage log (SLOAD / SSTORE)
+  Two arenas live in `STATE_TRACKER_AREA`:
+    0xa0630000  persistent compatibility/output log (seed writes and finalization)
     0xa0830000  transient  storage log (TLOAD / TSTORE)
 
   Each entry is 128 bytes, 8-byte aligned:
@@ -17,25 +16,24 @@
                           caller's. Both the persistent (SLOAD/SSTORE) and the
                           transient (TLOAD/TSTORE) logs key on it.)
     +32..64  slotKey    (EVM-stack byte order: 4 LE u64 limbs, low first)
-    +64..96  original   (slot's pre-tx value; 0 for cold non-preloaded)
-    +96..128 current    (most recent committed value during this tx)
+    +64..96  persistent seed value (written by the compatibility bridge)
+    +96..128 persistent seed value (written by the compatibility bridge)
 
   Log lengths live in env:
-    env+448  persistentLogLengthOff  (live counter; SSTORE increments)
+    env+448  persistentLogLengthOff  (live counter; compatibility seed increments)
     env+456  retired (GH #10981; REVERT reads body_state_snapshot slab +40)
     env+464  transientLogLengthOff  (live counter; TSTORE increments; reset on REVERT)
 
   ## Semantics
 
-  **SLOAD (0x54)** — scan persistent log from end (last-write-
-  wins); on a miss resolve the authenticated value by key and append
-  a read seed, then let the same scan copy `current` to the stack-top
-  slot. Net stack delta = 0.
+  **SLOAD (0x54)** — resolve the current value from the transaction write
+  map, then the committed map or authenticated state on a miss. The
+  compatibility seed remains a write-side bridge while the persistent-log
+  reader is retired. Net stack delta = 0.
 
-  **SSTORE (0x55)** — scan from end; append a new entry preserving
-  the prior `original` on match (or 0 on miss). **Always appends**
-  (never mutates existing entries) — this is what makes REVERT a
-  single log-length truncation instead of a journal replay.
+  **SSTORE (0x55)** — resolve the transaction-start `original` and current
+  value from the write maps or authenticated state, charge EIP-2200 gas, and
+  upsert the transaction write map. Rollback is handled by its undo journal.
   Net stack delta = +64 (pops key + value).
 
   **TLOAD (0x5c)** — same shape as SLOAD against the transient log.
@@ -216,71 +214,6 @@ def sstoreValueTransitionGasAsm : String :=
   "  sd x16, 0(x15)\n" ++
   ".Lsstore_gas_done:\n"
 
-/-- GH #10874: reverse scan of the persistent storage log for the executing
-    frame's `(env.ADDRESS, stack key)`, setting `x18 = &found.original`
-    (`entry+64`) or leaving it `0` on a miss.
-
-    Extracted verbatim from `h_SSTORE`'s inline scan so `h_SLOAD` determines
-    "absent from the log" the SAME way rather than by a second implementation.
-
-    ⛔ The reason recorded here used to be *"that path is unreachable while the BAL
-    preload stages every slot a block reads"*. THAT IS REFUTED. `h_SSTORE`'s
-    cold-miss resolve -- which only runs when this scan MISSES -- executes **16 and
-    17 times** on two rows of the UNMODIFIED guest (`main` `d97788890`, GH #11105).
-    The preload does **not** stage every slot a block reads, and cold misses do
-    happen in production, so the `h_SLOAD` read is not blocked by unreachability.
-    What it does still need is a **present-slot** case: every measured cold miss
-    resolved a genuinely-absent slot, so the found path is unexercised.
-
-    Numeric local labels (`1:`/`2:`/`3:`) are unique-per-use, so a second
-    instantiation can coexist without a prefix parameter when the read lands.
-
-    Register convention -- identical at both sites, which is what makes this
-    shareable at all: `x20` = env base (`env.ADDRESS` at `+0..32`, log length at
-    `+448`), `x12` = stack pointer with the 32-byte slot key at `[x12+0..32]`.
-    Clobbers `x14`-`x18`; falls through to `2:` in both the hit and miss case. -/
-def storagePersistentLogFindAsm : String :=
-  "  li x18, 0\n" ++                -- x18 = "found.original ptr" (0 = not found)
-  "  ld x15, 448(x20)\n" ++         -- x15 = log_length
-  "  beqz x15, 2f\n" ++             -- empty log → skip scan
-  "  li x14, 0xa0630000\n" ++       -- x14 = log base
-  "  slli x16, x15, 7\n" ++
-  "  add x14, x14, x16\n" ++        -- x14 = past last entry
-  "1:\n" ++                         -- scan loop iter
-  "  addi x14, x14, -128\n" ++
-  -- Per-frame addrHash compare: isolate this contract's slots.
-  "  ld x16, 0(x14)\n" ++
-  "  ld x17, 0(x20)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 8(x14)\n" ++
-  "  ld x17, 8(x20)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 16(x14)\n" ++
-  "  ld x17, 16(x20)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 24(x14)\n" ++
-  "  ld x17, 24(x20)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 32(x14)\n" ++
-  "  ld x17, 0(x12)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 40(x14)\n" ++
-  "  ld x17, 8(x12)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 48(x14)\n" ++
-  "  ld x17, 16(x12)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  "  ld x16, 56(x14)\n" ++
-  "  ld x17, 24(x12)\n" ++
-  "  bne x16, x17, 3f\n" ++
-  -- Match: x18 = &found.original (= x14 + 64)
-  "  addi x18, x14, 64\n" ++
-  "  j 2f\n" ++
-  "3:\n" ++                         -- no match this entry — advance
-  "  addi x15, x15, -1\n" ++
-  "  bnez x15, 1b\n" ++
-  "2:\n"
-
 /-! The tx-level write map is the live same-transaction storage reader.  Its
     rows use the exact little-endian key bytes written by `storage_write_record`.
     On a hit this helper returns `x18 = out`, with `out[0..32]` equal to the
@@ -313,11 +246,10 @@ def storageTxMapFindAsm (p : String) (out : String) : String :=
   "  li x18, 0\n" ++
   ".L" ++ p ++ "_txmap_done:\n"
 
-/-! Append a compatibility read seed to the retired persistent log.  The
-    canonical `storage_writes` map is write-only, while the BAL preload and the
-    old SSTORE reader still use this read container until their producer is
-    retired.  `x18` is a resolved `(original,current)` pair or zero; the seed
-    records current in both value halves, as the old SLOAD path did. -/
+/-! Append a compatibility read seed to the retained persistent log. The handler
+    no longer reads this log; this write-side bridge remains until the separate
+    dual-write retirement. `x18` is a resolved `(original,current)` pair or zero;
+    the seed records current in both value halves. -/
 def storagePersistentLogSeedAsm (p : String) : String :=
   "  addi sp, sp, -8; sd x18, 0(sp)\n" ++
   "  ld x15, 448(x20)\n" ++
@@ -344,18 +276,18 @@ def storagePersistentLogSeedAsm (p : String) : String :=
   "  sd x0, 64(x14); sd x0, 72(x14); sd x0, 80(x14); sd x0, 88(x14)\n" ++
   "  sd x0, 96(x14); sd x0, 104(x14); sd x0, 112(x14); sd x0, 120(x14)\n" ++
   ".L" ++ p ++ "_seed_meta:\n" ++
-  "  la x16, current_block_access_index; ld x17, 0(x16)\n" ++
   "  addi x15, x15, 1; sd x15, 448(x20)\n" ++
   "  ld x18, 0(sp); addi sp, sp, 8\n"
 
-/-- GH #10874: resolve a persistent-log MISS to its authenticated pre-state
+/-- GH #10874: resolve a storage-key MISS to its authenticated pre-state
     value, in the THREE-TIER order execution-specs requires. Entered with
     `x18 = 0` (miss) or nonzero (hit, in which case it is a no-op); on success
     sets `x18` to a 64-byte `(original, current)` pair in LE-limb order.
 
     The tiers, and why the order is load-bearing:
 
-    1. the per-tx persistent log — already decided by the caller's scan;
+    1. the transaction write map, carrying current and the transaction-start
+       original;
     2. `storage_writes_block_latest_value`, which reads the canonical
        execution-specs `BlockState.storage_writes` map: a prior successful
        transaction's committed value is the next transaction's `original` AND
@@ -443,16 +375,6 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   -- Tier 1: same-transaction current plus the transaction-start original.
   storageTxMapFindAsm p out ++
   "  bnez x18, .L" ++ p ++ "_prestate_restore\n" ++
-  -- Compatibility tier: the BAL preload still materializes cold values in the
-  -- retired persistent log while its producer migration is in flight.  A
-  -- canonical-map miss must not turn an already-preloaded nonzero SLOAD into
-  -- zero (nor make SSTORE price that write as a missing slot).  The legacy
-  -- scanner returns the same `entry+64` original/current view expected by the
-  -- gas helper, so it is safe to hand the pointer through unchanged.  Once a
-  -- write has entered the tx map, the tier above wins and this path is not
-  -- consulted.
-  storagePersistentLogFindAsm ++
-  "  bnez x18, .L" ++ p ++ "_prestate_restore\n" ++
   -- Tier 2: the block-committed map (execution-specs' BlockState.storage_writes).
   "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
   "  la x14, storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
@@ -518,8 +440,8 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
 
 /-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
-  [ -- M24 real SLOAD. Scan persistent log from end (last-write-
-    -- wins); copy matching current to stack top; default 0 on miss.
+  [ -- M24 real SLOAD. Resolve through the transaction write map and the
+    -- authenticated fallback; append a compatibility seed on a miss.
     { label   := "h_SLOAD"
     , opcodes := [0x54]
     , preBody :=
@@ -569,13 +491,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- current half of its pair.
         "  addi sp, sp, -8\n" ++
         "  sd x11, 0(sp)\n" ++
-        -- Read the canonical tx map first, then retain the legacy preload
-        -- reader while the producer migration is in flight.  A miss on both
-        -- is a genuine cold read and is seeded after authenticated resolve so
-        -- a later SSTORE in this transaction still sees the same value.
+        -- Read the canonical tx map first. A miss is resolved through the
+        -- block map or authenticated state and then appended to the retained
+        -- persistent log as a compatibility bridge.
         storageTxMapFindAsm "sload_live" "sstore_prestate_pair" ++
-        "  bnez x18, .Lsload_live_use\n" ++
-        storagePersistentLogFindAsm ++
         "  bnez x18, .Lsload_live_use\n" ++
         storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
         storagePersistentLogSeedAsm "sload" ++
@@ -596,15 +515,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
       -- no longer linked from the handler.
     , body    := []
     , tail    := .advanceAndRet 1 }
-  , -- M24 real SSTORE. Scan persistent log from end; if found, save
-    -- &found.original for the append step. Then ALWAYS append a new
-    -- 128-byte entry at log[log_length] with (addrHash=0,
-    -- slotKey=stack[0..32], original=found_or_zero,
-    -- current=stack[32..64]). Increment log_length. Body's
+  , -- M24 real SSTORE. Resolve the transaction-start original and current
+    -- value through the transaction write map, committed map, and authenticated
+    -- fallback, then upsert the transaction write map. Body's
     -- `ADDI x12, x12, 64` does the net -2 stack pop.
-    --
-    -- Append-only is load-bearing: REVERT rolls back via log-length
-    -- truncation, which requires existing entries to be immutable.
     { label   := "h_SSTORE"
     , opcodes := [0x55]
     , preBody :=
@@ -619,8 +533,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  bltu x14, x15, .exit_outofgas\n" ++
         -- EIP-2929 storage-key access gas. The dispatch table already
         -- charged SSTORE's 100 warm floor, so this helper only charges
-        -- the 2900 cold delta on first key touch. Run before the scan /
-        -- append path so out-of-gas cannot mutate the storage log.
+        -- the 2900 cold delta on first key touch. Run before the resolver /
+        -- write-map path so out-of-gas cannot mutate persistent storage state.
         "  mv x17, x1\n" ++
         "  mv x18, x10\n" ++
         "  mv x19, x12\n" ++
@@ -655,7 +569,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi sp, sp, 24\n" ++
         -- execution-specs gives fresh-created accounts a transaction-local
         -- zero *original* view. `get_storage` still observes a prior write in
-        -- this transaction, so a matching log row must remain visible for the
+        -- this transaction, so a matching tx-map row must remain visible for the
         -- current half of a later SSTORE. `create_frame_flag` alone is too broad:
         -- it describes a depth, while helper/refund activity at that depth can
         -- address another account. Require the current env.ADDRESS (LE) to be
@@ -685,7 +599,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  beqz x18, .Lsstore_created_original_done\n" ++
         "  sd zero, 0(x18); sd zero, 8(x18); sd zero, 16(x18); sd zero, 24(x18)\n" ++
         ".Lsstore_created_original_done:\n" ++
-        -- The tx map is bounded independently of the retired execution log.
+        -- The tx map is bounded independently of the retained compatibility log.
         -- The recorder performs the authoritative upsert/capacity check; this
         -- fast guard rejects malformed counts before gas/refund work.
         "  la x14, tx_storage_writes_count; ld x15, 0(x14)\n" ++
@@ -754,8 +668,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- Both the append and the value-unchanged skip converge here, and the
         -- recorder is called on BOTH.  That is spec-faithful rather than
         -- sloppy: `set_storage` assigns unconditionally, and an upsert of the
-        -- same value is idempotent, so mirroring the exec log's
-        -- append-skipping optimisation here would be the reconstruction.
+        -- same value is idempotent, so skipping the map update here would be a
+        -- reconstruction rather than the specified unconditional assignment.
         --
         -- x12 still points at the pre-pop stack (the verified body's
         -- `ADDI x12, x12, 64` has not run), so key = x12[0..32] and the new
