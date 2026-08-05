@@ -73,7 +73,41 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
     by `hashCell_zero` (the copy arm uses `hashCell_of_ne_zero`). That
     generalisation is why both arms can share the field-3 backbone.
 
-    ⚠️ **Do the threading first.** `adFoldConstants` is not in scope at `AB+552` /
+    ### How to thread `adFoldConstants` — measured, not guessed
+
+    Attempted and reverted once; these are the findings, so the next pass does not
+    repeat the discovery.
+
+    ⭐ **Put it in `adWholePost`, not on each theorem's post.** Adding
+    `** adFoldConstants` to both branches of `adWholePost` (`Close4:96-103`, beside
+    `adCommon`) means **no post-side change anywhere in the backbone chain** — every
+    theorem whose post is `adWholePost` keeps its statement. `adFailArm` needs the
+    region in its pre and in the `F` it hands `adFailEpi` (with
+    `pcFree_adFoldConstants` in the `pcFree` witness). With just those two edits
+    **Close4 builds green**, which is the confirmation that this placement works.
+
+    ⚠️ `adFoldConstants` must then live in `AccountDecodeSpec`, not here — `Close4`
+    cannot import this module (`Fold` imports `Close4`). Move `ITR`/`ECH`/
+    `adFoldConstants`/`pcFree_adFoldConstants` up; the two byte-list constants are
+    already there.
+
+    Then six preconditions gain `** adFoldConstants` as the last conjunct of their
+    ambient group: `adField3Success`, `adField3ContEpi`, `adBBField3`,
+    `adField2Success`, `adField2ContEpi`, `adBBField2`. ⚠️ Watch the parens — the
+    ambient group ends `((.x15 : Reg) ↦ᵣ codeOut)))`, and the conjunct goes *after*
+    the first closing paren: `((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))`.
+
+    ⛔ **That is not sufficient, and it is where the reverted attempt stopped.** The
+    region has to be framed through each success arm's *composed chain*, not merely
+    named at its boundary — in `adField3Success` that means adding it to the
+    `set F := …` footprint (`Close5:268`) so `adSuccessEpi` carries it, and to the
+    `cpsTripleWithin_frameR` frames of the copy setup, the copy loop and both NOPs,
+    so the `xperm_hyp` at the final weaken still balances. Same shape in
+    `adField2Copy`/`adField2Success`. Budget for that rather than treating the six
+    signature edits as the whole job: it took the error count from 2 to 12, all of
+    them frame-balance failures rather than anything structural.
+
+    ⚠️ **Do the threading before the merges.** `adFoldConstants` is not in scope at `AB+552` /
     `AB+604` — `adContFrame` (`Close4:149`) carries `x0`, `x28`, `x29` and the input
     region, but no `.data`. So `adRoot/adCodeFoldStore` cannot even be *applied* at
     the two sites until the region reaches them, which makes the signature threading
