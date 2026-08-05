@@ -146,6 +146,11 @@ def b1SenderCountTableFunction : String :=
 
 /-! ## eip7702_authority_state_materialize
 
+    PROBE-ONLY: guest frozen S1 caller retired; symbols absent from linked image.
+    Live delegated_before_tx is eip7702_authority_asof (not this table's +40 field).
+    eas_write_entry writes delegated into a 48B authority-table row for the frozen
+    S1 path only — different purpose from MtxRuntime InvalidSender reject gate.
+
     S1's fixed authority substrate is deliberately separate from the old B1
     sender-only table.  Its input is a bounded stream of 32-byte padded
     addresses containing *both* transaction senders and recovered

@@ -454,7 +454,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
-  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
+  -- #11533 follow-up: eip7702_authority_state_materialize probe-only.
   blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
   eip8037BlockGasUsedFunction ++ "\n" ++
   txGasResultIncrementsFunction ++ "\n" ++
