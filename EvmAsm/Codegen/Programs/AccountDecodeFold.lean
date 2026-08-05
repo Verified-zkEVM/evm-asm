@@ -30,6 +30,61 @@ namespace EvmAsm.Codegen.AccountDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
+/-! ## Wiring recipe for the two `AccountDecodeClose5` sites
+
+    Recorded because the discovery cost more than the remaining edit will, and the
+    two sites (`Close5:474` field 3, `Close5:1037` field 2) are the last thing
+    between this branch and a green library.
+
+    Each length check became a 3-way when its taken edge stopped being the failure
+    block. Inside `case fail` of the existing `cpsBranchWithin_merge_same_cr`, apply
+    the zero-dispatch and merge again:
+
+    **Field 3** (`Close5:474`, entry `AB+596`)
+    ```
+    adCodeZeroDispatch len'                     AB+596 → 604 (len'=0) | 600 (len'≠0)
+      case fail (len' ≠ 0):  adCodeFoldFailJal ⨾ adFailArm
+          -- `DecodeFailure.field3Len offset len' hf3 hne32 hne0`; `hne0` is this
+          -- edge's own pure conjunct, which is why `field3Len` gained `hzero`.
+      case cont (len' = 0):  adCodeFoldStore ⨾ adCodeFoldJal ⨾ adSuccessEpi
+    ```
+    The last step is the point: `adCodeFoldJal` lands on `AB+496`, which is exactly
+    where the copy loop's two trailing NOPs land, so it reuses `adSuccessEpi`
+    (`Close3:48`) with the SAME footprint `F` that `adField3Success` builds at
+    `Close5:268`, one cell changed:
+
+        bytesRegion codeOut (fixed32Copied bytes oldCode o3)      -- copy arm
+        bytesRegion codeOut adEmptyCodeHashBytes                   -- fold arm
+
+    Nothing else in `F` differs. The registers the two arms leave in different
+    states (`x5` = `ECH` vs `adOffsetAddr`, `x7` = a hash dword vs `32`, `x21` not
+    advanced, `x28`/`x29` untouched) are all `regOwn` inside `adScratch codeOut`,
+    so their values are already irrelevant to `F`.
+
+    **Field 2** (`Close5:1037`, entry `AB+544`) is the same shape except the fold
+    rejoins `AB+392` rather than the epilogue:
+    ```
+    adRootZeroDispatch len'                     AB+544 → 552 | 548
+      case fail:  adRootFoldFailJal ⨾ adFailArm
+      case cont:  adRootFoldStore ⨾ adRootFoldJal ⨾ adBBField3
+    ```
+    `adBBField3` already takes the incoming root cell as a parameter, so the fold
+    arm instantiates `rootCell := adEmptyTrieRootBytes` with `hrootCell` discharged
+    by `hashCell_zero` (the copy arm uses `hashCell_of_ne_zero`). That
+    generalisation is why both arms can share the field-3 backbone.
+
+    ⚠️ Both arms need `adFoldConstants` in scope at `AB+552`/`AB+604`, so it has to
+    be threaded into the pre AND post of `adBBField2`, `adBBField3`, both
+    `adField*ContEpi`, both `adField*Success`, and `account_decode_spec_within` —
+    the region is read and returned unchanged, so it frames straight through. This
+    is a genuine new caller obligation: `account_decode` did not touch guest data
+    before #11483. It ripples nowhere outside this chain, because
+    `account_decode_spec_within` has no external consumers.
+
+    Post-weakening for the fold arms mirrors `Close5:348-360`: `Or.inl` with the
+    eight witnesses, `hDecoded` (whose hash clause is the `= 0` disjunct here), then
+    `adSuccessOut` with `hashCell_zero` collapsing the cell to the constant. -/
+
 /-! ## The fold constants' guest addresses
 
     Both live in the `.data` RAM window and both are 8-byte aligned, which is
