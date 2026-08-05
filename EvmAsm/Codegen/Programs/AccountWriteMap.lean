@@ -240,6 +240,48 @@ def accountWriteRecordFunction : String :=
   "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp); addi sp, sp, 128\n" ++
   "  ret\n"
 
+/-! ## `account_writes_latest_balance`
+
+    Read the current balance from the spec-shaped account-write maps.  The
+    transaction map is checked first because block-level producers can append
+    several effects before the transaction map is incorporated; the
+    block-cumulative map is checked second.  A matching row without the
+    BALANCE-valid bit is not a balance hit, so a code/nonce/touch-only row does
+    not erase the caller's authenticated fallback.  Both maps are keyed
+    upserts, hence each hit is already the latest write for that tier.
+
+    a0 = canonical 20-byte BE address pointer
+    a1 = 32-byte BE balance output, written only on a BALANCE hit
+    returns a0 = 1 on hit and 0 on miss. -/
+def accountWritesLatestBalanceFunction : String :=
+  "account_writes_latest_balance:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawlb_tx_loop:\n" ++
+  "  bgeu t3, t1, .Lawlb_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawlb_tx_cmp:\n" ++
+  "  beqz t6, .Lawlb_tx_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlb_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlb_tx_cmp\n" ++
+  ".Lawlb_tx_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
+  ".Lawlb_tx_key:\n" ++
+  "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
+  ".Lawlb_block_init:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawlb_block_loop:\n" ++
+  "  bgeu t3, t1, .Lawlb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawlb_block_cmp:\n" ++
+  "  beqz t6, .Lawlb_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlb_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlb_block_cmp\n" ++
+  ".Lawlb_block_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlb_block_loop\n" ++
+  ".Lawlb_block_key:\n" ++
+  "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_block_loop\n" ++
+  ".Lawlb_hit:\n" ++
+  "  ld t0, 32(t5); sd t0, 0(s1); ld t0, 40(t5); sd t0, 8(s1); ld t0, 48(t5); sd t0, 16(s1); ld t0, 56(t5); sd t0, 24(s1); li a0, 1; j .Lawlb_ret\n" ++
+  ".Lawlb_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawlb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
+
 /-! ## `account_writes_block_upsert`
 
     Upsert one record into the BLOCK level. Called only by
@@ -1028,9 +1070,11 @@ def accountWriteTouchE2eFunction : String :=
 
 /-- Every routine in this module, in emission order. `account_write_record`
     calls `account_writes_undo_push`, and `account_writes_incorporate_tx` calls
-    `account_writes_block_upsert`, so all five must be emitted together. -/
+    `account_writes_block_upsert`, so the complete map helper family is emitted
+    together. -/
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
+  accountWritesLatestBalanceFunction ++
   accountWritesBlockUpsertFunction ++
   accountWritesApplyDeletesFunction ++
   accountWritesIsAbsentFunction ++
@@ -1077,6 +1121,7 @@ def accountWriteMapFunctions : String :=
 -- them yet and a missing one would NOT be a link error -- these guards are the
 -- only thing that would catch it.
 #guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_latest_balance:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
