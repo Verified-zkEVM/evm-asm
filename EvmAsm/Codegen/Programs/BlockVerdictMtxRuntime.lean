@@ -486,6 +486,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
   "  bnez a0, .Lbv_auth_prepare_fail\n" ++  -- was 40 → 72
+  -- Auth-phase ExceptionalHalt (per-auth OOG): prepare returned a0=0 with
+  -- runtime_tx_auth_phase_halted set. Publish failed receipt (gas_left=0,
+  -- status=0) and rejoin the shared postlude — do NOT enter dispatch (would
+  -- clear halted and run body). account_reads from asof before OOG stay.
+  "  la t0, runtime_tx_auth_phase_halted; ld t1, 0(t0); bnez t1, .Lbv_mtx_auth_phase_oog\n" ++
   ".Lbv_mtx_nonce_done:\n" ++
   -- Creation needs the same sender/public-key and nonce setup as every other
   -- multi-tx item before its runtime adapter can derive CREATE(sender, nonce).
@@ -692,22 +697,23 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- latched failure at the transaction boundary rather than serializing a
   -- truncated block map later.
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  -- The debit was materialized before execution; apply the spec's later
-  -- sender `create_ether` refund before AccountState commits this transaction.
-  blockVerdictMtxRecordSenderRefund ++
+  -- Auth-phase / prepare-prefix halt: drop auth-produced account_writes first.
+  -- Finalize already restored AccountState pending to the pre-auth checkpoint
+  -- (sender inclusion kept). Do not zero pending here — that dropped inclusion
+  -- and forced a post-wipe reseed race. Auth OOG never enters the dispatcher, so
+  -- seed upfront after the writes restore, then refund, then skip the success
+  -- commit (coinbase + final commit_pending below still run).
   "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); bnez t2, .Lbv_mtx_preparation_rollback\n" ++
-  -- A pre-dispatch execution-gas OOG is marked by the preparation-prefix
-  -- status rather than by the authorization-phase halt flag.  Refund the
-  -- staged sender debit first; then discard the preparation overlay exactly
-  -- as the auth-halt arm does.
-  "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; bne t2, t3, .Lbv_mtx_code_commit\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; bne t2, t3, .Lbv_mtx_refund_then_commit\n" ++
   ".Lbv_mtx_preparation_rollback:\n" ++
-  -- `process_message` restores the preparation snapshot when preparation
-  -- itself halts.  The map's direct auth producer mirrors that control-flow
-  -- fact with its own cursor, rather than reusing the dead frame checkpoint.
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
-  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
-  "  j .Lbv_mtx_code_commit_done\n" ++
+  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
+  "  la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
+  "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
+  ".Lbv_mtx_refund_then_commit:\n" ++
+  blockVerdictMtxRecordSenderRefund ++
+  "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit_done\n" ++
+  "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; beq t2, t3, .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
@@ -863,6 +869,23 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_create_addr; la t1, bv_mtx_ctx; addi t1, t1, 72; li t2, 20\n" ++
   ".Lbv_mtx_creation_collision_key_copy:\n  beqz t2, .Lbv_mtx_creation_collision_effects; lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_mtx_creation_collision_key_copy\n" ++
   ".Lbv_mtx_creation_collision_effects:\n" ++
+  "  j .Lbv_mtx_effects_kept\n" ++
+  -- EIP-7702 set_delegation ExceptionalHalt (per-auth state-gas OOG). Prepare
+  -- already rolled pending/effects and left halted=1 + a0=0. Publish a failed
+  -- receipt with gas_left=0 and rejoin the shared postlude. Do NOT seed upfront
+  -- here: finalize (halted) restores pending to the pre-auth checkpoint and
+  -- would wipe a pre-finalize seed; effects_kept re-seeds after finalize.
+  ".Lbv_mtx_auth_phase_oog:\n" ++
+  "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_refund; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t0, runtime_tx_calldata_floor; ld t5, 0(t0); la t3, bv_mtx_calldata; add t3, t3, t2; sd t5, 0(t3)\n" ++
+  "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_tx_auth_phase_applied_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
+  bvReceiptsShapeSet 5 true ++
   "  j .Lbv_mtx_effects_kept\n" ++
   -- Fresh target: mirror the single CREATE prepare_dispatch charge.  A
   -- collision stays conservative until its error-receipt publication is also

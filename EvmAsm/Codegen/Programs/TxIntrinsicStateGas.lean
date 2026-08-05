@@ -279,7 +279,10 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_auth_charge_used:\n" ++
   "  la t2, runtime_tx_auth_state_charge; sd zero, 0(t2); j .L77prep_auth_charge_done\n" ++
   ".L77prep_auth_charge_oog:\n" ++
-  "  li a0, 1; j .L77prep_ret\n" ++
+  -- Distinct from parse/RLP fail (a0=1): charge OOG is ExceptionalHalt of the
+  -- tx (failed receipt), not a block-level prepare hard-fail. Callers map 2 →
+  -- halted + a0=0 so MTx publishes status=0 without code 72.
+  "  li a0, 2; j .L77prep_ret\n" ++
   ".L77prep_auth_charge_done:\n" ++
   ".L77prep_regular:\n" ++
   -- ACCOUNT_WRITE is charged exactly once for a non-sender authority in this
@@ -400,12 +403,44 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_next; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
   -- The ordered transaction boundary is before recipient/code resolution in
   -- the guest, just as `process_message` applies `set_delegation` before
-  -- `prepare_dispatch` (interpreter.py:356-365).  Run the aggregate helper at
-  -- this single boundary, with the already-live state-gas pointer and
-  -- rollback checkpoint, and let the dispatcher consume only the accumulated
-  -- charge after this marker is set.
-  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); li a4, -1; jal ra, eip7702_auth_state_prepare\n" ++
+  -- `prepare_dispatch` (interpreter.py:356-365).  Pass live regular gas in a4
+  -- (fork.py gas split before set_delegation) so per-auth NEW_ACCOUNT/AUTH_BASE
+  -- can ExceptionalHalt mid-list. a4=-1 aggregate mode skipped that OOG and
+  -- recorded every recovered authority into account_reads (code-60 type4 empty
+  -- shells; 01767 +243). ACCOUNT_WRITE stays deferred to top_frame_regular_gas.
+  "  la a0, bv_mtx_ctx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
+  "  mv t2, a1\n" ++
+  -- Publish floor for auth-phase OOG receipt path (no dispatcher return a2).
+  "  la t0, runtime_tx_calldata_floor; sd a2, 0(t0); la t0, bv_runtime_calldata_floor; sd a2, 0(t0)\n" ++
+  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t3, 0(t1)\n" ++
+  "  la t0, bv_mtx_ctx; ld t4, 40(t0)\n" ++
+  "  add t5, t2, t3\n" ++
+  "  bltu t4, t5, .Lbvtgip_restore\n" ++
+  "  sub t5, t4, t5\n" ++
+  "  li t6, 16777216\n" ++
+  "  bgeu t2, t6, .Lbvtgip_restore\n" ++
+  "  sub t6, t6, t2\n" ++
+  "  la t1, evm_state_gas_left; sd zero, 0(t1)\n" ++
+  "  bleu t5, t6, .Lbvtgip_a4_no_res\n" ++
+  "  sub t0, t5, t6\n" ++
+  "  sd t0, 0(t1)\n" ++
+  "  mv a4, t6\n" ++
+  "  j .Lbvtgip_call_auth\n" ++
+  ".Lbvtgip_a4_no_res:\n" ++
+  "  mv a4, t5\n" ++
+  ".Lbvtgip_call_auth:\n" ++
+  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
+  "  beqz a0, .Lbvtgip_auth_ok\n" ++
+  "  li t1, 2; beq a0, t1, .Lbvtgip_auth_oog\n" ++
+  "  j .Lbvtgip_restore\n" ++
+  ".Lbvtgip_auth_oog:\n" ++
+  "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
+  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
+  "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3)\n" ++
+  "  li a0, 0; j .Lbvtgip_ret\n" ++
+  ".Lbvtgip_auth_ok:\n" ++
   "  ld t0, 48(sp); li t1, 4; bne t0, t1, .Lbvtgip_ret\n" ++
   "  li t1, 1; la t0, runtime_tx_auth_prepared; sd t1, 0(t0); j .Lbvtgip_ret\n" ++
   ".Lbvtgip_restore:\n" ++
