@@ -29,7 +29,13 @@ namespace EvmAsm.Codegen
     capacity is therefore the conservative three-term bound: 20,480 account
     rows + 16,384 storage rows + 2 system owners = 36,866.  Keep this tied to
     the authenticated map caps rather than to the 64-entry runtime
-    access-account scratch table. -/
+    access-account scratch table.
+
+    Each 32-byte entry carries a one-byte origin tag at offset 20: `1` is a
+    modeled-system seed, `2` an account-map owner, and `3` a storage-map owner.
+    An account-map hit on a modeled seed promotes that entry in place, so the
+    union remains deduplicated while the map post can replace the earlier
+    modeled-system value. -/
 def bsrMapOwnerCapacity : Nat :=
   blockAccountWritesCapacity + storageWritesCapacity + bsrModeledSystemChanges
 
@@ -522,7 +528,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
   "bv_runtime_intrinsic_state_gas:\n  .zero 8\n" ++
   -- Last dispatch_tx_runtime_code status: 0 success; 1 code lookup; 2 non-self-contained;
-  -- 3 BAL/account/key cap; 4 storage proof/slot lookup; 5 payload cap; 6 staging;
+  -- 3 RETIRED (#11183 ROW 10 parse-bail); 4 storage proof/slot lookup; 5 payload cap; 6 staging;
   -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
   "bv_dispatch_runtime_status:\n  .zero 8\n" ++
   -- Runtime-gas completeness classifier: 0 complete/unknown, 1 gas-result arena tx/count/cap,
@@ -530,15 +536,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 4 multi-tx dispatch unsupported, 5 multi-tx generic bail. Nonzero is debug-only.
   "bv_runtime_completeness_status:\n  .zero 8\n" ++
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
-  -- GH #11176: bvcd_keys (3,200,000 B) and bvcd_preload (6,400,000 B) plus the
-  -- bvcd_key_count / bvcd_sc_count / bvcd_i cursors are GONE with the eager recipient
-  -- storage preload -- 9,600,024 B = 9.155 MiB of .bss. bvcd_acct_ptr / bvcd_acct_len
-  -- REMAIN: bal_find_account_by_address still writes them for the parse-validity bail.
+  -- GH #11176: bvcd_keys/preload GONE. #11183 ROW 10: bvcd_acct_ptr/len GONE with
+  -- supplied-BAL parse-bail (no spec counterpart; CHECK not BIND).
   ".balign 8\n" ++
   "bvcd_code_ptr:\n  .zero 8\n" ++
   "bvcd_code_len:\n  .zero 8\n" ++
-  "bvcd_acct_ptr:\n  .zero 8\n" ++
-  "bvcd_acct_len:\n  .zero 8\n" ++
   -- bmvmx.1.6.2 bal_storage_change_values scratch (tuple path). matches/covers/allaccounts data unlinked #10681.
   balStorageChangeValuesData ++
   -- #11118: bacov_*/bsr_krev guest data removed with dead code_covers (43) and reads (38).
@@ -717,6 +719,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   "svf_codes_ptr:\n  .zero 8\n" ++
   "svf_codes_len:\n  .zero 8\n" ++
   ".balign 32\n" ++
+  "cd_canonical_2935_code_hash:\n" ++
+  "  .byte 0x6e,0x49,0xe6,0x67,0x82,0x03,0x7c,0x05,0x55,0x89,0x78,0x70,0xe2,0x9f,0xa5,0xe5,0x52,0xda,0xf4,0x71,0x95,0x52,0x13,0x1a,0x0a,0xbc,0xe7,0x79,0xda,0xec,0x0a,0x5d\n" ++
+  ".balign 32\n" ++
+  "cd_canonical_4788_code_hash:\n" ++
+  "  .byte 0xf5,0x7a,0xcd,0x40,0x25,0x98,0x72,0x60,0x6d,0x76,0x19,0x7e,0xf0,0x52,0xf3,0xd3,0x55,0x88,0xda,0xdf,0x91,0x9e,0xe1,0xf0,0xe3,0xcb,0x9b,0x62,0xd3,0xf4,0xb0,0x2c\n" ++
+  ".balign 32\n" ++
   "wclh_scratch_hash:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "svf_headers_ptr:\n  .zero 8\n" ++
@@ -724,49 +732,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
   ".balign 8\n" ++
   "c1_saved_logcount:\n  .zero 8\n" ++
-  "c1_system_log_cursor:\n  .zero 8\n" ++
-  -- bmvmx.5.5.1.2.1.3.1.1: side arena for system-call SSTORE rows.
-  -- The system-call derives append to the regular storage log, then the verdict
-  -- restores evm_env+448 so user storage/nonstorage comparators preserve their
-  -- current behavior. Capture those erased rows here with txindex=0 for the
-  -- follow-up tuple-merge comparator.
+  -- Modeled EIP-2935/EIP-4788 startup rows are staged here while the MTx setup
+  -- feeds the authenticated storage map and BAL builder.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   -- Set only around the pre-user descriptor pass: reuse the row conversion
   -- without emitting a duplicate side-log/BAL event before terminal replay.
   "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
-  -- 4ch8f.73: bv_system_storage_log is a STANDALONE .data region (NOT unioned into
-  -- call_frame_arena). The former ~77 MiB union placement was UNSOUND: the audit's
-  -- claimed "dead during Phase-D dispatch" was false — the syslog is WRITTEN
-  -- pre-dispatch (capture_system_storage_exec_rows) but READ POST-dispatch by the
-  -- BAL validators (bal_storage_matches_exec_log @BlockVerdictFunction:972,
-  -- bal_storage_covers_exec_log :984, account_tuple_sequences_consistent :1135),
-  -- while per-tx dispatch frames at depth ≥ 221 physically zero the union front
-  -- (call_frame_arena + (d-1)*0x39000 covers the syslog extent). Reservation was
-  -- also tightened from the unreachable gas bound (600000 rows) to
-  -- bvSystemStorageLogCapacity (= 2 * runtime exec-log cap 16384; see
-  -- BlockVerdictParams) so the standalone region is only 4 MiB and fits the .data
-  -- headroom. Disjointness from every frame slot: syslog_disjoint_from_frameArena
-  -- (RegionMap.lean).
+  -- Keep the modeled-system staging arena standalone from call_frame_arena.
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
-  ".balign 8\n" ++
-  "bv_system_storage_capture_status:\n  .zero 8\n" ++
-  "bv_system_storage_capture_start:\n  .zero 8\n" ++
-  "bv_system_storage_capture_end:\n  .zero 8\n" ++
-  "bv_system_storage_capture_rows:\n  .zero 8\n" ++
-  "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
-  "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
-  "cssc_stamp_txindex:\n  .zero 8\n" ++       -- lv44p.2.2: block_access_index stamped into captured system rows
-  -- bmvmx.5.5.10 PR-2: per-tx USER-write side arena. The live exec log only holds
-  -- the LAST dispatch's rows (each dispatch resets persistentLogLength), so the
-  -- mtx loop captures each tx's surviving SSTORE rows here (same 128-byte layout,
-  -- txindex = block_access_index i+1) for the forward BAL storage comparator.
-  -- Standalone region, same disjointness argument as bv_system_storage_log.
-  "bv_user_storage_log_count:\n  .zero 8\n" ++
-  "bv_user_storage_txindex:\n  .zero " ++ toString bvUserStorageTxindexBytes ++ "\n" ++
-  ".balign 32\n" ++
-  "bv_user_storage_log:\n  .zero " ++ toString bvUserStorageLogBytes ++ "\n" ++
   ".balign 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++

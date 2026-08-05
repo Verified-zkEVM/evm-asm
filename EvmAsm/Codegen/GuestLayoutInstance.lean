@@ -36,6 +36,17 @@ def guestLayout : GuestLayout :=
     u256_mul_u64_be := GuestAddrs.u256_mul_u64_be
     priority_fee_per_gas_eip1559 := GuestAddrs.priority_fee_per_gas_eip1559
     u256_sub_be := GuestAddrs.u256_sub_be
-    u256_min := GuestAddrs.u256_min }
+    u256_min := GuestAddrs.u256_min
+    call_frame_arena := GuestAddrs.call_frame_arena
+    frame_base := GuestAddrs.frame_base
+    mpt_set_record_walk_db := GuestAddrs.mpt_set_record_walk_db
+    mpt_delete_walk_db := GuestAddrs.mpt_delete_walk_db
+    rlp_walk_init := GuestAddrs.rlp_walk_init
+    rlp_walk_next := GuestAddrs.rlp_walk_next
+    bal_account_has_state_change := GuestAddrs.bal_account_has_state_change
+    bams_addr_ptr := GuestAddrs.bams_addr_ptr
+    bams_addr_2935 := GuestAddrs.bams_addr_2935
+    bams_addr_4788 := GuestAddrs.bams_addr_4788
+    bal_account_is_modeled_system := GuestAddrs.bal_account_is_modeled_system }
 
 end EvmAsm.Codegen

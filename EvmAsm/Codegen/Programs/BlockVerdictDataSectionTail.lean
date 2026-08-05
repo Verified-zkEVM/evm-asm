@@ -270,16 +270,15 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bfa_out_len:\n  .zero 8\n" ++
   "bfa_addr_hit:\n  .zero 20\n" ++
   "bfa_addr_miss:\n  .zero 20\n" ++
-  -- coc3g.5 multi-hop: bal_same_block_delegation_code_resolve target-same-block-code
+  -- coc3g.5 multi-hop: account_state_delegation_code_resolve target-same-block-code
   -- fallback scratch (the single-hop target account record found in the BAL when the
   -- target's code is ALSO same-block-installed, not in the pre-state witness).
   ".balign 8\n" ++
   "bsbd_tgt_ptr:\n  .zero 8\n" ++
   "bsbd_tgt_len:\n  .zero 8\n" ++
   "bsbd_code_from_bal:\n  .zero 8\n" ++
-  -- .6.2.2.2.a: bal_txs_independent private scratch (the independence-guard
-  -- walkers' cursors/counters; the probe's bti_bal_* fixtures are NOT needed in
-  -- the verdict guest, only this scratch). All runtime-written before read.
+  -- #11183: bti_* scratch RESERVED (bal_txs_independent unlinked from guest;
+  -- probe-only). Layout-stable zeros; not written by guest path.
   ".balign 8\n" ++
   "bti_acct_cnt:\n  .zero 8\n" ++
   "bti_aoff:\n  .zero 8\n" ++
@@ -378,8 +377,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- compatibility/debug signals for the paths that originally introduced them.
   "bv_receipts_completeness_shape:\n  .zero 8\n" ++
   "bv_receipts_enforce_enabled:\n  .zero 8\n" ++
-  -- Capture-only deposit dispatch deliberately leaves the receipt/gas arena
-  -- unpublished; completeness means its per-tx log windows are authoritative.
+  -- #11183 RESERVED always-0: deposit-capture-only route retired (no spec
+  -- counterpart). Slots kept so layout offsets stay stable; no live setter.
   "bv_deposit_capture_only:\n  .zero 8\n" ++
   "bv_deposit_runtime_capture_complete:\n  .zero 8\n" ++
   "bmvmx_gas_used:\n  .zero 8\n" ++
@@ -570,7 +569,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n" ++
   -- #11118: baac_* account-iteration scratch removed with dead code_consistent (46).
   -- bacc_finals KEPT: shared 88B finals scratch still used live by
-  -- bal_same_block_delegation_code_resolve (BalCodePreimages) and
+  -- account_state_delegation_code_resolve (BalCodePreimages) and
   -- BlockVerdictStateRoot (not only by unlinked bal_account_code_consistent).
   ".balign 8\n" ++
   "bacc_finals:\n  .zero 88\n" ++

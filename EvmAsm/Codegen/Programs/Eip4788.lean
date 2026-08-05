@@ -49,7 +49,8 @@ open EvmAsm.Rv64.Program
       Return:  storage[root_idx]
 
     Sibling of PR `eip2935_blockhash_lookup` (the BLOCKHASH
-    system contract). The two share the
+    system contract); both are probe primitives, not on the production
+    path. The two share the
     "look up via system-contract storage" pattern but EIP-4788
     adds the extra timestamp-verification step to detect stale
     slots: a writer many epochs later may have overwritten the

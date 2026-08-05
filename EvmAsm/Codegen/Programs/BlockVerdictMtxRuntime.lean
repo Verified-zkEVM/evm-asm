@@ -24,7 +24,9 @@ private def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
-  "  la t0, teer_success_count; sd zero, 0(t0)\n"
+  "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n"
 
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
     The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
@@ -123,19 +125,31 @@ private def blockVerdictMtxGateSystemStorageSeed : String :=
   "  bnez a0, .Lbv_mtx_sys2935_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys2935_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_present\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_code_cmp\n" ++
   ".Lbv_mtx_sys2935_skip:\n" ++
-  "  la t0, swd_2935_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_2935_vlen; sd zero, 0(t0); j .Lbv_mtx_sys2935_present\n" ++
+  ".Lbv_mtx_sys2935_ident:\n" ++
+  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-2935 hash.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_2935_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys2935_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_ident_cmp\n" ++
   ".Lbv_mtx_sys2935_present:\n" ++
   "  la a0, bsr_addr_4788; li a1, 20; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_sys4788_skip\n" ++
   "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
   ".Lbv_mtx_sys4788_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_present\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_ident\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_code_cmp\n" ++
   ".Lbv_mtx_sys4788_skip:\n" ++
-  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0)\n" ++
+  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0); j .Lbv_mtx_sys4788_present\n" ++
+  ".Lbv_mtx_sys4788_ident:\n" ++
+  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-4788 hash.\n" ++
+  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_4788_code_hash; li t2, 32\n" ++
+  ".Lbv_mtx_sys4788_ident_cmp:\n" ++
+  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
+  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_ident_cmp\n" ++
   ".Lbv_mtx_sys4788_present:\n"
 
 /- Materialize the process_transaction sender debit when the shared callable
@@ -170,20 +184,23 @@ private def blockVerdictMtxOogMaterialize : String :=
     `.Lbv_singletx` hop before it were duplicate tests of the same condition,
     both now removed. -/
 def blockVerdictMtxRuntimeLoop : String :=
-  -- evm-asm-fhsxz.2.4.2.57.11.6.2.2.2: gated multi-transaction runtime gas loop.
-  -- Every non-empty block enters MTx. For 1..16 transactions, only when the block
-  -- is INDEPENDENT (bal_txs_independent==0: no account's storage/code/nonce touched
-  -- by more than one tx_index) AND every recipient is a self-contained contract,
-  -- dispatch each tx against the block-PRE state to measure its runtime gas,
-  -- populate the strided runtime-result arrays, and set bvgr_runtime_count=tx_count
-  -- so block_verdict_gas_result_arena_prepare + the EIP-7778/8037 block-gas gate
-  -- run. Independence makes per-tx pre-state dispatch exact; the per-tx refund is
-  -- read from evm_refund_acc (the dispatcher's EIP-3529 SSTORE refund accumulator,
-  -- reset per dispatch) so the receipt-gas increment (receipt_inc) is exact; the
-  -- EIP-7778 block-gas gate stays refund-independent (block_inc). Any non-independence / unsupported
-  -- tx shape / EOA recipient / dispatch miss bails to the conservative path
-  -- (bvgr_runtime_count left 0 -> arena count mismatch -> block-gas gate skipped),
-  -- i.e. today's behavior, so valid multi-tx blocks are never newly false-rejected.
+  -- Multi-transaction runtime gas loop (every non-empty block enters MTx).
+  --
+  -- bvgr_runtime_count contract (live; do not delete — explains 11407 fallback):
+  -- zeroed at block_verdict entry. Set to bv_tx_count ONLY on success paths after
+  -- full MTx completion (.Lbv_mtx_publish). Any bail (.Lbv_mtx_bail,
+  -- .Lbv_mtx_dispatch_unsupported, EOA/unsupported/capacity/dispatch-miss, parse
+  -- error, etc.) jumps to .Lbv_after_tx_gas_precharge with count left 0, so
+  -- arena_prepare sees a short count and the exact prior-state / block-gas path
+  -- is skipped (conservative). That count-left-0 behaviour is real.
+  --
+  -- #11183 / maintainer proof-architecture ruling: bal_txs_independent and the
+  -- bv_deposit_capture_only route are RETIRED. Spec has one tx loop (fork.py:913)
+  -- and no deposit-vs-capture branch; deposits come from post-exec receipt logs.
+  -- Guest must not read supplied BAL body except to hash it; extra reject-only
+  -- checks need a collision assumption. The capture-only shortcut (skip
+  -- MtxValidationTail after root) had no spec counterpart — branch deleted, not
+  -- re-sourced. Deposit requests stay on the log parse + DirectDepositFallback path.
   -- Production MTx selector: every block enters MTx, including the empty
   -- block; the loop iterates zero times there (matches execution-specs
   -- fork.py:913-914, which has no empty-block special case).  The former
@@ -217,31 +234,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- execution-specs fork.py:913-914, which has no empty-block special case).
   "  la t0, bv_tx_count; ld t0, 0(t0)\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
+  -- #11183: zero deposit-route cells (retired branch; no setter remains).
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  jal ra, bal_txs_independent\n" ++
-  "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
-  "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
-  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
-  -- bmvmx.5.5.10 whitelist v0: an interacting non-deposit block enters the full
-  -- sequential lane only when every BAL account with storage_changes rows is
-  -- whitelisted (the four request predeploys, EIP-2935/4788 modeled-system,
-  -- EIP-6110 deposit contract). Block-end system writes live in
-  -- bv_system_storage_log and per-tx user SSTOREs in bv_user_storage_log,
-  -- both consulted by the storage/tuple comparators. Any other interaction
-  -- shape keeps today's posture: conservative bail (fail-closed).
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  jal ra, bal_storage_whitelist_clean\n" ++
-  -- The full multi-transaction runtime below materializes and receipt-checks
-  -- this substrate-backed path; do not retain the former whitelist-v0 FR gate.
-  "  j .Lbv_mtx_independence_ok\n" ++
-  ".Lbv_mtx_independent_deposit_check:\n" ++
-  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  beqz a0, .Lbv_mtx_independence_ok              # ordinary independent lane\n" ++
-  ".Lbv_mtx_deposit_capture_mark:\n" ++
-  "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
-  ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted distinct-sender index once from public keys.  B1 retains
   -- this address enumeration for its final BAL coverage check, but AccountState
   -- is the sole live nonce state: no execution path reads or mutates the row's
@@ -317,17 +311,21 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  -- Execution CodeState is block-lived in the sequential lane. The callable
+  -- Execution AccountState is block-lived in the sequential lane. The callable
   -- dispatcher resets transaction-local pending overlays, including
   -- `account_state_pending_count`; it does not preserve that AccountState
   -- journal across dispatches. This reset is the live durability boundary in
   -- GH #10876: sender effects needed after dispatch must be materialized in
   -- durable state rather than left in the pending journal. Durable state and
   -- retained comparator bytes survive until this loop finishes.
-  -- CodeState is the sole execution code/existence model for every block,
-  -- including the one-transaction case.  The immutable witness is consulted
-  -- only after its pending and durable overlays miss.
-  "  la t0, code_state_mtx_active; li t1, 1; sd t1, 0(t0); la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  -- AccountState is the sole emitted execution code/existence model for every
+  -- block, including the one-transaction case.  The immutable witness is
+  -- consulted only after its pending and durable overlays miss; CodeState
+  -- names are compatibility aliases, not a separate table.
+  -- `runtime_mtx_active` is a reserved compatibility cell only.  The
+  -- universal dispatcher no longer reads or writes it; retaining the slot
+  -- keeps the established data layout stable for existing image pins.
+  "  la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
@@ -538,7 +536,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; addi a0, t0, 72; ld a1, 80(s0); ld a2, 88(s0); li a3, 0\n" ++
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++          -- evm-asm-uzb6b: resolver codes base (top level re-adds *svf_codes_ptr)
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   -- #11163: empty-code (BAL hit or miss) enters the shared message processor
   -- the same way as contracts.  The depth-0 precompile arm inside
   -- `runtime_dispatcher_call` classifies after move_ether; inactive falls
@@ -560,28 +558,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- failed here was never a missing check -- it was a comment that said the opposite of what the
   -- code did, so a reader who came to ask whether attribution was handled found prose saying yes.
   --
-  -- THIS PATH IS THE ONE THAT DID NOT STAMP IT.  The four recipient-code-hash `bne`s above jump
-  -- straight to this label, PAST the EOA-recipient store, so a contract recipient -- the only tx
-  -- class that can execute SSTORE at all -- reached `dispatch_tx_runtime_code` with the index
-  -- still holding its static default 1, or whatever the last EOA/creation tx left behind.  The
-  -- SSTORE handler stamps `exec_log_txindex[row]` from it (.Lsstore_append_entry), so those rows
-  -- carried a value the transaction never wrote.  Measured: 398/400 rows disagreeing with i+1.
-  --
-  -- And the comment that used to sit here asserted the stamp WAS on this path, quoting the same
-  -- EIP-7928 rule, while the next emitted line stamped `dtrc_use_pre_header`, an unrelated flag.
-  --
-  -- The same old comment also called the consumers "still-unwired".  They are not:
-  -- `exec_log_txindex` is the a4 base of `bal_all_accounts_tuple_sequences_consistent_skip_list`
-  -- at both the mtx and single-tx call sites, and a nonzero return from either rejects the block.
-  -- Nothing objects today only because that comparator's per-change loop iterates zero times
-  -- (#10681) -- i.e. IT CANNOT BE MADE NON-VACUOUS UNTIL THIS STAMP EXISTS, because the first
-  -- thing a working comparator does is read a transaction index no contract tx ever wrote.
-  --
-  -- Demonstrated end to end on the EEST case `bal_cross_tx_storage_write[tx2_reverts_to_zero]`,
-  -- two transactions to the same contract (`0x600035600055`), whose declared BAL carries
-  -- blockAccessIndex 1 and 2 for the written slot.  Probing the max/min index the SSTORE handler
-  -- actually stamps, over two appends: WITHOUT this store min=max=1 (both transactions tagged 1);
-  -- WITH it min=1 max=2, matching the fixture's declared indices.  Verdict-neutral on that case.
+  -- The current block-access index remains live for the map-builder/account-write
+  -- seams below; it is no longer mirrored into a retired execution-log metadata
+  -- array.
   "  la t0, bv_mtx_i; ld t1, 0(t0); addi t1, t1, 1; la t0, current_block_access_index; sd t1, 0(t0)\n" ++
   -- fhsxz.2.4.2.57.11.6.5: gate the PRE-state header to THIS (mtx) dispatch call only.
   -- Single-tx dispatch (.Lbv_cd_* path, line ~717) leaves the flag 0 -> sv_this_rlp,
@@ -686,19 +665,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- a zero receipt status retains only intrinsic/auth state gas after a body
   -- rollback, while a successful status includes the captured execution part.
   "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
-  -- bmvmx.5.5.10 PR-2: capture this tx's surviving SSTORE rows into the per-tx
-  -- USER-write side arena (bv_user_storage_log) BEFORE the next dispatch's setup
-  -- resets persistentLogLength. a4 = tx status; a failed tx commits nothing
-  -- (mirrors state clearing), so capture only on success. The capture helper
-  -- filters seed/preload rows through explicit per-row provenance rather than
-  -- assuming they occupy a stable prefix of the live log.
-  -- Overflow/malformed -> .Lbv_mtx_bail (fail-closed, today's posture).
-  "  beqz a4, .Lbv_mtx_capture_done\n" ++
-  "  li a0, 0; la t0, evm_env; ld a1, 448(t0); li a2, 0xa0630000; la a3, bv_user_storage_log; la a4, bv_user_storage_txindex; la a5, bv_user_storage_log_count; la t0, bv_mtx_i; ld a6, 0(t0); addi a6, a6, 1; li a7, " ++ toString bvUserStorageLogCapacity ++ "\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  bnez a0, .Lbv_mtx_bail\n" ++
-  ".Lbv_mtx_capture_done:\n" ++
-  -- Commit the just-successful transaction's current CodeState overlay before
+  -- Commit the just-successful transaction's current AccountState overlay before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
   -- Match `process_message`'s two snapshots: a successful body commits all
@@ -757,13 +724,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- fact with its own cursor, rather than reusing the dead frame checkpoint.
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
   "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
-  -- `blockVerdictMtxRecordSenderRefund` and the rollback helper both use
-  -- caller-saved a1/a2.  The snapshot ABI takes this transaction's captured
-  -- slice, not the cumulative `bv_user_storage_log`: a preparation halt has
-  -- no such rows, so restore base + length zero explicitly.  Do not reconstruct
-  -- from capture counters, which may still describe tx N-1 (and must remain
-  -- available to the later BAL consumer through the cumulative arena).
-  "  la a1, bv_user_storage_log; li a2, 0\n" ++
   "  j .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
   "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
@@ -822,22 +782,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, block_verdict_deferred_system_requests\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  -- Both ordinary and deposit-capture-only blocks must publish the terminal
-  -- post-state root after all system effects.  The capture-only lane still
-  -- needs its existing runtime-array setup below, so it rejoins that setup
-  -- after the shared root publication rather than bypassing `.Lbv_mtx_publish`.
+  -- One post-user path for every block (spec: one tx loop, then requests from
+  -- logs). #11183 retired the deposit-capture-only shortcut that skipped the
+  -- validation tail after root.
   "  j .Lbv_mtx_publish\n" ++
-  ".Lbv_mtx_capture_only_post_root:\n" ++
-  "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
-  -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
-  -- them to the common exact-gas/EIP-7778 and receipt gates just like the
-  -- ordinary multi-transaction lane.
-  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
-  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++
-  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_mtx_publish:\n" ++
   -- Terminal state-root replay.  `.Lbv_mtx_done` has already run every
   -- user/system read-set and write-set incorporation; no storage-map writer
@@ -855,7 +803,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_cmp_mismatch\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_terminal_root_cmp\n" ++
   ".Lbv_terminal_root_ok:\n" ++
-  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); bnez t0, .Lbv_mtx_capture_only_post_root\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
@@ -871,11 +818,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
-  -- A durable CodeState entry is a prior-tx live account and collides; a
+  -- A durable AccountState entry is a prior-tx live account and collides; a
   -- durable tombstone is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).
-  "  la a0, bv_create_addr; jal ra, code_state_lookup_current\n" ++
+  "  la a0, bv_create_addr; jal ra, account_state_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
   -- Only status 1 (an existing account with code) is an EIP-684 collision.

@@ -402,6 +402,8 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- silently treating an unsupported output as empty code.
   "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_failed_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
   -- `process_create_message` moves the endowment and emits its EIP-7708
@@ -554,6 +556,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- Propagate an unauthenticated nested-CREATE pre-balance lookup as this
   -- helper's existing nonzero unsupported result.  The caller's normal
   -- creation-unsupported route reaches the final fail-closed verdict gate.
+  -- A malformed authenticated execution-state lookup is a genuine-invalid
+  -- channel, not a deposit exception: keep it out of the witness-incomplete
+  -- path and return the existing unsupported status to the caller.
+  "  la t4, create_deposit_malformed_flag; ld t4, 0(t4); bnez t4, .Lbvcr_payload_unsupported\n" ++
   "  la t4, create_prebalance_lookup_status; ld t4, 0(t4); bnez t4, .Lbvcr_payload_unsupported\n" ++
   -- `process_create_message` consumes a successful constructor RETURN as the
   -- deployed code before transaction gas settlement.  STOP has empty code and

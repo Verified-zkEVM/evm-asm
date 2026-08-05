@@ -45,6 +45,7 @@ import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
+import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Evm64.MptCorrespondence
@@ -683,5 +684,19 @@ private noncomputable abbrev _account_balance_slot_witness :=
   @EvmAsm.Stateless.bytesBEtoNat_beBytes32
 private noncomputable abbrev _account_rlp_length_witness :=
   @EvmAsm.Stateless.accountRlp_length_le
+-- #11345: the reference-side inversion. Witnessed here so the axiom gate covers
+-- it mechanically rather than relying on someone remembering to look.
+-- #11346 item 2: big-endian zero is length-insensitive, so the reference's
+-- `bytesBEtoNat` is lenient about non-canonical zeros exactly as the guest is.
+private noncomputable abbrev _fromBytesBE_eq_zero_iff_witness :=
+  @EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
+private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
+  @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+-- #11346: `account_exists_and_is_empty` split into the address lookup and the
+-- pure `EMPTY_ACCOUNT` kernel, which is the guest routine's comparison point.
+private noncomputable abbrev _accountExistsAndIsEmpty_eq_kernel_witness :=
+  @EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
+private noncomputable abbrev _beq_EMPTY_ACCOUNT_witness :=
+  @EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
 
 end EvmAsm.Progress

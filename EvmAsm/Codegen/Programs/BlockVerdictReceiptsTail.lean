@@ -20,10 +20,38 @@ namespace EvmAsm.Codegen
     before the consensus checks. -/
 def blockVerdictReceiptsTail : String :=
   ".Lbv_after_gas_result_gate:\n" ++
+  -- CREATE code-deposit resolution is fail-closed.  A missing witness
+  -- preimage is a valid-block witness shortfall (FR), so code 67 is kept
+  -- distinct from genuine-invalid code 62; neither path can accept.
+  "  la t0, create_deposit_witness_incomplete_flag; ld t0, 0(t0); bnez t0, .Lbv_creation_witness_incomplete_fail\n" ++
+  "  la t0, create_deposit_malformed_flag; ld t0, 0(t0); bnez t0, .Lbv_creation_malformed_fail\n" ++
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 2; bltu t0, t1, .Lbv_mtx_b2_return\n" ++
   "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
   "  j .Lbv_b2_entry\n" ++
   ".Lbv_mtx_b2_return:\n" ++
+  "  # GH #11410: dynamic witness-code-preimage gate. Every code read execution\n" ++
+  "  # actually performed (the guest's tracked get_code, code_read_fetch) must\n"  ++
+  "  # resolve to a keccak-verified preimage in witness.codes; spec raises on a\n"  ++
+  "  # missing preimage at read time (state_tracker.py:269-270, witness_state.py:204-212).\n" ++
+  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
+  "  la t0, code_reads_overflow; ld t0, 0(t0); bnez t0, .Lbv_cpg_fail\n" ++
+  "  la t0, code_reads_count; ld s0, 0(t0)\n" ++
+  "  li s1, 0xa1d20000\n" ++
+  ".Lbv_cpg_loop:\n" ++
+  "  beqz s0, .Lbv_cpg_done\n" ++
+  "  la a0, svf_codes_ptr; ld a0, 0(a0)\n" ++
+  "  la a1, svf_codes_len; ld a1, 0(a1)\n" ++
+  "  addi a2, s1, 32; addi a3, sp, 32; addi a4, sp, 40\n" ++
+  "  jal ra, witness_codes_lookup_by_hash\n" ++
+  "  bnez a0, .Lbv_cpg_fail\n" ++
+  "  addi s1, s1, 64; addi s0, s0, -1; j .Lbv_cpg_loop\n" ++
+  ".Lbv_cpg_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 64\n" ++
+  "  j .Lbv_cpg_past\n" ++
+  ".Lbv_cpg_fail:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 64\n" ++
+  "  j .Lbv_code_preimage_fail\n" ++
+  ".Lbv_cpg_past:\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
   "  la a1, bvgr_receipt_gas_increments\n" ++
   "  la t2, bvgr_arena_tx_count; ld a2, 0(t2)\n" ++
@@ -77,7 +105,9 @@ def blockVerdictReceiptsTail : String :=
   "  la t2, c1_dlen; sd a0, 0(t2)\n" ++
   "  la t2, c1_dstatus; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
   "  la t2, c1_dlen; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
-  "  la t2, bv_deposit_runtime_capture_complete; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
+  -- #11183: bv_deposit_runtime_capture_complete is RESERVED always-0 (capture-only
+  -- route retired). Empty log body falls through to DirectDepositFallback — the
+  -- spec-shaped path (parse logs, else derive from tx calldata).
   blockVerdictDirectDepositFallback ++
   ".Lbv_deposit_after_direct:\n" ++
   ".Lbv_deposit_body_ready:\n" ++
@@ -140,6 +170,14 @@ def blockVerdictReceiptsTail : String :=
   -- is the only reader of that cell.
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_creation_witness_incomplete_fail:\n" ++
+  -- 67 means witness incompleteness, not invalid execution: the authenticated
+  -- account was valid but its non-empty code hash lacked a witness.codes
+  -- preimage.  Keep this visible to FR accounting rather than folding it into
+  -- a soundness rejection code.
+  "  li t0, 67; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_creation_malformed_fail:\n" ++
+  "  li t0, 62; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_header_fail:\n" ++
   "  li t0, 2; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_state_fail:\n" ++
@@ -178,6 +216,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blockhash_headers_fail:\n" ++
   "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_syscode_identity_fail:\n" ++
+  "  li t0, 65; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_empty_tx_fail:\n" ++
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_tx_gas_precharge_fail:\n" ++
@@ -239,25 +279,23 @@ def blockVerdictReceiptsTail : String :=
   -- binding; and MTx setup/materialization/inclusion/state-gas helper failures reach it.
   ".Lbv_sender_nonce_fail:\n" ++
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  -- Retirement-scoped: declared-versus-execution BAL final-nonce comparison.
-  -- Code 59 retires with the storage/nonstorage BAL families in the 10680 inventory;
-  -- code 40's transaction-validity/auth reachers deliberately do not.
-  ".Lbv_mtx_sender_final_nonce_fail:\n" ++  -- bmvmx.5.5.2: declared BAL sender final nonce != execution-derived final nonce
-  "  li t0, 59; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11183 ORDER-1: removed dead sinks .Lbv_mtx_sender_final_nonce_fail (59) and
+  -- .Lbv_mtx_sender_balance_fail (57) — B1/B2.3 BAL field compares retired; no live jal.
+  -- Rejection of wrong BAL content is via hash 60/61 (spec fork.py:390 only).
   ".Lbv_recipient_bal_fail:\n" ++          -- bmvmx.1.6.3: BAL contract-recipient post balance != recipient_pre + tx.value
   "  li t0, 41; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11245: removed dead sink .Lbv_bal_tuple_fail (code 42); rejection now via hash 60/61.
   -- #11118: removed dead sinks code_covers(43), code_consistent(46).
   ".Lbv_bal_nonstorage_fail:\n" ++         -- i3djw.3: a non-recipient BAL account's declared balance/nonce change != exec non-storage effect
   "  li t0, 44; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_bal_map_fail:\n" ++               -- #11104: account-write builder attribution mismatch
+  "  li t0, 66; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_bal_nonstorage_covers_fail:\n" ++  -- i3djw.3 reverse: exec net-changed an account's balance/nonce that the BAL omits
   "  li t0, 45; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_upfront_fail:\n" ++         -- bmvmx.2: sender_pre_balance < gas_limit*max_fee + value (InsufficientBalanceError)
   "  li t0, 48; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_fee_invalid_fail:\n" ++           -- bmvmx.4: tx fee invalid (max_fee < base_fee, or priority > max_fee) -> check_transaction reject
   "  li t0, 49; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_mtx_sender_balance_fail:\n" ++    -- bmvmx.5.5.2.2.3 (B2.3): a multi-tx pure-payer sender's BAL final balance != pre - Σ(actual gas+value debit)
-  "  li t0, 57; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_fixed_arena_overflow_fail:\n" ++
   "  li t0, 58; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_zero:\n" ++

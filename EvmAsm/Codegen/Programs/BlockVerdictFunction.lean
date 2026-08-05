@@ -45,6 +45,8 @@ def blockVerdictFunction : String :=
   "  ld t0, 80(s0); la t1, bv_witness_state_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 88(s0); la t1, bv_witness_state_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_tx_root_status; sd zero, 0(t0)\n" ++
@@ -244,16 +246,9 @@ def blockVerdictFunction : String :=
   "  li t6, 1; la t2, bbcv_skip_touch_only; sd t6, 0(t2)\n" ++
   ".Lbv_code_preimage_flag_done:\n" ++
   "  li t6, 1; la t2, bbcv_fee_recipient_valid; sd t6, 0(t2)\n  la a0, bbcv_fee_recipient; ld a1, 0(s0); addi a1, a1, 32; li a2, 20\n  jal ra, mset_memcpy\n" ++
-  "  la t2, bv_bal_start; ld a0, 0(t2)\n" ++
-  "  la t2, bv_bal_len; ld a1, 0(t2)\n" ++
-  "  ld a2, 8(s0)                  # parent header RLP\n" ++
-  "  ld a3, 16(s0)                 # parent header RLP length\n" ++
-  "  ld a4, 80(s0)                 # witness.state ptr\n" ++
-  "  ld a5, 88(s0)                 # witness.state len\n" ++
-  "  la t2, svf_codes_ptr; ld a6, 0(t2)\n" ++
-  "  la t2, svf_codes_len; ld a7, 0(t2)\n" ++
-  "  jal ra, bal_code_preimages_valid\n" ++
-  "  bnez a0, .Lbv_code_preimage_fail\n" ++
+  "  # GH #11410: the static BAL row-shape preimage scan is retired. Preimage\n" ++
+  "  # coverage is enforced dynamically from the execution code-read set\n" ++
+  "  # (code_read_fetch) in the receipts tail (fail 11, .Lbv_code_preimage_fail).\n" ++
   "  # Upfront sender gas pre-charge gate for the currently parse-supported\n" ++
   "  # one-transaction path. Use the selected public key tail (x||y) and the\n" ++
   "  # pre-account record table materialized by block_state_root.\n" ++

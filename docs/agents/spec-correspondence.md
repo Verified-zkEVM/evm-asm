@@ -43,6 +43,56 @@ reason every verdict below carries a **basis**.
 
 Do not collapse these to a boolean. The asymmetry *is* the product.
 
+### Grading a restriction: ask *whose* limit it is
+
+Every non-`agrees` verdict answers one question — **which side is limited?** —
+and the answers are not interchangeable:
+
+| limit lives in | verdict | is it a defect? |
+|---|---|---|
+| the **proof** (we did not cover the case) | `domain-restricted` | no — prove more |
+| the **triple's precondition** (the ABI obliges the caller) | `domain-restricted` | no, but it can be *violated* |
+| the **guest** (it refuses input the spec accepts) | `stricter` | **yes, guest-side** |
+| the **port** (it accepts input the Python rejects) | the `portDefect` **field** | **yes, reference-side** |
+
+⚠️ **The last row is not a verdict.** `Verdict` grades the *guest*; a port defect is
+recorded orthogonally on `Entry.portDefect : Option Nat`, carrying the tracking
+issue (`portDefect_cites_issue` rejects `some 0`).
+
+Two reasons it cannot be a `Verdict` constructor, both found in review of #11514:
+
+1. **The axes are independent.** Guest correctness and port correctness are
+   separate facts and all four combinations occur. A port-defect *constructor*
+   makes "the guest agrees **and** the port is broken" unrepresentable, because
+   choosing it erases the guest grade. `header_extract_number` is exactly that
+   case: `domainRestricted` on arity **plus** a port defect on content.
+2. ⛔ **It would open a hole in `no_looser_verdicts`.** That theorem exists so a
+   false-accept cannot land quietly. An alternative constructor sitting beside
+   `looser` in the same enum lets a row that ought to be `looser` be graded
+   "port defect" instead, with the invariant still passing. A separate field has
+   no such interaction.
+
+So grade by asking *"does the guest reject this, or did we merely not prove it?"*
+— and, when the guest does reject, *"is the port the thing that is wrong?"*
+
+Reaching for `domain-restricted` because a restriction feels benign collapses the
+first three rows together. That is how #11493 started: a guest rejection was
+wearing a verdict whose description reads "Not a defect", and `stricter` had
+**zero** occurrences across the whole registry despite naming the most
+safety-relevant outcome in the schema.
+
+⚠️ **`stricter` and `looser` attribute the defect to the guest.** When the port is
+the broken side, neither is honest — record `portDefect` and grade the guest on its
+own merits. The worked example is
+`header_extract_number` (#11513): the guest rejects a numeric header field wider
+than eight bytes or carrying a leading zero, `rlp.decode_to` rejects them too, and
+only the port's `getN = bytesBEtoNat` accepts them. Graded `stricter`, that row
+would record a false-reject against a guest that is behaving correctly. Its guest
+verdict is `domain-restricted` — but on **arity**, a genuinely separate
+restriction: the triple only claims agreement where `_decode_header` succeeds, so
+what the guest does on a wrong-arity header is unproven. Grading it `agrees` from
+the content evidence alone would overclaim.
+
 ## 3. Basis — how much a verdict is worth
 
 | Basis | Meaning |

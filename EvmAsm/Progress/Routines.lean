@@ -62,6 +62,10 @@ import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
+import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
+import EvmAsm.Codegen.Programs.AccountDecodeCompose
+import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
@@ -213,6 +217,12 @@ def routineRegistry : List RoutineEntry := [
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
   routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
       (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
+  routine "header_extract_number" .proven (some "header_extract_number_spec_within")
+      (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
+        ++ ";; epilogue. The whole-routine triple predates the correspondence row "
+        ++ "(#11351) -- a missing row was never evidence of a missing proof. Its step "
+        ++ "bound inherits the callee's loose `7 * (2^64 - 1)` tail factor; tracked at "
+        ++ "the origin as #11461"),
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
@@ -285,9 +295,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 26 := by decide
+theorem routineCount_eq : routineCount = 27 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 18 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 19 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -302,7 +312,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 18 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 19 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -395,6 +405,25 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _header_extract_number_routine_witness :=
+  @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+-- Correspondence row #11351 names this; it is Codegen-side, and Correspondence
+-- deliberately does not import Codegen, so the witness abbrev lives here.
+private noncomputable abbrev _header_number_of_decode_witness :=
+  @EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
+-- #11345: the model-facing consumer joining `account_decode`'s output struct to
+-- `AccountRecord` and thence to `SpecRef.decode_account_from_leaf`. Codegen-side,
+-- so like the #11351 witness above it lives here rather than in Correspondence.
+private noncomputable abbrev _account_decode_matches_specRef_witness :=
+  @EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
+private noncomputable abbrev _account_decode_output_witness :=
+  @EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
+-- #11346 item 2: the leniency agreement, plus the identity that lets #11345's
+-- `beAccum_eq_fromBytesBE` transfer to `beAccFrom` instead of being re-proved.
+private noncomputable abbrev _account_eip161_leniency_witness :=
+  @EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
+private noncomputable abbrev _beAccFrom_eq_beAccum_witness :=
+  @EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.

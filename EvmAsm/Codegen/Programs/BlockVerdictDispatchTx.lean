@@ -108,7 +108,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, dtrc_deleg_target\n" ++
   "  ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
   -- A delegation target may itself have been successfully CREATEd by an
-  -- earlier transaction in this block.  CodeState is the current execution
+  -- earlier transaction in this block.  AccountState is the current execution
   -- state, so consult it before the immutable block-pre witness.
   "  la a0, dtrc_deleg_target; jal ra, account_state_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
@@ -228,6 +228,17 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_deferred; sd zero, 0(t0)\n" ++
   "  la t0, dtrc_deleg_materialize_status; sd zero, 0(t0)\n" ++
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
+  -- #11419: set_delegation MUST precede prepare_dispatch (interpreter.py:356-365,
+  -- pin e5a8caf1b). Sole live caller (BlockVerdictMtxRuntime) runs
+  -- eip7702_auth_state_prepare via block_verdict_tx_state_gas_inline_prepare and
+  -- sets runtime_tx_auth_prepared=1 for type-4 before this entry. Assert that
+  -- contract here — fail closed rather than installing a second latent auth
+  -- writer (unreachable dual path cannot be sweep-validated). Nested CALL
+  -- resolve stays depth>0 and is out of scope (spec set_delegation is depth 0).
+  "  ld t0, 160(s2); li t1, 4; bne t0, t1, .Ldtrc_auth_precondition_ok\n" ++
+  "  la t0, runtime_tx_auth_prepared; ld t1, 0(t0); bnez t1, .Ldtrc_auth_precondition_ok\n" ++
+  "  j .Ldtrc_auth_not_prepared\n" ++
+  ".Ldtrc_auth_precondition_ok:\n" ++
   -- Resolve the witness-lookup header once. Runtime execution must query the parent/pre-state
   -- header for both single-tx and multi-tx paths: execution-specs runs against the tx-state
   -- snapshot before this transaction, while `sv_this_rlp` is this block's post-state header. Using
@@ -239,11 +250,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- `.Ldtrc_have_code` (*svf_codes_ptr); the resolver re-bases cahsr_code_offset
   -- against it (top-level x20 is evm_env scratch, NOT a runtime env).
   "  la t0, svf_codes_ptr; ld a4, 0(t0)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  beqz a0, .Ldtrc_same_block_delegation_code\n" ++
   "  li t0, 2; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  -- The BAL resolver only owns EIP-7702 delegation designators.  For ordinary
-  -- code use the shared mutable CodeState first: a tx1 CREATE is visible to a
+  -- The AccountState adapter only owns EIP-7702 delegation designators.  For ordinary
+  -- code use the shared mutable AccountState first: a tx1 CREATE is visible to a
   -- tx2 top-level call even though it is absent from the block-pre witness.
   "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
   "  addi a0, s2, 72; jal ra, account_state_lookup_current\n" ++
@@ -321,33 +332,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
-  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_deferred_marker_ready\n" ++
+  -- #11183 ROW 10: supplied-BAL parse-bail RETIRED. Spec pin e5a8caf1b never
+  -- walks supplied BAL body for parse validity — only hashes the BUILT list
+  -- (fork.py:390). The a0==2 bal_find bail was a guest-only CHECK (Class-A);
+  -- EQUIVALENCE drops it. Preload already retired #11176; bvcd_acct_* gone.
+  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_stage\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
   "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
-  ".Ldtrc_deferred_marker_ready:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_bal_unsupported\n" ++
-  -- GH #11176: the eager BAL-sourced RECIPIENT storage preload is RETIRED here.
-  -- #11165 landed the demand-driven h_SLOAD, which resolves a cold slot on first read,
-  -- so staging every BAL-declared slot up front duplicated it. Evidence, not assumption:
-  --   * population, sentinel build: 492 of 1,045 sampled rows had bvcd_key_count != 0,
-  --     a FLOOR (a row where the sentinel perturbation was harmless is invisible);
-  --   * A/B on that same sample with the handover count zeroed: FR 41 -> 41, OK 1004 ->
-  --     1004, ZERO flips either way, FA=0 both legs.
-  -- ⇒ the path was demonstrably exercised and the artefact was unchanged without it.
-  --
-  -- ⭐ WHAT WENT AND WHAT STAYED, because that boundary is where a silent regression
-  -- would live: CAPACITY checks went with their buffers (the two bgtu-against-
-  -- bsrAccountSlotCap bails existed BECAUSE bvcd_keys/bvcd_preload were that size);
-  -- INPUT-VALIDITY checks stayed (`a0 == 2` after bal_find_account_by_address is a
-  -- BAL-parse bail, FA-safe, and unrelated to buffer size). bal_find_account_by_address
-  -- and bvcd_acct_ptr/bvcd_acct_len stay for that reason.
-  --
-  -- ⚠️ The system-call preload remains load-bearing -- disabling it reverse-flips
-  -- three consolidation-request rows. Nested storage and balance reads now use
-  -- their authenticated demand-driven paths instead of a separate eager preload.
   ".Ldtrc_stage:\n" ++
   -- 3vc2p.3b sub-step B: reconstruct the M29 recent-blockhash table from the witness headers
   -- (cur = exec NUMBER, count = contiguous recent ancestors, count*32 hashes) into the staging
@@ -416,9 +407,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   -- Production no-preload contract (GH #11176): all production callers use
   -- the authenticated demand-driven storage path and pass literal zeroes.
-  -- Keep this callsite pinned by the #guard below. If a future caller feeds
-  -- rows again, BAL comparators do not consult exec_log_seed_flag and generic
-  -- rows have no exec_log_txindex stamp, so tuple validation sees txindex 0.
+  -- Keep this callsite pinned by the #guard below. The retired exec-log
+  -- metadata path is deliberately not part of this production staging call.
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++
@@ -663,10 +653,12 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld a0, 176(s2); la t0, dtrc_auth_off; ld t0, 0(t0); add a0, a0, t0; la t0, dtrc_auth_len; ld a1, 0(t0); la a2, runtime_tx_auth_count; jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Ldtrc_auth_done\n" ++
   ".Ldtrc_auth_done:\n" ++
-  -- The common dispatcher owns the execution-time auth callback.  Preserve
-  -- the inner envelope and type here; the caller supplies the sender pointer
-  -- because MTx and the single-tx contract path use different sender cells.
-  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1); li t1, 4; bne t0, t1, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_prepared; ld t2, 0(t1); bnez t2, .Ldtrc_auth_exec_ready; la t1, runtime_tx_auth_exec_fn; la t2, eip7702_auth_state_prepare; sd t2, 0(t1)\n" ++
+  -- #11419: auth already applied at the MTx boundary (inline_prepare →
+  -- eip7702_auth_state_prepare); entry assert requires runtime_tx_auth_prepared
+  -- for type-4. Do NOT install a late auth_exec_fn — that was the latent
+  -- resolve-before-set_delegation path. Preserve inner envelope + type for
+  -- gas/warm bookkeeping; caller supplies sender pointer.
+  "  ld t0, 176(s2); la t1, runtime_tx_auth_inner_ptr; sd t0, 0(t1); ld t0, 184(s2); la t1, runtime_tx_auth_inner_len; sd t0, 0(t1); ld t0, 160(s2); la t1, runtime_tx_auth_type; sd t0, 0(t1); la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1)\n" ++
   ".Ldtrc_auth_exec_ready:\n" ++
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
@@ -784,8 +776,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a0, 1; j .Ldtrc_ret\n" ++
   ".Ldtrc_self_contained_unsupported:\n" ++
   "  li a0, 2; j .Ldtrc_ret\n" ++
-  ".Ldtrc_bal_unsupported:\n" ++
-  "  li a0, 3; j .Ldtrc_ret\n" ++
+  -- #11183 ROW 10: .Ldtrc_bal_unsupported (a0=3) removed with parse-bail.
   ".Ldtrc_storage_unsupported:\n" ++
   "  li a0, 4; j .Ldtrc_ret\n" ++
   ".Ldtrc_payload_cap_unsupported:\n" ++
@@ -793,7 +784,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_stage_unsupported:\n" ++
   "  li a0, 6; j .Ldtrc_ret\n" ++
   ".Ldtrc_access_list_unsupported:\n" ++
-  "  li a0, 7\n" ++
+  "  li a0, 7; j .Ldtrc_ret\n" ++
+  -- #11419: type-4 reached dispatch without runtime_tx_auth_prepared (set_delegation
+  -- did not run before prepare_dispatch). Fail closed; never resolve/execute.
+  ".Ldtrc_auth_not_prepared:\n" ++
+  "  li a0, 9\n" ++
   ".Ldtrc_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
   "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++

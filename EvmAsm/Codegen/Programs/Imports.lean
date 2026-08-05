@@ -73,6 +73,8 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
+import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
+import EvmAsm.Codegen.Programs.RlpListNthItemForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
@@ -342,6 +344,7 @@ import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
@@ -588,6 +591,9 @@ import EvmAsm.Codegen.Programs.AccountDecodeNonceLoop
 
 import EvmAsm.Codegen.Programs.AccountDecodeBalanceLoop
 
+import EvmAsm.Codegen.Programs.AccountDecodeBridge
+import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
+import EvmAsm.Codegen.Programs.AccountDecodeCompose
 import EvmAsm.Codegen.Programs.AccountDecodeCall
 
 import EvmAsm.Codegen.Programs.AccountDecodeFrame

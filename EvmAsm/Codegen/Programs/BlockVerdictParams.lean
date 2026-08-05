@@ -247,35 +247,13 @@ def bvSystemStorageMinSstoreGas : Nat := 100
     in-bounds proof). -/
 def bvPersistentStorageLogCapacity : Nat := 16384
 
-/-- **Row bound for the system-call SSTORE side capture (`bv_system_storage_log`),
-    tightened for `evm-asm-4ch8f.73`.** `capture_system_storage_exec_rows`
-    (`BlockVerdictSystemStorageCapture.lean`) copies rows out of the runtime
-    persistent exec-log at `0xa0630000` over `[cursor, evm_env+448)`. Because that
-    source is hard-capped at `bvPersistentStorageLogCapacity` (fail-closed at
-    SSTORE time), and the two end-of-block system txs share the same non-reset log
-    (the cursor only advances, `BlockVerdictStateRoot.lean:457/510/555`; the length
-    is restored, not reset, at `:556`), their combined captured rows are
-    `≤ bvPersistentStorageLogCapacity`. The modeled EIP-2935/4788 startup
-    descriptors (`appendModeledSystemStorageTupleRows`) add only a fixed handful
-    (3). So `2 * bvPersistentStorageLogCapacity` is a sound ~2× over-approximation
-    of the true `≤ 16387` worst case.
-
-    This REPLACES the former gas-derived `600,000` reservation
-    (`2 * 30M / 100`), which was unreachable: the 100-gas figure ignored the
-    16384-row fail-closed source cap. The old `76.8 MiB` reservation was UNIONED
-    into `call_frame_arena`'s front, where per-tx dispatch frames at depth ≥ 221
-    physically zeroed it before the post-dispatch BAL validators read it (the
-    `.73` clobber). At `2 * 16384` rows (4 MiB) the syslog is small enough to live
-    in its OWN standalone `.data` region, fully outside the frame arena — see
-    `syslog_disjoint_from_frameArena`. -/
+/-- **Capacity for modeled-system staging rows.** The MTx preamble appends the
+    explicit EIP-2935/EIP-4788 startup descriptors into a bounded side arena
+    while also feeding the authenticated storage map and BAL builder. -/
 def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
 
-/-- Byte stride of one storage exec-log row, shared by the system arena
-    (`bv_system_storage_log`) and the per-tx user arena (`bv_user_storage_log`).
-    Layout: `addrHash@0`, `slotKey@32`, `original@64`, `current@96`. Every scan
-    over either arena addresses it as `slli rd, rs, 7`, so this constant and that
-    shift amount must move together. Routines that reserve a one-row standalone
-    stub for their own link should size it from here rather than restating 128. -/
+/-- Byte stride of one modeled-system staging row. Layout: `addrHash@0`,
+    `slotKey@32`, `original@64`, `current@96`. -/
 def bvStorageLogRowBytes : Nat := 128
 
 /-- Byte width of one `txindex` stamp, parallel to `bvStorageLogRowBytes`: the
@@ -285,16 +263,6 @@ def bvStorageLogTxindexEntryBytes : Nat := 8
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRowBytes
 def bvSystemStorageTxindexBytes : Nat :=
   bvSystemStorageLogCapacity * bvStorageLogTxindexEntryBytes
-
-/-- bmvmx.5.5.10 PR-2: per-tx USER-write side arena capacity. The live exec log
-    only holds the LAST dispatch's rows (each dispatch resets persistentLogLength),
-    so cross-tx user SSTOREs are captured per-tx into `bv_user_storage_log` (same
-    128-byte row layout + txindex stamps) for the forward BAL comparator. Sized at
-    half the system arena; overflow bails fail-closed (`.Lbv_mtx_bail`). -/
-def bvUserStorageLogCapacity : Nat := bvPersistentStorageLogCapacity
-def bvUserStorageLogBytes : Nat := bvUserStorageLogCapacity * bvStorageLogRowBytes
-def bvUserStorageTxindexBytes : Nat :=
-  bvUserStorageLogCapacity * bvStorageLogTxindexEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam

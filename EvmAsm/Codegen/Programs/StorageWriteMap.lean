@@ -21,11 +21,12 @@
   `TransactionState(parent=block_env.state)` and incorporates at `:858`, regular
   transactions incorporate at `:1204`, and withdrawals (`wd_state`) at `:1226`.
 
-  The guest keeps `bv_user_storage_log` for the current transaction and
+  The guest keeps `TX_STORAGE_WRITES_AREA` for the current transaction and
   `STORAGE_WRITES_AREA` for the cumulative block map. The persistent
-  `bv_system_storage_log` remains a provenance/capture log for system-effect
-  validators; it is not a third state map. This separates the two spec
-  lifetimes without making the provenance log pretend to be `BlockState`.
+  `bv_system_storage_log` is only the modeled-system staging feed used while
+  constructing those authenticated writes; it is not a third state map. This
+  separates the two spec lifetimes without making staging pretend to be
+  `BlockState`.
 
   Note that unifying the *container* must not unify the *timing*: the spec still
   applies system writes at block boundaries and user writes inside transactions.
@@ -46,6 +47,11 @@
   so that retiring them in S6 is a same-stride migration rather than a re-layout.
   Base and stride are both 8-aligned, so every `ld`/`sd` below is 8-aligned as
   the RV64 operational semantics require.
+
+  `storage_root` is deliberately not another row field or mask bit.  Consumers
+  derive the account's new root from these storage slots through
+  `mpt_bounded_storage_root` at the point where the storage trie is rebuilt;
+  there is no stored map cell whose value could be read instead.
 
   ## It is a MAP, so the recorder upserts
 

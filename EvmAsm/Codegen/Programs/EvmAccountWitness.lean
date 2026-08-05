@@ -154,10 +154,15 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  la a0, eahsr_address_scratch\n" ++
     "  jal ra, account_state_tombstone_balance_zero\n" ++
     "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
-    -- Execution code visibility is resolved from the layered mutable
-    -- CodeState, never from the append-only BAL comparison log.
+    -- #11328: Present-None tombstone in account_writes (not missing key).
+    -- Multi-tx finalize → 0. Same-tx EMPTY_CODE_HASH still uses destroyed_table.
     "  la a0, eahsr_address_scratch\n" ++
-    "  jal ra, code_state_lookup_current\n" ++
+    "  jal ra, account_writes_is_absent\n" ++
+    "  bnez a0, .Lextcodehash_codestate_deleted\n" ++
+    -- Execution code visibility is resolved from the layered mutable
+    -- AccountState, never from the append-only BAL comparison log.
+    "  la a0, eahsr_address_scratch\n" ++
+    "  jal ra, account_state_lookup_current\n" ++
     "  beqz a0, .Lextcodehash_witness_check\n" ++
     "  li t3, 3; beq a0, t3, .Lextcodehash_codestate_deleted\n" ++
     "  li t3, 2; beq a0, t3, .Lextcodehash_create_self_empty\n" ++
@@ -178,7 +183,7 @@ private def extcodehashWitnessTail : HandlerTail :=
     "  addi sp, sp, 32\n" ++
     "  addi x10, x10, 1\n" ++
     dispatchContinueRet ++ "\n" ++
-    -- A durable CodeState tombstone is a transaction-finalized EIP-6780
+    -- A durable AccountState tombstone is a transaction-finalized EIP-6780
     -- deletion.  It masks stale pre-block code and is non-existent for
     -- EXTCODEHASH (zero, unlike an existing empty-code account's keccak("")).
     ".Lextcodehash_codestate_deleted:\n" ++
@@ -346,9 +351,9 @@ private def extcodesizeWitnessTail : HandlerTail :=
     "  jal ra, account_state_lookup_current\n" ++
     "  li t3, 2; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
     "  li t3, 3; beq a0, t3, .Lextcodesize_codestate_empty\n" ++
-    -- Consult the shared CodeState before the authenticated witness fallback.
+    -- Consult the shared AccountState before the authenticated witness fallback.
     "  la a0, eahsr_address_scratch\n" ++
-    "  jal ra, code_state_lookup_current\n" ++
+    "  jal ra, account_state_lookup_current\n" ++
     "  beqz a0, .Lextcodesize_witness_check\n" ++
     "  li t3, 1; bne a0, t3, .Lextcodesize_codestate_empty\n" ++
     -- Found: return code_len.

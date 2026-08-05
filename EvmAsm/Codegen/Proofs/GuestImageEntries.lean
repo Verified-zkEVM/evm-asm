@@ -50,7 +50,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
-import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BloomAddValue
 import EvmAsm.Codegen.Programs.BloomBlock
@@ -343,7 +342,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_account_nonstorage_consistent, balAccountNonstorageConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
-  (GuestAddrs.bti_scan_storage_changes, btiScanStorageChanges_prog),
   (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
@@ -355,7 +353,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bv_sum_withdrawals_to_address, bvSumWithdrawalsToAddress_prog),
   (GuestAddrs.access_list_count, accessListCount_prog),
   (GuestAddrs.intrinsic_gas_amsterdam_counts, intrinsicGasAmsterdamCounts_prog),
-  (GuestAddrs.eip8037_state_used_before_tx, eip8037StateUsedBeforeTx_prog),
   (GuestAddrs.eip8037_prior_state_used_exact, eip8037PriorStateUsedExact_prog),
   (GuestAddrs.eip8037_tx_gas_gate, eip8037TxGasGate_prog),
   (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
@@ -496,6 +493,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 343
+#guard guestImageEntries.length = 341
 
 end EvmAsm.Codegen

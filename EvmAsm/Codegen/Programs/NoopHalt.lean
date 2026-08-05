@@ -216,7 +216,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       ".Lrr_csg_used_" ++ toString kind ++ ":\n" ++
       "  la t1, evm_state_gas_used\n  ld t2, 0(t1)\n  add t2, t2, t0\n  sd t2, 0(t1)\n" ++
       -- Capture execution-specs generic_create target_alive current-tx evidence
-      -- before publishing this CREATE.  This is a transaction-local CodeState
+      -- before publishing this CREATE.  This is a transaction-local AccountState
       -- membership query, not an append-only code-effect scan.
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
@@ -246,6 +246,12 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
 " ++
       "  la a0, create_address_be\n  add a1, x13, x14\n  mv a2, x15\n" ++
       "  jal ra, create_record_code_effect\n" ++
+      -- CREATE code publication is resolver-gated.  Any nonzero result,
+      -- including status 4 (witness-incomplete) and status 5 (malformed
+      -- authenticated lookup), must take the existing CREATE failure edge;
+      -- continuing would append a non-storage row for code that was never
+      -- authoritatively resolved.
+      "  bnez a0, .Lrr_crinv_" ++ toString kind ++ "\n" ++
       -- i3djw.2 / drj99.1 part 3: record the created account's NON-STORAGE effect (pre balance captured
       -- before the CREATE frame; post nonce is the initcode's final nonce, balance = C's FINAL balance). The target may already be
       -- present with a nonzero balance, so its pre balance is nse_create_pre_bal rather than a fabricated
@@ -694,7 +700,7 @@ private def selfdestructTailAsm : String :=
   ".L_selfdestruct_ctit_codecheck:\n" ++
   -- AccountState's transaction-local created set follows the normal caller-saved ABI and
   -- clobbers a0-a3.  x13 is the live EVM stack cursor on this halt path, so
-  -- preserve it with the other runtime cursors before asking the CodeState.
+  -- preserve it with the other runtime cursors before asking the AccountState.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, sdai_origin_address\n" ++
   "  jal ra, account_state_created_contains\n" ++

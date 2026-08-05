@@ -32,11 +32,23 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
 
+#print axioms EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
+
+#print axioms EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
+
+#print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
+
+#print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
+
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
+
+#print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
@@ -69,6 +81,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
+#print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 
@@ -279,6 +293,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
+
+#print axioms EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
+
+#print axioms EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
+
+#print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 

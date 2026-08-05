@@ -1,13 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 
-  Multi-tx exec-vs-BAL validation tail of block_verdict (the .Lbv_mtx_done block:
-  the A1 skip-list builder, the B1 sender-final-nonce check, and the A2a all-accounts
-  non-storage comparators), split out of BlockVerdictFunction.lean to stay under the
-  1500-line file cap (bmvmx.5.5 child). Pure asm-string fragment, concatenated back
-  byte-identically via blockVerdictMtxValidationTail. The .Lbv_* labels are all local
-  to the single assembled block_verdict function, so splitting the string does not
-  affect label resolution.
+  Multi-tx validation tail of block_verdict (the .Lbv_mtx_done block: A1 skip-list
+  builder, B2 running-balance underflow, map↔builder DIR A). B1/B2.3 BAL
+  field compares retired #11183 ORDER-1. Pure asm-string fragment.
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
@@ -16,8 +12,7 @@ import EvmAsm.Codegen.Programs.NonstorageEffectLog
 
 namespace EvmAsm.Codegen
 
-/-- Multi-tx exec-vs-BAL validation tail of `block_verdict` (skip-list build + B1
-    sender-nonce + A2a non-storage comparators), concatenated at .Lbv_mtx_done. -/
+/-- Multi-tx validation tail of `block_verdict` (skip-list + B2.2 + map check). -/
 def blockVerdictMtxValidationTail : String :=
   -- bmvmx.5.5.1 (umbrella-A1): build the MULTI-TX skip-list that the all-accounts
   -- exec-vs-BAL storage/tuple/nonstorage comparators must skip. Gas/value-coupled
@@ -49,28 +44,11 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
   -- #10684/#11210/#11218: NO system copy. count = 2N+1 only (senders+recipients+coinbase).
   "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++
-  -- bmvmx.5.5.2 (umbrella-B1): validate each multi-tx sender's BAL final nonce
-  -- against AccountState's final execution-derived nonce.  The sender table is
-  -- only a sorted distinct-address enumerator; its count word is deliberately
-  -- not a second nonce model.
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++                       -- i = 0 over distinct sender table
-  ".Lbv_b1_loop:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b1_done\n" ++
-  "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- t4 = &distinct sender entry
-  "  mv a0, t4; la a1, bv_b1_expected; jal ra, account_state_latest_nonce_block; beqz a0, .Lbv_b1_next\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3\n" ++ -- reload t4 = &distinct sender entry
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbv_b1_next\n" ++                                       -- sender absent from BAL -> skip (conservative)
-  "  la t0, bv_b1_acct_ptr; ld a0, 0(t0); la t0, bv_b1_acct_len; ld a1, 0(t0); la a2, bv_b1_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lbv_b1_next\n" ++                                       -- parse fail -> skip
-  "  la t0, bv_b1_finals; ld t1, 40(t0); beqz t1, .Lbv_b1_next\n" ++   -- has_nonce == 0 -> skip (conservative)
-  "  ld t1, 48(t0)\n" ++                                               -- t1 = BAL declared final nonce
-  "  la t0, bv_b1_expected; ld t0, 0(t0)\n" ++                         -- t0 = pre_nonce + count
-  "  bne t1, t0, .Lbv_mtx_sender_final_nonce_fail\n" ++                -- BAL sender final nonce != execution-derived final -> reject
-  ".Lbv_b1_next:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b1_loop\n" ++
+  -- #11183 ORDER-1: RETIRED B1 BAL final-nonce field compare (.Lbv_b1_loop Class-A).
+  -- Spec pin e5a8caf1b fork.py:390 — only hash of BUILT BAL vs header. Spec has no
+  -- supplied body and no field compare; guest field-compare is FR under collision
+  -- (equivalence, not "hash covers it"). Fail sink .Lbv_mtx_sender_final_nonce_fail
+  -- remains labelled dead in ReceiptsTail until unlinked.
   ".Lbv_b1_done:\n" ++
   -- bmvmx.5.5.2.2.12: B2.2/B2.3 are RELOCATED to run AFTER the gas-result gate
   -- (BlockVerdictReceiptsTail), where bvgr_receipt_gas_increments[i] holds the spec-exact
@@ -156,69 +134,13 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_b2_next:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b2_loop\n" ++
   ".Lbv_b2_done:\n" ++
-  -- bmvmx.5.5.2.2.3 (umbrella-B2.3): compare each distinct sender's running balance
-  -- (pre - Σ actual debit, accumulated in bv_b2_table at +32) against the BAL-declared
-  -- sender FINAL balance. This is the cumulative-balance generalization of the single-tx
-  -- sender-post check (tx_gas_bal_post_verify_runtime, status 40): senders are excluded
-  -- from the A2a all-accounts non-storage comparator (they sit in the A1 skip-list because
-  -- their balance delta is gas/value-coupled, absent from the exec effect log), so this is
-  -- the ONLY check that ties a multi-tx sender's BAL balance delta to the execution gas
-  -- model. A forged sender post balance otherwise survives (the state-root recompute applies
-  -- the BAL delta, so a matching forged header.state_root would pass).
-  --
-  -- The running balance models pre - Σ(receipt_inc*eff_price + tx.value) only. Do not
-  -- skip sender==coinbase here: if the model omits the priority-fee credit, the mismatch
-  -- must surface as a real B2.3 failure instead of being hidden by a post-fact bypass.
-  -- We still conservatively skip senders whose final balance could include a frame-local
-  -- value credit the debit model cannot distinguish yet:
-  --   * effect-log overflow or any withdrawals present -> skip the whole pass (the exec
-  --     effect log is then incomplete; mirrors the A2a guard below);
-  --   * sender present in the exec non-storage effect log -> execution touched its balance
-  --     (value-in via CALL, or value-out it sent) -> potential inbound credit not modeled.
-  -- The remaining PURE-PAYER senders (the common multi-tx EOA case, value=0) must satisfy
-  -- BAL_post == pre - Σdebit EXACTLY; a forged post balance rejects (.Lbv_mtx_sender_balance_fail,
-  -- status 57). The running balance is u256 BE (u256_sub_be) and the BAL post is u256 BE
-  -- right-aligned, so the 4-dword compare is byte-order aligned. Loop cursor lives in
-  -- bv_mtx_skip_idx (memory) to survive the BAL-lookup jals; s0/s3 are callee-saved.
-  "  la t0, exec_nonstorage_effect_overflow; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  "  la t0, svf_wds_count; ld t0, 0(t0); bnez t0, .Lbv_b23_done\n" ++
-  -- (Type-3/4 txs are now debited exactly by the B2.2 loop's typed-fee addition above; a tx
-  -- whose typed fee was inconclusive was skipped there and is absent from bv_b2_table, so no
-  -- per-block tx-type pre-scan is needed here.)
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
-  ".Lbv_b23_loop:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b2_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_b23_done\n" ++
-  "  slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3\n" ++   -- t4 = &entry (addr@0, running balance@32)
-  -- Skip if sender appears in the raw exec non-storage effect log (112-byte records, addr@0)
-  "  la t5, exec_nonstorage_effect_count; ld t5, 0(t5); li t6, 0\n" ++   -- t5 = raw count, t6 = k
-  ".Lbv_b23_agg:\n" ++
-  "  bgeu t6, t5, .Lbv_b23_chk\n" ++
-  "  li a0, 112; mul a0, t6, a0; la a1, exec_nonstorage_effect_log; add a1, a1, a0; li a2, 0\n" ++  -- a1 = &log[k]
-  ".Lbv_b23_agg_cmp:\n" ++
-  "  li a3, 20; beq a2, a3, .Lbv_b23_next\n" ++                 -- 20/20 equal -> exec touched sender -> skip
-  "  add a3, t4, a2; lbu a3, 0(a3); add a4, a1, a2; lbu a4, 0(a4); bne a3, a4, .Lbv_b23_agg_adv\n" ++
-  "  addi a2, a2, 1; j .Lbv_b23_agg_cmp\n" ++
-  ".Lbv_b23_agg_adv:\n" ++
-  "  addi t6, t6, 1; j .Lbv_b23_agg\n" ++
-  ".Lbv_b23_chk:\n" ++
-  -- pure-payer sender: look up its BAL AccountChanges and compare the declared post balance.
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0); mv a2, t4; la a3, bv_b1_acct_ptr; la a4, bv_b1_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Lbv_b23_next\n" ++                               -- sender absent from BAL -> skip (conservative)
-  "  la t0, bv_b1_acct_ptr; ld a0, 0(t0); la t0, bv_b1_acct_len; ld a1, 0(t0); la a2, bv_b1_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Lbv_b23_next\n" ++                               -- parse fail -> skip
-  "  la t0, bv_b1_finals; ld t1, 0(t0); beqz t1, .Lbv_b23_next\n" ++  -- has_balance == 0 -> skip (no declared change)
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); slli t3, t1, 6; la t4, bv_b2_table; add t4, t4, t3; addi t4, t4, 32\n" ++  -- t4 = &running (reload; jals clobbered)
-  "  la t5, bv_b1_finals; addi t5, t5, 8\n" ++                  -- t5 = &BAL post balance (32B BE)
-  "  ld a0, 0(t4); ld a1, 0(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
-  "  ld a0, 8(t4); ld a1, 8(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
-  "  ld a0, 16(t4); ld a1, 16(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
-  "  ld a0, 24(t4); ld a1, 24(t5); bne a0, a1, .Lbv_mtx_sender_balance_fail\n" ++
-  ".Lbv_b23_next:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_b23_loop\n" ++
+  -- #11183 ORDER-1: RETIRED B2.3 BAL post-balance field compare (.Lbv_b23_chk Class-A).
+  -- Spec pin e5a8caf1b fork.py:390 — only hash of BUILT BAL vs header. Spec has no
+  -- supplied body and no field compare; guest field-compare is FR under collision
+  -- (equivalence, not "hash covers it"). B2.2 running-balance underflow (exec model)
+  -- KEPT above. Fail sink .Lbv_mtx_sender_balance_fail remains labelled dead until unlinked.
   ".Lbv_b23_done:\n" ++
-  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: relocated B2.2/B2.3 done -> return to ReceiptsTail (after the gas-result gate)
+  "  j .Lbv_mtx_b2_return\n" ++   -- bmvmx.5.5.2.2.12: B2.2 done -> return to ReceiptsTail
   ".Lbv_mtx_storage:\n" ++
   -- #10612 / #11245: retire granular BAL field stand-ins that the survivor hash
   -- already covers. Spec pin e5a8caf1b amsterdam fork.py:366 + :390 — one
@@ -236,4 +158,9 @@ def blockVerdictMtxValidationTail : String :=
   --       42 (supplied seq vs exec log) with same gate over same bytes; 42
   --       and its exclusive callee chain unlinked (account/slot/exec_log
   --       tuple helpers). bv_mtx_skip_list KEPT — still feeds B1/B2.
+  -- #11183 DIR A only: map finals ↔ highest-BAI builder (guest-internal fail-safe).
+  -- DIR B/C (supplied BAL body) dropped — serialised fields ⊆ hash 60/61.
+  -- No bv_bal_start/len: not a Class-A edge. Code 66 on map↔builder desync.
+  "  jal ra, bal_map_builder_consistent\n" ++
+  "  bnez a0, .Lbv_bal_map_fail\n" ++
   "  j .Lbv_after_tx_gas_precharge\n"

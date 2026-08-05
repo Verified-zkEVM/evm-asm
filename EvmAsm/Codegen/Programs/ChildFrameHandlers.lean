@@ -593,12 +593,12 @@ def callDescendFallThrough
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, cd_callee_be\n  ld a1, 592(x20)\n  ld a2, 600(x20)\n  li a3, 2\n" ++
     "  ld a4, 608(x20)\n" ++                                -- evm-asm-uzb6b: resolver codes base (descend re-adds 608(x20))
-    "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+    "  jal ra, account_state_delegation_code_resolve\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
     -- A callee created earlier in the block is live even when absent from the
-    -- pre-block witness.  Ask the shared current CodeState rather than the
+    -- pre-block witness.  Ask the shared current AccountState rather than the
     -- append-only comparator log.
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
@@ -607,7 +607,7 @@ def callDescendFallThrough
     -- tombstone discriminant below (pin is_account_alive); status 3 is a
     -- finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
@@ -687,17 +687,17 @@ def callDescendFallThrough
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
-  -- Layered execution lookup: pending/durable CodeState is authoritative over
+  -- Layered execution lookup: pending/durable AccountState is authoritative over
   -- the block-pre witness.  In particular a durable tx1 CREATE must be seen by
   -- tx2 even though absent from the header, while a tx-end same-tx deletion
   -- masks stale header code.  Only an overlay miss may query the witness.
   "  addi sp, sp, -64\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
   "  bnez t0, .Lcd_acst_done_" ++ tag ++ "\n" ++
-  -- CodeState missed: a transaction-finalized EIP-6780 deletion (AccountState
+  -- AccountState missed: a transaction-finalized EIP-6780 deletion (AccountState
   -- delete-pending tombstone, written by account_state_commit_pending) makes
   -- the callee non-existent in every later transaction, so descend on empty
   -- code rather than stale witness bytes.  Within the destroying transaction
@@ -714,7 +714,21 @@ def callDescendFallThrough
   "  li t3, 1; bne t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   "  la t3, cahsr_code_length; sd t2, 0(t3)\n" ++
   "  ld t3, 608(x20); sub t1, t1, t3; la t3, cahsr_code_offset; sd t1, 0(t3)\n" ++
-  "  j .Lcd_descend_" ++ tag ++ "\n" ++
+  -- A current CodeState entry may itself be the 23-byte EIP-7702
+  -- delegation designator.  Treating that marker as executable code skips
+  -- the mode-0 resolver below (the old header path did not have this entry),
+  -- so the delegated target is never selected and the child returns failure.
+  -- Re-enter the existing header/marker path instead of duplicating its
+  -- status handling: it invokes the mode-0 resolver for same-block markers,
+  -- preserves status-2 precompile/empty bails, and falls through to the
+  -- established prior-block mode-1 path when the immutable header supplies
+  -- the marker.  Non-marker CodeState remains the direct descend path.
+  "  li t4, 23; bne t2, t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++
+  "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  lbu t4, 2(t3); bnez t4, .Lcd_descend_" ++ tag ++ "\n" ++
+  "  j .Lcd_header_lookup_" ++ tag ++ "\n" ++
   ".Lcd_header_lookup_" ++ tag ++ ":\n" ++
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
@@ -766,7 +780,7 @@ def callDescendFallThrough
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
   "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 0\n" ++
   "  ld a4, 608(x20)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t2, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -796,7 +810,7 @@ def callDescendFallThrough
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
   "  la a0, cd_callee_be; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
   "  ld a4, 608(x20)\n" ++
-  "  jal ra, bal_same_block_delegation_code_resolve\n" ++
+  "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t3, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -809,14 +823,14 @@ def callDescendFallThrough
   ".Lcd_resolve_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   -- CALL into a contract created earlier in this block.  Resolve the current
-  -- mutable CodeState before treating a header-witness miss as an empty EOA.
+  -- mutable AccountState before treating a header-witness miss as an empty EOA.
   -- ABSENT from the block-pre witness, so code_at_header_state_root returns status 1 (account
   -- not in state trie) and the delegation resolver also misses -> the call falsely routed to
   -- .Lcd_empty (empty EOA, push 1) and the child's runtime (e.g. its SELFDESTRUCT / outgoing
   -- value-CALLs) NEVER ran in re-execution -> its deletion / beneficiary credit were never
   -- recorded -> the exec-vs-BAL non-storage comparator false-rejects (bv_fail=44 on
   -- selfdestruct_same_tx_via_call + create-then-call families). The CREATE deposit already
-  -- published the child's deployed code into CodeState. On the code-lookup miss, resolve
+  -- published the child's deployed code into AccountState. On the code-lookup miss, resolve
   -- `cd_callee_be` from the shared overlay; on a hit, point the descend code/len at its retained
   -- byte arena (code pointer + length) by setting cahsr_code_offset/length so
   -- record+40) by setting cahsr_code_offset/length so 608(x20)+offset == record+48 (the existing
@@ -830,12 +844,12 @@ def callDescendFallThrough
   -- cross-transaction visibility use one current-state rule.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, code_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
   "  mv t4, a0; mv t5, a1; mv t6, a2\n" ++             -- status, code ptr, code len
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  li t3, 1; bne t4, t3, .Lcd_callee_nocreate_" ++ tag ++ "\n" ++
-  "  la t3, cahsr_code_length; sd t6, 0(t3)\n" ++       -- CodeState code length
+  "  la t3, cahsr_code_length; sd t6, 0(t3)\n" ++       -- AccountState code length
   "  ld t3, 608(x20); sub t5, t5, t3\n" ++              -- code offset from codes base
   "  la t3, cahsr_code_offset; sd t5, 0(t3)\n" ++
   "  j .Lcd_descend_" ++ tag ++ "\n" ++
@@ -893,6 +907,20 @@ def callDescendFallThrough
   -- early. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
+     "  # GH #11410: spec reads the stack target's code BEFORE the balance\n" ++
+     "  # precheck (generic_call, system.py:461/584). Mirror: record the callee\n" ++
+     "  # code read through code_at_header_state_root (code_read_fetch) before\n" ++
+     "  # charging and failing, so precheck-failed CALL/CALLCODE still land in\n" ++
+     "  # the block code-read set the dynamic preimage gate iterates.\n" ++
+     "  la t0, cd_callee_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+     "  addi t0, t0, 31; addi t1, x12, 32+19; li t2, 20\n" ++
+     ".Lcd_ib_addr_fill_" ++ tag ++ ":\n" ++
+     "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, -1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcd_ib_addr_fill_" ++ tag ++ "\n" ++
+     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
+     "  la a0, cd_callee_be; addi a0, a0, 12\n" ++
+     "  ld a1, 576(x20); ld a2, 584(x20); ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+     "  jal ra, code_at_header_state_root\n" ++
+     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      "  li t0, 10300\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
@@ -913,7 +941,7 @@ def callDescendFallThrough
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
        -- created this tx -> alive -> no charge
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, code_state_lookup_current\n  mv t6, a0\n" ++
+        "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n  mv t6, a0\n" ++
         "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
         -- pin is_account_alive (state_tracker.py:445-463) + system.py:465: same
         -- status-2 / bal-zero-tombstone split as the main nacc site (#11334 /
@@ -1012,7 +1040,7 @@ def callDescendFallThrough
    else "") ++
    -- An empty-code CALL still enters `process_message`: after its body snapshot,
    -- `move_ether` commits the paired debit and credit even though no child frame
-   -- is needed to execute bytecode.  Every arrival here (CodeState non-live,
+   -- is needed to execute bytecode.  Every arrival here (AccountState non-live,
    -- both delegation status-2 paths, absent header account, and EMPTY_CODE_HASH)
    -- bypasses `.Lcd_descend`, the only other balance-effect publisher.  Publish
    -- the already-resolved descriptors once before the successful empty-call return.

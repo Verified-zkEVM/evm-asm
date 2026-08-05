@@ -180,12 +180,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_block_log_overflow; ld t2, 0(t1); sd t2, 448(t0)\n" ++
   "  la t1, bv_dispatch_runtime_status; ld t2, 0(t1); sd t2, 456(t0)\n" ++
   "  la t1, bv_runtime_completeness_status; ld t2, 0(t1); sd t2, 464(t0)\n" ++
-  "  la t1, bv_system_storage_capture_status; ld t2, 0(t1); sd t2, 488(t0)\n" ++
-  "  la t1, bv_system_storage_capture_start; ld t2, 0(t1); sd t2, 496(t0)\n" ++
-  "  la t1, bv_system_storage_capture_end; ld t2, 0(t1); sd t2, 504(t0)\n" ++
-  "  la t1, bv_system_storage_capture_rows; ld t2, 0(t1); sd t2, 512(t0)\n" ++
-  "  la t1, bv_system_storage_capture_old_count; ld t2, 0(t1); sd t2, 520(t0)\n" ++
-  "  la t1, bv_system_storage_capture_new_count; ld t2, 0(t1); sd t2, 528(t0)\n" ++
   "  la t1, widx_build_status; ld t2, 0(t1); sd t2, 536(t0)\n" ++
   "  la t1, widx_build_section_len; ld t2, 0(t1); sd t2, 544(t0)\n" ++
   "  la t1, widx_build_count; ld t2, 0(t1); sd t2, 552(t0)\n" ++
@@ -394,7 +388,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
@@ -430,7 +423,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
-  balCodePreimagesValidFunction ++ "\n" ++
+  -- #11183 rows 11-12 / #11410: bal_code_preimages_valid unlinked (0 guest jal).
+  -- Keep only live account_state_delegation_code_resolve from that blob.
+  accountStateDelegationCodeResolveFunction ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++

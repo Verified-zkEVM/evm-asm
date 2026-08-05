@@ -44,7 +44,6 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.Eip7702Authority
@@ -57,6 +56,7 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.BalMapBuilderConsistent
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.BalRlpEncode
@@ -64,6 +64,7 @@ import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 
 namespace EvmAsm.Codegen
 
@@ -142,6 +143,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Mirrored here for the same reason as the storage set: this unit has its own
     -- `.elf`, so an omission surfaces only as a link error inside an A/B leg.
     accountWriteMapFunctions ++ "\n" ++
+    balMapBuilderConsistentFunctions ++ "\n" ++
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
@@ -173,11 +175,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-    -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
-    -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
-    btiScanTuplesFunction ++ "\n" ++
-    btiScanStorageChangesFunction ++ "\n" ++
-    balTxsIndependentFunction ++ "\n" ++
+    -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
     -- Keep the standalone verdict-debug ELF's multi-tx closure in lockstep
     -- with the guest closure: the runtime dispatcher reaches this whitelist
     -- gate, and the post-dispatch verdict reaches the withdrawal effect walk.
@@ -228,6 +226,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
     storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
+    balMapBuilderConsistentDataSection ++ "\n" ++
     balCanonicalSortDataSection ++ "\n" ++
     keccakIncrementalDataSection ++ "\n" ++
     accountReadLogDataSection ++ "\n" ++
@@ -406,7 +405,6 @@ def statelessVerdictV2GuestClosure : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
@@ -464,7 +462,9 @@ def statelessVerdictV2GuestClosure : String :=
   balGasValidFromBuilderFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
-  balCodePreimagesValidFunction ++ "\n" ++
+  -- #11183 rows 11-12 / #11410: bal_code_preimages_valid unlinked (0 guest jal).
+  -- Keep only live account_state_delegation_code_resolve from that blob.
+  accountStateDelegationCodeResolveFunction ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
@@ -535,6 +535,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- emitted so the assembler and linker see them, since an unreferenced routine is
   -- unverified code.  The change-emission slice adds the callers.
   accountWriteMapFunctions ++ "\n" ++
+  balMapBuilderConsistentFunctions ++ "\n" ++
     -- GH #10680: canonical ordering for both write containers. Inert -- nothing
     -- consumes the ordering yet -- but emitted so the assembler and linker see it.
     balCanonicalSortFunctions ++ "\n" ++
@@ -576,12 +577,7 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-  -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
-  -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
-  -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).
-  btiScanTuplesFunction ++ "\n" ++
-  btiScanStorageChangesFunction ++ "\n" ++
-  balTxsIndependentFunction ++ "\n" ++
+  -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
   -- bmvmx.5.5.10: whitelist-v0 gate for the sequential lane (request-predeploy
   -- storage rows -> conservative bail until the comparator learns the side arena)
   brpsfAddr20EqFunction ++ "\n" ++
@@ -633,7 +629,7 @@ def statelessVerdictV2GuestClosure : String :=
   enrgU32leFunction ++ "\n" ++
   -- fhsxz.2.4.2.57.11.6.5.2.1 P1: link dispatcher_capture_exec_state_gas so the verdict can
   -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
-  -- for the EIP-7778 2D state-dim; the array is filled but not yet read by eip8037_state_used_before_tx).
+  -- for the EIP-7778 2D state-dim).
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
   -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
   -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
@@ -660,6 +656,7 @@ def statelessVerdictV2GuestData : String :=
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
   accountWriteMapDataSection ++ "\n" ++
+  balMapBuilderConsistentDataSection ++ "\n" ++
   balCanonicalSortDataSection ++ "\n" ++
   keccakIncrementalDataSection ++ "\n" ++
   accountReadLogDataSection ++ "\n" ++

@@ -32,8 +32,8 @@
   future retirement must first move the byte heap into its own retained code
   store, or preserve it verbatim; deleting/reusing this arena with live
   AccountState/BAL pointers is invalid.  This module deliberately does not
-  perform that layout split, because the current variable-stride cursor and all
-  CodeState readers use the packed record base.
+  perform that layout split, because the current variable-stride cursor and the
+  retained AccountState/code-byte readers use the packed record base.
 
   The CREATE-tail deposit call site (`create_record_code_effect(create_address_be,
   create_child_code, create_child_code_len)`) + EIP-3541 / MAX_CODE_SIZE / nonce
@@ -73,7 +73,7 @@ open EvmAsm.Rv64
     consumes that flag as a rejection. -/
 def execCodeEffectLogCap : Nat := 1048576
 
-/-! ## Bounded execution CodeState
+/-! ## Legacy CodeState source helpers (not emitted)
 
     `exec_code_effect_log` is an append-only comparison record: BAL's code
     comparator needs to see every execution-produced code change.  It is not a
@@ -81,33 +81,22 @@ def execCodeEffectLogCap : Nat := 1048576
     same address must replace an earlier one, and EIP-6780 deletion is scoped
     to the transaction which created the account).
 
-    The multi-transaction runtime therefore keeps its execution-facing code
-    state in fixed, real-address keyed tables.  A table entry is 64 bytes:
-
-      +0  address (20-byte BE, zero-padded to 32)
-      +32 code pointer
-      +40 code length
-      +48 flags (bit 0: occupied; bit 1: account exists; bit 2: code is available)
-      +56 reserved
-
-    There are separate pending and durable tables.  Pending entries are the
-    current transaction overlay; successful transaction finalization merges
-    them into durable state, while a failed transaction discards the pending
-    count.  The capacity is gas bounded: CREATE costs at least 32,000 gas, so
-    a 200M-gas block can create at most 6,250 accounts; 8,192 leaves margin
-    without scaling memory with untrusted input. -/
+    The historical `code_state_find`/`code_state_upsert` family below described
+    a separate fixed table.  Those source strings are retained only as
+    migration scaffolding; the emitted execution path uses AccountState.  Do
+    not read these legacy constants as a live runtime container. -/
 def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
 def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 
 /-! ## Bounded execution AccountState
 
-    The old CodeState owns only code/existence while value and nonce readers
-    reconstruct their state from an append-only comparison log.  AccountState
-    is the replacement execution model: a complete account snapshot is written
-    for every execution mutation, so a later read has one layered source of
-    truth.  Pending entries form a per-transaction journal; durable entries
-    retain the latest successful block state.  Both are fixed arenas.
+    AccountState is the emitted execution model: a complete account snapshot
+    is written for every execution mutation, so a later read has one layered
+    source of truth.  Pending entries form a per-transaction journal; durable
+    entries retain the latest successful block state.  CodeState-named helpers
+    are compatibility aliases or source-only migration scaffolding, not a
+    second execution authority.  Both AccountState layers are fixed arenas.
 
     38,460 entries is the gas-derived bound.  The lowest-cost operation that
     changes two accounts is a value transfer; the existing 200M-gas bound is
@@ -360,7 +349,8 @@ def accountStateRecordNonstorageFunction : String :=
     updating code/existence.  `created-this-tx` is retained as an explicit
     bit for EIP-6780 finalization after the source switch.
 
-    a0 = address, a1 = retained code pointer, a2 = code length.
+    a0 = address, a1 = retained code pointer, a2 = code length, a3 = optional
+    execution-state resolver output (zero for the standalone probe).
     Returns zero on success and one on bounded-arena failure. -/
 def accountStateRecordCodeFunction : String :=
   "account_state_record_code:\n" ++
@@ -369,7 +359,14 @@ def accountStateRecordCodeFunction : String :=
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrc_clone\n" ++
   "  la t0, account_state_scratch; li t1, 0\n" ++
   ".Lasrc_zero:\n" ++
-  "  li t2, 128; beq t1, t2, .Lasrc_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrc_zero\n" ++
+  "  li t2, 128; beq t1, t2, .Lasrc_seed; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasrc_zero\n" ++
+  -- Seed only the pre-state fields when the CREATE target was absent from
+  -- both execution overlays.  These fields are a baseline for the later
+  -- non-storage producer, not authoritative execution components, so the
+  -- code row keeps its existing mask.  A zero a3 preserves the standalone
+  -- probe's old contract.
+  ".Lasrc_seed:\n" ++
+  "  ld t4, 32(sp); beqz t4, .Lasrc_fields; ld t1, 8(t4); sd t1, 32(t0); ld t1, 16(t4); sd t1, 40(t0); ld t1, 24(t4); sd t1, 48(t0); ld t1, 32(t4); sd t1, 56(t0); ld t1, 0(t4); sd t1, 64(t0); j .Lasrc_fields\n" ++
   ".Lasrc_clone:\n" ++
   "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
   ".Lasrc_fields:\n" ++
@@ -390,13 +387,18 @@ def accountStateRecordCodeFunction : String :=
     An accepted authorization mutates account existence, nonce, and delegation
     before message execution.  Store those execution facts in the same pending
     overlay as CREATE so the next transaction reads the committed prior-tx
-    state, never a post-state BAL reconstruction.  Flag bit 3 denotes a known
-    delegation designator; bit 6 is the auth-only nonce snapshot.  Auth nonce
-    state must remain visible to the authorization resolver without making the
-    generic balance/nonce readers authoritative for the BAL comparator. -/
+    state, never a post-state BAL reconstruction.  AccountState flags use bit
+    16 for execution-known, bit 4 for code-present, bit 2 for account-present,
+    bit 8 for delegation state, and bit 6 for the auth-only nonce snapshot.
+    Auth nonce state must remain visible to the authorization resolver without
+    making the generic balance/nonce readers authoritative for the BAL
+    comparator. -/
 def accountStateRecordAuthFunction : String :=
   "account_state_record_auth:\n" ++
-  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  -- a3 is the stable 23-byte delegation-designator slot, or zero for a clear.
+  -- AccountState rows use a different layout from AccountWrite rows: code
+  -- pointer/length are +72/+80 and the execution-known bit is +16.
+  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
   "  la t0, account_state_scratch; li t1, 0\n" ++
@@ -409,7 +411,12 @@ def accountStateRecordAuthFunction : String :=
   ".Lasra_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lasra_nonce; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasra_addr\n" ++
   ".Lasra_nonce:\n" ++
-  "  sd s1, 64(t0); ld t1, 88(t0); ori t1, t1, 67; li t2, -9; and t1, t1, t2; beqz s2, .Lasra_flags; ori t1, t1, 8\n" ++
+  -- Keep the nonce/delegation bits from the old producer, but also advertise
+  -- that this AccountState row is execution-known and carries code when the
+  -- accepted target is nonzero.  Clear the code/delegation-present bits first
+  -- so a later authorization clearing a delegation cannot inherit stale code;
+  -- retain bit 16, the execution-known marker required by the consumer.
+  "  sd s1, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 88(t0); ori t1, t1, 83; li t2, -13; and t1, t1, t2; beqz s2, .Lasra_flags; sd s3, 72(t0); li t2, 23; sd t2, 80(t0); ori t1, t1, 12\n" ++
   ".Lasra_flags:\n" ++
   "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasra_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lasra_ret:\n" ++
@@ -706,34 +713,14 @@ def codeStateFinalBalanceNonzeroFunction : String :=
   -- pre-block balance/nonce.  This is normally an absent same-tx CREATE,
   -- therefore EIP-161-empty, but also handles a pre-funded CREATE target.
   ".Lcsfb_preblock:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, code_state_pre_acct; jal ra, account_at_header_state_root\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_resolver_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .Lcsfb_pre_found; li t0, 1; bne a0, t0, .Lcsfb_unavailable; li a0, 0; j .Lcsfb_zero\n" ++
   ".Lcsfb_pre_found:\n" ++
-  "  la t0, code_state_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
+  "  la t0, account_resolver_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
   ".Lcsfb_unavailable:\n" ++
   "  li a0, 2\n" ++
   ".Lcsfb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
-
-/-! ## code_state_lookup_current
-
-    Shared execution-read resolver for the CodeState layers.
-
-    a0 = canonical 20-byte BE address pointer
-    returns a0 = 0 absent from both overlays, 1 existing with code,
-                 2 existing with empty code, 3 explicitly deleted;
-            a1 = code pointer, a2 = code length for status 1.
-
-    Callers fall back to the authenticated header/witness only on status 0.
-    This is deliberately the one shared state resolver used by CALL, NACC,
-    EXTCODE*, collision, and SELFDESTRUCT consumers; it prevents a per-opcode
-    recreation of the old log-vs-state divergence. -/
-def codeStateLookupCurrentFunction : String :=
-  "code_state_lookup_current:\n" ++
-  -- Compatibility symbol for the atomic tqj1m source cutover.  Every legacy
-  -- caller now reaches the one AccountState layered resolver; the old table
-  -- remains comparison/migration evidence only and is no longer a read source.
-  "  j account_state_lookup_current"
 
 /-! ## codeStateStatusIsLiveAsm
 
@@ -800,11 +787,13 @@ def codeStateAddressSetFlagFunction : String :=
   ".Lcsasf_miss:\n" ++
   "  li a0, 1; ld a3, 0(sp); addi sp, sp, 16; ret"
 
-/-- Fixed static data for the execution CodeState overlay.  `created` and
-    `delete` sets use the same 32-byte padded-address key representation. -/
+/-! Fixed static data for the AccountState execution overlay.  The `created`
+    and `delete` sets use the same 32-byte padded-address key representation. -/
 def codeStateData : String :=
   ".balign 8\n" ++
-  "code_state_mtx_active:\n  .zero 8\n" ++
+  -- Reserved compatibility cell.  The universal transaction loop and
+  -- callable dispatcher deliberately leave it unread and unwritten.
+  "runtime_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
   -- CodeState tables were retired after the atomic reader cutover; its small
   -- scalar names below remain only as compatibility guards for the retained
@@ -815,7 +804,11 @@ def codeStateData : String :=
   "account_state_delete_count:\n  .zero 8\n" ++
   "account_state_overflow:\n  .zero 8\n" ++
   -- BAL final-account scratch for the EIP-161 deferred-delete decision.
-  "code_state_pre_acct:\n  .zero 48\n" ++
+  "account_resolver_pre_acct:\n  .zero 48\n" ++
+  -- account_resolve_execution_state output for CREATE code publication:
+  -- nonce@0, balance@8..40, code pointer@40, code length@48, present@56.
+  ".balign 8\n" ++
+  "create_resolved_account_state:\n  .zero 64\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
@@ -832,7 +825,7 @@ def codeStateData : String :=
     Returns:
       a0 = 0 appended ok / 1 capacity overflow (record NOT written; overflow flag set)
     Clobbers t0-t6, a0; preserves s-regs (saved). -/
-def createRecordCodeEffectFunction : String :=
+def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : String :=
   "create_record_code_effect:\n" ++
   -- Record empty-code CREATEs with has_code_change=0 so that EXTCODEHASH/EXTCODESIZE
   -- (#9525 fix) can find the address and return keccak("")/0 respectively, while the
@@ -848,6 +841,15 @@ def createRecordCodeEffectFunction : String :=
   "  add t1, s3, t0                                    # t1 = new free offset\n" ++
   "  li t2, " ++ toString execCodeEffectLogCap ++ "\n" ++
   "  bgtu t1, t2, .Lcrce_overflow\n" ++
+  (if resolveExecutionState then
+    -- Resolve the complete execution account before publishing either the code
+    -- effect row or its AccountState mirror.  Status 4 is witness
+    -- incompleteness (a valid block may lack a code preimage); status 5 is a
+    -- malformed authenticated lookup.  Neither status may fall back to
+    -- fabricated empty code or append a partial row.
+    "  la a1, create_resolved_account_state; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la t0, svf_codes_ptr; ld a6, 0(t0); la t0, svf_codes_len; ld a7, 0(t0); mv a0, s0; jal ra, account_resolve_execution_state\n" ++
+    "  li t0, 4; beq a0, t0, .Lcrce_resolver_unavailable; li t0, 5; beq a0, t0, .Lcrce_resolver_malformed\n"
+  else "") ++
   "  la t3, exec_code_effect_log; add t3, t3, s3       # t3 = entry base\n" ++
   "  sd x0, 0(t3); sd x0, 8(t3); sd x0, 16(t3); sd x0, 24(t3)   # zero 32B addr field\n" ++
   "  mv t4, s0; mv t5, t3; li t6, 20\n" ++
@@ -868,7 +870,9 @@ def createRecordCodeEffectFunction : String :=
   "  la t0, exec_code_effect_next; addi t1, s2, 55; andi t1, t1, -8; add t1, s3, t1; sd t1, 0(t0)\n" ++
   -- Publish the successful deposit into AccountState from the retained heap
   -- copy, never from the reusable create-child scratch.
-  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
+  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; " ++
+  (if resolveExecutionState then "la a3, create_resolved_account_state; " else "li a3, 0; ") ++
+  "jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
   ".Lcrce_account_state_ok:\n" ++
   -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
@@ -933,6 +937,12 @@ def createRecordCodeEffectFunction : String :=
   "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
+  (if resolveExecutionState then
+    ".Lcrce_resolver_unavailable:\n" ++
+    "  la t0, create_deposit_witness_incomplete_flag; li t1, 1; sd t1, 0(t0); li a0, 2; j .Lcrce_ret\n" ++
+    ".Lcrce_resolver_malformed:\n" ++
+    "  la t0, create_deposit_malformed_flag; li t1, 1; sd t1, 0(t0); li a0, 3; j .Lcrce_ret\n"
+  else "") ++
   ".Lcrce_overflow:\n" ++
   "  la t0, exec_code_effect_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
@@ -1064,7 +1074,7 @@ def ziskCreateCodeEffectLogPrologue : String :=
   "  la t0, exec_code_effect_count; ld t1, 0(t0); sd t1, 64(s0)\n" ++  -- count
   "  li x17, 93\n  li x10, 0\n  ecall\n" ++
   "  j .Lccel_done\n" ++
-  createRecordCodeEffectFunction ++ "\n" ++
+  createRecordCodeEffectFunction false ++ "\n" ++
   accountStateFindFunction ++ "\n" ++
   accountStateCopyFunction ++ "\n" ++
   accountStateAppendPendingFunction ++ "\n" ++

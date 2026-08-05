@@ -41,7 +41,7 @@ def runtimeSameBlockDelegationCode_prog : Program :=
     .MV .x8 .x10,
     .JAL .x1 (jalOff GuestAddrs.account_state_lookup_current (GuestAddrs.runtime_same_block_delegation_code + 24)),
     .LI .x5 (2 : Word),
-    .BEQ .x10 .x5 (96 : BitVec 13),
+    .BEQ .x10 .x5 (128 : BitVec 13),
     .LI .x5 (1 : Word),
     .BNE .x10 .x5 (120 : BitVec 13),
     .MV .x9 .x11,
@@ -109,13 +109,10 @@ theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "code_state_lookup_current")
 
-/-- Scratch/output cells. `runtime_current_bal_*` kept zeroed (no producers after
-    #11396) so any residual store is inert. `rsbd_hash` / `eahsr_*` / `ecc_*`
-    are shared with EXTCODEHASH/COPY handlers. -/
+/-- Scratch/output cells. `rsbd_*` / `eahsr_*` / `ecc_*` are shared with
+    EXTCODEHASH/COPY handlers. -/
 def runtimeSameBlockDelegationCodeData : String :=
   ".balign 8\n" ++
-  "runtime_current_bal_ptr:\n  .zero 8\n" ++
-  "runtime_current_bal_len:\n  .zero 8\n" ++
   "rsbd_code_ptr:\n  .zero 8\n" ++
   "rsbd_code_len:\n  .zero 8\n" ++
   "rsbd_hash:\n  .zero 32\n" ++
