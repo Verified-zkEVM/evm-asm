@@ -186,14 +186,13 @@ theorem success_content_of_decodeFully_list
     (hidx : items[index]? = some (RLPItem.bytes p))
     (hover : base.toNat + bytes.length < 2 ^ 64) :
     ∃ offset, Success bytes base bytes.length index offset (BitVec.ofNat 64 p.length) ∧
-      (bytes.drop offset.toNat).take p.length = p := by
+      (bytes.drop offset.toNat).take p.length = p ∧
+      offset.toNat + p.length ≤ bytes.length := by
   obtain ⟨cursorOff, hpay, hchain⟩ :=
     listPayload_chain_of_decodeFully bytes base items hdec hbytes
   obtain ⟨next, off', hnexteq, hnth, hcont, hple, hoe⟩ :=
     strictNthItem_of_chain bytes base bytes.length (le_refl _) hover index items
       cursorOff bytes.length p hchain (le_refl _) hbytes hidx
-  refine ⟨next - BitVec.ofNat 64 p.length - base, ⟨cursorOff,
-    base + BitVec.ofNat 64 bytes.length, next, hpay, hnth, rfl⟩, ?_⟩
   -- the reported offset is `off' - p.length` once the word arithmetic is done
   have hoff : (next - BitVec.ofNat 64 p.length - base).toNat = off' - p.length := by
     rw [hnexteq]
@@ -217,8 +216,11 @@ theorem success_content_of_decodeFully_list
         rw [e2, Nat.add_mod_left, Nat.mod_eq_of_lt hlt]
       exact hsplit
     rw [h1, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
-  rw [hoff]
-  exact hcont
+  refine ⟨next - BitVec.ofNat 64 p.length - base, ⟨cursorOff,
+    base + BitVec.ofNat 64 bytes.length, next, hpay, hnth, rfl⟩, ?_, ?_⟩
+  · rw [hoff]; exact hcont
+  -- `off' - p.length + p.length = off'` needs `hple`; then `hoe` closes it
+  · rw [hoff]; omega
 
 /-! ## Non-vacuity
 

@@ -32,6 +32,10 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
 
+#print axioms EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
+
+#print axioms EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
+
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
