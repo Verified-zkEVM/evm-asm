@@ -43,6 +43,10 @@ def guestLayout : GuestLayout :=
     mpt_delete_walk_db := GuestAddrs.mpt_delete_walk_db
     rlp_walk_init := GuestAddrs.rlp_walk_init
     rlp_walk_next := GuestAddrs.rlp_walk_next
-    bal_account_has_state_change := GuestAddrs.bal_account_has_state_change }
+    bal_account_has_state_change := GuestAddrs.bal_account_has_state_change
+    bams_addr_ptr := GuestAddrs.bams_addr_ptr
+    bams_addr_2935 := GuestAddrs.bams_addr_2935
+    bams_addr_4788 := GuestAddrs.bams_addr_4788
+    bal_account_is_modeled_system := GuestAddrs.bal_account_is_modeled_system }
 
 end EvmAsm.Codegen
