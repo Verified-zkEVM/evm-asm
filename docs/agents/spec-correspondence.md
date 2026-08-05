@@ -38,10 +38,39 @@ reason every verdict below carries a **basis**.
 | `domain-restricted` | Agrees, but the spec covers strictly less input than the reference accepts. Not a defect — a coverage gap callers must respect. |
 | `stricter` | We reject input the reference accepts. |
 | `looser` | We accept input the reference rejects. **Soundness finding; file immediately.** |
+| `spec-ref-bug <issue>` | The guest matches the **Python**; the `SpecRef` **port** does not. A reference-side defect. Carries the tracking issue, and the number is mandatory. |
 | `no-counterpart` | Guest-specific operation with no reference function to compare against. |
 | `n/a — unproven` | No spec exists, so the question is not answerable. An honest result, not a gap to paper over. |
 
 Do not collapse these to a boolean. The asymmetry *is* the product.
+
+### Grading a restriction: ask *whose* limit it is
+
+Every non-`agrees` verdict answers one question — **which side is limited?** —
+and the answers are not interchangeable:
+
+| limit lives in | verdict | is it a defect? |
+|---|---|---|
+| the **proof** (we did not cover the case) | `domain-restricted` | no — prove more |
+| the **triple's precondition** (the ABI obliges the caller) | `domain-restricted` | no, but it can be *violated* |
+| the **guest** (it refuses input the spec accepts) | `stricter` | **yes, guest-side** |
+| the **port** (it accepts input the Python rejects) | `spec-ref-bug` | **yes, reference-side** |
+
+So grade by asking *"does the guest reject this, or did we merely not prove it?"*
+— and, when the guest does reject, *"is the port the thing that is wrong?"*
+
+Reaching for `domain-restricted` because a restriction feels benign collapses the
+first three rows together. That is how #11493 started: a guest rejection was
+wearing a verdict whose description reads "Not a defect", and `stricter` had
+**zero** occurrences across the whole registry despite naming the most
+safety-relevant outcome in the schema.
+
+⚠️ **`stricter` and `looser` attribute the defect to the guest.** When the port is
+the broken side, neither is honest — use `spec-ref-bug`. The worked example is
+`header_extract_number` (#11513): the guest rejects a numeric header field wider
+than eight bytes or carrying a leading zero, `rlp.decode_to` rejects them too, and
+only the port's `getN = bytesBEtoNat` accepts them. Graded `stricter`, that row
+would record a false-reject against a guest that is behaving correctly.
 
 ## 3. Basis — how much a verdict is worth
 

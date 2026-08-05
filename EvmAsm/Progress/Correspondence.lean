@@ -25,6 +25,9 @@
     than `unproven`/`noCounterpart`, since the question is unanswerable without a
     spec;
   * `basis_diff_requires_spec` — a `diff`-graded row must name a spec;
+  * `specRefBug_cites_issue` — a row blaming the `SpecRef` port must name the
+    issue tracking that defect, so "the port is wrong" cannot be asserted without
+    something to fix it against;
   * the **`abbrev` witnesses at the bottom**, which make every `spec` string real:
     renaming or deleting a named theorem fails this file's elaboration rather than
     silently leaving a stale row. This is the same device as
@@ -51,6 +54,25 @@ import EvmAsm.Rv64.RLP.ContentToU256BeBridge
 
 namespace EvmAsm.Progress.Correspondence
 
+/-! ### Grading a restriction: ask *whose* limit it is
+
+    Every non-`agrees` verdict answers one question — **which side is limited?** —
+    and the four answers are not interchangeable:
+
+    | limit lives in | verdict | is it a defect? |
+    |---|---|---|
+    | the **proof** (we did not cover the case) | `domainRestricted` | no — prove more |
+    | the **triple's precondition** (the ABI obliges the caller) | `domainRestricted` | no, but it can be *violated* |
+    | the **guest** (it refuses input the spec accepts) | `stricter` | **yes, guest-side** |
+    | the **port** (it accepts input the Python rejects) | `specRefBug` | **yes, reference-side** |
+
+    So grade by asking "does the *guest* reject this, or did we merely not prove
+    it?" — and, when the guest does reject, "is the *port* the thing that is
+    wrong?". Reaching for `domainRestricted` because a restriction is benign
+    collapses the first three rows together, which is how #11493 started: a guest
+    rejection was wearing a verdict whose docstring says "Not a defect", and
+    `stricter` had zero occurrences despite describing the most safety-relevant
+    outcome in the schema. -/
 /-- How a routine's spec relates to the external reference.
 
     The vocabulary is **asymmetric on purpose**: `looser` is a soundness finding,
@@ -61,7 +83,12 @@ inductive Verdict where
   /-- Spec and reference agree on the routine's whole domain. -/
   | agrees
   /-- Agrees, but the spec covers strictly less input than the reference accepts.
-      Not a defect; a coverage gap callers must respect. -/
+      Not a defect; a coverage gap callers must respect.
+
+      Covers two situations that are both benign but make different promises: a
+      **coverage gap** (the guest may well handle the case; we have not proved it)
+      and an **ABI precondition** (the triple obliges the caller). The second can
+      be violated, the first cannot — the row's note must say which it is. -/
   | domainRestricted
   /-- We reject input the reference accepts → false-rejects on valid chain data. -/
   | stricter
@@ -69,6 +96,21 @@ inductive Verdict where
   | looser
   /-- A guest-specific operation with no reference function to compare against. -/
   | noCounterpart
+  /-- The guest matches the **Python**, and the `SpecRef` **port** does not — so the
+      apparent disagreement is a defect in the reference side, not in the guest.
+
+      `issue` is the GitHub issue tracking the port defect, and it is mandatory:
+      `specRefBug_cites_issue` rejects `0`. A note can say "the port is wrong"
+      without anyone ever fixing it; a required issue number cannot.
+
+      ⚠️ **Do not reach for `stricter`/`looser` when the port is the broken side.**
+      Those two attribute the defect to the guest, and the whole value of this
+      registry is that its verdicts say *who* is wrong. The worked example is
+      `header_extract_number` (#11513): the guest rejects a >8-byte or
+      leading-zero numeric field, `rlp.decode_to` rejects them too, and only the
+      port's `getN = bytesBEtoNat` accepts them. Graded `stricter` that row would
+      record a false-reject against a guest that is behaving correctly. -/
+  | specRefBug (issue : Nat)
   /-- No spec exists, so the question is not answerable. An honest result. -/
   | unproven
   deriving DecidableEq, BEq, Repr
@@ -371,20 +413,26 @@ Python while looking faithful" },
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
-    verdict := .domainRestricted, basis := .ported,
+    verdict := .specRefBug 11513, basis := .ported,
     reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:75, \
 stateless.py:244)",
-    note := "ONE-DIRECTIONAL and DOMAIN-RESTRICTED, and both qualifiers are load-bearing. \
+    note := "ONE-DIRECTIONAL, and the content restriction is a PORT DEFECT (#11513), not a \
+guest one -- regraded from `.domainRestricted` in #11493. \
 (a) ARITY: the guest never checks how many fields the header has, so on a list of any other \
 length it still returns a value where `_decode_header` errors; the honest statement is \
 `_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. `number` is \
 `getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is exactly \
-why this row represents the family. (b) TWO CONTENT RESTRICTIONS, which are the GUEST BEING \
-STRICTER THAN THE PORT: the guest rejects a field wider than eight bytes (`Result.tooLong`) \
-and one with a leading zero byte (`Result.noncanonical`), while the port's `getN` is plain \
-`bytesBEtoNat`, which tolerates both. That extra strictness matches CPython's \
-`rlp.decode_to`, which enforces exactly these -- it is the PORT that dropped the checks, not \
-the guest that invented them. Tied by `header_number_of_decode` \
+why this row represents the family. (b) TWO CONTENT RESTRICTIONS, which are a PORT DEFECT: \
+the guest rejects a field wider than eight bytes (`Result.tooLong`) and one with a leading \
+zero byte (`Result.noncanonical`), while the port's `getN` is plain `bytesBEtoNat`, which \
+tolerates both. The reference decodes via `rlp.decode_to(Header, ...)` -- a TYPED decode that \
+rejects both -- so the guest matches the Python and only the port is lenient. WHY \
+`.specRefBug` AND NOT `.stricter`: `.stricter` records a false-reject against the GUEST, and \
+here the guest is the correct side; the divergence is #11513, which also covers the other \
+eight `getN` fields. ⚠️ The `rlp.decode_to` claim is NOT checkable against the submodule pin: \
+`ethereum_rlp` is an external package constrained only as a range (`pyproject.toml:28`, \
+`>=0.1.6,<0.2`), so this clause cites behaviour outside the pin -- see #11513. Tied by \
+`header_number_of_decode` \
 (`Codegen/Programs/HeaderExtractNumberBridge.lean`), consuming the machine triple \
 `header_extract_number_spec_within` and `decode_header_inv`. NOT NEEDED: any byte-string \
 side condition -- `_decode_header` runs `items.mapM rlpBytes?`, which sends `.list` to \
@@ -394,7 +442,7 @@ differential to inherit. PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mk
 `number := getN 8` is syntactically the `header.number` assignment of stateless.py:244; the \
 arity guard `bs.length = 23 / 21` is the port's rendering of the fork discriminant; and the \
 two dropped canonicality checks above are the one place the port is WEAKER than the Python, \
-recorded here rather than hidden in the verdict" },
+now carried by the verdict itself (`.specRefBug 11513`) rather than only by this note" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
@@ -426,6 +474,12 @@ machine-checked rather than a local restatement. Regraded in #11341" }
 /-! ## Counts -/
 
 def countVerdict (v : Verdict) : Nat := (registry.filter (·.verdict == v)).length
+
+/-- `specRefBug` carries its issue number, so it cannot be counted by equality
+    against a bare constructor the way the other verdicts are. -/
+def isSpecRefBug (v : Verdict) : Bool := match v with | .specRefBug _ => true | _ => false
+
+def countSpecRefBug : Nat := (registry.filter (isSpecRefBug ·.verdict)).length
 def countBasis (b : Basis) : Nat := (registry.filter (·.basis == b)).length
 def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
@@ -442,9 +496,10 @@ theorem header_rows : countFamily "header" = 2 := by decide
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
+    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 3 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 ∧
+    countSpecRefBug = 1 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
@@ -461,6 +516,14 @@ theorem basis_counts :
     rejects. Recording a `looser` row fails this theorem, so a false-accept
     cannot land quietly — amending it must be deliberate and visible in review. -/
 theorem no_looser_verdicts : countVerdict .looser = 0 := by decide
+
+/-- **Every `specRefBug` row names a tracked defect.** Issue `0` is rejected, so
+    "the port is wrong" cannot be asserted without something to fix it against —
+    the difference between a recorded defect and a note nobody acts on. -/
+theorem specRefBug_cites_issue :
+    registry.all (fun e => match e.verdict with
+      | .specRefBug issue => issue != 0
+      | _ => true) = true := by decide
 
 /-- A **guest routine** with no spec cannot carry a substantive verdict: without
     a spec there is nothing to compare, so the only honest values are `unproven`
