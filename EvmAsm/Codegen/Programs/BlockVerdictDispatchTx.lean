@@ -427,9 +427,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, bvcd_code_ptr; ld a3, 0(t0); la t0, bvcd_code_len; ld a4, 0(t0)\n" ++
   -- Production no-preload contract (GH #11176): all production callers use
   -- the authenticated demand-driven storage path and pass literal zeroes.
-  -- Keep this callsite pinned by the #guard below. If a future caller feeds
-  -- rows again, BAL comparators do not consult exec_log_seed_flag and generic
-  -- rows have no exec_log_txindex stamp, so tuple validation sees txindex 0.
+  -- Keep this callsite pinned by the #guard below. The retired exec-log
+  -- metadata path is deliberately not part of this production staging call.
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Ldtrc_stage_unsupported\n" ++

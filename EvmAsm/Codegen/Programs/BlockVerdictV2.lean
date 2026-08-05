@@ -44,7 +44,6 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 import EvmAsm.Codegen.Programs.BlockVerdictMultiTx
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.Eip7702Authority
@@ -65,6 +64,7 @@ import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BlockVerdictTxsIndependent
 
 namespace EvmAsm.Codegen
 
@@ -175,11 +175,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-    -- .6.2.2.2.a: multi-tx dispatch helpers (independence guard + per-index tx
-    -- context extractor) wired ahead of the gated multi-tx loop (.6.2.2.2.b).
-    btiScanTuplesFunction ++ "\n" ++
-    btiScanStorageChangesFunction ++ "\n" ++
-    balTxsIndependentFunction ++ "\n" ++
+    -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
     -- Keep the standalone verdict-debug ELF's multi-tx closure in lockstep
     -- with the guest closure: the runtime dispatcher reaches this whitelist
     -- gate, and the post-dispatch verdict reaches the withdrawal effect walk.
@@ -409,7 +405,6 @@ def statelessVerdictV2GuestClosure : String :=
   bsrSysChangeFunction ++ "\n" ++
   bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  captureSystemStorageExecRowsFunction ++ "\n" ++
   appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
   recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
@@ -580,12 +575,7 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-  -- .6.2.2.2.a: multi-tx dispatch helpers — bal_txs_independent (independence
-  -- guard) + its bti_scan_* walkers, and multi_tx_nth_context (per-index tx
-  -- context extractor) — wired ahead of the gated multi-tx loop (.6.2.2.2.b).
-  btiScanTuplesFunction ++ "\n" ++
-  btiScanStorageChangesFunction ++ "\n" ++
-  balTxsIndependentFunction ++ "\n" ++
+  -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
   -- bmvmx.5.5.10: whitelist-v0 gate for the sequential lane (request-predeploy
   -- storage rows -> conservative bail until the comparator learns the side arena)
   brpsfAddr20EqFunction ++ "\n" ++

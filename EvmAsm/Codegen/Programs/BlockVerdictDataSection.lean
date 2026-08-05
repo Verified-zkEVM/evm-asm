@@ -736,49 +736,16 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
   ".balign 8\n" ++
   "c1_saved_logcount:\n  .zero 8\n" ++
-  "c1_system_log_cursor:\n  .zero 8\n" ++
-  -- bmvmx.5.5.1.2.1.3.1.1: side arena for system-call SSTORE rows.
-  -- The system-call derives append to the regular storage log, then the verdict
-  -- restores evm_env+448 so user storage/nonstorage comparators preserve their
-  -- current behavior. Capture those erased rows here with txindex=0 for the
-  -- follow-up tuple-merge comparator.
+  -- Modeled EIP-2935/EIP-4788 startup rows are staged here while the MTx setup
+  -- feeds the authenticated storage map and BAL builder.
   "bv_system_storage_log_count:\n  .zero 8\n" ++
   -- Set only around the pre-user descriptor pass: reuse the row conversion
   -- without emitting a duplicate side-log/BAL event before terminal replay.
   "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
   "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
-  -- 4ch8f.73: bv_system_storage_log is a STANDALONE .data region (NOT unioned into
-  -- call_frame_arena). The former ~77 MiB union placement was UNSOUND: the audit's
-  -- claimed "dead during Phase-D dispatch" was false — the syslog is WRITTEN
-  -- pre-dispatch (capture_system_storage_exec_rows) but READ POST-dispatch by the
-  -- BAL validators (bal_storage_matches_exec_log @BlockVerdictFunction:972,
-  -- bal_storage_covers_exec_log :984, account_tuple_sequences_consistent :1135),
-  -- while per-tx dispatch frames at depth ≥ 221 physically zero the union front
-  -- (call_frame_arena + (d-1)*0x39000 covers the syslog extent). Reservation was
-  -- also tightened from the unreachable gas bound (600000 rows) to
-  -- bvSystemStorageLogCapacity (= 2 * runtime exec-log cap 16384; see
-  -- BlockVerdictParams) so the standalone region is only 4 MiB and fits the .data
-  -- headroom. Disjointness from every frame slot: syslog_disjoint_from_frameArena
-  -- (RegionMap.lean).
+  -- Keep the modeled-system staging arena standalone from call_frame_arena.
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
-  ".balign 8\n" ++
-  "bv_system_storage_capture_status:\n  .zero 8\n" ++
-  "bv_system_storage_capture_start:\n  .zero 8\n" ++
-  "bv_system_storage_capture_end:\n  .zero 8\n" ++
-  "bv_system_storage_capture_rows:\n  .zero 8\n" ++
-  "bv_system_storage_capture_old_count:\n  .zero 8\n" ++
-  "bv_system_storage_capture_new_count:\n  .zero 8\n" ++
-  "cssc_stamp_txindex:\n  .zero 8\n" ++       -- lv44p.2.2: block_access_index stamped into captured system rows
-  -- bmvmx.5.5.10 PR-2: per-tx USER-write side arena. The live exec log only holds
-  -- the LAST dispatch's rows (each dispatch resets persistentLogLength), so the
-  -- mtx loop captures each tx's surviving SSTORE rows here (same 128-byte layout,
-  -- txindex = block_access_index i+1) for the forward BAL storage comparator.
-  -- Standalone region, same disjointness argument as bv_system_storage_log.
-  "bv_user_storage_log_count:\n  .zero 8\n" ++
-  "bv_user_storage_txindex:\n  .zero " ++ toString bvUserStorageTxindexBytes ++ "\n" ++
-  ".balign 32\n" ++
-  "bv_user_storage_log:\n  .zero " ++ toString bvUserStorageLogBytes ++ "\n" ++
   ".balign 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++

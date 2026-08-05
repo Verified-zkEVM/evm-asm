@@ -146,7 +146,6 @@ bn254ValidateG1Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bsrApplyModeledSystemPostFieldsFunction	EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean
 bsrBeaconChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
 bsrSysChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
-btiScanStorageChangesFunction	EvmAsm/Codegen/Programs/BlockVerdictTxsIndependent.lean
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean

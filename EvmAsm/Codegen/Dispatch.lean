@@ -2564,16 +2564,10 @@ private def emitTopLevelMessageD0Preparation : String :=
     The production call sites carry build-time `#guard` pins in their program
     modules.
 
-    This is a dormant mechanism, not a live production hazard. If a future
-    caller feeds nonzero rows again, two independent conventions must be
-    addressed: BAL forward/reverse comparators consume the live row arena
-    without consulting `exec_log_seed_flag`, while tuple validation observes
-    generic rows as `exec_log_txindex = 0` because this producer does not stamp
-    that field. The flag itself must remain: authenticated `h_SLOAD` miss seeds
-    use it, and system-storage capture skips those seed rows by reading it.
-    The SSTORE-clear probe is the sole remaining nonzero consumer and needs
-    the preload to exercise the clean nonzero-to-zero gas class; re-feeding it
-    through production would require a new seed seam.
+    This is a dormant mechanism, not a live production hazard. The
+    SSTORE-clear probe is the sole remaining nonzero consumer and exercises
+    the clean nonzero-to-zero gas class; re-feeding it through production
+    would require a new seed seam.
 -/
 def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
@@ -2687,10 +2681,8 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
   "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
   "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
-  "  la x9, exec_log_seed_flag\n" ++ -- this preload row is not an execution write
   ".preload_expand_loop:\n" ++
   "  beqz x6, .preload_expand_done\n" ++
-  "  li x10, 1; sb x10, 0(x9)\n" ++
   -- addrHash = 0 (32 bytes)
   "  sd x0, 0(x7)\n" ++
   "  sd x0, 8(x7)\n" ++
@@ -2720,7 +2712,6 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x8, 120(x7)\n" ++
   "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
   "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
-  "  addi x9, x9, 1\n" ++
   "  addi x6, x6, -1\n" ++
   "  j .preload_expand_loop\n" ++
   ".preload_expand_done:\n" ++
@@ -3770,22 +3761,9 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 32\n" ++
   "srfd_out:\n" ++
   "  .zero 40\n" ++
-  -- bmvmx.1.6.6 enabler: per-entry block_access_index, PARALLEL to the 128 B exec-log
-  -- entries at 0xa0630000 (so the existing scans are byte-identical). exec_log_txindex[i]
-  -- = the tx's block_access_index for persistent-log entry i; the SSTORE handler stamps
-  -- it on append. `current_block_access_index` defaults to 1 (single-tx); the multi-tx
-  -- loop overwrites it per tx (system txs = 0). Sized to the persistent-log capacity
-  -- ((0xa0830000-0xa0630000)/128 = 16384 entries). Consumed later by the per-account
-  -- tuple-SEQUENCE comparators (c2).
   ".balign 8\n" ++
   "current_block_access_index:\n" ++
   "  .dword 1\n" ++
-  ".balign 8\n" ++
-  "exec_log_txindex:\n" ++
-  "  .zero 131072\n" ++   -- 16384 entries × 8 B
-  ".balign 8\n" ++
-  "exec_log_seed_flag:\n" ++
-  "  .zero 16384\n" ++    -- one provenance byte per persistent-log row; 1 = seed/preload
   ".balign 32\n" ++
   "evm_memory_layout_pad:\n" ++
   "  .zero " ++ toString runtimeMemoryLayoutPadBytes ++ "\n" ++

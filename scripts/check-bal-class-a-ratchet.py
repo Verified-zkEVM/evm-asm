@@ -8,6 +8,16 @@ baseline:
   * NEW path not in baseline  → fail (regression: new Class-A read)
   * BASELINE path disappeared → fail (force explicit baseline shrink on retirement)
 
+ENDPOINT (coord 11183 ruling): the guest must not read the provided BAL as an
+EXECUTION INPUT. BIND rows that only locate the payload slice so it can be
+hashed/serialized (fork.py:366/:390) are the legitimate finish line — NOT an
+unfinished zero. This ratchet tracks bv_bal_start/len REFERENCES and therefore
+CONFLATES BIND WITH CHECK; a remaining BIND row is not incomplete work. CHECK
+rows (field compare / parse-bail / body walk against supplied content) retire
+under the EQUIVALENCE argument: spec validates only hash of the BUILT list
+(fork.py:390) and has no supplied body — not under "hash covers it" (that needs
+collision-freedom, which the maintainer ruled out).
+
 Per path, record whether a following direct jal's return status (a0) is tested.
 The same gate validates the merge-safe rationale sidecar and counts its explicit
 bullet annotations, so regeneration cannot silently erase review context.
@@ -40,7 +50,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
 DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
-EXPECTED_ANNOTATION_COUNT = 3
+EXPECTED_ANNOTATION_COUNT = 0
 SEEDS = ("bv_bal_start", "bv_bal_len")
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
@@ -185,6 +195,13 @@ HEADER = (
     "# Maintained by scripts/check-bal-class-a-ratchet.py\n"
     "# NEW path => fail; MISSING baselined path => fail (shrink baseline on purpose).\n"
     "# return_status_tested=yes means a direct jal soon after is followed by a0/t*-status branch.\n"
+    "#\n"
+    "# ENDPOINT (#11183): remaining rows should be BIND (locate BAL slice for hash/\n"
+    "# serialize per fork.py:366/:390), NOT CHECKs against supplied body content.\n"
+    "# Ratchet conflates BIND with CHECK (tracks start/len refs). BIND residual is\n"
+    "# the finish line — not unfinished work. Retire CHECKs via EQUIVALENCE (spec\n"
+    "# only hashes the BUILT list at fork.py:390; no supplied body), never via\n"
+    "# \"hash covers it\" (needs collision-freedom; ruled out).\n"
 )
 
 
@@ -263,7 +280,9 @@ def load_annotation_notes(path: Path) -> dict[tuple[str, str], list[str]]:
             f"{declared_count!r} annotations; expected {EXPECTED_ANNOTATION_COUNT}"
         )
     annotation_count = sum(len(annotations) for annotations in notes.values())
-    if annotation_count == 0:
+    # Zero is legal only when EXPECTED_ANNOTATION_COUNT is deliberately 0
+    # (every annotated edge retired, e.g. #11183 bal_txs_independent).
+    if annotation_count == 0 and EXPECTED_ANNOTATION_COUNT != 0:
         raise ValueError(
             "annotation sidecar has zero annotations; the rationale was lost"
         )
