@@ -270,8 +270,8 @@ BR_NAMED_THRESHOLD = 64
 JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 
 # Site-level ratchet for the local-J migration.  This is the sole blocking
-# counter: a conversion may reduce it, but a newly-bare long local J must fail
-# check-all rather than hide behind the mixed B/J transition.
+# counter: every intentional conversion or counting change must update the
+# committed value in the same commit, so decreases cannot pass silently.
 EXPECTED_BARE_J_SITES = 181
 
 def br_imm(off, entry, cur):
@@ -1737,11 +1737,11 @@ def main():
             gaprob=[f"GuestAddrs: {e}"]
         allprob+=gaprob
         bare_j_files,bare_j_defs,bare_j_sites=count_bare_j_program_files(man)
-        if bare_j_sites > EXPECTED_BARE_J_SITES:
+        if bare_j_sites != EXPECTED_BARE_J_SITES:
             allprob.append(
-                f"bare local J site ratchet: expected at most {EXPECTED_BARE_J_SITES} "
+                f"bare local J site ratchet: expected exactly {EXPECTED_BARE_J_SITES} "
                 f"sites, found {bare_j_sites} ({bare_j_files} files / "
-                f"{bare_j_defs} defs); a newly-bare site was introduced")
+                f"{bare_j_defs} defs); update the committed value with a stated reason")
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)
