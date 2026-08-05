@@ -26,9 +26,31 @@ import EvmAsm.Stateless.SpecRef.Gas
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
+/-- Check the generic CALL/CALLCODE value-gas floor without charging it.
+
+    `system.py` performs the combined access + CALL_VALUE + memory check before
+    any target state access. The actual CALL_VALUE charge remains in the
+    branch-specific fall-through below; this probe only prevents
+    `account_read_record` from publishing a target when that later charge would
+    immediately OOG. -/
+def callValueGasAvailabilityGateAsm (tag : String) (valueOff : Nat) : String :=
+  "  ld t3, " ++ toString valueOff ++ "(x12); ld t4, " ++ toString (valueOff + 8) ++ "(x12); or t3, t3, t4\n" ++
+  "  ld t4, " ++ toString (valueOff + 16) ++ "(x12); or t3, t3, t4; ld t4, " ++ toString (valueOff + 24) ++ "(x12); or t3, t3, t4\n" ++
+  "  beqz t3, .Lcvga_zero_" ++ tag ++ "\n" ++
+  s!"  ld t3, 568(x20); li t4, {EvmAsm.Stateless.SpecRef.GasCosts.CALL_VALUE}; bltu t3, t4, .exit_outofgas\n" ++
+  ".Lcvga_zero_" ++ tag ++ ":\n"
+
 /-- Charge the EIP-7702 delegation target access for a CALL-family callee when
-    the callee is a `0xef0100||addr` delegation marker. -/
-def callDelegationAccessChargeAsm (tag : String) : String :=
+    the callee is a `0xef0100||addr` delegation marker.
+
+    Spec (eoa_delegation.calculate_delegation_cost + system.py CALL):
+    `check_gas(access + CALL_VALUE + mem + delegation)` then
+    `get_account(target)`. Guest charges access/mem first, then this helper
+    charges delegation. Target `account_read_record` must NOT run until the
+    remaining CALL_VALUE floor still fits — otherwise OOG-before-target
+    fixtures (#code60 call_7702_oog / callcode_7702_oog) publish an empty
+    AccountChanges shell the rebuild hashes and the supplied BAL omits. -/
+def callDelegationAccessChargeAsm (tag : String) (valueOff? : Option Nat := none) : String :=
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, " ++ runtimeAccessSeedScratchLabel ++ "\n" ++
   "  ld a3, 592(x20)\n  ld a4, 600(x20)\n  ld a5, 608(x20)\n  ld a6, 616(x20)\n" ++
@@ -96,34 +118,26 @@ def callDelegationAccessChargeAsm (tag : String) : String :=
   -- add the 100 warm-floor the helper omits, so total = 3000 cold / 100 warm.
   s!"  ld t0, 568(x20)\n  li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}\n  bltu t0, t1, .exit_outofgas\n" ++
   "  sub t0, t0, t1\n  sd t0, 568(x20)\n" ++
+  -- Spec folds CALL_VALUE into check_gas *before* get_account(target). The
+  -- early callValueGasAvailabilityGateAsm ran before this helper debited
+  -- delegation; re-probe the floor now so OOG on the later CALL_VALUE charge
+  -- cannot leave a phantom target shell in account_reads (#code60 +27).
+  -- Gate clobbers t3/t4 — park target ptr (t4) across it.
+  "  addi sp, sp, -16\n  sd t4, 0(sp)\n" ++
+  (match valueOff? with
+  | none => ""
+  | some valueOff => callValueGasAvailabilityGateAsm ("post_deleg_" ++ tag) valueOff) ++
+  "  ld t4, 0(sp)\n  addi sp, sp, 16\n" ++
   -- `calculate_delegation_cost` selected this `code_address`; the spec records
-  -- it only after the delegation-specific gas check succeeds.  Record the
-  -- resolved delegate here, not the original CALL target (which the caller
-  -- records separately after the initial static check).
+  -- it only after the full (access+CALL_VALUE+mem+delegation) gas check.
+  -- Record the resolved delegate here, not the original CALL target (caller
+  -- records that separately after the initial static check).
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t4, 24(sp)\n" ++
   "  mv a0, t4\n" ++
   "  jal ra, account_read_record\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t4, 24(sp)\n  addi sp, sp, 32\n" ++
   ".Lcdac_done_" ++ tag ++ ":\n"
 
-/-- Check the generic CALL/CALLCODE value-gas floor without charging it.
-
-    `system.py` performs the combined access + CALL_VALUE + memory check before
-    any target state access. The actual CALL_VALUE charge remains in the
-    branch-specific fall-through below; this probe only prevents
-    `account_read_record` from publishing a target when that later charge would
-    immediately OOG. -/
-def callValueGasAvailabilityGateAsm (tag : String) (valueOff : Nat) : String :=
-  "  ld t3, " ++ toString valueOff ++ "(x12); ld t4, " ++ toString (valueOff + 8) ++ "(x12); or t3, t3, t4\n" ++
-  "  ld t4, " ++ toString (valueOff + 16) ++ "(x12); or t3, t3, t4; ld t4, " ++ toString (valueOff + 24) ++ "(x12); or t3, t3, t4\n" ++
-  "  beqz t3, .Lcvga_zero_" ++ tag ++ "\n" ++
-  s!"  ld t3, 568(x20); li t4, {EvmAsm.Stateless.SpecRef.GasCosts.CALL_VALUE}; bltu t3, t4, .exit_outofgas\n" ++
-  ".Lcvga_zero_" ++ tag ++ ":\n"
-
-/-- Record a delegation target when the CALL resolver selects an active
-    precompile.  This is deliberately separate from the resolver: its `a3 = 2`
-    liveness probe must remain a pure probe, while this site has committed to
-    executing the selected target. -/
 def recordDelegatedPrecompileTargetAsm : String :=
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
   "  la a0, bsbd_deleg_target\n  jal ra, account_read_record\n" ++
