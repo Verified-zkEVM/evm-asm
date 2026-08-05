@@ -789,18 +789,33 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  ld x10, 240(sp)\n  ld x12, 248(sp)\n  addi sp, sp, 256\n" ++
   "  j .L_sdbn_done\n" ++
   ".L_sdbn_chk_witness:\n" ++
+  -- status 0 = origin+beneficiary in block-pre; 4 = origin in pre, beneficiary new;
+  -- status 3 = origin MISS on block-pre MPT (e.g. CREATE in an earlier tx of this
+  -- block). EIP-6780 still `move_ether`s the live balance and does NOT delete
+  -- (originator ∉ created_accounts this tx). Bailing on status 3 left the CREATE
+  -- balance stranded and the beneficiary uncredited → #11547 root mismatch on
+  -- selfdestruct_created_same_block_different_tx (11737-39). Fall through and
+  -- resolve the origin balance from AccountState (prior-tx durable state).
   "  la t0, sdai_status; ld t0, 0(t0); beqz t0, .L_sdbn_origin_ok\n" ++
-  "  li t1, 4; bne t0, t1, .L_sdbn_done\n" ++
+  "  li t1, 4; beq t0, t1, .L_sdbn_origin_ok\n" ++
+  "  li t1, 3; bne t0, t1, .L_sdbn_done\n" ++
   ".L_sdbn_origin_ok:\n" ++
   "  addi sp, sp, -144\n" ++
   "  sd x10, 128(sp); sd x12, 136(sp)\n" ++
+  -- status 3: no origin RLP; start from 0 and let AccountState supply the live bal.
+  "  la t0, sdai_status; ld t0, 0(t0); li t1, 3; beq t0, t1, .L_sdbn_origin_bal_zero\n" ++
   "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 64\n" ++
   "  jal ra, account_extract_balance\n" ++
+  "  j .L_sdbn_origin_bal_overlay\n" ++
+  ".L_sdbn_origin_bal_zero:\n" ++
+  "  sd zero, 64(sp); sd zero, 72(sp); sd zero, 80(sp); sd zero, 88(sp)\n" ++
+  ".L_sdbn_origin_bal_overlay:\n" ++
   -- The witness is block-pre state.  On a later transaction in the same block,
   -- a prior SELFDESTRUCT may already have recorded this origin's balance as
   -- zero; use that last committed effect before deciding whether there is a
   -- transfer.  Without this overlay, the stale witness balance is transferred
-  -- a second time (selfdestruct_then_transfer_same_block).
+  -- a second time (selfdestruct_then_transfer_same_block). Same overlay also
+  -- supplies the balance of a same-block prior-tx CREATE (status 3).
   "  sd zero, 96(sp); sd zero, 104(sp); sd zero, 112(sp); sd zero, 120(sp)\n" ++
   "  la t0, sdai_origin_address; addi t1, sp, 96; li t2, 20\n" ++
   ".L_sdbn_origin_key:\n" ++
@@ -844,20 +859,27 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- drj99.1 part 5c: record the ORIGIN's debit (balance -> 0, nonce preserved). SELFDESTRUCT moves the
   -- origin's whole balance to the (different) beneficiary, so the origin's final balance is 0; without a
   -- matching exec effect the BAL declares the origin's balance->0 with nothing to match -> bv_fail=44 (the
-  -- selfdestruct_* families). We are inside the witness-present (sdai_status 0/4) + origin!=beneficiary +
-  -- origin-balance!=0 path: the origin EXISTED at block-pre (created-in-THIS-tx accounts are absent from the
-  -- block-pre witness and never reach here), so EIP-6780 does NOT delete it -> nonce is PRESERVED. pre_bal =
-  -- origin balance (sp+64, extracted above); post_bal = 0 (sp+8..39); pre_nonce = post_nonce = origin nonce.
-  -- sp+0..63 is free scratch now (beneficiary pre/post already consumed). x10/x12 stay saved at sp+96/104.
+  -- selfdestruct_* families). Paths: status 0/4 (origin in block-pre) OR status 3 (origin from a
+  -- prior tx this block, live in AccountState only). EIP-6780 does NOT delete either → nonce PRESERVED.
+  -- pre_bal = origin balance (sp+64); post_bal = 0 (sp+8..39).
+  -- sp+0..63 is free scratch now (beneficiary pre/post already consumed). x10/x12 stay saved at sp+128/136.
+  "  sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp)\n" ++             -- post_balance = 0 (sp+8..39)
+  "  la t0, sdai_status; ld t0, 0(t0); li t1, 3; beq t0, t1, .L_sdbn_origin_nonce_as\n" ++
   "  la a0, sdai_origin_rlp; la t0, sdai_origin_len; ld a1, 0(t0); addi a2, sp, 0\n" ++   -- origin nonce -> sp+0
   "  jal ra, account_extract_nonce\n" ++
-  "  sd zero, 8(sp); sd zero, 16(sp); sd zero, 24(sp); sd zero, 32(sp)\n" ++             -- post_balance = 0 (sp+8..39)
   -- SELFDESTRUCT preserves the origin nonce, but a successful CREATE earlier
   -- in this transaction may already have advanced it.  Keep the witness nonce
   -- as the block-pre value and take the latest recorded nonce as the final.
   "  ld t0, 0(sp); sd t0, 40(sp)\n" ++
   "  la a0, sdai_origin_address; addi a1, sp, 40; jal ra, account_state_latest_nonce\n" ++
   "  ld a3, 0(sp); ld a4, 40(sp)\n" ++
+  "  j .L_sdbn_origin_debit\n" ++
+  ".L_sdbn_origin_nonce_as:\n" ++
+  -- status 3: no pre RLP. Nonce is whatever AccountState holds (CREATE deposited 1);
+  -- EIP-6780 preserves it, so pre_nonce = post_nonce = AS latest.
+  "  sd zero, 0(sp); la a0, sdai_origin_address; addi a1, sp, 0; jal ra, account_state_latest_nonce\n" ++
+  "  ld a3, 0(sp); mv a4, a3\n" ++
+  ".L_sdbn_origin_debit:\n" ++
   "  la a0, sdai_origin_address; addi a1, sp, 64; addi a2, sp, 8\n" ++                    -- a1 = pre_bal (origin), a2 = post_bal (0)
   "  jal ra, record_nonstorage_effect\n" ++
   ".L_sdbn_restore:\n" ++
