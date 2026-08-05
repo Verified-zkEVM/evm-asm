@@ -23,11 +23,22 @@
   `*_of_content` lemmas.
 
   ⚠️ Scope, stated rather than hidden: everything here is gated on `a.WF`.
-  `Decoded` is four `Success` facts plus `l0 ≤ 8`, `l1 ≤ 32`, `l2 = 32`,
-  `l3 = 32` — which is literally `AccountRecord.WF`.  So `a.WF` is not a
-  convenience hypothesis, it is exactly the guest's own parse-time check,
-  and the correspondence row must record what it excludes rather than let
-  `a.WF` absorb it silently.
+  `Decoded` is four `Success` facts plus `l0 ≤ 8`, `l1 ≤ 32` and — post-#11483 —
+  `l2 ∈ {32, 0}`, `l3 ∈ {32, 0}`, the zero arms being the guest's
+  `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH` fold.  So `a.WF` is not a convenience
+  hypothesis, it is exactly the guest's own parse-time check, and the
+  correspondence row must record what it excludes rather than let `a.WF` absorb
+  it silently.
+
+  ⭐ On the fold arms specifically: they are **unreachable here, and that is the
+  finding rather than a gap**.  `content_of_success` pins each reported field
+  length to the encoded child's length, and `WF` makes both hash children exactly
+  32 bytes — so `l2.toNat = 0` holds on no `a.rlp` at all, and both `hashCell`s
+  collapse to `fixed32Copied`.  Equivalently: the degenerate leaf the guest now
+  accepts is **outside `AccountRecord.rlp`'s image**, because `rlp` *derives* the
+  encoding from the fields.  Relaxing `WF` would therefore not admit it either;
+  modelling it needs a record that carries its encoding rather than computing one.
+  See GH #11484.
 -/
 
 import EvmAsm.Codegen.Programs.AccountDecodeBridge
@@ -40,7 +51,8 @@ namespace EvmAsm.Codegen.AccountDecodeCompose
 open EvmAsm.Rv64 EvmAsm.EL.RLP
 open EvmAsm.Stateless (AccountRecord accountDecodedIs accountDecodedIs_eq beBytes32)
 open EvmAsm.Codegen.RlpListNthItemSAsm (Success)
-open EvmAsm.Codegen.AccountDecodeSpec (Decoded outputSuccess beAccum balanceCopied fixed32Copied)
+open EvmAsm.Codegen.AccountDecodeSpec (Decoded outputSuccess beAccum balanceCopied fixed32Copied
+  hashCell hashCell_of_ne_zero adEmptyTrieRootBytes adEmptyCodeHashBytes)
 open EvmAsm.Codegen.AccountDecodeBridge
   (beAccum_of_content balanceCopied_of_content fixed32Copied_of_content)
 
@@ -121,7 +133,7 @@ theorem outputSuccess_eq_accountDecodedIs
     (hover : listBase.toNat + a.rlp.length < 2 ^ 64)
     (hdec : Decoded a.rlp listBase a.rlp.length o0 l0 o1 l1 o2 l2 o3 l3) :
     outputSuccess nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0.toNat l1.toNat
-        a.rlp oldRoot oldCode
+        l2.toNat l3.toNat a.rlp oldRoot oldCode
       = accountDecodedIs nonceOut balanceOut rootOut codeOut a := by
   obtain ⟨hs0, -, hs1, -, hs2, -, hs3, -⟩ := hdec
   -- field lengths, from `WF` — the same bounds the guest checks at parse time
@@ -153,11 +165,23 @@ theorem outputSuccess_eq_accountDecodedIs
     rw [hn1, balanceCopied_of_content a.rlp o1 (Nat.toBytesBE a.balance).length
       (Nat.toBytesBE a.balance) hblen hb1 hc1]
     rfl
-  have hvRoot : fixed32Copied a.rlp oldRoot o2 = a.storageRoot :=
-    fixed32Copied_of_content a.rlp oldRoot o2 a.storageRoot holdRoot
+  -- ⭐ the #11483 fold arm is unreachable *here*, and that is the point.  The
+  -- guest now folds a zero-length hash field to `EMPTY_TRIE_ROOT` /
+  -- `EMPTY_CODE_HASH`, so `outputSuccess`'s hash cells are `hashCell`s.  But a
+  -- field length is pinned to the encoded child's length (`content_of_success`),
+  -- and `WF` makes both hash children exactly 32 bytes — so `l2`/`l3` cannot be
+  -- zero on any `a.rlp`, and each cell collapses back to `fixed32Copied`.  The
+  -- degenerate leaf the guest now accepts is simply outside `AccountRecord.rlp`'s
+  -- image, which is why relaxing `WF` would not admit it either (GH #11484).
+  have hn2 : l2.toNat = 32 := by rw [he2, hrlen, BitVec.toNat_ofNat]
+  have hn3 : l3.toNat = 32 := by rw [he3, hclen, BitVec.toNat_ofNat]
+  have hvRoot : hashCell a.rlp oldRoot o2 l2.toNat adEmptyTrieRootBytes = a.storageRoot := by
+    rw [hashCell_of_ne_zero a.rlp oldRoot o2 l2.toNat adEmptyTrieRootBytes (by omega)]
+    exact fixed32Copied_of_content a.rlp oldRoot o2 a.storageRoot holdRoot
       (by omega) (by rw [← hrlen]; exact hc2)
-  have hvCode : fixed32Copied a.rlp oldCode o3 = a.codeHash :=
-    fixed32Copied_of_content a.rlp oldCode o3 a.codeHash holdCode
+  have hvCode : hashCell a.rlp oldCode o3 l3.toNat adEmptyCodeHashBytes = a.codeHash := by
+    rw [hashCell_of_ne_zero a.rlp oldCode o3 l3.toNat adEmptyCodeHashBytes (by omega)]
+    exact fixed32Copied_of_content a.rlp oldCode o3 a.codeHash holdCode
       (by omega) (by rw [← hclen]; exact hc3)
   rw [accountDecodedIs_eq hwf]
   unfold outputSuccess
@@ -181,7 +205,7 @@ theorem decoded_matches_specRef
     (hover : listBase.toNat + a.rlp.length < 2 ^ 64)
     (hdec : Decoded a.rlp listBase a.rlp.length o0 l0 o1 l1 o2 l2 o3 l3) :
     outputSuccess nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0.toNat l1.toNat
-        a.rlp oldRoot oldCode
+        l2.toNat l3.toNat a.rlp oldRoot oldCode
       = accountDecodedIs nonceOut balanceOut rootOut codeOut a ∧
     EvmAsm.Stateless.SpecRef.decode_account_from_leaf a.rlp
       = .ok ({ nonce := a.nonce, balance := a.balance, codeHash := a.codeHash },

@@ -82,9 +82,10 @@ theorem pcFree_adFailLeftover (spW nonceOut balanceOut rootOut codeOut listBase 
     the two guest data cells, the clobbered temporaries, and the reclaimed
     scratch stack. -/
 def adSuccessOut (spW nonceOut balanceOut rootOut codeOut listBase o0 o1 o2 o3 : Word)
-    (l0 l1 : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
+    (l0 l1 l2 l3 : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
   fun h => ∃ (roff rlen : Word),
-    (outputSuccess nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0 l1 bytes oldRoot oldCode **
+    (outputSuccess nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0 l1 l2 l3
+       bytes oldRoot oldCode **
      bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ roff) ** (adLengthAddr ↦ₘ rlen) **
      stackFree spW 8 ** adScratch codeOut) h
 
@@ -97,7 +98,7 @@ def adWholePost (sp0 spW : Word) (saved : Saved) (listBase : Word)
       ((⌜Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 o3 l3⌝ : Assertion) **
        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** adCommon sp0 spW saved **
         adSuccessOut spW saved.s2 saved.s3 saved.s4 saved.s5 listBase o0 o1 o2 o3
-          l0.toNat l1.toNat bytes oldRoot oldCode)) h) ∨
+          l0.toNat l1.toNat l2.toNat l3.toNat bytes oldRoot oldCode)) h) ∨
     (((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** adCommon sp0 spW saved **
        adFailLeftover spW saved.s2 saved.s3 saved.s4 saved.s5 listBase bytes)) h)

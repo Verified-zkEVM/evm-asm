@@ -135,12 +135,75 @@ theorem fixed32Copied_length (bytes oldOut : List (BitVec 8)) (o : Word)
     (fixed32Copied bytes oldOut o).length = 32 := by
   unfold fixed32Copied; rw [copyIntoRegion_length]; exact hlen
 
+/-! ### The zero-length hash fold (GH #11483)
+
+`witness_state.py:118-119` folds a **zero-length** `storage_root` / `code_hash`
+to `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH` rather than rejecting it; the guest
+previously required exactly 32 bytes, so it false-rejected a leaf the spec
+accepts.  The assembly now dispatches `len = 0` to a block that stores the
+constant (four `LD`/`SD` pairs from `iw_empty_trie_root` / `aie_empty_code_hash`);
+lengths outside `{0, 32}` still fail exactly as before.
+
+These are the two constants as baked into those `.data` sections. -/
+
+/-- `EMPTY_TRIE_ROOT = keccak256(rlp(b''))`, matching `iw_empty_trie_root`
+    (`MptInsertWalk.lean:349`). -/
+def adEmptyTrieRootBytes : List (BitVec 8) :=
+  [ 0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6,
+    0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e,
+    0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0,
+    0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21 ]
+
+theorem adEmptyTrieRootBytes_length : adEmptyTrieRootBytes.length = 32 := by decide
+
+/-- `EMPTY_CODE_HASH = keccak256(b'')`, matching `aie_empty_code_hash`. -/
+def adEmptyCodeHashBytes : List (BitVec 8) :=
+  [ 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c,
+    0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0,
+    0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b,
+    0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 ]
+
+theorem adEmptyCodeHashBytes_length : adEmptyCodeHashBytes.length = 32 := by decide
+
+/-- A hash output cell: the 32 copied content bytes, or the fold constant when
+    the field was zero-length.  `fixed32Copied` cannot express the folded case
+    for any offset — it is an unconditional copy from the input buffer — which
+    is why the cell needs the length, not just the offset. -/
+def hashCell (bytes oldOut : List (BitVec 8)) (o : Word) (l : Nat)
+    (fold : List (BitVec 8)) : List (BitVec 8) :=
+  if l = 0 then fold else fixed32Copied bytes oldOut o
+
+theorem hashCell_length (bytes oldOut : List (BitVec 8)) (o : Word) (l : Nat)
+    (fold : List (BitVec 8)) (hold : oldOut.length = 32) (hfold : fold.length = 32) :
+    (hashCell bytes oldOut o l fold).length = 32 := by
+  unfold hashCell; split
+  · exact hfold
+  · exact fixed32Copied_length bytes oldOut o hold
+
+/-- On a nonzero field length the cell is the ordinary 32-byte content copy — the
+    fold arm is unreachable.  This is what lets the `AccountRecord` composition
+    keep its `fixed32Copied` reasoning unchanged: a record's `rlp` encodes
+    `a.storageRoot` with `WF`-guaranteed length 32, so the folded arm names a
+    leaf outside `AccountRecord.rlp`'s image (GH #11484). -/
+theorem hashCell_of_ne_zero (bytes oldOut : List (BitVec 8)) (o : Word) (l : Nat)
+    (fold : List (BitVec 8)) (hl : l ≠ 0) :
+    hashCell bytes oldOut o l fold = fixed32Copied bytes oldOut o := by
+  simp only [hashCell, hl, if_false]
+
+/-- On a zero field length the cell is the fold constant. -/
+theorem hashCell_zero (bytes oldOut : List (BitVec 8)) (o : Word)
+    (fold : List (BitVec 8)) :
+    hashCell bytes oldOut o 0 fold = fold := by
+  simp only [hashCell, if_pos]
+
 /-- The genuine success verdict: all four fields decode as K20 successes, with
-    the two variable fields within their length caps and the two fixed fields
-    exactly 32 bytes.  The output values are tied to the actual content:
+    the two variable fields within their length caps and the two hash fields
+    either exactly 32 bytes or zero-length (the #11483 fold).  The output values
+    are tied to the actual content:
       * nonce   = `beAccum` of the `l0` content bytes at `o0`,
       * balance = right-aligned 32-byte copy of the `l1` content bytes at `o1`,
-      * root    = 32-byte copy at `o2`,  code_hash = 32-byte copy at `o3`. -/
+      * root / code_hash = 32-byte copy at `o2` / `o3`, or the EMPTY constant
+        when the field was zero-length. -/
 def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
     (o0 l0 o1 l1 o2 l2 o3 l3 : Word) : Prop :=
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 0 o0 l0 ∧
@@ -148,18 +211,18 @@ def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 1 o1 l1 ∧
   l1.toNat ≤ 32 ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2 ∧
-  l2.toNat = 32 ∧
+  (l2.toNat = 32 ∨ l2.toNat = 0) ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 3 o3 l3 ∧
-  l3.toNat = 32
+  (l3.toNat = 32 ∨ l3.toNat = 0)
 
 /-- The four output slots after a **successful** decode, each cell tied to the
     actual decoded field value. -/
 def outputSuccess (nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 : Word)
-    (l0 l1 : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
+    (l0 l1 l2 l3 : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
   (nonceOut ↦ₘ beAccum bytes o0.toNat l0) **
   bytesRegion balanceOut (balanceCopied bytes o1 l1) **
-  bytesRegion rootOut (fixed32Copied bytes oldRoot o2) **
-  bytesRegion codeOut (fixed32Copied bytes oldCode o3)
+  bytesRegion rootOut (hashCell bytes oldRoot o2 l2 adEmptyTrieRootBytes) **
+  bytesRegion codeOut (hashCell bytes oldCode o3 l3 adEmptyCodeHashBytes)
 
 /-- An account-decode **failure** outcome, matching the program's short-circuit
     dispatch (field 0 list → field 0 len>8 → field 1 list → field 1 len>32 →

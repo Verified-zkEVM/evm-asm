@@ -175,7 +175,7 @@ set_option maxRecDepth 8000 in
 theorem adField3Success
     (sp0 spW raIn listBase len nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 l0 l1 l2 l3
       x28v x29v v11 v12 : Word)
-    (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (bytes oldRoot oldCode rootCell : List (BitVec 8)) (listLen : Nat)
     (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hsalign : listBase.toNat % 8 = 0)
@@ -188,6 +188,7 @@ theorem adField3Success
     (hcodelen : oldCode.length = 32)
     (hcvalid : ∀ k, k < 32 → isValidByteAccess (codeOut + BitVec.ofNat 64 k) = true)
     (hDecoded : Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 o3 l3)
+    (hrootCell : rootCell = hashCell bytes oldRoot o2 l2.toNat adEmptyTrieRootBytes)
     (hf3 : Success bytes listBase listLen 3 o3 l3)
     (hl3 : l3 = (32 : Word)) :
     let savedCaller : Saved :=
@@ -204,7 +205,7 @@ theorem adField3Success
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** ((.x15 : Reg) ↦ᵣ codeOut) **
        savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-       bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode)
+       bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode)
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
   have hoffnorm : listBase + o3 = listBase + BitVec.ofNat 64 (o3.toNat + 0) := by
@@ -224,7 +225,7 @@ theorem adField3Success
      ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller ** bytesRegion listBase bytes **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode)
+     bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode)
     (by pcfa) (adCodeCopySetup listBase o3 adLengthAddr x28v)
   -- code copy loop [116]-[121].
   have hcl := cpsTripleWithin_frameR
@@ -237,7 +238,7 @@ theorem adField3Success
      ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+     bytesRegion rootOut (rootCell) ** (adOffsetAddr ↦ₘ o3))
     (by pcfa)
     (adCopyLoop .x21 (AB + 464) listBase codeOut x29v bytes oldCode o3.toNat 0 0 31
       (by decide) adCopyFetchCode hsalign hcalign hsrcbound (by rw [hcodelen])
@@ -266,7 +267,7 @@ theorem adField3Success
   set F : Assertion :=
     (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-    bytesRegion rootOut (fixed32Copied bytes oldRoot o2) **
+    bytesRegion rootOut (rootCell) **
     bytesRegion codeOut (fixed32Copied bytes oldCode o3) ** bytesRegion listBase bytes **
     (adOffsetAddr ↦ₘ o3) ** (adLengthAddr ↦ₘ l3) ** stackFree spW 8 ** adScratch codeOut
     with hFdef
@@ -287,7 +288,7 @@ theorem adField3Success
      (.x15 ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+     bytesRegion rootOut (rootCell) ** (adOffsetAddr ↦ₘ o3))
     (by pcfa) hnop1
   rw [sepConj_emp_left'] at hnop1f
   have hnop2f := cpsTripleWithin_frameR
@@ -303,7 +304,7 @@ theorem adField3Success
      (.x15 ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** (adOffsetAddr ↦ₘ o3))
+     bytesRegion rootOut (rootCell) ** (adOffsetAddr ↦ₘ o3))
     (by pcfa) hnop2
   rw [sepConj_emp_left'] at hnop2f
   -- compose copy ;; nop ;; nop ;; success epilogue.
@@ -321,7 +322,7 @@ theorem adField3Success
            savedFrame spW savedCaller) **
           ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-           bytesRegion rootOut (fixed32Copied bytes oldRoot o2) **
+           bytesRegion rootOut (rootCell) **
            bytesRegion codeOut (fixed32Copied bytes oldCode o3) ** bytesRegion listBase bytes **
            (adOffsetAddr ↦ₘ o3) ** (adLengthAddr ↦ₘ l3) ** stackFree spW 8 **
            (((.x5 : Reg) ↦ᵣ adOffsetAddr) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) **
@@ -351,7 +352,13 @@ theorem adField3Success
   rw [hFdef] at hq
   unfold adSuccessOut
   exact sepConj_mono_right (sepConj_mono_right
-    (fun h' hF => ⟨o3, l3, by unfold outputSuccess; xperm_hyp hF⟩)) h hq
+    (fun h' hF => ⟨o3, l3, by
+      unfold outputSuccess
+      -- the root cell is whatever arm we were reached from (`hrootCell`); the code
+      -- cell is the copy, since this is field 3's exact-32 arm (`hl3`).
+      rw [← hrootCell, hashCell_of_ne_zero bytes oldCode o3 l3.toNat adEmptyCodeHashBytes
+        (by rw [hl3]; decide)]
+      xperm_hyp hF⟩)) h hq
 
 #print axioms adField3Success
 
@@ -368,7 +375,7 @@ set_option maxRecDepth 8000 in
 theorem adField3ContEpi
     (sp0 spW raIn listBase len nonceOut balanceOut rootOut codeOut o0 o1 o2 l0 l1 l2 s4reg
       : Word)
-    (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (bytes oldRoot oldCode rootCell : List (BitVec 8)) (listLen : Nat)
     (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hsalign : listBase.toNat % 8 = 0)
@@ -383,7 +390,9 @@ theorem adField3ContEpi
     (hf0 : Success bytes listBase listLen 0 o0 l0)
     (hf1 : Success bytes listBase listLen 1 o1 l1)
     (hf2 : Success bytes listBase listLen 2 o2 l2)
-    (hl0 : l0.toNat ≤ 8) (hl1 : l1.toNat ≤ 32) (hl2 : l2.toNat = 32) :
+    (hrootCell : rootCell = hashCell bytes oldRoot o2 l2.toNat adEmptyTrieRootBytes)
+    (hl0 : l0.toNat ≤ 8) (hl1 : l1.toNat ≤ 32)
+    (hl2 : l2.toNat = 32 ∨ l2.toNat = 0) :
     let saved3 : Saved :=
       { ra := AB + 424, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
         s4 := s4reg, s5 := codeOut }
@@ -394,7 +403,7 @@ theorem adField3ContEpi
       (adK20ContPost spW listBase 3 saved3 bytes listLen **
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         ((.x15 : Reg) ↦ᵣ codeOut)))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro saved3 savedCaller
@@ -409,7 +418,7 @@ theorem adField3ContEpi
         (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len') ** savedFrame spW savedCaller **
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
     (fun h hp => by
       obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
@@ -431,7 +440,7 @@ theorem adField3ContEpi
        (adContFrame spW listBase 3 saved3 bytes listLen offset len' v11 v12 **
         savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         ((.x15 : Reg) ↦ᵣ codeOut)))
     (fun h hp => by
       have hin : (((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
@@ -443,7 +452,7 @@ theorem adField3ContEpi
             (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len')))) **
           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-           bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+           bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
            ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
       have hout := sepConj_mono_left (adContReshape spW listBase 3 saved3 bytes listLen offset len'
         v11 v12 v5 v6 v7) h hin
@@ -454,7 +463,7 @@ theorem adField3ContEpi
     (adContFrame spW listBase 3 saved3 bytes listLen offset len' v11 v12 **
      savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+     bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
      ((.x15 : Reg) ↦ᵣ codeOut))
     (by pcfa) (adCodeLenCheck v5 v6 v7 len')
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
@@ -487,7 +496,7 @@ theorem adField3ContEpi
          savedFrame spW savedCaller) **
         ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
          bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-         bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+         bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
          bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len') **
          stackFree spW 8 **
          (((.x5 : Reg) ↦ᵣ adLengthAddr) ** ((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (32 : Word)) **
@@ -501,7 +510,7 @@ theorem adField3ContEpi
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
         ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset, len', balanceCopied bytes o1 l1.toNat,
-          fixed32Copied bytes oldRoot o2, oldCode,
+          rootCell, oldCode,
           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
               (adScratch_of_regs_own codeOut adLengthAddr len' (32 : Word) v11 v12)))))))) h' hc⟩))
@@ -521,7 +530,7 @@ theorem adField3ContEpi
         (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode) **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode) **
         regOwn .x28 ** regOwn .x29)
       (fun h hp => by unfold adContFrame at hp; rw [regsAt_listNthFrame] at hp; xperm_hyp hp)
       (fun _ hq => hq) ?_
@@ -539,16 +548,19 @@ theorem adField3ContEpi
          bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) **
          savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
          bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-         bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode))
+         bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode))
       (fun h hp => by xperm_hyp hp) (fun _ hq => hq) ?_
     refine cpsTripleWithin_pure_pre (fun hf3 => ?_)
     refine cpsTripleWithin_pure_pre (fun hl3 => ?_)
+    -- `Decoded`'s hash-length clauses are disjunctions post-#11483 (the zero arm is
+    -- the `EMPTY_TRIE_ROOT`/`EMPTY_CODE_HASH` fold); this is the exact-32 side.
     have hDecoded : Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 offset len' :=
-      ⟨hf0, hl0, hf1, hl1, hf2, hl2, hf3, by rw [hl3]; decide⟩
+      ⟨hf0, hl0, hf1, hl1, hf2, hl2, hf3, Or.inl (by rw [hl3]; decide)⟩
     exact cpsTripleWithin_mono_nSteps (by omega)
       (adField3Success (s4v := saved3.s4) sp0 spW raIn listBase len nonceOut balanceOut rootOut
-        codeOut o0 o1 o2 offset l0 l1 l2 len' x28v x29v v11 v12 bytes oldRoot oldCode listLen hspW
-        hret hsalign hslack hover hvalid hcalign hcover hcodelen hcvalid hDecoded hf3 hl3)
+        codeOut o0 o1 o2 offset l0 l1 l2 len' x28v x29v v11 v12 bytes oldRoot oldCode rootCell
+        listLen hspW hret hsalign hslack hover hvalid hcalign hcover hcodelen hcvalid hDecoded
+        hrootCell hf3 hl3)
 
 #print axioms adField3ContEpi
 
@@ -564,7 +576,7 @@ set_option maxRecDepth 8000 in
 theorem adBBField3
     (sp0 spW raEntry raSaved listBase len nonceOut balanceOut rootOut codeOut s4reg
       oldOffset oldLen v10 v11 v12 v13 v14 o0 o1 o2 l0 l1 l2 : Word)
-    (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
+    (bytes oldRoot oldCode rootCell : List (BitVec 8)) (listLen : Nat)
     (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
@@ -580,7 +592,9 @@ theorem adBBField3
     (hf0 : Success bytes listBase listLen 0 o0 l0)
     (hf1 : Success bytes listBase listLen 1 o1 l1)
     (hf2 : Success bytes listBase listLen 2 o2 l2)
-    (hl0 : l0.toNat ≤ 8) (hl1 : l1.toNat ≤ 32) (hl2 : l2.toNat = 32) :
+    (hrootCell : rootCell = hashCell bytes oldRoot o2 l2.toNat adEmptyTrieRootBytes)
+    (hl0 : l0.toNat ≤ 8) (hl1 : l1.toNat ≤ 32)
+    (hl2 : l2.toNat = 32 ∨ l2.toNat = 0) :
     let savedCaller : Saved :=
       { ra := raSaved, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
         s4 := rootOut, s5 := codeOut }
@@ -590,7 +604,7 @@ theorem adBBField3
         v10 v11 v12 v13 v14 bytes **
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         ((.x15 : Reg) ↦ᵣ codeOut)))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
@@ -599,15 +613,15 @@ theorem adBBField3
   have hbr := cpsBranchWithin_frameR
     (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-     bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+     bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
      ((.x15 : Reg) ↦ᵣ codeOut))
     (by pcfa) hstage
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case cont =>
     exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
       (adField3ContEpi sp0 spW raSaved listBase len nonceOut balanceOut rootOut codeOut o0 o1 o2
-        l0 l1 l2 s4reg bytes oldRoot oldCode listLen hspW hret hsalign hslack hover hvalid hcalign
-        hcover hcodelen hcvalid hf0 hf1 hf2 hl0 hl1 hl2)
+        l0 l1 l2 s4reg bytes oldRoot oldCode rootCell listLen hspW hret hsalign hslack hover hvalid
+        hcalign hcover hcodelen hcvalid hf0 hf1 hf2 hrootCell hl0 hl1 hl2)
   case fail =>
     refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq)
       (cpsTripleWithin_mono_nSteps (show (1 + 9) ≤ 215 from by omega)
@@ -632,7 +646,7 @@ theorem adBBField3
         savedFrame spW savedCaller) **
        ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-        bytesRegion rootOut (fixed32Copied bytes oldRoot o2) ** bytesRegion codeOut oldCode **
+        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset') ** (adLengthAddr ↦ₘ len') **
         stackFree spW 8 **
         (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** ((.x11 : Reg) ↦ᵣ v11') **
@@ -647,7 +661,7 @@ theorem adBBField3
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
         ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset', len', balanceCopied bytes o1 l1.toNat,
-          fixed32Copied bytes oldRoot o2, oldCode,
+          rootCell, oldCode,
           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
               (adScratch_of_regs_own2 codeOut v11' v12')))))))) h' hc⟩))
@@ -907,8 +921,10 @@ theorem adField2Success
     hsalign hslack hover hvalid hralign hrover hrootlen hrvalid hf2 hl2
   have hbb := adBBField3 sp0 spW (AB + 320) raSaved listBase len nonceOut balanceOut rootOut
     codeOut (rootOut + BitVec.ofNat 64 32) o2 l2 (0 : Word) v11 v12 v13 v14 o0 o1 o2 l0 l1 l2
-    bytes oldRoot oldCode listLen hspW hret hlenW hsalign hslack hover hvalid hcalign hcover
-    hcodelen hcvalid hf0 hf1 hf2 hl0 hl1 hl2N
+    bytes oldRoot oldCode (fixed32Copied bytes oldRoot o2) listLen hspW hret hlenW hsalign hslack
+    hover hvalid hcalign hcover hcodelen hcvalid hf0 hf1 hf2
+    (hashCell_of_ne_zero bytes oldRoot o2 l2.toNat adEmptyTrieRootBytes (by omega)).symm
+    hl0 hl1 (Or.inl hl2N)
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcopy hbb)
 
