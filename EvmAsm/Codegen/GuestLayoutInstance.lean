@@ -38,6 +38,8 @@ def guestLayout : GuestLayout :=
     u256_sub_be := GuestAddrs.u256_sub_be
     u256_min := GuestAddrs.u256_min
     call_frame_arena := GuestAddrs.call_frame_arena
-    frame_base := GuestAddrs.frame_base }
+    frame_base := GuestAddrs.frame_base
+    mpt_set_record_walk_db := GuestAddrs.mpt_set_record_walk_db
+    mpt_delete_walk_db := GuestAddrs.mpt_delete_walk_db }
 
 end EvmAsm.Codegen
