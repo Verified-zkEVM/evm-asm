@@ -130,4 +130,59 @@ theorem beAccum_eq_fromBytesBE (bytes : List (BitVec 8)) (off : Nat) :
         omega
       rw [Nat.mod_eq_of_lt hlt]
 
+/-! ## Content forms
+
+Each output cell, expressed against the *content* of the field the walk
+selected.  Stated with the content equation as a hypothesis — the composition
+supplies it from `success_content_of_decodeFully_list`, exactly as
+`result_value_of_success` did for #11351 — so these are usable before the
+offset plumbing exists. -/
+
+/-- A fixed 32-byte output cell holds the selected field. -/
+theorem fixed32Copied_of_content (bytes oldOut : List (BitVec 8)) (o : Word)
+    (fld : List (BitVec 8)) (hold : oldOut.length = 32)
+    (hbound : o.toNat + 32 ≤ bytes.length)
+    (hcontent : (bytes.drop o.toNat).take 32 = fld) :
+    fixed32Copied bytes oldOut o = fld := by
+  unfold fixed32Copied
+  rw [copyIntoRegion_eq_slice oldOut bytes o.toNat 32 hold hbound, hcontent]
+
+/-- The nonce cell holds the big-endian value of the selected field. -/
+theorem beAccum_of_content (bytes : List (BitVec 8)) (o : Word) (n : Nat)
+    (fld : List (BitVec 8)) (hn : n ≤ 8) (hbound : o.toNat + n ≤ bytes.length)
+    (hcontent : (bytes.drop o.toNat).take n = fld) :
+    beAccum bytes o.toNat n = BitVec.ofNat 64 (Nat.fromBytesBE fld) := by
+  rw [beAccum_eq_fromBytesBE bytes o.toNat n hn hbound, hcontent]
+
+/-- The balance cell holds the selected field **right-aligned** in 32 zero
+    bytes — which is exactly `beBytes32`'s left-padding, once the field is
+    identified with the minimal big-endian encoding. -/
+theorem balanceCopied_of_content (bytes : List (BitVec 8)) (o : Word) (n : Nat)
+    (fld : List (BitVec 8)) (hn : n ≤ 32) (hbound : o.toNat + n ≤ bytes.length)
+    (hcontent : (bytes.drop o.toNat).take n = fld) :
+    balanceCopied bytes o n = List.replicate (32 - n) 0 ++ fld := by
+  subst hcontent
+  have hfld : ((bytes.drop o.toNat).take n).length = n := by
+    rw [List.length_take, List.length_drop]; omega
+  unfold balanceCopied
+  have hlen : (copyIntoRegion (List.replicate 32 (0 : BitVec 8)) bytes (32 - n) o.toNat n).length
+      = (List.replicate (32 - n) (0 : BitVec 8) ++ (bytes.drop o.toNat).take n).length := by
+    rw [copyIntoRegion_length, List.length_replicate, List.length_append,
+      List.length_replicate, hfld]
+    omega
+  refine List.ext_getElem hlen ?_
+  intro j h1 h2
+  rw [copyIntoRegion_length, List.length_replicate] at h1
+  rw [copyIntoRegion_getElem _ bytes (32 - n) o.toNat n j (by simp; omega)]
+  by_cases hj : 32 - n ≤ j
+  · rw [if_pos ⟨hj, by omega⟩,
+      List.getElem_append_right (by rw [List.length_replicate]; omega)]
+    simp only [List.length_replicate]
+    rw [List.getElem_take, List.getElem_drop, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (by omega)]
+    rfl
+  · rw [if_neg (by omega),
+      List.getElem_append_left (by rw [List.length_replicate]; omega)]
+    rw [List.getElem_replicate, List.getElem_replicate]
+
 end EvmAsm.Codegen.AccountDecodeBridge
