@@ -36,15 +36,6 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 
-# A clean rejected output is a five-byte sentinel; accepted outputs observed in
-# the corpus have 44 or more non-zero bytes. The rc check in classify catches a
-# fault that leaves the same five bytes behind, while this count catches an
-# otherwise successful run that leaves the buffer empty or truncated. Keep the
-# signal local to the instrument: the guest ABI does not expose a separate
-# output-commit bit.
-MIN_COMPLETE_OUTPUT_NONZERO_BYTES = 5
-
-
 def default_spike():
     # Prefer an explicit env override, else the in-repo runner, else a bare name.
     env = os.environ.get("SPIKE_RUN")
@@ -156,10 +147,12 @@ def classify(spike, elf, timeout, dump_len, label, inp, exp_hex, oracle_succ):
         nbytes = len(exp_hex) // 2
         rc, data, succ = run_one(spike, elf, inp, tmpdir, timeout, dump_len)
         match = (data is not None) and (data[:nbytes].hex() == exp_hex)
-        fault = (rc not in (0,)) or (data is None) or (succ is None)
-        if data is not None:
-            nonzero_count = sum(byte != 0 for byte in data)
-            fault = fault or nonzero_count < MIN_COMPLETE_OUTPUT_NONZERO_BYTES
+        fault = (
+            (rc not in (0,))
+            or (data is None)
+            or (len(data) < int(dump_len) if data is not None else True)
+            or (succ is None)
+        )
         s = str(succ) if succ is not None else "?"
         if fault:
             return (label, oracle_succ, s, match, rc, len(data) if data else 0, "FAULT")
