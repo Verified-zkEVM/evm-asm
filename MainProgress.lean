@@ -134,6 +134,7 @@ private def verdictLabel : EvmAsm.Progress.Correspondence.Verdict → String
   | .stricter => "stricter ⚠"
   | .looser => "**looser — false-accept**"
   | .noCounterpart => "no counterpart"
+  | .specRefBug issue => s!"**SpecRef bug — port defect (#{issue})**"
   | .unproven => "n/a — unproven"
 
 private def basisLabel : EvmAsm.Progress.Correspondence.Basis → String
@@ -172,6 +173,7 @@ Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.m
 | stricter | {countVerdict EvmAsm.Progress.Correspondence.Verdict.stricter} |
 | **looser** | {countVerdict EvmAsm.Progress.Correspondence.Verdict.looser} |
 | no counterpart | {countVerdict EvmAsm.Progress.Correspondence.Verdict.noCounterpart} |
+| **SpecRef bug — port defect** | {EvmAsm.Progress.Correspondence.countSpecRefBug} |
 | n/a — unproven | {countVerdict EvmAsm.Progress.Correspondence.Verdict.unproven} |
 
 | Basis | Count | Meaning |
