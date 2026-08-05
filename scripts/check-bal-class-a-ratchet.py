@@ -50,7 +50,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
 DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
-EXPECTED_ANNOTATION_COUNT = 0
+EXPECTED_ANNOTATION_COUNT = 1
 SEEDS = ("bv_bal_start", "bv_bal_len")
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
