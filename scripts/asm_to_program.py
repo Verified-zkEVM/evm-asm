@@ -275,6 +275,10 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # to the B/J policy makes the dual-accept window measurable instead of
 # permanent permission for a new hardcoded target.
 EXPECTED_BARE_J_PROGRAM_FILES = 72
+# Monotonic site-level ratchet for the same migration.  A conversion may
+# reduce this number, but a newly-bare long local J must fail check-all rather
+# than hide behind the mixed B/J transition.
+EXPECTED_BARE_J_SITES = 231
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1319,13 +1323,12 @@ def count_bare_j_program_files(man=None):
         hits=_local_long_jal_sites(asm)
         if not hits:
             continue
-        sites += len(hits)
         try:
             entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         except ConvError:
             # Unlinked/blocked functions cannot be regenerated into a named
             # block yet; count them until their blocker is retired.
-            files.add(rel); defs += 1
+            files.add(rel); defs += 1; sites += len(hits)
             continue
         prog=lean_camel(entry)+'_prog'
         leaf=layout_leaf_path(path)
@@ -1346,6 +1349,21 @@ def count_bare_j_program_files(man=None):
         if j_bare.rstrip() in source or both_bare.rstrip() in source:
             files.add(os.path.relpath(leaf,REPO) if leaf else rel)
             defs += 1
+            # Count only the sites that are still bare in this source block,
+            # not every long local J in the fixture (some may already have
+            # been converted to a named `jalOff`).
+            span = _generated_block_span(source, fn, prog)
+            if span is None:
+                span = _def_span(source, fn)
+            lo, hi = span
+            segment = source[lo:hi]
+            offsets={off for _cur,_mn,off,_target in hits}
+            for line in segment.splitlines():
+                if '.JAL' not in line or 'BitVec 21' not in line:
+                    continue
+                m=re.search(r'\((-?\d+)\s*:\s*BitVec 21\)', line)
+                if m and int(m.group(1)) in offsets:
+                    sites += 1
     return len(files), defs, sites
 
 def check_file(path, funcs, rendered=None):
@@ -1712,6 +1730,11 @@ def main():
                 f"source files, found {bare_j_files} "
                 f"({bare_j_defs} defs / {bare_j_sites} sites); update the "
                 "constant only with the corresponding migration")
+        if bare_j_sites > EXPECTED_BARE_J_SITES:
+            allprob.append(
+                f"bare local J site ratchet: expected at most {EXPECTED_BARE_J_SITES} "
+                f"sites, found {bare_j_sites} ({bare_j_files} files / "
+                f"{bare_j_defs} defs); a newly-bare site was introduced")
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)
