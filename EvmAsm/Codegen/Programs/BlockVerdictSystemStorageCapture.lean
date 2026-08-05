@@ -164,6 +164,11 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  li t2, 31; sub t2, t2, t0; add t2, a1, t2; lbu t3, 0(t2); addi t4, s2, 32; add t4, t4, t0; sb t3, 0(t4)\n" ++
   "  addi t0, t0, 1; j .Lamsr_slot_rev\n" ++
   ".Lamsr_value_rev_start:\n" ++
+  -- Zero the 32B LE value cell before writing the minimal BE payload. Short
+  -- vlen (e.g. timestamp 0x0c → 1 byte) otherwise leaves stale high bytes from
+  -- the previous row; SLOAD then returns a non-scalar word, 4788's timestamp
+  -- EQ fails, and CALL returndata is zero (REC stores 0; code-1 root mismatch).
+  "  sd zero, 96(s2); sd zero, 104(s2); sd zero, 112(s2); sd zero, 120(s2)\n" ++
   "  li t0, 0\n" ++
   ".Lamsr_value_rev:\n" ++
   "  beq t0, s3, .Lamsr_finish_one\n" ++
