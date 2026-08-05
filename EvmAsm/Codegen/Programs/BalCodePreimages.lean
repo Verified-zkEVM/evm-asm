@@ -17,7 +17,83 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## bal_code_preimages_valid -- reject code-read-shaped accounts whose
+/-! ## account_state_delegation_code_resolve (guest-live; #11183 rows 11-12)
+
+    Split out of the retired `bal_code_preimages_valid` blob (#11410 unlinked the
+    static BAL preimage scan). Only this label has guest jals; the rest of
+    `balCodePreimagesValidFunction` is probe-only / unlinked from the guest. -/
+def accountStateDelegationCodeResolveFunction : String :=
+  "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
+  "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
+  "# a3 = access mode (0 charge, 1 free/warm, 2 probe), a4 = codes base.\n" ++
+  "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
+  "# and 2 for empty/deleted or precompile targets.\n" ++
+  "account_state_delegation_code_resolve:\n" ++
+  "  addi sp, sp, -128\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
+  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd a4, 96(sp); sd x20, 104(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s10, a3\n" ++
+  "  jal ra, account_state_lookup_current\n" ++
+  "  mv s5, a0; mv s6, a1; mv s7, a2\n" ++
+  "  li t0, 1; bne s5, t0, .Lasd_no\n" ++
+  "  li t0, 23; bne s7, t0, .Lasd_no\n" ++
+  "  lbu t0, 0(s6); li t1, 0xef; bne t0, t1, .Lasd_no\n" ++
+  "  lbu t0, 1(s6); li t1, 1; bne t0, t1, .Lasd_no\n" ++
+  "  lbu t0, 2(s6); bnez t0, .Lasd_no\n" ++
+  "  la t0, bsbd_deleg_target; addi t1, s6, 3; li t2, 20\n" ++
+  ".Lasd_copy_target:\n" ++
+  "  beqz t2, .Lasd_target_copied\n" ++
+  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lasd_copy_target\n" ++
+  ".Lasd_target_copied:\n" ++
+  "  li t0, 2; beq s10, t0, .Lasd_access_done\n" ++
+  "  beqz s10, .Lasd_free_warm\n" ++
+  "  ld x20, 104(sp)\n" ++
+  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
+  "  jal ra, runtime_access_account_charge\n" ++
+  s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
+  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
+  "  la a0, bsbd_deleg_target; jal ra, account_read_record\n" ++
+  "  j .Lasd_access_done\n" ++
+  ".Lasd_free_warm:\n" ++
+  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "; jal ra, runtime_access_account_seed\n" ++
+  ".Lasd_access_done:\n" ++
+  "  la t0, bsbd_deleg_target; li t1, 0\n" ++
+  ".Lasd_pc_prefix:\n" ++
+  "  li t2, 18; beq t1, t2, .Lasd_pc_low16\n" ++
+  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lasd_not_precompile\n" ++
+  "  addi t1, t1, 1; j .Lasd_pc_prefix\n" ++
+  ".Lasd_pc_low16:\n" ++
+  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4; li t4, 1; bltu t3, t4, .Lasd_not_precompile; li t4, 17; bgeu t4, t3, .Lasd_empty; li t4, 256; beq t3, t4, .Lasd_empty\n" ++
+  ".Lasd_not_precompile:\n" ++
+  -- A same-transaction authorization can install the delegated target's
+  -- marker after the header witness was fixed.  Consult AccountState first:
+  -- the header lookup below is only the pre-state fallback, while the old
+  -- CodeState fallback cannot see an AccountState-only authorization row.
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  li t0, 1; beq a0, t0, .Lasd_account_state_code\n" ++
+  "  li t0, 2; beq a0, t0, .Lasd_empty\n" ++
+  "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
+  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Lasd_resolved\n" ++
+  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
+  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  "  j .Lasd_resolved\n" ++
+  ".Lasd_account_state_code:\n" ++
+  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
+  ".Lasd_resolved:\n" ++
+  "  li a0, 0; j .Lasd_ret\n" ++
+  ".Lasd_empty:\n" ++
+  "  li a0, 2; j .Lasd_ret\n" ++
+  ".Lasd_no:\n" ++
+  "  li a0, 1\n" ++
+  ".Lasd_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp); addi sp, sp, 128; ret\n" ++
+  "\n"
+
+/-! ## bal_code_preimages_valid -- RETIRED from guest (#11410 / #11183 rows 11-12).
+    Kept as source for any residual probe wiring. Guest links only
+    `accountStateDelegationCodeResolveFunction`. Was: reject code-read-shaped accounts whose
     non-empty code_hash is absent from witness.codes.
 
     This mirrors the executable spec shape where `build_code_db(witness.codes)`
@@ -1025,73 +1101,6 @@ def balCodePreimagesValidFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret\n" ++
-  "\n" ++
-  "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
-  "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
-  "# a3 = access mode (0 charge, 1 free/warm, 2 probe), a4 = codes base.\n" ++
-  "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
-  "# and 2 for empty/deleted or precompile targets.\n" ++
-  "account_state_delegation_code_resolve:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd a4, 96(sp); sd x20, 104(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s10, a3\n" ++
-  "  jal ra, account_state_lookup_current\n" ++
-  "  mv s5, a0; mv s6, a1; mv s7, a2\n" ++
-  "  li t0, 1; bne s5, t0, .Lasd_no\n" ++
-  "  li t0, 23; bne s7, t0, .Lasd_no\n" ++
-  "  lbu t0, 0(s6); li t1, 0xef; bne t0, t1, .Lasd_no\n" ++
-  "  lbu t0, 1(s6); li t1, 1; bne t0, t1, .Lasd_no\n" ++
-  "  lbu t0, 2(s6); bnez t0, .Lasd_no\n" ++
-  "  la t0, bsbd_deleg_target; addi t1, s6, 3; li t2, 20\n" ++
-  ".Lasd_copy_target:\n" ++
-  "  beqz t2, .Lasd_target_copied\n" ++
-  "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lasd_copy_target\n" ++
-  ".Lasd_target_copied:\n" ++
-  "  li t0, 2; beq s10, t0, .Lasd_access_done\n" ++
-  "  beqz s10, .Lasd_free_warm\n" ++
-  "  ld x20, 104(sp)\n" ++
-  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
-  "  jal ra, runtime_access_account_charge\n" ++
-  s!"  ld t0, 568(x20); li t1, {EvmAsm.Stateless.SpecRef.GasCosts.WARM_ACCESS}; bltu t0, t1, .exit_outofgas\n" ++
-  "  sub t0, t0, t1; sd t0, 568(x20)\n" ++
-  "  la a0, bsbd_deleg_target; jal ra, account_read_record\n" ++
-  "  j .Lasd_access_done\n" ++
-  ".Lasd_free_warm:\n" ++
-  "  la a0, bsbd_deleg_target; la a1, " ++ runtimeAccessAccountTableLabel ++ "; la a2, " ++ runtimeAccessAccountCountLabel ++ "; li a3, " ++ toString runtimeAccessAccountCapacity ++ "; jal ra, runtime_access_account_seed\n" ++
-  ".Lasd_access_done:\n" ++
-  "  la t0, bsbd_deleg_target; li t1, 0\n" ++
-  ".Lasd_pc_prefix:\n" ++
-  "  li t2, 18; beq t1, t2, .Lasd_pc_low16\n" ++
-  "  add t3, t0, t1; lbu t4, 0(t3); bnez t4, .Lasd_not_precompile\n" ++
-  "  addi t1, t1, 1; j .Lasd_pc_prefix\n" ++
-  ".Lasd_pc_low16:\n" ++
-  "  lbu t3, 18(t0); lbu t4, 19(t0); slli t3, t3, 8; or t3, t3, t4; li t4, 1; bltu t3, t4, .Lasd_not_precompile; li t4, 17; bgeu t4, t3, .Lasd_empty; li t4, 256; beq t3, t4, .Lasd_empty\n" ++
-  ".Lasd_not_precompile:\n" ++
-  -- A same-transaction authorization can install the delegated target's
-  -- marker after the header witness was fixed.  Consult AccountState first:
-  -- the header lookup below is only the pre-state fallback, while the old
-  -- CodeState fallback cannot see an AccountState-only authorization row.
-  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
-  "  li t0, 1; beq a0, t0, .Lasd_account_state_code\n" ++
-  "  li t0, 2; beq a0, t0, .Lasd_empty\n" ++
-  "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
-  "  beqz a0, .Lasd_resolved\n" ++
-  "  la a0, bsbd_deleg_target; jal ra, account_state_lookup_current\n" ++
-  "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
-  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
-  "  j .Lasd_resolved\n" ++
-  ".Lasd_account_state_code:\n" ++
-  "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
-  ".Lasd_resolved:\n" ++
-  "  li a0, 0; j .Lasd_ret\n" ++
-  ".Lasd_empty:\n" ++
-  "  li a0, 2; j .Lasd_ret\n" ++
-  ".Lasd_no:\n" ++
-  "  li a0, 1\n" ++
-  ".Lasd_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld x20, 104(sp); addi sp, sp, 128; ret\n" ++
   "\n" ++
   "# Resolve a same-block EIP-7702 delegation marker from the BAL.\n" ++
   "# Return 1 iff any legacy transaction data contains PUSH20 <addr>; SELFDESTRUCT.\n" ++

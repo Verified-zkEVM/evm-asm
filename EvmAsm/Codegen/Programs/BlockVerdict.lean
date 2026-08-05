@@ -423,7 +423,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
-  balCodePreimagesValidFunction ++ "\n" ++
+  -- #11183 rows 11-12 / #11410: bal_code_preimages_valid unlinked (0 guest jal).
+  -- Keep only live account_state_delegation_code_resolve from that blob.
+  accountStateDelegationCodeResolveFunction ++ "\n" ++
   accountExtractBalanceFunction ++ "\n" ++
   accountExtractNonceFunction ++ "\n" ++
   txGasSenderBalLookupFunction ++ "\n" ++
