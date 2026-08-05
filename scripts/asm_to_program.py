@@ -252,6 +252,22 @@ def insn_size(mn, ops):
 # --------------------------------------------------------------------------- #
 def bv(v, bits): return f"({v} : BitVec {bits})"
 
+# Same-function B-type immediates with |off| ≥ this many bytes are emitted as
+# `brOff (entry + tgt) (entry + pc)` rather than a bare `(N : BitVec 13)`.
+# Threshold matches the #11510 mid-epilogue class (fail arms that skip `ld ra`):
+# short forward skips stay numeric; long fail/epilogue arms name their target
+# so a body edit that shifts the restore sequence cannot silently retarget
+# (#11512).  `brOff` reduces to the same BitVec under the kernel, so emission
+# stays byte-identical when the geometry was already correct.
+BR_NAMED_THRESHOLD = 64
+
+def br_imm(off, entry, cur):
+    """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
+    if abs(off) >= BR_NAMED_THRESHOLD:
+        tgt = cur + off
+        return f"(brOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+    return bv(off, 13)
+
 def render_insn(mn, ops, off_of):
     R = reg
     def imm12(o):
@@ -394,6 +410,42 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         lean = [render_insn(m2, o2, off_of) for (m2, o2) in tuples]
         asm  = [py_emit_line(m2, o2, off_of) for (m2, o2) in tuples]
         return lean, asm, None
+    # Same-function B-type: long arms use named `brOff` against the entry
+    # symbol so epilogue drift fails the source/geometry gate rather than
+    # silently landing mid-restore (#11510 / #11512).  Short arms stay bare
+    # BitVec literals.  Emission is unchanged either way (`brOff` reduces).
+    BRANCH_R = {'beq':'BEQ','bne':'BNE','blt':'BLT','bge':'BGE',
+                'bltu':'BLTU','bgeu':'BGEU'}
+    if mn in BRANCH_R:
+        off = off_of(ops[2])
+        lean = [f".{BRANCH_R[mn]} {reg(ops[0])} {reg(ops[1])} {br_imm(off, entry, cur)}"]
+        return lean, [py_emit_line(mn, ops, off_of)], None
+    BRANCH_Z = {
+        'beqz': ('BEQ', lambda o: (reg(o[0]), '.x0', o[1])),
+        'bnez': ('BNE', lambda o: (reg(o[0]), '.x0', o[1])),
+        'bltz': ('BLT', lambda o: (reg(o[0]), '.x0', o[1])),
+        'bgez': ('BGE', lambda o: (reg(o[0]), '.x0', o[1])),
+        'bgtz': ('BLT', lambda o: ('.x0', reg(o[0]), o[1])),
+        'blez': ('BGE', lambda o: ('.x0', reg(o[0]), o[1])),
+    }
+    if mn in BRANCH_Z:
+        ctor, parts = BRANCH_Z[mn]
+        rs1, rs2, tgt = parts(ops)
+        off = off_of(tgt)
+        lean = [f".{ctor} {rs1} {rs2} {br_imm(off, entry, cur)}"]
+        return lean, [py_emit_line(mn, ops, off_of)], None
+    BRANCH_SWAP = {
+        'bgt':  ('BLT', 0, 1, 2),
+        'ble':  ('BGE', 0, 1, 2),
+        'bgtu': ('BLTU', 0, 1, 2),
+        'bleu': ('BGEU', 0, 1, 2),
+    }
+    if mn in BRANCH_SWAP:
+        ctor, a, b, t = BRANCH_SWAP[mn]
+        # asm is `bgt rs1, rs2, tgt` → BLT rs2, rs1
+        off = off_of(ops[t])
+        lean = [f".{ctor} {reg(ops[b])} {reg(ops[a])} {br_imm(off, entry, cur)}"]
+        return lean, [py_emit_line(mn, ops, off_of)], None
     return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
 
 def _resolve(asm):
@@ -1158,6 +1210,21 @@ SOURCE_DRIFT_ALLOW = {
     'balCanonicalSortSelftestFunction',
 }
 
+
+def _gen_with_br_threshold(asm, fn, prog, relocs, layout, thr):
+    """Re-render with a temporary BR_NAMED_THRESHOLD (module-global)."""
+    import sys
+    mod = sys.modules[__name__]
+    saved = mod.BR_NAMED_THRESHOLD
+    mod.BR_NAMED_THRESHOLD = thr
+    try:
+        entry, renders, _em, _ok, _la, _lb, relocs2 = do_asm(asm)
+        if layout:
+            return gen_lean_layout(entry, renders, fn, prog, relocs2)
+        return gen_lean(entry, renders, fn, prog, relocs2).rstrip()
+    finally:
+        mod.BR_NAMED_THRESHOLD = saved
+
 def check_file(path, funcs, rendered=None):
     """CI drift guard for one file. For each func, confirm:
       (a) the ACTUAL Lean-rendered string (`emitProgram <prog>`, obtained from
@@ -1289,14 +1356,20 @@ def check_file(path, funcs, rendered=None):
         if layout_mode:
             leaf_block,bridge_block=gen_lean_layout(entry,renders,fn,prog,relocs)
             if leaf_block.rstrip() not in leaf_text:
-                problems.append(f"{fn}: generated LEAF block not found verbatim in "
-                                f"{os.path.basename(leaf_path)} (source drift)")
+                # Transitional (#11512): accept bare-imm form until module is
+                # rewritten; assemble gates above already proved byte-identity.
+                leaf_bare = _gen_with_br_threshold(asm, fn, prog, relocs, layout=True, thr=10**9)[0]
+                if leaf_bare.rstrip() not in leaf_text:
+                    problems.append(f"{fn}: generated LEAF block not found verbatim in "
+                                    f"{os.path.basename(leaf_path)} (source drift)")
             if bridge_block.rstrip() not in text:
                 problems.append(f"{fn}: generated BRIDGE def not found verbatim (source drift)")
         elif fn not in SOURCE_DRIFT_ALLOW:
             block=gen_lean(entry, renders, fn, prog, relocs).rstrip()
             if block not in text:
-                problems.append(f"{fn}: generated block not found verbatim (source drift)")
+                bare = _gen_with_br_threshold(asm, fn, prog, relocs, layout=False, thr=10**9)
+                if bare not in text:
+                    problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
 REPO=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
