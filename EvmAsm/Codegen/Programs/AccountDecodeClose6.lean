@@ -81,28 +81,6 @@ theorem adCallPre_weaken5 (raIn spW listBase len s2v s3 s4 s5 oldOffset oldLen
           (sepConj_mono_left (regIs_implies_regOwn .x29)))))))))))))))))))
     h hp
 
-/-- Split a 32-byte region into its four little-endian dword cells, as an
-    assertion equality (matching `adBalanceSetup`'s zeroing precondition). -/
-theorem bytesRegion32_dwords_eq (base : Word) (bs : List (BitVec 8)) (h_len : bs.length = 32) :
-    bytesRegion base bs =
-    ((base ↦ₘ packBytes (bs.take 8)) ** ((base + 8) ↦ₘ packBytes ((bs.drop 8).take 8)) **
-     ((base + 16) ↦ₘ packBytes (((bs.drop 8).drop 8).take 8)) **
-     ((base + 24) ↦ₘ packBytes ((((bs.drop 8).drop 8).drop 8).take 8))) := by
-  have hne0 : bs ≠ [] := List.ne_nil_of_length_pos (by omega)
-  have hne1 : bs.drop 8 ≠ [] := List.ne_nil_of_length_pos (by simp only [List.length_drop]; omega)
-  have hne2 : (bs.drop 8).drop 8 ≠ [] :=
-    List.ne_nil_of_length_pos (by simp only [List.length_drop]; omega)
-  have hne3 : ((bs.drop 8).drop 8).drop 8 ≠ [] :=
-    List.ne_nil_of_length_pos (by simp only [List.length_drop]; omega)
-  have hdrop : ((((bs.drop 8).drop 8).drop 8).drop 8) = [] :=
-    List.eq_nil_of_length_eq_zero (by simp only [List.length_drop]; omega)
-  rw [bytesRegion_eq_cons base bs hne0, bytesRegion_eq_cons (base + 8) (bs.drop 8) hne1,
-      bytesRegion_eq_cons (base + 8 + 8) ((bs.drop 8).drop 8) hne2,
-      bytesRegion_eq_cons (base + 8 + 8 + 8) (((bs.drop 8).drop 8).drop 8) hne3,
-      hdrop, bytesRegion_nil, sepConj_emp_right',
-      show base + 8 + 8 = base + 16 from by bv_omega,
-      show base + 16 + 8 = base + 24 from by bv_omega]
-
 set_option maxRecDepth 8000 in
 /-- Field-1 balance copy tail (`AB+220 → AB+288`): the right-aligned 32-byte
     balance copy (zeroing setup + forward copy loop), reshaping the `len ≤ 32`

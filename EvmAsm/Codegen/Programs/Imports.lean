@@ -610,6 +610,7 @@ import EvmAsm.Codegen.Programs.AccountDecodeClose3
 
 import EvmAsm.Codegen.Programs.AccountDecodeClose4
 
+import EvmAsm.Codegen.Programs.AccountDecodeFold
 import EvmAsm.Codegen.Programs.AccountDecodeClose5
 
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
