@@ -673,8 +673,9 @@ def accountResolvePreStateFunction : String :=
     would make the builder compare each row against itself and accept a missing
     BAL entry.
 
-    Part two adds the code projection without routing any producer through this
-    symbol yet.  The ABI is:
+    The resolver records the address before walking its tiers, matching
+    Amsterdam's `get_account_optional`; CREATE is the current sole consumer.
+    The ABI is:
 
       a0 = canonical address (20-byte BE)
       a1 = output scratch: nonce@0, balance@8..40, code_ptr@40,
@@ -691,8 +692,7 @@ def accountResolvePreStateFunction : String :=
     (FR) caused by witness incompleteness.  A malformed authenticated lookup
     uses 5: that is malformed proof/input evidence, so its rejection is a
     genuine reject rather than a witness-shortfall bail.  Keeping 4 and 5 separate is
-    therefore part of the ABI even though no producer routes through this
-    helper in this cut.  A map code row is authoritative and its pointer/length
+    therefore part of the ABI.  A map code row is authoritative and its pointer/length
     is preserved.  Otherwise
     the authenticated account's code_hash is resolved with the RAW
     `witness_codes_lookup_by_hash` helper, never `code_read_fetch`: this path
@@ -710,6 +710,11 @@ def accountResolveExecutionStateFunction : String :=
   "  addi sp, sp, -208\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; li s8, 0\n" ++
+  -- Amsterdam's get_account_optional records the account read before resolving
+  -- any of its three tiers.  CREATE is the current sole consumer of this
+  -- resolver, so keep the call unconditional at the lookup boundary rather
+  -- than attaching it to a particular map-hit or success arm.
+  "  mv a0, s0; jal ra, account_read_record\n" ++
   "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1); sd zero, 40(s1); sd zero, 48(s1); sd zero, 56(s1)\n" ++
   -- First source: the current transaction's account_writes map.  A valid
   -- component in this keyed overlay is the execution-time value and must win
