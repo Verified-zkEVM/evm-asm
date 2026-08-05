@@ -907,20 +907,30 @@ def callDescendFallThrough
   -- early. x12 is still the parent stack top; jump back to .Lcd_fail_ to pop+push 0.
   (if valueBearing then
      ".Lcd_insuffbal_" ++ tag ++ ":\n" ++
-     "  # GH #11410: spec reads the stack target's code BEFORE the balance\n" ++
-     "  # precheck (generic_call, system.py:461/584). Mirror: record the callee\n" ++
-     "  # code read through code_at_header_state_root (code_read_fetch) before\n" ++
-     "  # charging and failing, so precheck-failed CALL/CALLCODE still land in\n" ++
-     "  # the block code-read set the dynamic preimage gate iterates.\n" ++
-     "  la t0, cd_callee_be; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-     "  addi t0, t0, 31; addi t1, x12, 32+19; li t2, 20\n" ++
-     ".Lcd_ib_addr_fill_" ++ tag ++ ":\n" ++
-     "  lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, -1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .Lcd_ib_addr_fill_" ++ tag ++ "\n" ++
+     "  # GH #11410: the shared delegation-access prelude has already read the\n" ++
+     "  # stack target through code_at_header_state_root before this balance\n" ++
+     "  # precheck (execution-specs system.py:460-461,486-494). Its cahsr\n" ++
+     "  # result remains live here. Do not repeat that lookup: the only new\n" ++
+     "  # read needed on a delegated target is the single-hop code_address\n" ++
+     "  # lookup below, which must reach code_read_fetch before the early fail.\n" ++
+     -- EIP-7702: the insufficient-balance path still follows the single-hop
+     -- target when the already-resolved callee code is a 23-byte marker. The
+     -- existing cahsr result is the original target; reuse it rather than
+     -- rebuilding the stack address (whose endian layout is not the code-table
+     -- address representation) or duplicating the original code read.
+     "  la t3, cahsr_code_length; ld t3, 0(t3); li t4, 23; bne t3, t4, .Lcd_ib_no_delegate_" ++ tag ++ "\n" ++
+     "  ld t3, 608(x20); la t4, cahsr_code_offset; ld t4, 0(t4); add t3, t3, t4\n" ++
+     "  lbu t4, 0(t3); li t5, 0xef; bne t4, t5, .Lcd_ib_no_delegate_" ++ tag ++ "\n" ++
+     "  lbu t4, 1(t3); li t5, 0x01; bne t4, t5, .Lcd_ib_no_delegate_" ++ tag ++ "\n" ++
+     "  lbu t4, 2(t3); bnez t4, .Lcd_ib_no_delegate_" ++ tag ++ "\n" ++
+     "  addi t3, t3, 3; la t4, cd_deleg_target; li t5, 20\n" ++
+     ".Lcd_ib_delegate_copy_" ++ tag ++ ":\n" ++
+     "  lbu t6, 0(t3); sb t6, 0(t4); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Lcd_ib_delegate_copy_" ++ tag ++ "\n" ++
      "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-     "  la a0, cd_callee_be; addi a0, a0, 12\n" ++
-     "  ld a1, 576(x20); ld a2, 584(x20); ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
+     "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_deleg_target; ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
      "  jal ra, code_at_header_state_root\n" ++
      "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+     ".Lcd_ib_no_delegate_" ++ tag ++ ":\n" ++
      "  li t0, 10300\n" ++
      "  ld t1, 568(x20)\n  bltu t1, t0, .exit_outofgas\n" ++
      "  sub t1, t1, t0\n  sd t1, 568(x20)\n" ++
