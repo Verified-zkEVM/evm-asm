@@ -133,7 +133,7 @@ theorem header_number_of_decode
       have := hidx i hi
       rw [List.getElem?_eq_getElem hi, hget] at this
       exact Option.some.inj this⟩
-  obtain ⟨offset, hsucc, hcont⟩ :=
+  obtain ⟨offset, hsucc, hcont, -⟩ :=
     success_content_of_decodeFully_list headerBytes base items 8 (bs.getD 8 [])
       hfull hbytes hidx8 (by omega)
   have hlenNat : (BitVec.ofNat 64 (bs.getD 8 []).length).toNat = (bs.getD 8 []).length := by
