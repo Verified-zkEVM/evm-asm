@@ -243,9 +243,10 @@ def eip7702AuthorityStateMaterializeFunction : String :=
   ".Leas_we_header:\n" ++
   "  sd zero, 32(s10); sd zero, 40(s10)\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s10; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
-  "  beqz a0, .Leas_we_code; li t0, 1; beq a0, t0, .Leas_we_ok; li t0, 5; bne a0, t0, .Leas_we_ok\n" ++
-  -- Status 5 is only acceptable for the canonical empty-code hash.
-  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash; ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Leas_we_ok; ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Leas_we_ok; ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Leas_we_ok; ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Leas_we_ok; j .Leas_we_ok\n" ++
+  -- Status: 0→code; 1 absent→ok; 2/3/4 malformed→fail; 5 missing preimage
+  -- only ok when code_hash is EMPTY_CODE_HASH (raise→reject #11520).
+  "  beqz a0, .Leas_we_code; li t0, 1; beq a0, t0, .Leas_we_ok; li t0, 5; bne a0, t0, .Leas_we_fail\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash; ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Leas_we_fail; ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Leas_we_fail; ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Leas_we_fail; ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Leas_we_fail; j .Leas_we_ok\n" ++
   ".Leas_we_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Leas_we_ok; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .Leas_we_ok; lbu t1, 1(t0); li t2, 1; bne t1, t2, .Leas_we_ok; lbu t1, 2(t0); bnez t1, .Leas_we_ok; li t2, 1; sd t2, 40(s10)\n" ++
   ".Leas_we_ok:\n" ++
