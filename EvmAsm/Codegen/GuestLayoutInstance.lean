@@ -40,6 +40,9 @@ def guestLayout : GuestLayout :=
     call_frame_arena := GuestAddrs.call_frame_arena
     frame_base := GuestAddrs.frame_base
     mpt_set_record_walk_db := GuestAddrs.mpt_set_record_walk_db
-    mpt_delete_walk_db := GuestAddrs.mpt_delete_walk_db }
+    mpt_delete_walk_db := GuestAddrs.mpt_delete_walk_db
+    rlp_walk_init := GuestAddrs.rlp_walk_init
+    rlp_walk_next := GuestAddrs.rlp_walk_next
+    bal_account_has_state_change := GuestAddrs.bal_account_has_state_change }
 
 end EvmAsm.Codegen
