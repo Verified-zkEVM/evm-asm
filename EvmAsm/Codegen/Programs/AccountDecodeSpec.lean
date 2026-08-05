@@ -58,7 +58,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 abbrev AB : Word := (GuestAddrs.account_decode : Word)
 
 set_option maxRecDepth 8000 in
-theorem ad_length : accountDecode_prog.length = 136 := by decide
+theorem ad_length : accountDecode_prog.length = 162 := by decide
 
 /-- The wrapper's own re-emitted instructions at `account_decode`. -/
 def adCode : CodeReq := CodeReq.ofProg AB accountDecode_prog
