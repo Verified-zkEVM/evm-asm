@@ -72,6 +72,10 @@ structure GuestLayout where
   bams_addr_2935 : Nat
   bams_addr_4788 : Nat
   bal_account_is_modeled_system : Nat
+  -- BalAccountNonstorageFinals (own entry + RLP content helpers).
+  bal_account_nonstorage_finals : Nat
+  rlp_content_to_u256_be : Nat
+  rlp_content_to_u64 : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -100,6 +104,9 @@ def GuestLayout.zero : GuestLayout :=
     bams_addr_ptr := 0
     bams_addr_2935 := 0
     bams_addr_4788 := 0
-    bal_account_is_modeled_system := 0 }
+    bal_account_is_modeled_system := 0
+    bal_account_nonstorage_finals := 0
+    rlp_content_to_u256_be := 0
+    rlp_content_to_u64 := 0 }
 
 end EvmAsm.Codegen
