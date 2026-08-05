@@ -6,13 +6,20 @@
   it records the resolved ancestor stack and terminal node using absolute
   pointers, so a later delete accumulator can remove the terminal and bubble
   branch/extension collapse through the shared node DB.
+
+  GH #10753 bridge module: the program itself lives in the leaf
+  `MptDeleteWalkDbProg.lean` parameterised over the abstract `GuestLayout`;
+  this module applies the concrete `guestLayout` and re-exposes
+  `mptDeleteWalkDb_prog` with its original name and type, so every consumer
+  (and the concrete-render drift gate, whose key is `emitProgram`
+  `mptDeleteWalkDb_prog`) compiles unchanged.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.MptDeleteWalkDbProg
+import EvmAsm.Codegen.GuestLayoutInstance
 import EvmAsm.Codegen.Programs.MptSetAcc
 
 namespace EvmAsm.Codegen
@@ -38,28 +45,8 @@ open EvmAsm.Rv64
 
     The next primitive (`mpt_delete_acc`) consumes this walk and implements the
     Ethereum delete collapse rules from execution-specs incremental_mpt.py. -/
-def mptDeleteWalkDb_prog : Program :=
-  [ .JAL .x0 (jalOff GuestAddrs.mpt_set_record_walk_db (GuestAddrs.mpt_delete_walk_db + 0)) ]
+def mptDeleteWalkDb_prog : Program := mptDeleteWalkDb_prog_of guestLayout
 
-/-- Reloc side-table for `mptDeleteWalkDb_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def mptDeleteWalkDb_relocs : RelocTable :=
-  [ (0, .jal .x0 "mpt_set_record_walk_db") ]
-
-def mptDeleteWalkDbFunction : String :=
-  "mpt_delete_walk_db:\n" ++ emitProgramR mptDeleteWalkDb_prog mptDeleteWalkDb_relocs
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `mptDeleteWalkDb_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem mptDeleteWalkDbFunction_eq_prog :
-    mptDeleteWalkDbFunction = "mpt_delete_walk_db:\n" ++ emitProgramR mptDeleteWalkDb_prog mptDeleteWalkDb_relocs := rfl
-
-#guard mptDeleteWalkDbFunction.startsWith "mpt_delete_walk_db:\n"
-#guard mptDeleteWalkDb_prog.length = 1
 /-- Probe with the same input layout as `zisk_mpt_set_record_walk`.
     Output: status@0, meta@8, stack@128. -/
 def ziskMptDeleteWalkDbPrologue : String :=

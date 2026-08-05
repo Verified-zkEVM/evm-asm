@@ -59,6 +59,9 @@ structure GuestLayout where
   -- CallFrameBase (frame_base: arena base + own entry for la PC).
   call_frame_arena : Nat
   frame_base : Nat
+  -- MptDeleteWalkDb (tail-call target + own entry for jal PC).
+  mpt_set_record_walk_db : Nat
+  mpt_delete_walk_db : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -78,6 +81,8 @@ def GuestLayout.zero : GuestLayout :=
     u256_sub_be := 0
     u256_min := 0
     call_frame_arena := 0
-    frame_base := 0 }
+    frame_base := 0
+    mpt_set_record_walk_db := 0
+    mpt_delete_walk_db := 0 }
 
 end EvmAsm.Codegen
