@@ -2,12 +2,15 @@
 # kind\tfile\tdef\tordinal
 # kind=pair: function has jal code_at_header without *empty_code_hash
 # kind=anti: status-5 beq-to-empty without EMPTY_CODE_HASH compare
+# kind=conv: empty-hash bne mismatch targets all equal match fall-through
+#            (comparison discarded — false assurance; SenderCounts:248)
 # EXPECTED_VIOLATOR_COUNT in check-code-preimage-empty-hash.py must match.
 # Ratchet DOWN only with a same-commit site fix. Never raise without coord.
 
 anti	EvmAsm/Codegen/Programs/BlockVerdictDispatchTx.lean	dispatchTxRuntimeCodeFunction	1
 anti	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsOfFunction	0
 anti	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsOfFunction	1
+conv	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean	eip7702AuthorityStateMaterializeFunction	0
 pair	EvmAsm/Codegen/Programs/BalCodePreimages.lean	accountStateDelegationCodeResolveFunction	0
 pair	EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean	statelessVerdictV2Function	0
 pair	EvmAsm/Codegen/Programs/ChildFrameHandlerTailHelpers.lean	callDelegationAccessChargeAsm	0
