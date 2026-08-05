@@ -383,4 +383,41 @@ def trackAncestorAccess (offset : Uint) : TxM Unit :=
           | none => some offset
           | some cur => some (max cur offset) } })
 
+/-! ## EIP-161 emptiness: the pure kernel
+
+`accountExistsAndIsEmpty` spells its three-field test out by hand, while
+`isAccountAlive` directly above it compares against `EMPTY_ACCOUNT`.  Those are
+the same predicate: `Account` has exactly the three fields `EMPTY_ACCOUNT`
+sets, so the derived `==` *is* the hand-written conjunction.
+
+Naming that gives the guest routine `account_is_eip161_empty` (#11346) a
+**pure** comparison point.  The routine is handed leaf bytes, not an address,
+so `accountExistsAndIsEmpty`'s `TxM Bool`-over-`Address` shape looked like a
+mismatch; splitting it here shows the only part genuinely outside the guest's
+scope is the `getAccountOptional` lookup, and everything after it is a pure
+test the guest can be compared against. -/
+
+/-- `a == EMPTY_ACCOUNT` is the three-field test, spelled in the order
+    `account_exists_and_is_empty` uses. -/
+theorem beq_EMPTY_ACCOUNT (a : Account) :
+    (a == EMPTY_ACCOUNT)
+      = (a.nonce == 0 && a.codeHash == EMPTY_CODE_HASH && a.balance == 0) := by
+  -- the derived `==` is the conjunction in *field* order; the reference
+  -- spells it nonce/codeHash/balance, so the only gap is reassociation
+  cases a with
+  | mk n b c =>
+    simp only [EMPTY_ACCOUNT, BEq.beq, instBEqAccount.beq]
+    by_cases hn : n = 0 <;> by_cases hb : b = 0 <;>
+      simp [hn, hb]
+
+/-- **The boundary, as a theorem rather than a note.**  `account_exists_and_is_empty`
+    is exactly "look the account up, then ask whether it is `EMPTY_ACCOUNT`". -/
+theorem accountExistsAndIsEmpty_eq_kernel (address : Address) :
+    accountExistsAndIsEmpty address
+      = (do match ← getAccountOptional address with
+            | some a => pure (a == EMPTY_ACCOUNT)
+            | none => pure false) := by
+  unfold accountExistsAndIsEmpty
+  simp only [beq_EMPTY_ACCOUNT]
+
 end EvmAsm.Stateless.SpecRef

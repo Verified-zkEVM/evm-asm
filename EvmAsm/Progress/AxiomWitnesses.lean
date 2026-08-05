@@ -288,6 +288,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 
+#print axioms EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
+
+#print axioms EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
+
 #print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
