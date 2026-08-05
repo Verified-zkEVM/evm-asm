@@ -378,14 +378,14 @@ theorem adRootLenCheck (v5old v6old v7old len : Word) :
     (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hlie
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaf hldf
   have sStraight := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hlif
-  have hbne := bne_spec_gen_within .x6 .x7 (164 : BitVec 13) len (32 : Word) (AB + 340)
+  have hbne := bne_spec_gen_within .x6 .x7 (204 : BitVec 13) len (32 : Word) (AB + 340)
   rw [show (AB + 340 : Word) + signExtend13 (164 : BitVec 13) = AB + 504 from by
     rw [show signExtend13 (164 : BitVec 13) = (164 : Word) from by decide]; bv_omega,
     show (AB + 340 : Word) + 4 = AB + 344 from by bv_omega] at hbne
   have hbnee := cpsBranchWithin_extend_code ad_mono
     (cpsBranchWithin_extend_code
       (CodeReq.ofProg_mem_at AB (AB + 340) accountDecode_prog 85
-        (.BNE .x6 .x7 (164 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
+        (.BNE .x6 .x7 (204 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
         rfl (by rw [ad_length]; decide)) hbne)
   have hbnef := cpsBranchWithin_frameR
     (((.x5 : Reg) ↦ᵣ adLengthAddr) ** (adLengthAddr ↦ₘ len))
@@ -435,14 +435,14 @@ theorem adCodeLenCheck (v5old v6old v7old len : Word) :
     (by repeat' first | exact pcFree_regIs | exact pcFree_memIs | apply pcFree_sepConj) hlie
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hlaf hldf
   have sStraight := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hlif
-  have hbne := bne_spec_gen_within .x6 .x7 (60 : BitVec 13) len (32 : Word) (AB + 444)
+  have hbne := bne_spec_gen_within .x6 .x7 (152 : BitVec 13) len (32 : Word) (AB + 444)
   rw [show (AB + 444 : Word) + signExtend13 (60 : BitVec 13) = AB + 504 from by
     rw [show signExtend13 (60 : BitVec 13) = (60 : Word) from by decide]; bv_omega,
     show (AB + 444 : Word) + 4 = AB + 448 from by bv_omega] at hbne
   have hbnee := cpsBranchWithin_extend_code ad_mono
     (cpsBranchWithin_extend_code
       (CodeReq.ofProg_mem_at AB (AB + 444) accountDecode_prog 111
-        (.BNE .x6 .x7 (60 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
+        (.BNE .x6 .x7 (152 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide)
         rfl (by rw [ad_length]; decide)) hbne)
   have hbnef := cpsBranchWithin_frameR
     (((.x5 : Reg) ↦ᵣ adLengthAddr) ** (adLengthAddr ↦ₘ len))
