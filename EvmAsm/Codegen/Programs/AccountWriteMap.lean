@@ -315,6 +315,13 @@ def accountWritesBlockUpsertFunction : String :=
     On a map miss (delete address never recorded this tx), upsert a STATE=None
     row — same end state as destroy_account after a zero-balance clear.
 
+    Map-row balance alone is insufficient after self-burn: `record_nonstorage_effect`
+    derives HAS_BALANCE only from pre≠post, so clear_preserving with pre=post=live
+    leaves the write-map bal at the CREATE seed (often 0) while AccountState already
+    holds the preserved balance. When map bal=0, consult AccountState balance only
+    (not nonce — CREATE nonce must not block EIP-161 empty after clear) and keep
+    Present with that balance when nonzero (03736 self_burn).
+
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
   "account_writes_apply_deletes:\n" ++
@@ -338,6 +345,20 @@ def accountWritesApplyDeletesFunction : String :=
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
+  -- Map bal=0: AccountState may still hold clear_preserving balance (self-burn).
+  "  mv a0, s0; la a1, account_state_pending; la t1, account_state_pending_count; ld a2, 0(t1); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
+  "  bnez a0, .Lawd_hit_from_state\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t1, account_state_durable_count; ld a2, 0(t1); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
+  "  beqz a0, .Lawd_present_none\n" ++
+  ".Lawd_hit_from_state:\n" ++
+  "  ld t1, 88(a0); andi t1, t1, 32; beqz t1, .Lawd_present_none\n" ++
+  "  ld t1, 32(a0); ld t2, 40(a0); or t1, t1, t2; ld t2, 48(a0); or t1, t1, t2; ld t2, 56(a0); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
+  "  slli t0, s3, 7; li t2, 0xa2b20000; add t0, t2, t0\n" ++
+  "  ld t1, 32(a0); sd t1, 32(t0); ld t1, 40(a0); sd t1, 40(t0)\n" ++
+  "  ld t1, 48(a0); sd t1, 48(t0); ld t1, 56(a0); sd t1, 56(t0)\n" ++
+  "  j .Lawd_keep_present\n" ++
+  ".Lawd_present_none:\n" ++
+  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0\n" ++
   "  sd zero, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
   ".Lawd_keep_present:\n" ++
   "  li t1, 1; sd t1, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
