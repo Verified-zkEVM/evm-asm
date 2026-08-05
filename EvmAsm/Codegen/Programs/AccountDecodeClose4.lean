@@ -90,17 +90,24 @@ def adSuccessOut (spW nonceOut balanceOut rootOut codeOut listBase o0 o1 o2 o3 :
      stackFree spW 8 ** adScratch codeOut) h
 
 /-- The whole-program post: `a0 = 0` with the genuine decoded output struct, or
-    `a0 = 1` with a witnessed `DecodeFailure` and the owned leftover. -/
+    `a0 = 1` with a witnessed `DecodeFailure` and the owned leftover.
+
+    ⚠️ Both branches carry `adFoldConstants` (GH #11483). The routine now READS
+    guest data — the two `.data` cells the zero-length fold arms load from — and
+    returns them unchanged, so the region belongs to the contract in both
+    directions rather than being something the caller happens to own. Stating it
+    here rather than on each enclosing theorem's post is what lets the whole
+    backbone chain keep its statements. -/
 def adWholePost (sp0 spW : Word) (saved : Saved) (listBase : Word)
     (listLen : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
   fun h =>
     (∃ (o0 l0 o1 l1 o2 l2 o3 l3 : Word),
       ((⌜Decoded bytes listBase listLen o0 l0 o1 l1 o2 l2 o3 l3⌝ : Assertion) **
-       (((.x10 : Reg) ↦ᵣ (0 : Word)) ** adCommon sp0 spW saved **
+       (((.x10 : Reg) ↦ᵣ (0 : Word)) ** adCommon sp0 spW saved ** adFoldConstants **
         adSuccessOut spW saved.s2 saved.s3 saved.s4 saved.s5 listBase o0 o1 o2 o3
           l0.toNat l1.toNat l2.toNat l3.toNat bytes oldRoot oldCode)) h) ∨
     (((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
-      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** adCommon sp0 spW saved **
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** adCommon sp0 spW saved ** adFoldConstants **
        adFailLeftover spW saved.s2 saved.s3 saved.s4 saved.s5 listBase bytes)) h)
 
 /-! ## Failure-tail arm -/
@@ -118,15 +125,17 @@ theorem adFailArm (sp0 spW : Word) (saved : Saved) (listBase : Word)
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
     cpsTripleWithin (1 + 9) (AB + 504) saved.ra fullCode
       (((((.x2 : Reg) ↦ᵣ spW) ** regsOwnAt listNthFrame ** savedFrame spW saved) **
-        ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+        ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) ** adFoldConstants **
          adFailLeftover spW saved.s2 saved.s3 saved.s4 saved.s5 listBase bytes)) **
        regOwn .x10)
       (adWholePost sp0 spW saved listBase listLen bytes oldRoot oldCode) := by
   refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v10 => ?_)
   have hepi := adFailEpi sp0 spW v10 saved
-    ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) **
+    ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) ** adFoldConstants **
       adFailLeftover spW saved.s2 saved.s3 saved.s4 saved.s5 listBase bytes)
-    (pcFree_sepConj pcFree_pure (pcFree_adFailLeftover _ _ _ _ _ _ _)) hspW hret
+    (pcFree_sepConj pcFree_pure
+      (pcFree_sepConj pcFree_adFoldConstants (pcFree_adFailLeftover _ _ _ _ _ _ _)))
+    hspW hret
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => Or.inr ?_) hepi
   -- hq : ((x10↦1) ** ((x2↦sp0) ** regsAt ** savedFrame) ** (⌜DF⌝ ** adFailLeftover)) h
   -- goal : (⌜DF⌝ ** ((x10↦1) ** adCommon ** adFailLeftover)) h

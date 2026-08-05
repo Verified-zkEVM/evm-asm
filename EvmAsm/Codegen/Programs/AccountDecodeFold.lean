@@ -123,30 +123,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
     eight witnesses, `hDecoded` (whose hash clause is the `= 0` disjunct here), then
     `adSuccessOut` with `hashCell_zero` collapsing the cell to the constant. -/
 
-/-! ## The fold constants' guest addresses
-
-    Both live in the `.data` RAM window and both are 8-byte aligned, which is
-    what makes the `LD` side of each pair well-formed. -/
-
-/-- `iw_empty_trie_root` (`MptInsertWalk.lean:349`). -/
-abbrev ITR : Word := (GuestAddrs.iw_empty_trie_root : Word)
-
-/-- `aie_empty_code_hash`. -/
-abbrev ECH : Word := (GuestAddrs.aie_empty_code_hash : Word)
-
-theorem itr_align : ITR.toNat % 8 = 0 := by decide
-theorem ech_align : ECH.toNat % 8 = 0 := by decide
-
-/-- The two `.data` constants the fold arms read, as one assertion.  Threaded
-    through the field-2/3 backbones into `account_decode`'s precondition: the
-    routine now *reads* guest data, which it did not before #11483. -/
-def adFoldConstants : Assertion :=
-  bytesRegion ITR adEmptyTrieRootBytes ** bytesRegion ECH adEmptyCodeHashBytes
-
-theorem pcFree_adFoldConstants : adFoldConstants.pcFree := by
-  unfold adFoldConstants
-  exact pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)
-
 /-! ## `la` materialisation for the two constants -/
 
 /-- `la x5, iw_empty_trie_root` at the field-2 fold arm [138]-[139]

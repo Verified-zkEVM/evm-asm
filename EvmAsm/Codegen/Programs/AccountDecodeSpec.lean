@@ -218,6 +218,30 @@ theorem bytesRegion32_dwords_eq (base : Word) (bs : List (BitVec 8)) (h_len : bs
       show base + 8 + 8 = base + 16 from by bv_omega,
       show base + 16 + 8 = base + 24 from by bv_omega]
 
+/-! ## The fold constants' guest addresses
+
+    Both live in the `.data` RAM window and both are 8-byte aligned, which is
+    what makes the `LD` side of each pair well-formed. -/
+
+/-- `iw_empty_trie_root` (`MptInsertWalk.lean:349`). -/
+abbrev ITR : Word := (GuestAddrs.iw_empty_trie_root : Word)
+
+/-- `aie_empty_code_hash`. -/
+abbrev ECH : Word := (GuestAddrs.aie_empty_code_hash : Word)
+
+theorem itr_align : ITR.toNat % 8 = 0 := by decide
+theorem ech_align : ECH.toNat % 8 = 0 := by decide
+
+/-- The two `.data` constants the fold arms read, as one assertion.  Threaded
+    through the field-2/3 backbones into `account_decode`'s precondition: the
+    routine now *reads* guest data, which it did not before #11483. -/
+def adFoldConstants : Assertion :=
+  bytesRegion ITR adEmptyTrieRootBytes ** bytesRegion ECH adEmptyCodeHashBytes
+
+theorem pcFree_adFoldConstants : adFoldConstants.pcFree := by
+  unfold adFoldConstants
+  exact pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)
+
 /-- The genuine success verdict: all four fields decode as K20 successes, with
     the two variable fields within their length caps and the two hash fields
     either exactly 32 bytes or zero-length (the #11483 fold).  The output values
