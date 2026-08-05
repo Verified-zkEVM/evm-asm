@@ -258,11 +258,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
   "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
   ".Lbv_mtx_sender_count_zero_done:\n" ++
-  -- #11533 follow-up: frozen S1 authority materialize RETIRED (was only
-  -- reachable past `j .Lbv_mtx_state_init`). Sole live is_valid_delegation
-  -- for InvalidSender is the MTx sender gate below (fork.py:668-677).
-  -- eip7702_authority_state_materialize / eas_write_entry are probe-only.
-  -- Live 7702 writer remains eip7702_auth_state_prepare at tx boundary.
+  -- Frozen S1 authority materialize RETIRED (was dead after j .Lbv_mtx_state_init;
+  -- nm: eas_write_entry + eip7702_authority_state_materialize absent from image).
+  -- Live 7702 delegated_before_tx is eip7702_authority_asof → auth_state_prepare
+  -- (AccountState durable + header code), NOT bv_eip7702_authority_table+40.
+  -- MTx sender InvalidSender gate below is a separate reject predicate (fork.py:668-677).
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   -- Execution AccountState is block-lived in the sequential lane. The callable
@@ -440,7 +440,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- fork.py:668-677 InvalidSender ("not EOA"): get_code(sender) then require
   -- EMPTY_CODE_HASH or is_valid_delegation.  Missing marker preimage (status 5
   -- with non-empty hash) rejects — closes 02970 missing_sender_delegation_marker.
-  -- Sole live is_valid_delegation site (frozen eas_write_entry retired).
+  -- InvalidSender gate (independent of 7702 authority-table materialize).
   -- Layout: have_code first, empty-hash compare last so #11520 gate window is clean.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_mtx_sender_addr\n" ++
