@@ -274,11 +274,11 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # same commit that removes a bare long local J from a file.  Keeping this next
 # to the B/J policy makes the dual-accept window measurable instead of
 # permanent permission for a new hardcoded target.
-EXPECTED_BARE_J_PROGRAM_FILES = 67
+EXPECTED_BARE_J_PROGRAM_FILES = 65
 # Monotonic site-level ratchet for the same migration.  A conversion may
 # reduce this number, but a newly-bare long local J must fail check-all rather
 # than hide behind the mixed B/J transition.
-EXPECTED_BARE_J_SITES = 215
+EXPECTED_BARE_J_SITES = 217
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1006,7 +1006,7 @@ def _def_span(text, fname):
         consumed += len(ln)+1
     return start, consumed
 
-def _generated_block_span(text, fname, prog):
+def _generated_block_span(text, fname, prog, layout=False):
     """Span of an ALREADY-GENERATED block for `fname`, or None.
 
     `_def_span` finds only the `def <fname> : String :=` line, which is correct
@@ -1020,11 +1020,18 @@ def _generated_block_span(text, fname, prog):
     `#guard <prog>.length = N`, with the `def <fname> : String :=` line inside
     it; require that containment so a hand-written file is never matched.
     """
-    mp=re.search(r'(?m)^def\s+'+re.escape(prog)+r'\s*:\s*Program\s*:=', text)
+    if layout:
+        mp_pat = (r'(?m)^def\s+'+re.escape(prog)+
+                  r'_of\s*\([^\n]*\)\s*:\s*Program\s*:=' )
+        guard_pat = (r'(?m)^#guard\s+\('+re.escape(prog)+
+                     r'_of\s+\.zero\)\.length\s*=\s*\d+\s*$')
+    else:
+        mp_pat = r'(?m)^def\s+'+re.escape(prog)+r'\s*:\s*Program\s*:='
+        guard_pat = r'(?m)^#guard\s+'+re.escape(prog)+r'\.length\s*=\s*\d+\s*$'
+    mp=re.search(mp_pat, text)
     if not mp: return None
     mg=None
-    for m in re.finditer(r'(?m)^#guard\s+'+re.escape(prog)+r'\.length\s*=\s*\d+\s*$',
-                         text):
+    for m in re.finditer(guard_pat, text):
         if m.start()>mp.start(): mg=m
     if mg is None: return None
     mf=re.search(r'(?m)^def\s+'+re.escape(fname)+r'\s*:\s*String\s*:=', text)
@@ -1034,7 +1041,13 @@ def _generated_block_span(text, fname, prog):
 def rewrite_file(path, funcs):
     """Replace each named Function def in `path` with its generated
     prog+def+theorem+guards block, saving the original asm as a fixture."""
-    text=open(path).read()
+    # Layout-parameterised modules keep the concrete bridge in `path` and the
+    # generated Function/program block in the adjacent `*Prog.lean` leaf.
+    # Rewrite the leaf in place while retaining the manifest's bridge path;
+    # trying to splice the bridge used to fail after fixture fallback found
+    # the right asm.
+    target_path=layout_leaf_path(path) or path
+    text=open(target_path).read()
     os.makedirs(FIXDIR, exist_ok=True)
     spans=[]
     uses_reloc=False
@@ -1058,17 +1071,23 @@ def rewrite_file(path, funcs):
             uses_reloc=True
         open(fixture_path(fn),'w').write(asm if asm.endswith('\n') else asm+'\n')
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog, relocs)
-        span=_generated_block_span(text, fn, prog) or _def_span(text, fn)
+        layout = target_path != path
+        if layout:
+            block=gen_lean_layout(entry, renders, fn, prog, relocs)[0]
+        else:
+            block=gen_lean(entry, renders, fn, prog, relocs)
+        span=_generated_block_span(text, fn, prog, layout=layout) or _def_span(text, fn)
         spans.append((span[0],span[1],block))
     spans.sort(reverse=True)
     new=text
     for s,e,block in spans:
         new=new[:s]+block.rstrip()+'\n'+new[e:]
     new=_ensure_emit_import(new)
-    if uses_reloc: new=_ensure_reloc_imports(new)
+    # Layout leaves substitute `L.` for linked addresses and therefore do not
+    # need GuestAddrs; only a concrete Program file gets those imports.
+    if uses_reloc and target_path == path: new=_ensure_reloc_imports(new)
     new=_ensure_rv64_open(new)   # `.ADDI`/`.CSRS` dot-notation needs Instr in scope
-    if new!=text: open(path,'w').write(new)
+    if new!=text: open(target_path,'w').write(new)
     man=_load_manifest()
     rel=os.path.relpath(os.path.abspath(path),
                         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1352,7 +1371,7 @@ def count_bare_j_program_files(man=None):
             # Count only the sites that are still bare in this source block,
             # not every long local J in the fixture (some may already have
             # been converted to a named `jalOff`).
-            span = _generated_block_span(source, fn, prog)
+            span = _generated_block_span(source, fn, prog, layout=leaf is not None)
             if span is None:
                 span = _def_span(source, fn)
             lo, hi = span
