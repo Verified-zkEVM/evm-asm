@@ -428,7 +428,7 @@ theorem adField3ContEpi
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
     (fun h hp => by
       obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
       unfold adK20ContPost at hcont
@@ -450,7 +450,7 @@ theorem adField3ContEpi
         savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
     (fun h hp => by
       have hin : (((⌜Success bytes listBase listLen 3 offset len'⌝ : Assertion) **
           ((((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved3) ** stackFree spW 8) **
@@ -462,7 +462,7 @@ theorem adField3ContEpi
           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
            bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
-           ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
+           ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
       have hout := sepConj_mono_left (adContReshape spW listBase 3 saved3 bytes listLen offset len'
         v11 v12 v5 v6 v7) h hin
       xperm_hyp hout)
@@ -991,7 +991,7 @@ theorem adField2ContEpi
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
     (fun h hp => by
       obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
       unfold adK20ContPost at hcont
@@ -1013,7 +1013,7 @@ theorem adField2ContEpi
         savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
     (fun h hp => by
       have hin : (((⌜Success bytes listBase listLen 2 offset len'⌝ : Assertion) **
           ((((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved2) ** stackFree spW 8) **
@@ -1025,7 +1025,7 @@ theorem adField2ContEpi
           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
            bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-           ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
+           ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
       have hout := sepConj_mono_left (adContReshape spW listBase 2 saved2 bytes listLen offset len'
         v11 v12 v5 v6 v7) h hin
       xperm_hyp hout)
