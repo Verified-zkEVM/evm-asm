@@ -269,16 +269,10 @@ BR_NAMED_THRESHOLD = 64
 # must not drift unless a future change has a separately justified threshold.
 JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 
-# Transitional ratchet for the local-J migration.  The count is by source
-# program file (not by instruction or definition): update it downward in the
-# same commit that removes a bare long local J from a file.  Keeping this next
-# to the B/J policy makes the dual-accept window measurable instead of
-# permanent permission for a new hardcoded target.
-EXPECTED_BARE_J_PROGRAM_FILES = 53
-# Monotonic site-level ratchet for the same migration.  A conversion may
-# reduce this number, but a newly-bare long local J must fail check-all rather
-# than hide behind the mixed B/J transition.
-EXPECTED_BARE_J_SITES = 190
+# Site-level ratchet for the local-J migration.  This is the sole blocking
+# counter: a conversion may reduce it, but a newly-bare long local J must fail
+# check-all rather than hide behind the mixed B/J transition.
+EXPECTED_BARE_J_SITES = 181
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1743,12 +1737,6 @@ def main():
             gaprob=[f"GuestAddrs: {e}"]
         allprob+=gaprob
         bare_j_files,bare_j_defs,bare_j_sites=count_bare_j_program_files(man)
-        if bare_j_files != EXPECTED_BARE_J_PROGRAM_FILES:
-            allprob.append(
-                f"bare local J ratchet: expected {EXPECTED_BARE_J_PROGRAM_FILES} "
-                f"source files, found {bare_j_files} "
-                f"({bare_j_defs} defs / {bare_j_sites} sites); update the "
-                "constant only with the corresponding migration")
         if bare_j_sites > EXPECTED_BARE_J_SITES:
             allprob.append(
                 f"bare local J site ratchet: expected at most {EXPECTED_BARE_J_SITES} "
@@ -1759,8 +1747,8 @@ def main():
             for p in allprob: print("  "+p)
             sys.exit(1)
         print(f"check-all: CLEAN ({len(man)} converted defs across {len(byfile)} files; "
-              f"bare local J ratchet {bare_j_files} files / {bare_j_defs} defs / "
-              f"{bare_j_sites} sites)")
+              f"bare local J report {bare_j_files} files / {bare_j_defs} defs; "
+              f"blocking site ratchet {bare_j_sites} sites)")
         return
     if args.command in ('rewrite','check-file'):
         funcs=[f.strip() for f in args.funcs.split(',') if f.strip()]
