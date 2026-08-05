@@ -251,7 +251,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_sender_seed_done:\n" ++
   "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
   "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_sender_count_table_fail\n" ++  -- was 40 → 68
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_sender_count_zero_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_count_zero_done\n" ++
@@ -387,10 +387,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- failure and skipped the gas/blob debit before this transaction's stage.
   -- (block_access_lists.py:583-600, fork.py:656-667.)
   "  la a0, bv_mtx_sender_addr; la a1, bv_mtx_sender_acct; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); jal ra, account_resolve_pre_state\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_sender_resolve_fail\n" ++  -- was 40 → 69
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
-  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce
+  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce (code 40 kept)
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
@@ -473,7 +473,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- the checkpoint removes later body writes. Balance has later value, refund,
   -- and coinbase-credit writes, so it needs its own complete state transition
   -- rather than an inclusion-time snapshot here.
-  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_inclusion_fail\n" ++  -- was 40 → 71
   "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
@@ -485,7 +485,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- recipient routing.  The old B1 replay is a frozen reference only.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_auth_prepare_fail\n" ++  -- was 40 → 72
   ".Lbv_mtx_nonce_done:\n" ++
   -- Creation needs the same sender/public-key and nonce setup as every other
   -- multi-tx item before its runtime adapter can derive CREATE(sender, nonce).
