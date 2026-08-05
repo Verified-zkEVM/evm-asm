@@ -401,9 +401,18 @@ def selfdestructBalanceTransferRuntimeAsm : String :=
   -- just clear sdai_transfer_status to let selfdestructEip7708LogRuntimeAsm emit the
   -- log: it reads the transferred amount from the (valid) origin RLP and no-ops on a
   -- zero balance, so this is correct for both funded and empty new-beneficiary cases.
-  -- status 1/2/3 (no context / header / origin failure) keep skipping (status stays 1).
+  -- status 3 = origin MISS on block-pre MPT (CREATE in an earlier tx this block).
+  -- EIP-6780 still move_ethers the live balance; BeneficiaryNonstorage applies the
+  -- debit/credit, but 7708 log runs first and gates on transfer_status==0. Without
+  -- clearing here the log is skipped (log_status=1) → receipts_root mismatch bv53
+  -- (11617 dynamic_create2_selfdestruct_collision_multi_tx SD_first=False). 7708
+  -- non-created path then prefers account_state_latest_balance (still pre-debit).
+  -- status 1/2 (no context / header failure) keep skipping (status stays 1).
   "  li t2, 4\n" ++
+  "  beq t1, t2, .L_selfdestruct_transfer_log_only\n" ++
+  "  li t2, 3\n" ++
   "  bne t1, t2, .L_selfdestruct_transfer_done\n" ++
+  ".L_selfdestruct_transfer_log_only:\n" ++
   "  la t0, sdai_transfer_status\n" ++
   "  sd x0, 0(t0)\n" ++
   "  j .L_selfdestruct_transfer_done\n" ++
