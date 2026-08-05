@@ -234,12 +234,13 @@ theorem adField1Success
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o1) ** ((.x15 : Reg) ↦ᵣ codeOut) **
        savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
        bytesRegion balanceOut oldBal **
-       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
-  have hcopy := adField1Copy spW raSaved listBase len nonceOut balanceOut rootOut codeOut
-    o0 o1 l0 x28v x29v x30v v11 v12 v13 v14 bytes oldBal oldRoot oldCode listLen
-    hsalign hslack hover hvalid hbalign hbover hballen hbvalid hf1 hl1
+  have hcopy := cpsTripleWithin_frameR adFoldConstants pcFree_adFoldConstants
+    (adField1Copy spW raSaved listBase len nonceOut balanceOut rootOut codeOut
+      o0 o1 l0 x28v x29v x30v v11 v12 v13 v14 bytes oldBal oldRoot oldCode listLen
+      hsalign hslack hover hvalid hbalign hbover hballen hbvalid hf1 hl1)
   have hbb := adBBField2 sp0 spW (AB + 196) raSaved listBase len nonceOut balanceOut rootOut
     codeOut o1 l1 (0 : Word) v11 v12 v13 v14 o0 o1 l0 l1 bytes oldRoot oldCode listLen hspW hret
     hlenW hsalign hslack hover hvalid hralign hrover hrootlen hrvalid hcalign hcover hcodelen
@@ -725,7 +726,7 @@ theorem adField0Success
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o0) ** ((.x15 : Reg) ↦ᵣ codeOut) **
        savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
        bytesRegion balanceOut oldBal **
-       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
   have hcopy := adField0Copy spW raSaved listBase len nonceOut balanceOut rootOut codeOut
