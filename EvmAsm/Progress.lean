@@ -685,6 +685,10 @@ private noncomputable abbrev _account_rlp_length_witness :=
   @EvmAsm.Stateless.accountRlp_length_le
 -- #11345: the reference-side inversion. Witnessed here so the axiom gate covers
 -- it mechanically rather than relying on someone remembering to look.
+-- #11346 item 2: big-endian zero is length-insensitive, so the reference's
+-- `bytesBEtoNat` is lenient about non-canonical zeros exactly as the guest is.
+private noncomputable abbrev _fromBytesBE_eq_zero_iff_witness :=
+  @EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 

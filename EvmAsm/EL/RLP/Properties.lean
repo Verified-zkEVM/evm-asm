@@ -81,6 +81,36 @@ theorem Nat.fromBytesBE_toBytesBE (n : Nat) :
     rw [hr]
     omega
 
+/-- **Big-endian zero is length-insensitive**: a big-endian byte string decodes
+    to `0` exactly when every one of its bytes is zero — for *any* length, so
+    non-canonical zero encodings (`0x00`, `0x00 0x00`, …) all decode to `0`
+    alongside the empty string.
+
+    Consumed by #11346: the guest's EIP-161 nonce/balance test is the lenient
+    "every content byte is zero" (`beAccFrom_eq_zero_iff`), and this says the
+    reference's `bytesBEtoNat` is lenient in exactly the same way.  That makes
+    the agreement a proved fact rather than a coincidence worth a comment. -/
+theorem Nat.fromBytesBE_eq_zero_iff : ∀ (bs : List Byte),
+    Nat.fromBytesBE bs = 0 ↔ ∀ b ∈ bs, b = 0
+  | [] => by simp [Nat.fromBytesBE]
+  | b :: bs => by
+      have hpow : 256 ^ bs.length ≠ 0 := by positivity
+      show b.toNat * 256 ^ bs.length + Nat.fromBytesBE bs = 0 ↔ _
+      constructor
+      · intro h
+        obtain ⟨hmul, hrec⟩ := Nat.add_eq_zero_iff.mp h
+        have hb0 : b.toNat = 0 := (Nat.mul_eq_zero.mp hmul).resolve_right hpow
+        intro x hx
+        rcases List.mem_cons.mp hx with rfl | hx'
+        · exact BitVec.eq_of_toNat_eq (by simp [hb0])
+        · exact (Nat.fromBytesBE_eq_zero_iff bs).mp hrec x hx'
+      · intro h
+        have hb : b = 0 := h b (List.mem_cons_self ..)
+        have hrec : Nat.fromBytesBE bs = 0 :=
+          (Nat.fromBytesBE_eq_zero_iff bs).mpr fun x hx => h x (List.mem_cons_of_mem _ hx)
+        rw [hb, hrec]
+        simp
+
 /-- 8-bit `ofNat ∘ toNat` is the identity. -/
 private theorem ofNat8_toNat (b : Byte) : BitVec.ofNat 8 b.toNat = b := by
   apply BitVec.eq_of_toNat_eq
