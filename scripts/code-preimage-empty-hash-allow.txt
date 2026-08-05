@@ -13,5 +13,4 @@ anti	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsOfFuncti
 conv	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean	eip7702AuthorityStateMaterializeFunction	0
 pair	EvmAsm/Codegen/Programs/BalCodePreimages.lean	accountStateDelegationCodeResolveFunction	0
 pair	EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean	statelessVerdictV2Function	0
-pair	EvmAsm/Codegen/Programs/ChildFrameHandlerTailHelpers.lean	callDelegationAccessChargeAsm	0
 pair	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsOfFunction	0
