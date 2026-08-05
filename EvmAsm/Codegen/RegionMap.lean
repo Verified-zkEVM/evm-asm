@@ -133,7 +133,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     These are the layout the in-progress verified port under `EvmAsm/Stateless/`
     *intends* to use; they do NOT describe the currently-emitted `stateless_guest`
     (see `guestRegionMap`, the emitted-reality map, and the FINDING in the docs:
-    only `state_tracker_area` is referenced today). They are kept here as a
+    the old persistent half of `state_tracker_area` is retired; the emitted
+    guest keeps only the transient-log sibling). They are kept here as a
     separate list because — as of this build — they are NOT disjoint from what the
     guest actually emits: the RV64 call stack (`guestStackRegion`, top pinned by
     `_start`'s `li sp, 0xa0050000`) grows down *through* `execution_witness_area`
@@ -155,28 +156,19 @@ def allPairwiseDisjoint : List GuestRegion → Bool
 
     | structure | cap | enforced at | AT THE CAP |
     |---|---|---|---|
-    | persistent exec log | 16,384 rows | `h_SSTORE` (`li x14, 16384; bgeu x15, x14, .exit_outofgas`) | ⭐ **FAILS CLOSED** — rejects |
+    | legacy persistent exec log | 16,384 rows | retired from the emitted guest | ⭐ **not allocated** |
     | storage-write undo journal | 32,768 entries | `storage_writes_undo_push` (`bgeu t1, t2, .Lswup_fail`) | ⭐ **FAILS CLOSED** — latches overflow and rejects |
 
-    ⭐ **THAT ASYMMETRY IS THE SINGLE MOST IMPORTANT FACT ABOUT THESE TWO BUFFERS.**
-    The journal is finite and may conservatively reject at its cap; it does not
-    silently omit a rollback record.
+    The persistent exec-log row cap is retained only by the legacy Option-A
+    assertions and modeled-system staging constants. The emitted guest no longer
+    allocates that arena or appends rows to it. The journal remains finite and
+    may conservatively reject at its cap; it does not silently omit a rollback
+    record.
 
-    **LIFETIMES — both per-transaction, but established by different mechanisms**,
-    which is why one figure is block-derived and the other is not:
-    * exec-log count is **re-initialised from the staged payload**, not zeroed —
-      `sd t1, 448(...)` in `runtime_dispatcher_call`, from the payload's `slot_count`,
-      validated against 16,384. ⚠️ An absence test for `sd zero` MISSES this; a reset
-      by assignment is still a reset.
-    * journal count is **zeroed** by `write_sets_incorporate_tx` and
-      `write_sets_discard_tx` — both the commit and the discard path.
-
-    ⛔ **THE SIZING TRAP, which cost two analyses on 2026-08-02:**
-    **`bound = min(gas-derived count, hard cap enforced upstream)`. Where a
-    fail-closed cap exists, THE CAP IS THE BOUND** — a gas divisor alone
-    systematically over-reserves. `BlockVerdictParams.lean:248-268` already records
-    this, rejecting a former gas-derived 600,000-row reservation as *unreachable*
-    because the 100-gas divisor ignored the 16,384-row fail-closed source cap.
+    **LIFETIMES — the journal is per-transaction** and its count is **zeroed** by
+    `write_sets_incorporate_tx` and `write_sets_discard_tx` — both the commit and
+    discard paths. The retired persistent-log counter remains only as a zeroed
+    env-layout compatibility cell.
 
     ⚠️ **And the converse trap, which is how the journal note went wrong:** a
     capacity cap bounds OCCUPANCY, not FLOW. `destroy_storage` decrements
@@ -190,12 +182,8 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     standalone-placement section below. ⇒ an unreachable gas bound is not merely
     wasteful; it has already produced one real defect.
 
-    ⚠️ **OPEN, NOT SETTLED — do not read this section as complete.** Whether a
-    *legitimate* 200M-gas block can EXCEED either cap is unresolved: the log cap is
-    fail-closed so exceeding it is sound but false-rejects, while the journal cap is
-    fail-open so exceeding it is a state divergence. Journal side is known to be
-    reachable (fixture `00192` hits 32,768 exactly); the log side's realistic peak is
-    still being quantified.
+    The journal side is known to be reachable (fixture `00192` hits 32,768
+    exactly); its sizing remains a separate concern from the retired log arena.
 -/
 
 /-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
@@ -212,14 +200,9 @@ def schemeAAnchors : List GuestRegion :=
     { name := "code_db_buckets",        base := 0xa0530000, size := 0x100000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout CODE_DB_BUCKETS; 1 MiB slab" },
     { name := "state_tracker_area",     base := 0xa0630000, size := 0x400000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout STATE_TRACKER_AREA; 4 MiB slab. LIVE in emitted guest: "
-        ++ "storage-log base 0xa0630000..0xa0830000 (2 MiB, 16384x128 rows). "
-        ++ "⚠️ NOT the only live one: measured 2026-08-02, 13 of these 23 anchors have their "
-        ++ "base constant present in the emitted guest — this one plus the six r59nm read "
-        ++ "containers and the six write/undo containers below. The earlier ONLY claim was "
-        ++ "stale by twelve. Those 13 are addressed by absolute `li` and are therefore NOT "
-        ++ "covered by guestRegionMap's zone/disjointness theorems, only by "
-        ++ "schemeAAnchors_pairwise_disjoint" },
+      evidence := "MemoryLayout STATE_TRACKER_AREA; legacy 4 MiB port-contract slab. "
+        ++ "The persistent 2 MiB arena at 0xa0630000 is retired; the emitted guest keeps only the transient log at 0xa0830000. "
+        ++ "The retired base is absent from the final emitted image; other aspirational anchors remain a separate port-contract audit. " },
     { name := "evm_frame_stack",        base := 0xa0a30000, size := 0x40000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
     { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
@@ -632,12 +615,11 @@ def guestStackRegion : GuestRegion :=
     evidence := "_start `li sp, 0xa0050000` (grows down); budget bottoms at OUTPUT top 0xa0020000" }
 
 /-- The state-tracker storage-log window ACTUALLY used by the emitted guest:
-    `[0xa0630000, 0xa0830000)` = 2 MiB (16384x128 rows). The one live scheme-A
-    anchor (`STATE_TRACKER_AREA`), sized to its real extent rather than the 4 MiB
-    aspirational slab. -/
+    `[0xa0830000, 0xa0a30000)` = 2 MiB (16384x128 transient rows). The
+    persistent 2 MiB arena formerly below it at `0xa0630000` has been retired. -/
 def stateTrackerLiveRegion : GuestRegion :=
-  { name := "state_tracker_live", base := 0xa0630000, size := 0x200000, mode := .rw, zone := .ram,
-    evidence := "emitted guest storage-log base 0xa0630000..0xa0830000 (2 MiB); the sole live scheme-A anchor" }
+  { name := "transient_storage_log", base := 0xa0830000, size := 0x200000, mode := .rw, zone := .ram,
+    evidence := "emitted guest transient storage-log base 0xa0830000..0xa0a30000 (2 MiB)" }
 
 /-! ## The authoritative EMITTED-REALITY region map.
 
@@ -645,7 +627,7 @@ def stateTrackerLiveRegion : GuestRegion :=
     `stateless_guest` actually touches — this is the map routine triples and wave
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
-    contiguously; `state_tracker_live` ends `0xa0830000` well below `.data`
+    contiguously; `transient_storage_log` ends `0xa0a30000` well below `.data`
     (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbe6a4860`,
     both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
