@@ -62,6 +62,10 @@ structure GuestLayout where
   -- MptDeleteWalkDb (tail-call target + own entry for jal PC).
   mpt_set_record_walk_db : Nat
   mpt_delete_walk_db : Nat
+  -- BalAccountHasStateChange (rlp walk helpers + own entry for jal PC).
+  rlp_walk_init : Nat
+  rlp_walk_next : Nat
+  bal_account_has_state_change : Nat
 
 /-- The all-zero layout: emission/guard view, never linked against. -/
 def GuestLayout.zero : GuestLayout :=
@@ -83,6 +87,9 @@ def GuestLayout.zero : GuestLayout :=
     call_frame_arena := 0
     frame_base := 0
     mpt_set_record_walk_db := 0
-    mpt_delete_walk_db := 0 }
+    mpt_delete_walk_db := 0
+    rlp_walk_init := 0
+    rlp_walk_next := 0
+    bal_account_has_state_change := 0 }
 
 end EvmAsm.Codegen
