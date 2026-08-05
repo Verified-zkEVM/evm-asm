@@ -263,8 +263,8 @@ def schemeAAnchors : List GuestRegion :=
     -- level, not one per source: the spec has no system-specific write container --
     -- process_unchecked_system_transaction (fork.py:782) builds an ordinary
     -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
-    -- at :1226.  These replace bv_system_storage_log and bv_user_storage_log, whose
-    -- two-arena split mirrors nothing.
+    -- at :1226.  These are the authenticated state containers; the modeled-system
+    -- staging rows below are a separate transient feed, not another state map.
     { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x200000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_AREA; 2 MiB = 16384x128 "
         ++ "(addrHash++slotKey++value, 96 B used of the shared bvStorageLogRowBytes stride); "
@@ -856,33 +856,28 @@ theorem callFrameArena_within_data :
 
 /-! ## `bv_system_storage_log` standalone placement (`4ch8f.73`).
 
-    Un-unioned from `call_frame_arena` because it is WRITTEN pre-dispatch
-    (`capture_system_storage_exec_rows`) but READ post-dispatch by the BAL
-    validators (`bal_storage_matches_exec_log` / `_covers_exec_log` /
-    `account_tuple_sequences_consistent`), while per-tx dispatch frames zero every
-    byte of the arena. It now lives in its own `.data` region, entirely BELOW the
-    arena. Sized `bvSystemStorageLogBytes` (= `2 * 16384` rows), sound per the
-    runtime-exec-log source cap — see `BlockVerdictParams.bvSystemStorageLogCapacity`. -/
+    The modeled-system startup rows remain a separate staging feed for the
+    authenticated storage map and BAL builder. Keeping that staging arena
+    outside `call_frame_arena` prevents frame slots from aliasing it during
+    dispatch, while the five execution-dead BAL replay children remain coalesced
+    inside the frame arena. -/
 
 /-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
     LINK-LAYOUT-DEPENDENT — class-A pin from `RegionMapLinkPins` (issue #11230 / #11282). -/
 abbrev syslogBase : Nat := RegionMapLinkPins.syslogBase
 
-/-- **The `.73` clobber is closed (load-bearing).** The un-unioned
-    `bv_system_storage_log` region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
-    ends at or before `call_frame_arena`'s base — it is entirely disjoint from the
-    arena. Under the OLD union placement the syslog sat at arena offset `[2S, 2S+L)`
-    and per-tx dispatch frames at depth ≥ 221 zeroed it before the post-dispatch BAL
-    validators read it (the bug). Now it cannot be reached by the frame array at all. -/
+/-- **The `.73` aliasing fix is closed (load-bearing).** The standalone
+    modeled-system staging region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
+    ends at or before `call_frame_arena`'s base and is entirely disjoint from the
+    frame array. -/
 theorem syslog_disjoint_from_frameArena :
     syslogBase + bvSystemStorageLogBytes ≤ callFrameArenaBase := by decide
 
-/-- **No frame slot can clobber the syslog, for any call depth.** Frame slot `d`
+/-- **No frame slot can clobber the modeled-system staging arena, for any call depth.** Frame slot `d`
     occupies `[callFrameArenaBase + (d-1)*frameStride, + frameStride)`, which starts
     at or after `callFrameArenaBase`; the syslog ends at or before it
     (`syslog_disjoint_from_frameArena`). So every reachable dispatch frame
-    (`1 ≤ d`, in fact all `d`) is strictly above the entire syslog extent — the
-    captured system-storage rows survive the whole per-tx dispatch window. This is
+    (`1 ≤ d`, in fact all `d`) starts above the entire staging extent. This is
     the property that FAILED under the union placement and now holds by
     construction, complementing `CallFrameLayout.frameArray_covers_all_depths`
     (which keeps every slot inside the arena). -/

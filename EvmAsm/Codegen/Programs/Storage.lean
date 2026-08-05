@@ -607,21 +607,6 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x0, 64(x14); sd x0, 72(x14); sd x0, 80(x14); sd x0, 88(x14)\n" ++
         "  sd x0, 96(x14); sd x0, 104(x14); sd x0, 112(x14); sd x0, 120(x14)\n" ++
         ".Lsload_seed_meta:\n" ++
-        -- Stamp the block_access_index and mark this row as a seed.  The
-        -- capture pass intentionally skips seeded rows; the transaction/block
-        -- storage_reads set was already updated by storage_read_record above.
-        -- These parallel arrays still carry the provenance consumed by the
-        -- tuple validators, so omitting either makes the row ambiguous.
-        "  la x16, current_block_access_index\n" ++
-        "  ld x17, 0(x16)\n" ++
-        "  la x16, exec_log_txindex\n" ++
-        "  slli x18, x15, 3\n" ++
-        "  add x16, x16, x18\n" ++
-        "  sd x17, 0(x16)\n" ++
-        "  la x16, exec_log_seed_flag\n" ++
-        "  add x16, x16, x15\n" ++
-        "  li x17, 1\n" ++
-        "  sb x17, 0(x16)\n" ++
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)\n" ++
         "  j .Lsload_seed_done\n" ++
@@ -840,13 +825,6 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  sd x16, 112(x14)\n" ++
         "  ld x16, 56(x12)\n" ++
         "  sd x16, 120(x14)\n" ++
-        -- bmvmx.1.6.6 enabler: stamp this entry's block_access_index (parallel array,
-        -- indexed by the old log_length x15) for the future per-tx tuple-sequence check.
-        -- x16/x17/x18 are dead post-append (the tail only uses x10).
-        "  la x16, current_block_access_index\n  ld x17, 0(x16)\n" ++
-        "  la x16, exec_log_txindex\n  slli x18, x15, 3\n  add x16, x16, x18\n  sd x17, 0(x16)\n" ++
-        -- A new SSTORE row supersedes any stale provenance byte at this slot.
-        "  la x16, exec_log_seed_flag\n  add x16, x16, x15\n  sb x0, 0(x16)\n" ++
         -- increment log_length
         "  addi x15, x15, 1\n" ++
         "  sd x15, 448(x20)\n" ++

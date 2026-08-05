@@ -888,8 +888,6 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
   "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
-  "  la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
-  "  la t2, bv_system_storage_log_count; sd zero, 0(t2)\n" ++
   -- The input path parses c1_bal_start/c1_bal_len before block_verdict. The
   -- post-loop helper deliberately consumes those stable globals instead of
   -- relying on the caller's clobbered s-registers.
@@ -914,20 +912,8 @@ def statelessVerdictV2Function : String :=
   ".Lc1_w_copy:\n" ++
   "  beqz t3, .Lc1_w_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_w_copy\n" ++
    ".Lc1_w_copyd:\n" ++
-   -- #11254: each system-call dispatch RESETS evm_env+448 to its own storage-log
-   -- count, so this call's SSTORE rows live in [0, +448). Capturing
-   -- from the pre-deferred c1_system_log_cursor (old user log length) made
-   -- end < start → status 1 malformed → zero rows for EIP-7002. The three
-   -- later captures already use start=0; match them so the system log holds
-   -- deferred-request predeploy FINALS (not the user-arena intermediate).
-   "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
-   -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
-   "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
-   "  jal ra, capture_system_storage_exec_rows\n" ++
-   "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
    "  jal ra, read_sets_incorporate_tx\n" ++
    "  jal ra, write_sets_incorporate_tx\n" ++
-   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
    -- == CONSOLIDATION (EIP-7251) ==
 
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
@@ -947,18 +933,8 @@ def statelessVerdictV2Function : String :=
   ".Lc1_c_copy:\n" ++
   "  beqz t3, .Lc1_c_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_c_copy\n" ++
   ".Lc1_c_copyd:\n" ++
-  -- bmvmx.5.5.10 (bv=37): each system-call dispatch RESETS evm_env+448 to its
-  -- own storage-log count (Dispatch.lean:2369), so this call's rows are always
-  -- [0, +448) -- the advancing c1_system_log_cursor captured only a suffix
-  -- (or nothing) for every call after the first. Capture from 0.
-  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
-  -- lv44p.2.2: end-of-block system calls run at block_access_index N+1 (= svf_tx_count+1).
-  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
-  "  # side capture failure is non-fatal for verdict parity; request bodies were already copied\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  "  jal ra, write_sets_incorporate_tx\n" ++
-  "  la t0, evm_env; ld t1, 448(t0); la t2, c1_system_log_cursor; sd t1, 0(t2)\n" ++
+   "  jal ra, read_sets_incorporate_tx\n" ++
+   "  jal ra, write_sets_incorporate_tx\n" ++
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   -- v0.6.0 (EIP-8282/C12): process_checked_system_transaction pre-checks that
   -- each BUILDER predeploy holds code (fork.py:985-1005 via :755-765) and
@@ -1040,11 +1016,6 @@ def statelessVerdictV2Function : String :=
   "  bnez a2, .Ldsr_fail; la t0, dbsr_bdlen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bdbody; mv t3, a1\n" ++
   ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
   ".Lc1_bd_copyd:\n" ++
-  -- bmvmx.5.5.10 (bv=37): capture the BUILDER DEPOSIT system call's SSTOREs
-  -- too; rows are [0, +448) (per-dispatch reset, see the consolidation site).
-  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
-  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
   -- The checked-system transaction's real state is incorporated after execution in
   -- the spec.  Merge (then clear) this synthetic transaction's read sets now, before
   -- beginning the independent builder-exit transaction; the existing block-level
@@ -1058,10 +1029,6 @@ def statelessVerdictV2Function : String :=
   "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
   "  bnez a2, .Ldsr_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
   "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n" ++
-  -- bmvmx.5.5.10 (bv=37): capture the BUILDER EXIT system call's SSTOREs too.
-  "  li a0, 0; la t1, evm_env; ld a1, 448(t1); li a2, 0xa0630000; la a3, bv_system_storage_log; la a4, bv_system_storage_txindex; la a5, bv_system_storage_log_count; li a7, " ++ toString bvSystemStorageLogCapacity ++ "\n" ++
-  "  la t2, svf_tx_count; ld a6, 0(t2); addi a6, a6, 1\n" ++
-  "  jal ra, capture_system_storage_exec_rows\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- The four checked request calls each finish their own synthetic transaction
