@@ -528,7 +528,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bv_runtime_calldata_floor:\n  .zero 8\n" ++
   "bv_runtime_intrinsic_state_gas:\n  .zero 8\n" ++
   -- Last dispatch_tx_runtime_code status: 0 success; 1 code lookup; 2 non-self-contained;
-  -- 3 BAL/account/key cap; 4 storage proof/slot lookup; 5 payload cap; 6 staging;
+  -- 3 RETIRED (#11183 ROW 10 parse-bail); 4 storage proof/slot lookup; 5 payload cap; 6 staging;
   -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
   "bv_dispatch_runtime_status:\n  .zero 8\n" ++
   -- Runtime-gas completeness classifier: 0 complete/unknown, 1 gas-result arena tx/count/cap,
@@ -536,15 +536,11 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 4 multi-tx dispatch unsupported, 5 multi-tx generic bail. Nonzero is debug-only.
   "bv_runtime_completeness_status:\n  .zero 8\n" ++
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
-  -- GH #11176: bvcd_keys (3,200,000 B) and bvcd_preload (6,400,000 B) plus the
-  -- bvcd_key_count / bvcd_sc_count / bvcd_i cursors are GONE with the eager recipient
-  -- storage preload -- 9,600,024 B = 9.155 MiB of .bss. bvcd_acct_ptr / bvcd_acct_len
-  -- REMAIN: bal_find_account_by_address still writes them for the parse-validity bail.
+  -- GH #11176: bvcd_keys/preload GONE. #11183 ROW 10: bvcd_acct_ptr/len GONE with
+  -- supplied-BAL parse-bail (no spec counterpart; CHECK not BIND).
   ".balign 8\n" ++
   "bvcd_code_ptr:\n  .zero 8\n" ++
   "bvcd_code_len:\n  .zero 8\n" ++
-  "bvcd_acct_ptr:\n  .zero 8\n" ++
-  "bvcd_acct_len:\n  .zero 8\n" ++
   -- bmvmx.1.6.2 bal_storage_change_values scratch (tuple path). matches/covers/allaccounts data unlinked #10681.
   balStorageChangeValuesData ++
   -- #11118: bacov_*/bsr_krev guest data removed with dead code_covers (43) and reads (38).

@@ -15,6 +15,5 @@
 .Lbv_after_tx_gate	store	bgv_u64le	no	la t2, bv_bal_len; sd a1, 0(t2)
 .Lbv_mtx_storage	load	bal_map_builder_consistent	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 .Lbv_ret	store	bal_gas_valid_from_builder	yes	la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)
-.Ldtrc_deferred_marker_ready	load	bal_find_account_by_address	yes	la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)
 bbcv_bal_contains_addr	load	rlp_walk_init	no	la t0, bv_bal_len; ld s2, 0(t0)
 bbcv_bal_contains_addr	load	rlp_walk_init	no	la t0, bv_bal_start; ld s1, 0(t0)

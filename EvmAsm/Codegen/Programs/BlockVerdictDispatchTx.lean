@@ -332,33 +332,13 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add a0, t1, t3\n" ++
   "  la t2, cahsr_code_length; ld a1, 0(t2)\n" ++
   "  la t0, bvcd_code_ptr; sd a0, 0(t0); la t0, bvcd_code_len; sd a1, 0(t0)\n" ++
-  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_deferred_marker_ready\n" ++
+  -- #11183 ROW 10: supplied-BAL parse-bail RETIRED. Spec pin e5a8caf1b never
+  -- walks supplied BAL body for parse validity — only hashes the BUILT list
+  -- (fork.py:390). The a0==2 bal_find bail was a guest-only CHECK (Class-A);
+  -- EQUIVALENCE drops it. Preload already retired #11176; bvcd_acct_* gone.
+  "  la t0, dtrc_deleg_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_stage\n" ++
   "  jal ra, bytecode_is_self_contained\n" ++
   "  bnez a0, .Ldtrc_self_contained_unsupported\n" ++
-  ".Ldtrc_deferred_marker_ready:\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  addi a2, s2, 72; la a3, bvcd_acct_ptr; la a4, bvcd_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  li t0, 2; beq a0, t0, .Ldtrc_bal_unsupported\n" ++
-  -- GH #11176: the eager BAL-sourced RECIPIENT storage preload is RETIRED here.
-  -- #11165 landed the demand-driven h_SLOAD, which resolves a cold slot on first read,
-  -- so staging every BAL-declared slot up front duplicated it. Evidence, not assumption:
-  --   * population, sentinel build: 492 of 1,045 sampled rows had bvcd_key_count != 0,
-  --     a FLOOR (a row where the sentinel perturbation was harmless is invisible);
-  --   * A/B on that same sample with the handover count zeroed: FR 41 -> 41, OK 1004 ->
-  --     1004, ZERO flips either way, FA=0 both legs.
-  -- ⇒ the path was demonstrably exercised and the artefact was unchanged without it.
-  --
-  -- ⭐ WHAT WENT AND WHAT STAYED, because that boundary is where a silent regression
-  -- would live: CAPACITY checks went with their buffers (the two bgtu-against-
-  -- bsrAccountSlotCap bails existed BECAUSE bvcd_keys/bvcd_preload were that size);
-  -- INPUT-VALIDITY checks stayed (`a0 == 2` after bal_find_account_by_address is a
-  -- BAL-parse bail, FA-safe, and unrelated to buffer size). bal_find_account_by_address
-  -- and bvcd_acct_ptr/bvcd_acct_len stay for that reason.
-  --
-  -- ⚠️ The system-call preload remains load-bearing -- disabling it reverse-flips
-  -- three consolidation-request rows. Nested storage and balance reads now use
-  -- their authenticated demand-driven paths instead of a separate eager preload.
   ".Ldtrc_stage:\n" ++
   -- 3vc2p.3b sub-step B: reconstruct the M29 recent-blockhash table from the witness headers
   -- (cur = exec NUMBER, count = contiguous recent ancestors, count*32 hashes) into the staging
@@ -796,8 +776,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  li a0, 1; j .Ldtrc_ret\n" ++
   ".Ldtrc_self_contained_unsupported:\n" ++
   "  li a0, 2; j .Ldtrc_ret\n" ++
-  ".Ldtrc_bal_unsupported:\n" ++
-  "  li a0, 3; j .Ldtrc_ret\n" ++
+  -- #11183 ROW 10: .Ldtrc_bal_unsupported (a0=3) removed with parse-bail.
   ".Ldtrc_storage_unsupported:\n" ++
   "  li a0, 4; j .Ldtrc_ret\n" ++
   ".Ldtrc_payload_cap_unsupported:\n" ++
