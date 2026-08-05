@@ -20,6 +20,11 @@ namespace EvmAsm.Codegen
     before the consensus checks. -/
 def blockVerdictReceiptsTail : String :=
   ".Lbv_after_gas_result_gate:\n" ++
+  -- CREATE code-deposit resolution is fail-closed.  A missing witness
+  -- preimage is a valid-block witness shortfall (FR), so code 67 is kept
+  -- distinct from genuine-invalid code 62; neither path can accept.
+  "  la t0, create_deposit_witness_incomplete_flag; ld t0, 0(t0); bnez t0, .Lbv_creation_witness_incomplete_fail\n" ++
+  "  la t0, create_deposit_malformed_flag; ld t0, 0(t0); bnez t0, .Lbv_creation_malformed_fail\n" ++
   "  la t0, bv_tx_count; ld t0, 0(t0); li t1, 2; bltu t0, t1, .Lbv_mtx_b2_return\n" ++
   "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
   "  j .Lbv_b2_entry\n" ++
@@ -163,6 +168,14 @@ def blockVerdictReceiptsTail : String :=
   -- is the only reader of that cell.
   ".Lbv_cmp_mismatch:\n" ++
   "  li t0, 1; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_creation_witness_incomplete_fail:\n" ++
+  -- 67 means witness incompleteness, not invalid execution: the authenticated
+  -- account was valid but its non-empty code hash lacked a witness.codes
+  -- preimage.  Keep this visible to FR accounting rather than folding it into
+  -- a soundness rejection code.
+  "  li t0, 67; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_creation_malformed_fail:\n" ++
+  "  li t0, 62; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_header_fail:\n" ++
   "  li t0, 2; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_state_fail:\n" ++

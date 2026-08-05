@@ -45,6 +45,8 @@ def blockVerdictFunction : String :=
   "  ld t0, 80(s0); la t1, bv_witness_state_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 88(s0); la t1, bv_witness_state_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
+  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_tx_root_status; sd zero, 0(t0)\n" ++

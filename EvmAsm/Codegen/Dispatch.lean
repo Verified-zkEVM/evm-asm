@@ -2300,6 +2300,13 @@ def emitDispatcherDataSection
   ".balign 8\n" ++
   "create_deposit_failed_flag:\n" ++
   "  .zero 8\n" ++
+  -- CREATE code-deposit resolver channels.  Status 4 is witness
+  -- incompleteness (FR, not a soundness reject); status 5 is malformed
+  -- authenticated input and follows the genuine-invalid channel.
+  "create_deposit_witness_incomplete_flag:\n" ++
+  "  .zero 8\n" ++
+  "create_deposit_malformed_flag:\n" ++
+  "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -3858,6 +3865,13 @@ def emitRuntimeDispatcherDataSectionCore
   -- FAILED deposit as a successful one.  Nothing on the halt path writes this flag.
   ".balign 8\n" ++
   "create_deposit_failed_flag:\n" ++
+  "  .zero 8\n" ++
+  -- CREATE code-deposit resolver channels.  Status 4 is witness
+  -- incompleteness (FR, not a soundness reject); status 5 is malformed
+  -- authenticated input and follows the genuine-invalid channel.
+  "create_deposit_witness_incomplete_flag:\n" ++
+  "  .zero 8\n" ++
+  "create_deposit_malformed_flag:\n" ++
   "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
