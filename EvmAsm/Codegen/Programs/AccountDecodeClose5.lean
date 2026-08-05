@@ -653,7 +653,8 @@ theorem adBBField3
          ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
          ((.x20 : Reg) ↦ᵣ s4reg) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
         savedFrame spW savedCaller) **
-       ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+       (adFoldConstants **
+        ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset') ** (adLengthAddr ↦ₘ len') **
@@ -661,7 +662,7 @@ theorem adBBField3
         (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** ((.x11 : Reg) ↦ᵣ v11') **
          ((.x12 : Reg) ↦ᵣ v12') ** regOwn .x13 ** regOwn .x14 **
          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-         ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
+         ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
       have hcomb : (_ ** _) h := ⟨h1, h2, hd, hu, hbig, hacc⟩
       xperm_hyp hcomb
     exact sepConj_mono (sepConj_mono
@@ -669,11 +670,12 @@ theorem adBBField3
         listBase len nonceOut balanceOut s4reg codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset', len', balanceCopied bytes o1 l1.toNat,
-          rootCell, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own2 codeOut v11' v12')))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨beAccum bytes o0.toNat l0.toNat, offset', len', balanceCopied bytes o1 l1.toNat,
+           rootCell, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own2 codeOut v11' v12')))))))) h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hgP
 
 #print axioms adBBField3
@@ -1209,7 +1211,8 @@ theorem adBBField2
          ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
          ((.x20 : Reg) ↦ᵣ rootOut) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
         savedFrame spW savedCaller) **
-       ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+       (adFoldConstants **
+        ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset') ** (adLengthAddr ↦ₘ len') **
@@ -1217,7 +1220,7 @@ theorem adBBField2
         (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** ((.x11 : Reg) ↦ᵣ v11') **
          ((.x12 : Reg) ↦ᵣ v12') ** regOwn .x13 ** regOwn .x14 **
          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-         ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
+         ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
       have hcomb : (_ ** _) h := ⟨h1, h2, hd, hu, hbig, hacc⟩
       xperm_hyp hcomb
     exact sepConj_mono (sepConj_mono
@@ -1225,11 +1228,12 @@ theorem adBBField2
         listBase len nonceOut balanceOut rootOut codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset', len', balanceCopied bytes o1 l1.toNat,
-          oldRoot, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own2 codeOut v11' v12')))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨beAccum bytes o0.toNat l0.toNat, offset', len', balanceCopied bytes o1 l1.toNat,
+           oldRoot, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own2 codeOut v11' v12')))))))) h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hgP
 
 #print axioms adBBField2
