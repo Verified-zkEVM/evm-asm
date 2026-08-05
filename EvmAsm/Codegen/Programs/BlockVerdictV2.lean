@@ -619,7 +619,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip7702AuthStatePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlinePrepareFunction ++ "\n" ++
   blockVerdictTxStateGasInlineFinalizeFunction ++ "\n" ++
-  eip7702AuthorityStateMaterializeFunction ++ "\n" ++
+  -- #11533 follow-up: eip7702_authority_state_materialize probe-only (frozen S1 retired).
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
   b1SenderTableFindFunction ++ "\n" ++

@@ -144,6 +144,10 @@ def b1SenderCountTableFunction : String :=
 
 /-! ## eip7702_authority_state_materialize
 
+    PROBE-ONLY after #11533 follow-up: guest frozen S1 caller retired.
+    Sole live InvalidSender is_valid_delegation is MtxRuntime sender gate.
+    Do not re-link into the guest without retiring the MtxRuntime copy first.
+
     S1's fixed authority substrate is deliberately separate from the old B1
     sender-only table.  Its input is a bounded stream of 32-byte padded
     addresses containing *both* transaction senders and recovered
