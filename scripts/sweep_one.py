@@ -36,13 +36,13 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 
-# A clean rejected output has five non-zero bytes in its fixed header plus the
-# remaining output fields; clean outputs observed in the corpus have at least
-# 44 non-zero bytes. A fault can leave only the five header bytes behind, so a
-# strictly larger count is the positive signal that the complete verdict was
-# written. Keep this local to the instrument: the guest ABI does not expose a
-# separate output-commit bit.
-MIN_COMPLETE_OUTPUT_NONZERO_BYTES = 6
+# A clean rejected output is a five-byte sentinel; accepted outputs observed in
+# the corpus have 44 or more non-zero bytes. The rc check in classify catches a
+# fault that leaves the same five bytes behind, while this count catches an
+# otherwise successful run that leaves the buffer empty or truncated. Keep the
+# signal local to the instrument: the guest ABI does not expose a separate
+# output-commit bit.
+MIN_COMPLETE_OUTPUT_NONZERO_BYTES = 5
 
 
 def default_spike():
