@@ -98,7 +98,7 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 | `rlp_list_truncate_to_n_fields` | — | no-counterpart | inspection | signing-hash truncation is guest-specific |
 | `rlp_prefix_to_buffer` | — (**no drift guard either**) | no-counterpart | inspection | header emission |
 
-**Counts** (kernel-checked, **`rlp` family only** — 19 of the registry's 21 rows;
+**Counts** (kernel-checked, **`rlp` family only** — 19 of the registry's 25 rows;
 the other two are `bal`): 12 agrees · 3 domain-restricted · 2 no-counterpart ·
 2 unproven · **0 stricter · 0 looser**. By basis: 10 bridged · 2 machine-only ·
 5 inspection · 2 none.
