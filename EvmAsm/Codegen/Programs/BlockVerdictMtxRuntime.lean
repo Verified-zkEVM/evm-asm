@@ -186,23 +186,19 @@ def blockVerdictMtxRuntimeLoop : String :=
   --
   -- bvgr_runtime_count contract (live; do not delete — explains 11407 fallback):
   -- zeroed at block_verdict entry. Set to bv_tx_count ONLY on success paths after
-  -- full MTx completion (.Lbv_mtx_publish / .Lbv_mtx_capture_only_post_root). Any
-  -- bail (.Lbv_mtx_bail, .Lbv_mtx_dispatch_unsupported, EOA/unsupported/capacity/
-  -- dispatch-miss, parse error, etc.) jumps to .Lbv_after_tx_gas_precharge with
-  -- count left 0, so arena_prepare sees a short count and the exact prior-state /
-  -- block-gas path is skipped (conservative). That count-left-0 behaviour is real.
+  -- full MTx completion (.Lbv_mtx_publish). Any bail (.Lbv_mtx_bail,
+  -- .Lbv_mtx_dispatch_unsupported, EOA/unsupported/capacity/dispatch-miss, parse
+  -- error, etc.) jumps to .Lbv_after_tx_gas_precharge with count left 0, so
+  -- arena_prepare sees a short count and the exact prior-state / block-gas path
+  -- is skipped (conservative). That count-left-0 behaviour is real.
   --
-  -- #11183 Class-A note on bal_txs_independent at the CALLSITE (settled, narrow):
-  -- returns 0 independent / 1 interacting / 2 parse error. Only status 2 is
-  -- load-bearing here (bne → .Lbv_mtx_bail → count stays 0). Values 0 and 1 do
-  -- NOT select divergent lanes at :jal: both arms call
-  -- block_verdict_all_direct_deposit_txs, both can set bv_deposit_capture_only from
-  -- THAT return (not from 0/1), both converge at .Lbv_mtx_independence_ok. The
-  -- a0==1 arm's only extra is bal_storage_whitelist_clean whose return is discarded
-  -- (always j ok; 11404 retires the jal). So the Class-A row is status-tested-only,
-  -- not SHAPE→ROUTE from a0. Convergence at the join does NOT erase the later
-  -- count-left-0 contract above — that is driven by bail labels, not by a0∈{0,1}.
-  -- Interacting blocks that complete the loop still set count=tx_count.
+  -- #11183 / maintainer proof-architecture ruling: bal_txs_independent and the
+  -- bv_deposit_capture_only route are RETIRED. Spec has one tx loop (fork.py:913)
+  -- and no deposit-vs-capture branch; deposits come from post-exec receipt logs.
+  -- Guest must not read supplied BAL body except to hash it; extra reject-only
+  -- checks need a collision assumption. The capture-only shortcut (skip
+  -- MtxValidationTail after root) had no spec counterpart — branch deleted, not
+  -- re-sourced. Deposit requests stay on the log parse + DirectDepositFallback path.
   -- Production MTx selector: every block enters MTx, including the empty
   -- block; the loop iterates zero times there (matches execution-specs
   -- fork.py:913-914, which has no empty-block special case).  The former
@@ -236,25 +232,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- execution-specs fork.py:913-914, which has no empty-block special case).
   "  la t0, bv_tx_count; ld t0, 0(t0)\n" ++
   "  li t1, " ++ toString bvMtxActiveTxCap ++ "; bgtu t0, t1, .Lbv_mtx_bail         # active loop capacity\n" ++
+  -- #11183: zero deposit-route cells (retired branch; no setter remains).
   "  la t1, bv_deposit_capture_only; sd zero, 0(t1); la t1, bv_deposit_runtime_capture_complete; sd zero, 0(t1)\n" ++
-  "  la t0, bv_bal_start; ld a0, 0(t0); la t0, bv_bal_len; ld a1, 0(t0)\n" ++
-  "  jal ra, bal_txs_independent\n" ++
-  -- #11183: a0∈{0,1} converge (no cell left different); only a0==2 bails.
-  "  beqz a0, .Lbv_mtx_independent_deposit_check\n" ++
-  "  li t0, 1; bne a0, t0, .Lbv_mtx_bail            # parse error -> conservative\n" ++
-  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  bnez a0, .Lbv_mtx_deposit_capture_mark\n" ++
-  -- The former whitelist-v0 scan was not a live route selector: its result was
-  -- discarded before the unconditional jump below. Keep the BAL independence
-  -- parser above (its return status still rejects malformed BALs), but do not
-  -- reparse the supplied BAL through that unfed helper.
-  "  j .Lbv_mtx_independence_ok\n" ++
-  ".Lbv_mtx_independent_deposit_check:\n" ++
-  "  jal ra, block_verdict_all_direct_deposit_txs\n" ++
-  "  beqz a0, .Lbv_mtx_independence_ok              # deposit-check zero → join\n" ++
-  ".Lbv_mtx_deposit_capture_mark:\n" ++
-  "  li t0, 1; la t1, bv_deposit_capture_only; sd t0, 0(t1)\n" ++
-  ".Lbv_mtx_independence_ok:\n" ++
   -- Build the sorted distinct-sender index once from public keys.  B1 retains
   -- this address enumeration for its final BAL coverage check, but AccountState
   -- is the sole live nonce state: no execution path reads or mutates the row's
@@ -839,22 +818,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  jal ra, block_verdict_deferred_system_requests\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++
   "  la t0, storage_writes_overflow; ld t1, 0(t0); bnez t1, .Lbv_fixed_arena_overflow_fail\n" ++
-  -- Both ordinary and deposit-capture-only blocks must publish the terminal
-  -- post-state root after all system effects.  The capture-only lane still
-  -- needs its existing runtime-array setup below, so it rejoins that setup
-  -- after the shared root publication rather than bypassing `.Lbv_mtx_publish`.
+  -- One post-user path for every block (spec: one tx loop, then requests from
+  -- logs). #11183 retired the deposit-capture-only shortcut that skipped the
+  -- validation tail after root.
   "  j .Lbv_mtx_publish\n" ++
-  ".Lbv_mtx_capture_only_post_root:\n" ++
-  "  li t0, 1; la t1, bv_deposit_runtime_capture_complete; sd t0, 0(t1)\n" ++
-  -- The deposit capture-only lane has complete per-tx runtime arrays. Publish
-  -- them to the common exact-gas/EIP-7778 and receipt gates just like the
-  -- ordinary multi-transaction lane.
-  "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
-  "  la t4, bvgr_runtime_count; la t5, bv_tx_count; ld t5, 0(t5); sd t5, 0(t4)\n" ++
-  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++
-  "  j .Lbv_after_tx_gas_precharge\n" ++
   ".Lbv_mtx_publish:\n" ++
   -- Terminal state-root replay.  `.Lbv_mtx_done` has already run every
   -- user/system read-set and write-set incorporation; no storage-map writer
@@ -872,7 +839,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_cmp_mismatch\n" ++
   "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lbv_terminal_root_cmp\n" ++
   ".Lbv_terminal_root_ok:\n" ++
-  "  la t0, bv_deposit_capture_only; ld t0, 0(t0); bnez t0, .Lbv_mtx_capture_only_post_root\n" ++
   "  la t4, bvgr_runtime_gas_left_ptr; la t5, bv_mtx_gas_left; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_refund_counter_ptr; la t5, bv_mtx_refund; sd t5, 0(t4)\n" ++
   "  la t4, bvgr_runtime_calldata_floor_ptr; la t5, bv_mtx_calldata; sd t5, 0(t4)\n" ++
