@@ -125,7 +125,7 @@ def codeHashAtHeaderStateRoot_prog : Program :=
     .SD .x21 .x0 (16 : BitVec 12),
     .SD .x21 .x0 (24 : BitVec 12),
     .LI .x10 (4 : Word),
-    .JAL .x0 (120 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.code_hash_at_header_state_root + 264) (GuestAddrs.code_hash_at_header_state_root + 144)),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 156)),

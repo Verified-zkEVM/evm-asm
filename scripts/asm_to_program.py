@@ -269,12 +269,10 @@ BR_NAMED_THRESHOLD = 64
 # must not drift unless a future change has a separately justified threshold.
 JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 
-# Transitional ratchet for the local-J migration.  The count is by source
-# program file (not by instruction or definition): update it downward in the
-# same commit that removes a bare long local J from a file.  Keeping this next
-# to the B/J policy makes the dual-accept window measurable instead of
-# permanent permission for a new hardcoded target.
-EXPECTED_BARE_J_PROGRAM_FILES = 72
+# Site-level ratchet for the local-J migration.  This is the sole blocking
+# counter: every intentional conversion or counting change must update the
+# committed value in the same commit, so decreases cannot pass silently.
+EXPECTED_BARE_J_SITES = 181
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1002,7 +1000,7 @@ def _def_span(text, fname):
         consumed += len(ln)+1
     return start, consumed
 
-def _generated_block_span(text, fname, prog):
+def _generated_block_span(text, fname, prog, layout=False):
     """Span of an ALREADY-GENERATED block for `fname`, or None.
 
     `_def_span` finds only the `def <fname> : String :=` line, which is correct
@@ -1016,11 +1014,18 @@ def _generated_block_span(text, fname, prog):
     `#guard <prog>.length = N`, with the `def <fname> : String :=` line inside
     it; require that containment so a hand-written file is never matched.
     """
-    mp=re.search(r'(?m)^def\s+'+re.escape(prog)+r'\s*:\s*Program\s*:=', text)
+    if layout:
+        mp_pat = (r'(?m)^def\s+'+re.escape(prog)+
+                  r'_of\s*\([^\n]*\)\s*:\s*Program\s*:=' )
+        guard_pat = (r'(?m)^#guard\s+\('+re.escape(prog)+
+                     r'_of\s+\.zero\)\.length\s*=\s*\d+\s*$')
+    else:
+        mp_pat = r'(?m)^def\s+'+re.escape(prog)+r'\s*:\s*Program\s*:='
+        guard_pat = r'(?m)^#guard\s+'+re.escape(prog)+r'\.length\s*=\s*\d+\s*$'
+    mp=re.search(mp_pat, text)
     if not mp: return None
     mg=None
-    for m in re.finditer(r'(?m)^#guard\s+'+re.escape(prog)+r'\.length\s*=\s*\d+\s*$',
-                         text):
+    for m in re.finditer(guard_pat, text):
         if m.start()>mp.start(): mg=m
     if mg is None: return None
     mf=re.search(r'(?m)^def\s+'+re.escape(fname)+r'\s*:\s*String\s*:=', text)
@@ -1030,7 +1035,13 @@ def _generated_block_span(text, fname, prog):
 def rewrite_file(path, funcs):
     """Replace each named Function def in `path` with its generated
     prog+def+theorem+guards block, saving the original asm as a fixture."""
-    text=open(path).read()
+    # Layout-parameterised modules keep the concrete bridge in `path` and the
+    # generated Function/program block in the adjacent `*Prog.lean` leaf.
+    # Rewrite the leaf in place while retaining the manifest's bridge path;
+    # trying to splice the bridge used to fail after fixture fallback found
+    # the right asm.
+    target_path=layout_leaf_path(path) or path
+    text=open(target_path).read()
     os.makedirs(FIXDIR, exist_ok=True)
     spans=[]
     uses_reloc=False
@@ -1054,17 +1065,23 @@ def rewrite_file(path, funcs):
             uses_reloc=True
         open(fixture_path(fn),'w').write(asm if asm.endswith('\n') else asm+'\n')
         prog=lean_camel(entry)+'_prog'
-        block=gen_lean(entry, renders, fn, prog, relocs)
-        span=_generated_block_span(text, fn, prog) or _def_span(text, fn)
+        layout = target_path != path
+        if layout:
+            block=gen_lean_layout(entry, renders, fn, prog, relocs)[0]
+        else:
+            block=gen_lean(entry, renders, fn, prog, relocs)
+        span=_generated_block_span(text, fn, prog, layout=layout) or _def_span(text, fn)
         spans.append((span[0],span[1],block))
     spans.sort(reverse=True)
     new=text
     for s,e,block in spans:
         new=new[:s]+block.rstrip()+'\n'+new[e:]
     new=_ensure_emit_import(new)
-    if uses_reloc: new=_ensure_reloc_imports(new)
+    # Layout leaves substitute `L.` for linked addresses and therefore do not
+    # need GuestAddrs; only a concrete Program file gets those imports.
+    if uses_reloc and target_path == path: new=_ensure_reloc_imports(new)
     new=_ensure_rv64_open(new)   # `.ADDI`/`.CSRS` dot-notation needs Instr in scope
-    if new!=text: open(path,'w').write(new)
+    if new!=text: open(target_path,'w').write(new)
     man=_load_manifest()
     rel=os.path.relpath(os.path.abspath(path),
                         os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1319,13 +1336,12 @@ def count_bare_j_program_files(man=None):
         hits=_local_long_jal_sites(asm)
         if not hits:
             continue
-        sites += len(hits)
         try:
             entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
         except ConvError:
             # Unlinked/blocked functions cannot be regenerated into a named
             # block yet; count them until their blocker is retired.
-            files.add(rel); defs += 1
+            files.add(rel); defs += 1; sites += len(hits)
             continue
         prog=lean_camel(entry)+'_prog'
         leaf=layout_leaf_path(path)
@@ -1346,6 +1362,21 @@ def count_bare_j_program_files(man=None):
         if j_bare.rstrip() in source or both_bare.rstrip() in source:
             files.add(os.path.relpath(leaf,REPO) if leaf else rel)
             defs += 1
+            # Count only the sites that are still bare in this source block,
+            # not every long local J in the fixture (some may already have
+            # been converted to a named `jalOff`).
+            span = _generated_block_span(source, fn, prog, layout=leaf is not None)
+            if span is None:
+                span = _def_span(source, fn)
+            lo, hi = span
+            segment = source[lo:hi]
+            offsets={off for _cur,_mn,off,_target in hits}
+            for line in segment.splitlines():
+                if '.JAL' not in line or 'BitVec 21' not in line:
+                    continue
+                m=re.search(r'\((-?\d+)\s*:\s*BitVec 21\)', line)
+                if m and int(m.group(1)) in offsets:
+                    sites += 1
     return len(files), defs, sites
 
 def check_file(path, funcs, rendered=None):
@@ -1706,19 +1737,18 @@ def main():
             gaprob=[f"GuestAddrs: {e}"]
         allprob+=gaprob
         bare_j_files,bare_j_defs,bare_j_sites=count_bare_j_program_files(man)
-        if bare_j_files != EXPECTED_BARE_J_PROGRAM_FILES:
+        if bare_j_sites != EXPECTED_BARE_J_SITES:
             allprob.append(
-                f"bare local J ratchet: expected {EXPECTED_BARE_J_PROGRAM_FILES} "
-                f"source files, found {bare_j_files} "
-                f"({bare_j_defs} defs / {bare_j_sites} sites); update the "
-                "constant only with the corresponding migration")
+                f"bare local J site ratchet: expected exactly {EXPECTED_BARE_J_SITES} "
+                f"sites, found {bare_j_sites} ({bare_j_files} files / "
+                f"{bare_j_defs} defs); update the committed value with a stated reason")
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)
             sys.exit(1)
         print(f"check-all: CLEAN ({len(man)} converted defs across {len(byfile)} files; "
-              f"bare local J ratchet {bare_j_files} files / {bare_j_defs} defs / "
-              f"{bare_j_sites} sites)")
+              f"bare local J report {bare_j_files} files / {bare_j_defs} defs; "
+              f"blocking site ratchet {bare_j_sites} sites)")
         return
     if args.command in ('rewrite','check-file'):
         funcs=[f.strip() for f in args.funcs.split(',') if f.strip()]

@@ -40,23 +40,23 @@ def balAccountHasStateChange_prog_of (L : GuestLayout) : Program :=
     .MV .x10 .x8,
     .MV .x11 .x9,
     .JAL .x1 (jalOff L.rlp_walk_init (L.bal_account_has_state_change + 36)),
-    .BNE .x12 .x0 (128 : BitVec 13),
+    .BNE .x12 .x0 (brOff (L.bal_account_has_state_change + 168) (L.bal_account_has_state_change + 40)),
     .MV .x8 .x10,
     .MV .x9 .x11,
     .JAL .x1 (jalOff L.rlp_walk_next (L.bal_account_has_state_change + 52)),
-    .BNE .x11 .x0 (112 : BitVec 13),
+    .BNE .x11 .x0 (brOff (L.bal_account_has_state_change + 168) (L.bal_account_has_state_change + 56)),
     .MV .x8 .x10,
     .JAL .x1 (44 : BitVec 21),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .JAL .x1 (jalOff L.rlp_walk_next (L.bal_account_has_state_change + 76)),
-    .BNE .x11 .x0 (88 : BitVec 13),
+    .BNE .x11 .x0 (brOff (L.bal_account_has_state_change + 168) (L.bal_account_has_state_change + 80)),
     .MV .x8 .x10,
     .JAL .x1 (20 : BitVec 21),
     .JAL .x1 (16 : BitVec 21),
     .JAL .x1 (12 : BitVec 21),
     .LI .x10 (0 : Word),
-    .JAL .x0 (68 : BitVec 21),
+    .JAL .x0 (jalOff (L.bal_account_has_state_change + 172) (L.bal_account_has_state_change + 104)),
     .MV .x18 .x1,
     .MV .x10 .x8,
     .MV .x11 .x9,
@@ -106,5 +106,4 @@ theorem balAccountHasStateChangeFunction_eq_prog :
 
 #guard balAccountHasStateChangeFunction.startsWith "bal_account_has_state_change:\n"
 #guard (balAccountHasStateChange_prog_of .zero).length = 49
-
 end EvmAsm.Codegen
