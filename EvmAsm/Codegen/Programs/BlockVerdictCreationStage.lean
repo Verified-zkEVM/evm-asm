@@ -528,10 +528,13 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la t0, create_prebalance_acct; addi t0, t0, 8; la t1, bvcr_created_pre_bal; li t2, 32\n" ++
   ".Lbvcr_pre_bal_cp:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_pre_bal_cp\n" ++
-  -- The endowment staging stays gated: a zero endowment means there is no transfer to
-  -- record, and the spec gates `move_ether`/`emit_transfer_log` together.
-  "  addi t0, s0, 96; ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
-  "  beqz t1, .Lbvcr_endow_done\n" ++
+  -- Always refresh `bvcr_endow_val_be` from ctx+96, including a zero endowment.
+  -- `dispatcher_seed_pending_value_transfer` (.Ldpub_create) consumes this buffer
+  -- whenever `create_prebalance_lookup_status == 0`; skipping the copy on value=0
+  -- left the prior-tx CREATE's endowment (e.g. initial_balance=1) in place, so a
+  -- later zero-value CREATE still `move_ether`d 1 wei into the new account
+  -- (sender −1 / entry +1) → #11547 on same_block_different_tx call_times_1
+  -- balance_1 (11737). `record_message_value_transfer` no-ops on a zero value.
   -- The context record holds the endowment as 32B BE at +96 (the EIP-7708 staging above
   -- reverses it DOWNWARD from +127 into the log's LE stack word, which fixes the direction).
   -- The recorder takes pointers to BE buffers, so copy it forward, unreversed.
