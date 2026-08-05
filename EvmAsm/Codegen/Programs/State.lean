@@ -201,7 +201,8 @@ def accountDecode_prog : Program :=
     .BEQ .x6 .x0 (8 : BitVec 13),
     .JAL .x0 (-44 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 556)),
+    -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
+    .ADDI .x5 .x5 (laLo GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
     .LD .x7 .x5 (0 : BitVec 12), .SD .x7 .x20 (0 : BitVec 12),
     .LD .x7 .x5 (8 : BitVec 12), .SD .x7 .x20 (8 : BitVec 12),
     .LD .x7 .x5 (16 : BitVec 12), .SD .x7 .x20 (16 : BitVec 12),
@@ -212,7 +213,8 @@ def accountDecode_prog : Program :=
     .BEQ .x6 .x0 (8 : BitVec 13),
     .JAL .x0 (-96 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 608)),
+    -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
     .LD .x7 .x5 (0 : BitVec 12), .SD .x7 .x21 (0 : BitVec 12),
     .LD .x7 .x5 (8 : BitVec 12), .SD .x7 .x21 (8 : BitVec 12),
     .LD .x7 .x5 (16 : BitVec 12), .SD .x7 .x21 (16 : BitVec 12),
