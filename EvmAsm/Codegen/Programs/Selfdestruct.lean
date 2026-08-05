@@ -684,19 +684,19 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ctk\n" ++
   ".L_sdbn_ctk_d:\n" ++
   -- transferred = child's LIVE balance (spec get_account(originator).balance).
-  -- Layers, first nonzero wins:
-  --   1) AccountState latest (in-tx credits / CREATE deposit)
-  --   2) authenticated pre-block balance (pre-funded CREATE target; endowment
-  --      may be 0 while pre already holds funds — 03736/03737 self_burn /
-  --      fresh_beneficiary). AccountState can carry exists+bal=0 when CREATE
-  --      never seeded pre-fund, so a zero hit is NOT authoritative here.
+  -- Layers:
+  --   1) AccountState latest if PRESENT (a0≠0), including authoritative zero.
+  --      A zero hit must win over block-pre: after EIP-6780 delete+recreate in a
+  --      later tx (11710), block-pre still shows the genesis pre-fund while live
+  --      balance is 0 — falling through re-transferred 100000→beneficiary twice
+  --      (11561×11562 pair interaction, #11547 root mismatch).
+  --   2) Else authenticated pre-block balance (AS miss only — pre-funded first
+  --      CREATE in-tx where CREATE never wrote HAS_BALANCE; 03736/03737).
   --   3) env+32 LE endowment (constructor SD with only tx value, no AccountState)
   "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
   "  mv a0, sp; addi a1, sp, 32\n" ++
   "  jal ra, account_state_latest_balance\n" ++
-  "  beqz a0, .L_sdbn_ci_try_pre\n" ++
-  "  ld t0, 32(sp); ld t1, 40(sp); or t0, t0, t1; ld t1, 48(sp); or t0, t0, t1; ld t1, 56(sp); or t0, t0, t1\n" ++
-  "  bnez t0, .L_sdbn_ci_have_transferred\n" ++
+  "  bnez a0, .L_sdbn_ci_have_transferred\n" ++
   ".L_sdbn_ci_try_pre:\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, sdai_origin_address; li a3, 20\n" ++
   "  ld a4, 592(x20); ld a5, 600(x20); addi a6, sp, 128\n" ++
@@ -705,8 +705,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- acct.balance @ sp+128+8 = sp+136 (32B BE)
   "  ld t0, 136(sp); sd t0, 32(sp); ld t0, 144(sp); sd t0, 40(sp)\n" ++
   "  ld t0, 152(sp); sd t0, 48(sp); ld t0, 160(sp); sd t0, 56(sp)\n" ++
-  "  ld t0, 32(sp); ld t1, 40(sp); or t0, t0, t1; ld t1, 48(sp); or t0, t0, t1; ld t1, 56(sp); or t0, t0, t1\n" ++
-  "  bnez t0, .L_sdbn_ci_have_transferred\n" ++
+  "  j .L_sdbn_ci_have_transferred\n" ++
   ".L_sdbn_ci_try_env:\n" ++
   "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
   "  addi t0, sp, 32; addi t1, x20, 63; li t2, 32\n" ++
