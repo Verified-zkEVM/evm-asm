@@ -331,7 +331,7 @@ theorem adField3Success
             regOwn .x13 ** regOwn .x14 **
             ((.x28 : Reg) ↦ᵣ (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1))))) **
             regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            ((.x15 : Reg) ↦ᵣ codeOut)))) h := by
+            ((.x15 : Reg) ↦ᵣ codeOut)) ** adFoldConstants)) h := by
         rw [show copyIntoRegion oldCode bytes 0 o3.toNat (0 + (31 + 1))
             = fixed32Copied bytes oldCode o3 from rfl] at hp
         xperm_hyp hp
@@ -342,8 +342,9 @@ theorem adField3Success
           (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
         (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
           (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (adScratch_of_regs codeOut adOffsetAddr (0 : Word) (32 : Word) v11 v12
-              (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1)))))))))))))) h hg)
+            (sepConj_mono_left (adScratch_of_regs codeOut adOffsetAddr (0 : Word) (32 : Word)
+              v11 v12
+              (listBase + BitVec.ofNat 64 (o3.toNat + (0 + (31 + 1))))))))))))))) h hg)
     c3 hepi
   -- weaken pre (stated → copysetup pre) and post (epilogue post → whole-program success).
   refine cpsTripleWithin_mono_nSteps (by omega)
@@ -352,14 +353,21 @@ theorem adField3Success
   refine (sepConj_pure_left h).2 ⟨hDecoded, ?_⟩
   rw [hFdef] at hq
   unfold adSuccessOut
+  -- `F` carries `adFoldConstants` at its tail while the post wants it in front of
+  -- `adSuccessOut`, so state the split and let `xperm` do the permutation rather
+  -- than trying to thread it through the `mono` chain.
   exact sepConj_mono_right (sepConj_mono_right
-    (fun h' hF => ⟨o3, l3, by
-      unfold outputSuccess
-      -- the root cell is whatever arm we were reached from (`hrootCell`); the code
-      -- cell is the copy, since this is field 3's exact-32 arm (`hl3`).
-      rw [← hrootCell, hashCell_of_ne_zero bytes oldCode o3 l3.toNat adEmptyCodeHashBytes
-        (by rw [hl3]; decide)]
-      xperm_hyp hF⟩)) h hq
+    (fun h' hF => by
+      have hsplit : (adFoldConstants **
+          (outputSuccess nonceOut balanceOut rootOut codeOut o0 o1 o2 o3
+             l0.toNat l1.toNat l2.toNat l3.toNat bytes oldRoot oldCode **
+           bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** (adLengthAddr ↦ₘ l3) **
+           stackFree spW 8 ** adScratch codeOut)) h' := by
+        unfold outputSuccess
+        rw [← hrootCell, hashCell_of_ne_zero bytes oldCode o3 l3.toNat adEmptyCodeHashBytes
+          (by rw [hl3]; decide)]
+        xperm_hyp hF
+      exact sepConj_mono_right (fun h'' hx => ⟨o3, l3, hx⟩) h' hsplit)) h hq
 
 #print axioms adField3Success
 
