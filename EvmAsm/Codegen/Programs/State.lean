@@ -203,10 +203,10 @@ def accountDecode_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
     -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
     .ADDI .x5 .x5 (laLo GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
-    .LD .x7 .x5 (0 : BitVec 12), .SD .x7 .x20 (0 : BitVec 12),
-    .LD .x7 .x5 (8 : BitVec 12), .SD .x7 .x20 (8 : BitVec 12),
-    .LD .x7 .x5 (16 : BitVec 12), .SD .x7 .x20 (16 : BitVec 12),
-    .LD .x7 .x5 (24 : BitVec 12), .SD .x7 .x20 (24 : BitVec 12),
+    .LD .x7 .x5 (0 : BitVec 12), .SD .x20 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12), .SD .x20 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12), .SD .x20 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12), .SD .x20 .x7 (24 : BitVec 12),
     .JAL .x0 (-200 : BitVec 21),
     -- Field 3 (code_hash) dispatch: len==0 folds to EMPTY_CODE_HASH; other lengths
     -- fail exactly as before.
@@ -215,10 +215,10 @@ def accountDecode_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
     -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
     .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
-    .LD .x7 .x5 (0 : BitVec 12), .SD .x7 .x21 (0 : BitVec 12),
-    .LD .x7 .x5 (8 : BitVec 12), .SD .x7 .x21 (8 : BitVec 12),
-    .LD .x7 .x5 (16 : BitVec 12), .SD .x7 .x21 (16 : BitVec 12),
-    .LD .x7 .x5 (24 : BitVec 12), .SD .x7 .x21 (24 : BitVec 12),
+    .LD .x7 .x5 (0 : BitVec 12), .SD .x21 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12), .SD .x21 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12), .SD .x21 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12), .SD .x21 .x7 (24 : BitVec 12),
     .JAL .x0 (-148 : BitVec 21) ]
 
 /-- Reloc side-table for `accountDecode_prog`: the `la`/cross-`jal` instruction indices
