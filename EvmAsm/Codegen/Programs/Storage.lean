@@ -2,34 +2,31 @@
   EvmAsm.Codegen.Programs.Storage
 
   M24 Option A storage handlers (SLOAD, SSTORE, TLOAD, TSTORE).
-  The persistent compatibility/output bridge and transient log use 128-byte
-  entries keyed by `(addrHash, slotKey)`; canonical persistent reads and writes
-  now resolve through the transaction write map and authenticated fallbacks.
+  The transient log uses 128-byte entries keyed by `(addrHash, slotKey)`;
+  canonical persistent reads and writes resolve through the transaction write
+  map and authenticated fallbacks.
 
-  Two arenas live in `STATE_TRACKER_AREA`:
-    0xa0630000  persistent compatibility/output log (seed writes and finalization)
-    0xa0830000  transient  storage log (TLOAD / TSTORE)
+  The transient storage log lives at `0xa0830000` in `STATE_TRACKER_AREA`.
 
   Each entry is 128 bytes, 8-byte aligned:
     +0..32   addrHash   (the executing frame's env.ADDRESS (env+0) — per-contract
                           keying so a nested callee's slots are isolated from the
-                          caller's. Both the persistent (SLOAD/SSTORE) and the
-                          transient (TLOAD/TSTORE) logs key on it.)
+                          caller's. The transient log keys on it; persistent
+                          SLOAD/SSTORE maps use the same frame address key.)
     +32..64  slotKey    (EVM-stack byte order: 4 LE u64 limbs, low first)
-    +64..96  persistent seed value (written by the compatibility bridge)
-    +96..128 persistent seed value (written by the compatibility bridge)
+    +64..96  original   (transient slot's initial value)
+    +96..128 current    (transient slot's latest value)
 
   Log lengths live in env:
-    env+448  persistentLogLengthOff  (live counter; compatibility seed increments)
+    env+448  retired persistent-log counter (kept for env-layout compatibility)
     env+456  retired (GH #10981; REVERT reads body_state_snapshot slab +40)
     env+464  transientLogLengthOff  (live counter; TSTORE increments; reset on REVERT)
 
   ## Semantics
 
   **SLOAD (0x54)** — resolve the current value from the transaction write
-  map, then the committed map or authenticated state on a miss. The
-  compatibility seed remains a write-side bridge while the persistent-log
-  reader is retired. Net stack delta = 0.
+  map, then the committed map or authenticated state on a miss. Net stack
+  delta = 0.
 
   **SSTORE (0x55)** — resolve the transaction-start `original` and current
   value from the write maps or authenticated state, charge EIP-2200 gas, and
@@ -50,18 +47,20 @@
 
   ## Known limitations (documented in CODEGEN.md M24)
 
-  - Persistent SLOAD/SSTORE and transient TLOAD/TSTORE key on the frame's
-    env.ADDRESS (multi-contract isolated).
+  - Persistent SLOAD/SSTORE maps and transient TLOAD/TSTORE key on the frame's
+    env.ADDRESS (multi-contract isolated); only the transient side has a live
+    append-only log.
   - Cold `SLOAD` misses are resolved through the authenticated state path;
-    genuinely absent slots produce zero. The generic input-driven preload is
-    retained for standalone/probe compatibility, but every production caller
-    passes zero preload arguments, so it does not provide production coverage
-    for storage reads. ⛔ The earlier claim that a BAL preload stages every
+    genuinely absent slots produce zero. The legacy input format may still
+    carry preload rows for standalone callers, but runtime setup skips those
+    rows because the canonical map/state path is authoritative. ⛔ The earlier
+    claim that a BAL preload stages every
     slot is refuted: measured cold-miss resolution runs in production. What a
     demand-driven `SLOAD` read still needs is a **present-slot** case — every
     measured cold miss resolved a genuinely-absent slot, so the found path is
     unexercised. See `storagePrestateResolveAsm` below for the full funnel.
-  - 4 MiB per log = ~32K entries each — well past any test workload.
+  - The transient log is capped at 16384 128-byte entries (2 MiB), well past
+    any test workload.
   - Inline asm, not verified bodies. Verified-loop bodies follow later.
 -/
 
@@ -73,7 +72,6 @@ import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Evm64.Transient.StoreProgram
 import EvmAsm.Evm64.Transient.LoadProgram
-import EvmAsm.Evm64.Storage.LoadProgram
 
 namespace EvmAsm.Codegen
 
@@ -84,7 +82,8 @@ open EvmAsm.Rv64
 
     Inputs:
     - `x12`: stack pointer. `[x12+0..32]` is key, `[x12+32..64]` is new value.
-    - `x18`: pointer to found log entry's original value (`entry+64`), or zero.
+    - `x18`: pointer to the resolved transaction-map `(original,current)` pair,
+      or zero for an absent slot.
     - `x19`: storage-access status (`0` warm, `1` cold).
 
     Clobbers `x5`, `x6`, `x9`, `x14`-`x17`. Jumps to `.exit_outofgas` if the
@@ -246,39 +245,6 @@ def storageTxMapFindAsm (p : String) (out : String) : String :=
   "  li x18, 0\n" ++
   ".L" ++ p ++ "_txmap_done:\n"
 
-/-! Append a compatibility read seed to the retained persistent log. The handler
-    no longer reads this log; this write-side bridge remains until the separate
-    dual-write retirement. `x18` is a resolved `(original,current)` pair or zero;
-    the seed records current in both value halves. -/
-def storagePersistentLogSeedAsm (p : String) : String :=
-  "  addi sp, sp, -8; sd x18, 0(sp)\n" ++
-  "  ld x15, 448(x20)\n" ++
-  "  li x14, 16384\n" ++
-  "  bgeu x15, x14, .exit_outofgas\n" ++
-  "  li x14, 0xa0630000\n" ++
-  "  slli x16, x15, 7\n" ++
-  "  add x14, x14, x16\n" ++
-  "  ld x16, 0(x20); sd x16, 0(x14)\n" ++
-  "  ld x16, 8(x20); sd x16, 8(x14)\n" ++
-  "  ld x16, 16(x20); sd x16, 16(x14)\n" ++
-  "  ld x16, 24(x20); sd x16, 24(x14)\n" ++
-  "  ld x16, 0(x12); sd x16, 32(x14)\n" ++
-  "  ld x16, 8(x12); sd x16, 40(x14)\n" ++
-  "  ld x16, 16(x12); sd x16, 48(x14)\n" ++
-  "  ld x16, 24(x12); sd x16, 56(x14)\n" ++
-  "  beqz x18, .L" ++ p ++ "_seed_zero\n" ++
-  "  ld x16, 32(x18); sd x16, 64(x14); sd x16, 96(x14)\n" ++
-  "  ld x16, 40(x18); sd x16, 72(x14); sd x16, 104(x14)\n" ++
-  "  ld x16, 48(x18); sd x16, 80(x14); sd x16, 112(x14)\n" ++
-  "  ld x16, 56(x18); sd x16, 88(x14); sd x16, 120(x14)\n" ++
-  "  j .L" ++ p ++ "_seed_meta\n" ++
-  ".L" ++ p ++ "_seed_zero:\n" ++
-  "  sd x0, 64(x14); sd x0, 72(x14); sd x0, 80(x14); sd x0, 88(x14)\n" ++
-  "  sd x0, 96(x14); sd x0, 104(x14); sd x0, 112(x14); sd x0, 120(x14)\n" ++
-  ".L" ++ p ++ "_seed_meta:\n" ++
-  "  addi x15, x15, 1; sd x15, 448(x20)\n" ++
-  "  ld x18, 0(sp); addi sp, sp, 8\n"
-
 /-- GH #10874: resolve a storage-key MISS to its authenticated pre-state
     value, in the THREE-TIER order execution-specs requires. Entered with
     `x18 = 0` (miss) or nonzero (hit, in which case it is a no-op); on success
@@ -320,7 +286,7 @@ def storagePersistentLogSeedAsm (p : String) : String :=
       82-call funnel that produced that reading came from a probe build whose log was
       ⚠️ **CORRUPTED, not starved** -- an earlier revision of this note said "the
       preload starved" and that was wrong about its own instrument. The probe zeroed
-      only the scan bound (`env+448`); `.preload_expand_loop` is guarded by the count
+      only the scan bound (`env+448`); the legacy preload count is guarded by the count
       REGISTER `x6` and still wrote all 16 arena entries, which each SSTORE then
       appended over from index 0. That is a state production cannot reach, and it is
       what manufactured the 16 zero-length-header calls -- production has **zero**.
@@ -441,7 +407,7 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
 /-- M24 Option A storage handlers. -/
 def storageHandlers : List OpcodeHandlerSpec :=
   [ -- M24 real SLOAD. Resolve through the transaction write map and the
-    -- authenticated fallback; append a compatibility seed on a miss.
+    -- authenticated fallback.
     { label   := "h_SLOAD"
     , opcodes := [0x54]
     , preBody :=
@@ -492,12 +458,10 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  addi sp, sp, -8\n" ++
         "  sd x11, 0(sp)\n" ++
         -- Read the canonical tx map first. A miss is resolved through the
-        -- block map or authenticated state and then appended to the retained
-        -- persistent log as a compatibility bridge.
+        -- block map or authenticated state.
         storageTxMapFindAsm "sload_live" "sstore_prestate_pair" ++
         "  bnez x18, .Lsload_live_use\n" ++
         storagePrestateResolveAsm "sload" "sstore_prestate_pair" ++
-        storagePersistentLogSeedAsm "sload" ++
         "  j .Lsload_live_use\n" ++
         ".Lsload_live_use:\n" ++
         "  ld x11, 0(sp); addi sp, sp, 8\n" ++
@@ -510,9 +474,8 @@ def storageHandlers : List OpcodeHandlerSpec :=
         ".Lsload_map_zero:\n" ++
         "  sd x0, 0(x12); sd x0, 8(x12); sd x0, 16(x12); sd x0, 24(x12)\n" ++
         ".Lsload_map_done:\n"
-      -- The map lookup above is the live SLOAD body.  The old verified
-      -- persistent-log scanner remains available as an isolated probe, but is
-      -- no longer linked from the handler.
+      -- The map lookup above is the live SLOAD body; no persistent-log scanner
+      -- is linked from the handler.
     , body    := []
     , tail    := .advanceAndRet 1 }
   , -- M24 real SSTORE. Resolve the transaction-start original and current
@@ -787,46 +750,6 @@ def storageHandlers : List OpcodeHandlerSpec :=
   "  beq x15, x0, .+168\n" ++
   "  lui x14, 0xa\n" ++
   "  addiw x14, x14, 131\n" ++
-  "  slli x14, x14, 16\n" ++
-  "  slli x16, x15, 7\n" ++
-  "  add x14, x14, x16\n" ++
-  "  addi x14, x14, -128\n" ++
-  "  ld x16, 0(x14)\n  ld x17, 0(x20)\n  bne x16, x17, .+124\n" ++
-  "  ld x16, 8(x14)\n  ld x17, 8(x20)\n  bne x16, x17, .+112\n" ++
-  "  ld x16, 16(x14)\n  ld x17, 16(x20)\n  bne x16, x17, .+100\n" ++
-  "  ld x16, 24(x14)\n  ld x17, 24(x20)\n  bne x16, x17, .+88\n" ++
-  "  ld x16, 32(x14)\n  ld x17, 0(x12)\n  bne x16, x17, .+76\n" ++
-  "  ld x16, 40(x14)\n  ld x17, 8(x12)\n  bne x16, x17, .+64\n" ++
-  "  ld x16, 48(x14)\n  ld x17, 16(x12)\n  bne x16, x17, .+52\n" ++
-  "  ld x16, 56(x14)\n  ld x17, 24(x12)\n  bne x16, x17, .+40\n" ++
-  "  ld x16, 96(x14)\n  sd x16, 0(x12)\n" ++
-  "  ld x16, 104(x14)\n  sd x16, 8(x12)\n" ++
-  "  ld x16, 112(x14)\n  sd x16, 16(x12)\n" ++
-  "  ld x16, 120(x14)\n  sd x16, 24(x12)\n" ++
-  "  jal x0, .+28\n" ++
-  "  addi x15, x15, -1\n" ++
-  "  bne x15, x0, .-140\n" ++
-  "  sd x0, 0(x12)\n" ++
-  "  sd x0, 8(x12)\n" ++
-  "  sd x0, 16(x12)\n" ++
-  "  sd x0, 24(x12)"
-
-/- **Byte-identity pin for the SLOAD body-as-Program rewire.**
-
-   The verified `evm_sload` body emits exactly the persistent-log scan
-   instruction stream that used to live inline in the `h_SLOAD` `preBody`, with
-   the same two purely textual re-encodings as the TLOAD pin (numeric local
-   labels → PC-relative offsets; `li x14, 0xa0630000` → its exact GNU-as
-   expansion `lui x14, 0xa ; addiw x14, x14, 99 ; slli x14, x14, 16`), which
-   assemble to byte-identical machine code (region map / symbol addresses
-   unchanged). The scan is structurally identical to TLOAD's; only the log base
-   (`0xa0630000` vs `0xa0830000`) and length-cell offset (`448` vs `464`)
-   differ. -/
-#guard emitProgram (EvmAsm.Evm64.Storage.evm_sload .x20) =
-  "  ld x15, 448(x20)\n" ++
-  "  beq x15, x0, .+168\n" ++
-  "  lui x14, 0xa\n" ++
-  "  addiw x14, x14, 99\n" ++
   "  slli x14, x14, 16\n" ++
   "  slli x16, x15, 7\n" ++
   "  add x14, x14, x16\n" ++

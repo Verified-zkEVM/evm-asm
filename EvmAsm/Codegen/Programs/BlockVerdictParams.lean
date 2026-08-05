@@ -237,14 +237,11 @@ def bvSystemRequestCallCount : Nat := 2
 
 def bvSystemStorageMinSstoreGas : Nat := 100
 
-/-- **Runtime persistent storage exec-log capacity** — the hard, fail-closed cap
-    on how many rows the SSTORE opcode handler can append to the exec-log at
-    `0xa0630000..0xa0830000` (`Storage.lean:380-382`:
-    `li x14,16384; bgeu x15,x14,.exit_outofgas`; mirrored on the preload seed at
-    `Dispatch.lean:2246-2247`). The 16385th append triggers an exceptional exit,
-    so `evm_env+448` (persistentLogLength) can never exceed this. Kept in sync
-    with `Evm64.StorageAssertions.STORAGE_LOG_CAPACITY = 16384` (which carries the
-    in-bounds proof). -/
+/-- **Legacy storage-row capacity** — retained as the row-count parameter for
+    modeled-system staging buffers. It no longer sizes an emitted runtime
+    persistent log: the old `0xa0630000` arena, its seed writers, and its
+    consumers have been retired. The value remains paired with the legacy
+    Evm64 Option-A assertions and the independent system-capture arena. -/
 def bvPersistentStorageLogCapacity : Nat := 16384
 
 /-- **Capacity for modeled-system staging rows.** The MTx preamble appends the

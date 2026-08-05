@@ -1142,11 +1142,10 @@ def emitDispatcherPrologue : String :=
   "  la x5, evm_memory\n" ++
   "  sd x5, 416(x20)\n" ++         -- env.callDataPtrOff = &evm_memory (zeros)
   "  sd x0, 424(x20)\n" ++         -- env.callDataLenOff = 0
-  -- M24: .data-baked variant has no storage input. Initialize all
-  -- three log-state env cells to 0. Persistent + transient logs live
-  -- at STATE_TRACKER_AREA (0xa0630000 / 0xa0830000) outside `.data`;
-  -- the regions are byte-accessed directly by the storage handlers.
-  "  sd x0, 448(x20)\n" ++         -- env.persistentLogLengthOff = 0
+  -- M24: .data-baked variant has no storage input. Keep the retired
+  -- persistent-log counter zero for env-layout compatibility; only the
+  -- transient log remains live in the state-tracker RAM.
+  "  sd x0, 448(x20)\n" ++         -- retired persistent-log counter = 0
   -- GH #10981: env+456 persistentLogCheckpoint retired (slab is sole source).
   "  la x5, evm_refund_acc; sd x0, 0(x5)\n" ++   -- bmvmx.1.6.3: reset per-tx refund counter
   "  la x5, evm_selfdestruct_staged; sd x0, 0(x5)\n" ++   -- reset per-tx SELFDESTRUCT execution flag
@@ -2038,88 +2037,15 @@ def emitDispatcherEpilogueCore
   (if skipExitFinalization then "" else emitProgram exitBody) ++ "\n" ++
   ".exit_no_epilogue:\n" ++
   (if skipExitFinalization then "" else
-  -- M24: surface final log lengths at OUTPUT_ADDR + 40 / + 48.
-  -- This runs for EVERY halt path: STOP / RETURN / REVERT /
-  -- INVALID / SELFDESTRUCT. REVERT's body has already restored
-  -- the persistent log length to the checkpoint (and zeroed the
-  -- transient length) by the time we get here, so the surfaced
-  -- values reflect the post-rollback state for reverted txs and
-  -- the live committed state for successful ones.
+  -- The persistent storage log and its modified-slot output are retired.
+  -- Keep the output ABI cells deterministic for older callers: the removed
+  -- persistent count and slot-list count are both zero. The transient count
+  -- remains live at OUTPUT+48.
   "  li x16, 0xa0010000\n" ++       -- x16 = OUTPUT_ADDR
-  "  ld x17, 448(x20)\n" ++         -- persistent log length
-  "  sd x17, 40(x16)\n" ++          -- OUTPUT[40..48]
+  "  sd x0, 40(x16)\n" ++           -- retired persistent-log count
   "  ld x17, 464(x20)\n" ++         -- transient log length
   "  sd x17, 48(x16)\n" ++          -- OUTPUT[48..56]
-  -- M25: dedup-and-emit modified persistent slots at OUTPUT+56..
-  -- Walks the persistent log from end (last-write-wins); for each
-  -- entry, checks if its slotKey has already been emitted at
-  -- OUTPUT[64..64+count*64]; if not, emits (slotKey, current) and
-  -- bumps the count cell at OUTPUT+56. Capped at 3 entries (192 B
-  -- of slot data fits in the 200-byte slack after byte 56).
-  -- All halt paths (STOP / RETURN / REVERT / INVALID / SELFDESTRUCT)
-  -- run this; REVERT has already truncated the log to the checkpoint,
-  -- so the surfaced slots reflect the post-rollback state.
-  "  ld x15, 448(x20)\n" ++         -- x15 = persistent log_length
-  "  li x17, 0\n" ++                -- x17 = emitted count
-  "  sd x17, 56(x16)\n" ++          -- init OUTPUT+56 = 0
-  "  beqz x15, 4f\n" ++             -- empty log → done
-  "  li x14, 0xa0630000\n" ++       -- x14 = log base
-  "  slli x18, x15, 7\n" ++         -- x18 = log_length * 128
-  "  add x14, x14, x18\n" ++        -- x14 = past last entry
-  "1:\n" ++                         -- scan iter (work backward)
-  "  addi x14, x14, -128\n" ++      -- x14 = current entry
-  -- Dedup: scan output[OUTPUT+64 .. OUTPUT+64+x17*64] for slotKey
-  "  li x18, 0xa0010040\n" ++       -- x18 = OUTPUT + 64
-  "  mv x19, x17\n" ++              -- x19 = emitted count to check
-  "2:\n" ++                         -- dedup loop
-  "  beqz x19, 3f\n" ++             -- exhausted → not duplicate, emit
-  "  ld x21, 0(x18)\n" ++
-  "  ld x22, 32(x14)\n" ++
-  "  bne x21, x22, 5f\n" ++
-  "  ld x21, 8(x18)\n" ++
-  "  ld x22, 40(x14)\n" ++
-  "  bne x21, x22, 5f\n" ++
-  "  ld x21, 16(x18)\n" ++
-  "  ld x22, 48(x14)\n" ++
-  "  bne x21, x22, 5f\n" ++
-  "  ld x21, 24(x18)\n" ++
-  "  ld x22, 56(x14)\n" ++
-  "  bne x21, x22, 5f\n" ++
-  "  j 6f\n" ++                     -- match → already emitted, skip
-  "5:\n" ++                         -- not match this output entry
-  "  addi x18, x18, 64\n" ++
-  "  addi x19, x19, -1\n" ++
-  "  j 2b\n" ++
-  "3:\n" ++                         -- emit (slotKey, current)
-  "  li x19, 3\n" ++
-  "  bgeu x17, x19, 4f\n" ++        -- cap reached
-  "  slli x18, x17, 6\n" ++         -- x18 = emitted count * 64
-  "  li x19, 0xa0010040\n" ++       -- x19 = OUTPUT + 64
-  "  add x18, x19, x18\n" ++        -- x18 = write target
-  -- Copy slotKey: log[+32..+64] → out[+0..+32]
-  "  ld x21, 32(x14)\n" ++
-  "  sd x21, 0(x18)\n" ++
-  "  ld x21, 40(x14)\n" ++
-  "  sd x21, 8(x18)\n" ++
-  "  ld x21, 48(x14)\n" ++
-  "  sd x21, 16(x18)\n" ++
-  "  ld x21, 56(x14)\n" ++
-  "  sd x21, 24(x18)\n" ++
-  -- Copy current: log[+96..+128] → out[+32..+64]
-  "  ld x21, 96(x14)\n" ++
-  "  sd x21, 32(x18)\n" ++
-  "  ld x21, 104(x14)\n" ++
-  "  sd x21, 40(x18)\n" ++
-  "  ld x21, 112(x14)\n" ++
-  "  sd x21, 48(x18)\n" ++
-  "  ld x21, 120(x14)\n" ++
-  "  sd x21, 56(x18)\n" ++
-  "  addi x17, x17, 1\n" ++
-  "  sd x17, 56(x16)\n" ++          -- update count cell
-  "6:\n" ++                         -- loop step
-  "  addi x15, x15, -1\n" ++
-  "  bnez x15, 1b\n" ++
-  "4:\n" ++                         -- done — surface first LOG event, then halt
+  "  sd x0, 56(x16)\n" ++           -- no persistent modified-slot list
   -- M26: event LOG capture test surface. If receipt event logs
   -- exist, this intentionally reuses the storage diagnostic window:
   --   OUTPUT+56       : event log count (u64 LE)
@@ -2561,20 +2487,12 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- guest records that distinction explicitly for the later reconciliation.
   "  la x11, runtime_tx_post_preparation_reached; li x9, 1; sd x9, 0(x11)\n"
 
-/-! ### Generic input-driven storage preload: dormant in production
+/-! ### Legacy input-driven storage rows
 
-    The input-driven `.preload_expand_loop` below is retained for standalone
-    runtime-input compatibility and for `zisk_sstore_clear_gas_probe`. Every
-    production caller of `stage_runtime_payload_code` passes `a5 = 0` and
-    `a6 = 0`: the user-transaction dispatcher path, creation staging, and
-    system-call staging all use the demand-driven authenticated storage path.
-    The production call sites carry build-time `#guard` pins in their program
-    modules.
-
-    This is a dormant mechanism, not a live production hazard. The
-    SSTORE-clear probe is the sole remaining nonzero consumer and exercises
-    the clean nonzero-to-zero gas class; re-feeding it through production
-    would require a new seed seam.
+    The input format still carries an optional storage-preload segment for
+    packer compatibility. The runtime setup validates and skips those rows;
+    no persistent storage arena is materialized. All live reads resolve through
+    the transaction write map and authenticated state path.
 -/
 def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la sp, lp64_sp_top\n" ++   -- M16: LP64 stack ptr for ECALL-bridge helpers
@@ -2603,21 +2521,16 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  addi x6, x6, 8\n" ++          -- x6 = calldata ptr
   "  sd x6, 416(x20)\n" ++         -- env.callDataPtrOff (416) = ptr
   "  sd x7, 424(x20)\n" ++         -- env.callDataLenOff (424) = len
-  -- M24: locate the storage preload segment past the calldata pad and
-  -- expand each 64-byte (key, value) input entry into a 128-byte
-  -- Option A entry (addrHash=0, slotKey=key, original=value,
-  -- current=value) at STATE_TRACKER_AREA = 0xa0630000. Save the
-  -- preload count to both the live persistent log length AND the
-  -- checkpoint (so REVERT rolls back to post-preload). Init
-  -- transient log length to 0 (transient storage starts empty).
+  -- M24 legacy input format: locate the optional storage-preload segment
+  -- past the calldata pad. The persistent execution log has been retired,
+  -- so consume these rows to reach the trailers but do not materialize them.
+  -- The canonical transaction map and authenticated state path are authoritative.
   --
   -- Input layout (unchanged from M22 `pack-bytecode.py --storage`):
   --   <u64 slot_count> followed by slot_count × (key:32, value:32)
   --   then a 32-byte BLOBBASEFEE word (M28; zero by default),
   --   u64 blob_hash_count, and blob_hash_count × 32-byte words.
-  -- Output layout (Option A):
-  --   STATE_TRACKER_AREA + i*128 = (addrHash=0:32, slotKey:32,
-  --                                 original=value:32, current=value:32)
+  -- The input layout remains accepted for old packers; the rows are ignored.
   "  add x5, x6, x7\n" ++          -- x5 = end of calldata bytes
   "  addi x5, x5, 7\n" ++          -- round up to 8-byte boundary
   "  srli x5, x5, 3\n" ++
@@ -2625,14 +2538,13 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x6, 0(x5)\n" ++            -- x6 = slot_count (= preload count)
   "  li x28, 16384\n" ++
   "  bgtu x6, x28, .exit_invalid\n" ++
-  "  sd x6, 448(x20)\n" ++         -- env.persistentLogLengthOff = preload count
-  -- GH #10981: no env+456 checkpoint write; body slab captures 448 at tx start.
+  -- GH #10981: no env+456 checkpoint write; the persistent log is retired.
   "  sd x0, 464(x20)\n" ++         -- env.transientLogLengthOff = 0
   "  sd x0, 472(x20)\n" ++         -- env.eventLogLengthOff = 0
   -- 8uld3.2.1.3 FIX: reset the per-tx full-log-data globals via x28 (a dead scratch
   -- here), NOT x5. x5 is the live INPUT-WALK CURSOR (= &slot_count) in this input-driven
   -- setup; the original `la x5, …` (added by 8uld3.1a, 9e363d19d) clobbered it, so every
-  -- subsequent walk step (preload src @+8, blob/M29/env trailers, and the M30 GAS trailer)
+  -- subsequent walk step (legacy rows @+8, blob/M29/env trailers, and the M30 GAS trailer)
   -- read from &evm_log_data_overflow+8 (zeros) instead of the input -> gasRemaining read
   -- as 0 -> the dispatch OOGs before any opcode. Latent on main only because contract
   -- dispatch bails (sv_this_rlp restored by #8686); surfaces the moment the dispatcher
@@ -2686,42 +2598,9 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  sd x0, 544(x20)\n" ++         -- M28: blobHashCount = 0 (overwritten by trailer load below)
   "  sd x0, 552(x20)\n" ++         -- M29: currentBlockNumber = 0 (overwritten by trailer load below)
   "  sd x0, 560(x20)\n" ++         -- M29: blockHashCount = 0
-  "  addi x5, x5, 8\n" ++          -- x5 = src ptr (first preload entry)
-  "  li x7, 0xa0630000\n" ++       -- x7 = dst ptr (STATE_TRACKER_AREA persistent log)
-  ".preload_expand_loop:\n" ++
-  "  beqz x6, .preload_expand_done\n" ++
-  -- addrHash = 0 (32 bytes)
-  "  sd x0, 0(x7)\n" ++
-  "  sd x0, 8(x7)\n" ++
-  "  sd x0, 16(x7)\n" ++
-  "  sd x0, 24(x7)\n" ++
-  -- slotKey = src[0..32] → dst[32..64]
-  "  ld x8, 0(x5)\n" ++
-  "  sd x8, 32(x7)\n" ++
-  "  ld x8, 8(x5)\n" ++
-  "  sd x8, 40(x7)\n" ++
-  "  ld x8, 16(x5)\n" ++
-  "  sd x8, 48(x7)\n" ++
-  "  ld x8, 24(x5)\n" ++
-  "  sd x8, 56(x7)\n" ++
-  -- value (src[32..64]) → original (dst[64..96]) AND current (dst[96..128])
-  "  ld x8, 32(x5)\n" ++
-  "  sd x8, 64(x7)\n" ++
-  "  sd x8, 96(x7)\n" ++
-  "  ld x8, 40(x5)\n" ++
-  "  sd x8, 72(x7)\n" ++
-  "  sd x8, 104(x7)\n" ++
-  "  ld x8, 48(x5)\n" ++
-  "  sd x8, 80(x7)\n" ++
-  "  sd x8, 112(x7)\n" ++
-  "  ld x8, 56(x5)\n" ++
-  "  sd x8, 88(x7)\n" ++
-  "  sd x8, 120(x7)\n" ++
-  "  addi x5, x5, 64\n" ++         -- next input entry (64 B)
-  "  addi x7, x7, 128\n" ++        -- next output entry (128 B)
-  "  addi x6, x6, -1\n" ++
-  "  j .preload_expand_loop\n" ++
-  ".preload_expand_done:\n" ++
+  "  addi x5, x5, 8\n" ++          -- x5 = first legacy preload row
+  "  slli x7, x6, 6\n" ++          -- skip slot_count × 64-byte rows
+  "  add x5, x5, x7\n" ++          -- x5 = blob-base-fee trailer
   -- M28: x5 now points at the blob-base-fee trailer. Copy the 32-byte
   -- EVM-stack word into env+512..+540; opcode 0x4a loads it from there.
   "  ld x8, 0(x5)\n" ++
@@ -2814,24 +2693,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  ld x8, 24(x5)\n" ++
   "  sd x8, 648(x20)\n" ++
   "  addi x5, x5, 32\n" ++
-  -- Re-tag the preloaded storage entries' addrHash to the executing frame's
-  -- env.ADDRESS (now loaded above). The preload-expand wrote addrHash=0, but
-  -- SLOAD/SSTORE key on env.ADDRESS (per-contract storage isolation), so without
-  -- this the recipient's own SLOAD would miss its preloaded slots and read 0.
-  -- All preloaded entries are the recipient's own storage, so a single
-  -- env.ADDRESS tag is correct. (Nested-callee storage preload is a follow-up.)
-  "  ld x6, 448(x20)\n" ++          -- x6 = preload count
-  "  li x7, 0xa0630000\n" ++        -- x7 = persistent log base
-  ".retag_preload_loop:\n" ++
-  "  beqz x6, .retag_preload_done\n" ++
-  "  ld x8, 0(x20);  sd x8, 0(x7)\n" ++
-  "  ld x8, 8(x20);  sd x8, 8(x7)\n" ++
-  "  ld x8, 16(x20); sd x8, 16(x7)\n" ++
-  "  ld x8, 24(x20); sd x8, 24(x7)\n" ++
-  "  addi x7, x7, 128\n" ++
-  "  addi x6, x6, -1\n" ++
-  "  j .retag_preload_loop\n" ++
-  ".retag_preload_done:\n" ++
+  -- Legacy preload rows are not copied or re-tagged: no persistent log remains.
   -- M30/M35/M31: gas limit trailer, optional transaction intrinsic-gas
   -- validation controls, then optional account-witness context. When the
   -- tx-gas validation flag is zero, the gas trailer is treated as execution
