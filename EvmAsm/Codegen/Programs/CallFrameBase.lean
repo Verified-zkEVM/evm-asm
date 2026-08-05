@@ -13,13 +13,20 @@
   `call_frame_arena` is a standalone pre-zeroed block in the guest (it aliased
   `basr_values` under the retired 1G layout, #8513); this module's probe links
   a local stub to test the offset arithmetic in isolation.
+
+  GH #10753 bridge module: the program itself lives in the leaf
+  `CallFrameBaseProg.lean` parameterised over the abstract `GuestLayout`;
+  this module applies the concrete `guestLayout` and re-exposes
+  `frameBase_prog` with its original name and type, so every consumer
+  (and the concrete-render drift gate, whose key is `emitProgram`
+  `frameBase_prog`) compiles unchanged.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.CallFrameBaseProg
+import EvmAsm.Codegen.GuestLayoutInstance
 
 namespace EvmAsm.Codegen
 
@@ -42,33 +49,8 @@ open EvmAsm.Rv64
     special case survives on its own reason. Adjacent, not coupled; do not remove it here.
 
     Clobbers t0/t1. -/
-def frameBase_prog : Program :=
-  [ .LUI .x6 (25 : BitVec 20),
-    .MUL .x5 .x10 .x6,
-    .AUIPC .x6 (laHi GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 8)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.call_frame_arena (GuestAddrs.frame_base + 8)),
-    .ADD .x10 .x6 .x5,
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+def frameBase_prog : Program := frameBase_prog_of guestLayout
 
-/-- Reloc side-table for `frameBase_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def frameBase_relocs : RelocTable :=
-  [ (2, .la .x6 "call_frame_arena") ]
-
-def frameBaseFunction : String :=
-  "frame_base:\n" ++ emitProgramR frameBase_prog frameBase_relocs
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `frameBase_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem frameBaseFunction_eq_prog :
-    frameBaseFunction = "frame_base:\n" ++ emitProgramR frameBase_prog frameBase_relocs := rfl
-
-#guard frameBaseFunction.startsWith "frame_base:\n"
-#guard frameBase_prog.length = 6
 /-- `zisk_frame_base`: probe over a local `call_frame_arena` stub. Verifies the
     offsets `frame_base(d) - call_frame_arena` for d = 0, 1, 1024 are
     `0`, `0x19000`, `1024*0x19000` respectively (the layout arithmetic).
