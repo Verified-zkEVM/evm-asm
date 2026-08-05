@@ -623,7 +623,7 @@ theorem adBBField3
     (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
      bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) hstage
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case cont =>
@@ -1179,7 +1179,7 @@ theorem adBBField2
     (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) hstage
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case cont =>
