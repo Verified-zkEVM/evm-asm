@@ -238,6 +238,27 @@ def executionMapStateChangesFunction : String :=
   ".Lem_pre_found:\n" ++
   "  la s7, bsr_acct; la t0, bsr_acct_len; ld s10, 0(t0)\n" ++
   ".Lem_pre_ready:\n" ++
+  -- Present-None tombstone (`optionalState@72=0` with STATE valid) AND
+  -- EIP-161 empty (bal=0, nonce=0, no code): spec `destroy_account` →
+  -- absence in the account trie, NOT an empty-account RLP leaf.
+  -- map_account_apply_post_fields has no delete arm and would emit
+  -- f8448080…; on 01114 CREATE+SD that left chg mode=0 vlen=70 for the
+  -- destroyed CREATE addr → state-root mismatch (bv_fail=1).
+  -- Require EIP-161 empty: multi-tx CREATE2 collision (11619) can leave a
+  -- stale opt=0 after a later balance/code overlay that never re-stamped
+  -- STATE=Some; deleting those wrongly P→F'd a passing fixture. Fall
+  -- through to the field overlay when the row is non-empty.
+  -- Pre absent → already gone (skip).  Pre present → MPT DELETE (mode=2).
+  "  la t0, bsr_account_from_map; ld t0, 0(t0); beqz t0, .Lem_pre_build\n" ++
+  "  la t1, bsr_account_row; ld t1, 0(t1); beqz t1, .Lem_pre_build\n" ++
+  "  ld t2, 112(t1); andi t2, t2, 8; beqz t2, .Lem_pre_build\n" ++
+  "  ld t2, 72(t1); bnez t2, .Lem_pre_build\n" ++
+  "  ld t2, 32(t1); ld t3, 40(t1); or t2, t2, t3; ld t3, 48(t1); or t2, t2, t3; ld t3, 56(t1); or t2, t2, t3; bnez t2, .Lem_pre_build\n" ++
+  "  ld t2, 64(t1); bnez t2, .Lem_pre_build\n" ++
+  "  ld t2, 88(t1); bnez t2, .Lem_pre_build\n" ++
+  "  bnez s8, .Lem_map_value_unchanged\n" ++
+  "  li s8, 2; la t0, bsr_tmplen; sd zero, 0(t0); j .Lem_map_value_changed\n" ++
+  ".Lem_pre_build:\n" ++
   "  ld t0, 0(s0); slli t1, t0, 6; la t2, basr_paths; add a4, t2, t1; slli t1, t0, 8; la t2, basr_values; add a5, t2, t1\n" ++
   "  la t1, bsr_prev_acct; sd s7, 0(t1); la t1, bsr_acct_len; sd s10, 0(t1); la t1, bsr_prev_desc; sd a5, 0(t1)\n" ++
   "  mv a0, s7; mv a1, s10; la a2, bsr_map_item; li a3, 27; la a6, bsr_tmplen; jal ra, map_account_change_value\n" ++
