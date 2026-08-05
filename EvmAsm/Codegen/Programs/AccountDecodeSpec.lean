@@ -253,6 +253,12 @@ def outputSuccess (nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 : Word)
     assumed).  Mirrors `WithdrawalDecodeSpec.DecodeFailure`. -/
 inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
     (listLen : Nat) : Prop
+  -- ⚠️ GH #11483: `field2Len`/`field3Len` carry `≠ 0` as well as `≠ 32`, because a
+  -- zero-length hash field no longer fails — it folds to the EMPTY constant. Without
+  -- the second side condition this predicate would be inhabitable for an input the
+  -- program *accepts*, i.e. it would stop characterising the failure set even though
+  -- the whole-program theorem stayed true (a weaker post is still sound). The point
+  -- of the predicate is to say what the routine rejects, so it has to track the fold.
   | field0List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 0) :
       DecodeFailure bytes listBase listLen
@@ -272,14 +278,14 @@ inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
       DecodeFailure bytes listBase listLen
   | field2Len (o2 l2 : Word)
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2)
-      (hlen : l2.toNat ≠ 32) :
+      (hlen : l2.toNat ≠ 32) (hzero : l2.toNat ≠ 0) :
       DecodeFailure bytes listBase listLen
   | field3List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 3) :
       DecodeFailure bytes listBase listLen
   | field3Len (o3 l3 : Word)
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 3 o3 l3)
-      (hlen : l3.toNat ≠ 32) :
+      (hlen : l3.toNat ≠ 32) (hzero : l3.toNat ≠ 0) :
       DecodeFailure bytes listBase listLen
 
 end EvmAsm.Codegen.AccountDecodeSpec
