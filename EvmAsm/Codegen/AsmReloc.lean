@@ -21,8 +21,9 @@
       hi20  = ((delta + 0x800) >>> 12) &&& 0xfffff     (20-bit auipc field)
       lo12  =  delta &&& 0xfff                          (sign-interpreted addi imm)
 
-  A cross-function `jal` becomes an ordinary PC-relative jump with byte offset
-  `callee − pc` (`.text` is ~0.36 MiB, comfortably inside JAL's ±1 MiB reach).
+  A `jal` (cross-function or same-function) becomes an ordinary PC-relative
+  jump with byte offset `target − pc` (`.text` is ~0.36 MiB, comfortably inside
+  JAL's ±1 MiB reach).
 
   These helpers compute exactly those fields from a *symbol address* and the
   instruction's own *absolute pc* (both `Nat`, supplied via `GuestAddrs`), so
@@ -69,8 +70,9 @@ def laHi (sym pc : Nat) : BitVec 20 :=
 def laLo (sym pc : Nat) : BitVec 12 :=
   (laDelta sym pc).setWidth 12
 
-/-- Cross-function `jal`/`j` byte offset: `callee − pc` as a signed 21-bit
-    PC-relative displacement (`pc` = the jump's own absolute address). -/
+/-- `jal`/`j` byte offset: `target − pc` as a signed 21-bit PC-relative
+    displacement (`pc` = the jump's own absolute address).  The same helper is
+    used for cross-function calls and long same-function jumps. -/
 def jalOff (target pc : Nat) : BitVec 21 :=
   BitVec.ofInt 21 ((target : Int) - (pc : Int))
 
