@@ -274,11 +274,29 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  -- This is deliberately a catch-all legacy code, not a mechanism identifier:
-  -- transaction-nonce validity; EIP-7702 self-authority/auth parsing/recovery/signer
-  -- binding; and MTx setup/materialization/inclusion/state-gas helper failures reach it.
-  ".Lbv_sender_nonce_fail:\n" ++
+  -- #115xx bv_fail 40 split: each former catch-all cause has its own code.
+  -- Mapping (old 40 → new): see PR body. Code 40 KEPT = genuine tx.nonce mismatch only.
+  -- Debug emitter (BlockVerdict.lean +8 bv_fail_code) unchanged — values only, not offsets.
+  ".Lbv_sender_nonce_fail:\n" ++           -- genuine tx.nonce != sender nonce (code 40 kept)
   "  li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_count_table_fail:\n" ++     -- b1_sender_count_table reject (was 40 → 68)
+  "  li t0, 68; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_resolve_fail:\n" ++         -- account_resolve_pre_state fail (was 40 → 69)
+  "  li t0, 69; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_not_eoa_fail:\n" ++         -- InvalidSender / non-EOA (was 40 → 70; 11533+ live)
+  "  li t0, 70; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_sender_inclusion_fail:\n" ++       -- account_state_publish_sender_inclusion (was 40 → 71)
+  "  li t0, 71; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_auth_prepare_fail:\n" ++           -- block_verdict_tx_state_gas_inline_prepare (was 40 → 72)
+  "  li t0, 72; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eas_ctx_fail:\n" ++                -- frozen S1 multi_tx_nth_context (was 40 → 73)
+  "  li t0, 73; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eas_auth_parse_fail:\n" ++         -- frozen S1 7702 auth list parse (was 40 → 74)
+  "  li t0, 74; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eas_auth_capacity_fail:\n" ++      -- frozen S1 authority event capacity (was 40 → 75)
+  "  li t0, 75; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_eas_materialize_fail:\n" ++        -- frozen S1 eip7702_authority_state_materialize (was 40 → 76)
+  "  li t0, 76; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11183 ORDER-1: removed dead sinks .Lbv_mtx_sender_final_nonce_fail (59) and
   -- .Lbv_mtx_sender_balance_fail (57) — B1/B2.3 BAL field compares retired; no live jal.
   -- Rejection of wrong BAL content is via hash 60/61 (spec fork.py:390 only).
@@ -394,5 +412,16 @@ def blockVerdictReceiptsTail : String :=
 -- stored from other modules -- so it is established in the PR body, not by a guard.)
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 60; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 61; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
+
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 68; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 69; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 70; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 71; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 72; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 73; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 74; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 75; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 76; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
 
 end EvmAsm.Codegen
