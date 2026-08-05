@@ -251,64 +251,18 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_sender_seed_done:\n" ++
   "  la a0, bv_mtx_skip_list; la t0, bv_tx_count; ld a1, 0(t0); la a2, bv_b1_sender_table; li a3, " ++ toString bvMtxSenderCountEntries ++ "; la a4, bv_b1_sender_count\n" ++
   "  jal ra, b1_sender_count_table\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_sender_count_table_fail\n" ++  -- was 40 → 68
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
   ".Lbv_mtx_sender_count_zero_loop:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_b1_sender_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_mtx_sender_count_zero_done\n" ++
   "  li t3, 40; mul t3, t1, t3; la t4, bv_b1_sender_table; add t4, t4, t3; sd zero, 32(t4)\n" ++
   "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_mtx_sender_count_zero_loop\n" ++
   ".Lbv_mtx_sender_count_zero_done:\n" ++
-  -- The historical S1 authority materialization below is retained only as a
-  -- frozen reference for the old proof artifact.  It is not a valid live
-  -- state source: it is block-final/header seeded and can reject before the
-  -- ordered AccountState transaction pass runs.  The sole live parser and
-  -- writer is `eip7702_auth_state_prepare` at the common transaction boundary.
-  "  j .Lbv_mtx_state_init\n" ++
-  -- S1: materialize the ordered authority state once at the multi-tx pass
-  -- boundary.  The event stream starts with every transaction sender, then
-  -- adds each successfully recovered type-4 authority.  It intentionally
-  -- does not decide authorization validity here: S2 consumes this immutable
-  -- header-seeded table and applies the ordered nonce/code predicate once,
-  -- shared by every gas/result pass.
-  "  la t0, bv_eip7702_authority_event_count; la t1, bv_tx_count; ld t1, 0(t1); sd t1, 0(t0); la t0, bv_eip7702_authority_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
-  ".Lbv_eas_sender_copy_loop:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_sender_copy_done\n" ++
-  "  slli t3, t1, 6; la t4, bv_mtx_skip_list; add t4, t4, t3; slli t3, t1, 5; la t5, nea_sort_b; add t5, t5, t3; li t6, 0\n" ++
-  ".Lbv_eas_sender_copy_bytes:\n" ++
-  "  li a0, 32; beq t6, a0, .Lbv_eas_sender_copy_next\n" ++
-  "  add a0, t4, t6; lbu a1, 0(a0); add a0, t5, t6; sb a1, 0(a0); addi t6, t6, 1; j .Lbv_eas_sender_copy_bytes\n" ++
-  ".Lbv_eas_sender_copy_next:\n" ++
-  "  addi t1, t1, 1; la t0, bv_mtx_skip_idx; sd t1, 0(t0); j .Lbv_eas_sender_copy_loop\n" ++
-  ".Lbv_eas_sender_copy_done:\n" ++
-  "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
-  ".Lbv_eas_tx_loop:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); bgeu t1, t2, .Lbv_eas_materialize\n" ++
-  "  la a0, bv_mtx_ctx; mv a1, t1; jal ra, multi_tx_nth_context; la t0, bv_mtx_ctx; ld t2, 0(t0); bnez t2, .Lbv_sender_nonce_fail\n" ++
-  "  ld t2, 160(t0); li t3, 4; bne t2, t3, .Lbv_eas_tx_next\n" ++
-  -- Field 9 is the type-4 authorization list.  A malformed list is a
-  -- fail-closed verdict error; an unrecoverable signature simply contributes
-  -- no authority event, matching the later validity admission semantics.
-  "  ld a0, 176(t0); ld a1, 184(t0); li a2, 9; la a3, b1an_auth_off; la a4, b1an_auth_len; jal ra, rlp_list_nth_item; bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  la t0, bv_mtx_ctx; ld t1, 176(t0); la t2, b1an_auth_off; ld t2, 0(t2); add t1, t1, t2; la t2, b1an_auth_len; ld a1, 0(t2); mv a0, t1; la a2, b1an_auth_count; jal ra, rlp_list_count_items; bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  la t0, b1an_auth_i; sd zero, 0(t0)\n" ++
-  ".Lbv_eas_auth_loop:\n" ++
-  "  la t0, b1an_auth_i; ld t3, 0(t0); la t0, b1an_auth_count; ld t6, 0(t0); bgeu t3, t6, .Lbv_eas_tx_next\n" ++
-  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t1, b1an_auth_len; ld a1, 0(t1); mv a2, t3; la a3, b1an_item_off; la a4, b1an_item_len; jal ra, rlp_item_span; bnez a0, .Lbv_sender_nonce_fail\n" ++
-  "  la t0, bv_mtx_ctx; ld a0, 176(t0); la t1, b1an_auth_off; ld t1, 0(t1); add a0, a0, t1; la t0, b1an_item_off; ld t0, 0(t0); add a0, a0, t0; la t0, b1an_item_len; ld a1, 0(t0); la a2, b1an_authority; la a3, b1an_recover_scratch; jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Lbv_eas_auth_next\n" ++
-  "  la t0, bv_eip7702_authority_event_count; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthorityEventCapacity ++ "; bgeu t1, t2, .Lbv_sender_nonce_fail; slli t2, t1, 5; la t5, nea_sort_b; add t5, t5, t2; la t4, b1an_authority; li t2, 0\n" ++
-  ".Lbv_eas_auth_copy:\n" ++
-  "  li t6, 32; beq t2, t6, .Lbv_eas_auth_append\n" ++
-  "  add t6, t4, t2; lbu a0, 0(t6); add t6, t5, t2; sb a0, 0(t6); addi t2, t2, 1; j .Lbv_eas_auth_copy\n" ++
-  ".Lbv_eas_auth_append:\n" ++
-  "  addi t1, t1, 1; la t0, bv_eip7702_authority_event_count; sd t1, 0(t0)\n" ++
-  ".Lbv_eas_auth_next:\n" ++
-  "  la t0, b1an_auth_i; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_auth_loop\n" ++
-  ".Lbv_eas_tx_next:\n" ++
-  "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_eas_tx_loop\n" ++
-  ".Lbv_eas_materialize:\n" ++
-  "  la a0, nea_sort_b; la t0, bv_eip7702_authority_event_count; ld a1, 0(t0); la a2, bv_eip7702_authority_table; li a3, " ++ toString bvEip7702AuthorityEventCapacity ++ "; la a4, bv_eip7702_authority_count; jal ra, eip7702_authority_state_materialize; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  -- Frozen S1 authority materialize RETIRED (was dead after j .Lbv_mtx_state_init;
+  -- nm: eas_write_entry + eip7702_authority_state_materialize absent from image).
+  -- Live 7702 delegated_before_tx is eip7702_authority_asof → auth_state_prepare
+  -- (AccountState durable + header code), NOT bv_eip7702_authority_table+40.
+  -- MTx sender InvalidSender gate below is a separate reject predicate (fork.py:668-677).
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
   -- Execution AccountState is block-lived in the sequential lane. The callable
@@ -433,10 +387,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- failure and skipped the gas/blob debit before this transaction's stage.
   -- (block_access_lists.py:583-600, fork.py:656-667.)
   "  la a0, bv_mtx_sender_addr; la a1, bv_mtx_sender_acct; ld a2, 8(s0); ld a3, 16(s0); ld a4, 80(s0); ld a5, 88(s0); jal ra, account_resolve_pre_state\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_sender_resolve_fail\n" ++  -- was 40 → 69
   "  la t0, bv_mtx_sender_acct; ld t0, 0(t0)\n" ++
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
-  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce
+  "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce (code 40 kept)
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
   -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
@@ -486,7 +440,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- fork.py:668-677 InvalidSender ("not EOA"): get_code(sender) then require
   -- EMPTY_CODE_HASH or is_valid_delegation.  Missing marker preimage (status 5
   -- with non-empty hash) rejects — closes 02970 missing_sender_delegation_marker.
-  -- Live path: MTx boundary (eas_write_entry is frozen behind j .Lbv_mtx_state_init).
+  -- InvalidSender gate (independent of 7702 authority-table materialize).
   -- Layout: have_code first, empty-hash compare last so #11520 gate window is clean.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bv_mtx_sender_addr\n" ++
@@ -519,7 +473,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- the checkpoint removes later body writes. Balance has later value, refund,
   -- and coinbase-credit writes, so it needs its own complete state transition
   -- rather than an inclusion-time snapshot here.
-  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_inclusion_fail\n" ++  -- was 40 → 71
   "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
@@ -531,7 +485,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- recipient routing.  The old B1 replay is a frozen reference only.
   "  la t0, ecrecover_backend_ptr; la t1, secp256k1_recover_pubkey_staged; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); ld a2, 176(t0); ld a3, 184(t0); la a4, bv_mtx_sender_addr; ld a5, 160(t0); la t0, bv_mtx_i; ld a6, 0(t0); jal ra, block_verdict_tx_state_gas_inline_prepare\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++
+  "  bnez a0, .Lbv_auth_prepare_fail\n" ++  -- was 40 → 72
   ".Lbv_mtx_nonce_done:\n" ++
   -- Creation needs the same sender/public-key and nonce setup as every other
   -- multi-tx item before its runtime adapter can derive CREATE(sender, nonce).
