@@ -15,7 +15,7 @@
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
 
-import EvmAsm.Codegen.Programs.AccountDecodeClose4
+import EvmAsm.Codegen.Programs.AccountDecodeFold
 import EvmAsm.Codegen.Programs.AccountDecodeLoop
 import EvmAsm.Codegen.Programs.AccountDecodeNonceLoop
 import EvmAsm.Codegen.Programs.AccountDecodeBalanceLoop
