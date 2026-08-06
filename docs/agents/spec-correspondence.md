@@ -108,22 +108,37 @@ The two checks come from two different places, with different scope:
 (`numeric.py:566-577`), but `Uint.from_be_bytes` is a plain `int.from_bytes` with no
 length check (`numeric.py:523-528`). `Header.number` is annotated `Uint`
 (`amsterdam/blocks.py:157`). **So CPython accepts a nine-byte `number`, and the
-guest rejects it.** That is a false reject against the reference — `stricter`, on
-the guest — and no amount of fixing the port removes it.
+guest rejects it** — and no amount of fixing the port changes that.
 
 The lesson generalises past this row: *"the reference is type-directed"* is a claim
 about mechanism, not about which inputs it rejects. Read the type's own conversion
-before recording a strictness verdict, and record which types are unbounded. The
-grading that follows:
+before recording a strictness verdict, and record which types are unbounded.
 
-- **canonicality** — a genuine `portDefect` while it lasted, now fixed: the port
-  performs the check.
-- **width** — `stricter`, the registry's first, and a *systemic* one: the guest is a
-  u64 machine reading fields the spec types as arbitrary-precision or 256-bit
-  (`timestamp` is `U256`, so the reference allows 32 bytes where the guest allows 8).
-- **arity** — a genuinely separate restriction, still real: the triple only claims
-  agreement where `_decode_header` succeeds, so what the guest does on a wrong-arity
-  header is unproven. Recorded in the row's note, since a row carries one verdict.
+### ⚠️ …and then check whether the project already assumes it away
+
+The obvious next step — grade the width restriction `stricter`, since the guest
+rejects what the reference accepts — is **also wrong**. evm-asm states a
+project-wide assumption that `difficulty`, `number`, `gasUsed`, `gasLimit` and
+`timestamp` arrive within the bit-width the guest reads them into, and the
+maintainer ruling on #11620 is that this *"gives the guest freedom to choose its
+behavior"*, with rejecting out-of-assumption input **preferred**. `stricter` asserts
+a false reject on input the project claims to handle; a stated precondition is not
+that. It is the ABI-precondition flavour of `domain-restricted`.
+
+So one row, read three ways, lands in three different places — and "does the guest
+reject it?" is never sufficient on its own:
+
+| aspect | who is limited | grade |
+|---|---|---|
+| canonicality | the **port** (it accepted what CPython rejects) | `portDefect` — real, now fixed |
+| width | **nobody, within the stated domain** — a project-wide input assumption | `domain-restricted`, precondition flavour |
+| arity | the **proof** (unproven on wrong-arity headers) | `domain-restricted`, coverage flavour |
+
+⚠️ **The precondition reading is only honest if the precondition is explicit in the
+theorem statement.** Otherwise it is an unstated assumption wearing a benign verdict,
+which is strictly worse than an FR — an FR at least gets counted in `verdict_counts`.
+Here it is `hfits : hdr.number < 2 ^ 64` on `header_number_of_decode`. **When you
+reach for the precondition flavour, name the hypothesis that carries it.**
 
 ## 3. Basis — how much a verdict is worth
 
