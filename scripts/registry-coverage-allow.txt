@@ -10,7 +10,12 @@
 # silent again, which is the defect #11637 recorded (~103 linked, proven routines
 # invisible to every census, so the proven-count understated reality).
 #
-# Seeded with the backlog as of 2026-08-06. Burn it down; do not grow it.
+# Seeded with the backlog as of 2026-08-06 at 103. Burn it down; do not grow it.
+#
+# ⭐ FIRST REAL BURN-DOWN, same day: #11575 registered `header_validate_extra_data_length`
+# (a tier-A entry), and this gate failed with STALE naming the line to delete rather than
+# letting the exemption outlive its reason. 103 -> 102. That is the ratchet working on a
+# live merge, not a synthetic test.
 #
 # TIER A — a flat `cpsTripleWithin` at `GuestAddrs.<symbol>`. Registrable as
 #   `.proven` in Routines.lean TODAY with no new proof work. These are the ones to
@@ -21,7 +26,7 @@
 #   structured-only spec as a flat triple is exactly the invisible overclaim this
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 
-# --- TIER A: flat triple at the guest address; registrable now (20) ---
+# --- TIER A: flat triple at the guest address; registrable now (19) ---
 account_extract_balance	tier A — flat triple `account_extract_balance_spec_within` at GuestAddrs.account_extract_balance (EvmAsm/Codegen/Programs/AccountAccessorTopSpec.lean); registrable as .proven, not yet rowed (#11637)
 account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
 account_is_eip161_empty	tier A — flat triple `account_is_eip161_empty_spec_within` at GuestAddrs.account_is_eip161_empty (EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose6.lean); registrable as .proven, not yet rowed (#11637)
@@ -33,7 +38,6 @@ bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAs
 chain_validate_consecutive_numbers	tier A — flat triple `chain_validate_consecutive_numbers_spec_within` at GuestAddrs.chain_validate_consecutive_numbers (EvmAsm/Codegen/Programs/ChainValidateConsecutiveNumbersLoopClose.lean); registrable as .proven, not yet rowed (#11637)
 chain_validate_increasing_timestamps	tier A — flat triple `chain_validate_increasing_timestamps_spec_within` at GuestAddrs.chain_validate_increasing_timestamps (EvmAsm/Codegen/Programs/ChainValidateIncreasingTimestampsLoopClose.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
-header_validate_extra_data_length	tier A — flat triple `header_validate_extra_data_length_spec_within` at GuestAddrs.header_validate_extra_data_length (EvmAsm/Codegen/Programs/HeaderValidateExtraDataLengthSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
 receipt_extract_logs_bloom	tier A — flat triple `receiptExtractLogsBloom_spec_within` at GuestAddrs.receipt_extract_logs_bloom (EvmAsm/Codegen/Programs/ReceiptExtractLogsBloomSpec.lean); registrable as .proven, not yet rowed (#11637)
 secf_be_to_le	tier A — flat triple `secfBeToLeFn_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldConvSAsm.lean); registrable as .proven, not yet rowed (#11637)
