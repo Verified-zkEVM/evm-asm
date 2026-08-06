@@ -142,6 +142,7 @@ import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.MsetMemcpySAsm
 import EvmAsm.Codegen.Programs.BloomOrIntoSAsm
+import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Codegen.Programs.RunningBloomCopySAsm
 import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
