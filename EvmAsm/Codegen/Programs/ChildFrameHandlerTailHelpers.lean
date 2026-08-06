@@ -87,20 +87,27 @@ def callDelegationAccessChargeAsm (tag : String) (valueOff? : Option Nat := none
   -- execution. If the BAL has a final delegation marker for this callee, it is
   -- the tx-state code execution-specs sees; charge/follow that marker instead
   -- of the stale pre-state marker returned by code_at_header_state_root.
+  --
+  -- a3=2 PROBE: resolve must not charge/seed. This helper owns the single
+  -- access charge below (cold delta + WARM floor). a3=1 used to charge inside
+  -- resolve and again here on status 0 → +100 over-debit (#11547 sender bal;
+  -- residual 2ffdac after AUTH_BASE #11585). Status 2 (precompile target) must
+  -- also take the charge path — probe no longer pre-charges it.
   "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t3, 24(sp)\n" ++
-  "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "; ld a1, 592(x20); ld a2, 600(x20); li a3, 1\n" ++
+  "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "; ld a1, 592(x20); ld a2, 600(x20); li a3, 2\n" ++
   "  ld a4, 608(x20)\n" ++                                -- evm-asm-uzb6b: resolver codes base (descend re-adds 608(x20))
   "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
   -- The resolver returns 0 for a selected transaction-state delegation,
   -- 1 when the BAL has no same-block delegation row, and 2 for an active
-  -- precompile target.  Status 0 exports the selected target to
+  -- precompile target.  Status 0/2 export the selected target to
   -- `bsbd_deleg_target`; status 1 must retain the prior-block marker found by
   -- `code_at_header_state_root`, whose target is `t3 + 3`.  The two sources
   -- are semantically distinct, so select one pointer before either charge or
   -- record rather than treating a resolver miss as an all-zero target.
   "  beqz t6, .Lcdac_sameblock_" ++ tag ++ "\n" ++
+  "  li t4, 2; beq t6, t4, .Lcdac_sameblock_" ++ tag ++ "\n" ++
   "  li t4, 1; bne t6, t4, .Lcdac_done_" ++ tag ++ "\n" ++
   "  addi t4, t3, 3\n" ++
   "  j .Lcdac_target_selected_" ++ tag ++ "\n" ++

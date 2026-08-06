@@ -25,7 +25,7 @@ open EvmAsm.Rv64
 def accountStateDelegationCodeResolveFunction : String :=
   "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
   "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
-  "# a3 = access mode (0 charge, 1 free/warm, 2 probe), a4 = codes base.\n" ++
+  "# a3 = access mode (0 free/seed, 1 charge cold+WARM, 2 probe), a4 = codes base.\n" ++
   "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
   "# and 2 for empty/deleted or precompile targets.\n" ++
   "account_state_delegation_code_resolve:\n" ++
