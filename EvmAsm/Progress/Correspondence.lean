@@ -422,13 +422,13 @@ Python while looking faithful" },
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
-    verdict := .stricter, basis := .ported,
+    verdict := .domainRestricted, basis := .ported,
     reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:158, \
 stateless.py:244)",
-    note := "REGRADED `.domainRestricted` -> `.stricter` and `portDefect` CLEARED in #11513. \
-Both moves have the same cause: the previous note asserted that the guest's two rejections \
-BOTH match `rlp.decode_to`, so that only the port was lenient. Only ONE of them does, and the \
-split is the whole content of this row. \
+    note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
+different reason than before and the reason is the whole content of this row. The previous note \
+asserted that the guest's two rejections BOTH match `rlp.decode_to`, so that only the port was \
+lenient. Only ONE of them does. \
 (a) CANONICALITY -- was a real port defect, NOW FIXED. `_deserialize_to_uint` rejects a \
 leading zero byte on every uint field, and the port's `getN = bytesBEtoNat` did not; \
 `_decode_header` now runs `numericFieldWidths` through `decodeItemScalar`, so the port is \
@@ -445,27 +445,41 @@ header, where the numeric sweep was safe because `[]` passes a uint check. Neith
 this row, whose field is numeric, but together they are what let the byte-field sibling rows \
 (notably `header_extract_logs_bloom`, whose success arm needs `Bloom`'s 256) be stated without \
 a width hypothesis. \
-(b) WIDTH -- is a GUEST false reject, and always was. The bound comes from the target type's \
-`from_be_bytes`, NOT from `_deserialize_to_uint`: `FixedUnsigned.from_be_bytes` raises when \
-the buffer exceeds the type (`ethereum_types` 0.4.1 numeric.py:566-577), while \
-`Uint.from_be_bytes` is a plain `int.from_bytes` with NO length check (numeric.py:523-528). \
-`number` is annotated `Uint` (amsterdam/blocks.py:157), so CPython ACCEPTS a nine-byte \
-`number` and so does the fixed port -- the guest's `Result.tooLong` rejects it. Per #11480's \
-rule (a witness the reference accepts that the guest rejects is an FR, and should be counted \
-as one), that is `.stricter`. This is the registry's FIRST `.stricter` row; it is not a \
-regression, it is a misgrading corrected. Pinned by a `#guard` in Stateless.lean that the \
-nine-byte `number` is ACCEPTED, so nobody `fixes` the port by tightening it to 8 and hiding \
-the guest FR behind a port defect in the opposite direction. \
+(b) WIDTH -- is NOT a port defect, and NOT an FR either. It is a PROJECT-WIDE INPUT \
+ASSUMPTION, i.e. the ABI-PRECONDITION flavour of `.domainRestricted` (taxonomy row 2, not row \
+1) -- and per that table's requirement, this note says WHICH: precondition, not coverage gap. \
+The mechanism: the width bound comes from the target type's `from_be_bytes`, NOT from \
+`_deserialize_to_uint`. `FixedUnsigned.from_be_bytes` raises when the buffer exceeds the type \
+(`ethereum_types` 0.4.1 numeric.py:566-577), while `Uint.from_be_bytes` is a plain \
+`int.from_bytes` with NO length check (numeric.py:523-528). `number` is annotated `Uint` \
+(amsterdam/blocks.py:157), so CPython ACCEPTS a nine-byte `number` and so does the fixed port, \
+while the guest's `Result.tooLong` rejects it. \
+WHY NOT `.stricter` -- maintainer ruling, #11620: evm-asm carries a project-wide assumption \
+for exactly `difficulty`, `number`, `gasUsed`, `gasLimit` and `timestamp`, and `the \
+project-wide assumptions give the guest freedom to choose its behavior`; rejecting \
+out-of-assumption input is the PREFERRED behaviour, not a defect to remove. So within the \
+domain the project states there is no valid input the guest false-rejects, which is what \
+`.stricter` would assert. #11620 also records the follow-up @pirapira suggested: a SECOND top \
+theorem proving the guest rejects out-of-assumption header values, which would turn this from \
+permitted-freedom into a proven property. \
+⚠️ WHAT KEEPS THIS HONEST: the precondition is EXPLICIT IN THE STATEMENT -- \
+`header_number_of_decode` takes `hfits : hdr.number < 2 ^ 64`. An unstated bound wearing a \
+benign verdict would be strictly worse than an FR, because an FR at least gets counted. And a \
+`#guard` in Stateless.lean pins that the nine-byte `number` is ACCEPTED BY THE PORT: the \
+assumption is about the GUEST's reading width, so tightening the port to 8 would convert a \
+stated precondition into a port defect in the opposite direction. \
 SYSTEMIC, NOT PER-FIELD: the guest is a u64 machine reading fields the spec types as \
-arbitrary-precision or 256-bit. The same FR shape applies to `gasLimit`/`gasUsed` (`Uint`) \
-and to `timestamp` (`U256`, ref bound 32 bytes vs guest 8), which is what the sibling rows in \
-#11575 inherit. Only the three `U64` fields agree on width. \
-(c) ARITY is UNCHANGED and still real: the guest never checks how many fields the header has, \
-so on a list of any other length it still returns a value where `_decode_header` errors; the \
-honest statement is `_decode_header = .ok h -> guest succeeds and value = h.number`, not an \
-iff. That restriction is now recorded HERE rather than in the verdict, because (b) is the \
-more serious finding and a row carries one verdict. `number` is `getN 8` in BOTH the 23-field \
-(current fork) and 21-field (previous) arms, which is why this row represents the family. \
+arbitrary-precision or 256-bit. The same shape covers `gasLimit`/`gasUsed` (`Uint`) and \
+`timestamp` (`U256`, reference bound 32 bytes vs guest 8 -- the field most easily missed, since \
+it is bounded on both sides at different widths). The #11575 sibling rows inherit it, and each \
+must state the precondition explicitly as here. Only the three `U64` fields agree outright. \
+(c) ARITY is the OTHER thing `.domainRestricted` covers here, and it IS taxonomy row 1 -- a \
+genuine proof limit: the guest never checks how many fields the header has, so on a list of \
+any other length it still returns a value where `_decode_header` errors; the honest statement \
+is `_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. `number` is \
+`getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is why this \
+row represents the family. So this single verdict carries BOTH flavours, which the note must \
+disambiguate: (b) precondition, (c) coverage. \
 Tied by `header_number_of_decode` (`Codegen/Programs/HeaderExtractNumberBridge.lean`), \
 consuming the machine triple `header_extract_number_spec_within` and `decode_header_inv`. Its \
 one remaining hypothesis is `hfits : hdr.number < 2 ^ 64` -- the FR in (b), and phrasable over \
@@ -540,16 +554,26 @@ theorem header_rows : countFamily "header" = 2 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
-/-- ⚠️ `stricter` is **1**, not 0, as of #11513 — `header_extract_number`. The
-    zero held for as long as it did because a guest false-reject was wearing
-    `domainRestricted` (that is what #11493 was about) and, once that was
-    unpicked, was briefly attributed to the port instead. It is a real FR: the
-    guest bounds `number` at eight bytes where the reference's `Uint` has no
-    bound at all. Read a nonzero count here as the schema finally discriminating,
-    not as a new defect. -/
+/-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
+    that is not automatically a sign the schema has stopped discriminating.
+
+    `header_extract_number` looked like it belonged here: the guest bounds
+    `number` at eight bytes where the reference's `Uint` has no bound at all,
+    which reads as a false reject. It is not one, because evm-asm states a
+    project-wide assumption that these header fields arrive within their
+    bit-width, and the maintainer ruling on #11620 is that this "gives the guest
+    freedom to choose its behavior" — rejecting out-of-assumption input is
+    *preferred*. `stricter` means "we reject input the reference accepts **and
+    the project claims to handle**"; a stated precondition is not that.
+
+    The guard against this becoming a rubber stamp is that the precondition must
+    be **explicit in the theorem statement** — here `hfits : hdr.number < 2 ^ 64`
+    on `header_number_of_decode`. Grading a restriction as a precondition while
+    leaving it implicit in the guest's behaviour is worse than recording an FR,
+    because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 3 ∧
-    countVerdict .stricter = 1 ∧ countVerdict .looser = 0 ∧
+    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
+    countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
 /-- Port defects are counted separately because they are a different axis.

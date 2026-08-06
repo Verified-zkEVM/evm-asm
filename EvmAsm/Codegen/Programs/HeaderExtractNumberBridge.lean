@@ -18,9 +18,13 @@
   * `tooLong` — the guest rejects a field wider than eight bytes. The reference
     does **not**: `number` is annotated `Uint`, whose `from_be_bytes` has no
     length check at all, so a nine-byte `number` is accepted by CPython and by
-    the (now faithful) port. This is the GUEST being stricter than the
-    reference — a genuine false reject, not a port defect — so it stays a
-    hypothesis, as `hfits`.
+    the (now faithful) port. This is not a port defect; it is evm-asm's
+    project-wide assumption that these header fields arrive within the bit-width
+    the guest reads them into, which per the ruling on #11620 gives the guest
+    freedom to reject outside it. It stays a hypothesis, `hfits`, precisely so
+    the assumption is **explicit in the statement** rather than buried in the
+    guest's behaviour — an implicit bound would be worse than a recorded false
+    reject.
 
   `hfits` is phrased over `hdr.number` rather than over the encoding, which is
   only possible *because* the port now enforces canonicality: with no leading
