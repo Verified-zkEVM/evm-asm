@@ -185,8 +185,23 @@ verbatim. Each `class SszX(Container)` → `sszXType : SszType`. Each `_x_to_ssz
    The width table lives in `numericFieldWidths`; `decodeItemScalar` (already ported
    for the transaction decoders) performs both checks. A guest that reads an
    unbounded field into a 64-bit register is stricter than the reference — that is a
-   guest-side false reject, recorded on the `header_extract_number` correspondence
-   row, and not something the port should absorb.
+   guest-side false reject, tracked as #11620, and not something the port should
+   absorb.
+
+   ⚠️ **The fixed-width BYTE fields were a second, independent gap, also fixed
+   (#11615).** `_deserialize_to_bytes` does not merely check "is it bytes" — it
+   constructs the annotated type, and `FixedBytes.__new__` raises when the length is
+   wrong (`ethereum_types` 0.4.1, `bytes.py:29-37`). So `Hash32`/`Address`/`Root`/
+   `Bloom`/`Bytes32`/`Bytes8` are length-checked by the reference, while the port's
+   `getB` was a bare `bs.getD i []`. Tables: `fixedBytesFieldWidths` (indices 0–20,
+   both arms) and `currentForkBytesFieldWidths` (index 21, current fork only).
+
+   That arity split is load-bearing and is why this could not copy the numeric fix:
+   a missing numeric field reads as `[]`, which passes every uint check, so the
+   numeric sweep was safe unconditionally. `[]` does **not** pass `length = 32`, so
+   sweeping index 21 over a 21-field `bpo5` header would reject every previous-fork
+   block. `extra_data` (12) stays unchecked here — it is plain `Bytes`, and its ≤32
+   rule is a `validate_header` clause, not a decode one.
 2. **`Header | PreviousForkHeader` union** collapsed into one `Header` record with an
    `isCurrentFork` tag; the two amsterdam-only fields default to `[]`/`0` for the
    previous fork. Downstream only reads `parent_hash`/`state_root`.

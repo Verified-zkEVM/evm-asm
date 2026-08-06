@@ -438,11 +438,13 @@ faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The guest
 depends on. A SECOND, independent leniency survives on the FIXED-WIDTH BYTE fields -- \
 `_deserialize_to_bytes` builds the annotated type and `FixedBytes.__new__` raises when the \
 length is wrong, so the reference length-checks `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/ \
-`Bytes8`, while the port's `getB` is a bare `bs.getD i []`. #11513 dismissed those fields as \
-`byte strings either way`; that is wrong, and it is tracked as #11615 -- separately because the \
-check is ARITY-DEPENDENT (a `length = 32` sweep would reject every 21-field header, where the \
-numeric sweep was safe because `[]` passes a uint check). It does not affect this row, whose \
-field is numeric; rows touching a byte field will carry `portDefect := some 11615`. \
+`Bytes8`, while the port's `getB` was a bare `bs.getD i []`. #11513 dismissed those fields as \
+`byte strings either way`; that was wrong, and it is NOW ALSO FIXED (#11615), separately \
+because the check is ARITY-DEPENDENT -- a `length = 32` sweep would reject every 21-field \
+header, where the numeric sweep was safe because `[]` passes a uint check. Neither gap affects \
+this row, whose field is numeric, but together they are what let the byte-field sibling rows \
+(notably `header_extract_logs_bloom`, whose success arm needs `Bloom`'s 256) be stated without \
+a width hypothesis. \
 (b) WIDTH -- is NOT a port defect, and NOT an FR either. It is a PROJECT-WIDE INPUT \
 ASSUMPTION, i.e. the ABI-PRECONDITION flavour of `.domainRestricted` (taxonomy row 2, not row \
 1) -- and per that table's requirement, this note says WHICH: precondition, not coverage gap. \
