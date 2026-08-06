@@ -284,24 +284,11 @@ def accountWritesLatestBalanceFunction : String :=
 
 /-! ## `account_writes_latest_nonce_block`
 
-    Read the nonce from the block-cumulative account-write map only.  This is
-    intentionally not the transaction-first `account_writes_latest_balance`
-    contract and intentionally does not fall back to AccountState: the MTx
-    pre-transaction reader at `BlockVerdictMtxRuntime:44` is entitled to the
-    BLOCK tier, not the current transaction overlay.  The Amsterdam counterpart
-    is the block-level `account_writes` consulted by `_get_pre_tx_account` before
-    the authenticated pre-state (`state_tracker.py:137-142`,
-    `block_access_lists.py:637-650`).
-
-    a0 = canonical 20-byte BE address pointer
-    a1 = one-word nonce output pointer
-    returns a0 = 1 on a BLOCK map row with the NONCE-valid bit, and 0 on miss.
-
-    A row with only BALANCE/CODE/STATE/TOUCHED validity is a miss.  In
-    particular, this helper never treats a zero-initialized nonce in a
-    balance-only row as authoritative.  No AccountState symbol appears in the
-    emitted body; callers remain untouched until the reader cutover is
-    separately authorized. -/
+    Block-map-only nonce lookup, with canonical BE20 `a0`, u64 output pointer
+    `a1`, and hit/miss in `a0`.  It requires mask value 2 at row `+112`, reads
+    nonce at `+64`, never falls back to AccountState, and leaves all readers
+    untouched.  This is the block-level `account_writes` contract described by
+    Amsterdam `state_tracker.py:137-142` and `block_access_lists.py:637-650`. -/
 def accountWritesLatestNonceBlockFunction : String :=
   "account_writes_latest_nonce_block:\n" ++
   "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1\n" ++
@@ -342,6 +329,10 @@ def accountWritesLatestNonceBlockFunction : String :=
     container the reader is not entitled to consult.  Events carry status,
     field, reader, map tier, and differing limb index in one word, followed by
     the address and the differing map/live value limbs.
+
+    Armed nonce probes compare the block-map-only helper with the exact
+    pending/durable overlay answer and increment one of four diagnostic buckets:
+    agree, disagree, map-missing/overlay-answered, or overlay-missing/map-answered.
 -/
 
 def accountAgreementEventCapacity : Nat := 4096
@@ -501,7 +492,7 @@ def accountAgreementScanFunction : String :=
 
 def accountAgreementProbeFunction : String :=
   "account_agreement_probe:\n" ++
-  "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
+  "  addi sp, sp, -96; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
   "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
   accountAgreementReaderValidationAsm ++
   ".Laap_reader_registered:\n" ++
@@ -526,17 +517,26 @@ def accountAgreementProbeFunction : String :=
   ".Laap_durable_balance:\n" ++
   "  andi t0, t0, 32; bnez t0, .Laap_live_durable; j .Laap_no_live\n" ++
   ".Laap_live_pending:\n" ++
-  "  mv s3, a0; j .Laap_scan_tx\n" ++
+  "  mv s3, a0; j .Laap_nonce_diff_start\n" ++
   ".Laap_live_durable:\n" ++
-  "  mv s3, a0; j .Laap_scan_tx\n" ++
+  "  mv s3, a0; j .Laap_nonce_diff_start\n" ++
   ".Laap_no_live:\n" ++
   "  li s3, 0\n" ++
+  ".Laap_nonce_diff_start:\n" ++
+  "  li t0, 2; bne s1, t0, .Laap_nonce_diff_done\n" ++ "  mv a0, s0; addi a1, sp, 80; jal ra, account_writes_latest_nonce_block; mv s4, a0\n" ++
+  "  bnez s3, .Laap_nonce_overlay_present\n" ++ "  bnez s4, .Laap_nonce_overlay_missing_map\n" ++ "  j .Laap_nonce_diff_agree\n" ++
+  ".Laap_nonce_overlay_present:\n" ++ "  bnez s4, .Laap_nonce_both_present\n" ++ "  la t0, account_agreement_nonce_map_missing_overlay_answered; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_nonce_diff_done\n" ++
+  ".Laap_nonce_overlay_missing_map:\n" ++ "  la t0, account_agreement_nonce_overlay_missing_map_answered; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_nonce_diff_done\n" ++
+  ".Laap_nonce_both_present:\n" ++ "  ld t0, 80(sp); ld t1, 64(s3); bne t0, t1, .Laap_nonce_diff_disagree\n" ++
+  ".Laap_nonce_diff_agree:\n" ++ "  la t0, account_agreement_nonce_diff_agree; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_nonce_diff_done\n" ++
+  ".Laap_nonce_diff_disagree:\n" ++ "  la t0, account_agreement_nonce_diff_disagree; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laap_nonce_diff_done:\n" ++
   ".Laap_scan_tx:\n" ++
   "  li a0, 0xa2b20000; la a1, tx_account_writes_count; mv a2, s1; mv a3, s2; mv a4, s3; li a5, 1; mv a6, s0; jal ra, account_agreement_scan; mv s5, a0\n" ++
   "  li a0, 0xa28a0000; la a1, account_writes_count; mv a2, s1; mv a3, s2; mv a4, s3; li a5, 2; mv a6, s0; jal ra, account_agreement_scan; or s5, s5, a0\n" ++
   "  bnez s5, .Laap_done; la t0, account_agreement_no_row; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Laap_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 80; ret\n"
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 96; ret\n"
 
 /-! ## `account_writes_block_upsert`
 
@@ -1300,6 +1300,7 @@ def accountWriteMapBssSection : String :=
   "account_agreement_row_no_field:\n  .zero 8\n" ++
   "account_agreement_live_field_absent:\n  .zero 8\n" ++
   "account_agreement_present_agree:\n  .zero 8\n" ++
+  "account_agreement_nonce_diff_agree:\n  .zero 8\naccount_agreement_nonce_diff_disagree:\n  .zero 8\naccount_agreement_nonce_map_missing_overlay_answered:\n  .zero 8\naccount_agreement_nonce_overlay_missing_map_answered:\n  .zero 8\n" ++
   "account_agreement_mismatch_count:\n  .zero 8\n" ++
   "account_agreement_instrument_count:\n  .zero 8\n" ++
   "agreement_event_count:\n  .zero 8\n" ++
@@ -1469,6 +1470,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "tx_account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_undo_count:" == 1
+#guard (accountAgreementProbeFunction.splitOn ".Laap_nonce_diff_start:").length == 2
 
 /-- Standalone e2e probe BuildUnit for #11329 TOUCHED first-producer gate. -/
 def accountWriteTouchE2ePrologue : String :=
