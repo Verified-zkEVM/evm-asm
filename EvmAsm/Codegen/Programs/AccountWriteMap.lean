@@ -481,6 +481,73 @@ def accountWritesLookupCurrentFunction : String :=
   ".Lawlc_absent:\n  li a0, 0; li a1, 0; li a2, 0\n" ++
   ".Lawlc_ret:\n  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 24; ret\n"
 
+/-! Balance/nonce-zero predicate for an empty current account.
+
+    This is the map-side replacement for `account_state_tombstone_balance_zero`.
+    It keeps the old caller ABI, but obtains missing balance/nonce components
+    from the pre-transaction map/parent resolver.  That matters for AUTH and
+    code-only rows: a map row without a BALANCE bit does not authorize zero.
+    `EXEC_FLAGS` is consulted only when it is present, to exclude
+    created-this-transaction empty accounts; deferred-delete rows carry STATE
+    without EXEC_FLAGS and are handled by their explicit state value. -/
+def accountWritesTombstoneBalanceZeroFunction : String :=
+  "account_writes_tombstone_balance_zero:\n" ++
+  "  addi sp, sp, -160; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); mv s0, a0; li s1, 0; li s2, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawtbz_tx_loop:\n" ++
+  "  bgeu t3, t1, .Lawtbz_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawtbz_tx_cmp:\n" ++
+  "  beqz t6, .Lawtbz_tx_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawtbz_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawtbz_tx_cmp\n" ++
+  ".Lawtbz_tx_next:\n" ++
+  "  addi t3, t3, 1; j .Lawtbz_tx_loop\n" ++
+  ".Lawtbz_tx_hit:\n" ++
+  "  mv s1, t5\n" ++
+  "  j .Lawtbz_block_init\n" ++
+  ".Lawtbz_block_init:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawtbz_block_loop:\n" ++
+  "  bgeu t3, t1, .Lawtbz_state_select; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawtbz_block_cmp:\n" ++
+  "  beqz t6, .Lawtbz_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawtbz_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawtbz_block_cmp\n" ++
+  ".Lawtbz_block_next:\n" ++
+  "  addi t3, t3, 1; j .Lawtbz_block_loop\n" ++
+  ".Lawtbz_block_hit:\n" ++
+  "  mv s2, t5\n" ++
+  ".Lawtbz_state_select:\n" ++
+  "  beqz s1, .Lawtbz_use_block_state; ld t0, 112(s1); andi t1, t0, 8; bnez t1, .Lawtbz_use_tx_state\n" ++
+  ".Lawtbz_use_block_state:\n" ++
+  "  beqz s2, .Lawtbz_no; ld t0, 112(s2); andi t1, t0, 8; beqz t1, .Lawtbz_no; mv s3, s2; j .Lawtbz_state_check\n" ++
+  ".Lawtbz_use_tx_state:\n" ++
+  "  mv s3, s1\n" ++
+  ".Lawtbz_state_check:\n" ++
+  "  ld t0, 72(s3); beqz t0, .Lawtbz_yes; ld t1, 112(s3); andi t2, t1, 16; beqz t2, .Lawtbz_created_done; ld t3, 96(s3); andi t3, t3, 8; bnez t3, .Lawtbz_no\n" ++
+  ".Lawtbz_created_done:\n" ++
+  "  ld t1, 112(s3); andi t2, t1, 4; beqz t2, .Lawtbz_components; ld t3, 88(s3); bnez t3, .Lawtbz_no\n" ++
+  ".Lawtbz_components:\n" ++
+  "  li s4, 0; li s5, 0\n" ++
+  "  beqz s1, .Lawtbz_block_components; ld t0, 112(s1); andi t1, t0, 1; beqz t1, .Lawtbz_tx_nonce; ld t2, 32(s1); sd t2, 128(sp); ld t2, 40(s1); sd t2, 136(sp); ld t2, 48(s1); sd t2, 144(sp); ld t2, 56(s1); sd t2, 152(sp); li s4, 1\n" ++
+  ".Lawtbz_tx_nonce:\n" ++
+  "  andi t1, t0, 2; beqz t1, .Lawtbz_block_components; ld t2, 64(s1); sd t2, 120(sp); li s5, 1\n" ++
+  ".Lawtbz_block_components:\n" ++
+  "  beqz s2, .Lawtbz_prestate_check; ld t0, 112(s2); bnez s4, .Lawtbz_block_nonce; andi t1, t0, 1; beqz t1, .Lawtbz_block_nonce; ld t2, 32(s2); sd t2, 128(sp); ld t2, 40(s2); sd t2, 136(sp); ld t2, 48(s2); sd t2, 144(sp); ld t2, 56(s2); sd t2, 152(sp); li s4, 1\n" ++
+  ".Lawtbz_block_nonce:\n" ++
+  "  bnez s5, .Lawtbz_prestate_check; andi t1, t0, 2; beqz t1, .Lawtbz_prestate_check; ld t2, 64(s2); sd t2, 120(sp); li s5, 1\n" ++
+  ".Lawtbz_prestate_check:\n" ++
+  "  bnez s4, .Lawtbz_need_nonce; j .Lawtbz_prestate\n" ++
+  ".Lawtbz_need_nonce:\n" ++
+  "  bnez s5, .Lawtbz_restore_direct; j .Lawtbz_prestate\n" ++
+  ".Lawtbz_prestate:\n" ++
+  "  sd zero, 80(sp); sd zero, 88(sp); sd zero, 96(sp); sd zero, 104(sp); sd zero, 112(sp); mv a0, s0; addi a1, sp, 80; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state; bnez a0, .Lawtbz_no\n" ++
+  ".Lawtbz_restore_direct:\n" ++
+  "  beqz s4, .Lawtbz_restore_nonce; ld t0, 128(sp); sd t0, 88(sp); ld t0, 136(sp); sd t0, 96(sp); ld t0, 144(sp); sd t0, 104(sp); ld t0, 152(sp); sd t0, 112(sp)\n" ++
+  ".Lawtbz_restore_nonce:\n" ++
+  "  beqz s5, .Lawtbz_zero_check; ld t0, 120(sp); sd t0, 80(sp)\n" ++
+  ".Lawtbz_zero_check:\n" ++
+  "  ld t0, 80(sp); bnez t0, .Lawtbz_no; ld t0, 88(sp); ld t1, 96(sp); or t0, t0, t1; ld t1, 104(sp); or t0, t0, t1; ld t1, 112(sp); or t0, t0, t1; bnez t0, .Lawtbz_no; j .Lawtbz_yes\n" ++
+  ".Lawtbz_yes:\n  li a0, 1; j .Lawtbz_ret\n" ++
+  ".Lawtbz_no:\n  li a0, 0\n" ++
+  ".Lawtbz_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 160; ret\n"
+
 /-! Runtime-only map/overlay diagnostics.  The probe compares canonical 128-byte
     map rows with the exact pending-then-durable AccountState row; reader 17 is
     BLOCK-tier, other registered readers are TX-tier.  Armed balance and nonce
@@ -1547,6 +1614,7 @@ def accountWriteMapFunctions : String :=
   accountWritesAuthBlockFunction ++
   accountWritesCreatedContainsFunction ++
   accountWritesLookupCurrentFunction ++
+  accountWritesTombstoneBalanceZeroFunction ++
   accountAgreementRecordFunction ++
   accountAgreementMutationCheckpointFunction ++
   accountAgreementScanFunction ++
@@ -1605,6 +1673,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_auth_block:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_created_contains:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_lookup_current:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_tombstone_balance_zero:").length == 2
 #guard (accountWritesLatestNonceBlockFunction.splitOn "account_state_").length == 1
 #guard (accountWriteMapFunctions.splitOn "account_agreement_probe:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_agreement_scan:").length == 2
