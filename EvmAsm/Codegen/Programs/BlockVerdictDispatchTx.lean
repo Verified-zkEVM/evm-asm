@@ -110,7 +110,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- A delegation target may itself have been successfully CREATEd by an
   -- earlier transaction in this block.  AccountState is the current execution
   -- state, so consult it before the immutable block-pre witness.
-  "  la a0, dtrc_deleg_target; jal ra, account_state_lookup_current\n" ++
+  "  la a0, dtrc_deleg_target; jal ra, account_writes_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_materialize_not_codestate\n" ++
   "  mv x21, a1; sd a2, 496(x20); j .Ldtrc_materialize_done\n" ++
   ".Ldtrc_materialize_not_codestate:\n" ++
@@ -257,7 +257,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- code use the shared mutable AccountState first: a tx1 CREATE is visible to a
   -- tx2 top-level call even though it is absent from the block-pre witness.
   "  addi sp, sp, -16; sd s2, 0(sp)\n" ++
-  "  addi a0, s2, 72; jal ra, account_state_lookup_current\n" ++
+  "  addi a0, s2, 72; jal ra, account_writes_lookup_current\n" ++
   "  ld s2, 0(sp); addi sp, sp, 16\n" ++
   "  li t0, 1; bne a0, t0, .Ldtrc_not_codestate_code\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); sub t1, a1, t1\n" ++
@@ -666,7 +666,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t4, ecc_same_block_hit; sd zero, 0(t4)\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   -- #11396: no runtime_current_bal_ptr handoff — same-block delegation reads
-  -- AccountState via account_state_lookup_current, not the supplied BAL.
+  -- Account-write tiers via account_writes_lookup_current, not the supplied BAL.
   -- .62.2.5: arm the ECRECOVER backend for this dispatch (the guest closure
   -- links secp256k1_recover_pubkey_staged; standalone dispatch probes leave
   -- the pointer 0 and keep the legacy empty-returndata success).
