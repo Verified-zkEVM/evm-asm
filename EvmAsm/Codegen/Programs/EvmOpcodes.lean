@@ -406,7 +406,7 @@ def balanceAtHeaderStateRootFunction : String :=
   ".Lbal_padcp:\n" ++
   "  beqz t3, .Lbal_padcp_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbal_padcp\n" ++
   ".Lbal_padcp_d:\n" ++
-  "  la a0, bal_addr_padded; mv a1, s5; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bal_addr_padded; mv a1, s5; li a2, 2; jal ra, account_state_latest_balance\n" ++
   "  beqz a0, .Lbal_live_miss     # no live effect -> fall through to the pre-state path\n" ++
   "  li a0, 0; j .Lbal_ret        # live hit: s5 = post_balance -> success\n" ++
   ".Lbal_live_miss:\n" ++
