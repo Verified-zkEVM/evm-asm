@@ -112,10 +112,9 @@ def execLogAddrToBalCanonicalFunction : String :=
     Clobbers **nothing** the caller can see: input registers `a0`-`a2`,
     `t0`-`t6`, and `ra` are saved and restored, so
     this is safe to call from a handler `preBody` that is holding live dispatcher
-    state in caller-saved registers. That matters because the SLOAD handler's body
-    is a *verified* Program (`EvmAsm.Evm64.Storage.evm_sload`, witnessed by
-    `evm_sload_stack_spec_within` with a byte-identity `#guard`): recording the
-    read from `preBody` leaves that proof untouched instead of invalidating it. -/
+    state in caller-saved registers. The SLOAD handler remains an emitted
+    Program; recording the read from `preBody` keeps this logging helper
+    independent of the retired persistent-log proof surface. -/
 def storageReadRecordFunction : String :=
   "storage_read_record:\n" ++
   "  addi sp, sp, -112\n" ++

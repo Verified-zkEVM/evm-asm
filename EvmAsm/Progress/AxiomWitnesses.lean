@@ -162,10 +162,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_result_stack_spec_within_v5
 
-#print axioms EvmAsm.Evm64.Storage.evm_sload_stack_spec_within
-
-#print axioms EvmAsm.Evm64.Storage.sload_precondition_reachable
-
 #print axioms EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
 
 #print axioms EvmAsm.Evm64.Terminating.evm_return_halt_spec_within
