@@ -387,6 +387,32 @@ differential, so there is no `diff` result to inherit. FULL DOMAIN: the only sid
 conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
 is the ABI contract, not an input-domain gate" },
 
+  -- #11516: account-leaf decode, the pairing that issue says must be stated.
+  { family := "account", routine := "account_decode",
+    spec := some "account_decode_spec_within",
+    verdict := .domainRestricted, basis := .bridged,
+    reference := "decode_account_from_leaf (SpecRef/WitnessState.lean:117), tied by \
+AccountDecodeCompose.decoded_matches_specRef",
+    note := "⭐ WHY THIS ROW EXISTS AT ALL is #11516's finding: we maintain a Lean port of \
+execution-specs *specifically to be the reference*, plus an asm-side predicate (`Decoded`) \
+that CONTRADICTED it, and nothing noticed -- every gate we had checked a different axis \
+(bytes vs Program, addresses vs image, BAL edges, TCB). The divergence surfaced only when a \
+fixture failed for an unrelated reason. An unstated pairing is how a predicate drifts from \
+the reference indefinitely. WHY `domainRestricted` AND NOT `agrees`: fields 2/3 were closed \
+by #11483/#11484 (zero-length storage_root/code_hash now fold to EMPTY_TRIE_ROOT / \
+EMPTY_CODE_HASH, matching the reference's `if decoded[2] else EMPTY_TRIE_ROOT`), but \
+`Decoded` still carries l0 <= 8 and l1 <= 32 LENGTH limits on nonce/balance where the \
+reference imposes no length constraint at all -- it just runs `int.from_bytes`. So a \
+zero-prefixed or over-width nonce/balance is accepted by the reference and outside what we \
+prove. That is #11523, still open, and this row is the thing that keeps the gap visible \
+instead of assumed. It is a COVERAGE GAP, not an ABI precondition: the guest may well handle \
+those inputs; we have not proved it. ⚠️ NOT a portDefect: #11516 checked \
+`decode_account_from_leaf` field-for-field against witness_state.py:112-118 and found them \
+identical, including the malformed case -- SpecRef modelled the folds correctly all along, so \
+the outlier was our own predicate. Standing hazard from that issue, repeated here because it \
+applies to this row's evidence: SpecRef is a port and drifts, so cite execution-specs at the \
+pin, never SpecRef alone -- citing our own Lean to justify spec alignment is circular" },
+
   -- #11348: the block/receipt bloom accumulation.
   { family := "bloom", routine := "bloom_or_into",
     spec := some "bloomOrIntoFn_spec",
@@ -660,7 +686,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 28 := by decide
+theorem registry_size : registry.length = 29 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
@@ -669,6 +695,8 @@ theorem guest_rows : countFamily "guest" = 1 := by decide
 theorem header_rows : countFamily "header" = 4 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
+/-- #11516. One row; the pairing that issue says must be stated. -/
+theorem account_rows : countFamily "account" = 1 := by decide
 /-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
     than found in the fork spec -- see the row's note. -/
 theorem bloom_rows : countFamily "bloom" = 1 := by decide
@@ -691,7 +719,7 @@ theorem bloom_rows : countFamily "bloom" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 6 ∧
+    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 7 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -703,7 +731,7 @@ theorem verdict_counts :
 theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 11 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 6 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide

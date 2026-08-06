@@ -68,6 +68,9 @@ import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
+-- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
+-- whole-routine triple's module has to be imported explicitly for its witness.
+import EvmAsm.Codegen.Programs.AccountDecodeClose6
 import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
@@ -448,6 +451,12 @@ private noncomputable abbrev _header_number_of_decode_witness :=
 -- #11345: the model-facing consumer joining `account_decode`'s output struct to
 -- `AccountRecord` and thence to `SpecRef.decode_account_from_leaf`. Codegen-side,
 -- so like the #11351 witness above it lives here rather than in Correspondence.
+-- #11516: named by the `account_decode` Correspondence row. Codegen-side, so the
+-- witness lives here (same reason as the #11351/#11345/#11348 witnesses above).
+-- Row without witness = theorem invisible to the axiom gate; that is a separate
+-- obligation from claiming a tier, and #11348 is where I learned it the hard way.
+private noncomputable abbrev _account_decode_spec_within_witness :=
+  @EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 private noncomputable abbrev _account_decode_matches_specRef_witness :=
   @EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 private noncomputable abbrev _account_decode_output_witness :=

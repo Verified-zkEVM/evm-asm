@@ -36,6 +36,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 
+#print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
+
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
