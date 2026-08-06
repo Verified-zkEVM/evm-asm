@@ -329,10 +329,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- auth/preparation OOG rolls it back; keep the marker in NOBITS storage so
   -- it does not perturb .data address pins.
   ".balign 8\n" ++
-  -- Depth-zero message snapshot for the auth-preparation rollback.  Child
-  -- frames use the body snapshot slab; this slot is the transaction-level
-  -- counterpart and is intentionally kept in .bss.
-  "account_state_pending_checkpoint:\n  .zero 8\n" ++
   -- Auth preparation appends raw non-storage effects before the dispatcher
   -- knows whether the state-gas reservoir can pay for them.  Keep a
   -- transaction-boundary high-water mark so an auth/preparation halt erases

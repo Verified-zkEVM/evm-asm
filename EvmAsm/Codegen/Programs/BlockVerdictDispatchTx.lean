@@ -180,7 +180,6 @@ def dispatchTxRuntimeCodeFunction : String :=
   bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t2" 32 "t0" "t1" ++
   bodyStateCaptureCursorsAsm "  la t0, evm_env; " "t0" "t2" "t1" ++
   bodyStateCaptureScalarAsm "account_writes_undo_count" "t2" 64 "t0" "t1" ++
-  bodyStateCaptureScalarAsm "account_state_pending_count" "t2" 72 "t0" "t1" ++
   bodyStateCaptureScalarAsm "account_state_delete_count" "t2" 80 "t0" "t1" ++
   bodyStateCaptureScalarAsm "account_state_overflow" "t2" 88 "t0" "t1" ++
   bodyStateCaptureScalarAsm "create_nonce_undo_count" "t2" 96 "t0" "t1" ++
@@ -199,7 +198,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t1, 16(t2); la t0, exec_code_effect_count; sd t1, 0(t0); ld t1, 24(t2); la t0, exec_code_effect_next; sd t1, 0(t0); ld t1, 32(t2); la t0, exec_code_effect_overflow; sd t1, 0(t0)\n" ++
   "  la t0, evm_env; ld t1, 40(t2); sd t1, 448(t0); ld t1, 48(t2); sd t1, 464(t0); ld t1, 56(t2); sd t1, 472(t0)\n" ++
   "  ld a0, 64(t2); jal ra, account_writes_restore_frame\n" ++
-  "  la t2, body_state_snapshot_by_depth; ld t1, 72(t2); la t0, account_state_pending_count; sd t1, 0(t0); ld t1, 80(t2); la t0, account_state_delete_count; sd t1, 0(t0); ld t1, 88(t2); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
+  "  la t2, body_state_snapshot_by_depth; ld t1, 80(t2); la t0, account_state_delete_count; sd t1, 0(t0); ld t1, 88(t2); la t0, account_state_overflow; sd t1, 0(t0)\n" ++
   "  ld a0, 96(t2); jal ra, create_creator_nonce_undo_to\n" ++
   -- Replay the storage-writes undo journal to the captured mark, the same way the two
   -- marks above are replayed.  `write_sets_restore_frame` takes the mark in a0, walks the

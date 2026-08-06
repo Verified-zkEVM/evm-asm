@@ -1161,7 +1161,6 @@ def emitDispatcherPrologue : String :=
   -- dispatcher, not a lane selector. The block verdict clears it once before
   -- the universal transaction loop, and every callable dispatch (including
   -- system re-entry) retains accumulated code effects for that block.
-  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++ -- AccountState pending journal is tx scoped
   "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++ -- EIP-6780 created_accounts is tx scoped
   "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++
@@ -1361,7 +1360,6 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   -- sufficient: it occurs on unrelated early-exit routes and must not truncate
   -- the caller's pending state.
   "  la x5, runtime_tx_auth_phase_halted; ld x6, 0(x5); beqz x6, " ++ label ++ "_top_no_auth_restore\n" ++
-  "  la x5, account_state_pending_checkpoint; ld x6, 0(x5); la x5, account_state_pending_count; sd x6, 0(x5)\n" ++
   s!"{label}_top_no_auth_restore:\n" ++
   "  li x16, 0xa0010000\n" ++       -- OUTPUT_ADDR
   "  sd x0, 0(x16)\n" ++            -- zero-fill result OUTPUT[0..32]
@@ -2928,7 +2926,6 @@ def emitRuntimeDispatcherCallableSetup : String :=
   -- authorization-arena overflow at this boundary would turn a required
   -- rejection into a later execution attempt.
   "  la x5, runtime_tx_auth_prepared; ld x6, 0(x5); bnez x6, .Lrtdc_account_state_kept\n" ++
-  "  la x5, account_state_pending_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_created_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_delete_count; sd x0, 0(x5)\n" ++
   "  la x5, account_state_overflow; sd x0, 0(x5)\n" ++

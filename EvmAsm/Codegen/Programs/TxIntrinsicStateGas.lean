@@ -391,7 +391,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- `set_delegation`.  Reuse the depth-indexed checkpoint slab's unused
   -- depth-zero slot for that top-level message snapshot; child descent uses
   -- the positive slots in CallFrameDescend.
-  "  la t0, account_state_pending_count; ld t1, 0(t0); la t0, account_state_pending_checkpoint; sd t1, 0(t0)\n" ++
   "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
@@ -435,7 +434,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  j .Lbvtgip_restore\n" ++
   ".Lbvtgip_auth_oog:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
   "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3)\n" ++
   "  li a0, 0; j .Lbvtgip_ret\n" ++
@@ -444,7 +442,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  li t1, 1; la t0, runtime_tx_auth_prepared; sd t1, 0(t0); j .Lbvtgip_ret\n" ++
   ".Lbvtgip_restore:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   ".Lbvtgip_ret:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 64; ret"
 
@@ -465,7 +462,6 @@ def blockVerdictTxStateGasInlineFinalizeFunction : String :=
   -- Auth-phase ExceptionalHalt restores the same message snapshot used by
   -- the pending AccountState overlay.  Body REVERT keeps the overlay because
   -- runtime_tx_post_preparation_reached is set only after preparation passes.
-  "  la t3, account_state_pending_checkpoint; ld t4, 0(t3); la t3, account_state_pending_count; sd t4, 0(t3)\n" ++
   -- Auth preparation also appends BAL-facing nonce records before the
   -- dispatcher checks the state-gas reservoir.  Truncate those append-only
   -- cursors on the same phase-zero halt; this is the BAL counterpart of the

@@ -38,8 +38,8 @@ def bodyStateCaptureCursorsAsm (sourceSetup sourceEnvReg destinationReg valueReg
 
     In offset order: `exec_nonstorage_effect_count`, `exec_nonstorage_effect_overflow`,
     `exec_code_effect_count`, `exec_code_effect_next`, `exec_code_effect_overflow`, the
-    three `evm_env` cursors, `account_writes_undo_count`, `account_state_pending_count`,
-    `account_state_delete_count`, `account_state_overflow`, `create_nonce_undo_count`,
+    three `evm_env` cursors, `account_writes_undo_count`, one reserved legacy
+    slot, `account_state_delete_count`, `account_state_overflow`, `create_nonce_undo_count`,
     `storage_writes_undo_count` (GH #10619, at offset 104). -/
 def bodyStateSlabFields : Nat := 14
 

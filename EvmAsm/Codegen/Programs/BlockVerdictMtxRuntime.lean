@@ -271,21 +271,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- MTx sender InvalidSender gate below is a separate reject predicate (fork.py:668-677).
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  -- Execution AccountState is block-lived in the sequential lane. The callable
-  -- dispatcher resets transaction-local pending overlays, including
-  -- `account_state_pending_count`; it does not preserve that AccountState
-  -- journal across dispatches. This reset is the live durability boundary in
-  -- GH #10876: sender effects needed after dispatch must be materialized in
-  -- durable state rather than left in the pending journal. Durable state and
-  -- retained comparator bytes survive until this loop finishes.
-  -- AccountState is the sole emitted execution code/existence model for every
-  -- block, including the one-transaction case.  The immutable witness is
-  -- consulted only after its pending and durable overlays miss; CodeState
-  -- names are compatibility aliases, not a separate table.
+  -- The callable dispatcher restores transaction-local account-write frames at
+  -- the appropriate boundaries.  The map is the live execution state for
+  -- every block, including the one-transaction case; the immutable witness is
+  -- used only for pre-state fallback.
   -- `runtime_mtx_active` is a reserved compatibility cell only.  The
   -- universal dispatcher no longer reads or writes it; retaining the slot
   -- keeps the established data layout stable for existing image pins.
-  "  la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
@@ -709,7 +702,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; bne t2, t3, .Lbv_mtx_refund_then_commit\n" ++
   ".Lbv_mtx_preparation_rollback:\n" ++
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   "  la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
   ".Lbv_mtx_refund_then_commit:\n" ++
