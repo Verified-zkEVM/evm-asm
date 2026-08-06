@@ -415,7 +415,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  li a2, 4; jal ra, account_state_latest_balance\n" ++
+  "  li a2, 4; jal ra, account_writes_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
