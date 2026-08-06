@@ -893,10 +893,11 @@ theorem adField0ContEpi
         listBase len nonceOut balanceOut saved0.s4 codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, oldNonce, offset, len', oldBal, oldRoot, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own codeOut adLengthAddr len' (8 : Word) v11 v12)))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨oldNonce, offset, len', oldBal, oldRoot, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own codeOut adLengthAddr len' (8 : Word) v11 v12))))))))  h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hg
   case cont =>
     -- len ≤ 8: the nonce-copy success tie.  Introduce x13/x14/x28/x29.
@@ -912,7 +913,7 @@ theorem adField0ContEpi
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
         (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
         (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
-        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode) **
+        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants) **
         regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29)
       (fun h hp => by unfold adContFrame at hp; rw [regsAt_listNthFrame] at hp; xperm_hyp hp)
       (fun _ hq => hq) ?_
@@ -1040,10 +1041,11 @@ theorem adBBField0
         listBase len nonceOut balanceOut rootOut codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, oldNonce, offset', len', oldBal, oldRoot, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own2 codeOut v11' v12')))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨oldNonce, offset', len', oldBal, oldRoot, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own2 codeOut v11' v12'))))))))  h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hgP
 
 #print axioms adBBField0
