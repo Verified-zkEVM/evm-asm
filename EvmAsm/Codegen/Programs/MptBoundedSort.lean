@@ -823,11 +823,12 @@ def mptBoundedEncodeExtensionFunction : String :=
     back to legacy `mpt_state_root_ins` — not a silent wrong-success path.
 
     Supported on the bounded path: unprefixed collapse, pure insert, pure
-    delete, small mixed (e.g. 21353/23274). Fail-closed: LCP-prefixed collapse
-    (`split_leaf_group` → collapse with `a6>0`; large mixed 12832-class).
-    Measured r200 fallback rate after #11633: ~0% (only named 12832-class
-    takes the legacy arm). Optional future work: implement LCP collapse so
-    that class stays on bounded (#11613 capability gap, not unsoundness).
+    delete, and small mixed insert+delete. Fail-closed: LCP-prefixed collapse
+    (`split_leaf_group` → collapse with `a6>0`), the large mixed
+    insert+delete class. Fallback is rare in practice; measured rate and date
+    live on #11613 (not here — numbers go stale). Optional future work:
+    implement LCP collapse so that class stays on bounded (#11613 capability
+    gap, not unsoundness).
 
     ABI: `a0 = old_root[32]`; `a1 = witness section`; `a2 = witness length`;
     `a3 = descriptors`; `a4 = descriptor count`; `a5 = out_root[32]`.

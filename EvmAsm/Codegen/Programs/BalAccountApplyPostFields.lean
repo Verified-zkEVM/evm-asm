@@ -620,8 +620,8 @@ def mapAccountApplyPostFieldsFunction : String :=
   "  j .Lbaap_multi_set_account\n" ++
   "# Fail-closed fallback: bounded returned a0≠0 (unsupported/malformed).\n" ++
   "# Legacy mpt_state_root_ins keeps the BAL/MPT row accepting when the shape\n" ++
-  "# is outside the bounded subset (measured: r200 fallback ~0%; 12832-class\n" ++
-  "# takes this arm after #11633 LCP gate). Not a second primary path.\n" ++
+  "# is outside the bounded subset (e.g. LCP-prefixed collapse after #11633).\n" ++
+  "# Not a second primary path. Fallback rate: see #11613 (dated measure).\n" ++
   ".Lbaap_multi_apply_legacy:\n" ++
 
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_legacy_empty\n" ++
