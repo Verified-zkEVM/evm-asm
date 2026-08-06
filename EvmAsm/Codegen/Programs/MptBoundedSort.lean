@@ -732,15 +732,18 @@ def mptBoundedBuildMissingSubtreeFunction : String :=
   ".Lmbms_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 96; ret\n"
 
-/-- Depth-first bounded dispatcher for the already-supported exact-replacement
-    subset. It is deliberately a real recursive frontier walk, not a NodeDb
-    shim: branch children are opened only from their frame raw refs/witness,
+/-- Depth-first bounded dispatcher on the **live** baap storage-root path
+    (bounded-first; not a disconnected probe). Real recursive frontier walk,
+    not a NodeDb shim: branch children open only from frame raw refs/witness,
     and every completed child is copied to its parent before the shared result
-    slot is reused. Existing extension prefixes are preserved through the same
-    continuation; a one-descriptor insertion into an existing branch's empty
-    child is materialized as its bounded suffix leaf. Extension/leaf splits
-    and deletion collapse remain explicit conservative exits until their
-    canonical cases land. -/
+    slot is reused. Existing extension prefixes are preserved; a one-descriptor
+    insertion into an empty branch child becomes its bounded suffix leaf.
+
+    Unsupported shapes return `a0=1` (fail-closed) so baap can fall back to
+    legacy `mpt_state_root_ins`. Named unsupported today: LCP-prefixed collapse
+    (`mpt_bounded_collapse_branch_leaf` with `a6>0`, from `split_leaf_group`) —
+    #11613 / #11633. Unprefixed collapse and pure insert/delete stay on this
+    path. Do not read “exact-replacement subset” as “unwired”. -/
 def mptBoundedRebuildSubtreeFunction : String :=
   "  .globl mpt_bounded_rebuild_subtree\n" ++
   "  .type mpt_bounded_rebuild_subtree, @function\n" ++
@@ -811,11 +814,21 @@ def mptBoundedEncodeExtensionFunction : String :=
   ".Lmbee_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 112; ret\n"
 
-/-- Bounded shared-root body for the supported exact-replacement subset.
-    The input descriptors have already been normalized to final, distinct
-    committed values.  LCP-prefixed collapse (split_leaf_group → collapse with
-    a6>0) is fail-closed (#11613); unprefixed collapse and pure insert/delete
-    remain on the bounded path. Legacy mpt_state_root_ins is the baap fallback.
+/-- Bounded shared-root body — **live** entry (`mpt_bounded_storage_root` /
+    `mpt_bounded_state_root`) wired from baap `.Lbaap_multi_apply_call`.
+
+    Contract (post-#11633): bounded-first on every multi-desc storage apply.
+    Descriptors are final distinct committed values. On success (`a0=0`) the
+    new root is authoritative. On unsupported/malformed (`a0≠0`) baap falls
+    back to legacy `mpt_state_root_ins` — not a silent wrong-success path.
+
+    Supported on the bounded path: unprefixed collapse, pure insert, pure
+    delete, and small mixed insert+delete. Fail-closed: LCP-prefixed collapse
+    (`split_leaf_group` → collapse with `a6>0`), the large mixed
+    insert+delete class. Fallback is rare in practice; measured rate and date
+    live on #11613 (not here — numbers go stale). Optional future work:
+    implement LCP collapse so that class stays on bounded (#11613 capability
+    gap, not unsoundness).
 
     ABI: `a0 = old_root[32]`; `a1 = witness section`; `a2 = witness length`;
     `a3 = descriptors`; `a4 = descriptor count`; `a5 = out_root[32]`.
