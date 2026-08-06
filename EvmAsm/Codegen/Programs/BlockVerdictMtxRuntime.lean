@@ -473,13 +473,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  j .Lbv_mtx_sender_eoa_ok\n" ++
   ".Lbv_mtx_sender_eoa_ok:\n" ++
   -- `process_transaction` increments the sender nonce before preparation.
-  -- Publish that monotone execution fact both to the durable execution overlay
-  -- and to the transaction-local BAL map. This is deliberately before the
-  -- body rollback checkpoint: a failed body keeps the transaction nonce, while
-  -- the checkpoint removes later body writes. Balance has later value, refund,
-  -- and coinbase-credit writes, so it needs its own complete state transition
-  -- rather than an inclusion-time snapshot here.
-  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_inclusion_fail\n" ++  -- was 40 → 71
+  -- Publish that monotone execution fact to the transaction-local account-write
+  -- map before the body rollback checkpoint: a failed body keeps the
+  -- transaction nonce, while the checkpoint removes later body writes.
   "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
