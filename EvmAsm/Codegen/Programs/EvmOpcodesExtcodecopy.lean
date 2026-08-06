@@ -52,7 +52,7 @@ open EvmAsm.Rv64.Program
       a1 (input)  : header_rlp_len
       a2 (input)  : address ptr (20 bytes)
       a3 (input)  : code_offset (u64)
-      a4 (input)  : length (u64; must be <= 32768)
+      a4 (input)  : length (u64; must be <= MAX_CODE_SIZE = 65536 / EIP-7907)
       a5 (input)  : output buffer ptr (`length` bytes)
       a6 (input)  : witness.state ptr
       a7 (input)  : witness.state len
@@ -67,7 +67,7 @@ open EvmAsm.Rv64.Program
         4 = header parse / state_root size fail
         5 = code_hash != EMPTY but not in witness.codes
             (witness integrity violation)
-        6 = length > 32768 (deployed-code cap; not a spec issue)
+        6 = length > 65536 (EIP-7907 deployed-code cap)
 
       (Code 1 "account not in trie" is intentionally absent:
       missing accounts map to `status=0, output=all zeros` per
@@ -94,7 +94,10 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .MV .x21 .x15,
     .MV .x22 .x16,
     .MV .x23 .x17,
-    .LUI .x5 (8 : BitVec 20),
+    -- Cap = EIP-7907 MAX_CODE_SIZE 65536 (LUI 16 << 12). Was 32768 (LUI 8) —
+    -- half the raised limit; EXTCODECOPY of full max-code accounts returned
+    -- status 6 with a pre-zeroed window (keccak of zeros → #11547).
+    .LUI .x5 (16 : BitVec 20),
     .BLTU .x5 .x20 (344 : BitVec 13),
     .MV .x5 .x21,
     .MV .x6 .x20,
@@ -236,7 +239,7 @@ theorem extcodecopyAtHeaderStateRootFunction_eq_prog :
       bytes 16..24 : witness_state_len (u64 LE)
       bytes 24..32 : witness_codes_len (u64 LE)
       bytes 32..40 : code_offset (u64 LE)
-      bytes 40..48 : length (u64 LE; must be <= 32768)
+      bytes 40..48 : length (u64 LE; must be <= 65536)
       bytes 48..68 : address (20 bytes)
       bytes 68..68+H              : header_rlp
       bytes 68+H..68+H+WS         : witness.state
