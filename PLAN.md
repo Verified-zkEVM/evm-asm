@@ -5046,7 +5046,14 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   canonicality comes from `_deserialize_to_uint` and binds every uint field,
   while width is delegated to the target type's `from_be_bytes` — so `U64`/`U256`
   and every `FixedBytes` alias are bounded but arbitrary-precision `Uint` is
-  **not**. Five of the nine numeric fields have no reference width bound at all.
+  **not**. ⚠️ Two counts, and they are not the same set — conflating a bound with
+  its absence is a close cousin of the original #11513 error: **five** fields have
+  no reference width bound at all (`difficulty`, `number`, `gas_limit`, `gas_used`,
+  `base_fee_per_gas`, all `Uint`), but **six** are ones the guest is stricter about
+  — those five **plus `timestamp`**, which is `U256` and therefore *bounded at 32
+  bytes*, still wider than the guest's 8. `timestamp` is the case that is bounded
+  yet wider than the guest allows, and it is the field the numeric
+  `chain_validate_*` rows read.
   The byte-field check is additionally **arity-dependent**: index 21 exists only
   in the 23-field arm, and `[]` passes every uint check but fails `length = 32`,
   so an unconditional sweep would reject every 21-field `bpo5` header.
