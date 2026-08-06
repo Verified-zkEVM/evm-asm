@@ -40,32 +40,23 @@ def mcopyDynamicGasAsm : String :=
   "  srli x6, x19, 5\n" ++
   "  slli x7, x6, 1\n" ++
   "  add x7, x7, x6\n" ++
-  -- mulhu: UNIFICATION with updateActiveMemorySizeAsm, not overflow-required
-  -- after the range guard. Post-guard ends ≤ arena (depth0 0x400000 → w≤2^17,
-  -- w²≤2^34; nested ≤ pool 0x6000000 → w≤2^22, w²≤2^44). Both fit in u64
-  -- with margin; mulhu cannot fire on reachable clamped ends. Kept so MCOPY
-  -- quadratic cost matches the shared helper pattern (w≥2^32 → OOG).
-  "  mulhu x17, x6, x6\n" ++
-  "  bnez x17, .exit_outofgas\n" ++
+  -- No mulhu here (#10523). Post-guard ends are arena-clamped (depth0 w≤2^17,
+  -- nested w≤2^22); w² fits u64. mulhu would be dead on reachable inputs and
+  -- forced an x19 lifetime change — dropped; unify with updateActiveMemorySizeAsm
+  -- only in a deliberate both-sites PR if wanted.
   "  mul x6, x6, x6\n" ++
   "  srli x6, x6, 9\n" ++
   "  add x6, x6, x7\n" ++
-  -- after cost = words*3 + words^2/512 for x5.
-  -- Spill after-rounded to x19 HERE (expansion path only): next mulhu writes
-  -- x5, so x5 cannot survive until the old post-cost spill site. Window from
-  -- this mv to old `mv x19,x5` (end of after-cost): srli/slli/add/mulhu/bnez/
-  -- mul/srli/add/sub/add — none reads x19; only mulhu writes x5 (intentional).
-  "  mv x19, x5\n" ++
+  -- after cost = words*3 + words^2/512 for x5 (x5 survives; only mul into x7)
   "  srli x7, x5, 5\n" ++
   "  slli x17, x7, 1\n" ++
   "  add x17, x17, x7\n" ++
-  "  mulhu x5, x7, x7\n" ++
-  "  bnez x5, .exit_outofgas\n" ++
   "  mul x7, x7, x7\n" ++
   "  srli x7, x7, 9\n" ++
   "  add x7, x7, x17\n" ++
   "  sub x7, x7, x6\n" ++
   "  add x18, x18, x7\n" ++
+  "  mv x19, x5\n" ++
   ".Lmcopy_src_gas_done:\n" ++
   -- destination extension uses the source-updated current size (x19).
   "  add x5, x14, x16\n" ++
@@ -76,16 +67,12 @@ def mcopyDynamicGasAsm : String :=
   "  srli x6, x19, 5\n" ++
   "  slli x7, x6, 1\n" ++
   "  add x7, x7, x6\n" ++
-  "  mulhu x17, x6, x6\n" ++
-  "  bnez x17, .exit_outofgas\n" ++
   "  mul x6, x6, x6\n" ++
   "  srli x6, x6, 9\n" ++
   "  add x6, x6, x7\n" ++
   "  srli x7, x5, 5\n" ++
   "  slli x17, x7, 1\n" ++
   "  add x17, x17, x7\n" ++
-  "  mulhu x5, x7, x7\n" ++
-  "  bnez x5, .exit_outofgas\n" ++
   "  mul x7, x7, x7\n" ++
   "  srli x7, x7, 9\n" ++
   "  add x7, x7, x17\n" ++
