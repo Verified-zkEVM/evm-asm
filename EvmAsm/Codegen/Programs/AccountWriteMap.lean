@@ -255,7 +255,7 @@ def accountWriteRecordFunction : String :=
     returns a0 = 1 on hit and 0 on miss. -/
 def accountWritesLatestBalanceFunction : String :=
   "account_writes_latest_balance:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
   ".Lawlb_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawlb_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
@@ -293,7 +293,7 @@ def accountWritesLatestBalanceFunction : String :=
     Returns a0 = 1 on a block-map balance hit, 0 otherwise. -/
 def accountWritesLatestBalanceBlockFunction : String :=
   "account_writes_latest_balance_block:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
   ".Lawlbb_loop:\n" ++
   "  bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
@@ -318,7 +318,7 @@ def accountWritesLatestBalanceBlockFunction : String :=
     Amsterdam `state_tracker.py:137-142` and `block_access_lists.py:637-650`. -/
 def accountWritesLatestNonceBlockFunction : String :=
   "account_writes_latest_nonce_block:\n" ++
-  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
   ".Lawlnb_loop:\n" ++
   "  bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
@@ -343,7 +343,7 @@ def accountWritesLatestNonceBlockFunction : String :=
     Returns a0 = 1 on a transaction-map nonce hit, 0 otherwise. -/
 def accountWritesLatestNonceTxFunction : String :=
   "account_writes_latest_nonce_tx:\n" ++
-  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
   ".Lawlnt_loop:\n" ++
   "  bgeu t3, t1, .Lawlnt_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
@@ -375,7 +375,7 @@ def accountWritesLatestNonceTxFunction : String :=
     return 0 = miss, 1 = present/live, 2 = present/dead. -/
 def accountWritesAuthCurrentFunction : String :=
   "account_writes_auth_current:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
   "  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
   ".Lawa_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawa_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
@@ -406,7 +406,7 @@ def accountWritesAuthCurrentFunction : String :=
 
 def accountWritesAuthBlockFunction : String :=
   "account_writes_auth_block:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
   ".Lawab_loop:\n" ++
   "  bgeu t3, t1, .Lawab_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
