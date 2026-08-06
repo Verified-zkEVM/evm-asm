@@ -552,7 +552,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_selfbal_addr_done:\n" ++
   "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
   "  la t0, runtime_tx_account_read_suppress; li t1, 1; sd t1, 0(t0)\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 1; jal ra, account_state_latest_balance\n" ++
   "  la t0, runtime_tx_account_read_suppress; sd zero, 0(t0)\n" ++
   "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
   "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++

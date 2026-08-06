@@ -282,6 +282,144 @@ def accountWritesLatestBalanceFunction : String :=
   ".Lawlb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
 
+/-! ## Execution-time map/overlay agreement diagnostics
+
+    These checks are deliberately runtime-only diagnostics.  The write maps
+    remain attribution containers; AccountState remains the live execution
+    overlay until the producer-first migration slices publish at the mutation
+    point.  The convention here is the one the later proof-side predicates can
+    mirror without translation: 128-byte rows, canonical BE20 keys, and the
+    component-valid mask at +112 (`1` balance, `2` nonce, `4` code, `8` state,
+    `16` execution flags, `32` touched).  A zero field is never interpreted as
+    present: both the map mask and the AccountState field mask are checked.
+
+    `account_agreement_probe` takes `a0 = BE20 address`, `a1 = field mask`
+    (`1` balance or `2` nonce), and `a2 = stable reader id`.  It checks both
+    transaction and block maps against the field-specific live AccountState
+    row.  A missing map row, a row without this field, and a live row without
+    this field have separate counters.  A populated field with a differing
+    value creates an event record; status `2` is a semantic mismatch and
+    status `3` is retained cross-tier instrumentation data.  The reader-tier
+    contract is explicit: readers 3, 18, and 19 are TX-tier; reader 17 is
+    BLOCK-tier.  This keeps both scans useful without counting an event from a
+    container the reader is not entitled to consult.  Events carry status,
+    field, reader, map tier, and differing limb index in one word, followed by
+    the address and the differing map/live value limbs.
+-/
+
+def accountAgreementEventCapacity : Nat := 4096
+
+def accountAgreementRecordFunction : String :=
+  "account_agreement_record:\n" ++
+  "  addi sp, sp, -96; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  sd a0, 48(sp); sd a1, 56(sp); sd a2, 64(sp); sd a3, 72(sp); sd a4, 80(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  "  ld t0, 112(s0); and t0, t0, s2; beqz t0, .Laar_row_no_field\n" ++
+  "  beqz s1, .Laar_live_absent\n" ++
+  "  li t0, 1; beq s2, t0, .Laar_balance\n" ++
+  "  ld t0, 88(s1); andi t0, t0, 64; beqz t0, .Laar_live_absent\n" ++
+  "  ld t0, 64(s0); ld t1, 64(s1); bne t0, t1, .Laar_nonce_mismatch\n" ++
+  "  j .Laar_agree\n" ++
+  ".Laar_balance:\n" ++
+  "  ld t0, 88(s1); andi t0, t0, 32; beqz t0, .Laar_live_absent\n" ++
+  "  ld t0, 32(s0); ld t1, 32(s1); bne t0, t1, .Laar_balance_mismatch0\n" ++
+  "  ld t0, 40(s0); ld t1, 40(s1); bne t0, t1, .Laar_balance_mismatch1\n" ++
+  "  ld t0, 48(s0); ld t1, 48(s1); bne t0, t1, .Laar_balance_mismatch2\n" ++
+  "  ld t0, 56(s0); ld t1, 56(s1); bne t0, t1, .Laar_balance_mismatch3\n" ++
+  ".Laar_agree:\n" ++
+  "  la t0, account_agreement_present_agree; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_done\n" ++
+  ".Laar_live_absent:\n" ++
+  "  la t0, account_agreement_live_field_absent; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_done\n" ++
+  ".Laar_row_no_field:\n" ++
+  "  la t0, account_agreement_row_no_field; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_done\n" ++
+  ".Laar_nonce_mismatch:\n  li t6, 0; j .Laar_mismatch\n" ++
+  ".Laar_balance_mismatch0:\n  li t6, 0; j .Laar_mismatch\n" ++
+  ".Laar_balance_mismatch1:\n  li t6, 1; j .Laar_mismatch\n" ++
+  ".Laar_balance_mismatch2:\n  li t6, 2; j .Laar_mismatch\n" ++
+  ".Laar_balance_mismatch3:\n  li t6, 3; j .Laar_mismatch\n" ++
+  ".Laar_mismatch:\n" ++
+  -- Reader-tier contract: the normal AccountState readers are current-TX
+  -- reads (3, 18, 19); only the explicit block-first reader (17) is
+  -- entitled to consult the block-cumulative map.  Keep a mismatching
+  -- cross-tier value as an event, but classify it separately from a semantic
+  -- disagreement so later sweeps do not need to rediscover this distinction.
+  "  li t0, 17; beq s3, t0, .Laar_expected_block\n" ++
+  "  li t0, 3; beq s3, t0, .Laar_expected_tx\n" ++
+  "  li t0, 18; beq s3, t0, .Laar_expected_tx\n" ++
+  "  li t0, 19; beq s3, t0, .Laar_expected_tx\n" ++
+  -- An unregistered reader is deliberately treated as cross-tier until its
+  -- contract is added here; it must not silently inflate semantic mismatches.
+  "  li t0, 0; j .Laar_expected_ready\n" ++
+  ".Laar_expected_tx:\n  li t0, 1; j .Laar_expected_ready\n" ++
+  ".Laar_expected_block:\n  li t0, 2\n" ++
+  ".Laar_expected_ready:\n" ++
+  "  beq t0, s4, .Laar_semantic_mismatch\n" ++
+  "  li t0, 3; sd t0, 80(sp); la t0, account_agreement_instrument_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_record_event\n" ++
+  ".Laar_semantic_mismatch:\n" ++
+  "  li t0, 2; sd t0, 80(sp); la t0, account_agreement_mismatch_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laar_record_event:\n" ++
+  "  la t0, agreement_event_count; ld t1, 0(t0); li t2, " ++ toString accountAgreementEventCapacity ++ "; bgeu t1, t2, .Laar_event_overflow\n" ++
+  "  slli t2, t1, 6; la t3, agreement_events; add t3, t3, t2\n" ++
+  "  ld t4, 0(s0); sd t4, 0(t3); ld t4, 8(s0); sd t4, 8(t3); ld t4, 16(s0); sd t4, 16(t3); ld t4, 24(s0); sd t4, 24(t3)\n" ++
+  "  ld t4, 80(sp); slli t5, s2, 8; or t4, t4, t5; slli t5, s3, 16; or t4, t4, t5; slli t5, s4, 32; or t4, t4, t5; slli t5, t6, 40; or t4, t4, t5; sd t4, 32(t3)\n" ++
+  "  slli t5, t6, 3; li t4, 1; beq s2, t4, .Laar_store_balance\n" ++
+  "  add t4, s0, t5; ld t4, 64(t4); sd t4, 40(t3); add t4, s1, t5; ld t4, 64(t4); sd t4, 48(t3); j .Laar_store_done\n" ++
+  ".Laar_store_balance:\n" ++
+  "  add t4, s0, t5; ld t4, 32(t4); sd t4, 40(t3); add t4, s1, t5; ld t4, 32(t4); sd t4, 48(t3)\n" ++
+  ".Laar_store_done:\n" ++
+  "  sd zero, 56(t3); addi t1, t1, 1; la t0, agreement_event_count; sd t1, 0(t0); j .Laar_done\n" ++
+  ".Laar_event_overflow:\n" ++
+  "  la t0, agreement_event_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Laar_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 96; ret\n"
+
+def accountAgreementScanFunction : String :=
+  "account_agreement_scan:\n" ++
+  "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; li t3, 0; li a0, 0\n" ++
+  "  ld t1, 0(s1); li t2, 0\n" ++
+  ".Laas_loop:\n" ++
+  "  bgeu t2, t1, .Laas_done; slli t4, t2, 7; add t5, s0, t4; li t6, 0\n" ++
+  ".Laas_cmp:\n" ++
+  "  li t0, 20; beq t6, t0, .Laas_found; add t0, t5, t6; lbu t0, 0(t0); add t4, s6, t6; lbu t4, 0(t4); bne t0, t4, .Laas_next; addi t6, t6, 1; j .Laas_cmp\n" ++
+  ".Laas_found:\n" ++
+  "  sd t2, 64(sp); mv a0, t5; mv a1, s4; mv a2, s2; mv a3, s3; mv a4, s5; jal ra, account_agreement_record; ld t2, 64(sp)\n" ++
+  ".Laas_next:\n" ++
+  "  addi t2, t2, 1; ld t1, 0(s1); j .Laas_loop\n" ++
+  ".Laas_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 80; ret\n"
+
+def accountAgreementProbeFunction : String :=
+  "account_agreement_probe:\n" ++
+  "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
+  "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
+  "  la t0, account_agreement_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); li t2, 1; beq s1, t2, .Laap_count_balance\n" ++
+  "  la t0, account_agreement_nonce_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_count_done\n" ++
+  ".Laap_count_balance:\n" ++
+  "  la t0, account_agreement_balance_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laap_count_done:\n" ++
+  -- Select the latest pending/durable row that actually carries the requested
+  -- field.  A row with only another component is not a zero-valued field.
+  "  mv a0, s0; la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find; beqz a0, .Laap_durable; ld t0, 88(a0); li t1, 1; beq s1, t1, .Laap_pending_balance; andi t0, t0, 64; bnez t0, .Laap_live_pending; j .Laap_durable\n" ++
+  ".Laap_pending_balance:\n" ++
+  "  andi t0, t0, 32; bnez t0, .Laap_live_pending; j .Laap_durable\n" ++
+  ".Laap_durable:\n" ++
+  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find; beqz a0, .Laap_no_live; ld t0, 88(a0); li t1, 1; beq s1, t1, .Laap_durable_balance; andi t0, t0, 64; bnez t0, .Laap_live_durable; j .Laap_no_live\n" ++
+  ".Laap_durable_balance:\n" ++
+  "  andi t0, t0, 32; bnez t0, .Laap_live_durable; j .Laap_no_live\n" ++
+  ".Laap_live_pending:\n" ++
+  "  mv s3, a0; j .Laap_scan_tx\n" ++
+  ".Laap_live_durable:\n" ++
+  "  mv s3, a0; j .Laap_scan_tx\n" ++
+  ".Laap_no_live:\n" ++
+  "  li s3, 0\n" ++
+  ".Laap_scan_tx:\n" ++
+  "  li a0, 0xa2b20000; la a1, tx_account_writes_count; mv a2, s1; mv a3, s2; mv a4, s3; li a5, 1; mv a6, s0; jal ra, account_agreement_scan; mv s5, a0\n" ++
+  "  li a0, 0xa28a0000; la a1, account_writes_count; mv a2, s1; mv a3, s2; mv a4, s3; li a5, 2; mv a6, s0; jal ra, account_agreement_scan; or s5, s5, a0\n" ++
+  "  bnez s5, .Laap_done; la t0, account_agreement_no_row; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laap_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 80; ret\n"
+
 /-! ## `account_writes_block_upsert`
 
     Upsert one record into the BLOCK level. Called only by
@@ -989,6 +1127,13 @@ def accountWriteMapDataSection : String :=
   "tx_account_writes_overflow:\n  .zero 8\n" ++
   "account_writes_undo_count:\n  .zero 8\n"
 
+def accountAgreementDataSection : String :=
+  -- The production guest carries the runtime-only agreement harness inert.
+  -- `scripts/spike/account_agreement_sweep.py` arms this word explicitly for
+  -- measurement runs. Keep it initialized in .data; a nonzero initializer is
+  -- not legal in .bss.
+  ".section .data\naccount_agreement_enabled:\n  .dword 0\n"
+
 /-- Runtime-zeroed NOBITS storage used by the account-write map. -/
 def accountWriteMapBssSection : String :=
   ".section .bss, \"aw\", @nobits\n" ++
@@ -1018,7 +1163,26 @@ def accountWriteMapBssSection : String :=
   ".balign 8\n" ++
   -- #11329 e2e gate scratch: fixed BE20 + balance word for touch/store/twin/undo.
   "account_write_e2e_addr:\n  .zero 32\n" ++
-  "account_write_e2e_bal:\n  .zero 32\n"
+  "account_write_e2e_bal:\n  .zero 32\n" ++
+  -- Runtime-only agreement harness.  The counters distinguish publication
+  -- absence from field absence, agreement, and an actual populated mismatch.
+  -- Each event is {address[32], status[8], map_value_limb[8],
+  -- live_value_limb[8], reserved[8]}; status bits are 0..7 verdict,
+  -- 8..15 field mask, 16..31 reader id, 32..39 map tier, and 40..42
+  -- differing limb index.
+  ".balign 32\n" ++
+  "account_agreement_probe_count:\n  .zero 8\n" ++
+  "account_agreement_balance_probe_count:\n  .zero 8\n" ++
+  "account_agreement_nonce_probe_count:\n  .zero 8\n" ++
+  "account_agreement_no_row:\n  .zero 8\n" ++
+  "account_agreement_row_no_field:\n  .zero 8\n" ++
+  "account_agreement_live_field_absent:\n  .zero 8\n" ++
+  "account_agreement_present_agree:\n  .zero 8\n" ++
+  "account_agreement_mismatch_count:\n  .zero 8\n" ++
+  "account_agreement_instrument_count:\n  .zero 8\n" ++
+  "agreement_event_count:\n  .zero 8\n" ++
+  "agreement_event_overflow:\n  .zero 8\n" ++
+  "agreement_events:\n  .zero " ++ toString (accountAgreementEventCapacity * 64) ++ "\n"
 
 /-! ## `account_write_touch_e2e`
 
@@ -1075,6 +1239,9 @@ def accountWriteTouchE2eFunction : String :=
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesLatestBalanceFunction ++
+  accountAgreementRecordFunction ++
+  accountAgreementScanFunction ++
+  accountAgreementProbeFunction ++
   accountWritesBlockUpsertFunction ++
   accountWritesApplyDeletesFunction ++
   accountWritesIsAbsentFunction ++
@@ -1122,6 +1289,9 @@ def accountWriteMapFunctions : String :=
 -- only thing that would catch it.
 #guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_latest_balance:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_agreement_probe:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_agreement_scan:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_agreement_record:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_block_upsert:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
@@ -1188,6 +1358,7 @@ def accountWriteTouchE2eProbeUnit : BuildUnit := {
   dataAsm     :=
     ".section .data\n" ++
     accountWriteMapDataSection ++
+    accountAgreementDataSection ++
     accountWriteMapBssSection
 }
 

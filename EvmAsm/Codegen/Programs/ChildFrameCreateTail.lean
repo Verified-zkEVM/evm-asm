@@ -181,7 +181,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- (it reads create_nonce for the seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 21; jal ra, account_state_latest_nonce\n" ++
     "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
@@ -433,7 +433,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, create_address_be; la a1, create_nonce_latest\n" ++
-    "  jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 22; jal ra, account_state_latest_nonce\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
