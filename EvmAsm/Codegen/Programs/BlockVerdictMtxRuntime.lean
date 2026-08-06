@@ -177,7 +177,7 @@ private def blockVerdictMtxOogMaterialize : String :=
   ".Lbv_mtx_oog_normal:\n" ++
   "  la t0, bv_pending_upfront_balance_flag; ld t1, 0(t0); beqz t1, .Lbv_mtx_oog_done\n" ++
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
-  "  jal ra, account_state_commit_pending\n" ++
+  "  jal ra, account_writes_commit_pending\n" ++
   "  bnez a0, .Lbv_mtx_oog_done\n" ++
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
@@ -655,15 +655,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- a zero receipt status retains only intrinsic/auth state gas after a body
   -- rollback, while a successful status includes the captured execution part.
   "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
-  -- Commit the just-successful transaction's current AccountState overlay before
+  -- Commit the just-successful transaction's current account-write map before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
   -- Match `process_message`'s two snapshots: a successful body commits all
-  -- pending AccountState; a failed body still commits the authorization phase
+  -- account-write effects; a failed body still commits the authorization phase
   -- iff the dispatcher reached the post-preparation coverage point.  A
   -- preparation OOG never reaches that point and therefore drops pending auth.
   -- r59nm: the storage_writes map commits on TX STATUS ALONE, decided here and
-  -- NOT inside account_state_commit_pending.  The AccountState gate below also
+  -- NOT inside account_writes_commit_pending.  The account-write gate below also
   -- commits normally; only an authorization-phase halt restores the
   -- preparation snapshot.  The post-preparation marker is deliberately not
   -- used as a generic rollback trigger: unrelated early exits can occur before
@@ -717,7 +717,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit_done\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; beq t2, t3, .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
-  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  "  jal ra, account_writes_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   -- Spec stage: clear destroyed accounts before incorporate (fork.py:1201-1202).
@@ -729,7 +729,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
-  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  "  jal ra, account_writes_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:
