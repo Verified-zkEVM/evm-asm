@@ -1,0 +1,129 @@
+# Registry-coverage allowlist (GH #11637) — checked by scripts/check-registry-coverage.py.
+#
+# One entry per line: <symbol><TAB><reason>. An entry asserts that a LINKED,
+# spec-bearing guest routine deliberately has NO row in either proof registry
+# (Progress/Routines.lean or Progress/Correspondence.lean) — and says why.
+#
+# THE EXEMPTION EXPIRES. If the symbol gains a row, loses its routine-level spec,
+# or leaves the guest image, the run fails with STALE and names the line to delete.
+# That is the point: an exemption that outlives its reason is how a backlog goes
+# silent again, which is the defect #11637 recorded (~103 linked, proven routines
+# invisible to every census, so the proven-count understated reality).
+#
+# Seeded with the backlog as of 2026-08-06. Burn it down; do not grow it.
+#
+# TIER A — a flat `cpsTripleWithin` at `GuestAddrs.<symbol>`. Registrable as
+#   `.proven` in Routines.lean TODAY with no new proof work. These are the ones to
+#   clear first; each deletion here is a row gained.
+# TIER B — a structured SAsm `.Spec` only. `Fn.retSpecFlat` must derive the flat
+#   whole-routine triple before a `.proven` row would be honest.
+#   ⚠️ DO NOT grade these `.proven` to shorten this file. Registering a
+#   structured-only spec as a flat triple is exactly the invisible overclaim this
+#   gate exists to prevent — it would turn a visible backlog into a false census.
+
+# --- TIER A: flat triple at the guest address; registrable now (20) ---
+account_extract_balance	tier A — flat triple `account_extract_balance_spec_within` at GuestAddrs.account_extract_balance (EvmAsm/Codegen/Programs/AccountAccessorTopSpec.lean); registrable as .proven, not yet rowed (#11637)
+account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
+account_is_eip161_empty	tier A — flat triple `account_is_eip161_empty_spec_within` at GuestAddrs.account_is_eip161_empty (EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose6.lean); registrable as .proven, not yet rowed (#11637)
+blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
+blsg_le_to_be	tier A — flat triple `blsgLeToBeFn_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G1LeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
+bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
+bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to_be (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
+bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
+chain_validate_consecutive_numbers	tier A — flat triple `chain_validate_consecutive_numbers_spec_within` at GuestAddrs.chain_validate_consecutive_numbers (EvmAsm/Codegen/Programs/ChainValidateConsecutiveNumbersLoopClose.lean); registrable as .proven, not yet rowed (#11637)
+chain_validate_increasing_timestamps	tier A — flat triple `chain_validate_increasing_timestamps_spec_within` at GuestAddrs.chain_validate_increasing_timestamps (EvmAsm/Codegen/Programs/ChainValidateIncreasingTimestampsLoopClose.lean); registrable as .proven, not yet rowed (#11637)
+eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
+header_validate_extra_data_length	tier A — flat triple `header_validate_extra_data_length_spec_within` at GuestAddrs.header_validate_extra_data_length (EvmAsm/Codegen/Programs/HeaderValidateExtraDataLengthSpec.lean); registrable as .proven, not yet rowed (#11637)
+mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
+receipt_extract_logs_bloom	tier A — flat triple `receiptExtractLogsBloom_spec_within` at GuestAddrs.receipt_extract_logs_bloom (EvmAsm/Codegen/Programs/ReceiptExtractLogsBloomSpec.lean); registrable as .proven, not yet rowed (#11637)
+secf_be_to_le	tier A — flat triple `secfBeToLeFn_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldConvSAsm.lean); registrable as .proven, not yet rowed (#11637)
+secf_is_zero32	tier A — flat triple `secfIsZero32Fn_spec` at GuestAddrs.secf_is_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldIsZeroSAsm.lean); registrable as .proven, not yet rowed (#11637)
+secf_le_to_be	tier A — flat triple `secfLeToBeFn_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldLeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
+secf_zero32	tier A — flat triple `secfZero32Fn_spec` at GuestAddrs.secf_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); registrable as .proven, not yet rowed (#11637)
+tx_type_dispatch	tier A — flat triple `txTypeDispatch_spec_within` at GuestAddrs.tx_type_dispatch (EvmAsm/Codegen/Programs/TxTypeDispatchTop.lean); registrable as .proven, not yet rowed (#11637)
+u256_sub_be	tier A — flat triple `u256SubBeFlat_spec` at GuestAddrs.u256_sub_be (EvmAsm/Codegen/Programs/Secp256k1FieldReduceOnceSAsmSupport.lean); registrable as .proven, not yet rowed (#11637)
+
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (83) ---
+account_decode	tier B by the name-based heuristic ONLY — `account_decode_spec_within` IS a flat triple, but EvmAsm/Codegen/Programs/AccountDecodeClose6.lean names the base through a local abbrev so the GuestAddrs.<sym> test misses it; row pending #11345 (#11637)
+bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blk2_ld_le64	tier B — structured SAsm spec `blk2LdLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fLoadLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blk2_st_le64	tier B — structured SAsm spec `blk2StLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fStoreLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bloom_eq	tier B — structured SAsm spec `bloomEq_spec` (EvmAsm/Codegen/Programs/BloomEqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blq_copy	tier B — structured SAsm spec `blqCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blq_eq	tier B — structured SAsm spec `blqEq_spec` (EvmAsm/Codegen/Programs/Bls12Fq12EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blq_is_zero	tier B — structured SAsm spec `blqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blq_pt_copy	tier B — structured SAsm spec `blqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsf_copy_quads	tier B — structured SAsm spec `blsfCopyQuadsFn_spec` (EvmAsm/Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg2_eq_n	tier B — structured SAsm spec `blsg2EqNFn_spec` (EvmAsm/Codegen/Programs/Bls12G2EqNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg2_zero192	tier B — structured SAsm spec `blsg2Zero192Fn_spec` (EvmAsm/Codegen/Programs/Bls12G2Zero192SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_be_to_le	tier B — structured SAsm spec `blsgBeToLeFn_spec` (EvmAsm/Codegen/Programs/Bls12G1BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_copy96	tier B — structured SAsm spec `blsgCopy96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Copy96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_eq48	tier B — structured SAsm spec `blsgEq48Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Eq48SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_is_zero_n	tier B — structured SAsm spec `blsgIsZeroNFn_spec` (EvmAsm/Codegen/Programs/Bls12G1IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_lt_p	tier B — structured SAsm spec `blsgLtP_spec` (EvmAsm/Codegen/Programs/Bls12G1LtPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsg_zero96	tier B — structured SAsm spec `blsgZero96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Zero96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsk_g2_wire	tier B — structured SAsm spec `blskG2Wire_spec` (EvmAsm/Codegen/Programs/Bls12KzgG2WireSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+blsk_lt_be	tier B — structured SAsm spec `blskLtBe_spec` (EvmAsm/Codegen/Programs/Bls12KzgLtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bn254_call_allotment	tier B — structured SAsm spec `bn254CallAllotment_spec` (EvmAsm/Codegen/Programs/Bn254CallAllotmentSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnc_copy64	tier B — structured SAsm spec `bncCopy64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnc_zero64	tier B — structured SAsm spec `bncZero64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnf_add_mod_p	tier B — structured SAsm spec `bnfAddModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnf_eq32	tier B — structured SAsm spec `bnfEq32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnf_lt_p	tier B — structured SAsm spec `bnfLtP_spec` (EvmAsm/Codegen/Programs/Bn254FieldLtPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnf_mul_mod_p	tier B — structured SAsm spec `bnfMulModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnp_fp2_eq	tier B — structured SAsm spec `bnpFp2Eq_spec` (EvmAsm/Codegen/Programs/Bn254Fp2EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnp_fp2_is_zero	tier B — structured SAsm spec `bnpFp2IsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnp_fp2_zero	tier B — structured SAsm spec `bnpFp2ZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2ZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnq_copy	tier B — structured SAsm spec `bnqCopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fq12CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnq_eq	tier B — structured SAsm spec `bnqEq_spec` (EvmAsm/Codegen/Programs/Bn254Fq12EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnq_is_zero	tier B — structured SAsm spec `bnqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+bnq_pt_copy	tier B — structured SAsm spec `bnqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bn254PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+call_frame_set_calldata	tier B — structured SAsm spec `callFrameSetCalldataFn_spec` (EvmAsm/Codegen/Programs/CallFrameSetCalldataSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+chain_validate_blob_gas_used_multiple	tier B — structured SAsm spec `chain_validate_blob_gas_used_multiple_spec_within` (EvmAsm/Codegen/Programs/ChainValidateBlobGasMultipleLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+chain_validate_blob_gas_used_under_max	tier B — structured SAsm spec `chain_validate_blob_gas_used_under_max_spec_within` (EvmAsm/Codegen/Programs/ChainValidateBlobGasUnderMaxLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+chain_validate_extra_data_length	tier B — structured SAsm spec `chain_validate_extra_data_length_spec_within` (EvmAsm/Codegen/Programs/ChainValidateExtraDataLengthLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+chain_validate_gas_used_under_limit	tier B — structured SAsm spec `chain_validate_gas_used_under_limit_spec_within` (EvmAsm/Codegen/Programs/ChainValidateGasUsedUnderLimitLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+dispatcher_capture_exec_state_gas	tier B — structured SAsm spec `dispatcherCaptureExecStateGas_spec` (EvmAsm/Codegen/Programs/DispatcherCaptureExecStateGasSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+enrg_u32le	tier B — structured SAsm spec `enrgU32leFn_spec` (EvmAsm/Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+frame_base	tier B — structured SAsm spec `frameBase_spec` (EvmAsm/Codegen/Programs/CallFrameBaseSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+frame_depth_pop	tier B — structured SAsm spec `frameDepthPop_spec` (EvmAsm/Codegen/Programs/FrameDepthPopSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+frame_depth_push	tier B — structured SAsm spec `frameDepthPush_spec` (EvmAsm/Codegen/Programs/FrameDepthPushSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+frame_load_regs	tier B — structured SAsm spec `frameLoadRegs_spec` (EvmAsm/Codegen/Programs/FrameLoadRegsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+frame_save_regs	tier B — structured SAsm spec `frameSaveRegs_spec` (EvmAsm/Codegen/Programs/FrameSaveRegsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+hp_decode_nibbles	tier B — structured SAsm spec `hp_decode_nibbles_spec` (EvmAsm/Codegen/Programs/HpDecodeNibblesSAsmPaths.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+hp_encode_nibbles	tier B — structured SAsm spec `hpEncodeNibblesFn_spec` (EvmAsm/Codegen/Programs/HpEncodeNibblesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+mpt_resolve_cache_reset	tier B — structured SAsm spec `mptResolveCacheReset_spec` (EvmAsm/Codegen/Programs/MptResolveCacheResetSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_be_to_le	tier B — structured SAsm spec `p256BeToLeFn_spec` (EvmAsm/Codegen/Programs/P256BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_copy_n	tier B — structured SAsm spec `p256CopyNFn_spec` (EvmAsm/Codegen/Programs/P256CopyNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_eq32	tier B — structured SAsm spec `p256Eq32Fn_spec` (EvmAsm/Codegen/Programs/P256Eq32SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_le_to_be	tier B — structured SAsm spec `p256LeToBeFn_spec` (EvmAsm/Codegen/Programs/P256LeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+p256_lt_be	tier B — structured SAsm spec `p256LtBe_spec` (EvmAsm/Codegen/Programs/P256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secf_copy32	tier B — structured SAsm spec `secfCopy32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secf_eq32	tier B — structured SAsm spec `secfEq32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldEq32SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secf_get_bit_lsb	tier B — structured SAsm spec `secfGetBitLsbFn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldGetBitLsbSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secf_mul_mod_p	tier B — structured SAsm spec `secfMulModP_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secp256k1_point_copy64	tier B — structured SAsm spec `secp256k1PointCopy64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointCopy64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+secp256k1_point_zero64	tier B — structured SAsm spec `secp256k1PointZero64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointZero64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+spw_u32le	tier B — structured SAsm spec `spwU32leFn_spec` (EvmAsm/Codegen/Programs/SszPayloadWithdrawalsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+ssz_pack_bytes	tier B — structured SAsm spec `sszPackBytesFn_spec` (EvmAsm/Codegen/Programs/SszPackBytesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+swd_minimal_copy	tier B — structured SAsm spec `swdMinimalCopyFn_spec` (EvmAsm/Codegen/Programs/SwdMinimalCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+swd_read_u64le	tier B — structured SAsm spec `swdReadU64leFn_spec` (EvmAsm/Codegen/Programs/SwdReadU64leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+swd_write_be32_u64	tier B — structured SAsm spec `swdWriteBe32U64Fn_spec` (EvmAsm/Codegen/Programs/SwdWriteBe32U64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+swd_write_be8	tier B — structured SAsm spec `swdWriteBe8Fn_spec` (EvmAsm/Codegen/Programs/SwdWriteBe8SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+swr_rev_le_be	tier B — structured SAsm spec `swrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/SwrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+sws_u32le	tier B — structured SAsm spec `swsU32leFn_spec` (EvmAsm/Codegen/Programs/SszWitnessStateSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_add_be	tier B — structured SAsm spec `u256AddBe_spec` (EvmAsm/Codegen/Programs/U256AddBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_div_u64_be	tier B — structured SAsm spec `u256DivU64Be_spec` (EvmAsm/Codegen/Programs/U256DivU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_eq	tier B — structured SAsm spec `u256Eq_spec` (EvmAsm/Codegen/Programs/U256EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_from_u64_be	tier B — structured SAsm spec `u256FromU64BeFn_spec` (EvmAsm/Codegen/Programs/U256FromU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_is_zero	tier B — structured SAsm spec `u256IsZeroFn_spec` (EvmAsm/Codegen/Programs/U256IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_lt_be	tier B — structured SAsm spec `u256LtBe_spec` (EvmAsm/Codegen/Programs/U256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+u256_min	tier B — structured SAsm spec `u256Min_spec` (EvmAsm/Codegen/Programs/U256MinSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
