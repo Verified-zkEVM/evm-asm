@@ -39,7 +39,11 @@ def _find_tool(*names: str) -> str:
 
 def readelf_sections(elf: Path) -> dict[str, int]:
     """Section sizes via the same wide-format parse as check-region-map.sh."""
-    readelf = _find_tool("readelf", "riscv64-unknown-elf-readelf")
+    # Probe all three spellings, matching gen-symbol-addresses.py:82. Homebrew's
+    # riscv64-elf-binutils installs `riscv64-elf-readelf`; omitting it made this
+    # generator unusable on macOS while its sibling worked (#11043's class).
+    readelf = _find_tool("readelf", "riscv64-unknown-elf-readelf",
+                         "riscv64-elf-readelf")
     out = subprocess.check_output([readelf, "-SW", str(elf)], text=True)
     sizes: dict[str, int] = {}
     for line in out.splitlines():

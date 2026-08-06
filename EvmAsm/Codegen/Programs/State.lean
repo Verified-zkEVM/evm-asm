@@ -143,7 +143,7 @@ def accountDecode_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 324)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (164 : BitVec 13),
+    .BNE .x6 .x7 (204 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 344)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 344)),
     .LD .x28 .x5 (0 : BitVec 12),
@@ -169,7 +169,7 @@ def accountDecode_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 428)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (60 : BitVec 13),
+    .BNE .x6 .x7 (152 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 448)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 448)),
     .LD .x28 .x5 (0 : BitVec 12),
@@ -193,7 +193,33 @@ def accountDecode_prog : Program :=
     .LD .x20 .x2 (40 : BitVec 12),
     .LD .x21 .x2 (48 : BitVec 12),
     .ADDI .x2 .x2 (64 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+    .JALR .x0 .x1 (0 : BitVec 12),
+    -- GH #11483: fold zero-length hash fields to the EMPTY constants, mirroring
+    -- execution-specs amsterdam witness_state.py:114-119 (b"" -> EMPTY_TRIE_ROOT /
+    -- EMPTY_CODE_HASH). Field 2 (storage_root) dispatch: len==0 folds to
+    -- EMPTY_TRIE_ROOT; len not in {0,32} fails exactly as before.
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .JAL .x0 (-44 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
+    -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
+    .ADDI .x5 .x5 (laLo GuestAddrs.iw_empty_trie_root (GuestAddrs.account_decode + 552)),
+    .LD .x7 .x5 (0 : BitVec 12), .SD .x20 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12), .SD .x20 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12), .SD .x20 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12), .SD .x20 .x7 (24 : BitVec 12),
+    .JAL .x0 (-200 : BitVec 21),
+    -- Field 3 (code_hash) dispatch: len==0 folds to EMPTY_CODE_HASH; other lengths
+    -- fail exactly as before.
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .JAL .x0 (-96 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
+    -- `laLo`'s `pc` is the paired AUIPC's address, NOT the ADDI's (AsmReloc.lean:66-68).
+    .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 604)),
+    .LD .x7 .x5 (0 : BitVec 12), .SD .x21 .x7 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12), .SD .x21 .x7 (8 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12), .SD .x21 .x7 (16 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12), .SD .x21 .x7 (24 : BitVec 12),
+    .JAL .x0 (-148 : BitVec 21) ]
 
 /-- Reloc side-table for `accountDecode_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
@@ -218,7 +244,9 @@ def accountDecode_relocs : RelocTable :=
     (103, .la .x14 "ad_length"),
     (105, .jal .x1 "rlp_list_nth_item"),
     (107, .la .x5 "ad_length"),
-    (112, .la .x5 "ad_offset") ]
+    (112, .la .x5 "ad_offset"),
+    (138, .la .x5 "iw_empty_trie_root"),
+    (151, .la .x5 "aie_empty_code_hash") ]
 
 def accountDecodeFunction : String :=
   "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs
@@ -232,7 +260,7 @@ theorem accountDecodeFunction_eq_prog :
     accountDecodeFunction = "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs := rfl
 
 #guard accountDecodeFunction.startsWith "account_decode:\n"
-#guard accountDecode_prog.length = 136
+#guard accountDecode_prog.length = 162
 /-- `zisk_account_decode`: probe BuildUnit. Reads
     (account_len, account_bytes) from host input, writes
     (status, nonce, balance, storage_root, code_hash) to OUTPUT.
