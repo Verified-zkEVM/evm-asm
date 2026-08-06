@@ -357,10 +357,10 @@ theorem evm_tstore_spec_within
 /-! ## Stack-level witness -/
 
 /-- Top-level `TSTORE` witness (`.proven`). Given the transient log of length
-    `n` (`transientLogLenIs`/`storageLogIs`), an uninitialised 128-byte slot at
+    `n` (`transientLogLenIs`/`transientLogIs`), an uninitialised 128-byte slot at
     `TRANSIENT_STORAGE_LOG_BASE + 128*n`, the executing frame address, and the
     two stack words `slotKey :: current :: rest`, TSTORE extends the log to
-    `entries ++ [⟨addrHash, slotKey, 0, current⟩]` (via `storageLogIs_snoc`),
+    `entries ++ [⟨addrHash, slotKey, 0, current⟩]` (via `transientLogIs_snoc`),
     bumps the length to `n+1`, and pops the two consumed words. -/
 theorem evm_tstore_stack_spec_within
     (n : Nat) (codeBase envAddr sp : Word)
@@ -372,21 +372,21 @@ theorem evm_tstore_stack_spec_within
       (((.x20) ↦ᵣ envAddr) ** ((.x12) ↦ᵣ sp) ** ((.x14) ↦ᵣ x14old) **
        ((.x15) ↦ᵣ x15old) ** ((.x16) ↦ᵣ x16old) **
        transientLogLenIs envAddr n **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries **
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries **
        storageSlotIs (TRANSIENT_STORAGE_LOG_BASE + BitVec.ofNat 64 (n * 128)) freshEntry **
        evmWordIs envAddr addrHash **
        evmStackIs sp (slotKey :: current :: rest))
       (((.x20) ↦ᵣ envAddr) ** ((.x12) ↦ᵣ (sp + 64)) ** ((.x14) ↦ᵣ tstoreTgt n) **
        ((.x15) ↦ᵣ (BitVec.ofNat 64 n + 1)) ** ((.x16) ↦ᵣ current.getLimbN 3) **
        transientLogLenIs envAddr (n + 1) **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE
          (entries ++ [(⟨addrHash, slotKey, 0, current⟩ : StorageLogEntry)]) **
        evmWordIs envAddr addrHash **
        evmWordIs sp slotKey ** evmWordIs (sp + 32) current ** evmStackIs (sp + 64) rest) := by
   have raw := evm_tstore_spec_within n codeBase envAddr sp x14old x15old x16old
     (addrHash.getLimbN 0) (addrHash.getLimbN 1) (addrHash.getLimbN 2) (addrHash.getLimbN 3) (slotKey.getLimbN 0) (slotKey.getLimbN 1) (slotKey.getLimbN 2) (slotKey.getLimbN 3) (current.getLimbN 0) (current.getLimbN 1) (current.getLimbN 2) (current.getLimbN 3) (freshEntry.addrHash.getLimbN 0) (freshEntry.addrHash.getLimbN 1) (freshEntry.addrHash.getLimbN 2) (freshEntry.addrHash.getLimbN 3) (freshEntry.slotKey.getLimbN 0) (freshEntry.slotKey.getLimbN 1) (freshEntry.slotKey.getLimbN 2) (freshEntry.slotKey.getLimbN 3) (freshEntry.original.getLimbN 0) (freshEntry.original.getLimbN 1) (freshEntry.original.getLimbN 2) (freshEntry.original.getLimbN 3) (freshEntry.current.getLimbN 0) (freshEntry.current.getLimbN 1) (freshEntry.current.getLimbN 2) (freshEntry.current.getLimbN 3)
   have framed := cpsTripleWithin_frameR
-    (storageLogIs TRANSIENT_STORAGE_LOG_BASE entries ** evmStackIs (sp + 64) rest)
+    (transientLogIs TRANSIENT_STORAGE_LOG_BASE entries ** evmStackIs (sp + 64) rest)
     (by pcFree) raw
   have hoff : (BitVec.ofNat 64 (EvmEnv.transientLogLengthOff)) = (464 : Word) := by decide
   have hsucc : BitVec.ofNat 64 (n + 1) = BitVec.ofNat 64 n + 1 := by
@@ -402,7 +402,7 @@ theorem evm_tstore_stack_spec_within
       tstoreTgt_eq, s40, s48, s56, s64] at hp ⊢
     xperm_hyp hp
   · intro h hq
-    rw [storageLogIs_snoc, hlen]
+    rw [transientLogIs_snoc, hlen]
     simp only [transientLogLenIs, hoff, hsucc, evmWordIs,
       storageSlotIs_eq_flat, EvmWord.getLimbN_zero, ← tstoreTgt_eq, s40, s48, s56] at hq ⊢
     xperm_hyp hq
