@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Run the runtime AccountWriteMap/AccountState agreement harness.
+"""Run the runtime mutation-observation and candidate/base output sweep.
 
-The guest writes counters plus 64-byte agreement records into the diagnostic
-arena.  Status 2 records semantic mismatches; status 3 records retained
-cross-tier instrumentation data.  The dump is deliberately one contiguous
-range: the spike dump driver has unstable readback when adjacent ranges are
-requested separately.
+The guest records mutation-boundary observations.  Candidate output is optionally
+compared with a base guest; the standing controls are always included.
 """
 
 from __future__ import annotations
@@ -23,43 +20,8 @@ from pathlib import Path
 
 
 MAGIC = b"SPKDMP01"
-EVENT_SIZE = 64
-EVENT_CAPACITY = 4096
 MUTATION_EVENT_SIZE = 96
 MUTATION_EVENT_CAPACITY = 1024
-READER_SLOTS = 32
-READER_SLOT_SIZE = 16
-KNOWN_READER_TIERS = {
-    **{reader: 1 for reader in range(1, 20)},
-    17: 2,
-    20: 1,
-    21: 1,
-    22: 1,
-}
-KNOWN_READER_SITES = {
-    1: "BlockVerdictDispatchTx:554",
-    2: "EvmOpcodes:409",
-    3: "EIP7708Logs:364",
-    4: "CallFrameDescend:418",
-    5: "ChildFrameHandlers:493",
-    6: "ChildFrameHandlerTailHelpers:305",
-    7: "Selfdestruct:48",
-    8: "Selfdestruct:135",
-    9: "Selfdestruct:513",
-    10: "Selfdestruct:548",
-    11: "Selfdestruct:698",
-    12: "Selfdestruct:777",
-    13: "Selfdestruct:834",
-    14: "Selfdestruct:862",
-    15: "Selfdestruct:882",
-    16: "Selfdestruct:888",
-    17: "BlockVerdictMtxRuntime:44",
-    18: "BlockVerdictMtxRuntime:97",
-    19: "BlockVerdictMtxRuntime:105",
-    20: "TxIntrinsicStateGas:153",
-    21: "ChildFrameCreateTail:184",
-    22: "ChildFrameCreateTail:438",
-}
 MUTATION_ID_NAMES = {
     1: "root_recipient_credit",
     2: "call_child_credit",
@@ -98,27 +60,6 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
     found: dict[str, int] = {}
     wanted = {
         "account_agreement_enabled",
-        "account_agreement_probe_count",
-        "account_agreement_reader_invocations",
-        "account_agreement_balance_diff_buckets",
-        "account_agreement_unregistered_reader_count",
-        "account_agreement_unregistered_reader_id",
-        "account_agreement_unregistered_reader_pc",
-        "account_agreement_balance_probe_count",
-        "account_agreement_nonce_probe_count",
-        "account_agreement_no_row",
-        "account_agreement_row_no_field",
-        "account_agreement_live_field_absent",
-        "account_agreement_present_agree",
-        "account_agreement_nonce_diff_agree",
-        "account_agreement_nonce_diff_disagree",
-        "account_agreement_nonce_map_missing_overlay_answered",
-        "account_agreement_nonce_overlay_missing_map_answered",
-        "account_agreement_mismatch_count",
-        "account_agreement_instrument_count",
-        "agreement_event_count",
-        "agreement_event_overflow",
-        "agreement_events",
         "account_agreement_mutation_event_count",
         "account_agreement_mutation_event_overflow",
         "account_agreement_mutation_events",
@@ -207,85 +148,12 @@ def select_cases(
     return selected
 
 
-def decode(
-    payload: bytes, start: int, syms: dict[str, int]
-) -> tuple[dict[str, object], list[dict[str, int | str]]]:
+def decode(payload: bytes, start: int, syms: dict[str, int]) -> dict[str, object]:
     names = [
-        "account_agreement_probe_count",
-        "account_agreement_unregistered_reader_count",
-        "account_agreement_unregistered_reader_id",
-        "account_agreement_unregistered_reader_pc",
-        "account_agreement_balance_probe_count",
-        "account_agreement_nonce_probe_count",
-        "account_agreement_no_row",
-        "account_agreement_row_no_field",
-        "account_agreement_live_field_absent",
-        "account_agreement_present_agree",
-        "account_agreement_nonce_diff_agree",
-        "account_agreement_nonce_diff_disagree",
-        "account_agreement_nonce_map_missing_overlay_answered",
-        "account_agreement_nonce_overlay_missing_map_answered",
-        "account_agreement_mismatch_count",
-        "account_agreement_instrument_count",
-        "agreement_event_count",
-        "agreement_event_overflow",
         "account_agreement_mutation_event_count",
         "account_agreement_mutation_event_overflow",
     ]
     counters = {name: read_u64(payload, start, syms[name]) for name in names}
-    reader_base = syms["account_agreement_reader_invocations"]
-    reader_invocations = {
-        str(reader): {
-            "balance": read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE),
-            "nonce": read_u64(
-                payload, start, reader_base + reader * READER_SLOT_SIZE + 8
-            ),
-            "tier": KNOWN_READER_TIERS.get(reader),
-            "site": KNOWN_READER_SITES.get(reader),
-        }
-        for reader in range(READER_SLOTS)
-        if reader != 0
-        and (
-            read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE)
-            or read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE + 8)
-        )
-    }
-    counters["reader_invocations"] = reader_invocations
-    balance_diff_base = syms["account_agreement_balance_diff_buckets"]
-    counters["balance_differential_buckets"] = {
-        str(reader): {
-            "agree": read_u64(payload, start, balance_diff_base + reader * 32),
-            "disagree": read_u64(payload, start, balance_diff_base + reader * 32 + 8),
-            "map_missing_overlay_answered": read_u64(
-                payload, start, balance_diff_base + reader * 32 + 16
-            ),
-            "overlay_missing_map_answered": read_u64(
-                payload, start, balance_diff_base + reader * 32 + 24
-            ),
-        }
-        for reader in range(1, READER_SLOTS)
-        if str(reader) in reader_invocations
-    }
-    events: list[dict[str, int | str]] = []
-    count = min(counters["agreement_event_count"], EVENT_CAPACITY)
-    event_base = syms["agreement_events"]
-    for index in range(count):
-        offset = event_base - start + index * EVENT_SIZE
-        address = payload[offset : offset + 32].hex()
-        status = read_u64(payload, start, event_base + index * EVENT_SIZE + 32)
-        events.append(
-            {
-                "index": index,
-                "address": address,
-                "verdict": status & 0xFF,
-                "field": (status >> 8) & 0xFF,
-                "reader": (status >> 16) & 0xFFFF,
-                "tier": (status >> 32) & 0xFF,
-                "limb": (status >> 40) & 0x7,
-                "map_limb": read_u64(payload, start, event_base + index * EVENT_SIZE + 40),
-                "live_limb": read_u64(payload, start, event_base + index * EVENT_SIZE + 48),
-            }
-        )
     mutation_events: list[dict[str, int | str]] = []
     mutation_count = min(
         counters["account_agreement_mutation_event_count"],
@@ -310,7 +178,7 @@ def decode(
             }
         )
     counters["mutation_events"] = mutation_events
-    return counters, events
+    return counters
 
 
 def main() -> int:
@@ -330,11 +198,10 @@ def main() -> int:
     )
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--report", type=Path)
-    parser.add_argument("--allow-mismatch", action="store_true")
     parser.add_argument(
         "--enable",
         action="store_true",
-        help="arm the agreement harness through SPIKE_INIT_WRITES",
+        help="arm mutation observation through SPIKE_INIT_WRITES",
     )
     args = parser.parse_args()
 
@@ -350,11 +217,11 @@ def main() -> int:
     rows = read_manifest(args.manifest)
     cases = select_cases(rows, args.label, args.random_count, args.seed)
     syms = symbols(args.elf, args.nm)
-    start = syms["account_agreement_probe_count"]
+    start = syms["account_agreement_mutation_event_count"]
     end = syms["account_agreement_mutation_events"] + MUTATION_EVENT_CAPACITY * MUTATION_EVENT_SIZE
     length = end - start
     if length <= 0:
-        fail("agreement symbols are out of order")
+        fail("mutation symbols are out of order")
     elf_sha = sha256(args.elf)
     base_elf_sha = sha256(args.base_elf) if args.base_elf else None
     root = args.work_dir or Path(tempfile.mkdtemp(prefix="account-agreement-"))
@@ -369,10 +236,10 @@ def main() -> int:
         env["SPIKE_DUMP_RANGES"] = f"{start:#x}:{length:#x}"
         env["SPIKE_DUMP_FILE"] = str(dump_path)
         if args.enable:
-            # The production guest carries the harness but leaves it inert.
-            # The sweep is the explicit debug consumer, so arm the runtime
-            # flag only for this process.  The address comes from the
-            # candidate ELF rather than from a hand-pinned layout constant.
+            # The production guest carries mutation observation hooks but
+            # leaves them inert. Arm the runtime flag only for this process;
+            # the address comes from the candidate ELF rather than a
+            # hand-pinned layout constant.
             env["SPIKE_INIT_WRITES"] = f"{syms['account_agreement_enabled']:#x}:1"
         process = subprocess.run(
             [str(args.runner), str(args.elf), str(input_path), str(output_path)],
@@ -402,13 +269,12 @@ def main() -> int:
                 )
             output_equal = output_path.read_bytes() == base_output_path.read_bytes()
         payload = dump_payload(dump_path, start, length)
-        counters, events = decode(payload, start, syms)
+        counters = decode(payload, start, syms)
         records.append(
             {
                 "label": case["label"],
                 "input": str(input_path),
                 "counters": counters,
-                "events": events,
                 "output_sha256": sha256(output_path),
                 "base_output_equal": output_equal,
             }
@@ -416,69 +282,6 @@ def main() -> int:
         if (index + 1) % 10 == 0 or index + 1 == len(cases):
             print(f"checked {index + 1}/{len(cases)}: {case['label']}", flush=True)
 
-    mismatches = [
-        {"label": record["label"], "event": event}
-        for record in records
-        for event in record["events"]
-        if event["verdict"] == 2
-    ]
-    instrument_events = [
-        {"label": record["label"], "event": event}
-        for record in records
-        for event in record["events"]
-        if event["verdict"] == 3
-    ]
-    reader_invocations: dict[str, dict[str, int | None]] = {}
-    for record in records:
-        for reader, counts in record["counters"]["reader_invocations"].items():
-            current = reader_invocations.setdefault(
-                reader, {"balance": 0, "nonce": 0, "tier": counts["tier"]}
-            )
-            current["balance"] += int(counts["balance"])
-            current["nonce"] += int(counts["nonce"])
-    balance_differential_buckets: dict[str, dict[str, int | None]] = {}
-    for record in records:
-        for reader, buckets in record["counters"]["balance_differential_buckets"].items():
-            current = balance_differential_buckets.setdefault(
-                reader,
-                {
-                    "agree": 0,
-                    "disagree": 0,
-                    "map_missing_overlay_answered": 0,
-                    "overlay_missing_map_answered": 0,
-                    "balance_invocations": 0,
-                    "site": KNOWN_READER_SITES.get(int(reader)),
-                    "tier": KNOWN_READER_TIERS.get(int(reader)),
-                },
-            )
-            for bucket in (
-                "agree",
-                "disagree",
-                "map_missing_overlay_answered",
-                "overlay_missing_map_answered",
-            ):
-                current[bucket] += int(buckets[bucket])
-            current["balance_invocations"] = int(
-                reader_invocations.get(reader, {}).get("balance", 0)
-            )
-    unregistered_reader_count = sum(
-        int(record["counters"]["account_agreement_unregistered_reader_count"])
-        for record in records
-    )
-    unregistered_reader_ids = sorted(
-        {
-            int(record["counters"]["account_agreement_unregistered_reader_id"])
-            for record in records
-            if int(record["counters"]["account_agreement_unregistered_reader_count"])
-        }
-    )
-    unregistered_reader_pcs = sorted(
-        {
-            f"0x{int(record['counters']['account_agreement_unregistered_reader_pc']):x}"
-            for record in records
-            if int(record["counters"]["account_agreement_unregistered_reader_count"])
-        }
-    )
     mutation_observations = sum(
         int(record["counters"]["account_agreement_mutation_event_count"])
         for record in records
@@ -502,6 +305,12 @@ def main() -> int:
         }
         for mutation_id in sorted(MUTATION_ID_NAMES)
     }
+    flip_set = [
+        str(record["label"])
+        for record in records
+        if record["base_output_equal"] is False
+    ]
+
     summary = {
         "elf": str(args.elf),
         "elf_sha256": elf_sha,
@@ -514,92 +323,26 @@ def main() -> int:
         "named_controls": list(dict.fromkeys(args.label)),
         "dump_range": f"{start:#x}:{length:#x}",
         "cases": len(records),
-        "mismatch_events": len(mismatches),
-        "instrument_events": len(instrument_events),
-        "balance_probe_invocations": sum(
-            int(record["counters"]["account_agreement_balance_probe_count"])
-            for record in records
-        ),
-        "nonce_probe_invocations": sum(
-            int(record["counters"]["account_agreement_nonce_probe_count"])
-            for record in records
-        ),
-        "nonce_differential_buckets": {
-            "agree": sum(
-                int(record["counters"]["account_agreement_nonce_diff_agree"])
-                for record in records
-            ),
-            "disagree": sum(
-                int(record["counters"]["account_agreement_nonce_diff_disagree"])
-                for record in records
-            ),
-            "map_missing_overlay_answered": sum(
-                int(
-                    record["counters"][
-                        "account_agreement_nonce_map_missing_overlay_answered"
-                    ]
-                )
-                for record in records
-            ),
-            "overlay_missing_map_answered": sum(
-                int(
-                    record["counters"][
-                        "account_agreement_nonce_overlay_missing_map_answered"
-                    ]
-                )
-                for record in records
-            ),
-        },
-        "balance_differential_buckets_by_reader": balance_differential_buckets,
-        "reader_invocations": reader_invocations,
-        "unregistered_reader_count": unregistered_reader_count,
-        "unregistered_reader_ids": unregistered_reader_ids,
-        "unregistered_reader_pcs": unregistered_reader_pcs,
-        "reader_registry": {
-            str(reader): {
-                "site": KNOWN_READER_SITES[reader],
-                "tier": KNOWN_READER_TIERS[reader],
-            }
-            for reader in sorted(KNOWN_READER_TIERS)
-        },
+        "flip_set": flip_set,
         "mutation_observations": mutation_observations,
         "mutation_ids": mutation_ids,
         "mutation_id_counts": mutation_id_counts,
         "output_differences": sum(
             1 for record in records if record["base_output_equal"] is False
         ),
-        "mismatch_readers": sorted(
-            {int(item["event"]["reader"]) for item in mismatches}
-        ),
-        "instrument_readers": sorted(
-            {int(item["event"]["reader"]) for item in instrument_events}
-        ),
         "records": records,
     }
     report = args.report or root / "report.json"
     report.write_text(json.dumps(summary, indent=2) + "\n")
     print(
-        f"agreement sweep: cases={len(records)} mismatches={len(mismatches)} "
-        f"instrument_events={len(instrument_events)} "
-        f"unregistered_readers={unregistered_reader_count} "
+        f"agreement sweep: cases={len(records)} "
         f"mutation_observations={mutation_observations} "
-        f"balance_differential_buckets_by_reader={summary['balance_differential_buckets_by_reader']} "
-        f"nonce_differential_buckets={summary['nonce_differential_buckets']} "
+        f"flip_set={summary['flip_set']} "
         f"output_differences={summary['output_differences']} "
         f"elf_sha256={elf_sha} report={report}"
     )
     if summary["output_differences"]:
         print("candidate/base output mismatch detected", file=sys.stderr)
-        return 1
-    if unregistered_reader_count:
-        print(
-            "unregistered reader observations: "
-            f"ids={unregistered_reader_ids} pcs={unregistered_reader_pcs}",
-            file=sys.stderr,
-        )
-        return 1
-    if mismatches and not args.allow_mismatch:
-        print(json.dumps(mismatches[:20], indent=2), file=sys.stderr)
         return 1
     return 0
 

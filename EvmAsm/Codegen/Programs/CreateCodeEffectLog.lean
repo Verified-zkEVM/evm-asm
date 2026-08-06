@@ -530,7 +530,7 @@ def accountStateLatestBalanceFunction : String :=
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- BLOCK-first entry used before the current transaction has published any
   -- writes.  It still records the execution read, deliberately skips the
@@ -539,7 +539,7 @@ def accountStateLatestBalanceFunction : String :=
   "account_state_latest_balance_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- a2 = 1 scans the block attribution map first and then falls back to the
   -- execution-state path.  Any other mode is AccountState-only; write maps are
@@ -583,12 +583,12 @@ def accountStateLatestNonceFunction : String :=
   -- an unrelated balance update).
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_core:\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; li t0, 1; beq s2, t0, .Laslnc_block_scan; j .Laslnc_account_state\n" ++
