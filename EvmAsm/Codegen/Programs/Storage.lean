@@ -530,23 +530,21 @@ def storageHandlers : List OpcodeHandlerSpec :=
         "  jal ra, storage_read_record\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp)\n" ++
         "  addi sp, sp, 24\n" ++
-        -- execution-specs gives fresh-created accounts a transaction-local
-        -- zero *original* view. `get_storage` still observes a prior write in
-        -- this transaction, so a matching tx-map row must remain visible for the
-        -- current half of a later SSTORE. `create_frame_flag` alone is too broad:
-        -- it describes a depth, while helper/refund activity at that depth can
-        -- address another account. Require the current env.ADDRESS (LE) to be
-        -- exactly this depth's CREATE address (BE) before taking the zero arm.
+        -- execution-specs gives every address in transaction-local
+        -- `created_accounts` a zero original storage view, even when a later
+        -- CALL reaches that account after its CREATE frame returned. Query the
+        -- shared AccountState set directly; a frame-local CREATE flag misses
+        -- that later-call case and is not the semantic predicate.
         "  la x14, sstore_created_original_zero; sd zero, 0(x14)\n" ++
-        "  la x14, evm_call_depth; ld x14, 0(x14)\n" ++
-        "  slli x15, x14, 3; la x16, create_frame_flag; add x16, x16, x15; ld x16, 0(x16)\n" ++
-        "  beqz x16, .Lsstore_created_original_scan\n" ++
-        "  slli x15, x14, 5; la x16, create_address_by_depth; add x16, x16, x15\n" ++
-        "  addi x17, x20, 19; li x15, 20\n" ++
-        ".Lsstore_created_addr_cmp:\n" ++
-        "  beqz x15, .Lsstore_created_original_zero\n" ++
-        "  lbu x14, 0(x17); lbu x18, 0(x16); bne x14, x18, .Lsstore_created_original_scan\n" ++
-        "  addi x17, x17, -1; addi x16, x16, 1; addi x15, x15, -1; j .Lsstore_created_addr_cmp\n" ++
+        "  la x14, sstore_prestate_pair; mv x15, x20\n" ++
+        runtimeAccessWordToBe20Asm "sstore_created" "x15" "x14" "x16" "x17" ++
+        "  addi sp, sp, -48\n" ++
+        "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp); sd x12, 24(sp); sd x13, 32(sp)\n" ++
+        "  la a0, sstore_prestate_pair; jal ra, account_state_created_contains\n" ++
+        "  la x14, sstore_created_original_zero; sd a0, 0(x14)\n" ++
+        "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp); ld x13, 32(sp); addi sp, sp, 48\n" ++
+        "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_created_original_scan\n" ++
+        "  j .Lsstore_created_original_zero\n" ++
         ".Lsstore_created_original_zero:\n" ++
         -- Preserve original=0, but keep scanning so a later write sees the
         -- current value established by an earlier same-transaction write.
