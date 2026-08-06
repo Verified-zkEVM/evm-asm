@@ -40,9 +40,9 @@ block_verdict_withdrawal_nonstorage_effects:
   # `process_withdrawals` reuses one TransactionState for the whole descriptor
   # list.  On a repeated recipient, the next create_ether reads the preceding
   # withdrawal's post-balance, not the parent-state balance resolved above.
-  # The effect log is that live transaction state; leave bv_wdne_acct+8 as the
-  # pre-state fallback when no earlier record for this address exists.
-  la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; jal ra, nonstorage_effect_latest_balance
+  # The tx-then-block account-write maps are the live transaction state; leave
+  # bv_wdne_acct+8 as the pre-state fallback on a genuine map miss.
+  la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; jal ra, account_writes_latest_balance
   la t0, bsw_amount; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)
   addi a0, s3, 36; li a1, 8; la a2, bsw_amount; addi a2, a2, 24; jal ra, swr_rev_le_be
   la a0, bsw_amount; li a1, 1000000000; la a2, bsw_wei; jal ra, u256_mul_u64_be; bnez a0, .Lbv_wdne_fail
