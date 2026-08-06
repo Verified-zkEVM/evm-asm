@@ -116,6 +116,18 @@ def storageLogIs (base : Word) (entries : List StorageLogEntry) : Assertion :=
   | [] => empAssertion
   | e :: es => storageSlotIs base e ** storageLogIs (base + 128) es
 
+/-- `transientLogIs` is the EIP-1153 transient-storage log assertion.
+
+    This is intentionally a separate predicate from `storageLogIs`: the
+    persistent append-only log is legacy proof vocabulary, while transient
+    storage remains live.  Keeping the transient assertion independent lets
+    the legacy predicate and its lemmas be retired without weakening TLOAD /
+    TSTORE specifications. -/
+def transientLogIs (base : Word) (entries : List StorageLogEntry) : Assertion :=
+  match entries with
+  | [] => empAssertion
+  | e :: es => storageSlotIs base e ** transientLogIs (base + 128) es
+
 /-- The persistent-log length cell: the u64 at `env + 448`
     (`EvmEnv.persistentLogLengthOff`, `Environment/Layout.lean:99`) holding the
     live entry count. SSTORE increments it; REVERT restores it from the
@@ -144,6 +156,14 @@ theorem storageLogIs_cons {base : Word} {e : StorageLogEntry}
     storageLogIs base (e :: es) =
       (storageSlotIs base e ** storageLogIs (base + 128) es) := rfl
 
+theorem transientLogIs_nil {base : Word} :
+    transientLogIs base [] = empAssertion := rfl
+
+theorem transientLogIs_cons {base : Word} {e : StorageLogEntry}
+    {es : List StorageLogEntry} :
+    transientLogIs base (e :: es) =
+      (storageSlotIs base e ** transientLogIs (base + 128) es) := rfl
+
 theorem pcFree_storageSlotIs {addr : Word} {e : StorageLogEntry} :
     (storageSlotIs addr e).pcFree :=
   pcFree_sepConj pcFree_evmWordIs
@@ -152,6 +172,12 @@ theorem pcFree_storageSlotIs {addr : Word} {e : StorageLogEntry} :
 
 theorem pcFree_storageLogIs {base : Word} {entries : List StorageLogEntry} :
     (storageLogIs base entries).pcFree := by
+  induction entries generalizing base with
+  | nil => exact pcFree_emp
+  | cons _ _ ih => exact pcFree_sepConj pcFree_storageSlotIs ih
+
+theorem pcFree_transientLogIs {base : Word} {entries : List StorageLogEntry} :
+    (transientLogIs base entries).pcFree := by
   induction entries generalizing base with
   | nil => exact pcFree_emp
   | cons _ _ ih => exact pcFree_sepConj pcFree_storageSlotIs ih
@@ -168,6 +194,9 @@ instance (addr : Word) (e : StorageLogEntry) :
 instance (base : Word) (entries : List StorageLogEntry) :
     Assertion.PCFree (storageLogIs base entries) := ⟨pcFree_storageLogIs⟩
 
+instance (base : Word) (entries : List StorageLogEntry) :
+    Assertion.PCFree (transientLogIs base entries) := ⟨pcFree_transientLogIs⟩
+
 instance (env : Word) (n : Nat) : Assertion.PCFree (storageLogLenIs env n) :=
   ⟨pcFree_storageLogLenIs⟩
 
@@ -177,6 +206,10 @@ instance (env : Word) (n : Nat) : Assertion.PCFree (transientLogLenIs env n) :=
 theorem storageLogIs_congr {base : Word} {xs ys : List StorageLogEntry}
     (h : xs = ys) : storageLogIs base xs = storageLogIs base ys :=
   congrArg (storageLogIs base) h
+
+theorem transientLogIs_congr {base : Word} {xs ys : List StorageLogEntry}
+    (h : xs = ys) : transientLogIs base xs = transientLogIs base ys :=
+  congrArg (transientLogIs base) h
 
 /-! ## Append / snoc / split — the lemmas SLOAD/SSTORE need -/
 
@@ -213,6 +246,38 @@ theorem storageLogIs_snoc {base : Word} {xs : List StorageLogEntry}
   rw [storageLogIs_append]
   congr 1
   rw [storageLogIs_cons, storageLogIs_nil, sepConj_emp_right']
+
+/-- Concatenation for the independent transient-log assertion. -/
+theorem transientLogIs_append (base : Word) (xs ys : List StorageLogEntry) :
+    transientLogIs base (xs ++ ys) =
+      (transientLogIs base xs **
+       transientLogIs (base + BitVec.ofNat 64 (xs.length * 128)) ys) := by
+  induction xs generalizing base with
+  | nil =>
+    simp only [List.nil_append, List.length_nil, Nat.zero_mul,
+      transientLogIs_nil, sepConj_emp_left']
+    rw [show (BitVec.ofNat 64 0 : Word) = 0 from rfl]
+    rw [show base + (0 : Word) = base from by bv_omega]
+  | cons x xs ih =>
+    have hshift : base + (128 : Word) + BitVec.ofNat 64 (xs.length * 128) =
+        base + BitVec.ofNat 64 ((xs.length + 1) * 128) := by
+      apply BitVec.eq_of_toNat_eq
+      simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    simp only [List.cons_append, transientLogIs_cons, List.length_cons]
+    rw [ih (base + 128), hshift, sepConj_assoc']
+
+/-- **The transient append shape**: extending the EIP-1153 log by one entry
+    places it at `base + length * 128`.  This deliberately mirrors the
+    persistent lemma without depending on the legacy `storageLogIs` name. -/
+theorem transientLogIs_snoc {base : Word} {xs : List StorageLogEntry}
+    {e : StorageLogEntry} :
+    transientLogIs base (xs ++ [e]) =
+      (transientLogIs base xs **
+       storageSlotIs (base + BitVec.ofNat 64 (xs.length * 128)) e) := by
+  rw [transientLogIs_append]
+  congr 1
+  rw [transientLogIs_cons, transientLogIs_nil, sepConj_emp_right']
 
 /-- **The SLOAD lookup shape**: isolate entry `i` (0-indexed) of the log,
     framing the entries before and after it. The scan-from-end handler
