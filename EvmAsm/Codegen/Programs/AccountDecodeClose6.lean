@@ -116,13 +116,13 @@ theorem adField1Copy
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o1) ** ((.x15 : Reg) ↦ᵣ codeOut) **
        savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
        bytesRegion balanceOut oldBal **
-       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adCallPre (AB + 196) spW listBase len nonceOut balanceOut rootOut codeOut o1 l1
         (0 : Word) v11 v12 v13 v14 bytes **
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut))) := by
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) := by
   intro savedCaller
   have hoffnorm : listBase + o1 = listBase + BitVec.ofNat 64 (o1.toNat + 0) := by
     rw [Nat.add_zero]; congr 1
@@ -140,7 +140,7 @@ theorem adField1Copy
      bytesRegion listBase bytes ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     (adLengthAddr ↦ₘ l1))
+     (adLengthAddr ↦ₘ l1) ** adFoldConstants)
     (by pcfa) (adBalanceSetup balanceOut listBase l1 o1 adLengthAddr x28v x29v
       (packBytes (oldBal.take 8)) (packBytes ((oldBal.drop 8).take 8))
       (packBytes (((oldBal.drop 8).drop 8).take 8))
@@ -155,7 +155,8 @@ theorem adField1Copy
      ((.x13 : Reg) ↦ᵣ v13) ** ((.x14 : Reg) ↦ᵣ v14) ** regOwn .x31 **
      ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
-     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o1))
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o1) **
+     adFoldConstants)
     (by pcfa)
     (adBalLoop listBase balanceOut x30v bytes (List.replicate 32 (0 : BitVec 8))
       o1.toNat (32 - l1.toNat) 0 l1.toNat hsalign hbalign hsrcbound
@@ -237,24 +238,15 @@ theorem adField1Success
        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
-  have hcopy := cpsTripleWithin_frameR adFoldConstants pcFree_adFoldConstants
-    (adField1Copy spW raSaved listBase len nonceOut balanceOut rootOut codeOut
-      o0 o1 l0 x28v x29v x30v v11 v12 v13 v14 bytes oldBal oldRoot oldCode listLen
-      hsalign hslack hover hvalid hbalign hbover hballen hbvalid hf1 hl1)
+  have hcopy := adField1Copy spW raSaved listBase len nonceOut balanceOut rootOut codeOut
+    o0 o1 l0 x28v x29v x30v v11 v12 v13 v14 bytes oldBal oldRoot oldCode listLen
+    hsalign hslack hover hvalid hbalign hbover hballen hbvalid hf1 hl1
   have hbb := adBBField2 sp0 spW (AB + 196) raSaved listBase len nonceOut balanceOut rootOut
     codeOut o1 l1 (0 : Word) v11 v12 v13 v14 o0 o1 l0 l1 bytes oldRoot oldCode listLen hspW hret
     hlenW hsalign hslack hover hvalid hralign hrover hrootlen hrvalid hcalign hcover hcodelen
     hcvalid hf0 hf1 hl0 hl1
   exact cpsTripleWithin_mono_nSteps (by omega)
-    (cpsTripleWithin_seq_perm_same_cr
-      (fun h hp => by
-        have hg : (adCallPre (AB + 196) spW listBase len nonceOut balanceOut rootOut codeOut
-            o1 l1 (0 : Word) v11 v12 v13 v14 bytes **
-           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
-            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
-            bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-            ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
-        exact hg) hcopy hbb)
+    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcopy hbb)
 
 #print axioms adField1Success
 
@@ -625,7 +617,7 @@ theorem adField0Copy
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut))) := by
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) := by
   intro savedCaller
   have hoffnorm : listBase + o0 = listBase + BitVec.ofNat 64 (o0.toNat + 0) := by
     rw [Nat.add_zero]; congr 1
