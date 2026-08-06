@@ -340,9 +340,9 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
     header snapshot. Live-first matches that baseline.
 
     Behaviour:
-    1. Pad the 20B address and call `account_state_latest_balance`
-       (AccountState pending/durable). On a hit, write that post
-       balance and return success — **no header path**.
+    1. Pad the 20B address and call `account_writes_latest_balance`
+       (transaction map, then block map). On a hit, write that post balance
+       and return success — **no header path**.
     2. On a miss only: K201 `header_extract_state_root` + K28
        `account_at_address`, copy balance (struct + 8 .. + 40), flatten
        missing account (status 1) to `(0, balance=0)`.
@@ -396,17 +396,20 @@ def balanceAtHeaderStateRootFunction : String :=
   "  mv s5, a5                  # 32-byte u256 BE output ptr\n" ++
   "  # Pre-zero output -- BALANCE default value.\n" ++
   "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  -- LIVE-FIRST (#11019): account_state_latest_balance before any header path.
+  -- LIVE-FIRST (#11019): account_writes_latest_balance before any header path.
   -- Spec: one mutable TransactionState; BALANCE / is_account_alive read last write.
   -- Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the
   -- effect record's zero-padded addr@0; on a hit s5 holds post_balance and we
-  -- return success. Header path is miss-only fallback — not the primary source.
+  -- return success. A map miss is explicitly adapted below: the witness path
+  -- returns zero for a missing account (status 1), while malformed/failed
+  -- witness reads retain their nonzero status. Header path is miss-only
+  -- fallback — not the primary source.
   "  la t0, bal_addr_padded; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  mv t1, s2; mv t2, t0; li t3, 20\n" ++
   ".Lbal_padcp:\n" ++
   "  beqz t3, .Lbal_padcp_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbal_padcp\n" ++
   ".Lbal_padcp_d:\n" ++
-  "  la a0, bal_addr_padded; mv a1, s5; li a2, 2; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bal_addr_padded; mv a1, s5; li a2, 2; jal ra, account_writes_latest_balance\n" ++
   "  beqz a0, .Lbal_live_miss     # no live effect -> fall through to the pre-state path\n" ++
   "  li a0, 0; j .Lbal_ret        # live hit: s5 = post_balance -> success\n" ++
   ".Lbal_live_miss:\n" ++
