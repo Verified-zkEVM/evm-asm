@@ -131,6 +131,32 @@ def obligations : List Obligation := [
     status := .done,
     witness := some "`--halt linux93` default; docs/host-io-halt-convention.md",
     note := "halt convention implemented + documented" },
+  -- #11579: the witness-read spine's summit. Registered as an obligation so
+  -- PROGRESS.md shows the spine's burn-down rather than a flat count of leaf
+  -- triples. Its blockers ARE the open leaf issues plus the two connective gaps
+  -- that issue names; each one closing moves this row, which is the point.
+  { id := 10, name := "Witness reads are sound (get_account_optional composition)",
+    status := .blocked,
+    blockedBy :=
+      [ .infra "account_decode ↔ decode_account_from_leaf (#11345)",
+        .infra "account_is_eip161_empty ↔ account_exists_and_is_empty (#11346)",
+        .infra "mpt_node_kind ↔ _decode_witness_node dispatch (#11347)",
+        .infra "compact_to_nibbles flag decode (#11422)",
+        .infra "bal_canonical_sort ordering + permutation (#10817)",
+        .infra "trie-walk loop spec over mptNodeIs/nodeDbIs — the three-tier \
+resolve (appended DB / resolve cache / witness section) vs SpecRef's single node \
+source; divergence stated in docs/4ch8f-slstate-specref-correspondence.md:164",
+        .infra "node/code DB build routines (no spec yet; codeDbIs is #11573)" ],
+    note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). A wrong witness read \
+is the false-ACCEPT shape directly: #11508's four witness-missing accepts, \
+#11522's untouched-leaf bytes, #11523's non-canonical leaves. Everything \
+downstream (state tracker, verdict) consumes what this spine produces, and \
+bv_fail=1 (terminal state-root, 447 of 582 rows in #11542) is where its \
+divergences surface unlocalized -- stated triples along the spine turn those \
+investigations from re-derivation into citation. Spine: input deserialize (done) \
+-> node/code DB build -> trie walk -> mpt_node_kind -> nibble path \
+(bytes_to_nibbles done, compact_to_nibbles open) -> account_decode -> EIP-161 \
+classification. Summit is SpecRef/WitnessReads.lean's get_account_optional" },
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -144,9 +170,9 @@ def notStartedCount : Nat := countStatus .notStarted
 def totalObligations : Nat := obligations.length
 
 theorem doneCount_eq        : doneCount        = 2 := by decide
-theorem blockedCount_eq     : blockedCount     = 6 := by decide
+theorem blockedCount_eq     : blockedCount     = 7 := by decide
 theorem notStartedCount_eq  : notStartedCount  = 1 := by decide
-theorem totalObligations_eq : totalObligations = 9 := by decide
+theorem totalObligations_eq : totalObligations = 10 := by decide
 
 /-! ## Cross-check: every opcode blocker names a real registry entry
 
@@ -168,7 +194,7 @@ theorem blocker_opcodes_in_registry :
   decide
 
 /-- Ids are exactly 1..9, in order (guards against a copy-paste id collision). -/
-theorem obligation_ids_eq : obligations.map (·.id) = [1, 2, 3, 4, 5, 6, 7, 8, 9] := by
+theorem obligation_ids_eq : obligations.map (·.id) = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] := by
   decide
 
 /-- A `done` obligation must carry a `witness` pointer and have no remaining
