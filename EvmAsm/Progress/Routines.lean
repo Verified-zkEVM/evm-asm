@@ -56,6 +56,7 @@
 
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
+import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
@@ -441,6 +442,21 @@ private noncomputable abbrev _account_eip161_leniency_witness :=
   @EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 private noncomputable abbrev _beAccFrom_eq_beAccum_witness :=
   @EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
+-- #11348: Correspondence's `bloom_or_into` row names this, and it is Codegen-side,
+-- so like the #11351/#11345 witnesses above the abbrev lives here.
+--
+-- ⚠️ NO `RoutineEntry` row accompanies it, deliberately. Every row in the registry
+-- above claims a FLAT whole-routine triple at `GuestAddrs.<symbol>`, derived by
+-- `Fn.retSpecFlat`; `bloomOrIntoFn_spec` is the structured SAsm `.Spec`, so a
+-- `.proven` row would overclaim. The WITNESS is what puts a theorem in the axiom
+-- gate; the ROW is what claims a tier. Those are separate obligations and only the
+-- first is warranted here. (This distinction is the subject of #11637.)
+private noncomputable abbrev _bloom_or_into_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
+-- The reference-facing half: why per-receipt accumulation matches a `logs_bloom`
+-- computed from the flat log list.
+private noncomputable abbrev _bloom_or_into_fold_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
