@@ -736,10 +736,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:
   -- sender refund, coinbase fee, then incorporation.  In particular the
-  -- coinbase fee producer records the beneficiary read immediately before
-  -- its authenticated balance lookup, even when the priority-fee credit is
-  -- zero; promote that final per-transaction read at this transaction's
-  -- incorporation boundary.
+  -- existing `account_state_latest_balance` wrapper records the coinbase
+  -- account read immediately before its balance lookup, even when the
+  -- priority-fee credit is zero; promote that final per-transaction read at
+  -- this transaction's incorporation boundary.
   -- The block-storage incorporation above is complete; retain the existing
   -- caller-save wrapper because this function still needs its outer `ra`.
   "  addi sp, sp, -32; sd ra, 0(sp); sd a1, 8(sp); sd a2, 16(sp); jal ra, read_sets_incorporate_tx; ld ra, 0(sp); ld a1, 8(sp); ld a2, 16(sp); addi sp, sp, 32\n" ++

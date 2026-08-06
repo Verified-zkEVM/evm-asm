@@ -33,12 +33,6 @@ def blockVerdictMtxCoinbaseFeeEffect : String :=
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
   "  la t0, bv_exec_p; ld t0, 0(t0); addi a2, t0, 32\n" ++
   "  ld a3, 80(s0); ld a4, 88(s0); la a5, bv_mtx_cbfee_pre\n" ++
-  -- Amsterdam's `get_account` records the beneficiary read before resolving
-  -- transaction writes, block writes, or the authenticated parent.  Keep the
-  -- record at this execution producer: the fee credit is `create_ether`'s
-  -- beneficiary read, not a publication-only effect.  The recorder preserves
-  -- t0-t6 and leaves a1-a5 untouched; save only the header pointer in a0.
-  "  mv t0, a0; mv a0, a2; jal ra, account_read_record; mv a0, t0\n" ++
   "  jal ra, balance_at_header_state_root\n" ++
   "  bnez a0, .Lbv_mtx_cbfee_done\n" ++
   "  la a0, bv_mtx_cbfee_pre; la a1, bv_mtx_cbfee_credit; la a2, bv_mtx_cbfee_post\n" ++
