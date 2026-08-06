@@ -22,10 +22,23 @@
   one.  It was not: `_deserialize_to_bytes` constructs the annotated type and
   `FixedBytes.__new__` enforces `LENGTH`, so `Bloom = Bytes256` **is** width-
   checked by the reference (`ethereum_types` 0.4.1 `bytes.py:29-37`).  The
-  leniency was the port's alone.  This is the third instance of the
+  leniency was the port's alone.  This is the **second** instance of the
   misattribution pattern #11493 unpicked — a port gap making a correct guest look
-  strict — and #11615 removing it is what lets `len = 256` be *derived* here
-  rather than assumed.
+  strict — the first being canonicality on `number` (#11617).  #11615 removing it
+  is what lets `len = 256` be *derived* here rather than assumed.
+
+  ⚠️ **Do not add the `Uint` width question (#11620) to that list.**  It is the
+  opposite case: there the reference imposes *no* bound (`Uint.from_be_bytes` is a
+  plain `int.from_bytes`, `numeric.py:523-528`) while the guest bounds at 8, so the
+  guest genuinely rejects more than the reference.  Grouping it with the
+  misattributions invites reading it as closable, which it is not.
+
+  The general shape, which is the transferable part: **"guest stricter than port"
+  resolves differently per ANNOTATION.**  For `FixedBytes` and `FixedUnsigned` the
+  reference imposes the same bound the guest does, so the guest is matched and the
+  port was the gap.  For arbitrary-precision `Uint` the reference imposes none, so
+  the guest is genuinely over-rejecting.  Read the annotation's own conversion
+  before deciding which of the two you are looking at.
 
   So unlike `header_number_of_decode`, this tie needs **no** side condition on
   the field: `decode_header_inv` now yields the width directly.

@@ -438,9 +438,14 @@ length is not 256. Graded against the port as it stood, that read as the guest b
 because `getB` was a bare `bs.getD i []` and a successful decode said nothing about width. It \
 was never a guest defect: `_deserialize_to_bytes` constructs the annotated type and \
 `FixedBytes.__new__` enforces `LENGTH`, so `Bloom = Bytes256` IS width-checked by the reference \
-(`ethereum_types` 0.4.1 bytes.py:29-37). THIRD INSTANCE of the misattribution #11493 unpicked \
--- a port gap making a correct guest look strict -- after canonicality on `number` and the \
-`Uint` width question. With #11615 the width is a CONCLUSION of `decode_header_inv`, so \
+(`ethereum_types` 0.4.1 bytes.py:29-37). SECOND INSTANCE of the misattribution #11493 unpicked \
+-- a port gap making a correct guest look strict -- the first being canonicality on `number` \
+(#11617). ⚠️ NOT a third instance, and #11620 is NOT one either: there the reference imposes no \
+bound at all (`Uint.from_be_bytes` is a plain `int.from_bytes`) while the guest bounds at 8, so \
+the guest genuinely rejects more -- grouping it here would invite reading it as closable, which \
+it is not (maintainer correction on #11624). The transferable shape: `guest stricter than port` \
+RESOLVES DIFFERENTLY PER ANNOTATION -- matched for `FixedBytes`/`FixedUnsigned`, a genuine \
+over-rejection for `Uint`. With #11615 the width is a CONCLUSION of `decode_header_inv`, so \
 `header_logs_bloom_of_decode` carries no width hypothesis at all and its `len = 256` is what \
 excludes the `a0 = 2` arm for a composing caller. \
 GUEST-SIDE WIDTH ENFORCEMENT IS INDEPENDENTLY CONFIRMED, which matters because a LENIENT guest \
