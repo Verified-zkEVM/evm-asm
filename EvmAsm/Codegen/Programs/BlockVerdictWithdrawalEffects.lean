@@ -27,6 +27,11 @@ block_verdict_withdrawal_nonstorage_effects:
   beqz t1, .Lbv_wdne_amount_done
   lbu t3, 0(t0); or t2, t2, t3; addi t0, t0, 1; addi t1, t1, -1; j .Lbv_wdne_amount_or
 .Lbv_wdne_amount_done:
+  # `process_withdrawals` creates one TransactionState for the descriptor
+  # list and `create_ether` performs `get_account` for every descriptor,
+  # including a zero amount.  Record the recipient before the amount guard;
+  # the nonzero path below resolves its pre-state balance separately.
+  la a0, bv_wdne_addr; jal ra, account_read_record
   beqz t2, .Lbv_wdne_zero_amount
   la a0, bv_wdne_addr; la a1, bv_wdne_acct; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0)
   la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state
@@ -45,9 +50,7 @@ block_verdict_withdrawal_nonstorage_effects:
   la t0, bv_wdne_acct; ld a3, 0(t0); mv a4, a3; la a0, bv_wdne_addr; la a1, bv_wdne_acct; addi a1, a1, 8; la a2, bv_wdne_post; jal ra, record_nonstorage_effect; bnez a0, .Lbv_wdne_fail
   j .Lbv_wdne_next
 .Lbv_wdne_zero_amount:
-  # `account_read_record` is a void recorder: it preserves a0 rather than
-  # returning a status.  The tracked access itself cannot make this helper fail.
-  la a0, bv_wdne_addr; jal ra, account_read_record
+  # The recipient read was recorded before the zero-delta guard.
 .Lbv_wdne_next:
   addi s2, s2, 1; j .Lbv_wdne_loop
 .Lbv_wdne_ok:
