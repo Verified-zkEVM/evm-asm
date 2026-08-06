@@ -370,7 +370,11 @@ def accountAgreementProbeFunction : String :=
   "account_agreement_probe:\n" ++
   "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
   "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
-  "  la t0, account_agreement_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  "  la t0, account_agreement_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); li t2, 1; beq s1, t2, .Laap_count_balance\n" ++
+  "  la t0, account_agreement_nonce_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_count_done\n" ++
+  ".Laap_count_balance:\n" ++
+  "  la t0, account_agreement_balance_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laap_count_done:\n" ++
   -- Select the latest pending/durable row that actually carries the requested
   -- field.  A row with only another component is not a zero-valued field.
   "  mv a0, s0; la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find; beqz a0, .Laap_durable; ld t0, 88(a0); li t1, 1; beq s1, t1, .Laap_pending_balance; andi t0, t0, 64; bnez t0, .Laap_live_pending; j .Laap_durable\n" ++
@@ -1143,6 +1147,8 @@ def accountWriteMapBssSection : String :=
   -- differing limb index.
   ".balign 32\n" ++
   "account_agreement_probe_count:\n  .zero 8\n" ++
+  "account_agreement_balance_probe_count:\n  .zero 8\n" ++
+  "account_agreement_nonce_probe_count:\n  .zero 8\n" ++
   "account_agreement_no_row:\n  .zero 8\n" ++
   "account_agreement_row_no_field:\n  .zero 8\n" ++
   "account_agreement_live_field_absent:\n  .zero 8\n" ++

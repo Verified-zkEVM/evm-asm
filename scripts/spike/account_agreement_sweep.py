@@ -48,6 +48,8 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
     found: dict[str, int] = {}
     wanted = {
         "account_agreement_probe_count",
+        "account_agreement_balance_probe_count",
+        "account_agreement_nonce_probe_count",
         "account_agreement_no_row",
         "account_agreement_row_no_field",
         "account_agreement_live_field_absent",
@@ -144,6 +146,8 @@ def decode(
 ) -> tuple[dict[str, int], list[dict[str, int | str]]]:
     names = [
         "account_agreement_probe_count",
+        "account_agreement_balance_probe_count",
+        "account_agreement_nonce_probe_count",
         "account_agreement_no_row",
         "account_agreement_row_no_field",
         "account_agreement_live_field_absent",
@@ -281,6 +285,14 @@ def main() -> int:
         "dump_range": f"{start:#x}:{length:#x}",
         "cases": len(records),
         "mismatch_events": len(mismatches),
+        "balance_probe_invocations": sum(
+            int(record["counters"]["account_agreement_balance_probe_count"])
+            for record in records
+        ),
+        "nonce_probe_invocations": sum(
+            int(record["counters"]["account_agreement_nonce_probe_count"])
+            for record in records
+        ),
         "output_differences": sum(
             1 for record in records if record["base_output_equal"] is False
         ),
