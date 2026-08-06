@@ -294,9 +294,11 @@ def accountStateCommitPendingFunction : String :=
     Adapt the existing non-storage producer ABI to a complete AccountState
     snapshot.  The raw producer remains the comparison trace; this helper is
     the execution-state mirror of the same transition.  It clones an existing
-    pending/durable snapshot when available, then overwrites the balance and
-    merges the supplied nonce monotonically.  Thus a balance mutation preserves the
-    code/existence fields written by CREATE, and vice versa.
+    pending/durable snapshot when available, overwrites the balance only when
+    the producer changed it, and merges the supplied nonce monotonically.  Thus
+    a balance mutation preserves the code/existence fields written by CREATE,
+    while a nonce-only mutation does not claim authority over a balance it did
+    not change.
 
     a0 = address, a1 = pre-balance (comparison-only), a2 = post-balance,
     a3 = pre-nonce (comparison-only), a4 = post-nonce.  It returns zero on
@@ -304,6 +306,19 @@ def accountStateCommitPendingFunction : String :=
 def accountStateRecordNonstorageFunction : String :=
   "account_state_record_nonstorage:\n" ++
   "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp)\n" ++
+  -- Equal balance operands are used by the CREATE pre-descent nonce-only
+  -- record.  That transition must preserve the cloned balance rather than
+  -- replacing it with the post-debit scratch value.  Remember whether this
+  -- producer actually changes balance before the lookup helpers clobber a1/a2.
+  "  li t0, 0\n" ++
+  "  ld t1, 0(a1); ld t2, 0(a2); bne t1, t2, .Lasrn_balance_changed\n" ++
+  "  ld t1, 8(a1); ld t2, 8(a2); bne t1, t2, .Lasrn_balance_changed\n" ++
+  "  ld t1, 16(a1); ld t2, 16(a2); bne t1, t2, .Lasrn_balance_changed\n" ++
+  "  ld t1, 24(a1); ld t2, 24(a2); beq t1, t2, .Lasrn_balance_cmp_done\n" ++
+  ".Lasrn_balance_changed:\n" ++
+  "  li t0, 1\n" ++
+  ".Lasrn_balance_cmp_done:\n" ++
+  "  sd t0, 56(sp)\n" ++
   "  mv s0, a0; mv s1, a2; mv s2, a4\n" ++
   "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrn_clone\n" ++
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasrn_clone\n" ++
@@ -317,7 +332,7 @@ def accountStateRecordNonstorageFunction : String :=
   ".Lasrn_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lasrn_balance; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasrn_addr\n" ++
   ".Lasrn_balance:\n" ++
-  -- Bit 5 records that balance and nonce are authoritative.  Code-only
+  -- Bit 5 records that balance is authoritative.  Code-only
   -- snapshots deliberately leave it clear: they must not turn an unknown
   -- account balance/nonce into an authoritative zero before the companion
   -- non-storage effect is published.
@@ -327,7 +342,13 @@ def accountStateRecordNonstorageFunction : String :=
   -- when this is the first authoritative snapshot for the address.  Nonces
   -- only advance during a transaction, so a later publisher carrying a stale
   -- transition must not overwrite an already-recorded authorization increment.
-  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0); ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
+  -- When balance is unchanged, retain the cloned balance bytes.  A nonce-only
+  -- effect must not make a debited pre-descent balance authoritative after a
+  -- failed CREATE restores the runtime env but rolls back the child transfer.
+  "  ld t1, 56(sp); beqz t1, .Lasrn_balance_preserved\n" ++
+  "  ld t1, 0(s1); sd t1, 32(t0); ld t1, 8(s1); sd t1, 40(t0); ld t1, 16(s1); sd t1, 48(t0); ld t1, 24(s1); sd t1, 56(t0)\n" ++
+  ".Lasrn_balance_preserved:\n" ++
+  "  ld t1, 88(t0); ld t2, 32(sp); bne t2, s2, .Lasrn_write_nonce; andi t3, t1, 96; bnez t3, .Lasrn_nonce_unchanged\n" ++
   ".Lasrn_write_nonce:\n" ++
   -- Monotonic nonce merge. When this producer publishes a real nonce
   -- transition (pre≠post), also set bit 6 so account_state_latest_nonce
@@ -343,7 +364,9 @@ def accountStateRecordNonstorageFunction : String :=
   ".Lasrn_nonce_mark:\n" ++
   "  ld t2, 32(sp); beq t2, s2, .Lasrn_nonce_unchanged; ori t1, t1, 64\n" ++
   ".Lasrn_nonce_unchanged:\n" ++
-  "  ori t1, t1, 35; sd t1, 88(t0)\n" ++
+  "  ld t2, 56(sp); beqz t2, .Lasrn_no_balance_mark; ori t1, t1, 32\n" ++
+  ".Lasrn_no_balance_mark:\n" ++
+  "  ori t1, t1, 3; sd t1, 88(t0)\n" ++
   "  la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lasrn_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); ld a4, 40(sp); addi sp, sp, 64; ret"
