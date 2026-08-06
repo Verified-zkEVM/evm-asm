@@ -749,6 +749,11 @@ def accountWritesBlockUpsertFunction : String :=
     block map for a prior transaction, then the authenticated parent witness.  Do
     not use the live AccountState overlay here; it is not a pre-state tier and can
     hide the exact map miss this fallback is meant to resolve (03736 self_burn).
+    This is the same correction documented in `account_resolve_pre_state` below:
+    its former durable-overlay tier was removed because `update_builder_from_tx`
+    had already applied the sender's post value before that routine was asked for
+    a pre-state value.  The two consumers must therefore share the same
+    map-then-parent precedence, not recreate a live overlay tier.
 
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
@@ -779,6 +784,9 @@ def accountWritesApplyDeletesFunction : String :=
   -- tier, so the authenticated parent account is the preserved value.
   "  sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp); sd zero, 64(sp); sd zero, 72(sp)\n" ++
   "  mv a0, s0; addi a1, sp, 40; la t1, sv_pre_rlp_ptr; ld a2, 0(t1); la t1, sv_pre_rlp_len; ld a3, 0(t1); la t1, bv_witness_state_ptr; ld a4, 0(t1); la t1, bv_witness_state_len; ld a5, 0(t1); jal ra, account_resolve_pre_state\n" ++
+  -- Resolver status 1 is a malformed/unavailable authenticated lookup.  It is
+  -- a rejection, never an authenticated zero balance: otherwise a preserved
+  -- nonzero balance could be turned into STATE=None and alter EIP-161 deletion.
   "  bnez a0, .Lawd_overflow\n" ++
   "  ld t1, 48(sp); ld t2, 56(sp); or t1, t1, t2; ld t2, 64(sp); or t1, t1, t2; ld t2, 72(sp); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
   "  slli t0, s3, 7; li t2, 0xa2b20000; add t0, t2, t0\n" ++
