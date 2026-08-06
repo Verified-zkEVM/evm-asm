@@ -487,9 +487,10 @@ def accountWritesLookupCurrentFunction : String :=
     It keeps the old caller ABI, but obtains missing balance/nonce components
     from the pre-transaction map/parent resolver.  That matters for AUTH and
     code-only rows: a map row without a BALANCE bit does not authorize zero.
-    `EXEC_FLAGS` is consulted only when it is present, to exclude
-    created-this-transaction empty accounts; deferred-delete rows carry STATE
-    without EXEC_FLAGS and are handled by their explicit state value. -/
+    The transaction-level `account_state_created` set is authoritative for
+    created-this-transaction membership: unlike the row-local EXEC_FLAGS field,
+    it also answers for an account before any map row exists.  A set-overflow
+    status is treated as fail-closed by the caller. -/
 def accountWritesTombstoneBalanceZeroFunction : String :=
   "account_writes_tombstone_balance_zero:\n" ++
   "  addi sp, sp, -160; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); mv s0, a0; li s1, 0; li s2, 0\n" ++
@@ -520,8 +521,7 @@ def accountWritesTombstoneBalanceZeroFunction : String :=
   ".Lawtbz_use_tx_state:\n" ++
   "  mv s3, s1\n" ++
   ".Lawtbz_state_check:\n" ++
-  "  ld t0, 72(s3); beqz t0, .Lawtbz_yes; ld t1, 112(s3); andi t2, t1, 16; beqz t2, .Lawtbz_created_done; ld t3, 96(s3); andi t3, t3, 8; bnez t3, .Lawtbz_no\n" ++
-  ".Lawtbz_created_done:\n" ++
+  "  ld t0, 72(s3); beqz t0, .Lawtbz_yes; mv a0, s0; jal ra, account_state_created_contains; bnez a0, .Lawtbz_no\n" ++
   "  ld t1, 112(s3); andi t2, t1, 4; beqz t2, .Lawtbz_components; ld t3, 88(s3); bnez t3, .Lawtbz_no\n" ++
   ".Lawtbz_components:\n" ++
   "  li s4, 0; li s5, 0\n" ++

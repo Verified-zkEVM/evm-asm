@@ -722,6 +722,7 @@ def accountStateTombstoneBalanceZeroFunction : String :=
     created in a prior transaction must remain live after SELFDESTRUCT. -/
 def accountStateCreatedContainsFunction : String :=
   "account_state_created_contains:\n" ++
+  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lascc_overflow\n" ++
   "  la t0, account_state_created_count; ld t1, 0(t0); li t2, " ++ toString accountStateCreatedCapacity ++ "; bgtu t1, t2, .Lascc_no; li t2, 0; la t3, account_state_created\n" ++
   ".Lascc_entry:\n" ++
   "  bgeu t2, t1, .Lascc_no; li t4, 0\n" ++
@@ -732,7 +733,9 @@ def accountStateCreatedContainsFunction : String :=
   ".Lascc_yes:\n" ++
   "  li a0, 1; ret\n" ++
   ".Lascc_no:\n" ++
-  "  li a0, 0; ret"
+  "  li a0, 0; ret\n" ++
+  ".Lascc_overflow:\n" ++
+  "  li a0, 2; ret"
 
 /-! ## code_state_final_balance_nonzero
 
