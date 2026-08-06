@@ -41,7 +41,7 @@ private def blockVerdictMtxStageSenderUpfront : String :=
   -- fresh effective-price calculation succeeds.
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch; jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_mtx_su_done\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance_block\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 17; jal ra, account_state_latest_balance_block\n" ++
   "  bnez a0, .Lbv_mtx_su_have_pre\n" ++
   "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   ".Lbv_mtx_su_have_pre:\n" ++
@@ -94,7 +94,7 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  la t0, bv_mtx_ctx; ld t1, 40(t0); bgtu a2, t1, .Lbv_mtx_bail; sub a1, t1, a2\n" ++
   "  la a0, bv_fee_egp_scratch; la a2, bv_pending_upfront_sender_post; jal ra, u256_mul_u64_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 18; jal ra, account_state_latest_balance\n" ++
   "  beqz a0, .Lbv_mtx_bail  # no fallback: the staged upfront debit retained the sender entry\n" ++
   "  la a0, bv_pending_upfront_sender_pre; la a1, bv_pending_upfront_sender_post; la a2, bv_pending_upfront_sender_post; jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
@@ -102,10 +102,17 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   -- BAL row.  The BAL producer below deliberately re-reads this final state.
   "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, account_state_record_nonstorage\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; jal ra, account_state_latest_balance\n" ++
-  "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
+  -- Publish the post-body refund to the transaction map at the mutation point.
+  -- `create_ether` has already updated AccountState above; this companion records
+  -- the same settled pre/post pair without a second AccountState append.  The
+  -- publication must precede the post read below so a map-first reader observes
+  -- the refund instead of the pre-refund row.  It is deliberately after body
+  -- restoration and therefore survives an ordinary body revert, matching
+  -- `fork.py:1155-1169`.
   "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect_after_account_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; li a2, 19; jal ra, account_state_latest_balance\n" ++
+  "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
 ".Lbv_mtx_sr_done:\n"
 
 /-! Gate the pre-user system-storage seed on the same code-presence predicate as

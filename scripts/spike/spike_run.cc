@@ -16,6 +16,8 @@
 //   SPIKE_WATCH_STOP=1       stop the run after the first watch hit (default: log+continue)
 //   SPIKE_BREAK_PC=<hex>     stop after executing the insn at this PC (logs once)
 //   SPIKE_RUN_DEBUG=1        existing: dump first 60 steps
+//   SPIKE_INIT_WRITES=<addr>:<u64>[,<addr>:<u64>...]
+//                            tooling-only LE dword writes after ELF/input load
 //   SPIKE_DUMP_RANGES=<addr:length,...> + SPIKE_DUMP_FILE=<file>
 //                            final-memory ranges for tooling-only inspection
 #include <sys/syscall.h>
@@ -93,6 +95,38 @@ static unsigned long long parse_u64(const char* raw, const char* what) {
     exit(2);
   }
   return v;
+}
+
+struct InitWrite {
+  reg_t addr;
+  uint64_t value;
+};
+
+static std::vector<InitWrite> parse_init_writes() {
+  const char* raw = getenv("SPIKE_INIT_WRITES");
+  if (!raw || !*raw) return {};
+  std::vector<InitWrite> writes;
+  std::string specs(raw);
+  size_t begin = 0;
+  while (begin <= specs.size()) {
+    size_t end = specs.find(',', begin);
+    std::string spec = specs.substr(begin, end == std::string::npos
+                                             ? std::string::npos : end - begin);
+    size_t colon = spec.find(':');
+    if (spec.empty() || colon == std::string::npos ||
+        spec.find(':', colon + 1) != std::string::npos) {
+      fprintf(stderr, "spike_run: invalid SPIKE_INIT_WRITES item '%s'\n",
+              spec.c_str());
+      exit(2);
+    }
+    std::string addr_s = spec.substr(0, colon);
+    std::string value_s = spec.substr(colon + 1);
+    writes.push_back({(reg_t)parse_u64(addr_s.c_str(), "SPIKE_INIT_WRITES address"),
+                      (uint64_t)parse_u64(value_s.c_str(), "SPIKE_INIT_WRITES value")});
+    if (end == std::string::npos) break;
+    begin = end + 1;
+  }
+  return writes;
 }
 
 static std::vector<DumpRange> parse_dump_ranges() {
@@ -430,7 +464,7 @@ int main(int argc, char** argv) {
             "usage: %s <guest.elf> <input> <output>\n"
             "env: SPIKE_COMMITLOG SPIKE_DEBUG_CMD SPIKE_WATCH SPIKE_WATCH_STOP "
             "SPIKE_BREAK_PC SPIKE_OUTPUT_LEN SPIKE_RUN_DEBUG "
-            "SPIKE_DUMP_RANGES SPIKE_DUMP_FILE\n",
+            "SPIKE_INIT_WRITES SPIKE_DUMP_RANGES SPIKE_DUMP_FILE\n",
             argv[0]);
     return 2;
   }
@@ -483,6 +517,15 @@ int main(int argc, char** argv) {
   std::vector<uint8_t> img(8, 0);
   img.insert(img.end(), blob.begin(), blob.end());
   wr(&sim, INPUT_ADDR, img.data(), img.size());
+
+  // Tooling-only initialization hook.  The normal runner leaves the ELF's
+  // initialized data untouched; agreement_sweep uses this to arm its
+  // otherwise-inert runtime flag for a measurement process.
+  for (const InitWrite& write : parse_init_writes()) {
+    uint8_t value[8];
+    memcpy(value, &write.value, sizeof(value));
+    wr(&sim, write.addr, value, sizeof(value));
+  }
 
   if (getenv("SPIKE_RUN_DEBUG")) {
     uint8_t insn[4]; rd(&sim, entry, insn, 4);

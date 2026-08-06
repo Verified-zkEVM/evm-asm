@@ -18,14 +18,14 @@ satisfy, each with the opcodes/infrastructure blocking it. This is the
 *direction* axis: opcode-tier counts cannot tell you which obligation is blocked
 by what. Source of truth, per-status counts, and the opcode cross-check live in
 [`EvmAsm/Progress/Obligations.lean`](EvmAsm/Progress/Obligations.lean)
-(`doneCount_eq = 2`, `blockedCount_eq = 6`,
+(`doneCount_eq = 2`, `blockedCount_eq = 7`,
 `notStartedCount_eq = 1`, and `blocker_opcodes_in_registry`,
 which fails the build if any opcode blocker stops naming a real registry entry).
 
 | Status | Count |
 |---|---:|
 | ✅ done | 2 |
-| 🟡 blocked | 6 |
+| 🟡 blocked | 7 |
 | ✗ not started | 1 |
 
 | # | Obligation | Status | Blocked by |
@@ -39,6 +39,7 @@ which fails the build if any opcode blocker stops naming a real registry entry).
 | 7 | MPT verification of pre-state witness proofs | ✗ not started | — |
 | 8 | Verified post-state root → public output | 🟡 blocked | obligation #4 (interpreter loop), obligation #5 (opcode coverage), obligation #6 (accelerator bridges), obligation #7 (MPT verification) |
 | 9 | Halt convention per `standard-termination-semantics` | ✅ done | `--halt linux93` default; docs/host-io-halt-convention.md |
+| 10 | Witness reads are sound (get_account_optional composition) | 🟡 blocked | account_decode ↔ decode_account_from_leaf (#11345), account_is_eip161_empty ↔ account_exists_and_is_empty (#11346), mpt_node_kind ↔ _decode_witness_node dispatch (#11347), compact_to_nibbles flag decode (#11422), bal_canonical_sort ordering + permutation (#10817), trie-walk loop spec over mptNodeIs/nodeDbIs — the three-tier resolve (appended DB / resolve cache / witness section) vs SpecRef's single node source; divergence stated in docs/4ch8f-slstate-specref-correspondence.md:164, node/code DB build routines (no spec yet; codeDbIs is #11573) |
 
 
 ## What is NOT proven
@@ -50,7 +51,6 @@ precondition; the excluded domain is **unverified**.
 
 | Opcode | Why not (yet) fully proven |
 |---|---|
-| `SLOAD` | stage-1 of the two-stage SLOAD plan: the persistent-log reverse scan (byte-identical body-as-Program of the h_SLOAD handler, base 0xa0630000, length cell env+448) is proven to replace the stack top in place with persistentLookup — the `current` of the canonical block-storage view entry keyed by (env.ADDRESS, slotKey), or 0 on miss. `.conditional` because the miss→0 branch is EVM-sound only RELATIVE to the storage_writes view supplied in the precondition; full MPT-witness verification that the snapshot faithfully reflects state root is deferred to stage-2 (post-Phase-10). Structural clone of the proven TLOAD reverse scan on the transient log. |
 | `RETURN` | full standalone (depthAware=false) return-data window + halt core, from the post-gas handler entry through the RETURN-only system_call_mode capture block and the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=1@+32) to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). The front now covers all system_call_mode cases: zero skips capture; nonzero with size>4096 skips conservatively; nonzero with size<=4096 stores system_call_returndata_len:=size and copies the full returndata window to system_call_returndata. `.conditional` remains because the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary, so the theorem still carries the post-gas memory-domain hyps (hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
 | `REVERT` | full standalone (depthAware=false) return-data window + rollback + halt core, from the post-gas handler entry through the 0xa0010000 descriptor (header/22-dword-body zeroing, size@+64, clamped=min(size,176)@+248, evm_memory[offset..offset+clamped] copied to +72, first min(size,32) bytes to +0, kind=2@+32), the five straight-line rollback env-cell stores on x20 (env+448:=env+456, env+464:=0, env+472:=env+480), to the shared dispatchHaltRet 2 core (evm_halt_flag:=2, x1:=resume, ret to resume&&&~~~1). Near-clone of RETURN reusing its window loop closures + halt core verbatim (only the code layout shifts down 80 bytes with no capture block, the kind-store value is 2, and the rollback is appended). `.conditional` NOT because of a system_call_mode gate (REVERT has no capture block — that is kind==1/RETURN-only — so it is strictly more general than RETURN) but because (1) the memory-gas `preBody` (its .exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and (2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict the input domain, exactly as in RETURN. The four `la` immediates stay as reconstruction hyps (shared deferred byte-check, as in the halt core). |
 | `SELFDESTRUCT` | halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, x1:=.Ldispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). The two `la`s (`evm_halt_flag`, `.Ldispatch_resume`) are RESOLVED via `la_resolve` (#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial effects body BEFORE this tail that is framed OUT as the residual: cold-access gas (with its own .exit_outofgas branch), new-account surcharge, EIP-6780 created-in-tx detection, balance transfer to the beneficiary, EIP-7708 log, beneficiary nonstorage record, and the CREATE-child frame_return path. A larger residual than RETURN/REVERT's gas-only preBody; a future phase proves it against `EL/SelfdestructEffects` to earn `.proven`. |
@@ -65,10 +65,10 @@ Pure-spec / `<op>_correct` lemma proven, but no end-to-end stack-spec wrap.
 
 ### ⏳ `execSpec` opcodes — handler/bridge semantics only, no RV64 subroutine
 
-These 13 opcodes have executable-spec / handler / host-bridge
+These 14 opcodes have executable-spec / handler / host-bridge
 semantics only; **no RV64 subroutine is proven to produce the EVM result**:
 
-KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SSTORE, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL.
+KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SLOAD, SSTORE, LOG0..4, CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, STATICCALL.
 
 ### ✗ `notStarted` opcodes — not represented in `EvmOpcode`
 

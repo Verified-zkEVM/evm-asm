@@ -45,7 +45,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- runtime context registers across the lookup.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, " ++ runtimeAccessSeedScratchLabel ++ "\n  la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 7; jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
     "  beqz t6, .L_selfdestruct_origin_env_bal\n" ++
@@ -132,7 +132,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   -- beneficiary is alive, so ACCOUNT_WRITE and NEW_ACCOUNT are not charged.
   "  addi sp, sp, -16\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n" ++
   "  la a0, evm_selfdestruct_beneficiary\n  la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 8; jal ra, account_state_latest_balance\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  addi sp, sp, 16\n" ++
   "  beqz t6, .L_selfdestruct_live_beneficiary_done\n" ++
@@ -510,7 +510,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   ".L_sd7708_live_lookup:\n" ++
   "  mv a0, sp\n" ++
   "  la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 9; jal ra, account_state_latest_balance\n" ++
   "  bnez a0, .L_sd7708_live_found\n" ++
   "  la a0, sdai_origin_rlp\n" ++
   "  la t0, sdai_origin_len\n" ++
@@ -545,7 +545,7 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sd7708_created_key\n" ++
   ".L_sd7708_created_live:\n" ++
   "  mv a0, sp; la a1, evm_selfdestruct_balance_scratch\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 10; jal ra, account_state_latest_balance\n" ++
   "  bnez a0, .L_sd7708_created_have_live\n" ++
   -- Account struct at sp+32: nonce@0, balance@8..40 BE, storage root, code hash.
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, sdai_origin_address; li a3, 20\n" ++
@@ -695,7 +695,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   --   3) env+32 LE endowment (constructor SD with only tx value, no AccountState)
   "  sd zero, 32(sp); sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp)\n" ++
   "  mv a0, sp; addi a1, sp, 32\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 11; jal ra, account_state_latest_balance\n" ++
   "  bnez a0, .L_sdbn_ci_have_transferred\n" ++
   ".L_sdbn_ci_try_pre:\n" ++
   "  ld a0, 576(x20); ld a1, 584(x20); la a2, sdai_origin_address; li a3, 20\n" ++
@@ -774,7 +774,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_ci_bk\n" ++
   ".L_sdbn_ci_bk_d:\n" ++
   "  mv a0, sp; addi a1, sp, 64\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 12; jal ra, account_state_latest_balance\n" ++
   "  bnez a0, .L_sdbn_ci_have_pre\n" ++                 -- found a live balance -> sp+64 has it
   -- no live record: look up block-pre balance via account_at_header_state_root(beneficiary).
   -- args: header_ptr=576(x20), header_len=584(x20), addr=evm_selfdestruct_beneficiary(20B),
@@ -831,7 +831,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_origin_key\n" ++
   ".L_sdbn_origin_key_done:\n" ++
   "  addi a0, sp, 96; addi a1, sp, 64\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 13; jal ra, account_state_latest_balance\n" ++
   "  ld t0, 64(sp); ld t1, 72(sp); or t0, t0, t1; ld t1, 80(sp); or t0, t0, t1; ld t1, 88(sp); or t0, t0, t1\n" ++
   "  beqz t0, .L_sdbn_restore\n" ++
   "  la t0, sdai_origin_address; la t1, evm_selfdestruct_beneficiary; li t2, 20\n" ++
@@ -859,7 +859,7 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .L_sdbn_live_bk\n" ++
   ".L_sdbn_live_bk_d:\n" ++
   "  addi a0, sp, 96; mv a1, sp\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 14; jal ra, account_state_latest_balance\n" ++
   "  mv a0, sp; addi a1, sp, 64; addi a2, sp, 32\n" ++
   "  jal ra, u256_add_be\n" ++
   "  la a0, evm_selfdestruct_beneficiary; mv a1, sp; addi a2, sp, 32; li a3, 0; li a4, 0\n" ++
@@ -879,13 +879,13 @@ def selfdestructBeneficiaryNonstorageAsm : String :=
   -- in this transaction may already have advanced it.  Keep the witness nonce
   -- as the block-pre value and take the latest recorded nonce as the final.
   "  ld t0, 0(sp); sd t0, 40(sp)\n" ++
-  "  la a0, sdai_origin_address; addi a1, sp, 40; jal ra, account_state_latest_nonce\n" ++
+  "  la a0, sdai_origin_address; addi a1, sp, 40; li a2, 15; jal ra, account_state_latest_nonce\n" ++
   "  ld a3, 0(sp); ld a4, 40(sp)\n" ++
   "  j .L_sdbn_origin_debit\n" ++
   ".L_sdbn_origin_nonce_as:\n" ++
   -- status 3: no pre RLP. Nonce is whatever AccountState holds (CREATE deposited 1);
   -- EIP-6780 preserves it, so pre_nonce = post_nonce = AS latest.
-  "  sd zero, 0(sp); la a0, sdai_origin_address; addi a1, sp, 0; jal ra, account_state_latest_nonce\n" ++
+  "  sd zero, 0(sp); la a0, sdai_origin_address; addi a1, sp, 0; li a2, 16; jal ra, account_state_latest_nonce\n" ++
   "  ld a3, 0(sp); mv a4, a3\n" ++
   ".L_sdbn_origin_debit:\n" ++
   "  la a0, sdai_origin_address; addi a1, sp, 64; addi a2, sp, 8\n" ++                    -- a1 = pre_bal (origin), a2 = post_bal (0)

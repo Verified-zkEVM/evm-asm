@@ -391,9 +391,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
   -- exceeds the buffer (bsrAccountSlotCap*64+65536, the 4jczt-lifted size) the write would
-  -- overflow into adjacent .data (gas result + bvcd_* scratch). EIP-170 bounds code to 24576;
-  -- storage now fits the gas-derived BAL cap, but calldata/witness are still unbounded, so bail
-  -- conservatively (route to the safe path) instead of corrupting state.
+  -- overflow into adjacent .data (gas result + bvcd_* scratch). EIP-7907 MAX_CODE_SIZE is
+  -- 65536 (the headroom term); storage fits the gas-derived BAL cap, but calldata/witness
+  -- are still unbounded, so bail conservatively (route to the safe path) instead of
+  -- corrupting state.
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   -- (GH #11176: the storage_count*64 preload term is gone with the preload itself.)
@@ -551,7 +552,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_selfbal_addr_done:\n" ++
   "  la a0, bv_pending_recipient_addr; la a1, bv_pending_recipient_pre\n" ++
   "  la t0, runtime_tx_account_read_suppress; li t1, 1; sd t1, 0(t0)\n" ++
-  "  jal ra, account_state_latest_balance\n" ++
+  "  li a2, 1; jal ra, account_state_latest_balance\n" ++
   "  la t0, runtime_tx_account_read_suppress; sd zero, 0(t0)\n" ++
   "  beqz a0, .Ldtrc_selfbal_live_done\n" ++
   "  la t0, bv_runtime_payload\n  la t1, srpc_env_base\n  ld t1, 0(t1)\n  add t2, t0, t1\n  addi t2, t2, 32\n" ++
@@ -593,6 +594,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t3, 8(t2); ld t4, 72(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 8(t2)\n" ++
   "  ld t3, 16(t2); ld t4, 80(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 16(t2)\n" ++
   "  ld t3, 24(t2); ld t4, 88(t2); add t5, t3, t4; add t5, t5, t6; sd t5, 24(t2)\n" ++
+  -- Debug-only post-mutation witness for the root recipient credit.
+  "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, bv_pending_recipient_addr; mv a1, t2; li a2, 1; li a3, 0; jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
 
   -- F3 retirement: nested storage and balance reads now use their authenticated
   -- demand-driven paths; no eager BAL-account seed is produced here.

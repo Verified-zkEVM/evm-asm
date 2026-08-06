@@ -51,23 +51,30 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (bytes) of the code-effect log heap. Each entry is
-    `round8(48 + code_len)`; deployed code is ≤ 32768 (Amsterdam EIP-7907).
+    `round8(48 + code_len)` with per-code `code_len ≤ MAX_CODE_SIZE = 65536`
+    (Amsterdam EIP-7907 / `CreateDeployedCodeValid.maxDeployedCodeSize`).
+
+    This is a gas-derived TOTAL arena, not a fixed per-code buffer: entry size
+    is computed dynamically from the live `code_len`. The former prose claim
+    "deployed code ≤ 32768" was a half-migrated EIP-7907 constant (same class
+    as the EXTCODECOPY length clamp fixed in #11608) and is not a live sizing
+    assumption here.
 
     Gas-derived bound for the full 200M block target. Code deposit charges
     `CODE_DEPOSIT_PER_BYTE = 200` gas/byte, so the total deployed bytecode in a
     `bsrStateRootBlockGasLimit`-gas block is at most `200M / 200 = 1,000,000`
     bytes. Accounting for the 32,000-gas CREATE base (which lowers the realized
     byte budget) and the per-record `+48` overhead, the worst case is reached by
-    ~30 near-max (32,768-byte) deploys: `Σcᵢ ≤ 200M/200 - 160·N` gives
-    `Σcᵢ ≈ 983,040` and arena `Σ round8(48+cᵢ) ≈ 984 KiB` (~0.94 MiB realized,
-    1.0 MiB absolute ceiling); the EIP-7907 large-code extra gas only lowers
-    this, and the empty-CREATE / EIP-7702 delegation marker paths (48-byte
-    records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
-    cap therefore reserves the exact 1.0 MiB ceiling.  For nonempty code,
-    `round8(48 + code_len) ≤ code_len + 55` while the CREATE base charge makes
-    every additional record reduce the available code-byte budget by 160 bytes;
-    empty CREATE/delegation records are bounded more tightly by their fixed
-    per-event gas.  Thus neither form can reach the one-mebibyte reservation.
+    ~15 near-max (65,536-byte) deploys: `Σcᵢ ≤ 200M/200 - 160·N` still keeps
+    arena `Σ round8(48+cᵢ)` under the 1.0 MiB absolute ceiling; the EIP-7907
+    large-code extra gas only lowers this, and the empty-CREATE / EIP-7702
+    delegation marker paths (48-byte records) are less arena-bytes-per-gas-efficient
+    so cannot exceed it. The cap therefore reserves the exact 1.0 MiB ceiling.
+    For nonempty code, `round8(48 + code_len) ≤ code_len + 55` while the CREATE
+    base charge makes every additional record reduce the available code-byte
+    budget by 160 bytes; empty CREATE/delegation records are bounded more tightly
+    by their fixed per-event gas.  Thus neither form can reach the one-mebibyte
+    reservation.
 
     On overflow the producer sets `exec_code_effect_overflow`; block_verdict
     consumes that flag as a rejection. -/
@@ -487,17 +494,19 @@ def accountStateLatestBalanceFunction : String :=
   -- GH #10619: record the account READ (unconditional, state_tracker.py:139).
   -- Hooked INSIDE the accessor so every caller is covered and the recording
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
-  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a1, 8(sp); li a2, 2; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+  "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- BLOCK-first entry used before the current transaction has published any
   -- writes.  It still records the execution read, deliberately skips the
   -- tx-local map, and falls back to AccountState when the block attribution
   -- map has no component for the address.
   "account_state_latest_balance_block:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a1, 8(sp); li a2, 1; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+  "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- a2 = 1 scans the block attribution map first and then falls back to the
   -- execution-state path.  Any other mode is AccountState-only; write maps are
   -- attribution structures, not a substitute for AccountState.
@@ -538,13 +547,15 @@ def accountStateLatestNonceFunction : String :=
   -- the CREATE address defect on 00091 (execution-specs state_tracker.py's
   -- write-through read must preserve the account's nonce, not infer one from
   -- an unrelated balance update).
-  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a1, 8(sp); li a2, 2; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+  "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_block:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a1, 8(sp); li a2, 1; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 16; ret\n" ++
+  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+  "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_core:\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; li t0, 1; beq s2, t0, .Laslnc_block_scan; j .Laslnc_account_state\n" ++
   ".Laslnc_block_scan:\n" ++

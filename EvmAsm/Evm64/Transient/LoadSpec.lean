@@ -370,12 +370,12 @@ theorem evm_tload_loop_spec_within
           BitVec.ofNat 64 (es.length * 128))) **
        (((.x15)) ↦ᵣ BitVec.ofNat 64 es.length) ** (((.x0)) ↦ᵣ (0 : Word)) **
        evmWordIs envAddr addrHash ** evmWordIs sp slotKey **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE es)
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE es)
       (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
        (((.x20)) ↦ᵣ envAddr) ** (((.x12)) ↦ᵣ sp) ** (((.x0)) ↦ᵣ (0 : Word)) **
        evmWordIs envAddr addrHash **
        evmWordIs sp (transientLookup addrHash slotKey es) **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE es) := by
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE es) := by
   intro es
   induction es using List.reverseRecOn with
   | nil => intro hne _; exact absurd rfl hne
@@ -392,7 +392,7 @@ theorem evm_tload_loop_spec_within
     by_cases hm : e.addrHash = addrHash ∧ e.slotKey = slotKey
     · -- The most-recent entry matches: copy its `current`, exit.
       have coreF := cpsTripleWithin_frameR
-        (storageLogIs TRANSIENT_STORAGE_LOG_BASE es' **
+        (transientLogIs TRANSIENT_STORAGE_LOG_BASE es' **
          (((TRANSIENT_STORAGE_LOG_BASE +
              BitVec.ofNat 64 (es'.length * 128)) + 64) ↦ₘ
             e.original.getLimbN 0) **
@@ -419,11 +419,11 @@ theorem evm_tload_loop_spec_within
           (e.current.getLimbN 2) (e.current.getLimbN 3))
       refine cpsTripleWithin_mono_nSteps (by omega)
         (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) coreF)
-      · rw [storageLogIs_snoc, storageSlotIs_eq_flat, hm.1, hm.2,
+      · rw [transientLogIs_snoc, storageSlotIs_eq_flat, hm.1, hm.2,
             evmWordIs_flat envAddr addrHash, evmWordIs_flat sp slotKey,
             hent] at hp
         xperm_hyp hp
-      · rw [transientLookup_snoc, if_pos hm, storageLogIs_snoc,
+      · rw [transientLookup_snoc, if_pos hm, transientLogIs_snoc,
             storageSlotIs_eq_flat, hm.1, hm.2,
             evmWordIs_flat envAddr addrHash, evmWordIs_flat sp e.current]
         exact sepConj_own4
@@ -451,7 +451,7 @@ theorem evm_tload_loop_spec_within
         have hTL : transientLookup addrHash slotKey es' = 0 := by
           rw [hnil]; rfl
         have coreF := cpsTripleWithin_frameR
-          (storageLogIs TRANSIENT_STORAGE_LOG_BASE es' **
+          (transientLogIs TRANSIENT_STORAGE_LOG_BASE es' **
            (((TRANSIENT_STORAGE_LOG_BASE +
                BitVec.ofNat 64 (es'.length * 128)) + 64) ↦ₘ
               e.original.getLimbN 0) **
@@ -491,11 +491,11 @@ theorem evm_tload_loop_spec_within
             hlimb hm0)
         refine cpsTripleWithin_mono_nSteps (by omega)
           (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) coreF)
-        · rw [storageLogIs_snoc, storageSlotIs_eq_flat,
+        · rw [transientLogIs_snoc, storageSlotIs_eq_flat,
               evmWordIs_flat envAddr addrHash, evmWordIs_flat sp slotKey,
               hent] at hp
           xperm_hyp hp
-        · rw [transientLookup_snoc, if_neg hm, hTL, storageLogIs_snoc,
+        · rw [transientLookup_snoc, if_neg hm, hTL, transientLogIs_snoc,
               storageSlotIs_eq_flat, evmWordIs_flat envAddr addrHash,
               evmWordIs_zero]
           exact sepConj_own2
@@ -509,7 +509,7 @@ theorem evm_tload_loop_spec_within
           exact ofNat64_ne_zero
             (fun h0 => hnil (List.eq_nil_of_length_eq_zero h0)) (by omega)
         have iterF := cpsTripleWithin_frameR
-          (storageLogIs TRANSIENT_STORAGE_LOG_BASE es' **
+          (transientLogIs TRANSIENT_STORAGE_LOG_BASE es' **
            (((TRANSIENT_STORAGE_LOG_BASE +
                BitVec.ofNat 64 (es'.length * 128)) + 64) ↦ₘ
               e.original.getLimbN 0) **
@@ -606,11 +606,11 @@ theorem evm_tload_loop_spec_within
           iterF ihF
         refine cpsTripleWithin_mono_nSteps (by omega)
           (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) comp)
-        · rw [storageLogIs_snoc, storageSlotIs_eq_flat,
+        · rw [transientLogIs_snoc, storageSlotIs_eq_flat,
               evmWordIs_flat envAddr addrHash, evmWordIs_flat sp slotKey,
               hent] at hp
           xperm_hyp hp
-        · rw [transientLookup_snoc, if_neg hm, storageLogIs_snoc,
+        · rw [transientLookup_snoc, if_neg hm, transientLogIs_snoc,
               storageSlotIs_eq_flat]
           xperm_hyp hq
 
@@ -720,14 +720,14 @@ theorem evm_tload_spec_within
        (((.x0)) ↦ᵣ (0 : Word)) **
        ((envAddr + 464) ↦ₘ BitVec.ofNat 64 n) **
        evmWordIs envAddr addrHash ** evmWordIs sp slotKey **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries)
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries)
       (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
        (((.x20)) ↦ᵣ envAddr) ** (((.x12)) ↦ᵣ sp) **
        (((.x0)) ↦ᵣ (0 : Word)) **
        ((envAddr + 464) ↦ₘ BitVec.ofNat 64 n) **
        evmWordIs envAddr addrHash **
        evmWordIs sp (transientLookup addrHash slotKey entries) **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries) := by
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries) := by
   by_cases hn0 : n = 0
   · -- Empty log: the head BEQ takes the zero arm.
     subst hn0
@@ -736,7 +736,7 @@ theorem evm_tload_spec_within
     have coreF := cpsTripleWithin_frameR
       ((((.x14)) ↦ᵣ x14old) ** (((.x16)) ↦ᵣ x16old) ** (((.x17)) ↦ᵣ x17old) **
        evmWordIs envAddr addrHash **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE ([] : List StorageLogEntry))
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE ([] : List StorageLogEntry))
       (by pcFree)
       (evm_tload_empty_spec_within base envAddr sp x15old
         (slotKey.getLimbN 0) (slotKey.getLimbN 1)
@@ -754,7 +754,7 @@ theorem evm_tload_spec_within
     have headF := cpsTripleWithin_frameR
       ((((.x12)) ↦ᵣ sp) ** (((.x17)) ↦ᵣ x17old) **
        evmWordIs envAddr addrHash ** evmWordIs sp slotKey **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries)
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries)
       (by pcFree)
       (evm_tload_head_spec_within base envAddr x14old x15old x16old n
         (ofNat64_ne_zero hn0 hcap))
@@ -778,7 +778,7 @@ theorem evm_tload_spec_within
 /-! ## Public stack-level witness -/
 
 /-- **TLOAD stack spec** (the `.proven` witness): with the transient log of
-    length `n` (`transientLogLenIs`/`storageLogIs`), the executing frame's
+    length `n` (`transientLogLenIs`/`transientLogIs`), the executing frame's
     `env.ADDRESS` word, and the slot key at the stack top, the reverse scan
     replaces the stack top IN PLACE (pop-1-push-1: `x12` unchanged) by
     `transientLookup addrHash slotKey entries` — the `current` of the
@@ -799,14 +799,14 @@ theorem evm_tload_stack_spec_within
        (((.x16)) ↦ᵣ x16old) ** (((.x17)) ↦ᵣ x17old) **
        (((.x0)) ↦ᵣ (0 : Word)) **
        transientLogLenIs envAddr n **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries **
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries **
        evmWordIs envAddr addrHash **
        evmStackIs sp (slotKey :: rest))
       (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
        (((.x20)) ↦ᵣ envAddr) ** (((.x12)) ↦ᵣ sp) **
        (((.x0)) ↦ᵣ (0 : Word)) **
        transientLogLenIs envAddr n **
-       storageLogIs TRANSIENT_STORAGE_LOG_BASE entries **
+       transientLogIs TRANSIENT_STORAGE_LOG_BASE entries **
        evmWordIs envAddr addrHash **
        evmStackIs sp (transientLookup addrHash slotKey entries :: rest)) := by
   have framed := cpsTripleWithin_frameR (evmStackIs (sp + 32) rest)

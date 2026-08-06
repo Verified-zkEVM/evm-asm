@@ -410,6 +410,10 @@ def callDescendFallThrough
       "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
       ".Lcd_sbwb_" ++ tag ++ ":\n" ++
       "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
+      -- Debug-only post-mutation witness for the caller debit.  The later
+      -- frame-return path supplies the rollback semantics; this checkpoint
+      -- records the live balance at the actual debit boundary.
+      "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; addi a1, x20, 32; li a2, 5; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
       -- GH #11001: mark upcoming child depth so frame_return can re-credit parent
       -- env+32 if the child reverts (debit is pre-snapshot; rmv is post-snapshot).
       "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  addi t0, t0, 1\n" ++
@@ -490,7 +494,7 @@ def callDescendFallThrough
     -- nse_acct+8 only on a hit; miss keeps the header/zero pre_balance above.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, nse_callee_be\n  la a1, nse_acct\n  addi a1, a1, 8\n" ++
-    "  jal ra, account_state_latest_balance\n  mv t6, a0\n" ++
+    "  li a2, 5; jal ra, account_state_latest_balance\n  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t6, .Lcd_nse_prior_alive_done_" ++ tag ++ "\n" ++
     "  la t0, nse_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2\n" ++
@@ -1159,6 +1163,9 @@ def callDescendFallThrough
       "  lbu t3, 0(t0); sb t3, 0(t1)\n" ++
       "  addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1\n" ++
       "  bnez t2, .Lcd_child_sb_wb_" ++ tag ++ "\n" ++
+      -- The child now has its post-transfer SELF balance.  This checkpoint is
+      -- intentionally at the mutation boundary, before child dispatch.
+      "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; addi a1, x20, 32; li a2, 2; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
       ".Lcd_child_sb_done_" ++ tag ++ ":\n") ++
    -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
    -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
