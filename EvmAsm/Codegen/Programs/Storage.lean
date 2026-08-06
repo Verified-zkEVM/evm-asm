@@ -540,7 +540,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         runtimeAccessWordToBe20Asm "sstore_created" "x15" "x14" "x16" "x17" ++
         "  addi sp, sp, -48\n" ++
         "  sd x1, 0(sp); sd x10, 8(sp); sd x11, 16(sp); sd x12, 24(sp); sd x13, 32(sp)\n" ++
-        "  la a0, sstore_prestate_pair; jal ra, account_state_created_contains\n" ++
+        "  la a0, sstore_prestate_pair; jal ra, account_writes_created_contains\n" ++
         "  la x14, sstore_created_original_zero; sd a0, 0(x14)\n" ++
         "  ld x1, 0(sp); ld x10, 8(sp); ld x11, 16(sp); ld x12, 24(sp); ld x13, 32(sp); addi sp, sp, 48\n" ++
         "  la x14, sstore_created_original_zero; ld x14, 0(x14); beqz x14, .Lsstore_created_original_scan\n" ++
