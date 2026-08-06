@@ -56,6 +56,7 @@
 
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
+import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
@@ -64,6 +65,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
@@ -228,6 +230,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "`header_logs_bloom_of_decode` is unconditional on the field width: #11615 "
         ++ "made the port perform the `FixedBytes` check the reference performs, so "
         ++ "`len = 256` is derived rather than assumed"),
+  routine "header_validate_extra_data_length" .proven
+      (some "header_validate_extra_data_length_spec_within")
+      (notes := "field-12 (`extra_data`) length rule: prologue ;; `rlp_list_nth_item` at "
+        ++ "index 12 ;; compare against 32 ;; epilogue. K20 only, so NO `7 * (2^64 - 1)` "
+        ++ "factor -- #11461 does not reach this routine. ⚠️ Its model tie "
+        ++ "`header_extra_data_length_of_decode` crosses a DIFFERENT comparison boundary "
+        ++ "from the other header rows: `extra_data` is plain `Bytes` and unbounded at "
+        ++ "decode time, so the <=32 rule is a `validate_header` clause "
+        ++ "(SeamShell.lean:248), not a `_decode_header` field check. The tie is an IFF on "
+        ++ "the decision, because the guest's a0=0/a0=1 guard is total over the field"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -306,9 +318,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 28 := by decide
+theorem routineCount_eq : routineCount = 29 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 20 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 21 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -323,7 +335,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 20 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 21 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -416,6 +428,11 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+-- #11575 row 2's Correspondence row names this; Codegen-side, so it lives here.
+private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
+  @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here
@@ -441,6 +458,21 @@ private noncomputable abbrev _account_eip161_leniency_witness :=
   @EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 private noncomputable abbrev _beAccFrom_eq_beAccum_witness :=
   @EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
+-- #11348: Correspondence's `bloom_or_into` row names this, and it is Codegen-side,
+-- so like the #11351/#11345 witnesses above the abbrev lives here.
+--
+-- ⚠️ NO `RoutineEntry` row accompanies it, deliberately. Every row in the registry
+-- above claims a FLAT whole-routine triple at `GuestAddrs.<symbol>`, derived by
+-- `Fn.retSpecFlat`; `bloomOrIntoFn_spec` is the structured SAsm `.Spec`, so a
+-- `.proven` row would overclaim. The WITNESS is what puts a theorem in the axiom
+-- gate; the ROW is what claims a tier. Those are separate obligations and only the
+-- first is warranted here. (This distinction is the subject of #11637.)
+private noncomputable abbrev _bloom_or_into_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
+-- The reference-facing half: why per-receipt accumulation matches a `logs_bloom`
+-- computed from the flat log list.
+private noncomputable abbrev _bloom_or_into_fold_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 private noncomputable abbrev _rlp_list_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_spec
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.

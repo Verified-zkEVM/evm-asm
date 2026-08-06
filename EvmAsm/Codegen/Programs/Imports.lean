@@ -142,6 +142,7 @@ import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.MsetMemcpySAsm
 import EvmAsm.Codegen.Programs.BloomOrIntoSAsm
+import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Codegen.Programs.RunningBloomCopySAsm
 import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
@@ -345,6 +346,7 @@ import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
@@ -503,6 +505,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
+import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm

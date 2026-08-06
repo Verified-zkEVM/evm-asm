@@ -35,6 +35,10 @@ codegen_checks() {
 report_checks() {
   scripts/check-progress.sh
   scripts/check-drift.sh
+  # #11637: row EXISTENCE, which nothing gated before -- every other registry
+  # invariant quantifies over rows that are already there, so a linked, proven
+  # routine with no row at all tripped nothing. Pure source scan, instant.
+  scripts/check-registry-coverage.py
 }
 
 start codegen codegen_checks

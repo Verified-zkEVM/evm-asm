@@ -387,6 +387,33 @@ differential, so there is no `diff` result to inherit. FULL DOMAIN: the only sid
 conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
 is the ABI contract, not an input-domain gate" },
 
+  -- #11348: the block/receipt bloom accumulation.
+  { family := "bloom", routine := "bloom_or_into",
+    spec := some "bloomOrIntoFn_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "logs_bloom's pointwise-OR decomposition \
+(SpecRef/BloomAlgebra.lean: bloomOr, logs_bloom_append)",
+    note := "⭐ THE COUNTERPART HAD TO BE CONSTRUCTED, which is the whole content of \
+this row. The reference `logs_bloom` (Fork.lean:101) never ORs two blooms: it folds \
+*bit-sets* into one accumulator via `add_to_bloom`'s three `List.set`s, over the \
+block's logs as one flat list. The guest instead materialises a bloom per receipt and \
+ORs them pairwise. So before #11348 there was no reference term for this routine's post \
+at all and the only honest verdict would have been `noCounterpart`. BloomAlgebra supplies \
+the missing algebra: `add_to_bloom b e = bloomOr b (add_to_bloom zeroBloom e)`, whose \
+proof is NOT the obvious disjoint-update argument -- the three bit indices derived from \
+one entry CAN collide into the same byte, so it goes through `setOr_getD` with a case \
+split per step, handling collisions by `Nat.lor` idempotence rather than avoiding them. \
+That yields `logs_bloom_append`, and hence `bloomOrInto_fold_eq_logs_bloom`: folding \
+this routine over per-receipt log groups from the zero bloom equals the reference bloom \
+of all the logs. WHY `.bridged`: the guest side is a machine-level SAsm triple \
+(`bloomOrIntoFn_spec`) whose post is `orWin src orig 32`, and it is tied to `bloomOr` by \
+a Lean theorem (`orWin_full_eq_bloomOr`, BloomOrIntoBridge.lean) rather than by \
+inspection -- the two shapes match definitionally because `bloomOr` was deliberately \
+written in the guest's `(List.range 256).map` form. ⚠️ SCOPE: the FOLD only, per the \
+issue and docs/leaf-routine-targets.md. The per-log index derivation (keccak256 + the \
+11-bit extraction) is an opaque function of the entry here; a divergence in THAT would \
+not be caught by this row" },
+
   -- #11349: the header gas-limit rule. Row is mandatory once the symbol is witnessed
   -- in Routines.lean -- #11342 showed an absent row passes the cross-registry gate
   -- vacuously.
@@ -420,6 +447,44 @@ Python while looking faithful" },
   -- was missing. I rebuilt it from scratch in #11457 before finding it, having read "no
   -- registry row" as "no proof" after a truncated survey search. AN ABSENT ROW IS NOT
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
+  { family := "header", routine := "header_validate_extra_data_length",
+    spec := some "header_extra_data_length_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `extra_data` length clause of `validate_header` \
+(SpecRef/SeamShell.lean:248, fork.py) over `_decode_header`'s field 12",
+    note := "#11575 row 2. ⚠️ THIS ROW'S COMPARISON BOUNDARY IS NOT THE ONE THE OTHER `header` \
+ROWS USE, and the method doc requires saying so (spec-correspondence.md 5). Every other \
+`header_*` row ties a routine to a FIELD OF `_decode_header`. This one cannot: `extra_data` is \
+plain `Bytes` in the reference, genuinely UNBOUNDED at decode time -- unlike the `FixedBytes` \
+aliases that #11615 made checkable -- so there is nothing in `_decode_header` to compare a \
+length against. The <=32 rule is a clause of a DIFFERENT spec function, `validate_header`. So \
+the boundary is: `_decode_header` supplies the field, and the routine implements a \
+`validate_header` clause over it, which is why the tie has TWO conclusions (a length equation \
+on the decode side, a decision equivalence on the validation side) rather than one. \
+THE DECISION IS AN IFF, not one-directional: `hvedPost`'s first two arms differ only in the \
+guard -- `a0 = 0` with `not (32 <u len)` and `a0 = 1` with `32 <u len` -- so on a successful \
+decode the guest's accept/reject choice is TOTAL over the field, and the honest statement is an \
+equivalence with the reference's throw condition. That is stronger than row 9's field tie and \
+is worth noting: the guest is not merely value-correct here, it makes the same DECISION. \
+DOMAIN RESTRICTION -- ARITY ONLY (taxonomy row 1, a proof limit), as for row 1: the guest never \
+checks how many fields the header has, so on a list of any other length it still returns a \
+verdict where `_decode_header` errors. Field 12 exists in BOTH the 23- and 21-field arms, which \
+is why this row pairs with `chain_validate_extra_data_length`. NO precondition and NO \
+`portDefect`: the field needs neither, since the reference imposes no decode-time width on it. \
+STEP BOUND: K20 (`rlp_list_nth_item`) only, so this row does NOT inherit #11461's \
+`7 * (2^64 - 1)` factor -- same as row 1, unlike the five numeric siblings. \
+Tied by `header_extra_data_length_of_decode` \
+(`Codegen/Programs/HeaderValidateExtraDataLengthBridge.lean`), consuming the machine triple \
+`header_validate_extra_data_length_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT \
+`.bridged`: the tie is FORMAL, but this family has no executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `extraData := getB 12` is \
+syntactically the `header.extra_data` assignment of stateless.py:244; the guard \
+`if header.extraData.length > 32 then throw` is syntactically fork.py's clause; and the \
+Word-vs-Nat comparison is PROVED equivalent rather than assumed -- the bridge derives \
+`(bs.getD 12 []).length < 2 ^ 64` from the buffer bound, so `not (32 <u ofNat 64 L)` and \
+`L <= 32` coincide with no wraparound. NOT NEEDED: any width side condition on the field, and \
+that absence is the point -- `extra_data` is the ONE header byte field where guest and \
+reference genuinely differ in KIND rather than in bound (#11615)" },
   { family := "header", routine := "header_extract_logs_bloom",
     spec := some "header_logs_bloom_of_decode",
     verdict := .domainRestricted, basis := .ported,
@@ -595,15 +660,18 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 26 := by decide
+theorem registry_size : registry.length = 28 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
-theorem header_rows : countFamily "header" = 3 := by decide
+theorem header_rows : countFamily "header" = 4 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
+/-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
+    than found in the fork spec -- see the row's note. -/
+theorem bloom_rows : countFamily "bloom" = 1 := by decide
 
 /-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
     that is not automatically a sign the schema has stopped discriminating.
@@ -623,7 +691,7 @@ theorem mpt_rows : countFamily "mpt" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 5 ∧
+    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 6 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -635,8 +703,8 @@ theorem verdict_counts :
 theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .ported = 5 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 11 ∧
+    countBasis .ported = 6 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
