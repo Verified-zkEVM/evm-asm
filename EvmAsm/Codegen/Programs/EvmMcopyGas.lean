@@ -40,15 +40,21 @@ def mcopyDynamicGasAsm : String :=
   "  srli x6, x19, 5\n" ++
   "  slli x7, x6, 1\n" ++
   "  add x7, x7, x6\n" ++
-  -- #10523: mulhu guard (same as updateActiveMemorySizeAsm) — required once
-  -- the arena bound is frame-derived rather than a static 64 KiB w≤2048.
+  -- mulhu: UNIFICATION with updateActiveMemorySizeAsm, not overflow-required
+  -- after the range guard. Post-guard ends ≤ arena (depth0 0x400000 → w≤2^17,
+  -- w²≤2^34; nested ≤ pool 0x6000000 → w≤2^22, w²≤2^44). Both fit in u64
+  -- with margin; mulhu cannot fire on reachable clamped ends. Kept so MCOPY
+  -- quadratic cost matches the shared helper pattern (w≥2^32 → OOG).
   "  mulhu x17, x6, x6\n" ++
   "  bnez x17, .exit_outofgas\n" ++
   "  mul x6, x6, x6\n" ++
   "  srli x6, x6, 9\n" ++
   "  add x6, x6, x7\n" ++
   -- after cost = words*3 + words^2/512 for x5.
-  -- Spill after-rounded to x19 early (expansion path only); mulhu may clobber x5.
+  -- Spill after-rounded to x19 HERE (expansion path only): next mulhu writes
+  -- x5, so x5 cannot survive until the old post-cost spill site. Window from
+  -- this mv to old `mv x19,x5` (end of after-cost): srli/slli/add/mulhu/bnez/
+  -- mul/srli/add/sub/add — none reads x19; only mulhu writes x5 (intentional).
   "  mv x19, x5\n" ++
   "  srli x7, x5, 5\n" ++
   "  slli x17, x7, 1\n" ++
