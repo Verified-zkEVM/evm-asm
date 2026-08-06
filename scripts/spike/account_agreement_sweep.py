@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Run the runtime AccountWriteMap/AccountState agreement harness.
 
-The guest writes counters plus 64-byte mismatch records into the diagnostic
-arena.  The dump is deliberately one contiguous range: the spike dump driver
-has unstable readback when adjacent ranges are requested separately.
+The guest writes counters plus 64-byte agreement records into the diagnostic
+arena.  Status 2 records semantic mismatches; status 3 records retained
+cross-tier instrumentation data.  The dump is deliberately one contiguous
+range: the spike dump driver has unstable readback when adjacent ranges are
+requested separately.
 """
 
 from __future__ import annotations
@@ -56,6 +58,7 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
         "account_agreement_live_field_absent",
         "account_agreement_present_agree",
         "account_agreement_mismatch_count",
+        "account_agreement_instrument_count",
         "agreement_event_count",
         "agreement_event_overflow",
         "agreement_events",
@@ -154,6 +157,7 @@ def decode(
         "account_agreement_live_field_absent",
         "account_agreement_present_agree",
         "account_agreement_mismatch_count",
+        "account_agreement_instrument_count",
         "agreement_event_count",
         "agreement_event_overflow",
     ]
@@ -285,6 +289,12 @@ def main() -> int:
         for event in record["events"]
         if event["verdict"] == 2
     ]
+    instrument_events = [
+        {"label": record["label"], "event": event}
+        for record in records
+        for event in record["events"]
+        if event["verdict"] == 3
+    ]
     summary = {
         "elf": str(args.elf),
         "elf_sha256": elf_sha,
@@ -297,6 +307,7 @@ def main() -> int:
         "dump_range": f"{start:#x}:{length:#x}",
         "cases": len(records),
         "mismatch_events": len(mismatches),
+        "instrument_events": len(instrument_events),
         "balance_probe_invocations": sum(
             int(record["counters"]["account_agreement_balance_probe_count"])
             for record in records
@@ -311,12 +322,16 @@ def main() -> int:
         "mismatch_readers": sorted(
             {int(item["event"]["reader"]) for item in mismatches}
         ),
+        "instrument_readers": sorted(
+            {int(item["event"]["reader"]) for item in instrument_events}
+        ),
         "records": records,
     }
     report = args.report or root / "report.json"
     report.write_text(json.dumps(summary, indent=2) + "\n")
     print(
         f"agreement sweep: cases={len(records)} mismatches={len(mismatches)} "
+        f"instrument_events={len(instrument_events)} "
         f"output_differences={summary['output_differences']} "
         f"elf_sha256={elf_sha} report={report}"
     )

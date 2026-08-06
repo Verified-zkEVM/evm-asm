@@ -297,10 +297,14 @@ def accountWritesLatestBalanceFunction : String :=
     (`1` balance or `2` nonce), and `a2 = stable reader id`.  It checks both
     transaction and block maps against the field-specific live AccountState
     row.  A missing map row, a row without this field, and a live row without
-    this field have separate counters; only a populated field with a differing
-    value creates an event record.  Events carry status `2`, field, reader,
-    and differing limb index in one word, followed by the address and the
-    differing map/live value limbs.
+    this field have separate counters.  A populated field with a differing
+    value creates an event record; status `2` is a semantic mismatch and
+    status `3` is retained cross-tier instrumentation data.  The reader-tier
+    contract is explicit: readers 3, 18, and 19 are TX-tier; reader 17 is
+    BLOCK-tier.  This keeps both scans useful without counting an event from a
+    container the reader is not entitled to consult.  Events carry status,
+    field, reader, map tier, and differing limb index in one word, followed by
+    the address and the differing map/live value limbs.
 -/
 
 def accountAgreementEventCapacity : Nat := 4096
@@ -334,11 +338,30 @@ def accountAgreementRecordFunction : String :=
   ".Laar_balance_mismatch2:\n  li t6, 2; j .Laar_mismatch\n" ++
   ".Laar_balance_mismatch3:\n  li t6, 3; j .Laar_mismatch\n" ++
   ".Laar_mismatch:\n" ++
-  "  la t0, account_agreement_mismatch_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  -- Reader-tier contract: the normal AccountState readers are current-TX
+  -- reads (3, 18, 19); only the explicit block-first reader (17) is
+  -- entitled to consult the block-cumulative map.  Keep a mismatching
+  -- cross-tier value as an event, but classify it separately from a semantic
+  -- disagreement so later sweeps do not need to rediscover this distinction.
+  "  li t0, 17; beq s3, t0, .Laar_expected_block\n" ++
+  "  li t0, 3; beq s3, t0, .Laar_expected_tx\n" ++
+  "  li t0, 18; beq s3, t0, .Laar_expected_tx\n" ++
+  "  li t0, 19; beq s3, t0, .Laar_expected_tx\n" ++
+  -- An unregistered reader is deliberately treated as cross-tier until its
+  -- contract is added here; it must not silently inflate semantic mismatches.
+  "  li t0, 0; j .Laar_expected_ready\n" ++
+  ".Laar_expected_tx:\n  li t0, 1; j .Laar_expected_ready\n" ++
+  ".Laar_expected_block:\n  li t0, 2\n" ++
+  ".Laar_expected_ready:\n" ++
+  "  beq t0, s4, .Laar_semantic_mismatch\n" ++
+  "  li t0, 3; sd t0, 80(sp); la t0, account_agreement_instrument_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_record_event\n" ++
+  ".Laar_semantic_mismatch:\n" ++
+  "  li t0, 2; sd t0, 80(sp); la t0, account_agreement_mismatch_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laar_record_event:\n" ++
   "  la t0, agreement_event_count; ld t1, 0(t0); li t2, " ++ toString accountAgreementEventCapacity ++ "; bgeu t1, t2, .Laar_event_overflow\n" ++
   "  slli t2, t1, 6; la t3, agreement_events; add t3, t3, t2\n" ++
   "  ld t4, 0(s0); sd t4, 0(t3); ld t4, 8(s0); sd t4, 8(t3); ld t4, 16(s0); sd t4, 16(t3); ld t4, 24(s0); sd t4, 24(t3)\n" ++
-  "  li t4, 2; slli t5, s2, 8; or t4, t4, t5; slli t5, s3, 16; or t4, t4, t5; slli t5, s4, 32; or t4, t4, t5; slli t5, t6, 40; or t4, t4, t5; sd t4, 32(t3)\n" ++
+  "  ld t4, 80(sp); slli t5, s2, 8; or t4, t4, t5; slli t5, s3, 16; or t4, t4, t5; slli t5, s4, 32; or t4, t4, t5; slli t5, t6, 40; or t4, t4, t5; sd t4, 32(t3)\n" ++
   "  slli t5, t6, 3; li t4, 1; beq s2, t4, .Laar_store_balance\n" ++
   "  add t4, s0, t5; ld t4, 64(t4); sd t4, 40(t3); add t4, s1, t5; ld t4, 64(t4); sd t4, 48(t3); j .Laar_store_done\n" ++
   ".Laar_store_balance:\n" ++
@@ -1156,6 +1179,7 @@ def accountWriteMapBssSection : String :=
   "account_agreement_live_field_absent:\n  .zero 8\n" ++
   "account_agreement_present_agree:\n  .zero 8\n" ++
   "account_agreement_mismatch_count:\n  .zero 8\n" ++
+  "account_agreement_instrument_count:\n  .zero 8\n" ++
   "agreement_event_count:\n  .zero 8\n" ++
   "agreement_event_overflow:\n  .zero 8\n" ++
   "agreement_events:\n  .zero " ++ toString (accountAgreementEventCapacity * 64) ++ "\n"
