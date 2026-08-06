@@ -194,6 +194,11 @@ def main() -> int:
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--allow-mismatch", action="store_true")
+    parser.add_argument(
+        "--enable",
+        action="store_true",
+        help="arm the agreement harness through SPIKE_INIT_WRITES",
+    )
     args = parser.parse_args()
 
     if args.random_count < 0:
@@ -226,11 +231,12 @@ def main() -> int:
         env = os.environ.copy()
         env["SPIKE_DUMP_RANGES"] = f"{start:#x}:{length:#x}"
         env["SPIKE_DUMP_FILE"] = str(dump_path)
-        # The production guest carries the harness but leaves it inert.  The
-        # sweep is the explicit debug consumer, so arm the runtime flag only
-        # for this process.  The address comes from the candidate ELF rather
-        # than from a hand-pinned layout constant.
-        env["SPIKE_INIT_WRITES"] = f"{syms['account_agreement_enabled']:#x}:1"
+        if args.enable:
+            # The production guest carries the harness but leaves it inert.
+            # The sweep is the explicit debug consumer, so arm the runtime
+            # flag only for this process.  The address comes from the
+            # candidate ELF rather than from a hand-pinned layout constant.
+            env["SPIKE_INIT_WRITES"] = f"{syms['account_agreement_enabled']:#x}:1"
         process = subprocess.run(
             [str(args.runner), str(args.elf), str(input_path), str(output_path)],
             env=env,
