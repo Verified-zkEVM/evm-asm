@@ -510,11 +510,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   -- The recipient classifier must see the accumulating execution state before
   -- it asks the immutable parent witness.  A successful tx1 CREATE publishes
-  -- its code to AccountState, so tx2 must enter the contract lane even though
+  -- its code to account_writes, so tx2 must enter the contract lane even though
   -- the target is absent from the pre-block header.  This mirrors the layered
   -- resolver already used by child CALL-family handlers and by the dispatcher
-  -- itself; only a genuine overlay miss may fall through to the header lookup.
-  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_state_lookup_current\n" ++
+  -- itself; only a genuine map miss may fall through to the header lookup.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_writes_lookup_current\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_contract\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
@@ -819,11 +819,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
-  -- A durable AccountState entry is a prior-tx live account and collides; a
-  -- durable tombstone is a same-tx-created account already deleted at an
+  -- A live account-write row is a prior-tx live account and collides; a
+  -- Present-None row is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).
-  "  la a0, bv_create_addr; jal ra, account_state_lookup_current\n" ++
+  "  la a0, bv_create_addr; jal ra, account_writes_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
   -- Only status 1 (an existing account with code) is an EIP-684 collision.
