@@ -130,10 +130,17 @@ def eip7702AuthorityAsOfFunction : String :=
   "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
   "  ld s1, 56(sp)\n" ++
   -- a2 = delegated_before_tx: durable only (skip pending), else header code.
+  -- Durable is authoritative for code/delegation only when bit16 (execution-
+  -- known / code-known) is set — prior-tx auth/code commit.  Sender inclusion
+  -- (`publish_sender_inclusion` flags|=67 = occupied|exists|nonce-auth bit6)
+  -- must NOT mask pre-block header code: bit6 alone with a2=0 was charging
+  -- AUTH_BASE on already-delegated authorities (2ffdac 7702 pointer cluster,
+  -- over-debit = 35190 state gas).  Match record_code's bit4/bit16 contract
+  -- (CreateCodeEffectLog: balance-only must never mask authenticated code).
   "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
   "  beqz a0, .L77as_deleg_hdr\n" ++
   "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .L77as_deleg_empty\n" ++
-  "  andi t1, t0, 64; beqz t1, .L77as_deleg_hdr\n" ++
+  "  andi t1, t0, 16; beqz t1, .L77as_deleg_hdr\n" ++
   "  andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_empty:\n" ++
   "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
