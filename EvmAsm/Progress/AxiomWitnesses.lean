@@ -46,6 +46,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
+#print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
+
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
