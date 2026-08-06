@@ -1346,6 +1346,25 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   -- function-pointer triples (candidate #3). Intentionally sticky flags (auth_phase_halted,
   -- prepare_prefix_status, auth_state_charged, oog_hook) are NOT
   -- cleared there; oog_hook is invoked next.
+  --
+  -- Spec `process_message` takes prep_snapshot before set_delegation, then
+  -- prepare_dispatch (including recipient COLD access). OOG in that window
+  -- restores the snapshot so authorizations do not stick (amsterdam
+  -- interpreter.py:356-378; test_authorization_oog rolls_back_delegations).
+  -- Guest auth_exec_fn / prepare_only OOG already set auth_phase_halted; the
+  -- post_top_frame_fn path (dtrc_materialize_deferred_delegation /
+  -- delegationAccessChargeAsm) jumped to .exit_outofgas with the flag still
+  -- clear, so MtxRuntime kept auth account_writes (guest_extra / #11547).
+  -- Promote any top-level exceptional halt that never reached the shared body
+  -- after a published set_delegation to auth_phase_halted so oog_hook and the
+  -- restore below match the snapshot. Gate on auth_prepared so pre-auth early
+  -- exits (comment below) still leave the caller's pending state alone.
+  "  la x5, runtime_tx_post_preparation_reached; ld x6, 0(x5)\n" ++
+  s!"  bnez x6, {label}_prep_auth_halt_done\n" ++
+  "  la x5, runtime_tx_auth_prepared; ld x6, 0(x5)\n" ++
+  s!"  beqz x6, {label}_prep_auth_halt_done\n" ++
+  "  la x5, runtime_tx_auth_phase_halted; li x6, 1; sd x6, 0(x5)\n" ++
+  s!"{label}_prep_auth_halt_done:\n" ++
   -- A transaction-aware caller may stage a process_transaction debit before
   -- entering the callable dispatcher. An exceptional halt can occur in the
   -- shared preparation prefix, so give that caller one optional hook to
@@ -1356,10 +1375,10 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"  beqz x6, {label}_hook_done\n" ++
   "  jalr ra, x6, 0\n" ++
   s!"{label}_hook_done:\n" ++
-  -- `process_message` restores the preparation snapshot only when the
-  -- authorization phase itself halts.  A generic pre-preparation halt is not
-  -- sufficient: it occurs on unrelated early-exit routes and must not truncate
-  -- the caller's pending state.
+  -- `process_message` restores the preparation snapshot when authorization
+  -- applied and preparation then halted (auth_phase_halted, including the
+  -- promote above). A generic pre-auth early exit leaves the flag clear and
+  -- must not truncate the caller's pending state.
   "  la x5, runtime_tx_auth_phase_halted; ld x6, 0(x5); beqz x6, " ++ label ++ "_top_no_auth_restore\n" ++
   "  la x5, account_state_pending_checkpoint; ld x6, 0(x5); la x5, account_state_pending_count; sd x6, 0(x5)\n" ++
   s!"{label}_top_no_auth_restore:\n" ++

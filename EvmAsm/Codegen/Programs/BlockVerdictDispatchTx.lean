@@ -701,12 +701,18 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_dispatch_returned:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
-  -- `prepare_message` unconditionally records its target after the
-  -- authorization phase.  On authorization-phase OOG it never reaches that
-  -- point, so omit only this pre-dispatch raw lookup; all ordinary message
-  -- outcomes (including body OOG/revert) retain the target touch.
+  -- `prepare_message` records its target after authorization. True
+  -- authorization-phase OOG (set_delegation never finished: auth_phase_halted
+  -- and not auth_prepared) never reaches that point — omit the touch.
+  -- prepare_dispatch OOG after a completed set_delegation still has the
+  -- message target in accessed_addresses (fixture BAL empty recipient entry
+  -- on recipient_charge_oog_rolls_back_delegations); that path sets
+  -- auth_phase_halted via the Dispatch promote but auth_prepared stays 1 —
+  -- still record. Body OOG/revert always retain the touch.
   "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 1; beq t5, t6, .Ldtrc_recipient_read_done\n" ++
-  "  la t4, runtime_tx_auth_phase_halted; ld t5, 0(t4); bnez t5, .Ldtrc_recipient_read_done\n" ++
+  "  la t4, runtime_tx_auth_phase_halted; ld t5, 0(t4); beqz t5, .Ldtrc_recipient_read_do\n" ++
+  "  la t4, runtime_tx_auth_prepared; ld t5, 0(t4); beqz t5, .Ldtrc_recipient_read_done\n" ++
+  ".Ldtrc_recipient_read_do:\n" ++
   "  addi a0, s2, 72; jal ra, account_read_record\n" ++
   ".Ldtrc_recipient_read_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
