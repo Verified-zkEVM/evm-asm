@@ -1212,7 +1212,7 @@ def accountWriteMapDataSection : String :=
 
 def accountAgreementDataSection : String :=
   -- The production guest carries runtime-only mutation observation inert.
-  -- `scripts/spike/account_agreement_sweep.py` arms this word explicitly for
+  -- `scripts/spike/standing_controls_sweep.py` arms this word explicitly for
   -- measurement runs. Keep it initialized in .data; a nonzero initializer is
   -- not legal in .bss.
   ".section .data\naccount_agreement_enabled:\n  .dword 0\n"
