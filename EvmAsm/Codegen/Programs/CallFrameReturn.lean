@@ -204,10 +204,9 @@ def frameReturnFunction : String :=
   "  ld t2, 16(t0); la t1, exec_code_effect_count; sd t2, 0(t1)\n" ++
   "  ld t2, 24(t0); la t1, exec_code_effect_next; sd t2, 0(t1)\n" ++
   "  ld t2, 32(t0); la t1, exec_code_effect_overflow; sd t2, 0(t1)\n" ++
-  -- Restore this child's AccountState high-water marks on REVERT/exceptional
+  -- Restore this child's live map high-water marks on REVERT/exceptional
   -- return.  The current depth still names the child at this point.
   "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1\n" ++
-  "  ld t3, 72(t0); la t1, account_state_pending_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); " ++ bodyStateSlabStrideOps "t2" "t1" "t3" ++ "; la t0, body_state_snapshot_by_depth; add t0, t0, t1; ld t3, 80(t0); la t1, account_state_delete_count; sd t3, 0(t1)\n" ++
   "  la t0, evm_call_depth; ld t2, 0(t0); slli t2, t2, 3\n" ++
   "  la t0, evm_selfdestruct_seen_count_by_depth; add t0, t0, t2; ld t3, 0(t0); la t1, evm_selfdestruct_seen_count; sd t3, 0(t1)\n" ++

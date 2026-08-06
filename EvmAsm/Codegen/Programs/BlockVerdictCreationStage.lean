@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.GasConstants
 import EvmAsm.Codegen.Programs.EIP7708Logs
+import EvmAsm.Codegen.Programs.AccountWriteMap
 
 namespace EvmAsm.Codegen
 
@@ -477,6 +478,8 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la a0, bv_create_addr; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lbvcr_created_marked\n" ++
   "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbvcr_created_marked:\n" ++
+  -- The map-side CREATED contract must be live before the constructor body.
+  "  la a0, bv_create_addr; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 1; li a6, " ++ toString (accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 27; jal ra, account_write_record\n" ++
   -- GH #10944: stage the top-level CREATE endowment for the SHARED recorder.
   --
   -- execution-specs has ONE `move_ether` for calls and creations alike, because

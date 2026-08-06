@@ -448,7 +448,18 @@ def accountStateRecordAuthFunction : String :=
   -- retain bit 16, the execution-known marker required by the consumer.
   "  sd s1, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 88(t0); ori t1, t1, 83; li t2, -13; and t1, t1, t2; beqz s2, .Lasra_flags; sd s3, 72(t0); li t2, 23; sd t2, 80(t0); ori t1, t1, 12\n" ++
   ".Lasra_flags:\n" ++
-  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasra_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; bnez a0, .Lasra_overflow\n" ++
+  -- Publish the same accepted authorization into the transaction map.  The
+  -- explicit EXEC_FLAGS field is the map-side AUTH contract; CODE is always
+  -- valid here so an authorization clear erases an older delegation pointer.
+  "  mv a0, s0; li a1, 0; mv a2, s1; mv a3, s3; li a4, 23; li a5, 1; li a6, " ++ toString (accountWriteHasCode + accountWriteHasNonce + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 83; beqz s3, .Lasra_map_record; li a7, 95\n" ++
+  ".Lasra_map_record:\n" ++
+  "  beqz s3, .Lasra_map_code_empty; j .Lasra_map_code_ready\n" ++
+  ".Lasra_map_code_empty:\n  li a3, 0; li a4, 0\n" ++
+  ".Lasra_map_code_ready:\n" ++
+  "  jal ra, account_write_record; j .Lasra_ret\n" ++
+  ".Lasra_overflow:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
   ".Lasra_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 56; ret"
 
@@ -519,7 +530,7 @@ def accountStateLatestBalanceFunction : String :=
   -- point mirrors the spec's (inside get_account_before_tx, not at callers).
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- BLOCK-first entry used before the current transaction has published any
   -- writes.  It still records the execution read, deliberately skips the
@@ -528,7 +539,7 @@ def accountStateLatestBalanceFunction : String :=
   "account_state_latest_balance_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 1; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_balance_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   -- a2 = 1 scans the block attribution map first and then falls back to the
   -- execution-state path.  Any other mode is AccountState-only; write maps are
@@ -572,12 +583,12 @@ def accountStateLatestNonceFunction : String :=
   -- an unrelated balance update).
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 2; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
   "  jal ra, account_read_record\n" ++
-  "  ld a0, 8(sp); li a1, 2; ld a2, 24(sp); jal ra, account_agreement_probe\n" ++
+
   "  ld a0, 8(sp); ld a1, 16(sp); li a2, 1; jal ra, account_state_latest_nonce_core; ld ra, 0(sp); addi sp, sp, 32; ret\n" ++
   "account_state_latest_nonce_core:\n" ++
   "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; li t0, 1; beq s2, t0, .Laslnc_block_scan; j .Laslnc_account_state\n" ++
@@ -622,17 +633,16 @@ def accountStateLookupCurrentFunction : String :=
 
 /-! ## account_write_touch_current
 
-    First TOUCHED producer (#11329 / entry6). Snapshots the current
-    AccountState overlay into `account_writes` with mask bit TOUCHED (VALUE 32)
-    sticky-OR'd, so root enumeration sees the address even when no
-    BALANCE/NONCE/CODE delta is present.
+    First TOUCHED producer (#11329 / entry6). Publishes a TOUCHED-only
+    transaction-map row (VALUE 32 sticky-OR'd), so root enumeration sees the
+    address even when no BALANCE/NONCE/CODE delta is present. Existing map
+    components are preserved by `account_write_record`'s fieldwise upsert.
 
     a0 = canonical 20-byte BE address pointer.
     Does NOT call `account_read_record` (touch is a write-side fact, not a read).
-    When an occupied AccountState row exists (pending first, then durable),
-    copies every authoritative component (balance bit5, nonce bit6, code bit2)
-    plus STATE + EXEC_FLAGS so baap map-mode can rebuild the account leaf.
-    Absent overlay → TOUCHED-only row (mask 32).
+    The helper never reads the retired pending/durable AccountState arrays.
+    Missing map components remain missing and are resolved by the map-side
+    builder fallback at the transaction boundary.
 
     Clobbers only what `account_write_record` already restores. -/
 def accountWriteTouchCurrentFunction : String :=
@@ -641,22 +651,6 @@ def accountWriteTouchCurrentFunction : String :=
   "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp); sd a3, 48(sp); sd a4, 56(sp); sd a5, 64(sp); sd a6, 72(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lawtc_hit\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lawtc_touch_only\n" ++
-  ".Lawtc_hit:\n" ++
-  "  mv s1, a0; ld t0, 88(s1); andi t1, t0, 16; beqz t1, .Lawtc_touch_only\n" ++
-  "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags + accountWriteHasState) ++ "\n" ++
-  "  mv a7, t0\n" ++
-  "  andi t1, t0, 2; snez a5, t1\n" ++
-  "  li a1, 0; li a2, 0; li a3, 0; li a4, 0\n" ++
-  "  andi t1, t0, 32; beqz t1, .Lawtc_nonce; ori a6, a6, " ++ toString accountWriteHasBalance ++ "; addi a1, s1, 32\n" ++
-  ".Lawtc_nonce:\n" ++
-  "  andi t1, t0, 64; beqz t1, .Lawtc_code; ori a6, a6, " ++ toString accountWriteHasNonce ++ "; ld a2, 64(s1)\n" ++
-  ".Lawtc_code:\n" ++
-  "  andi t1, t0, 4; beqz t1, .Lawtc_record; ori a6, a6, " ++ toString accountWriteHasCode ++ "; ld a3, 72(s1); ld a4, 80(s1)\n" ++
-  ".Lawtc_record:\n" ++
-  "  mv a0, s0; jal ra, account_write_record; j .Lawtc_ret\n" ++
-  ".Lawtc_touch_only:\n" ++
   "  mv a0, s0; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasTouched ++ "; li a7, 0; jal ra, account_write_record\n" ++
   ".Lawtc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
@@ -711,6 +705,7 @@ def accountStateTombstoneBalanceZeroFunction : String :=
     created in a prior transaction must remain live after SELFDESTRUCT. -/
 def accountStateCreatedContainsFunction : String :=
   "account_state_created_contains:\n" ++
+  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lascc_overflow\n" ++
   "  la t0, account_state_created_count; ld t1, 0(t0); li t2, " ++ toString accountStateCreatedCapacity ++ "; bgtu t1, t2, .Lascc_no; li t2, 0; la t3, account_state_created\n" ++
   ".Lascc_entry:\n" ++
   "  bgeu t2, t1, .Lascc_no; li t4, 0\n" ++
@@ -721,7 +716,9 @@ def accountStateCreatedContainsFunction : String :=
   ".Lascc_yes:\n" ++
   "  li a0, 1; ret\n" ++
   ".Lascc_no:\n" ++
-  "  li a0, 0; ret"
+  "  li a0, 0; ret\n" ++
+  ".Lascc_overflow:\n" ++
+  "  li a0, 2; ret"
 
 /-! ## code_state_final_balance_nonzero
 
@@ -902,13 +899,6 @@ def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : Stri
   ".Lcrce_cpc_d:\n" ++
   "  la t0, exec_code_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; addi t1, s2, 55; andi t1, t1, -8; add t1, s3, t1; sd t1, 0(t0)\n" ++
-  -- Publish the successful deposit into AccountState from the retained heap
-  -- copy, never from the reusable create-child scratch.
-  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; " ++
-  (if resolveExecutionState then "la a3, create_resolved_account_state; " else "li a3, 0; ") ++
-  "jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_account_state_ok:\n" ++
   -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
   -- pre-body position the spec uses (`vm/interpreter.py:208`, before `process_message`
   -- at :212).  Both live callers now mark before the initcode runs — the nested route
@@ -968,7 +958,7 @@ def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : Stri
   -- Same expression as the sibling call, recomputed rather than carried because
   -- `account_state_record_code` and the two set helpers between them may clobber
   -- `t0`; `s3` is the entry offset and survives (callees preserve `s`).
-  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
+  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 27; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   (if resolveExecutionState then

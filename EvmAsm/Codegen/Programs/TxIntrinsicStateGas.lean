@@ -101,11 +101,11 @@ def balAccountNonceBeforeIndexFunction : String :=
 
     Resolve one authority for EIP-7702 auth preparation.
 
-    a1 (nonce) is CURRENT (pending then durable) — auth validation needs the
+    a1 (nonce) is CURRENT (transaction map then block map) — auth validation needs the
     post-prior-auth nonce within the same transaction.
 
     a2 (delegated) is TRANSACTION-START `delegated_before_tx` per
-    eoa_delegation.py:265-281 / get_pre_state_account: durable AccountState
+    eoa_delegation.py:265-281 / get_pre_state_account: block map
     only (prior committed txs), then authenticated pre-block header code —
     NEVER the pending current-tx overlay.  First auth clearing a delegation
     must not make a later same-tx auth see delegated=0 and re-charge AUTH_BASE
@@ -121,27 +121,21 @@ def balAccountNonceBeforeIndexFunction : String :=
 def eip7702AuthorityAsOfFunction : String :=
   "eip7702_authority_asof:\n" ++
   "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0; li s2, 0\n" ++
-  -- Spec get_account records the read before any overlay/pre-state lookup
-  -- (state_tracker.py:139).  Absent authorities must still appear as empty
-  -- BAL rows after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
-  "  mv a0, s0; jal ra, account_read_record\n" ++
-  -- CURRENT overlay for liveness + nonce (pending then durable).
-  "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_state_auth_current\n" ++
+  -- The map contract records the execution read before resolving current
+  -- liveness/nonce.  Absent authorities must still appear as empty BAL rows
+  -- after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
+  -- CURRENT map for liveness + nonce (transaction then block).
+  "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_writes_auth_current\n" ++
   "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
   "  ld s1, 56(sp)\n" ++
-  -- a2 = delegated_before_tx: durable only (skip pending), else header code.
-  -- Durable is authoritative for code/delegation only when bit16 (execution-
-  -- known / code-known) is set — prior-tx auth/code commit.  Sender inclusion
-  -- (`publish_sender_inclusion` flags|=67 = occupied|exists|nonce-auth bit6)
-  -- must NOT mask pre-block header code: bit6 alone with a2=0 was charging
-  -- AUTH_BASE on already-delegated authorities (2ffdac 7702 pointer cluster,
-  -- over-debit = 35190 state gas).  Match record_code's bit4/bit16 contract
-  -- (CreateCodeEffectLog: balance-only must never mask authenticated code).
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
+  -- a2 = delegated_before_tx: block map only (skip transaction rows), else
+  -- header code.  The map contract requires nonce, state, and EXEC_FLAGS
+  -- components, so sender inclusion and balance-only rows cannot mask the
+  -- authenticated pre-block header code.
+  "  mv a0, s0; addi a1, sp, 56; addi a2, sp, 48; jal ra, account_writes_auth_block\n" ++
   "  beqz a0, .L77as_deleg_hdr\n" ++
-  "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .L77as_deleg_empty\n" ++
-  "  andi t1, t0, 16; beqz t1, .L77as_deleg_hdr\n" ++
-  "  andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_deleg_empty\n" ++
+  "  ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_empty:\n" ++
   "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_hdr:\n" ++
@@ -150,9 +144,9 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_deleg_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
-  -- Header load remains raw: account_read_record already ran at entry.
+  -- Header load remains raw: the map accessor recorded the execution read.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .L77as_found; li t0, 1; beq a0, t0, .L77as_absent; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
   ".L77as_found:\n" ++
@@ -305,11 +299,11 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
-  -- Build the stable delegation designator before publishing AccountState.
+  -- Build the stable delegation designator before publishing the account-write
+  -- row.
   -- The same pointer is reused by the optional AccountWrite producer below;
   -- allocating twice would consume two block-lifetime slots for one auth.
-  -- AccountState is execution state, so this producer is unconditional on the
-  -- MTx-only AccountWrite path.
+  -- The account-write producer below is unconditional on the MTx-only path.
   "  beqz s11, .L77prep_state_code_null; la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add s8, t4, t3; addi t1, t1, 1; sd t1, 0(t0); li t0, 0xef; sb t0, 0(s8); li t0, 1; sb t0, 1(s8); sb zero, 2(s8); li t0, 0\n" ++
   ".L77prep_state_code_copy:\n" ++
   "  li t1, 20; beq t0, t1, .L77prep_state_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, s8, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_state_code_copy\n" ++
@@ -318,13 +312,11 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_state_code_ready:\n" ++
   -- execution-specs `eoa_delegation.py:set_delegation` installs the authority
   -- code and increments its nonce here, before message execution.  Publish the
-  -- append-only code effect and nonce effect at this same point: their
-  -- AccountWrite rows receive the current transaction BAI, rather than a
-  -- post-runtime replay BAI.  The AccountState write above owns the
-  -- execution-state mutation, so the companion producers must not append it a
-  -- second time.  Body REVERT restores only the post-preparation snapshot, so
-  -- this auth record persists through a reverted message as in the spec.
-  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; mv a3, s8; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- append-only code effect, nonce effect, and account-write row at this same
+  -- point: the row receives the current transaction BAI rather than a
+  -- post-runtime replay BAI.  Body REVERT restores only the post-preparation
+  -- snapshot, so this auth record persists through a reverted message as in
+  -- the spec.
   -- The code-effect log is deliberately written before runtime.  It is the
   -- execution-time source used by code-read suppression and code-effect
   -- comparators; the AccountWrite map below carries the actual marker bytes to
@@ -399,7 +391,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- `set_delegation`.  Reuse the depth-indexed checkpoint slab's unused
   -- depth-zero slot for that top-level message snapshot; child descent uses
   -- the positive slots in CallFrameDescend.
-  "  la t0, account_state_pending_count; ld t1, 0(t0); la t0, account_state_pending_checkpoint; sd t1, 0(t0)\n" ++
   "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
@@ -443,7 +434,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  j .Lbvtgip_restore\n" ++
   ".Lbvtgip_auth_oog:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
   "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3)\n" ++
   "  li a0, 0; j .Lbvtgip_ret\n" ++
@@ -452,7 +442,6 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  li t1, 1; la t0, runtime_tx_auth_prepared; sd t1, 0(t0); j .Lbvtgip_ret\n" ++
   ".Lbvtgip_restore:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   ".Lbvtgip_ret:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 64; ret"
 
@@ -473,7 +462,6 @@ def blockVerdictTxStateGasInlineFinalizeFunction : String :=
   -- Auth-phase ExceptionalHalt restores the same message snapshot used by
   -- the pending AccountState overlay.  Body REVERT keeps the overlay because
   -- runtime_tx_post_preparation_reached is set only after preparation passes.
-  "  la t3, account_state_pending_checkpoint; ld t4, 0(t3); la t3, account_state_pending_count; sd t4, 0(t3)\n" ++
   -- Auth preparation also appends BAL-facing nonce records before the
   -- dispatcher checks the state-gas reservoir.  Truncate those append-only
   -- cursors on the same phase-zero halt; this is the BAL counterpart of the

@@ -181,7 +181,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- (it reads create_nonce for the seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 21; jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 21; jal ra, account_writes_latest_nonce_tx\n" ++
     "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
@@ -255,7 +255,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      -- If an account-witness context is attached, apply the EIP-684
      -- code-or-nonce collision check to the derived target address.  The
-     -- mutable AccountState layer is checked first: a durable earlier-tx CREATE
+     -- mutable account-write tiers are checked first: a durable earlier-tx CREATE
      -- overrides a header miss, while a durable same-tx-delete mask permits a
      -- later recreate.  Only an overlay miss consults block-pre witness data.
      --
@@ -268,7 +268,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
      -- plus createSameTxCollisionScanAsm. Matches top-level
      -- BlockVerdictMtxRuntime creation (status-1 only).
      "  addi sp, sp, -32\n  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-     "  la a0, create_address_be; jal ra, account_state_lookup_current; mv t0, a0\n" ++
+     "  la a0, create_address_be; jal ra, account_writes_lookup_current; mv t0, a0\n" ++
      "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      "  li t1, 1; beq t0, t1, .Lcr_collision_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
      "  ld a1, 584(x20)\n" ++
@@ -407,7 +407,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- spec is_account_alive(target) on mutable tx_state (state_tracker.py):
     -- LIVE balance via balance_at_header_state_root (live-first, #11019), not
     -- pure header. Code/nonce holders already took the collision branch; plus
-    -- the shared current AccountState overlay for prior same-tx creation.
+    -- the shared current account-write tiers for prior same-tx creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
     "  jal ra, balance_at_header_state_root\n" ++
@@ -418,7 +418,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld t1, 0(t0); ld t2, 8(t0); or t1, t1, t2; ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2\n" ++
     "  bnez t1, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, create_address_be\n  jal ra, account_state_lookup_current\n" ++
+    "  la a0, create_address_be\n  jal ra, account_writes_lookup_current\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT
@@ -428,14 +428,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
     -- so any nonzero limb sets alive and never reaches this status/nonce arm.
     -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.
-    -- Then account_state_latest_nonce: nonce≠0 → alive; nonce==0 → EMPTY → charge.
+    -- Then the transaction nonce map: nonce≠0 → alive; nonce==0 → EMPTY → charge.
     -- Composed: charge iff bal==0 AND code-empty AND nonce==0. Funded never-used
     -- EOA (status2, nonce0, bal≠0) takes alive_set via the OR and is NOT charged.
     "  li t0, 1; beq t1, t0, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, create_address_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 22; jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 22; jal ra, account_writes_latest_nonce_tx\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++

@@ -30,7 +30,7 @@ private def blockVerdictMtxTxPreparationReset : String :=
 
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
     The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
-    deliberately not a B2.3 reconstruction.  `account_state_latest_balance`
+    deliberately not a B2.3 reconstruction.  `account_writes_latest_balance`
     supplies the prior transaction's durable balance when present, otherwise
     the already-authenticated header lookup supplies the first transaction's
     balance. -/
@@ -41,7 +41,7 @@ private def blockVerdictMtxStageSenderUpfront : String :=
   -- fresh effective-price calculation succeeds.
   "  la t0, bv_mtx_ctx; ld a0, 8(t0); ld a1, 16(t0); la a2, bv_mtx_base_fee_be; la a3, bv_fee_egp_scratch; la a4, bv_fee_prio_scratch; jal ra, tx_effective_gas_pricing\n" ++
   "  bnez a0, .Lbv_mtx_su_done\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 17; jal ra, account_state_latest_balance_block\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 17; jal ra, account_writes_latest_balance_block\n" ++
   "  bnez a0, .Lbv_mtx_su_have_pre\n" ++
   "  la t0, bv_mtx_sender_acct; addi t0, t0, 8; la t1, bv_pending_upfront_sender_pre; ld t2, 0(t0); sd t2, 0(t1); ld t2, 8(t0); sd t2, 8(t1); ld t2, 16(t0); sd t2, 16(t1); ld t2, 24(t0); sd t2, 24(t1)\n" ++
   ".Lbv_mtx_su_have_pre:\n" ++
@@ -94,25 +94,20 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  la t0, bv_mtx_ctx; ld t1, 40(t0); bgtu a2, t1, .Lbv_mtx_bail; sub a1, t1, a2\n" ++
   "  la a0, bv_fee_egp_scratch; la a2, bv_pending_upfront_sender_post; jal ra, u256_mul_u64_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 18; jal ra, account_state_latest_balance\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; li a2, 18; jal ra, account_writes_latest_balance\n" ++
   "  beqz a0, .Lbv_mtx_bail  # no fallback: the staged upfront debit retained the sender entry\n" ++
   "  la a0, bv_pending_upfront_sender_pre; la a1, bv_pending_upfront_sender_post; la a2, bv_pending_upfront_sender_post; jal ra, u256_add_be\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  -- Apply the execution-spec's `create_ether` transition before emitting the
-  -- BAL row.  The BAL producer below deliberately re-reads this final state.
-  "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, account_state_record_nonstorage\n" ++
-  "  bnez a0, .Lbv_mtx_bail\n" ++
   -- Publish the post-body refund to the transaction map at the mutation point.
-  -- `create_ether` has already updated AccountState above; this companion records
-  -- the same settled pre/post pair without a second AccountState append.  The
-  -- publication must precede the post read below so a map-first reader observes
+  -- The map records the settled pre/post pair directly.  The publication must
+  -- precede the post read below so a map-first reader observes
   -- the refund instead of the pre-refund row.  It is deliberately after body
   -- restoration and therefore survives an ordinary body revert, matching
   -- `fork.py:1155-1169`.
   "  la t0, sttc_nonce; ld a3, 0(t0); addi a4, a3, 1; la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_pre; la a2, bv_pending_upfront_sender_post; jal ra, record_nonstorage_effect_after_account_state\n" ++
   "  bnez a0, .Lbv_mtx_bail\n" ++
-  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; li a2, 19; jal ra, account_state_latest_balance\n" ++
-  "  beqz a0, .Lbv_mtx_bail  # the preceding AccountState credit must be observable\n" ++
+  "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; li a2, 19; jal ra, account_writes_latest_balance\n" ++
+  "  beqz a0, .Lbv_mtx_bail  # the preceding account-write credit must be observable\n" ++
 ".Lbv_mtx_sr_done:\n"
 
 /-! Gate the pre-user system-storage seed on the same code-presence predicate as
@@ -182,7 +177,7 @@ private def blockVerdictMtxOogMaterialize : String :=
   ".Lbv_mtx_oog_normal:\n" ++
   "  la t0, bv_pending_upfront_balance_flag; ld t1, 0(t0); beqz t1, .Lbv_mtx_oog_done\n" ++
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
-  "  jal ra, account_state_commit_pending\n" ++
+  "  jal ra, account_writes_commit_pending\n" ++
   "  bnez a0, .Lbv_mtx_oog_done\n" ++
   "  jal ra, account_writes_emit_builder_tx\n" ++
   "  jal ra, account_writes_incorporate_tx\n" ++
@@ -276,21 +271,14 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- MTx sender InvalidSender gate below is a separate reject predicate (fork.py:668-677).
   ".Lbv_mtx_state_init:\n" ++
   "  la t0, bv_mtx_i; sd zero, 0(t0)\n" ++
-  -- Execution AccountState is block-lived in the sequential lane. The callable
-  -- dispatcher resets transaction-local pending overlays, including
-  -- `account_state_pending_count`; it does not preserve that AccountState
-  -- journal across dispatches. This reset is the live durability boundary in
-  -- GH #10876: sender effects needed after dispatch must be materialized in
-  -- durable state rather than left in the pending journal. Durable state and
-  -- retained comparator bytes survive until this loop finishes.
-  -- AccountState is the sole emitted execution code/existence model for every
-  -- block, including the one-transaction case.  The immutable witness is
-  -- consulted only after its pending and durable overlays miss; CodeState
-  -- names are compatibility aliases, not a separate table.
+  -- The callable dispatcher restores transaction-local account-write frames at
+  -- the appropriate boundaries.  The map is the live execution state for
+  -- every block, including the one-transaction case; the immutable witness is
+  -- used only for pre-state fallback.
   -- `runtime_mtx_active` is a reserved compatibility cell only.  The
   -- universal dispatcher no longer reads or writes it; retaining the slot
   -- keeps the established data layout stable for existing image pins.
-  "  la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_oog_hook; la t1, block_verdict_mtx_oog_materialize; sd t1, 0(t0); la t0, account_state_durable_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); la t0, account_state_overflow; sd zero, 0(t0)\n" ++
   "  la t0, exec_code_effect_count; sd zero, 0(t0); la t0, exec_code_effect_next; sd zero, 0(t0); la t0, exec_code_effect_overflow; sd zero, 0(t0)\n" ++
   -- bmvmx.5 (fee-validity hoist, multi-tx): multi_tx_nth_context does NOT populate the
   -- record's base_fee_per_gas (record+32 is a per-call INPUT, BlockVerdictMultiTx.lean:44),
@@ -478,13 +466,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  j .Lbv_mtx_sender_eoa_ok\n" ++
   ".Lbv_mtx_sender_eoa_ok:\n" ++
   -- `process_transaction` increments the sender nonce before preparation.
-  -- Publish that monotone execution fact both to the durable execution overlay
-  -- and to the transaction-local BAL map. This is deliberately before the
-  -- body rollback checkpoint: a failed body keeps the transaction nonce, while
-  -- the checkpoint removes later body writes. Balance has later value, refund,
-  -- and coinbase-credit writes, so it needs its own complete state transition
-  -- rather than an inclusion-time snapshot here.
-  "  la t0, sttc_nonce; ld a1, 0(t0); addi a1, a1, 1; la a0, bv_mtx_sender_addr; jal ra, account_state_publish_sender_inclusion; bnez a0, .Lbv_sender_inclusion_fail\n" ++  -- was 40 → 71
+  -- Publish that monotone execution fact to the transaction-local account-write
+  -- map before the body rollback checkpoint: a failed body keeps the
+  -- transaction nonce, while the checkpoint removes later body writes.
   "  la t0, sttc_nonce; ld a2, 0(t0); addi a2, a2, 1; la a0, bv_mtx_sender_addr; li a1, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
   blockVerdictMtxStageSenderUpfront ++
   -- Authorization preparation starts after sender inclusion and the upfront
@@ -510,11 +494,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_mtx_ctx; ld t1, 48(t0); bnez t1, .Lbv_mtx_creation\n" ++
   -- The recipient classifier must see the accumulating execution state before
   -- it asks the immutable parent witness.  A successful tx1 CREATE publishes
-  -- its code to AccountState, so tx2 must enter the contract lane even though
+  -- its code to account_writes, so tx2 must enter the contract lane even though
   -- the target is absent from the pre-block header.  This mirrors the layered
   -- resolver already used by child CALL-family handlers and by the dispatcher
-  -- itself; only a genuine overlay miss may fall through to the header lookup.
-  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_state_lookup_current\n" ++
+  -- itself; only a genuine map miss may fall through to the header lookup.
+  "  la a0, bv_mtx_ctx; addi a0, a0, 72; jal ra, account_writes_lookup_current\n" ++
   "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_contract\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
@@ -664,15 +648,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- a zero receipt status retains only intrinsic/auth state gas after a body
   -- rollback, while a successful status includes the captured execution part.
   "  la t0, bv_mtx_i; ld a0, 0(t0); slli t1, a0, 3; la t2, bv_tx_status_arr; add t2, t2, t1; ld a1, 0(t2); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
-  -- Commit the just-successful transaction's current AccountState overlay before
+  -- Commit the just-successful transaction's current account-write map before
   -- the next callable dispatch.  A failed receipt commits no code/existence
   -- mutations, exactly like its effect-log rollback above.
   -- Match `process_message`'s two snapshots: a successful body commits all
-  -- pending AccountState; a failed body still commits the authorization phase
+  -- account-write effects; a failed body still commits the authorization phase
   -- iff the dispatcher reached the post-preparation coverage point.  A
   -- preparation OOG never reaches that point and therefore drops pending auth.
   -- r59nm: the storage_writes map commits on TX STATUS ALONE, decided here and
-  -- NOT inside account_state_commit_pending.  The AccountState gate below also
+  -- NOT inside account_writes_commit_pending.  The account-write gate below also
   -- commits normally; only an authorization-phase halt restores the
   -- preparation snapshot.  The post-preparation marker is deliberately not
   -- used as a generic rollback trigger: unrelated early exits can occur before
@@ -718,7 +702,6 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; bne t2, t3, .Lbv_mtx_refund_then_commit\n" ++
   ".Lbv_mtx_preparation_rollback:\n" ++
   "  la t0, account_writes_auth_prepare_mark; ld a0, 0(t0); jal ra, account_writes_restore_frame\n" ++
-  "  la t0, account_state_pending_checkpoint; ld t1, 0(t0); la t0, account_state_pending_count; sd t1, 0(t0)\n" ++
   "  la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
   ".Lbv_mtx_refund_then_commit:\n" ++
@@ -726,7 +709,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, runtime_tx_auth_phase_halted; ld t2, 0(t0); bnez t2, .Lbv_mtx_code_commit_done\n" ++
   "  la t0, runtime_tx_prepare_prefix_status; ld t2, 0(t0); li t3, 1; beq t2, t3, .Lbv_mtx_code_commit_done\n" ++
   ".Lbv_mtx_code_commit:\n" ++
-  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  "  jal ra, account_writes_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_code_commit_done:\n" ++
   "  la t0, evm_selfdestruct_destroyed_overflow; ld t1, 0(t0); bnez t1, .Lbv_mtx_bail\n" ++
   -- Spec stage: clear destroyed accounts before incorporate (fork.py:1201-1202).
@@ -738,7 +721,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- The coinbase fee is appended after that rollback and survives either
   -- receipt status, so incorporate once here without a second status gate.
   blockVerdictMtxCoinbaseFeeEffect ++
-  "  jal ra, account_state_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
+  "  jal ra, account_writes_commit_pending; bnez a0, .Lbv_mtx_bail\n" ++
   -- `incorporate_tx_into_block` promotes all three read sets unconditionally:
   -- storage, account, and code reads survive a failed transaction even when
   -- its AccountState commit is bypassed.  This join follows the spec order:
@@ -819,11 +802,11 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- for a different stored-post-nonce mechanism.
   "  la a0, bv_mtx_sender_addr; la t0, sttc_nonce; ld a1, 0(t0); la a2, bv_create_addr; jal ra, address_compute_create\n" ++
   -- EIP-684 observes the current block state before the immutable witness.
-  -- A durable AccountState entry is a prior-tx live account and collides; a
-  -- durable tombstone is a same-tx-created account already deleted at an
+  -- A live account-write row is a prior-tx live account and collides; a
+  -- Present-None row is a same-tx-created account already deleted at an
   -- earlier transaction boundary, so it deliberately falls through to the
   -- pre-block predicate (where it is absent and may be recreated).
-  "  la a0, bv_create_addr; jal ra, account_state_lookup_current\n" ++
+  "  la a0, bv_create_addr; jal ra, account_writes_lookup_current\n" ++
   "  beqz a0, .Lbv_mtx_creation_header_collision\n" ++
   "  li t0, 3; beq a0, t0, .Lbv_mtx_creation_header_collision\n" ++
   -- Only status 1 (an existing account with code) is an EIP-684 collision.

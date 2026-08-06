@@ -221,7 +221,8 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       "  la t0, create_target_alive_current_tx
   sd x0, 0(t0)
 " ++
-      -- `account_state_created_contains` uses a1..a3 for its bounded table
+      -- `account_writes_created_contains` uses only the transaction map and
+      -- uses a1..a3 for its bounded table
       -- scan.  x13/a3 is the CREATE return-data base below, so preserve it.
       "  addi sp, sp, -24
   sd x10, 0(sp)
@@ -229,7 +230,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   sd x13, 16(sp)
 " ++
       "  la a0, create_address_be
-  jal ra, account_state_created_contains
+  jal ra, account_writes_created_contains
 " ++
       "  beqz a0, .Lrr_cralive_scan_done_" ++ toString kind ++ "
 " ++
@@ -703,7 +704,7 @@ private def selfdestructTailAsm : String :=
   -- preserve it with the other runtime cursors before asking the AccountState.
   "  addi sp, sp, -24\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, sdai_origin_address\n" ++
-  "  jal ra, account_state_created_contains\n" ++
+  "  jal ra, account_writes_created_contains\n" ++
   "  mv t1, a0\n" ++                                  -- current-tx creation membership
   "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 24\n" ++
   "  beqz t1, .L_selfdestruct_created_in_tx_done\n" ++
