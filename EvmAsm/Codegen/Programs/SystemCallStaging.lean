@@ -70,6 +70,13 @@ def stageSystemCallPayloadFunction : String :=
   -- corrupting .data. System-call calldata is always empty (ctx@64 stays 0).
   "  addi t1, s2, 7; andi t1, t1, -8\n" ++                                         -- round8(codelen)
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++    -- + M29 hashes (count*32)
+  -- Account-witness trailer (header+state+codes) is staged after the code body
+  -- via stage_runtime_payload_witness_context; include its byte count so a
+  -- large multi-block witness cannot overrun c1_staging (DispatchTx does the
+  -- same sum before its user-tx staging).
+  "  la t0, svf_parent_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, svf_witness_len; ld t2, 0(t0); add t1, t1, t2\n" ++
+  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
   "  addi t1, t1, 584; li t2, " ++ toString c1StagingBytes ++ "; bgtu t1, t2, .Lscc_toobig\n" ++              -- payload > buffer -> bail
   -- stage_runtime_payload_code(ctx, out, exec, code, codelen, null, 0)
   -- GH #11176: request-predeploy storage is read through the authenticated,
@@ -80,6 +87,17 @@ def stageSystemCallPayloadFunction : String :=
   "  li a5, 0; li a6, 0\n" ++
   "  jal ra, stage_runtime_payload_code\n" ++
   "  bnez a0, .Lscc_ret\n" ++                        -- unsupported -> propagate
+  -- Stage the same parent-header + witness.state/codes trailer user txs get
+  -- (DispatchTx → stage_runtime_payload_witness_context). Without it,
+  -- runtime_dispatcher leaves env+584 header_len=0 and every cold SLOAD's
+  -- tier-3 slot_at_header_state_root returns status 4 (header parse fail) →
+  -- value 0. Same-block prior-tx writes mask this via tier-2; multi-block
+  -- empty-tx blocks (7002 queue from parent) fail → #11547 state-root.
+  "  mv a0, s4\n" ++
+  "  la t0, svf_parent_rlp; ld a1, 0(t0); la t0, svf_parent_rlp_len; ld a2, 0(t0)\n" ++
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, stage_runtime_payload_witness_context\n" ++
   -- CALLER (env_base+64) + ORIGIN (env_base+128) = SYSTEM_ADDRESS (mirror 3vc2p.1).
   -- 8uld3.2.3.3.1 Fix4: write the 20 address bytes BYTE-REVERSED (dst byte 19-i <- src byte i).
   -- `evm_env_load` copies the env word VERBATIM as 4 little-endian limbs to the EVM stack, so an
