@@ -447,6 +447,44 @@ Python while looking faithful" },
   -- was missing. I rebuilt it from scratch in #11457 before finding it, having read "no
   -- registry row" as "no proof" after a truncated survey search. AN ABSENT ROW IS NOT
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
+  { family := "header", routine := "header_validate_extra_data_length",
+    spec := some "header_extra_data_length_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `extra_data` length clause of `validate_header` \
+(SpecRef/SeamShell.lean:248, fork.py) over `_decode_header`'s field 12",
+    note := "#11575 row 2. ⚠️ THIS ROW'S COMPARISON BOUNDARY IS NOT THE ONE THE OTHER `header` \
+ROWS USE, and the method doc requires saying so (spec-correspondence.md 5). Every other \
+`header_*` row ties a routine to a FIELD OF `_decode_header`. This one cannot: `extra_data` is \
+plain `Bytes` in the reference, genuinely UNBOUNDED at decode time -- unlike the `FixedBytes` \
+aliases that #11615 made checkable -- so there is nothing in `_decode_header` to compare a \
+length against. The <=32 rule is a clause of a DIFFERENT spec function, `validate_header`. So \
+the boundary is: `_decode_header` supplies the field, and the routine implements a \
+`validate_header` clause over it, which is why the tie has TWO conclusions (a length equation \
+on the decode side, a decision equivalence on the validation side) rather than one. \
+THE DECISION IS AN IFF, not one-directional: `hvedPost`'s first two arms differ only in the \
+guard -- `a0 = 0` with `not (32 <u len)` and `a0 = 1` with `32 <u len` -- so on a successful \
+decode the guest's accept/reject choice is TOTAL over the field, and the honest statement is an \
+equivalence with the reference's throw condition. That is stronger than row 9's field tie and \
+is worth noting: the guest is not merely value-correct here, it makes the same DECISION. \
+DOMAIN RESTRICTION -- ARITY ONLY (taxonomy row 1, a proof limit), as for row 1: the guest never \
+checks how many fields the header has, so on a list of any other length it still returns a \
+verdict where `_decode_header` errors. Field 12 exists in BOTH the 23- and 21-field arms, which \
+is why this row pairs with `chain_validate_extra_data_length`. NO precondition and NO \
+`portDefect`: the field needs neither, since the reference imposes no decode-time width on it. \
+STEP BOUND: K20 (`rlp_list_nth_item`) only, so this row does NOT inherit #11461's \
+`7 * (2^64 - 1)` factor -- same as row 1, unlike the five numeric siblings. \
+Tied by `header_extra_data_length_of_decode` \
+(`Codegen/Programs/HeaderValidateExtraDataLengthBridge.lean`), consuming the machine triple \
+`header_validate_extra_data_length_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT \
+`.bridged`: the tie is FORMAL, but this family has no executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `extraData := getB 12` is \
+syntactically the `header.extra_data` assignment of stateless.py:244; the guard \
+`if header.extraData.length > 32 then throw` is syntactically fork.py's clause; and the \
+Word-vs-Nat comparison is PROVED equivalent rather than assumed -- the bridge derives \
+`(bs.getD 12 []).length < 2 ^ 64` from the buffer bound, so `not (32 <u ofNat 64 L)` and \
+`L <= 32` coincide with no wraparound. NOT NEEDED: any width side condition on the field, and \
+that absence is the point -- `extra_data` is the ONE header byte field where guest and \
+reference genuinely differ in KIND rather than in bound (#11615)" },
   { family := "header", routine := "header_extract_logs_bloom",
     spec := some "header_logs_bloom_of_decode",
     verdict := .domainRestricted, basis := .ported,
@@ -622,13 +660,13 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 27 := by decide
+theorem registry_size : registry.length = 28 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
-theorem header_rows : countFamily "header" = 3 := by decide
+theorem header_rows : countFamily "header" = 4 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 /-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
@@ -653,7 +691,7 @@ theorem bloom_rows : countFamily "bloom" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 5 ∧
+    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 6 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -666,7 +704,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 11 ∧
-    countBasis .ported = 5 ∧
+    countBasis .ported = 6 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
