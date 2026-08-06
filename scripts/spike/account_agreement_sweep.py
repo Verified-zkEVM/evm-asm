@@ -180,6 +180,22 @@ def select_cases(
     return selected
 
 
+def named_verdict_mismatch(
+    label: object, oracle_succ: object, guest_succ: object
+) -> dict[str, object] | None:
+    expected_succ = STANDING_NAMED_EXPECTED.get(str(label))
+    if expected_succ is None:
+        return None
+    if oracle_succ == expected_succ and guest_succ == expected_succ:
+        return None
+    return {
+        "label": label,
+        "oracle_succ": oracle_succ,
+        "expected_succ": expected_succ,
+        "guest_succ": guest_succ,
+    }
+
+
 def decode(payload: bytes, start: int, syms: dict[str, int]) -> dict[str, object]:
     names = [
         "account_agreement_mutation_event_count",
@@ -215,9 +231,9 @@ def decode(payload: bytes, start: int, syms: dict[str, int]) -> dict[str, object
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--elf", type=Path, required=True)
+    parser.add_argument("--elf", type=Path)
     parser.add_argument("--base-elf", type=Path)
-    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--runner", type=Path, default=Path("scripts/spike/spike_run"))
     parser.add_argument("--nm", default="riscv64-unknown-elf-nm")
     parser.add_argument("--random-count", type=int, default=200)
@@ -231,12 +247,27 @@ def main() -> int:
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="prove the named-control verdict gate rejects a synthetic guest_succ=1",
+    )
+    parser.add_argument(
         "--enable",
         action="store_true",
         help="arm mutation observation through SPIKE_INIT_WRITES",
     )
     args = parser.parse_args()
 
+    if args.self_test:
+        label = next(iter(STANDING_NAMED_EXPECTED))
+        mismatch = named_verdict_mismatch(label, oracle_succ=0, guest_succ=1)
+        if mismatch is None:
+            fail("self-test synthetic guest_succ=1 was accepted")
+        print(f"self-test PASS: named control rejects {json.dumps(mismatch, sort_keys=True)}")
+        return 0
+
+    if args.elf is None or args.manifest is None:
+        fail("--elf and --manifest are required unless --self-test is used")
     if args.random_count < 0:
         fail("--random-count must be nonnegative")
     required_paths = [args.elf, args.manifest, args.runner]
@@ -303,16 +334,12 @@ def main() -> int:
             output_equal = output_path.read_bytes() == base_output_path.read_bytes()
         output_bytes = output_path.read_bytes()
         guest_succ = output_bytes[32] if len(output_bytes) > 32 else None
+        mismatch = named_verdict_mismatch(
+            case["label"], case["oracle_succ"], guest_succ
+        )
+        if mismatch is not None:
+            verdict_mismatches.append(mismatch)
         expected_succ = STANDING_NAMED_EXPECTED.get(str(case["label"]))
-        if expected_succ is not None and guest_succ != expected_succ:
-            verdict_mismatches.append(
-                {
-                    "label": case["label"],
-                    "oracle_succ": case["oracle_succ"],
-                    "expected_succ": expected_succ,
-                    "guest_succ": guest_succ,
-                }
-            )
         payload = dump_payload(dump_path, start, length)
         counters = decode(payload, start, syms)
         records.append(
