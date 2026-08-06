@@ -809,16 +809,20 @@ def blockAccessListBuilderFunctions : String :=
       post-execution    `ulen(transactions) + Uint(1)`          (`:917`), i.e. N+1
       system            0, the value before any transaction sets it
 
-    The guest matches the transaction case exactly:
-    `BlockVerdictMtxRuntime.lean:407` and `:448` compute `bv_mtx_i + 1` into
-    `current_block_access_index`, and `bv_mtx_i` is the 0-based transaction index.
+    The guest realizes all three channels:
+    * system rows pass `0` as an explicit argument to
+      `bal_builder_record_storage_change` (`BlockVerdictSystemStorageCapture.lean:213`);
+    * user-transaction rows read `current_block_access_index`, which the MTx entry
+      paths set to `bv_mtx_i + 1` (`BlockVerdictMtxRuntime.lean:519,547,909`); and
+    * post-execution rows use the same global after it is set to `bv_tx_count + 1`
+      (`BlockVerdictMtxRuntime.lean:759`, `BlockVerdictStateRoot.lean:875`).
 
-    THE OTHER TWO CASES HAVE NO PRODUCER IN THE GUEST. Nothing stamps 0 and nothing
-    stamps N+1, so system-level and post-execution changes cannot appear in a rebuilt
-    BAL at all. That is a PRODUCER gap, not a serializer one -- the emitters encode
-    whatever index the row carries -- but it bounds what a digest comparison can prove:
-    a block whose only divergence is a missing system-level change would still be
-    accepted, because neither side of the comparison would contain it.
+    The explicit-argument channel is intentionally invisible to a census of stores
+    to `current_block_access_index`: such a census sees only the user and post-
+    execution writers and falsely concludes that BAI 0 has no producer.  The
+    system path has no reference to that global, so it cannot accidentally read a
+    stale user/post value.  This was the false premise behind #11104; the channel
+    distinction, rather than a missing store, is the invariant to preserve.
 
     Recorded here because the serializer is where someone will look for it. -/
 
