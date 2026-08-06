@@ -282,6 +282,43 @@ def accountWritesLatestBalanceFunction : String :=
   ".Lawlb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
 
+/-! ## `account_writes_latest_nonce_block`
+
+    Read the nonce from the block-cumulative account-write map only.  This is
+    intentionally not the transaction-first `account_writes_latest_balance`
+    contract and intentionally does not fall back to AccountState: the MTx
+    pre-transaction reader at `BlockVerdictMtxRuntime:44` is entitled to the
+    BLOCK tier, not the current transaction overlay.  The Amsterdam counterpart
+    is the block-level `account_writes` consulted by `_get_pre_tx_account` before
+    the authenticated pre-state (`state_tracker.py:137-142`,
+    `block_access_lists.py:637-650`).
+
+    a0 = canonical 20-byte BE address pointer
+    a1 = one-word nonce output pointer
+    returns a0 = 1 on a BLOCK map row with the NONCE-valid bit, and 0 on miss.
+
+    A row with only BALANCE/CODE/STATE/TOUCHED validity is a miss.  In
+    particular, this helper never treats a zero-initialized nonce in a
+    balance-only row as authoritative.  No AccountState symbol appears in the
+    emitted body; callers remain untouched until the reader cutover is
+    separately authorized. -/
+def accountWritesLatestNonceBlockFunction : String :=
+  "account_writes_latest_nonce_block:\n" ++
+  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawlnb_loop:\n" ++
+  "  bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
+  ".Lawlnb_cmp:\n" ++
+  "  beqz a2, .Lawlnb_key; lbu a3, 0(t5); lbu a4, 0(t6); bne a3, a4, .Lawlnb_next; addi t5, t5, 1; addi t6, t6, 1; addi a2, a2, -1; j .Lawlnb_cmp\n" ++
+  ".Lawlnb_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlnb_loop\n" ++
+  ".Lawlnb_key:\n" ++
+  "  ld t0, 112(t4); andi t0, t0, 2; beqz t0, .Lawlnb_next; ld t0, 64(t4); sd t0, 0(s1); li a0, 1; j .Lawlnb_ret\n" ++
+  ".Lawlnb_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawlnb_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
+
 /-! ## Execution-time map/overlay agreement diagnostics
 
     These checks are deliberately runtime-only diagnostics.  The write maps
@@ -1327,6 +1364,7 @@ def accountWriteTouchE2eFunction : String :=
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesLatestBalanceFunction ++
+  accountWritesLatestNonceBlockFunction ++
   accountAgreementRecordFunction ++
   accountAgreementMutationCheckpointFunction ++
   accountAgreementScanFunction ++
@@ -1378,6 +1416,8 @@ def accountWriteMapFunctions : String :=
 -- only thing that would catch it.
 #guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_latest_balance:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_latest_nonce_block:").length == 2
+#guard (accountWritesLatestNonceBlockFunction.splitOn "account_state_").length == 1
 #guard (accountWriteMapFunctions.splitOn "account_agreement_probe:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_agreement_scan:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_agreement_record:").length == 2
