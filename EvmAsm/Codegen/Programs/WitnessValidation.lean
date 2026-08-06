@@ -175,18 +175,20 @@ def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
     lookup attempts to consume them.
 
     Spec-side rationale: per Amsterdam EIP-7907, deployed contract
-    code is capped at 32768 bytes (0x8000, raised from the
+    code is capped at 65536 bytes (0x10000, raised from the
     pre-Amsterdam EIP-170 0x6000 = 24576); per EIP-3860/EIP-7954,
-    initcode is capped at 65536 bytes (0x10000). Every entry in
-    `witness.codes` is supposed to be deployed code referenced
-    by some account's `code_hash`, so the deployed-code cap applies. A
-    stateless guest that doesn't catch oversized entries
-    up-front could waste keccak cycles hashing absurdly large
-    blobs, or surface inconsistent results.
+    initcode is capped at 131072 bytes (0x20000 = 2×MAX_CODE_SIZE).
+    Every entry in `witness.codes` is supposed to be deployed code
+    referenced by some account's `code_hash`, so the deployed-code
+    cap applies. A stateless guest that doesn't catch oversized
+    entries up-front could waste keccak cycles hashing absurdly
+    large blobs, or surface inconsistent results.
 
     The cap is passed as an argument so the same primitive can
-    cover the deployed-code cap (32768) for current state and the
-    initcode cap (65536), or any future tighter bound.
+    cover the deployed-code cap (65536) for current state and the
+    initcode cap (131072), or any future tighter bound. (Earlier
+    prose said 32768 for EIP-7907 — half-migrated constant; the
+    primitive itself never hardcodes the bound.)
 
     Distinct from previous witness-iteration primitives:
       * PR `witness_state_validate_node_kinds` -- iterates
@@ -199,7 +201,7 @@ def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
       a0 (input)  : witness.codes section ptr
       a1 (input)  : section_len (0 ⇒ vacuous-valid)
       a2 (input)  : u64 max_byte_length (per-entry cap;
-                    typical: 32768 = Amsterdam EIP-7907 MAX_CODE_SIZE)
+                    typical: 65536 = Amsterdam EIP-7907 MAX_CODE_SIZE)
       a3 (input)  : u64 out ptr (n_processed; on success the
                     total count N, on failure the index of the
                     first oversized entry)
