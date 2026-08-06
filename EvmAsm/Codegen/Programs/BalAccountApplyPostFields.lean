@@ -406,6 +406,17 @@ def mapAccountApplyPostFieldsFunction : String :=
   "  add t5, t2, t4; lbu t5, 0(t5); add t6, t3, t4; lbu t6, 0(t6); bne t5, t6, .Lbaap_map_next\n" ++
   "  addi t4, t4, 1; j .Lbaap_map_addr_cmp\n" ++
   ".Lbaap_map_row_hit:\n" ++
+  -- #11614 layer B: match BlockVerdictStateRoot .Lem_storage_loop and
+  -- bal_emit_storage_changes / block_access_lists.py:549-552. SW retains
+  -- no-op SSTOREs (val==base, often both 0); those are execution facts and
+  -- BAL storage_reads, NOT storage_changes. Without this gate .Lbaap_map_zero
+  -- emitted mode=2 DELETE for every zero-current row when the pre storage
+  -- root was nonempty, feeding legacy mpt_delete_acc absent-key fails (bv3).
+  "  ld t3, 64(t2); ld t4, 96(t2); bne t3, t4, .Lbaap_map_row_delta\n" ++
+  "  ld t3, 72(t2); ld t4, 104(t2); bne t3, t4, .Lbaap_map_row_delta\n" ++
+  "  ld t3, 80(t2); ld t4, 112(t2); bne t3, t4, .Lbaap_map_row_delta\n" ++
+  "  ld t3, 88(t2); ld t4, 120(t2); beq t3, t4, .Lbaap_map_next\n" ++
+  ".Lbaap_map_row_delta:\n" ++
   "  la t3, baap_slot; addi t4, t2, 63; li t5, 32\n" ++
   ".Lbaap_map_slot_copy:\n" ++
   "  beqz t5, .Lbaap_map_slot_done; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, -1; addi t3, t3, 1; addi t5, t5, -1; j .Lbaap_map_slot_copy\n" ++
