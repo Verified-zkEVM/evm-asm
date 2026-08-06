@@ -283,6 +283,9 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     "  la t0, cd_caller_newbal; addi t1, x20, 63; li t2, 32\n" ++
     ".L" ++ tag ++ "_precompile_nse_caller_write:\n" ++
     "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, -1; addi t2, t2, -1; bnez t2, .L" ++ tag ++ "_precompile_nse_caller_write\n" ++
+    -- The fast path has no callee frame whose post-CALL read can witness the
+    -- transfer, so observe the caller immediately after the live debit.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, cd_caller_be; addi a1, x20, 32; li a2, 3; li a3, 0; jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     -- Canonical BE caller and callee addresses for the effect records.
     "  addi t0, x20, 19; la t1, cd_caller_be; li t2, 20\n" ++
     ".L" ++ tag ++ "_precompile_nse_caller_addr:\n" ++

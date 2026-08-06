@@ -308,6 +308,61 @@ def accountWritesLatestBalanceFunction : String :=
 -/
 
 def accountAgreementEventCapacity : Nat := 4096
+def accountAgreementMutationEventCapacity : Nat := 1024
+
+/-! The reader IDs are part of the diagnostic ABI.  Keep the allocation in one
+    table so the probe counter validation and the tier classifier cannot drift
+    apart when a new call site is added.  The second component is the map tier
+    the reader is entitled to consult: `1` is the transaction map and `2` is
+    the block map.
+
+    Authoritative call-site table (the source locations are kept beside the
+    generated ABI so an unknown ID can be repaired without another corpus
+    round-trip):
+
+      1  BlockVerdictDispatchTx:554       TX
+      2  EvmOpcodes:409                   TX
+      3  EIP7708Logs:364                 TX
+      4  CallFrameDescend:418             TX
+      5  ChildFrameHandlers:493           TX
+      6  ChildFrameHandlerTailHelpers:305 TX
+      7  Selfdestruct:48                  TX
+      8  Selfdestruct:135                 TX
+      9  Selfdestruct:513                 TX
+      10 Selfdestruct:548                 TX
+      11 Selfdestruct:698                 TX
+      12 Selfdestruct:777                 TX
+      13 Selfdestruct:834                 TX
+      14 Selfdestruct:862                 TX
+      15 Selfdestruct:882                 TX
+      16 Selfdestruct:888                 TX
+      17 BlockVerdictMtxRuntime:44       BLOCK
+      18 BlockVerdictMtxRuntime:97        TX
+      19 BlockVerdictMtxRuntime:105       TX
+      20 TxIntrinsicStateGas:153          TX
+      21 ChildFrameCreateTail:184        TX
+      22 ChildFrameCreateTail:438        TX -/
+def accountAgreementReaderRegistry : List (Nat × Nat) :=
+  [(1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1),
+   (7, 1), (8, 1), (9, 1), (10, 1), (11, 1), (12, 1),
+   (13, 1), (14, 1), (15, 1), (16, 1), (17, 2), (18, 1),
+   (19, 1), (20, 1), (21, 1), (22, 1)]
+
+#guard accountAgreementReaderRegistry.length == 22
+
+def accountAgreementReaderValidationAsm : String :=
+  accountAgreementReaderRegistry.foldl
+    (fun asm reader =>
+      asm ++ "  li t0, " ++ toString reader.1 ++
+        "; beq s2, t0, .Laap_reader_registered\n") "" ++
+    "  j .Laap_reader_unregistered\n"
+
+def accountAgreementReaderTierAsm : String :=
+  accountAgreementReaderRegistry.foldl
+    (fun asm reader =>
+      asm ++ "  li t0, " ++ toString reader.1 ++
+        "; beq s3, t0, .Laar_reader_tier_" ++ toString reader.2 ++ "\n") "" ++
+    "  j .Laar_reader_unregistered\n"
 
 def accountAgreementRecordFunction : String :=
   "account_agreement_record:\n" ++
@@ -338,20 +393,13 @@ def accountAgreementRecordFunction : String :=
   ".Laar_balance_mismatch2:\n  li t6, 2; j .Laar_mismatch\n" ++
   ".Laar_balance_mismatch3:\n  li t6, 3; j .Laar_mismatch\n" ++
   ".Laar_mismatch:\n" ++
-  -- Reader-tier contract: the normal AccountState readers are current-TX
-  -- reads (3, 18, 19); only the explicit block-first reader (17) is
-  -- entitled to consult the block-cumulative map.  Keep a mismatching
-  -- cross-tier value as an event, but classify it separately from a semantic
-  -- disagreement so later sweeps do not need to rediscover this distinction.
-  "  li t0, 17; beq s3, t0, .Laar_expected_block\n" ++
-  "  li t0, 3; beq s3, t0, .Laar_expected_tx\n" ++
-  "  li t0, 18; beq s3, t0, .Laar_expected_tx\n" ++
-  "  li t0, 19; beq s3, t0, .Laar_expected_tx\n" ++
-  -- An unregistered reader is deliberately treated as cross-tier until its
-  -- contract is added here; it must not silently inflate semantic mismatches.
-  "  li t0, 0; j .Laar_expected_ready\n" ++
-  ".Laar_expected_tx:\n  li t0, 1; j .Laar_expected_ready\n" ++
-  ".Laar_expected_block:\n  li t0, 2\n" ++
+  -- Reader-tier contract is generated from the registered reader table.  An
+  -- unknown ID is recorded as instrumentation, but the probe-side registry
+  -- counter makes it a hard harness failure rather than a silent mismatch.
+  accountAgreementReaderTierAsm ++
+  ".Laar_reader_tier_1:\n  li t0, 1; j .Laar_expected_ready\n" ++
+  ".Laar_reader_tier_2:\n  li t0, 2; j .Laar_expected_ready\n" ++
+  ".Laar_reader_unregistered:\n  li t0, 0\n" ++
   ".Laar_expected_ready:\n" ++
   "  beq t0, s4, .Laar_semantic_mismatch\n" ++
   "  li t0, 3; sd t0, 80(sp); la t0, account_agreement_instrument_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laar_record_event\n" ++
@@ -373,6 +421,31 @@ def accountAgreementRecordFunction : String :=
   ".Laar_done:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 96; ret\n"
 
+/-! A mutation-boundary witness for paths that do not naturally read the
+    freshly-mutated balance.  This is a debug-only checkpoint: it is inert
+    unless the agreement harness is armed, preserves the caller ABI, and
+    records the canonical address plus the raw live `env+32` bytes after the
+    mutation.  The metadata word is `{ mutation_id, depth }`; the sequence
+    word is the zero-based event index.  It intentionally does not alter the
+    production account maps or turn a missing natural read into one. -/
+def accountAgreementMutationCheckpointFunction : String :=
+  "account_agreement_mutation_checkpoint:\n" ++
+  "  addi sp, sp, -96; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a0, 40(sp); sd a1, 48(sp); sd a2, 56(sp); sd a3, 64(sp)\n" ++
+  "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laamc_done; mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
+  "  la t0, account_agreement_mutation_event_count; ld t1, 0(t0); li t2, " ++ toString accountAgreementMutationEventCapacity ++ "; bgeu t1, t2, .Laamc_overflow\n" ++
+  "  slli t2, t1, 5; slli t3, t1, 6; add t2, t2, t3; la t3, account_agreement_mutation_events; add t3, t3, t2\n" ++
+  "  mv t0, s0; addi t4, t3, 0; li t5, 20\n" ++
+  ".Laamc_addr:\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Laamc_addr\n" ++
+  "  mv t0, s1; addi t4, t3, 32; li t5, 32\n" ++
+  ".Laamc_balance:\n" ++
+  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Laamc_balance\n" ++
+    "  slli t4, s3, 8; or t4, t4, s2; sd t4, 64(t3); sd t1, 72(t3); addi t1, t1, 1; la t0, account_agreement_mutation_event_count; sd t1, 0(t0); j .Laamc_done\n" ++
+  ".Laamc_overflow:\n" ++
+  "  la t0, account_agreement_mutation_event_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  ".Laamc_done:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a0, 40(sp); ld a1, 48(sp); ld a2, 56(sp); ld a3, 64(sp); addi sp, sp, 96; ret\n"
+
 def accountAgreementScanFunction : String :=
   "account_agreement_scan:\n" ++
   "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
@@ -393,6 +466,14 @@ def accountAgreementProbeFunction : String :=
   "account_agreement_probe:\n" ++
   "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
   "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
+  accountAgreementReaderValidationAsm ++
+  ".Laap_reader_registered:\n" ++
+  "  slli t2, s2, 4; la t0, account_agreement_reader_invocations; add t0, t0, t2; li t1, 1; beq s1, t1, .Laap_reader_balance; addi t0, t0, 8\n" ++
+  ".Laap_reader_balance:\n" ++
+  "  ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_reader_counter_done\n" ++
+  ".Laap_reader_unregistered:\n" ++
+  "  la t0, account_agreement_unregistered_reader_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); la t0, account_agreement_unregistered_reader_id; sd s2, 0(t0); ld t2, 0(sp); la t0, account_agreement_unregistered_reader_pc; sd t2, 0(t0)\n" ++
+  ".Laap_reader_counter_done:\n" ++
   "  la t0, account_agreement_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); li t2, 1; beq s1, t2, .Laap_count_balance\n" ++
   "  la t0, account_agreement_nonce_probe_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_count_done\n" ++
   ".Laap_count_balance:\n" ++
@@ -1172,6 +1253,10 @@ def accountWriteMapBssSection : String :=
   -- differing limb index.
   ".balign 32\n" ++
   "account_agreement_probe_count:\n  .zero 8\n" ++
+  "account_agreement_reader_invocations:\n  .zero " ++ toString (32 * 16) ++ "\n" ++
+  "account_agreement_unregistered_reader_count:\n  .zero 8\n" ++
+  "account_agreement_unregistered_reader_id:\n  .zero 8\n" ++
+  "account_agreement_unregistered_reader_pc:\n  .zero 8\n" ++
   "account_agreement_balance_probe_count:\n  .zero 8\n" ++
   "account_agreement_nonce_probe_count:\n  .zero 8\n" ++
   "account_agreement_no_row:\n  .zero 8\n" ++
@@ -1182,7 +1267,10 @@ def accountWriteMapBssSection : String :=
   "account_agreement_instrument_count:\n  .zero 8\n" ++
   "agreement_event_count:\n  .zero 8\n" ++
   "agreement_event_overflow:\n  .zero 8\n" ++
-  "agreement_events:\n  .zero " ++ toString (accountAgreementEventCapacity * 64) ++ "\n"
+  "agreement_events:\n  .zero " ++ toString (accountAgreementEventCapacity * 64) ++ "\n" ++
+  "account_agreement_mutation_event_count:\n  .zero 8\n" ++
+  "account_agreement_mutation_event_overflow:\n  .zero 8\n" ++
+  "account_agreement_mutation_events:\n  .zero " ++ toString (accountAgreementMutationEventCapacity * 96) ++ "\n"
 
 /-! ## `account_write_touch_e2e`
 
@@ -1240,6 +1328,7 @@ def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesLatestBalanceFunction ++
   accountAgreementRecordFunction ++
+  accountAgreementMutationCheckpointFunction ++
   accountAgreementScanFunction ++
   accountAgreementProbeFunction ++
   accountWritesBlockUpsertFunction ++

@@ -347,6 +347,8 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
      "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
      ".Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbwb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+     -- Debug-only post-mutation witness for the CREATE creator debit.
+     "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_sender_be; addi a1, x20, 32; li a2, 6; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
      -- GH #11001: same live-balance debit mark as CALL — frame_return re-credits
      -- creator env+32 when the CREATE child reverts/exceptionally halts.
      "  la t0, evm_call_depth\n  ld t0, 0(t0)\n  addi t0, t0, 1\n" ++
@@ -510,6 +512,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_creator_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcr_sbc_wb_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- The initcode child now sees the post-endowment live balance.  This is
+    -- the debug-only observation point for CREATE's child credit.
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_be; addi a1, x20, 32; li a2, 4; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     -- The two pre-balances are now explicit at this site: the creator value
     -- was captured before its parent-env debit, while nse_create_pre_bal is
     -- the child target's staged pre-state balance.  Record the shared
