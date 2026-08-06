@@ -660,7 +660,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 27 := by decide
+theorem registry_size : registry.length = 28 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
@@ -691,7 +691,7 @@ theorem bloom_rows : countFamily "bloom" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 5 ∧
+    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 6 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -704,7 +704,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 11 ∧
-    countBasis .ported = 5 ∧
+    countBasis .ported = 6 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
