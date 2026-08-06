@@ -420,7 +420,7 @@ theorem adField1ContEpi
         (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
-        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode) **
+        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants) **
         regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30)
       (fun h hp => by unfold adContFrame at hp; rw [regsAt_listNthFrame] at hp; xperm_hyp hp)
       (fun _ hq => hq) ?_
@@ -439,7 +439,7 @@ theorem adField1ContEpi
          bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) **
          savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
          bytesRegion balanceOut oldBal **
-         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode))
+         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants))
       (fun h hp => by xperm_hyp hp) (fun _ hq => hq) ?_
     refine cpsTripleWithin_pure_pre (fun hf1 => ?_)
     refine cpsTripleWithin_pure_pre (fun hult => ?_)
@@ -929,7 +929,7 @@ theorem adField0ContEpi
          bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ offset) ** ((.x15 : Reg) ↦ᵣ codeOut) **
          savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
          bytesRegion balanceOut oldBal **
-         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode))
+         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants))
       (fun h hp => by xperm_hyp hp) (fun _ hq => hq) ?_
     refine cpsTripleWithin_pure_pre (fun hf0 => ?_)
     refine cpsTripleWithin_pure_pre (fun hult => ?_)
