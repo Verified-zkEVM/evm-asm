@@ -5036,6 +5036,32 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `BlockVerdictStateRoot.lean` (block_state_root + stateless_verdict_v2), byte-identical assembly. Keep
   `block_verdict` itself out of splits to avoid churn with the call-frame descent.
 
+- ✅ **`_decode_header` port fidelity + the first header correspondence row
+  (#11513, #11615, #11575 row 1, 2026-08-06)**: the port built every numeric
+  field with a plain `bytesBEtoNat` and every fixed-width byte field with a bare
+  `bs.getD i []`, dropping both checks `rlp.decode_to` performs. Both re-imposed
+  (#11617, #11623) via the existing `decodeItemScalar` / `decodeItemFixedBytes`,
+  driven by `numericFieldWidths` / `fixedBytesFieldWidths`.
+  ⚠️ **The checks are NOT a matched pair, and that is the reusable lesson**:
+  canonicality comes from `_deserialize_to_uint` and binds every uint field,
+  while width is delegated to the target type's `from_be_bytes` — so `U64`/`U256`
+  and every `FixedBytes` alias are bounded but arbitrary-precision `Uint` is
+  **not**. Five of the nine numeric fields have no reference width bound at all.
+  The byte-field check is additionally **arity-dependent**: index 21 exists only
+  in the 23-field arm, and `[]` passes every uint check but fails `length = 32`,
+  so an unconditional sweep would reject every 21-field `bpo5` header.
+  `decode_header_inv` is generalized to expose any field plus both checks indexed
+  by field — that is what sibling bridges consume instead of re-deriving them.
+  Row 1 of #11575 (`header_extract_logs_bloom`) landed on top (#11624) and needs
+  **no** width hypothesis, because the port now derives `Bloom`'s 256.
+  Guest side: `rlp_field_to_u64`'s 8-byte `tooLong` is a **representational
+  limit**, not a false reject — under canonical RLP `payload_len > 8` ⟺
+  `value ≥ 2^64`, so it is the value-fit check for a `u64` sink and relaxing it
+  would be FA-ward (#11620, maintainer ruling). Rows graded
+  `.domainRestricted`/precondition must state the bound **explicitly in the
+  theorem** (`hfits : hdr.number < 2 ^ 64`). Remaining: #11575 rows 2-8, of which
+  three are not mechanical (one has no `SpecRef` counterpart at all) — see the
+  breakdown on that issue.
 - 🔶 **SpecRef execution seam: scope + witness authentication (bead
   `evm-asm-s1d19`, 2026-07-10)**: SpecRef's `verify_stateless_new_payload`
   stubs execution (`executeAlwaysOk`), so its verdict is always `true` —
