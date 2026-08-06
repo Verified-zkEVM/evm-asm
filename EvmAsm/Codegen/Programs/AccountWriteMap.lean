@@ -918,6 +918,28 @@ def accountWritesApplyDeletesFunction : String :=
   ".Lawd_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 80; ret\n"
 
+/-! ## `account_writes_commit_pending`
+
+    Finalize the transaction-local account-write state before the builder walk.
+    The map is already the sole execution-state journal: `account_writes_apply_deletes`
+    materializes deferred SELFDESTRUCT state in that map, then the transaction-local
+    created/delete sets are cleared for the next transaction.  The created set itself
+    remains live until this point because tombstone provenance is transaction-scoped.
+
+    No AccountState pending/durable merge is performed here.  A nonzero return is a
+    latched arena failure and is consumed by the caller as a rejection. -/
+def accountWritesCommitPendingFunction : String :=
+  "account_writes_commit_pending:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
+  "  jal ra, account_writes_apply_deletes; bnez a0, .Lawcp_over\n" ++
+  "  la t0, account_state_created_count; sd zero, 0(t0)\n" ++
+  "  la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
+  "  li a0, 0; j .Lawcp_ret\n" ++
+  ".Lawcp_over:\n" ++
+  "  la t0, account_writes_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
+  ".Lawcp_ret:\n" ++
+  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
+
 /-! ## `account_writes_is_absent`
 
     Three-state read of `account_writes` matching
@@ -1621,6 +1643,7 @@ def accountWriteMapFunctions : String :=
   accountAgreementProbeFunction ++
   accountWritesBlockUpsertFunction ++
   accountWritesApplyDeletesFunction ++
+  accountWritesCommitPendingFunction ++
   accountWritesIsAbsentFunction ++
   accountWritesEmitBuilderTxFunction ++
   accountWritesIncorporateTxFunction ++
@@ -1682,6 +1705,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_emit_builder_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_incorporate_tx:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_apply_deletes:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_commit_pending:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_is_absent:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_discard_tx:").length == 1
 -- GH #10810: the callee must preserve t5/t6, because `account_write_record`'s hit path holds the
