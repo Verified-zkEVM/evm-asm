@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
@@ -217,6 +218,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
   routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
       (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
+  routine "header_extract_logs_bloom" .proven
+      (some "headerExtractLogsBloom_spec_within")
+      (notes := "field-6 (`bloom`) extractor: prologue ;; `rlp_list_nth_item` at index 6 "
+        ++ ";; a 256-byte copy loop ;; epilogue. Whole-routine triple predates its "
+        ++ "correspondence row, like #11351's. Its step bound is DATA-DERIVED (the "
+        ++ "`7 * 256` factor is the bloom copy), so unlike the numeric siblings it does "
+        ++ "NOT inherit #11461's `7 * (2^64 - 1)` tail factor. Model tie "
+        ++ "`header_logs_bloom_of_decode` is unconditional on the field width: #11615 "
+        ++ "made the port perform the `FixedBytes` check the reference performs, so "
+        ++ "`len = 256` is derived rather than assumed"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -295,9 +306,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 27 := by decide
+theorem routineCount_eq : routineCount = 28 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 19 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 20 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -312,7 +323,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 19 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 20 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -405,6 +416,12 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
+  @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
+-- Correspondence row (#11575) names this; Codegen-side, so the witness lives here
+-- for the same reason as #11351's below.
+private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
+  @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
 -- Correspondence row #11351 names this; it is Codegen-side, and Correspondence

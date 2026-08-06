@@ -17,7 +17,6 @@ accountSetUintFieldFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
 addressComputeCreate2Function	EvmAsm/Codegen/Programs/Address.lean
 addressComputeCreateFunction	EvmAsm/Codegen/Programs/Address.lean
 addressFromPubkeyFunction	EvmAsm/Codegen/Programs/Address.lean
-amsterdamBlobGasPriceFunction	EvmAsm/Codegen/Programs/Header.lean
 amsterdamBlobGasPriceU256Function	EvmAsm/Codegen/Programs/Header.lean
 b1SenderTableFindFunction	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean
 baapDeleteSingleLeafStorageFunction	EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean

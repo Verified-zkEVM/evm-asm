@@ -89,6 +89,41 @@ def numericFieldWidths : List (Nat × Option Nat) :=
    (18, some 8),    -- excess_blob_gas  : U64   (:226)
    (22, some 8)]    -- slot_number      : U64   (:263)
 
+/-- The fixed-width **byte** fields present in BOTH fork arms (indices 0–20),
+    with the width their annotation's `FixedBytes.LENGTH` enforces.
+
+    `_deserialize_to_bytes` does not merely check "is it bytes" — it constructs
+    the annotated type, and `FixedBytes.__new__` raises when the length is wrong
+    (`ethereum_types` 0.4.1, `bytes.py:29-37`). So these are as much a decode
+    check as the uint ones (#11615); the port's `getB` had dropped them.
+
+    ⚠️ `extra_data` (12) is absent on purpose: it is plain `Bytes`, genuinely
+    unbounded at decode time. Its ≤32 rule is a `validate_header` clause, not a
+    decode one. -/
+def fixedBytesFieldWidths : List (Nat × Nat) :=
+  [(0,  32),   -- parent_hash              : Hash32  = Bytes32
+   (1,  32),   -- ommers_hash              : Hash32
+   (2,  20),   -- coinbase                 : Address = Bytes20
+   (3,  32),   -- state_root               : Root    = Hash32
+   (4,  32),   -- transactions_root        : Root
+   (5,  32),   -- receipt_root             : Root
+   (6,  256),  -- bloom                    : Bloom   = Bytes256
+   (13, 32),   -- prev_randao              : Bytes32
+   (14, 8),    -- nonce                    : Bytes8
+   (16, 32),   -- withdrawals_root         : Root
+   (19, 32),   -- parent_beacon_block_root : Root
+   (20, 32)]   -- requests_hash            : Hash32
+
+/-- Fixed-width byte fields that exist ONLY in the current-fork (23-field) arm.
+
+    ⚠️ This split is why #11615 could not copy #11513's shape. A missing numeric
+    field reads as `bs.getD i [] = []`, and `[]` passes every uint check
+    (canonical, length 0 ≤ any bound), so the numeric sweep was safe to run
+    unconditionally. `[]` does **not** pass `length = 32`, so sweeping index 21
+    over a 21-field header would reject every previous-fork block. -/
+def currentForkBytesFieldWidths : List (Nat × Nat) :=
+  [(21, 32)]   -- block_access_list_hash : Hash32
+
 /-- One numeric field through `rlp.decode_to`'s uint path, with the error
     remapped to this decoder's own.
 
@@ -108,9 +143,26 @@ private def numericFieldsOk (bs : List Bytes) : Bool :=
     | .ok _ => true
     | .error _ => false
 
-/-- Every numeric field passes its typed check, in the decoder's error monad. -/
-private def checkNumericFields (bs : List Bytes) : Except SpecError Unit :=
-  if numericFieldsOk bs then .ok () else .error .headerDecodeError
+/-- One fixed-width byte field through `rlp.decode_to`'s bytes path. -/
+private def getBChecked (width : Nat) (b : Bytes) : Except SpecError Bytes :=
+  match decodeItemFixedBytes width (.bytes b) with
+  | .ok out => .ok out
+  | .error _ => .error .headerDecodeError
+
+/-- Every fixed-width byte field in the given arm has its annotated length. -/
+private def bytesFieldsOk (isCurrent : Bool) (bs : List Bytes) : Bool :=
+  let tbl := if isCurrent then fixedBytesFieldWidths ++ currentForkBytesFieldWidths
+             else fixedBytesFieldWidths
+  tbl.all fun p =>
+    match getBChecked p.2 (bs.getD p.1 []) with
+    | .ok _ => true
+    | .error _ => false
+
+/-- Every field passes its typed check, in the decoder's error monad. -/
+private def checkNumericFields (isCurrent : Bool) (bs : List Bytes) :
+    Except SpecError Unit :=
+  if numericFieldsOk bs && bytesFieldsOk isCurrent bs then .ok ()
+  else .error .headerDecodeError
 
 /-- Build a `Header` from its decoded RLP field bytes. Fields 21–22
     (`block_access_list_hash`, `slot_number`) are amsterdam-only and default
@@ -143,7 +195,7 @@ def mkHeaderFields (isCurrent : Bool) (bs : List Bytes) : Header :=
     fields of whichever arm it is in. -/
 private def decodeHeaderArm (isCurrent : Bool) (bs : List Bytes) :
     Except SpecError Header :=
-  match checkNumericFields bs with
+  match checkNumericFields isCurrent bs with
   | .error e => .error e
   | .ok _ => .ok (mkHeaderFields isCurrent bs)
 
@@ -243,6 +295,39 @@ private theorem numericFieldsOk_mem {bs : List Bytes} (h : numericFieldsOk bs = 
   | ok n => exact ⟨n, rfl⟩
   | error e => rw [hg] at hp; simp at hp
 
+/-- The same, for the fixed-width byte fields of the arm that was taken. -/
+private theorem bytesFieldsOk_mem {isCurrent : Bool} {bs : List Bytes}
+    (h : bytesFieldsOk isCurrent bs = true) {i w : Nat}
+    (hmem : (i, w) ∈ fixedBytesFieldWidths ∨
+      (isCurrent = true ∧ (i, w) ∈ currentForkBytesFieldWidths)) :
+    (bs.getD i []).length = w := by
+  unfold bytesFieldsOk at h
+  rw [List.all_eq_true] at h
+  have hmem' : (i, w) ∈ (if isCurrent then
+      fixedBytesFieldWidths ++ currentForkBytesFieldWidths
+    else fixedBytesFieldWidths) := by
+    cases isCurrent with
+    | false =>
+        simp only [Bool.false_eq_true, if_false]
+        rcases hmem with hm | ⟨hc, -⟩
+        · exact hm
+        · exact absurd hc (by simp)
+    | true =>
+        simp only [if_true]
+        rcases hmem with hm | ⟨-, hm⟩
+        · exact List.mem_append_left _ hm
+        · exact List.mem_append_right _ hm
+  have hp := h _ hmem'
+  dsimp only at hp
+  cases hg : getBChecked w (bs.getD i []) with
+  | error e => rw [hg] at hp; simp at hp
+  | ok out =>
+      unfold getBChecked at hg
+      split at hg
+      · rename_i out' hfx
+        exact (decodeItemFixedBytes_inv hfx).2
+      · exact absurd hg (by simp)
+
 /-- Inversion of a successful header decode, in vocabulary a caller can use:
     the input decodes fully to a list of byte strings, of one of the two
     permitted arities, the header is the port's field assignment on those bytes,
@@ -272,7 +357,10 @@ theorem decode_header_inv {hb : Bytes} {hdr : Header}
         hdr = mkHeaderFields (bs.length == 23) bs ∧
         (∀ i w, (i, w) ∈ numericFieldWidths →
           (∀ c, (bs.getD i []).head? = some c → c ≠ 0) ∧
-          (∀ W, w = some W → (bs.getD i []).length ≤ W)) := by
+          (∀ W, w = some W → (bs.getD i []).length ≤ W)) ∧
+        (∀ i w, (i, w) ∈ fixedBytesFieldWidths ∨
+            (bs.length = 23 ∧ (i, w) ∈ currentForkBytesFieldWidths) →
+          (bs.getD i []).length = w) := by
   unfold _decode_header at h
   split at h
   · rename_i items hfull
@@ -280,20 +368,22 @@ theorem decode_header_inv {hb : Bytes} {hdr : Header}
     · exact absurd h (by simp)
     · rename_i bs hmap
       obtain ⟨hlen, hidx⟩ := mapM_rlpBytes_spec items bs hmap
-      -- both arms run `checkNumericFields` first, so the field facts are shared
+      -- both arms run the same check first, so the field facts are shared
       have harm : ∀ (isCurrent : Bool) (hdr' : Header),
           decodeHeaderArm isCurrent bs = .ok hdr' →
-          hdr' = mkHeaderFields isCurrent bs ∧ numericFieldsOk bs = true := by
+          hdr' = mkHeaderFields isCurrent bs ∧ numericFieldsOk bs = true ∧
+            bytesFieldsOk isCurrent bs = true := by
         intro isCurrent hdr' harm
         unfold decodeHeaderArm at harm
-        cases hchk : checkNumericFields bs with
+        cases hchk : checkNumericFields isCurrent bs with
         | error e => rw [hchk] at harm; simp at harm
         | ok u =>
             rw [hchk] at harm
             refine ⟨(Except.ok.inj harm).symm, ?_⟩
             unfold checkNumericFields at hchk
             split at hchk
-            · rename_i hok; exact hok
+            · rename_i hok
+              exact ⟨(Bool.and_eq_true .. ▸ hok).1, (Bool.and_eq_true .. ▸ hok).2⟩
             · simp at hchk
       have hfields : numericFieldsOk bs = true →
           ∀ i w, (i, w) ∈ numericFieldWidths →
@@ -304,14 +394,24 @@ theorem decode_header_inv {hb : Bytes} {hdr : Header}
         exact getNChecked_checks hn
       split at h
       · rename_i h23
-        obtain ⟨hval, hchk⟩ := harm true hdr h
-        exact ⟨items, bs, hfull, hlen, Or.inl h23, hidx,
-          by rw [hval]; congr 1; simp [h23], hfields hchk⟩
+        obtain ⟨hval, hchk, hbchk⟩ := harm true hdr h
+        refine ⟨items, bs, hfull, hlen, Or.inl h23, hidx,
+          by rw [hval]; congr 1; simp [h23], hfields hchk, ?_⟩
+        intro i w hmem
+        exact bytesFieldsOk_mem hbchk
+          (by rcases hmem with hm | ⟨-, hm⟩
+              · exact Or.inl hm
+              · exact Or.inr ⟨rfl, hm⟩)
       · split at h
         · rename_i h21
-          obtain ⟨hval, hchk⟩ := harm false hdr h
-          exact ⟨items, bs, hfull, hlen, Or.inr h21, hidx,
-            by rw [hval]; congr 1; simp [h21], hfields hchk⟩
+          obtain ⟨hval, hchk, hbchk⟩ := harm false hdr h
+          refine ⟨items, bs, hfull, hlen, Or.inr h21, hidx,
+            by rw [hval]; congr 1; simp [h21], hfields hchk, ?_⟩
+          intro i w hmem
+          refine bytesFieldsOk_mem hbchk ?_
+          rcases hmem with hm | ⟨h23', -⟩
+          · exact Or.inl hm
+          · exact absurd (h21 ▸ h23') (by decide)
         · exact absurd h (by simp)
   · exact absurd h (by simp)
 
@@ -407,11 +507,23 @@ def sanityForkConfig : ForkConfig :=
 
 -- Build a minimal RLP header with `n` fields, field 0 = parent_hash,
 -- field 3 = state_root, all others empty.
+/-- The annotated width of field `i`, or 0 for the numeric and variable-length
+    fields (whose canonical zero/empty encoding is `[]`). -/
+def testFieldWidth (i : Nat) : Nat :=
+  match (fixedBytesFieldWidths ++ currentForkBytesFieldWidths).find?
+      (fun p => p.1 == i) with
+  | some p => p.2
+  | none => 0
+
+/-- ⚠️ Every fixed-width byte field is filled to its ANNOTATED width, not to `[]`.
+    Before #11615 this filled them all with `.bytes []`, which the port accepted
+    because `getB` had no width check — so the guards were exercising headers
+    `rlp.decode_to` would have rejected outright. -/
 def mkTestHeaderBytes (n : Nat) (parentHash stateRoot : Bytes) : Bytes :=
   let fields : List RLPItem := (List.range n).map (fun i =>
     if i = 0 then .bytes parentHash
     else if i = 3 then .bytes stateRoot
-    else .bytes [])
+    else .bytes (List.replicate (testFieldWidth i) 0))
   EvmAsm.EL.RLP.encode (.list fields)
 
 -- Amsterdam header (23 fields) decodes with isCurrentFork = true.
@@ -435,7 +547,8 @@ def mkTestHeaderBytes (n : Nat) (parentHash stateRoot : Bytes) : Bytes :=
     Every other field is the canonical empty encoding. -/
 def mkTestHeaderBytesAt (n idx : Nat) (v : Bytes) : Bytes :=
   let fields : List RLPItem := (List.range n).map (fun i =>
-    if i = idx then .bytes v else .bytes [])
+    if i = idx then .bytes v
+    else .bytes (List.replicate (testFieldWidth i) 0))
   EvmAsm.EL.RLP.encode (.list fields)
 
 /-! ### The per-field typed checks (#11513)
@@ -475,6 +588,49 @@ differential to inherit here. -/
 -- Same for `gas_limit`/`gas_used`/`difficulty`/`base_fee_per_gas`.
 #guard match _decode_header (mkTestHeaderBytesAt 23 9 (List.replicate 12 0x01)) with
   | .ok _ => true | .error _ => false
+
+/-! ### The fixed-width BYTE field checks (#11615)
+
+`_deserialize_to_bytes` constructs the annotated type, and `FixedBytes.__new__`
+raises when the length is wrong -- so these are decode checks too, and `getB` had
+dropped them. -/
+
+-- A short `Root` is rejected (`state_root` must be exactly 32).
+#guard match _decode_header (mkTestHeaderBytesAt 23 3 (List.replicate 31 0)) with
+  | .error .headerDecodeError => true | _ => false
+
+-- ... and a long one.
+#guard match _decode_header (mkTestHeaderBytesAt 23 3 (List.replicate 33 0)) with
+  | .error .headerDecodeError => true | _ => false
+
+-- `Address` is 20, not 32.
+#guard match _decode_header (mkTestHeaderBytesAt 23 2 (List.replicate 32 0)) with
+  | .error .headerDecodeError => true | _ => false
+#guard match _decode_header (mkTestHeaderBytesAt 23 2 (List.replicate 20 0)) with
+  | .ok _ => true | .error _ => false
+
+-- `Bloom` is 256 -- the width `header_extract_logs_bloom`'s success arm needs.
+#guard match _decode_header (mkTestHeaderBytesAt 23 6 (List.replicate 255 0)) with
+  | .error .headerDecodeError => true | _ => false
+#guard match _decode_header (mkTestHeaderBytesAt 23 6 (List.replicate 256 0)) with
+  | .ok h => h.bloom.length == 256 | .error _ => false
+
+-- `nonce` is `Bytes8`.
+#guard match _decode_header (mkTestHeaderBytesAt 23 14 (List.replicate 32 0)) with
+  | .error .headerDecodeError => true | _ => false
+
+-- `extra_data` (12) is plain `Bytes`: unbounded AT DECODE TIME. The <=32 rule is a
+-- `validate_header` clause, not a decode one, so a 40-byte field decodes fine here.
+#guard match _decode_header (mkTestHeaderBytesAt 23 12 (List.replicate 40 0)) with
+  | .ok h => h.extraData.length == 40 | .error _ => false
+
+-- ⚠️ THE REGRESSION THIS COULD HAVE CAUSED. Index 21 exists only in the 23-field
+-- arm, so sweeping it unconditionally would reject every previous-fork header --
+-- `bs.getD 21 []` is `[]`, which fails `length = 32` where it passes every uint
+-- check. The arity split is what stops that; this guard pins it.
+#guard match _decode_header (mkTestHeaderBytes 21 (List.replicate 32 0x03)
+    (List.replicate 32 0x04)) with
+  | .ok h => !h.isCurrentFork | .error _ => false
 
 -- Two contiguous headers validate; a non-contiguous pair does not.
 #guard

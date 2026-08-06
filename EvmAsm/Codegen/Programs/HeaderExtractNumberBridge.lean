@@ -131,7 +131,10 @@ theorem header_number_of_decode
     (hres : Result headerBytes base headerBytes.length 8 status value)
     (hover : base.toNat + headerBytes.length + 9 < 2 ^ 64) :
     status = 0 ∧ value = BitVec.ofNat 64 hdr.number := by
-  obtain ⟨items, bs, hfull, hlenEq, harity, hidx, hval, hchecks⟩ := decode_header_inv hdec
+  -- the trailing conjunct is the FixedBytes widths (#11615); `number` is numeric,
+  -- so this bridge does not consume it
+  obtain ⟨items, bs, hfull, hlenEq, harity, hidx, hval, hchecks, -⟩ :=
+    decode_header_inv hdec
   -- field 8's canonicality is now the PORT's check, not the caller's
   obtain ⟨hcanon, -⟩ := hchecks 8 none (by decide)
   have hnum : hdr.number = bytesBEtoNat (bs.getD 8 []) := by rw [hval]; rfl

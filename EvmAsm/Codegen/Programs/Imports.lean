@@ -345,6 +345,7 @@ import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel

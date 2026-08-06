@@ -109,6 +109,10 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
         "account_agreement_row_no_field",
         "account_agreement_live_field_absent",
         "account_agreement_present_agree",
+        "account_agreement_nonce_diff_agree",
+        "account_agreement_nonce_diff_disagree",
+        "account_agreement_nonce_map_missing_overlay_answered",
+        "account_agreement_nonce_overlay_missing_map_answered",
         "account_agreement_mismatch_count",
         "account_agreement_instrument_count",
         "agreement_event_count",
@@ -216,6 +220,10 @@ def decode(
         "account_agreement_row_no_field",
         "account_agreement_live_field_absent",
         "account_agreement_present_agree",
+        "account_agreement_nonce_diff_agree",
+        "account_agreement_nonce_diff_disagree",
+        "account_agreement_nonce_map_missing_overlay_answered",
+        "account_agreement_nonce_overlay_missing_map_answered",
         "account_agreement_mismatch_count",
         "account_agreement_instrument_count",
         "agreement_event_count",
@@ -475,6 +483,32 @@ def main() -> int:
             int(record["counters"]["account_agreement_nonce_probe_count"])
             for record in records
         ),
+        "nonce_differential_buckets": {
+            "agree": sum(
+                int(record["counters"]["account_agreement_nonce_diff_agree"])
+                for record in records
+            ),
+            "disagree": sum(
+                int(record["counters"]["account_agreement_nonce_diff_disagree"])
+                for record in records
+            ),
+            "map_missing_overlay_answered": sum(
+                int(
+                    record["counters"][
+                        "account_agreement_nonce_map_missing_overlay_answered"
+                    ]
+                )
+                for record in records
+            ),
+            "overlay_missing_map_answered": sum(
+                int(
+                    record["counters"][
+                        "account_agreement_nonce_overlay_missing_map_answered"
+                    ]
+                )
+                for record in records
+            ),
+        },
         "reader_invocations": reader_invocations,
         "unregistered_reader_count": unregistered_reader_count,
         "unregistered_reader_ids": unregistered_reader_ids,
@@ -507,6 +541,7 @@ def main() -> int:
         f"instrument_events={len(instrument_events)} "
         f"unregistered_readers={unregistered_reader_count} "
         f"mutation_observations={mutation_observations} "
+        f"nonce_differential_buckets={summary['nonce_differential_buckets']} "
         f"output_differences={summary['output_differences']} "
         f"elf_sha256={elf_sha} report={report}"
     )

@@ -198,6 +198,10 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  # the already materialized descriptor post-value for the comparison.\n" ++
   "  sd zero, 64(s2); sd zero, 72(s2); sd zero, 80(s2); sd zero, 88(s2)\n" ++
   ".Lamsr_original_ready:\n" ++
+  "  # The seed-only caller shares the authenticated-original lookup, but it\n" ++
+  "  # must not publish a duplicate side-log/BAL row.  Keep this dispatch here\n" ++
+  "  # so the resolver's zero-on-miss result is also the map baseline.\n" ++
+  "  la t0, bv_system_storage_map_seed_only; ld t0, 0(t0); bnez t0, .Lamsr_seed_original_ready\n" ++
   "  # Match the ordinary storage emitter's pre!=post rule.  Equal parent/current\n" ++
   "  # values still update the execution map, but publish no BAI-0 change row.\n" ++
   "  ld t0, 64(s2); ld t1, 96(s2); bne t0, t1, .Lamsr_emit_change\n" ++
@@ -225,20 +229,23 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  ld ra, 56(sp)\n" ++
   "  addi s1, s1, 1; sd s1, 0(s0)\n" ++
   "  j .Lamsr_one_ok\n" ++
-  ".Lamsr_finish_one:\n" ++
-  "  la t0, bv_system_storage_map_seed_only; ld t0, 0(t0); bnez t0, .Lamsr_seed_prepare\n" ++
-  "  j .Lamsr_original_resolve\n" ++
-  ".Lamsr_seed_prepare:\n" ++
-  "  sd ra, 56(sp)\n" ++
-  ".Lamsr_seed_map:\n" ++
-  "  # Pre-user mode publishes only the canonical map row; the terminal call\n" ++
-  "  # remains responsible for the side log and BAI-0 BAL builder event.\n" ++
-  "  # Seed has no resolved original here → a3=0 (baseline zero).\n" ++
-  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; li a3, 0\n" ++
+  ".Lamsr_seed_original_ready:\n" ++
+  "  # Seed-only mode updates the canonical map with the authenticated parent\n" ++
+  "  # baseline, without emitting the terminal BAI-0 side log or BAL row.\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; addi a3, s2, 64\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
   "  ld ra, 56(sp)\n" ++
   "  j .Lamsr_one_ok\n" ++
+  ".Lamsr_finish_one:\n" ++
+  "  la t0, bv_system_storage_map_seed_only; ld t0, 0(t0); bnez t0, .Lamsr_seed_prepare\n" ++
+  "  j .Lamsr_original_resolve\n" ++
+  ".Lamsr_seed_prepare:\n" ++
+  "  # Resolve the real authenticated parent value before the seed upsert.\n" ++
+  "  # The raw resolver does not record a read, so this path cannot grow the\n" ++
+  "  # account/storage read sets or publish a side-log row as a lookup effect.\n" ++
+  "  addi s5, s2, 32\n" ++
+  "  j .Lamsr_original_resolve\n" ++
   ".Lamsr_one_ok:\n" ++
   "  li a0, 0; ret\n" ++
   ".Lamsr_one_overflow:\n" ++

@@ -257,6 +257,18 @@ def decodeItemFixedBytes (width : Nat) : RLPItem → Except SpecError Bytes
   | .bytes b => if b.length == width then pure b else txErr "invalid fixed bytes"
   | .list _ => txErr "invalid bytes"
 
+/-- The width `FixedBytes.__new__` enforces, read back off a successful decode.
+    Lives here for the same reason as the scalar inversions: `txErr` is private,
+    so a caller cannot rule out the failure branch. -/
+theorem decodeItemFixedBytes_inv {width : Nat} {b out : Bytes}
+    (h : decodeItemFixedBytes width (.bytes b) = .ok out) :
+    out = b ∧ b.length = width := by
+  simp only [decodeItemFixedBytes] at h
+  split at h
+  · rename_i hw
+    exact ⟨(Except.ok.inj h).symm, by simpa using hw⟩
+  · exact absurd h (by simp [txErr])
+
 /-- The `Bytes0 | Address` union: empty (creation) xor 20 bytes. -/
 def decodeItemTo : RLPItem → Except SpecError (Option Address)
   | .bytes [] => pure none
