@@ -45,19 +45,87 @@ def compute_new_payload_request_root (si : StatelessInput) : Hash32 :=
 
 `rlp.decode_to(Header, …)` is type-directed; we decode to a generic RLP
 list and discriminate the current fork (amsterdam, 23 fields) from the
-previous fork (bpo5, 21 fields) by RLP list length. See
-docs/4ch8f-specref-port.md for the one modeling simplification here (we do
-not re-impose `rlp.decode_to`'s per-field byte-length checks; the field
-count is the fork discriminant). -/
+previous fork (bpo5, 21 fields) by RLP list length. The field count remains
+the fork discriminant.
+
+The per-field typed checks `rlp.decode_to` performs on numeric fields **are**
+re-imposed (#11513 — they were previously dropped, making the port looser than
+the Python on all nine). They come from two different places in the reference,
+and are NOT the same predicate:
+
+* **canonicality** — `_deserialize_to_uint` rejects a leading zero byte on
+  every uint field (`ethereum_rlp` 0.1.6, `rlp.py:270-271`);
+* **width** — delegated to the target type's `from_be_bytes`, so it binds
+  `U64`/`U256` only: `FixedUnsigned.from_be_bytes` raises when the buffer is
+  wider than the type (`ethereum_types` 0.4.1, `numeric.py:566-577`), while
+  arbitrary-precision `Uint.from_be_bytes` is a plain `int.from_bytes` with no
+  length check at all (`numeric.py:523-528`).
+
+So five of the nine fields are width-**unbounded** in the reference; see
+`numericFieldWidths`. ⚠️ Those are the versions `execution-specs/uv.lock`
+resolves. A stale environment supplies `ethereum_rlp` 0.1.5 /
+`ethereum_types` 0.3.0, and reading those inverts a strictness verdict — see
+docs/agents/spec-correspondence.md §6a. -/
 
 private def rlpBytes? : RLPItem → Option Bytes
   | .bytes b => some b
   | _ => none
 
+/-- The nine numeric header fields, each paired with the byte width its Python
+    annotation implies: `none` for arbitrary-precision `Uint`, `some 32` for
+    `U256`, `some 8` for `U64`.
+
+    One table serves both fork arms: `bpo5`'s `Header` carries identical
+    annotations at indices 0–20, and index 22 is absent there, where
+    `bs.getD 22 []` is the canonical empty field and passes every check. -/
+def numericFieldWidths : List (Nat × Option Nat) :=
+  [(7,  none),      -- difficulty       : Uint  (amsterdam/blocks.py:152)
+   (8,  none),      -- number           : Uint  (:157)
+   (9,  none),      -- gas_limit        : Uint  (:162)
+   (10, none),      -- gas_used         : Uint  (:178)
+   (11, some 32),   -- timestamp        : U256  (:183)
+   (15, none),      -- base_fee_per_gas : Uint  (:203)
+   (17, some 8),    -- blob_gas_used    : U64   (:218)
+   (18, some 8),    -- excess_blob_gas  : U64   (:226)
+   (22, some 8)]    -- slot_number      : U64   (:263)
+
+/-- One numeric field through `rlp.decode_to`'s uint path, with the error
+    remapped to this decoder's own.
+
+    Delegates to `decodeItemScalar`, the existing port of
+    `_deserialize_to_uint` + `from_be_bytes`, whose `Option Nat` width argument
+    already models the `Uint`-vs-`FixedUnsigned` split — so the two checks live
+    in exactly one place in the tree. -/
+private def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat :=
+  match decodeItemScalar maxBytes (.bytes b) with
+  | .ok n => .ok n
+  | .error _ => .error .headerDecodeError
+
+/-- Every numeric field passes its typed check. -/
+private def numericFieldsOk (bs : List Bytes) : Bool :=
+  numericFieldWidths.all fun p =>
+    match getNChecked p.2 (bs.getD p.1 []) with
+    | .ok _ => true
+    | .error _ => false
+
+/-- Every numeric field passes its typed check, in the decoder's error monad. -/
+private def checkNumericFields (bs : List Bytes) : Except SpecError Unit :=
+  if numericFieldsOk bs then .ok () else .error .headerDecodeError
+
 /-- Build a `Header` from its decoded RLP field bytes. Fields 21–22
     (`block_access_list_hash`, `slot_number`) are amsterdam-only and default
-    to `[]`/`0` for the previous fork. -/
-private def mkHeader (isCurrent : Bool) (bs : List Bytes) : Header :=
+    to `[]`/`0` for the previous fork.
+
+    This is the field **assignment** only; the typed checks are
+    `checkNumericFields`, and `_decode_header` runs both. Assigning
+    `bytesBEtoNat` here rather than the checked decoder's result is not a
+    weakening: `getNChecked_value` proves the two agree whenever the check
+    passes.
+
+    Public so a caller can read off ANY field of a successfully decoded header
+    via `decode_header_inv`. `rlpBytes?` stays private, so that lemma is still
+    the only door into `_decode_header` itself. -/
+def mkHeaderFields (isCurrent : Bool) (bs : List Bytes) : Header :=
   let getB := fun i => bs.getD i []
   let getN := fun i => bytesBEtoNat (bs.getD i [])
   { isCurrentFork := isCurrent
@@ -70,16 +138,31 @@ private def mkHeader (isCurrent : Bool) (bs : List Bytes) : Header :=
     parentBeaconBlockRoot := getB 19, requestsHash := getB 20,
     blockAccessListHash := getB 21, slotNumber := getN 22 }
 
+/-- One fork arm: the typed checks, then the field assignment. Ordering matches
+    the reference, which discriminates on schema (arity) and validates the
+    fields of whichever arm it is in. -/
+private def decodeHeaderArm (isCurrent : Bool) (bs : List Bytes) :
+    Except SpecError Header :=
+  match checkNumericFields bs with
+  | .error e => .error e
+  | .ok _ => .ok (mkHeaderFields isCurrent bs)
+
 /-- Decode an RLP-encoded header, current fork (23 fields) first, else the
-    previous fork (21 fields). -/
+    previous fork (21 fields).
+
+    The reference's `except rlp.DecodingError: return rlp.decode_to(
+    PreviousForkHeader, …)` fallback is why a content failure in one arm is not
+    observably different from an arity failure: a 23-field list whose field
+    content is invalid falls through to the 21-field schema and fails there on
+    arity. Either way, error. -/
 def _decode_header (header_bytes : Bytes) : Except SpecError Header :=
   match decodeFully header_bytes with
   | some (.list items) =>
       match items.mapM rlpBytes? with
       | none => .error .headerDecodeError
       | some bs =>
-          if bs.length = 23 then .ok (mkHeader true bs)
-          else if bs.length = 21 then .ok (mkHeader false bs)
+          if bs.length = 23 then decodeHeaderArm true bs
+          else if bs.length = 21 then decodeHeaderArm false bs
           else .error .headerDecodeError
   | _ => .error .headerDecodeError
 
@@ -124,12 +207,61 @@ private theorem mapM_rlpBytes_spec :
                   have := hidx k (by omega)
                   simpa using this
 
+/-- The checked decoder agrees with the plain big-endian reading on every input
+    it accepts. This is what makes `mkHeaderFields`' `bytesBEtoNat` assignment a
+    faithful rendering of `decode_to`'s per-field result rather than a weakening
+    of it. -/
+theorem getNChecked_value {w : Option Nat} {b : Bytes} {n : Nat}
+    (h : getNChecked w b = .ok n) : n = bytesBEtoNat b := by
+  unfold getNChecked at h
+  split at h
+  · rename_i n' hscalar
+    exact (Except.ok.inj h) ▸ decodeItemScalar_value hscalar
+  · exact absurd h (by simp)
+
+/-- Both of `rlp.decode_to`'s uint checks, read back off a successful field
+    decode: no leading zero byte, and — only when the annotated type is
+    fixed-width — no more bytes than the type admits. -/
+theorem getNChecked_checks {w : Option Nat} {b : Bytes} {n : Nat}
+    (h : getNChecked w b = .ok n) :
+    (∀ c, b.head? = some c → c ≠ 0) ∧ (∀ W, w = some W → b.length ≤ W) := by
+  unfold getNChecked at h
+  split at h
+  · rename_i n' hscalar
+    exact decodeItemScalar_checks hscalar
+  · exact absurd h (by simp)
+
+/-- Membership inversion: a passing sweep means each listed field decoded. -/
+private theorem numericFieldsOk_mem {bs : List Bytes} (h : numericFieldsOk bs = true)
+    {i : Nat} {w : Option Nat} (hmem : (i, w) ∈ numericFieldWidths) :
+    ∃ n, getNChecked w (bs.getD i []) = .ok n := by
+  unfold numericFieldsOk at h
+  rw [List.all_eq_true] at h
+  have hp := h _ hmem
+  dsimp only at hp
+  cases hg : getNChecked w (bs.getD i []) with
+  | ok n => exact ⟨n, rfl⟩
+  | error e => rw [hg] at hp; simp at hp
+
 /-- Inversion of a successful header decode, in vocabulary a caller can use:
     the input decodes fully to a list of byte strings, of one of the two
-    permitted arities, and `number` is the big-endian value of field 8.
+    permitted arities, the header is the port's field assignment on those bytes,
+    and every numeric field passed `rlp.decode_to`'s typed checks.
 
     Needed because `rlpBytes?` is private, so `_decode_header` cannot be
-    inverted from outside this module. -/
+    inverted from outside this module.
+
+    The last two conjuncts are what a guest-correspondence bridge consumes
+    (#11513, #11575): the equation for ANY field follows from the
+    `mkHeaderFields` conjunct by `rfl`, and the canonicality/width facts arrive
+    indexed, so a bridge instantiates them at its own field instead of carrying
+    them as caller obligations.
+
+    ⚠️ The width fact is vacuous for the five arbitrary-precision `Uint` fields
+    (7, 8, 9, 10, 15) — the reference imposes no bound there, so neither does
+    this. A guest that reads such a field into a 64-bit register is stricter
+    than the reference, and that is a guest-side restriction which cannot be
+    discharged from here. -/
 theorem decode_header_inv {hb : Bytes} {hdr : Header}
     (h : _decode_header hb = .ok hdr) :
     ∃ (items : List RLPItem) (bs : List Bytes),
@@ -137,7 +269,10 @@ theorem decode_header_inv {hb : Bytes} {hdr : Header}
         bs.length = items.length ∧
         (bs.length = 23 ∨ bs.length = 21) ∧
         (∀ i, i < items.length → items[i]? = some (.bytes (bs.getD i []))) ∧
-        hdr.number = bytesBEtoNat (bs.getD 8 []) := by
+        hdr = mkHeaderFields (bs.length == 23) bs ∧
+        (∀ i w, (i, w) ∈ numericFieldWidths →
+          (∀ c, (bs.getD i []).head? = some c → c ≠ 0) ∧
+          (∀ W, w = some W → (bs.getD i []).length ≤ W)) := by
   unfold _decode_header at h
   split at h
   · rename_i items hfull
@@ -145,16 +280,38 @@ theorem decode_header_inv {hb : Bytes} {hdr : Header}
     · exact absurd h (by simp)
     · rename_i bs hmap
       obtain ⟨hlen, hidx⟩ := mapM_rlpBytes_spec items bs hmap
+      -- both arms run `checkNumericFields` first, so the field facts are shared
+      have harm : ∀ (isCurrent : Bool) (hdr' : Header),
+          decodeHeaderArm isCurrent bs = .ok hdr' →
+          hdr' = mkHeaderFields isCurrent bs ∧ numericFieldsOk bs = true := by
+        intro isCurrent hdr' harm
+        unfold decodeHeaderArm at harm
+        cases hchk : checkNumericFields bs with
+        | error e => rw [hchk] at harm; simp at harm
+        | ok u =>
+            rw [hchk] at harm
+            refine ⟨(Except.ok.inj harm).symm, ?_⟩
+            unfold checkNumericFields at hchk
+            split at hchk
+            · rename_i hok; exact hok
+            · simp at hchk
+      have hfields : numericFieldsOk bs = true →
+          ∀ i w, (i, w) ∈ numericFieldWidths →
+            (∀ c, (bs.getD i []).head? = some c → c ≠ 0) ∧
+            (∀ W, w = some W → (bs.getD i []).length ≤ W) := by
+        intro hok i w hmem
+        obtain ⟨n, hn⟩ := numericFieldsOk_mem hok hmem
+        exact getNChecked_checks hn
       split at h
       · rename_i h23
-        refine ⟨items, bs, hfull, hlen, Or.inl h23, hidx, ?_⟩
-        rw [← Except.ok.inj h]
-        rfl
+        obtain ⟨hval, hchk⟩ := harm true hdr h
+        exact ⟨items, bs, hfull, hlen, Or.inl h23, hidx,
+          by rw [hval]; congr 1; simp [h23], hfields hchk⟩
       · split at h
         · rename_i h21
-          refine ⟨items, bs, hfull, hlen, Or.inr h21, hidx, ?_⟩
-          rw [← Except.ok.inj h]
-          rfl
+          obtain ⟨hval, hchk⟩ := harm false hdr h
+          exact ⟨items, bs, hfull, hlen, Or.inr h21, hidx,
+            by rw [hval]; congr 1; simp [h21], hfields hchk⟩
         · exact absurd h (by simp)
   · exact absurd h (by simp)
 
@@ -273,6 +430,51 @@ def mkTestHeaderBytes (n : Nat) (parentHash stateRoot : Bytes) : Bytes :=
 -- A header with a bad field count is rejected.
 #guard match _decode_header (mkTestHeaderBytes 20 [] []) with
   | .error .headerDecodeError => true | _ => false
+
+/-- Test header bytes with one field overridden, for the per-field typed checks.
+    Every other field is the canonical empty encoding. -/
+def mkTestHeaderBytesAt (n idx : Nat) (v : Bytes) : Bytes :=
+  let fields : List RLPItem := (List.range n).map (fun i =>
+    if i = idx then .bytes v else .bytes [])
+  EvmAsm.EL.RLP.encode (.list fields)
+
+/-! ### The per-field typed checks (#11513)
+
+These are the only executable evidence for `_decode_header`'s field validation:
+the correspondence harness registers no `header` family, so there is no CPython
+differential to inherit here. -/
+
+-- A leading zero byte is non-canonical on an arbitrary-precision field …
+#guard match _decode_header (mkTestHeaderBytesAt 23 8 [0x00, 0x01]) with
+  | .error .headerDecodeError => true | _ => false
+
+-- … and on a fixed-width one.
+#guard match _decode_header (mkTestHeaderBytesAt 23 17 [0x00, 0x01]) with
+  | .error .headerDecodeError => true | _ => false
+
+-- A `U64` field wider than eight bytes is out of range.
+#guard match _decode_header (mkTestHeaderBytesAt 23 22 (List.replicate 9 0x01)) with
+  | .error .headerDecodeError => true | _ => false
+
+-- `timestamp` is `U256`, so its bound is 32 bytes, not 8: 32 fits, 33 does not.
+#guard match _decode_header (mkTestHeaderBytesAt 23 11 (List.replicate 32 0x01)) with
+  | .ok _ => true | .error _ => false
+#guard match _decode_header (mkTestHeaderBytesAt 23 11 (List.replicate 33 0x01)) with
+  | .error .headerDecodeError => true | _ => false
+
+-- ⚠️ The load-bearing NEGATIVE case. `number` is arbitrary-precision `Uint`, whose
+-- `from_be_bytes` has no length check, so a nine-byte field is ACCEPTED here
+-- exactly as `rlp.decode_to` accepts it. A guest reading this field into a 64-bit
+-- register is stricter than the reference — a GUEST-side restriction, which the
+-- port must not adopt. Tightening this to 8 would make the port stricter than the
+-- Python in order to hide that, which is the opposite of the fix (#11513).
+#guard match _decode_header (mkTestHeaderBytesAt 23 8 (List.replicate 9 0x01)) with
+  | .ok h => h.number == bytesBEtoNat (List.replicate 9 (0x01 : EvmAsm.EL.RLP.Byte))
+  | .error _ => false
+
+-- Same for `gas_limit`/`gas_used`/`difficulty`/`base_fee_per_gas`.
+#guard match _decode_header (mkTestHeaderBytesAt 23 9 (List.replicate 12 0x01)) with
+  | .ok _ => true | .error _ => false
 
 -- Two contiguous headers validate; a non-contiguous pair does not.
 #guard

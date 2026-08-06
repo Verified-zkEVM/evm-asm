@@ -15,10 +15,13 @@
   declaration order: `Uint`/`U64`/`U256` as minimal big-endian scalars,
   `Bytes`/fixed-byte fields verbatim.  The 21-field previous-fork
   header (`PreviousForkHeader`) omits the two amsterdam-only trailing
-  fields — dispatched here on the decoded `isCurrentFork` tag.  Note
-  (`docs/4ch8f-specref-port.md`): `_decode_header` does not re-impose
-  per-field canonicality, so re-encoding reproduces the original bytes
-  exactly on canonically-encoded (accepting-path) headers.
+  fields — dispatched here on the decoded `isCurrentFork` tag.  Since #11513
+  `_decode_header` DOES re-impose the reference's per-field canonicality check,
+  so every header on the accepting path is canonically encoded and re-encoding
+  reproduces the original bytes exactly.  (This note previously recorded the
+  same round-trip conclusion as holding *despite* the missing check, restricted
+  to canonically-encoded input; the check makes that restriction vacuous, so the
+  claim is now unconditional on the accepting path.)
 -/
 
 import EvmAsm.Stateless.SpecRef.Types

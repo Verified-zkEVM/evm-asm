@@ -103,7 +103,7 @@ All line numbers are `@tests-zkevm@v0.5.0` (`bd8c673`). Lean names are in
 | `ForkActivation`/`BlobSchedule`/`ForkConfig`/`ChainConfig` (141–179) | same names (Types) |
 | `StatelessInput` (191) / `StatelessValidationResult` (223) | same names (Types) |
 | `compute_new_payload_request_root` (255) | `compute_new_payload_request_root` |
-| `_decode_header` (270) | `_decode_header` (+ `mkHeader`, `rlpBytes?`) |
+| `_decode_header` (270) | `_decode_header` (+ `mkHeaderFields`, `rlpBytes?`, `numericFieldWidths`, `checkNumericFields`) |
 | `validate_headers` (281) | `validate_headers` |
 | `_is_activation_active` (304) | `_is_activation_active` |
 | `_expected_amsterdam_blob_schedule` (329) | `_expected_amsterdam_blob_schedule` |
@@ -160,13 +160,33 @@ verbatim. Each `class SszX(Container)` → `sszXType : SszType`. Each `_x_to_ssz
 
 ## Known simplifications / spec ambiguities
 
-1. **Header decode discriminant.** `rlp.decode_to(Header, …)` is type-directed and
-   validates each field's byte length; we discriminate current fork (amsterdam, 23
-   RLP fields) from previous fork (bpo5, 21 fields) by RLP list length only, and do
-   not re-impose per-field length checks. The two forks have distinct field counts,
-   so this reproduces the fork-selection behavior; it is slightly more permissive on
-   malformed field widths. Not observed to matter for the spec's downstream use
-   (`parent_hash`, `state_root`).
+1. **Header decode discriminant.** `rlp.decode_to(Header, …)` is type-directed; we
+   discriminate current fork (amsterdam, 23 RLP fields) from previous fork (bpo5, 21
+   fields) by RLP list length. The two forks have distinct field counts, so this
+   reproduces the fork-selection behavior.
+
+   ⚠️ **The per-field permissiveness this item used to record is FIXED (#11513).**
+   The claim was that the port did "not re-impose per-field length checks" and was
+   therefore "slightly more permissive on malformed field widths". It now imposes
+   exactly the reference's checks, which are **two different predicates from two
+   different places** — a distinction the old wording flattened:
+
+   - **canonicality** — `_deserialize_to_uint` rejects a leading zero byte on
+     *every* uint field (`ethereum_rlp` 0.1.6, `rlp.py:270-271`). The port had
+     dropped this on all nine numeric fields; it now enforces it.
+   - **width** — delegated to the target type's `from_be_bytes`, so it binds only
+     the fixed-width types: `timestamp` (`U256`, 32 bytes) and
+     `blob_gas_used`/`excess_blob_gas`/`slot_number` (`U64`, 8). The other five —
+     `difficulty`, `number`, `gas_limit`, `gas_used`, `base_fee_per_gas` — are
+     arbitrary-precision `Uint`, and `Uint.from_be_bytes` has **no length check**
+     (`ethereum_types` 0.4.1, `numeric.py:523-528`). The port must not bound them,
+     and a `#guard` in `Stateless.lean` pins that it does not.
+
+   The width table lives in `numericFieldWidths`; `decodeItemScalar` (already ported
+   for the transaction decoders) performs both checks. A guest that reads an
+   unbounded field into a 64-bit register is stricter than the reference — that is a
+   guest-side false reject, recorded on the `header_extract_number` correspondence
+   row, and not something the port should absorb.
 2. **`Header | PreviousForkHeader` union** collapsed into one `Header` record with an
    `isCurrentFork` tag; the two amsterdam-only fields default to `[]`/`0` for the
    previous fork. Downstream only reads `parent_hash`/`state_root`.

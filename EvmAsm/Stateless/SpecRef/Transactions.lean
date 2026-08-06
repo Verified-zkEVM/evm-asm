@@ -179,6 +179,74 @@ def decodeItemScalar (maxBytes : Option Nat) : RLPItem → Except SpecError Nat
       else pure (bytesBEtoNat b)
   | .list _ => txErr "invalid uint"
 
+/-! ### Inverting `decodeItemScalar`
+
+Both lemmas live here because `txErr` is private to this module, so a caller
+cannot rule out the failure branches on its own. They are what lets any port
+reusing `decodeItemScalar` read `rlp.decode_to`'s two uint checks back off a
+successful field decode — see `_decode_header`'s `decode_header_inv` (#11513). -/
+
+/-- The leading-zero guard, contraposed into a statement about `head?`. -/
+private theorem head_ne_zero_of_canonical {b : Bytes}
+    (hcanon : ¬((b.headD 0 == 0 && !b.isEmpty) = true)) :
+    ∀ c, b.head? = some c → c ≠ 0 := by
+  intro c hc hzero
+  cases b with
+  | nil => simp at hc
+  | cons x xs =>
+      have hxc : x = c := by simpa using hc
+      simp only [List.headD_cons, List.isEmpty_cons, Bool.not_false, Bool.and_true,
+        beq_iff_eq] at hcanon
+      exact hcanon (hxc.trans hzero)
+
+/-- On every input it accepts, the checked scalar decoder agrees with the plain
+    big-endian reading. This is what makes assigning `bytesBEtoNat` alongside a
+    passing check a faithful rendering of `decode_to`'s per-field result rather
+    than a weakening of it. -/
+theorem decodeItemScalar_value {w : Option Nat} {b : Bytes} {n : Nat}
+    (h : decodeItemScalar w (.bytes b) = .ok n) : n = bytesBEtoNat b := by
+  cases w with
+  | none =>
+      simp only [decodeItemScalar] at h
+      split at h
+      · exact absurd h (by simp [txErr])
+      · exact (Except.ok.inj h).symm
+  | some W =>
+      simp only [decodeItemScalar] at h
+      split at h
+      · exact absurd h (by simp [txErr])
+      · split at h
+        · exact absurd h (by simp [txErr])
+        · exact (Except.ok.inj h).symm
+
+/-- Both of `rlp.decode_to`'s uint checks, read back off a successful decode: no
+    leading zero byte (`_deserialize_to_uint`), and — only when the annotated
+    type is fixed-width — no more bytes than the type admits
+    (`FixedUnsigned.from_be_bytes`). The width conjunct is deliberately vacuous
+    for `maxBytes = none`, because arbitrary-precision `Uint` imposes no bound. -/
+theorem decodeItemScalar_checks {w : Option Nat} {b : Bytes} {n : Nat}
+    (h : decodeItemScalar w (.bytes b) = .ok n) :
+    (∀ c, b.head? = some c → c ≠ 0) ∧ (∀ W, w = some W → b.length ≤ W) := by
+  cases w with
+  | none =>
+      simp only [decodeItemScalar] at h
+      split at h
+      · exact absurd h (by simp [txErr])
+      · rename_i hcanon
+        exact ⟨head_ne_zero_of_canonical hcanon, by intro W hW; simp at hW⟩
+  | some W =>
+      simp only [decodeItemScalar] at h
+      split at h
+      · exact absurd h (by simp [txErr])
+      · rename_i hcanon
+        split at h
+        · exact absurd h (by simp [txErr])
+        · rename_i hfit
+          refine ⟨head_ne_zero_of_canonical hcanon, ?_⟩
+          intro W' hW'
+          cases hW'
+          omega
+
 /-- Unbounded-width `Bytes` field. -/
 def decodeItemBytes : RLPItem → Except SpecError Bytes
   | .bytes b => pure b

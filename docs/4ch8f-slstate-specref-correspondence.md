@@ -23,7 +23,7 @@ refinement statement compositional over `**`.
 
 **The layering fact**: `SpecRef` models `run_stateless_guest` only **down to
 the execution seam**. `verify_stateless_new_payload`
-(`SpecRef/Stateless.lean:177`) builds `WitnessPreState` (node DB, state root,
+(`SpecRef/Stateless.lean:391`) builds `WitnessPreState` (node DB, state root,
 code DB) and `ChainContext`, then calls an abstract
 `ExecutionSeam : ExecutionSeamInput → Except SpecError Unit`
 (`Stateless.lean:166`), whose only current instance is the placeholder

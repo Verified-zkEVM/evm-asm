@@ -83,15 +83,62 @@ safety-relevant outcome in the schema.
 
 ⚠️ **`stricter` and `looser` attribute the defect to the guest.** When the port is
 the broken side, neither is honest — record `portDefect` and grade the guest on its
-own merits. The worked example is
-`header_extract_number` (#11513): the guest rejects a numeric header field wider
-than eight bytes or carrying a leading zero, `rlp.decode_to` rejects them too, and
-only the port's `getN = bytesBEtoNat` accepts them. Graded `stricter`, that row
-would record a false-reject against a guest that is behaving correctly. Its guest
-verdict is `domain-restricted` — but on **arity**, a genuinely separate
-restriction: the triple only claims agreement where `_decode_header` succeeds, so
-what the guest does on a wrong-arity header is unproven. Grading it `agrees` from
-the content evidence alone would overclaim.
+own merits.
+
+### ⚠️ …but first check that the reference really does reject it
+
+`header_extract_number` (#11513) is the worked example, and it is worth walking
+through in full, because the obvious reading of it was **wrong twice**.
+
+The guest rejects a numeric header field that is wider than eight bytes, or that
+carries a leading zero. The reference decodes via `rlp.decode_to(Header, …)`, a
+*typed* decode. The tempting inference — "a typed decode validates its fields, so
+the reference rejects both, so the guest is right and only the port's
+`getN = bytesBEtoNat` is lenient" — is **half true**, and the false half hid a real
+guest defect behind a port one for two gradings running.
+
+The two checks come from two different places, with different scope:
+
+| check | source | scope |
+|---|---|---|
+| leading zero | `_deserialize_to_uint` (`ethereum_rlp` 0.1.6, `rlp.py:270-271`) | **every** uint field |
+| width | the target type's `from_be_bytes` (`ethereum_types` 0.4.1) | **fixed-width types only** |
+
+`FixedUnsigned.from_be_bytes` raises when the buffer exceeds the type
+(`numeric.py:566-577`), but `Uint.from_be_bytes` is a plain `int.from_bytes` with no
+length check (`numeric.py:523-528`). `Header.number` is annotated `Uint`
+(`amsterdam/blocks.py:157`). **So CPython accepts a nine-byte `number`, and the
+guest rejects it** — and no amount of fixing the port changes that.
+
+The lesson generalises past this row: *"the reference is type-directed"* is a claim
+about mechanism, not about which inputs it rejects. Read the type's own conversion
+before recording a strictness verdict, and record which types are unbounded.
+
+### ⚠️ …and then check whether the project already assumes it away
+
+The obvious next step — grade the width restriction `stricter`, since the guest
+rejects what the reference accepts — is **also wrong**. evm-asm states a
+project-wide assumption that `difficulty`, `number`, `gasUsed`, `gasLimit` and
+`timestamp` arrive within the bit-width the guest reads them into, and the
+maintainer ruling on #11620 is that this *"gives the guest freedom to choose its
+behavior"*, with rejecting out-of-assumption input **preferred**. `stricter` asserts
+a false reject on input the project claims to handle; a stated precondition is not
+that. It is the ABI-precondition flavour of `domain-restricted`.
+
+So one row, read three ways, lands in three different places — and "does the guest
+reject it?" is never sufficient on its own:
+
+| aspect | who is limited | grade |
+|---|---|---|
+| canonicality | the **port** (it accepted what CPython rejects) | `portDefect` — real, now fixed |
+| width | **nobody, within the stated domain** — a project-wide input assumption | `domain-restricted`, precondition flavour |
+| arity | the **proof** (unproven on wrong-arity headers) | `domain-restricted`, coverage flavour |
+
+⚠️ **The precondition reading is only honest if the precondition is explicit in the
+theorem statement.** Otherwise it is an unstated assumption wearing a benign verdict,
+which is strictly worse than an FR — an FR at least gets counted in `verdict_counts`.
+Here it is `hfits : hdr.number < 2 ^ 64` on `header_number_of_decode`. **When you
+reach for the precondition flavour, name the hypothesis that carries it.**
 
 ## 3. Basis — how much a verdict is worth
 
@@ -189,6 +236,17 @@ rather than merely disclosed.
 > Related: a fresh worktree has an **empty** `execution-specs/`, and the main
 > checkout may sit at an older rev than the gitlink. Always
 > `git submodule update --init execution-specs` and check the tag.
+>
+> ⚠️ **`ethereum_types` is the second half of this trap, and it decides width
+> verdicts.** `uv.lock` pins `ethereum-types == 0.4.1`; whether a numeric field
+> is width-bounded at all lives there, not in `ethereum_rlp` —
+> `FixedUnsigned.from_be_bytes` raises on an over-wide buffer while
+> `Uint.from_be_bytes` does not (`numeric.py:566-577` vs `:523-528`). A local
+> `.venv` has been observed carrying **0.1.5 / 0.3.0** while the lock said
+> 0.1.6 / 0.4.1, so check **both** before citing either. If the pinned versions
+> are already in the uv cache
+> (`~/.cache/uv/archive-v0/*/ethereum_{rlp,types}/`), read them from there
+> rather than `uv sync`-ing a shared checkout out from under other work.
 
 ## 7. When NOT to audit a family
 

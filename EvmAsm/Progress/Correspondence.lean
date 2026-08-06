@@ -422,48 +422,85 @@ Python while looking faithful" },
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
-    verdict := .domainRestricted, basis := .ported, portDefect := some 11513,
-    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:75, \
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:158, \
 stateless.py:244)",
-    note := "TWO INDEPENDENT AXES, which is why this row carries both a verdict and a \
-`portDefect` (#11493). The GUEST verdict is `.domainRestricted` on ARITY grounds ALONE; the \
-content divergence is reference-side and lives in `portDefect`, not in the verdict. \
-(a) ARITY -- this is the whole of the guest-side restriction: the guest never checks how many \
-fields the header has, so on a list of any other \
-length it still returns a value where `_decode_header` errors; the honest statement is \
-`_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. So the TRIPLE'S \
-DOMAIN is restricted to headers the reference accepts, and what the guest does on a \
-wrong-arity header is UNPROVEN rather than known-correct -- a proof limit, taxonomy row 1, \
-which is why `.agrees` would overclaim even though the content evidence points that way. \
-`number` is \
-`getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is exactly \
-why this row represents the family. (b) TWO CONTENT RESTRICTIONS, which are a PORT DEFECT: \
-the guest rejects a field wider than eight bytes (`Result.tooLong`) and one with a leading \
-zero byte (`Result.noncanonical`), while the port's `getN` is plain `bytesBEtoNat`, which \
-tolerates both. The reference decodes via `rlp.decode_to(Header, ...)` -- a TYPED decode that \
-rejects both -- so the guest matches the Python and only the port is lenient. WHY THIS IS NOT \
-A VERDICT: `.stricter` would record a false-reject against the GUEST, which is the correct \
-side here; and a port-defect VERDICT would erase the arity restriction in (a) and sit beside \
-`looser` in the same enum, letting a false-accept be graded around `no_looser_verdicts`. So \
-it is `portDefect := some 11513`, which also covers the other eight `getN` fields. ⚠️ CITATION KIND, since `.ported` requires a clause table: the \
-`rlp.decode_to` clause cites an EXTERNAL package (`ethereum_rlp`), not the vendored tree, so \
-`scripts/check-spec-refs.sh` cannot machine-check it the way it checks a `forks/.../x.py:NNN` \
-line -- it is read, not verified. The VERSION is not the risk: `uv.lock` resolves \
-`ethereum-rlp == 0.1.6` exactly with a sha256, and 0.1.6 is precisely the version that \
-tightened decoding (`pyproject.toml`'s `>=0.1.6,<0.2` is a range, but only the lock is \
-authoritative -- see docs/agents/spec-correspondence.md 6a). See #11513. Tied by \
-`header_number_of_decode` \
-(`Codegen/Programs/HeaderExtractNumberBridge.lean`), consuming the machine triple \
-`header_extract_number_spec_within` and `decode_header_inv`. NOT NEEDED: any byte-string \
-side condition -- `_decode_header` runs `items.mapM rlpBytes?`, which sends `.list` to \
-`none`, so a successful header decode already implies every field is a byte string. WHY \
-`.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no executable \
-differential to inherit. PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeader`'s \
-`number := getN 8` is syntactically the `header.number` assignment of stateless.py:244; the \
-arity guard `bs.length = 23 / 21` is the port's rendering of the fork discriminant; and the \
-two dropped canonicality checks above are the one place the port is WEAKER than the Python, \
-now carried by `portDefect` and gated by `portDefect_cites_issue` rather than only by this \
-note" },
+    note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
+different reason than before and the reason is the whole content of this row. The previous note \
+asserted that the guest's two rejections BOTH match `rlp.decode_to`, so that only the port was \
+lenient. Only ONE of them does. \
+(a) CANONICALITY -- was a real port defect, NOW FIXED. `_deserialize_to_uint` rejects a \
+leading zero byte on every uint field, and the port's `getN = bytesBEtoNat` did not; \
+`_decode_header` now runs `numericFieldWidths` through `decodeItemScalar`, so the port is \
+faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The guest's \
+`Result.noncanonical` is discharged inside the bridge rather than assumed. \
+⚠️ SCOPE OF THAT CLAIM: it covers the nine numeric fields, which is all this row's `number` \
+depends on. A SECOND, independent leniency survives on the FIXED-WIDTH BYTE fields -- \
+`_deserialize_to_bytes` builds the annotated type and `FixedBytes.__new__` raises when the \
+length is wrong, so the reference length-checks `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/ \
+`Bytes8`, while the port's `getB` is a bare `bs.getD i []`. #11513 dismissed those fields as \
+`byte strings either way`; that is wrong, and it is tracked as #11615 -- separately because the \
+check is ARITY-DEPENDENT (a `length = 32` sweep would reject every 21-field header, where the \
+numeric sweep was safe because `[]` passes a uint check). It does not affect this row, whose \
+field is numeric; rows touching a byte field will carry `portDefect := some 11615`. \
+(b) WIDTH -- is NOT a port defect, and NOT an FR either. It is a PROJECT-WIDE INPUT \
+ASSUMPTION, i.e. the ABI-PRECONDITION flavour of `.domainRestricted` (taxonomy row 2, not row \
+1) -- and per that table's requirement, this note says WHICH: precondition, not coverage gap. \
+The mechanism: the width bound comes from the target type's `from_be_bytes`, NOT from \
+`_deserialize_to_uint`. `FixedUnsigned.from_be_bytes` raises when the buffer exceeds the type \
+(`ethereum_types` 0.4.1 numeric.py:566-577), while `Uint.from_be_bytes` is a plain \
+`int.from_bytes` with NO length check (numeric.py:523-528). `number` is annotated `Uint` \
+(amsterdam/blocks.py:157), so CPython ACCEPTS a nine-byte `number` and so does the fixed port, \
+while the guest's `Result.tooLong` rejects it. \
+WHY NOT `.stricter` -- maintainer ruling, #11620: evm-asm carries a project-wide assumption \
+for exactly `difficulty`, `number`, `gasUsed`, `gasLimit` and `timestamp`, and `the \
+project-wide assumptions give the guest freedom to choose its behavior`; rejecting \
+out-of-assumption input is the PREFERRED behaviour, not a defect to remove. So within the \
+domain the project states there is no valid input the guest false-rejects, which is what \
+`.stricter` would assert. #11620 also records the follow-up @pirapira suggested: a SECOND top \
+theorem proving the guest rejects out-of-assumption header values, which would turn this from \
+permitted-freedom into a proven property. \
+⚠️ WHAT KEEPS THIS HONEST: the precondition is EXPLICIT IN THE STATEMENT -- \
+`header_number_of_decode` takes `hfits : hdr.number < 2 ^ 64`. An unstated bound wearing a \
+benign verdict would be strictly worse than an FR, because an FR at least gets counted. And a \
+`#guard` in Stateless.lean pins that the nine-byte `number` is ACCEPTED BY THE PORT: the \
+assumption is about the GUEST's reading width, so tightening the port to 8 would convert a \
+stated precondition into a port defect in the opposite direction. \
+SYSTEMIC, NOT PER-FIELD: the guest is a u64 machine reading fields the spec types as \
+arbitrary-precision or 256-bit. The same shape covers `gasLimit`/`gasUsed` (`Uint`) and \
+`timestamp` (`U256`, reference bound 32 bytes vs guest 8 -- the field most easily missed, since \
+it is bounded on both sides at different widths). The #11575 sibling rows inherit it, and each \
+must state the precondition explicitly as here. Only the three `U64` fields agree outright. \
+(c) ARITY is the OTHER thing `.domainRestricted` covers here, and it IS taxonomy row 1 -- a \
+genuine proof limit: the guest never checks how many fields the header has, so on a list of \
+any other length it still returns a value where `_decode_header` errors; the honest statement \
+is `_decode_header = .ok h -> guest succeeds and value = h.number`, not an iff. `number` is \
+`getN 8` in BOTH the 23-field (current fork) and 21-field (previous) arms, which is why this \
+row represents the family. So this single verdict carries BOTH flavours, which the note must \
+disambiguate: (b) precondition, (c) coverage. \
+Tied by `header_number_of_decode` (`Codegen/Programs/HeaderExtractNumberBridge.lean`), \
+consuming the machine triple `header_extract_number_spec_within` and `decode_header_inv`. Its \
+one remaining hypothesis is `hfits : hdr.number < 2 ^ 64` -- the FR in (b), and phrasable over \
+the VALUE only because (a) is now enforced: with no leading zeros, `at most eight bytes` and \
+`< 2 ^ 64` coincide (`Nat.length_le_of_canonical_lt`). \
+NOT NEEDED: any byte-string side condition -- `_decode_header` runs `items.mapM rlpBytes?`, \
+which sends `.list` to `none`, so a successful header decode already implies every field is a \
+byte string. WHY `.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no \
+executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `number := getN 8` is \
+syntactically the `header.number` assignment of stateless.py:244; the arity guard \
+`bs.length = 23 / 21` is the port's rendering of the fork discriminant; the per-field typed \
+checks are `numericFieldWidths` + `decodeItemScalar`, whose `Option Nat` width argument is the \
+`Uint`-vs-`FixedUnsigned` split, with the width table read off `Header`'s annotations; and \
+assigning `bytesBEtoNat` alongside a passing check rather than the checked decoder's own \
+result is PROVED equivalent, not assumed (`decodeItemScalar_value`). \
+⚠️ CITATION KIND: the `_deserialize_to_uint` and `from_be_bytes` clauses cite EXTERNAL \
+packages (`ethereum_rlp`, `ethereum_types`), not the vendored tree, so \
+`scripts/check-spec-refs.sh` cannot machine-check them the way it checks a `forks/.../x.py:NNN` \
+line -- they are read, not verified. `uv.lock` pins BOTH exactly \
+(`ethereum-rlp == 0.1.6`, `ethereum-types == 0.4.1`); note a stale local `.venv` may carry \
+0.1.5/0.3.0, and reading those inverts this row's verdict -- see \
+docs/agents/spec-correspondence.md 6a. See #11513" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
@@ -515,18 +552,34 @@ theorem header_rows : countFamily "header" = 2 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
+/-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
+    that is not automatically a sign the schema has stopped discriminating.
+
+    `header_extract_number` looked like it belonged here: the guest bounds
+    `number` at eight bytes where the reference's `Uint` has no bound at all,
+    which reads as a false reject. It is not one, because evm-asm states a
+    project-wide assumption that these header fields arrive within their
+    bit-width, and the maintainer ruling on #11620 is that this "gives the guest
+    freedom to choose its behavior" — rejecting out-of-assumption input is
+    *preferred*. `stricter` means "we reject input the reference accepts **and
+    the project claims to handle**"; a stated precondition is not that.
+
+    The guard against this becoming a rubber stamp is that the precondition must
+    be **explicit in the theorem statement** — here `hfits : hdr.number < 2 ^ 64`
+    on `header_number_of_decode`. Grading a restriction as a precondition while
+    leaving it implicit in the guest's behaviour is worse than recording an FR,
+    because an FR at least appears in this census. -/
 theorem verdict_counts :
     countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
-/-- Port defects are counted separately because they are a different axis. Note
-    the verdict census above is **unchanged** by #11493 — `header_extract_number`
-    is still one of the four `domainRestricted` rows, on its arity restriction.
-    What #11493 added is this second axis, recording that the same row also has a
-    broken reference. An alternative-constructor design would have moved the row
-    out of `domainRestricted` and lost the arity fact. -/
-theorem port_defect_count : countPortDefect = 1 := by decide
+/-- Port defects are counted separately because they are a different axis.
+    **Back to 0 as of #11513**, which fixed the one defect that had been
+    recorded: `_decode_header`'s numeric fields now carry the canonicality check
+    `_deserialize_to_uint` performs. The axis stays in the schema — #11493's
+    design argument is about representability, not about this row. -/
+theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
