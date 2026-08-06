@@ -916,13 +916,6 @@ def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : Stri
   ".Lcrce_cpc_d:\n" ++
   "  la t0, exec_code_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, exec_code_effect_next; addi t1, s2, 55; andi t1, t1, -8; add t1, s3, t1; sd t1, 0(t0)\n" ++
-  -- Publish the successful deposit into AccountState from the retained heap
-  -- copy, never from the reusable create-child scratch.
-  "  la t0, exec_code_effect_log; add t0, t0, s3; mv a0, s0; addi a1, t0, 48; mv a2, s2; " ++
-  (if resolveExecutionState then "la a3, create_resolved_account_state; " else "li a3, 0; ") ++
-  "jal ra, account_state_record_code; beqz a0, .Lcrce_account_state_ok\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); j .Lcrce_overflow\n" ++
-  ".Lcrce_account_state_ok:\n" ++
   -- GH #10784 cut 2: the `created_accounts` mark MOVED OUT of this routine to the
   -- pre-body position the spec uses (`vm/interpreter.py:208`, before `process_message`
   -- at :212).  Both live callers now mark before the initcode runs — the nested route
