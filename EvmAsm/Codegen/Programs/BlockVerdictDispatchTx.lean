@@ -391,9 +391,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- bmvmx.1.7.2: conservative payload-size guard. stage_runtime_payload_code writes
   -- round8(codelen)+round8(calldata)+storage*64+584 bytes into bv_runtime_payload; if that
   -- exceeds the buffer (bsrAccountSlotCap*64+65536, the 4jczt-lifted size) the write would
-  -- overflow into adjacent .data (gas result + bvcd_* scratch). EIP-170 bounds code to 24576;
-  -- storage now fits the gas-derived BAL cap, but calldata/witness are still unbounded, so bail
-  -- conservatively (route to the safe path) instead of corrupting state.
+  -- overflow into adjacent .data (gas result + bvcd_* scratch). EIP-7907 MAX_CODE_SIZE is
+  -- 65536 (the headroom term); storage fits the gas-derived BAL cap, but calldata/witness
+  -- are still unbounded, so bail conservatively (route to the safe path) instead of
+  -- corrupting state.
   "  la t0, bvcd_code_len; ld t1, 0(t0); addi t1, t1, 7; andi t1, t1, -8\n" ++   -- round8(codelen)
   "  ld t2, 64(s2); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++         -- + round8(calldata)
   -- (GH #11176: the storage_count*64 preload term is gone with the preload itself.)

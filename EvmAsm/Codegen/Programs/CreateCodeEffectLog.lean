@@ -51,23 +51,30 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Capacity (bytes) of the code-effect log heap. Each entry is
-    `round8(48 + code_len)`; deployed code is ≤ 32768 (Amsterdam EIP-7907).
+    `round8(48 + code_len)` with per-code `code_len ≤ MAX_CODE_SIZE = 65536`
+    (Amsterdam EIP-7907 / `CreateDeployedCodeValid.maxDeployedCodeSize`).
+
+    This is a gas-derived TOTAL arena, not a fixed per-code buffer: entry size
+    is computed dynamically from the live `code_len`. The former prose claim
+    "deployed code ≤ 32768" was a half-migrated EIP-7907 constant (same class
+    as the EXTCODECOPY length clamp fixed in #11608) and is not a live sizing
+    assumption here.
 
     Gas-derived bound for the full 200M block target. Code deposit charges
     `CODE_DEPOSIT_PER_BYTE = 200` gas/byte, so the total deployed bytecode in a
     `bsrStateRootBlockGasLimit`-gas block is at most `200M / 200 = 1,000,000`
     bytes. Accounting for the 32,000-gas CREATE base (which lowers the realized
     byte budget) and the per-record `+48` overhead, the worst case is reached by
-    ~30 near-max (32,768-byte) deploys: `Σcᵢ ≤ 200M/200 - 160·N` gives
-    `Σcᵢ ≈ 983,040` and arena `Σ round8(48+cᵢ) ≈ 984 KiB` (~0.94 MiB realized,
-    1.0 MiB absolute ceiling); the EIP-7907 large-code extra gas only lowers
-    this, and the empty-CREATE / EIP-7702 delegation marker paths (48-byte
-    records) are less arena-bytes-per-gas-efficient so cannot exceed it. The
-    cap therefore reserves the exact 1.0 MiB ceiling.  For nonempty code,
-    `round8(48 + code_len) ≤ code_len + 55` while the CREATE base charge makes
-    every additional record reduce the available code-byte budget by 160 bytes;
-    empty CREATE/delegation records are bounded more tightly by their fixed
-    per-event gas.  Thus neither form can reach the one-mebibyte reservation.
+    ~15 near-max (65,536-byte) deploys: `Σcᵢ ≤ 200M/200 - 160·N` still keeps
+    arena `Σ round8(48+cᵢ)` under the 1.0 MiB absolute ceiling; the EIP-7907
+    large-code extra gas only lowers this, and the empty-CREATE / EIP-7702
+    delegation marker paths (48-byte records) are less arena-bytes-per-gas-efficient
+    so cannot exceed it. The cap therefore reserves the exact 1.0 MiB ceiling.
+    For nonempty code, `round8(48 + code_len) ≤ code_len + 55` while the CREATE
+    base charge makes every additional record reduce the available code-byte
+    budget by 160 bytes; empty CREATE/delegation records are bounded more tightly
+    by their fixed per-event gas.  Thus neither form can reach the one-mebibyte
+    reservation.
 
     On overflow the producer sets `exec_code_effect_overflow`; block_verdict
     consumes that flag as a rejection. -/
