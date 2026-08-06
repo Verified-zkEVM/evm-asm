@@ -94,9 +94,6 @@ def extcodecopyAtHeaderStateRoot_prog : Program :=
     .MV .x21 .x15,
     .MV .x22 .x16,
     .MV .x23 .x17,
-    -- Cap = EIP-7907 MAX_CODE_SIZE 65536 (LUI 16 << 12). Was 32768 (LUI 8) —
-    -- half the raised limit; EXTCODECOPY of full max-code accounts returned
-    -- status 6 with a pre-zeroed window (keccak of zeros → #11547).
     .LUI .x5 (16 : BitVec 20),
     .BLTU .x5 .x20 (344 : BitVec 13),
     .MV .x5 .x21,
