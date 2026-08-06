@@ -25,6 +25,54 @@ from pathlib import Path
 MAGIC = b"SPKDMP01"
 EVENT_SIZE = 64
 EVENT_CAPACITY = 4096
+MUTATION_EVENT_SIZE = 96
+MUTATION_EVENT_CAPACITY = 1024
+READER_SLOTS = 32
+READER_SLOT_SIZE = 16
+KNOWN_READER_TIERS = {
+    **{reader: 1 for reader in range(1, 20)},
+    17: 2,
+    20: 1,
+    21: 1,
+    22: 1,
+}
+KNOWN_READER_SITES = {
+    1: "BlockVerdictDispatchTx:554",
+    2: "EvmOpcodes:409",
+    3: "EIP7708Logs:364",
+    4: "CallFrameDescend:418",
+    5: "ChildFrameHandlers:493",
+    6: "ChildFrameHandlerTailHelpers:305",
+    7: "Selfdestruct:48",
+    8: "Selfdestruct:135",
+    9: "Selfdestruct:513",
+    10: "Selfdestruct:548",
+    11: "Selfdestruct:698",
+    12: "Selfdestruct:777",
+    13: "Selfdestruct:834",
+    14: "Selfdestruct:862",
+    15: "Selfdestruct:882",
+    16: "Selfdestruct:888",
+    17: "BlockVerdictMtxRuntime:44",
+    18: "BlockVerdictMtxRuntime:97",
+    19: "BlockVerdictMtxRuntime:105",
+    20: "TxIntrinsicStateGas:153",
+    21: "ChildFrameCreateTail:184",
+    22: "ChildFrameCreateTail:438",
+}
+MUTATION_ID_NAMES = {
+    1: "root_recipient_credit",
+    2: "call_child_credit",
+    3: "precompile_caller_debit",
+    4: "create_child_credit",
+    5: "call_caller_debit",
+    6: "create_creator_debit",
+    7: "call_failed_child_rollback_recredit",
+}
+STANDING_NAMED_CONTROLS = [
+    "18529_test_call_sha256_1_nonzero_value_fork_Amsterdam-blockchain_test_from_state_test__b0",
+    "15904_test_callcall_00_ooge_value_transfer_fork_Amsterdam-blockchain_test_from_state_test__b0",
+]
 U64 = struct.Struct("<Q")
 
 
@@ -51,6 +99,10 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
     wanted = {
         "account_agreement_enabled",
         "account_agreement_probe_count",
+        "account_agreement_reader_invocations",
+        "account_agreement_unregistered_reader_count",
+        "account_agreement_unregistered_reader_id",
+        "account_agreement_unregistered_reader_pc",
         "account_agreement_balance_probe_count",
         "account_agreement_nonce_probe_count",
         "account_agreement_no_row",
@@ -62,6 +114,9 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
         "agreement_event_count",
         "agreement_event_overflow",
         "agreement_events",
+        "account_agreement_mutation_event_count",
+        "account_agreement_mutation_event_overflow",
+        "account_agreement_mutation_events",
     }
     for line in result.stdout.splitlines():
         fields = line.split()
@@ -134,6 +189,8 @@ def select_cases(
     selected: list[dict[str, str]] = []
     selected_labels: set[str] = set()
     for label in labels:
+        if label in selected_labels:
+            continue
         if label not in by_label:
             fail(f"named label not found: {label}")
         selected.append(by_label[label])
@@ -147,9 +204,12 @@ def select_cases(
 
 def decode(
     payload: bytes, start: int, syms: dict[str, int]
-) -> tuple[dict[str, int], list[dict[str, int | str]]]:
+) -> tuple[dict[str, object], list[dict[str, int | str]]]:
     names = [
         "account_agreement_probe_count",
+        "account_agreement_unregistered_reader_count",
+        "account_agreement_unregistered_reader_id",
+        "account_agreement_unregistered_reader_pc",
         "account_agreement_balance_probe_count",
         "account_agreement_nonce_probe_count",
         "account_agreement_no_row",
@@ -160,8 +220,28 @@ def decode(
         "account_agreement_instrument_count",
         "agreement_event_count",
         "agreement_event_overflow",
+        "account_agreement_mutation_event_count",
+        "account_agreement_mutation_event_overflow",
     ]
     counters = {name: read_u64(payload, start, syms[name]) for name in names}
+    reader_base = syms["account_agreement_reader_invocations"]
+    reader_invocations = {
+        str(reader): {
+            "balance": read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE),
+            "nonce": read_u64(
+                payload, start, reader_base + reader * READER_SLOT_SIZE + 8
+            ),
+            "tier": KNOWN_READER_TIERS.get(reader),
+            "site": KNOWN_READER_SITES.get(reader),
+        }
+        for reader in range(READER_SLOTS)
+        if reader != 0
+        and (
+            read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE)
+            or read_u64(payload, start, reader_base + reader * READER_SLOT_SIZE + 8)
+        )
+    }
+    counters["reader_invocations"] = reader_invocations
     events: list[dict[str, int | str]] = []
     count = min(counters["agreement_event_count"], EVENT_CAPACITY)
     event_base = syms["agreement_events"]
@@ -182,6 +262,30 @@ def decode(
                 "live_limb": read_u64(payload, start, event_base + index * EVENT_SIZE + 48),
             }
         )
+    mutation_events: list[dict[str, int | str]] = []
+    mutation_count = min(
+        counters["account_agreement_mutation_event_count"],
+        MUTATION_EVENT_CAPACITY,
+    )
+    mutation_base = syms["account_agreement_mutation_events"]
+    for index in range(mutation_count):
+        offset = mutation_base - start + index * MUTATION_EVENT_SIZE
+        metadata = read_u64(payload, start, mutation_base + index * MUTATION_EVENT_SIZE + 64)
+        mutation_events.append(
+            {
+                "index": index,
+                "address": payload[offset : offset + 20].hex(),
+                "post_balance_le": payload[offset + 32 : offset + 64].hex(),
+                "mutation_id": metadata & 0xFF,
+                "depth": (metadata >> 8) & 0xFF,
+                "sequence": read_u64(
+                    payload,
+                    start,
+                    mutation_base + index * MUTATION_EVENT_SIZE + 72,
+                ),
+            }
+        )
+    counters["mutation_events"] = mutation_events
     return counters, events
 
 
@@ -194,7 +298,12 @@ def main() -> int:
     parser.add_argument("--nm", default="riscv64-unknown-elf-nm")
     parser.add_argument("--random-count", type=int, default=200)
     parser.add_argument("--seed", type=int, default=11586)
-    parser.add_argument("--label", action="append", default=[])
+    parser.add_argument(
+        "--label",
+        action="append",
+        default=list(STANDING_NAMED_CONTROLS),
+        help="add a named control; standing controls are always included",
+    )
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--allow-mismatch", action="store_true")
@@ -218,7 +327,7 @@ def main() -> int:
     cases = select_cases(rows, args.label, args.random_count, args.seed)
     syms = symbols(args.elf, args.nm)
     start = syms["account_agreement_probe_count"]
-    end = syms["agreement_events"] + EVENT_CAPACITY * EVENT_SIZE
+    end = syms["account_agreement_mutation_events"] + MUTATION_EVENT_CAPACITY * MUTATION_EVENT_SIZE
     length = end - start
     if length <= 0:
         fail("agreement symbols are out of order")
@@ -295,6 +404,55 @@ def main() -> int:
         for event in record["events"]
         if event["verdict"] == 3
     ]
+    reader_invocations: dict[str, dict[str, int | None]] = {}
+    for record in records:
+        for reader, counts in record["counters"]["reader_invocations"].items():
+            current = reader_invocations.setdefault(
+                reader, {"balance": 0, "nonce": 0, "tier": counts["tier"]}
+            )
+            current["balance"] += int(counts["balance"])
+            current["nonce"] += int(counts["nonce"])
+    unregistered_reader_count = sum(
+        int(record["counters"]["account_agreement_unregistered_reader_count"])
+        for record in records
+    )
+    unregistered_reader_ids = sorted(
+        {
+            int(record["counters"]["account_agreement_unregistered_reader_id"])
+            for record in records
+            if int(record["counters"]["account_agreement_unregistered_reader_count"])
+        }
+    )
+    unregistered_reader_pcs = sorted(
+        {
+            f"0x{int(record['counters']['account_agreement_unregistered_reader_pc']):x}"
+            for record in records
+            if int(record["counters"]["account_agreement_unregistered_reader_count"])
+        }
+    )
+    mutation_observations = sum(
+        int(record["counters"]["account_agreement_mutation_event_count"])
+        for record in records
+    )
+    mutation_ids = sorted(
+        {
+            int(event["mutation_id"])
+            for record in records
+            for event in record["counters"]["mutation_events"]
+        }
+    )
+    mutation_id_counts = {
+        str(mutation_id): {
+            "name": MUTATION_ID_NAMES.get(mutation_id, "unknown"),
+            "count": sum(
+                1
+                for record in records
+                for event in record["counters"]["mutation_events"]
+                if int(event["mutation_id"]) == mutation_id
+            ),
+        }
+        for mutation_id in sorted(MUTATION_ID_NAMES)
+    }
     summary = {
         "elf": str(args.elf),
         "elf_sha256": elf_sha,
@@ -303,7 +461,8 @@ def main() -> int:
         "manifest": str(args.manifest),
         "seed": args.seed,
         "random_count": args.random_count,
-        "named_count": len(args.label),
+        "named_count": len(dict.fromkeys(args.label)),
+        "named_controls": list(dict.fromkeys(args.label)),
         "dump_range": f"{start:#x}:{length:#x}",
         "cases": len(records),
         "mismatch_events": len(mismatches),
@@ -316,6 +475,20 @@ def main() -> int:
             int(record["counters"]["account_agreement_nonce_probe_count"])
             for record in records
         ),
+        "reader_invocations": reader_invocations,
+        "unregistered_reader_count": unregistered_reader_count,
+        "unregistered_reader_ids": unregistered_reader_ids,
+        "unregistered_reader_pcs": unregistered_reader_pcs,
+        "reader_registry": {
+            str(reader): {
+                "site": KNOWN_READER_SITES[reader],
+                "tier": KNOWN_READER_TIERS[reader],
+            }
+            for reader in sorted(KNOWN_READER_TIERS)
+        },
+        "mutation_observations": mutation_observations,
+        "mutation_ids": mutation_ids,
+        "mutation_id_counts": mutation_id_counts,
         "output_differences": sum(
             1 for record in records if record["base_output_equal"] is False
         ),
@@ -332,11 +505,20 @@ def main() -> int:
     print(
         f"agreement sweep: cases={len(records)} mismatches={len(mismatches)} "
         f"instrument_events={len(instrument_events)} "
+        f"unregistered_readers={unregistered_reader_count} "
+        f"mutation_observations={mutation_observations} "
         f"output_differences={summary['output_differences']} "
         f"elf_sha256={elf_sha} report={report}"
     )
     if summary["output_differences"]:
         print("candidate/base output mismatch detected", file=sys.stderr)
+        return 1
+    if unregistered_reader_count:
+        print(
+            "unregistered reader observations: "
+            f"ids={unregistered_reader_ids} pcs={unregistered_reader_pcs}",
+            file=sys.stderr,
+        )
         return 1
     if mismatches and not args.allow_mismatch:
         print(json.dumps(mismatches[:20], indent=2), file=sys.stderr)

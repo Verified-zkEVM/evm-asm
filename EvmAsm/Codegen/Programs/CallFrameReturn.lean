@@ -265,6 +265,13 @@ def frameReturnFunction : String :=
    "  la t0, cd_caller_newbal\n  addi t1, s3, 63\n  li t2, 32\n" ++
    ".Lfr_livebal_pb_wb:\n" ++
    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lfr_livebal_pb_wb\n" ++
+   -- Debug-only post-rollback witness.  The parent env has now been restored
+   -- to its post-failed-child live balance; observe that exact state after the
+   -- re-credit, before frame_return repoints x20 to the parent below.
+   "  la t0, fr_parent_addr_be\n  addi t1, s3, 19\n  li t2, 20\n" ++
+   ".Lfr_livebal_parent_addr:\n" ++
+   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lfr_livebal_parent_addr\n" ++
+   "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, fr_parent_addr_be; addi a1, s3, 32; li a2, 7; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
    ".Lfr_livebal_done:\n" ++
    -- Capture child leftover gas after possible state-gas LIFO refill; held in
    -- s7 across the x20 repoint for the EIP-150 merge below.
@@ -911,6 +918,7 @@ def ziskFrameReturnDataSection : String :=
   ".balign 32\n" ++
   "cd_value_be:\n  .zero 32\n" ++
   "cd_caller_newbal:\n  .zero 32\n" ++
+  "fr_parent_addr_be:\n  .zero 20\n" ++
   createNonceTableData
 
 def ziskFrameReturnProbeUnit : BuildUnit := {

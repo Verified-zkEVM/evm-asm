@@ -593,6 +593,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t3, 8(t2); ld t4, 72(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 8(t2)\n" ++
   "  ld t3, 16(t2); ld t4, 80(t2); add t5, t3, t4; sltu a0, t5, t3; add t5, t5, t6; sltu a1, t5, t6; or t6, a0, a1; sd t5, 16(t2)\n" ++
   "  ld t3, 24(t2); ld t4, 88(t2); add t5, t3, t4; add t5, t5, t6; sd t5, 24(t2)\n" ++
+  -- Debug-only post-mutation witness for the root recipient credit.
+  "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, bv_pending_recipient_addr; mv a1, t2; li a2, 1; li a3, 0; jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
 
   -- F3 retirement: nested storage and balance reads now use their authenticated
   -- demand-driven paths; no eager BAL-account seed is produced here.
