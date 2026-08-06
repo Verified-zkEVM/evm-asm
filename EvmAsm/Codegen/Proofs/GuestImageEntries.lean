@@ -223,7 +223,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.check_gas_limit, checkGasLimit_prog),
   (GuestAddrs.header_validate_post_merge, headerValidatePostMerge_prog),
   (GuestAddrs.header_validate_extra_data_length, headerValidateExtraDataLength_prog),
-  (GuestAddrs.amsterdam_blob_gas_price, amsterdamBlobGasPrice_prog),
   (GuestAddrs.amsterdam_blob_gas_price_u256, amsterdamBlobGasPriceU256_prog),
   (GuestAddrs.eip1559_calc_base_fee_per_gas, eip1559CalcBaseFeePerGas_prog),
   (GuestAddrs.header_validate_base_fee, headerValidateBaseFee_prog),
@@ -493,6 +492,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 341
+#guard guestImageEntries.length = 340
 
 end EvmAsm.Codegen

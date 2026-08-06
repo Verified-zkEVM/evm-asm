@@ -246,7 +246,6 @@ def ziskStep2VerdictPrologue : String :=
   checkGasLimitFunction ++ "\n" ++
   headerValidatePostMergeFunction ++ "\n" ++
   headerValidateExtraDataLengthFunction ++ "\n" ++
-  amsterdamBlobGasPriceFunction ++ "\n" ++
   amsterdamBlobGasPriceU256Function ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++

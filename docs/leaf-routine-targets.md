@@ -23,8 +23,12 @@ Assertion → SpecRef (`docs/4ch8f-slstate-specref-correspondence.md`).
 - **Liveness per row** (dead-code rows are forbidden; see #11303): every listed symbol is
   present in the guest linker census (`scripts/asm-fixtures/symbol-addresses.tsv`) **and**
   has at least one incoming `jal ra, <sym>` call site in an emitted composition, cited below.
-- **Verified set** for the "depends solely on verified" rows: the 15 symbols with witnessed
-  rows in `EvmAsm/Progress/Routines.lean` (13 `.proven`, 8 `.conditional` rows).
+- **Verified set** for the "depends solely on verified" rows: the symbols with witnessed
+  rows in `EvmAsm/Progress/Routines.lean` — **20 distinct symbols, 28 rows (20 `.proven`,
+  8 `.conditional`)** as of #11575 row 1. (This bullet said "15 symbols, 13 `.proven`, 8
+  `.conditional`" for some time after those counts moved; the authoritative figures are the
+  `by decide` censuses `routineSymbols_eq` / `routineProvenCount_eq` in that file, which
+  cannot go stale silently — prefer citing them over restating numbers here.)
 - **`SpecRef` is a port and drifts** from execution-specs. Rows whose correctness depends on
   the spec's actual text should cite pinned `e5a8caf1b` alongside the `SpecRef` name when the
   proof lands; the `SpecRef` file:line anchors below are the port-side entry points.
@@ -45,20 +49,48 @@ is exactly the "leaf means leaf in the TRANSITIVE call graph" trap.
 | 5 | `bal_canonical_sort` (leaf; 6 call sites `#guard`-pinned at `EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean:750`) | the stable sorts of `_build_from_builder` (`EvmAsm/Stateless/SpecRef/BlockAccessLists.lean:193`) | BAL builder entry runs (accounts, per-account slot lists) | **NONE** — needs a `balEntriesFrom`-style run predicate; mirror `teerEntriesFrom` (`EvmAsm/Codegen/RegionPredicates.lean:344`). This is the listed prerequisite, and the row that flips the `.unproven` Correspondence entry and unblocks #10817's semantic half |
 | 6 | `bloom_or_into` (leaf; caller `EvmAsm/Codegen/Programs/Bloom.lean:761`; sibling leaf `bloom_eq`) | the OR-accumulation step of `logs_bloom` (`EvmAsm/Stateless/SpecRef/Fork.lean:101`) — the fold, not the per-log index derivation | 256-byte bloom filter | `bytesRegion` (256 bytes) suffices |
 | 7 | `check_gas_limit` (leaf; caller `EvmAsm/Codegen/Programs/HeaderChain.lean:314`) | `check_gas_limit` (`EvmAsm/Stateless/SpecRef/SeamShell.lean:200`) — same name, whole function | scalars only (register ABI) | n/a — register vocabulary (`regsSet`, `EvmAsm/Rv64/SAsm/MultiRegRetTail.lean:51`) suffices, no memory assertion needed |
-| 8 | `amsterdam_blob_gas_price` (leaf; caller `EvmAsm/Codegen/Programs/Header.lean:889`) | `calculate_blob_gas_price` (`EvmAsm/Stateless/SpecRef/Gas.lean:136`) at the Amsterdam fork parameters; the port carries Python-checked `#guard`s (`EvmAsm/Stateless/SpecRef/Gas.lean:246`) | scalars only (register ABI) | n/a — as row 7 |
+| 8 | ~~`amsterdam_blob_gas_price`~~ — **ROUTINE REMOVED (#11350)**. Zero production callers: its only in-edge was its own probe prologue. Per maintainer direction the routine was deleted rather than proven. ⚠️ Not to be confused with `amsterdam_blob_gas_price_u256`, which SURVIVES and has live callers (`header_validate_excess_blob_gas`, `HeaderBaseFee.lean:417`; the runtime payload, `BlockVerdictRuntimePayload.lean:150`) — that is the blob-gas-price routine worth a triple, against the same `calculate_blob_gas_price` (`SpecRef/Gas.lean:136`). | — | — |
 | 9 | `header_extract_number` (all callees verified: `rlp_field_to_u64`, `rlp_list_nth_item`, `rlp_content_to_u64`; caller `EvmAsm/Codegen/Programs/ParentHashAtBlockNumber.lean:101`) | the `number` field of `_decode_header` (`EvmAsm/Stateless/SpecRef/Stateless.lean:158`) — one field of it, not the whole decode | header RLP region | `bytesRegion`; `rlpItemRegionFrom` (`EvmAsm/Codegen/Programs/RlpEncodeBytesComposeSAsm.lean:860`) gives the `RLPItem`-typed phrasing |
 | 10 | `bgv_u32le` (leaf; 8 fixture in-edges; caller `EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean:681`) | the fixed-width LE reads of `deserialize_stateless_input` (`EvmAsm/Stateless/SpecRef/Guest.lean:29`) — the u32 accessor those reads reduce to | guest input blob (witness section offsets) | `bytesRegion`; proving this one leaf discharges a step in every one of its 8 callers |
 
 Row 9 is the representative of a **family**: `header_extract_logs_bloom`,
 `header_validate_extra_data_length`, and **six of the seven** `chain_validate_*` routines
 have the same shape (verified RLP callees only, one `_decode_header` field or one header
-rule each). Once row 9's pattern exists, those **eight** siblings are mechanical forks.
+rule each). Tracked as #11575.
 
-⚠️ The seventh, `chain_validate_post_merge_full` (`GuestAddrs.lean:453`), is **not** a fork:
+⚠️ The seventh, `chain_validate_post_merge_full` (`GuestAddrs.lean:428`), is **not** a fork:
 it has no whole-routine triple at all — `ChainValidatePostMerge.lean` carries only the
 string↔`Program` byte-identity theorem (`:608`). It is an unproven routine, and counting it
 with the forks overstates what row 9's pattern buys. Measured on `origin/main`; an earlier
 revision of this paragraph said "seven".
+
+### ⚠️ "Mechanical forks" was wrong, and in an instructive way
+
+This paragraph used to end *"those **eight** siblings are mechanical forks"*. Two corrections,
+both found while doing the first one (#11575 row 1, `header_extract_logs_bloom`):
+
+1. **All eight whole-routine triples already existed** — `sorry`-free, at their linked guest
+   addresses, landed 2026-07-16/17, i.e. *ten days before row 9's own triple*. The missing
+   artefact was never the proof; it was the **`SpecRef` bridge plus the two registry rows**.
+   That is the same lesson `Correspondence.lean` records against row 9 itself: an absent row is
+   not evidence of an absent proof. Grep the tree before forking anything.
+2. **The forks are not uniform**, and the differences are load-bearing for grading:
+   - `header_extract_logs_bloom` and both `*extra_data_length` routines call K20
+     (`rlp_list_nth_item`) only, so they carry **no** `7 * (2^64 - 1)` step factor — #11461
+     does not reach them. The five numeric `chain_validate_*` call K34 and do inherit it,
+     *per loop iteration*.
+   - `chain_validate_blob_gas_used_multiple` has **no `SpecRef` counterpart at all**: the guest
+     checks `value &&& (2^17 - 1) = 0`, but divisibility by `GAS_PER_BLOB` is a derived
+     consequence of `blob_gas_used = len(hashes) * PER_BLOB`, not a check anywhere in the port.
+     Expect `.noCounterpart` unless a derived-invariant lemma is written first.
+   - The three ∀-over-header-list `chain_validate_*` routines have no single `SpecRef` function
+     of that shape, so each needs its **comparison boundary** written down
+     (`docs/agents/spec-correspondence.md` §5).
+
+Row 1 is done (`HeaderExtractLogsBloomBridge.lean`), and it landed *cleaner* than its
+representative: no precondition on the field and no `portDefect`, because #11615 made the port
+perform the `FixedBytes` width check the reference performs, so `len = 256` is derived rather
+than assumed.
 
 ## Runners-up (not in the ten, recorded so the cut is visible)
 

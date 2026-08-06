@@ -420,6 +420,57 @@ Python while looking faithful" },
   -- was missing. I rebuilt it from scratch in #11457 before finding it, having read "no
   -- registry row" as "no proof" after a truncated survey search. AN ABSENT ROW IS NOT
   -- EVIDENCE OF AN ABSENT PROOF -- grep the tree, unabridged, before rebuilding anything.
+  { family := "header", routine := "header_extract_logs_bloom",
+    spec := some "header_logs_bloom_of_decode",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:158, \
+stateless.py:244)",
+    note := "#11575 row 1, the first fork of #11351's pattern -- and it lands CLEANER than \
+its representative, which is the point worth recording. \
+DOMAIN RESTRICTION -- ARITY ONLY, and it is taxonomy row 1 (a proof limit): the guest never \
+checks how many fields the header has, so on a list of any other length it still returns a \
+value where `_decode_header` errors; the honest statement is `_decode_header = .ok h -> guest \
+succeeds and output = h.bloom`, not an iff. Unlike `header_extract_number` there is NO second \
+restriction: no precondition on the field, no `portDefect`. \
+WHY THE CONTENT AXIS IS CLEAN, WHICH IT WAS NOT BEFORE #11615: `helbRetPost`'s middle arm is \
+`a0 = 2 AND Success .. 6 fo len AND len /= 256` -- the guest REJECTING a `bloom` whose content \
+length is not 256. Graded against the port as it stood, that read as the guest being STRICTER, \
+because `getB` was a bare `bs.getD i []` and a successful decode said nothing about width. It \
+was never a guest defect: `_deserialize_to_bytes` constructs the annotated type and \
+`FixedBytes.__new__` enforces `LENGTH`, so `Bloom = Bytes256` IS width-checked by the reference \
+(`ethereum_types` 0.4.1 bytes.py:29-37). SECOND INSTANCE of the misattribution #11493 unpicked \
+-- a port gap making a correct guest look strict -- the first being canonicality on `number` \
+(#11617). ⚠️ NOT a third instance, and #11620 is NOT one either: there the reference imposes no \
+bound at all (`Uint.from_be_bytes` is a plain `int.from_bytes`) while the guest bounds at 8, so \
+the guest genuinely rejects more -- grouping it here would invite reading it as closable, which \
+it is not (maintainer correction on #11624). The transferable shape: `guest stricter than port` \
+RESOLVES DIFFERENTLY PER ANNOTATION -- matched for `FixedBytes`/`FixedUnsigned`, a genuine \
+over-rejection for `Uint`. With #11615 the width is a CONCLUSION of `decode_header_inv`, so \
+`header_logs_bloom_of_decode` carries no width hypothesis at all and its `len = 256` is what \
+excludes the `a0 = 2` arm for a composing caller. \
+GUEST-SIDE WIDTH ENFORCEMENT IS INDEPENDENTLY CONFIRMED, which matters because a LENIENT guest \
+here would be a soundness gap rather than a correspondence gap: \
+`headerExtractLogsBloomFunction.s:14-15` emits `li t2, 256` / `bne t1, t2, .Lhelb_size_fail`, \
+and the rejection is PROVEN not merely emitted -- it is the `a0 = 2` arm of `helbRetPost` \
+(`HeaderExtractLogsBloomSpec.lean:343`). See #11615 for the same check on \
+`state_root`/`receipts_root`/`withdrawals_root`. \
+STEP BOUND: this row does NOT inherit #11461's `7 * (2^64 - 1)` factor. Its bound's `7 * 256` \
+term is the genuine 256-byte bloom copy, i.e. data-derived -- the routine calls K20 \
+(`rlp_list_nth_item`) and never the K34 scalar loop that is #11461's origin. Recorded because \
+the numeric siblings in #11575 DO inherit it, and the difference is not obvious from the row. \
+Tied by `header_logs_bloom_of_decode` \
+(`Codegen/Programs/HeaderExtractLogsBloomBridge.lean`), consuming the machine triple \
+`headerExtractLogsBloom_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT `.bridged`: \
+the tie is FORMAL, but this family has no executable differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `bloom := getB 6` is \
+syntactically the `header.bloom` assignment of stateless.py:244; the arity guard \
+`bs.length = 23 / 21` is the port's rendering of the fork discriminant; and the width clause is \
+`fixedBytesFieldWidths`' `(6, 256)`, whose provenance is `Bloom = Bytes256` \
+(amsterdam/fork_types.py:34 -> ethereum_types bytes.py:154-159) and whose enforcement is \
+`decodeItemFixedBytes`, PROVED to pin the length by `decodeItemFixedBytes_inv` rather than \
+assumed. ⚠️ CITATION KIND: the `FixedBytes` clause cites an EXTERNAL package, so \
+`scripts/check-spec-refs.sh` cannot machine-check it -- read, not verified; `uv.lock` pins \
+`ethereum-types == 0.4.1`. See #11615, #11575" },
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
     verdict := .domainRestricted, basis := .ported,
@@ -438,11 +489,13 @@ faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The guest
 depends on. A SECOND, independent leniency survives on the FIXED-WIDTH BYTE fields -- \
 `_deserialize_to_bytes` builds the annotated type and `FixedBytes.__new__` raises when the \
 length is wrong, so the reference length-checks `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/ \
-`Bytes8`, while the port's `getB` is a bare `bs.getD i []`. #11513 dismissed those fields as \
-`byte strings either way`; that is wrong, and it is tracked as #11615 -- separately because the \
-check is ARITY-DEPENDENT (a `length = 32` sweep would reject every 21-field header, where the \
-numeric sweep was safe because `[]` passes a uint check). It does not affect this row, whose \
-field is numeric; rows touching a byte field will carry `portDefect := some 11615`. \
+`Bytes8`, while the port's `getB` was a bare `bs.getD i []`. #11513 dismissed those fields as \
+`byte strings either way`; that was wrong, and it is NOW ALSO FIXED (#11615), separately \
+because the check is ARITY-DEPENDENT -- a `length = 32` sweep would reject every 21-field \
+header, where the numeric sweep was safe because `[]` passes a uint check. Neither gap affects \
+this row, whose field is numeric, but together they are what let the byte-field sibling rows \
+(notably `header_extract_logs_bloom`, whose success arm needs `Bloom`'s 256) be stated without \
+a width hypothesis. \
 (b) WIDTH -- is NOT a port defect, and NOT an FR either. It is a PROJECT-WIDE INPUT \
 ASSUMPTION, i.e. the ABI-PRECONDITION flavour of `.domainRestricted` (taxonomy row 2, not row \
 1) -- and per that table's requirement, this note says WHICH: precondition, not coverage gap. \
@@ -542,13 +595,13 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 25 := by decide
+theorem registry_size : registry.length = 26 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
-theorem header_rows : countFamily "header" = 2 := by decide
+theorem header_rows : countFamily "header" = 3 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
 
@@ -570,7 +623,7 @@ theorem mpt_rows : countFamily "mpt" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
+    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 5 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -583,7 +636,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
-    countBasis .ported = 4 ∧
+    countBasis .ported = 5 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 
