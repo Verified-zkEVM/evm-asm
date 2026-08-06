@@ -1114,7 +1114,7 @@ theorem account_decode_spec_within
      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ oldOffset) ** (adLengthAddr ↦ₘ oldLen) **
      (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
-     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
     (by pcfa) hpro
   have hbb := adBBField0 sp0 spW raSaved raSaved listBase len nonceOut balanceOut rootOut codeOut
     oldOffset oldLen listBase len nonceOut balanceOut rootOut oldNonce
