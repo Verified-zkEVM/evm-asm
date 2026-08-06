@@ -211,14 +211,15 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   "  j .Lamsr_map_changed\n" ++
   ".Lamsr_map_equal:\n" ++
   "  # Net-zero descriptor: no BAL change row and no side-log count bump.\n" ++
-  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96\n" ++
+  "  # a2=current@+96, a3=original@+64 (block baseline for Lem_storage).\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; addi a3, s2, 64\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
   "  ld ra, 56(sp)\n" ++
   "  j .Lamsr_one_ok\n" ++
   ".Lamsr_map_changed:\n" ++
   "  # The modeled startup write must be visible to later h_SLOAD resolution.\n" ++
-  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; addi a3, s2, 64\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
   "  ld ra, 56(sp)\n" ++
@@ -232,7 +233,8 @@ def appendModeledSystemStorageTupleRowsFunction : String :=
   ".Lamsr_seed_map:\n" ++
   "  # Pre-user mode publishes only the canonical map row; the terminal call\n" ++
   "  # remains responsible for the side log and BAI-0 BAL builder event.\n" ++
-  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96\n" ++
+  "  # Seed has no resolved original here → a3=0 (baseline zero).\n" ++
+  "  mv a0, s2; addi a1, s2, 32; addi a2, s2, 96; li a3, 0\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  la t0, storage_writes_overflow; ld t0, 0(t0); bnez t0, .Lamsr_map_overflow\n" ++
   "  ld ra, 56(sp)\n" ++

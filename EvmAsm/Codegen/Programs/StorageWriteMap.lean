@@ -169,15 +169,17 @@ def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
     insert-versus-update distinction, so the capture sits where that distinction is
     already load-bearing rather than introducing a second one.
 
-    Note the block-level `storage_writes_block_upsert` has an identical field-copy
-    shape and deliberately does NOT capture: it merges an already-filtered
-    transaction result, so a baseline there would describe the wrong interval.
+    The block-level `storage_writes_block_upsert` copies +96 on APPEND only (from
+    the tx entry's already-captured baseline) and leaves it untouched on HIT.
+    That freezes the first-write / pre-block baseline for the whole block so
+    `execution_map_state_changes` can compare final value vs parent for MPT
+    apply — without it, a zero-clear of a nonzero parent looks like 0→0 and is
+    silently omitted from the state root (code-1 / #11547; 7251 multi-block
+    consolidation residual after #11600).
 
-    INERT: nothing reads +96 yet. The consumer is the storage-change emission at the
-    incorporate boundary, which lands separately.
-
-    Targets the TRANSACTION level, which is where the spec's assignment points.
-    The block level is filled only by `write_sets_incorporate_tx`.
+    Targets the TRANSACTION level for the initial capture. The block level is
+    filled only by `write_sets_incorporate_tx` (plus system-storage seed paths
+    that call `storage_writes_block_upsert` directly with an explicit baseline).
 
     Clobbers nothing the caller can see: `t0`-`t6` are saved and restored, so
     this is safe to call from a handler `preBody` holding live dispatcher state
@@ -320,8 +322,8 @@ def writeSetsIncorporateTxFunction : String :=
   ".Lwsi_loop:\n" ++
   "  bgeu s3, s1, .Lwsi_clear\n" ++
   "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &tx_entry[i]
-  -- upsert this (rowAddress, slotKey, value) into the block level
-  "  mv a0, s4; addi a1, s4, 32; addi a2, s4, 64\n" ++
+  -- upsert this (rowAddress, slotKey, value, baseline@+96) into the block level
+  "  mv a0, s4; addi a1, s4, 32; addi a2, s4, 64; addi a3, s4, 96\n" ++
   "  jal ra, storage_writes_block_upsert\n" ++
   "  addi s3, s3, 1; j .Lwsi_loop\n" ++
   ".Lwsi_clear:\n" ++
@@ -368,7 +370,15 @@ def writeSetsIncorporateTxFunction : String :=
     reads as one loop over one operation. Same upsert discipline as
     `storage_write_record`, targeting `STORAGE_WRITES_AREA`.
 
-      a0 = rowAddress ptr (32 B), a1 = slotKey ptr (32 B), a2 = value ptr (32 B). -/
+      a0 = rowAddress ptr (32 B), a1 = slotKey ptr (32 B), a2 = value ptr (32 B),
+      a3 = baseline ptr (32 B), or 0 — value at the start of the interval this
+           row represents. On APPEND only: copied into +96 (null → zero). On HIT:
+           +96 is left alone so the first-write / pre-block baseline survives
+           later overwrites (same APPEND-only rule as `storage_write_record`).
+
+    `execution_map_state_changes` reads block +64 vs +96 to decide MPT apply.
+    Dropping +96 on incorporate made zero-clears of nonzero parents look
+    unchanged (7251 multi-block residual). -/
 def storageWritesBlockUpsertFunction : String :=
   "storage_writes_block_upsert:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -403,6 +413,16 @@ def storageWritesBlockUpsertFunction : String :=
   "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
   "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
   "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
+  -- Capture block baseline at +96. APPEND PATH ONLY (HIT leaves +96 alone).
+  "  beqz a3, .Lswb_base_zero\n" ++
+  "  ld t2, 0(a3);  sd t2, 96(t5)\n" ++
+  "  ld t2, 8(a3);  sd t2, 104(t5)\n" ++
+  "  ld t2, 16(a3); sd t2, 112(t5)\n" ++
+  "  ld t2, 24(a3); sd t2, 120(t5)\n" ++
+  "  j .Lswb_base_done\n" ++
+  ".Lswb_base_zero:\n" ++
+  "  sd zero, 96(t5); sd zero, 104(t5); sd zero, 112(t5); sd zero, 120(t5)\n" ++
+  ".Lswb_base_done:\n" ++
   "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Lswb_store:\n" ++
   "  ld t2, 0(a2);  sd t2, 64(t5)\n" ++
@@ -418,11 +438,14 @@ def storageWritesBlockUpsertFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret\n"
 
--- THE BLOCK-LEVEL UPSERT MUST NOT CAPTURE. It has an identical field-copy shape, so
--- a copy-paste or a careless global edit lands there just as easily -- but it merges
--- an already-filtered transaction result, so a baseline there would describe the
--- wrong interval entirely.
-#guard (storageWritesBlockUpsertFunction.splitOn "96(t5)").length == 1
+-- Baseline at +96: exactly one capture block, APPEND-only (before shared store).
+#guard (storageWritesBlockUpsertFunction.splitOn "sd t2, 96(t5)").length == 2
+#guard (storageWritesBlockUpsertFunction.splitOn ".Lswb_base_zero").length == 3
+#guard (storageWritesBlockUpsertFunction.splitOn "beqz a3, .Lswb_base_zero").length == 2
+#guard
+  (storageWritesBlockUpsertFunction.splitOn ".Lswb_base_done:").head!.length
+    < (storageWritesBlockUpsertFunction.splitOn ".Lswb_store:").head!.length
+-- Block upsert must not grow an a6 baseline channel (tx record owns a6).
 #guard (storageWritesBlockUpsertFunction.splitOn "a6").length == 1
 
 /-! ## `storage_writes_undo_push`
