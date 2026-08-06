@@ -15,13 +15,14 @@
   declaration order: `Uint`/`U64`/`U256` as minimal big-endian scalars,
   `Bytes`/fixed-byte fields verbatim.  The 21-field previous-fork
   header (`PreviousForkHeader`) omits the two amsterdam-only trailing
-  fields — dispatched here on the decoded `isCurrentFork` tag.  Since #11513
-  `_decode_header` DOES re-impose the reference's per-field canonicality check,
-  so every header on the accepting path is canonically encoded and re-encoding
-  reproduces the original bytes exactly.  (This note previously recorded the
-  same round-trip conclusion as holding *despite* the missing check, restricted
-  to canonically-encoded input; the check makes that restriction vacuous, so the
-  claim is now unconditional on the accepting path.)
+  fields — dispatched here on the decoded `isCurrentFork` tag.  `_decode_header`
+  re-imposes the reference's per-field checks: numeric canonicality and width
+  (#11513) and the `FixedBytes` lengths (#11615).  So every header on the
+  accepting path is canonically encoded AND has annotation-conformant field
+  widths, and re-encoding reproduces the original bytes exactly.  (This note
+  previously recorded the same round-trip conclusion as holding *despite* the
+  missing checks, restricted to canonically-encoded input; the checks make that
+  restriction vacuous, so the claim is now unconditional on the accepting path.)
 -/
 
 import EvmAsm.Stateless.SpecRef.Types
