@@ -503,7 +503,7 @@ theorem adBBField1
     (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut oldBal **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) hstage
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case cont =>
@@ -616,7 +616,7 @@ theorem adField0Copy
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o0) ** ((.x15 : Reg) ↦ᵣ codeOut) **
        savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
        bytesRegion balanceOut oldBal **
-       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+       bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adCallPre (AB + 88) spW listBase len nonceOut balanceOut rootOut codeOut o0 l0
         (0 : Word) v11 v12 v13 v14 bytes **
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
@@ -640,7 +640,7 @@ theorem adField0Copy
      ((.x29 : Reg) ↦ᵣ x29v) ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      bytesRegion listBase bytes ** ((.x15 : Reg) ↦ᵣ codeOut) ** savedFrame spW savedCaller **
      (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
-     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode)
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants)
     (by pcfa) (adNonceSetup listBase o0 adLengthAddr x28v (8 : Word))
   -- nonce accumulate loop [33]-[39].
   have hnl := cpsTripleWithin_frameR
@@ -651,7 +651,8 @@ theorem adField0Copy
      ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** ((.x13 : Reg) ↦ᵣ v13) **
      ((.x14 : Reg) ↦ᵣ v14) ** regOwn .x30 ** regOwn .x31 ** ((.x15 : Reg) ↦ᵣ codeOut) **
      savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
-     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o0))
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o0) **
+     adFoldConstants)
     (by pcfa) (adNonceLoop listBase bytes o0.toNat l0.toNat 0 x29v hsalign hbound hover hvalid)
   -- nonce store [40].
   have hst := cpsTripleWithin_frameR
@@ -663,7 +664,8 @@ theorem adField0Copy
      ((.x14 : Reg) ↦ᵣ v14) ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes ** ((.x15 : Reg) ↦ᵣ codeOut) **
      savedFrame spW savedCaller ** bytesRegion balanceOut oldBal **
-     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o0))
+     bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** (adOffsetAddr ↦ₘ o0) **
+     adFoldConstants)
     (by pcfa) (adNonceStore nonceOut (beAccum bytes o0.toNat (0 + l0.toNat)) oldNonce)
   -- bridge setup → loop.
   have c1 := cpsTripleWithin_seq_perm_same_cr
@@ -991,7 +993,7 @@ theorem adBBField0
     (savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
      bytesRegion balanceOut oldBal **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) hstage
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case cont =>
