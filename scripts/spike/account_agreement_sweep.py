@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Run the runtime mutation-observation and candidate/base output sweep.
+"""Run the standing verdict and control sweep.
 
-The guest records mutation-boundary observations.  Candidate output is optionally
-compared with a base guest; the standing controls are always included.
+The account-agreement probe was retired in 11638; this script no longer performs
+map-versus-live comparison.  It retains the runtime mutation observation and
+optional candidate/base output comparison, and always runs ``STANDING_NAMED_CONTROLS``.
+That list carries known-flippable negative rows from 11508 so they remain named
+controls rather than disappearing into a random sample.
 """
 
 from __future__ import annotations
@@ -34,7 +37,23 @@ MUTATION_ID_NAMES = {
 STANDING_NAMED_CONTROLS = [
     "18529_test_call_sha256_1_nonzero_value_fork_Amsterdam-blockchain_test_from_state_test__b0",
     "15904_test_callcall_00_ooge_value_transfer_fork_Amsterdam-blockchain_test_from_state_test__b0",
+    "00349_test_bal_gas_limit_boundary_fork_Amsterdam-blockchain_test-below_boundary-no_tx-no_cl_withdrawal",
+    "00350_test_bal_gas_limit_boundary_fork_Amsterdam-blockchain_test-below_boundary-no_tx-with_cl_withdraw",
+    "26003_test_fork_transition_bal_size_constraint_fork_BPO2ToAmsterdamAtTime15k-blockchain_test-at_fork_o",
+    "02965_test_validation_codes_missing_delegated_code_on_insufficient_balance_call_fork_Amsterdam-blockch",
+    "02967_test_validation_codes_missing_implicit_system_contract_code_fork_Amsterdam-blockchain_test__b0",
+    "02970_test_validation_codes_missing_sender_delegation_marker_fork_Amsterdam-blockchain_test__b0",
+    "02998_test_validation_state_missing_failed_call_target_account_proof_node_fork_Amsterdam-blockchain_te",
 ]
+STANDING_NAMED_EXPECTED = {
+    "00349_test_bal_gas_limit_boundary_fork_Amsterdam-blockchain_test-below_boundary-no_tx-no_cl_withdrawal": 0,
+    "00350_test_bal_gas_limit_boundary_fork_Amsterdam-blockchain_test-below_boundary-no_tx-with_cl_withdraw": 0,
+    "26003_test_fork_transition_bal_size_constraint_fork_BPO2ToAmsterdamAtTime15k-blockchain_test-at_fork_o": 0,
+    "02965_test_validation_codes_missing_delegated_code_on_insufficient_balance_call_fork_Amsterdam-blockch": 0,
+    "02967_test_validation_codes_missing_implicit_system_contract_code_fork_Amsterdam-blockchain_test__b0": 0,
+    "02970_test_validation_codes_missing_sender_delegation_marker_fork_Amsterdam-blockchain_test__b0": 0,
+    "02998_test_validation_state_missing_failed_call_target_account_proof_node_fork_Amsterdam-blockchain_te": 0,
+}
 U64 = struct.Struct("<Q")
 
 
@@ -97,15 +116,22 @@ def read_u64(payload: bytes, start: int, address: int) -> int:
     return U64.unpack_from(payload, address - start)[0]
 
 
-def read_manifest(path: Path) -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
+def read_manifest(path: Path) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
     for raw in path.read_text().splitlines():
         if not raw.strip():
             continue
         fields = raw.split("\t")
-        if len(fields) < 3:
+        if len(fields) < 4:
             fail(f"bad manifest row: {raw!r}")
-        rows.append({"label": fields[0], "input": fields[1]})
+        try:
+            oracle_succ = int(fields[3])
+        except (IndexError, ValueError) as exc:
+            fail(f"bad oracle succ_bit in manifest row: {raw!r}")
+            raise AssertionError from exc
+        if oracle_succ not in (0, 1):
+            fail(f"manifest oracle succ_bit must be 0 or 1: {raw!r}")
+        rows.append({"label": fields[0], "input": fields[1], "oracle_succ": oracle_succ})
     if not rows:
         fail(f"manifest is empty: {path}")
     return rows
@@ -129,16 +155,22 @@ def resolve_input(manifest: Path, value: str) -> Path:
 
 
 def select_cases(
-    rows: list[dict[str, str]], labels: list[str], random_count: int, seed: int
-) -> list[dict[str, str]]:
+    rows: list[dict[str, object]], labels: list[str], random_count: int, seed: int
+) -> list[dict[str, object]]:
     by_label = {row["label"]: row for row in rows}
-    selected: list[dict[str, str]] = []
+    selected: list[dict[str, object]] = []
     selected_labels: set[str] = set()
     for label in labels:
         if label in selected_labels:
             continue
         if label not in by_label:
             fail(f"named label not found: {label}")
+        expected = STANDING_NAMED_EXPECTED.get(label)
+        if expected is not None and by_label[label]["oracle_succ"] != expected:
+            fail(
+                f"named control {label} has oracle succ={by_label[label]['oracle_succ']}, "
+                f"expected {expected}"
+            )
         selected.append(by_label[label])
         selected_labels.add(label)
     candidates = [row for row in rows if row["label"] not in selected_labels]
@@ -227,6 +259,7 @@ def main() -> int:
     root = args.work_dir or Path(tempfile.mkdtemp(prefix="account-agreement-"))
     root.mkdir(parents=True, exist_ok=True)
     records: list[dict[str, object]] = []
+    verdict_mismatches: list[dict[str, object]] = []
 
     for index, case in enumerate(cases):
         input_path = resolve_input(args.manifest, case["input"])
@@ -268,12 +301,27 @@ def main() -> int:
                     f"{base_process.stderr[-2000:]}"
                 )
             output_equal = output_path.read_bytes() == base_output_path.read_bytes()
+        output_bytes = output_path.read_bytes()
+        guest_succ = output_bytes[32] if len(output_bytes) > 32 else None
+        expected_succ = STANDING_NAMED_EXPECTED.get(str(case["label"]))
+        if expected_succ is not None and guest_succ != expected_succ:
+            verdict_mismatches.append(
+                {
+                    "label": case["label"],
+                    "oracle_succ": case["oracle_succ"],
+                    "expected_succ": expected_succ,
+                    "guest_succ": guest_succ,
+                }
+            )
         payload = dump_payload(dump_path, start, length)
         counters = decode(payload, start, syms)
         records.append(
             {
                 "label": case["label"],
                 "input": str(input_path),
+                "oracle_succ": case["oracle_succ"],
+                "expected_succ": expected_succ,
+                "guest_succ": guest_succ,
                 "counters": counters,
                 "output_sha256": sha256(output_path),
                 "base_output_equal": output_equal,
@@ -330,6 +378,7 @@ def main() -> int:
         "output_differences": sum(
             1 for record in records if record["base_output_equal"] is False
         ),
+        "verdict_mismatches": verdict_mismatches,
         "records": records,
     }
     report = args.report or root / "report.json"
@@ -343,6 +392,13 @@ def main() -> int:
     )
     if summary["output_differences"]:
         print("candidate/base output mismatch detected", file=sys.stderr)
+        return 1
+    if verdict_mismatches:
+        print(
+            "named control verdict mismatch detected: "
+            + json.dumps(verdict_mismatches, sort_keys=True),
+            file=sys.stderr,
+        )
         return 1
     return 0
 
