@@ -42,6 +42,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
+
+#print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
+
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
@@ -53,6 +57,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
+
+#print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
+
+#print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
