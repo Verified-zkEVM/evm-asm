@@ -181,7 +181,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- (it reads create_nonce for the seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 21; jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 21; jal ra, account_writes_latest_nonce_tx\n" ++
     "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
@@ -428,14 +428,14 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
     -- so any nonzero limb sets alive and never reaches this status/nonce arm.
     -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.
-    -- Then account_state_latest_nonce: nonce≠0 → alive; nonce==0 → EMPTY → charge.
+    -- Then the transaction nonce map: nonce≠0 → alive; nonce==0 → EMPTY → charge.
     -- Composed: charge iff bal==0 AND code-empty AND nonce==0. Funded never-used
     -- EOA (status2, nonce0, bal≠0) takes alive_set via the OR and is NOT charged.
     "  li t0, 1; beq t1, t0, .Lcr_alive_set_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  li t0, 2; bne t1, t0, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, create_address_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 22; jal ra, account_state_latest_nonce\n" ++
+    "  li a2, 22; jal ra, account_writes_latest_nonce_tx\n" ++
     "  mv t1, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  beqz t1, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
