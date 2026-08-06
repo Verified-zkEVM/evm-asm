@@ -306,34 +306,11 @@ def accountWritesLatestNonceBlockFunction : String :=
   ".Lawlnb_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
 
-/-! ## Execution-time map/overlay agreement diagnostics
-
-    These checks are deliberately runtime-only diagnostics.  The write maps
-    remain attribution containers; AccountState remains the live execution
-    overlay until the producer-first migration slices publish at the mutation
-    point.  The convention here is the one the later proof-side predicates can
-    mirror without translation: 128-byte rows, canonical BE20 keys, and the
-    component-valid mask at +112 (`1` balance, `2` nonce, `4` code, `8` state,
-    `16` execution flags, `32` touched).  A zero field is never interpreted as
-    present: both the map mask and the AccountState field mask are checked.
-
-    `account_agreement_probe` takes `a0 = BE20 address`, `a1 = field mask`
-    (`1` balance or `2` nonce), and `a2 = stable reader id`.  It checks both
-    transaction and block maps against the field-specific live AccountState
-    row.  A missing map row, a row without this field, and a live row without
-    this field have separate counters.  A populated field with a differing
-    value creates an event record; status `2` is a semantic mismatch and
-    status `3` is retained cross-tier instrumentation data.  The reader-tier
-    contract is explicit: readers 3, 18, and 19 are TX-tier; reader 17 is
-    BLOCK-tier.  This keeps both scans useful without counting an event from a
-    container the reader is not entitled to consult.  Events carry status,
-    field, reader, map tier, and differing limb index in one word, followed by
-    the address and the differing map/live value limbs.
-
-    Armed nonce probes compare the block-map-only helper with the exact
-    pending/durable overlay answer and increment one of four diagnostic buckets:
-    agree, disagree, map-missing/overlay-answered, or overlay-missing/map-answered.
--/
+/-! Runtime-only map/overlay diagnostics.  The probe compares canonical 128-byte
+    map rows with the exact pending-then-durable AccountState row; reader 17 is
+    BLOCK-tier, other registered readers are TX-tier.  Armed balance and nonce
+    comparisons use four per-reader buckets: agree, disagree, map-missing with
+    overlay answer, and overlay-missing with map answer. -/
 
 def accountAgreementEventCapacity : Nat := 4096
 def accountAgreementMutationEventCapacity : Nat := 1024
@@ -492,7 +469,7 @@ def accountAgreementScanFunction : String :=
 
 def accountAgreementProbeFunction : String :=
   "account_agreement_probe:\n" ++
-  "  addi sp, sp, -96; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
+  "  addi sp, sp, -128; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
   "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
   accountAgreementReaderValidationAsm ++
   ".Laap_reader_registered:\n" ++
@@ -523,6 +500,19 @@ def accountAgreementProbeFunction : String :=
   ".Laap_no_live:\n" ++
   "  li s3, 0\n" ++
   ".Laap_nonce_diff_start:\n" ++
+  "  li t0, 1; bne s1, t0, .Laap_nonce_diff_start_actual\n" ++
+  "  mv a0, s0; addi a1, sp, 80; jal ra, account_writes_latest_balance\n" ++
+  "  mv s4, a0; bnez s3, .Laap_balance_overlay_present; bnez s4, .Laap_balance_overlay_missing_map; li t6, 0; j .Laap_balance_bucket\n" ++
+  ".Laap_balance_overlay_present:\n" ++
+  "  bnez s4, .Laap_balance_both_present; li t6, 2; j .Laap_balance_bucket\n" ++
+  ".Laap_balance_overlay_missing_map:\n" ++
+  "  li t6, 3; j .Laap_balance_bucket\n" ++
+  ".Laap_balance_both_present:\n" ++
+  "  ld t0, 80(sp); ld t1, 32(s3); bne t0, t1, .Laap_balance_disagree; ld t0, 88(sp); ld t1, 40(s3); bne t0, t1, .Laap_balance_disagree; ld t0, 96(sp); ld t1, 48(s3); bne t0, t1, .Laap_balance_disagree; ld t0, 104(sp); ld t1, 56(s3); bne t0, t1, .Laap_balance_disagree; li t6, 0; j .Laap_balance_bucket\n" ++
+  ".Laap_balance_disagree:\n  li t6, 1\n" ++
+  ".Laap_balance_bucket:\n" ++
+  "  slli t0, s2, 5; slli t1, t6, 3; add t0, t0, t1; la t1, account_agreement_balance_diff_buckets; add t0, t0, t1; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
+  ".Laap_nonce_diff_start_actual:\n" ++
   "  li t0, 2; bne s1, t0, .Laap_nonce_diff_done\n" ++ "  mv a0, s0; addi a1, sp, 80; jal ra, account_writes_latest_nonce_block; mv s4, a0\n" ++
   "  bnez s3, .Laap_nonce_overlay_present\n" ++ "  bnez s4, .Laap_nonce_overlay_missing_map\n" ++ "  j .Laap_nonce_diff_agree\n" ++
   ".Laap_nonce_overlay_present:\n" ++ "  bnez s4, .Laap_nonce_both_present\n" ++ "  la t0, account_agreement_nonce_map_missing_overlay_answered; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Laap_nonce_diff_done\n" ++
@@ -536,7 +526,7 @@ def accountAgreementProbeFunction : String :=
   "  li a0, 0xa28a0000; la a1, account_writes_count; mv a2, s1; mv a3, s2; mv a4, s3; li a5, 2; mv a6, s0; jal ra, account_agreement_scan; or s5, s5, a0\n" ++
   "  bnez s5, .Laap_done; la t0, account_agreement_no_row; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Laap_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 96; ret\n"
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 128; ret\n"
 
 /-! ## `account_writes_block_upsert`
 
@@ -1291,6 +1281,7 @@ def accountWriteMapBssSection : String :=
   ".balign 32\n" ++
   "account_agreement_probe_count:\n  .zero 8\n" ++
   "account_agreement_reader_invocations:\n  .zero " ++ toString (32 * 16) ++ "\n" ++
+  "account_agreement_balance_diff_buckets:\n  .zero " ++ toString (32 * 4 * 8) ++ "\n" ++
   "account_agreement_unregistered_reader_count:\n  .zero 8\n" ++
   "account_agreement_unregistered_reader_id:\n  .zero 8\n" ++
   "account_agreement_unregistered_reader_pc:\n  .zero 8\n" ++

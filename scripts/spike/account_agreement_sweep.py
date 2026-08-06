@@ -100,6 +100,7 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
         "account_agreement_enabled",
         "account_agreement_probe_count",
         "account_agreement_reader_invocations",
+        "account_agreement_balance_diff_buckets",
         "account_agreement_unregistered_reader_count",
         "account_agreement_unregistered_reader_id",
         "account_agreement_unregistered_reader_pc",
@@ -250,6 +251,21 @@ def decode(
         )
     }
     counters["reader_invocations"] = reader_invocations
+    balance_diff_base = syms["account_agreement_balance_diff_buckets"]
+    counters["balance_differential_buckets"] = {
+        str(reader): {
+            "agree": read_u64(payload, start, balance_diff_base + reader * 32),
+            "disagree": read_u64(payload, start, balance_diff_base + reader * 32 + 8),
+            "map_missing_overlay_answered": read_u64(
+                payload, start, balance_diff_base + reader * 32 + 16
+            ),
+            "overlay_missing_map_answered": read_u64(
+                payload, start, balance_diff_base + reader * 32 + 24
+            ),
+        }
+        for reader in range(1, READER_SLOTS)
+        if str(reader) in reader_invocations
+    }
     events: list[dict[str, int | str]] = []
     count = min(counters["agreement_event_count"], EVENT_CAPACITY)
     event_base = syms["agreement_events"]
@@ -420,6 +436,31 @@ def main() -> int:
             )
             current["balance"] += int(counts["balance"])
             current["nonce"] += int(counts["nonce"])
+    balance_differential_buckets: dict[str, dict[str, int | None]] = {}
+    for record in records:
+        for reader, buckets in record["counters"]["balance_differential_buckets"].items():
+            current = balance_differential_buckets.setdefault(
+                reader,
+                {
+                    "agree": 0,
+                    "disagree": 0,
+                    "map_missing_overlay_answered": 0,
+                    "overlay_missing_map_answered": 0,
+                    "balance_invocations": 0,
+                    "site": KNOWN_READER_SITES.get(int(reader)),
+                    "tier": KNOWN_READER_TIERS.get(int(reader)),
+                },
+            )
+            for bucket in (
+                "agree",
+                "disagree",
+                "map_missing_overlay_answered",
+                "overlay_missing_map_answered",
+            ):
+                current[bucket] += int(buckets[bucket])
+            current["balance_invocations"] = int(
+                reader_invocations.get(reader, {}).get("balance", 0)
+            )
     unregistered_reader_count = sum(
         int(record["counters"]["account_agreement_unregistered_reader_count"])
         for record in records
@@ -509,6 +550,7 @@ def main() -> int:
                 for record in records
             ),
         },
+        "balance_differential_buckets_by_reader": balance_differential_buckets,
         "reader_invocations": reader_invocations,
         "unregistered_reader_count": unregistered_reader_count,
         "unregistered_reader_ids": unregistered_reader_ids,
@@ -541,6 +583,7 @@ def main() -> int:
         f"instrument_events={len(instrument_events)} "
         f"unregistered_readers={unregistered_reader_count} "
         f"mutation_observations={mutation_observations} "
+        f"balance_differential_buckets_by_reader={summary['balance_differential_buckets_by_reader']} "
         f"nonce_differential_buckets={summary['nonce_differential_buckets']} "
         f"output_differences={summary['output_differences']} "
         f"elf_sha256={elf_sha} report={report}"
