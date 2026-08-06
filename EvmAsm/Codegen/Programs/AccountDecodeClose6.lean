@@ -381,6 +381,7 @@ theorem adField1ContEpi
           ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
           ((.x20 : Reg) ↦ᵣ saved1.s4) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
          savedFrame spW savedCaller) **
+        (adFoldConstants **
         ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
          bytesRegion balanceOut oldBal **
          bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
@@ -389,18 +390,19 @@ theorem adField1ContEpi
          (((.x5 : Reg) ↦ᵣ adLengthAddr) ** ((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (32 : Word)) **
           ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) h := by xperm_hyp hp
+          ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) h := by xperm_hyp hp
     have hg := ((sepConj_pure_left h).1 (((sepConj_pure_left h).1 hgP).2)).2
     exact sepConj_mono (sepConj_mono
       (sepConj_mono_right (sepConj_mono_left (fun h' hr => listNthFrameRegs_implies_owned
         listBase len nonceOut balanceOut saved1.s4 codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset, len', oldBal,
-          oldRoot, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own codeOut adLengthAddr len' (32 : Word) v11 v12)))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨beAccum bytes o0.toNat l0.toNat, offset, len', oldBal,
+           oldRoot, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own codeOut adLengthAddr len' (32 : Word) v11 v12)))))))) h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hg
   case cont =>
     -- len ≤ 32: the balance-copy success tie.  Introduce x13/x14/x28/x29/x30.
@@ -531,6 +533,7 @@ theorem adBBField1
          ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
          ((.x20 : Reg) ↦ᵣ rootOut) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
         savedFrame spW savedCaller) **
+       (adFoldConstants **
        ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
@@ -539,7 +542,7 @@ theorem adBBField1
         (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** ((.x11 : Reg) ↦ᵣ v11') **
          ((.x12 : Reg) ↦ᵣ v12') ** regOwn .x13 ** regOwn .x14 **
          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-         ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
+         ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
       have hcomb : (_ ** _) h := ⟨h1, h2, hd, hu, hbig, hacc⟩
       xperm_hyp hcomb
     exact sepConj_mono (sepConj_mono
@@ -547,11 +550,12 @@ theorem adBBField1
         listBase len nonceOut balanceOut rootOut codeOut h'
         (sepConj_mono_left (regIs_implies_regOwn .x1) h' hr))))
       (fun h' hc => (sepConj_pure_left h').2
-        ⟨hDF, beAccum bytes o0.toNat l0.toNat, offset', len', oldBal,
-          oldRoot, oldCode,
-          sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-            (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
-              (adScratch_of_regs_own2 codeOut v11' v12')))))))) h' hc⟩))
+        ⟨hDF, sepConj_mono_right (fun h'' hx =>
+          ⟨beAccum bytes o0.toNat l0.toNat, offset', len', oldBal,
+           oldRoot, oldCode,
+           sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+             (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+               (adScratch_of_regs_own2 codeOut v11' v12')))))))) h'' hx⟩) h' hc⟩))
       (regIs_implies_regOwn .x10) h hgP
 
 #print axioms adBBField1
@@ -869,6 +873,7 @@ theorem adField0ContEpi
           ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
           ((.x20 : Reg) ↦ᵣ saved0.s4) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
          savedFrame spW savedCaller) **
+        (adFoldConstants **
         ((nonceOut ↦ₘ oldNonce) **
          bytesRegion balanceOut oldBal **
          bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
@@ -877,7 +882,7 @@ theorem adField0ContEpi
          (((.x5 : Reg) ↦ᵣ adLengthAddr) ** ((.x6 : Reg) ↦ᵣ len') ** ((.x7 : Reg) ↦ᵣ (8 : Word)) **
           ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) h := by xperm_hyp hp
+          ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) h := by xperm_hyp hp
     have hg := ((sepConj_pure_left h).1 (((sepConj_pure_left h).1 hgP).2)).2
     exact sepConj_mono (sepConj_mono
       (sepConj_mono_right (sepConj_mono_left (fun h' hr => listNthFrameRegs_implies_owned
@@ -1014,6 +1019,7 @@ theorem adBBField0
          ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
          ((.x20 : Reg) ↦ᵣ rootOut) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
         savedFrame spW savedCaller) **
+       (adFoldConstants **
        ((nonceOut ↦ₘ oldNonce) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
@@ -1022,7 +1028,7 @@ theorem adBBField0
         (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** ((.x11 : Reg) ↦ᵣ v11') **
          ((.x12 : Reg) ↦ᵣ v12') ** regOwn .x13 ** regOwn .x14 **
          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-         ((.x15 : Reg) ↦ᵣ codeOut)))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
+         ((.x15 : Reg) ↦ᵣ codeOut))))) ** ((.x10 : Reg) ↦ᵣ status)) h := by
       have hcomb : (_ ** _) h := ⟨h1, h2, hd, hu, hbig, hacc⟩
       xperm_hyp hcomb
     exact sepConj_mono (sepConj_mono
