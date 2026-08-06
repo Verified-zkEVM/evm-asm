@@ -744,10 +744,11 @@ def accountWritesBlockUpsertFunction : String :=
 
     Map-row balance alone is insufficient after self-burn: `record_nonstorage_effect`
     derives HAS_BALANCE only from pre≠post, so clear_preserving with pre=post=live
-    leaves the write-map bal at the CREATE seed (often 0) while AccountState already
-    holds the preserved balance. When map bal=0, consult AccountState balance only
-    (not nonce — CREATE nonce must not block EIP-161 empty after clear) and keep
-    Present with that balance when nonzero (03736 self_burn).
+    leaves the write-map bal at the CREATE seed (often 0).  When map bal=0, resolve
+    the preserved balance through the same lower-tier chain as `get_account`: the
+    block map for a prior transaction, then the authenticated parent witness.  Do
+    not use the live AccountState overlay here; it is not a pre-state tier and can
+    hide the exact map miss this fallback is meant to resolve (03736 self_burn).
 
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
@@ -772,17 +773,17 @@ def accountWritesApplyDeletesFunction : String :=
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
-  -- Map bal=0: AccountState may still hold clear_preserving balance (self-burn).
-  "  mv a0, s0; la a1, account_state_pending; la t1, account_state_pending_count; ld a2, 0(t1); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
-  "  bnez a0, .Lawd_hit_from_state\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t1, account_state_durable_count; ld a2, 0(t1); li a3, " ++ toString accountStateResolverCapacity ++ "; jal ra, account_state_find\n" ++
-  "  beqz a0, .Lawd_present_none\n" ++
-  ".Lawd_hit_from_state:\n" ++
-  "  ld t1, 88(a0); andi t1, t1, 32; beqz t1, .Lawd_present_none\n" ++
-  "  ld t1, 32(a0); ld t2, 40(a0); or t1, t1, t2; ld t2, 48(a0); or t1, t1, t2; ld t2, 56(a0); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
+  -- Map bal=0: resolve the lower-tier pre-state balance.  This is the exact
+  -- `get_account` fallback after tx and block account-write maps: a missing
+  -- balance component means the current balance was never changed above that
+  -- tier, so the authenticated parent account is the preserved value.
+  "  sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp); sd zero, 64(sp); sd zero, 72(sp)\n" ++
+  "  mv a0, s0; addi a1, sp, 40; la t1, sv_pre_rlp_ptr; ld a2, 0(t1); la t1, sv_pre_rlp_len; ld a3, 0(t1); la t1, bv_witness_state_ptr; ld a4, 0(t1); la t1, bv_witness_state_len; ld a5, 0(t1); jal ra, account_resolve_pre_state\n" ++
+  "  bnez a0, .Lawd_overflow\n" ++
+  "  ld t1, 48(sp); ld t2, 56(sp); or t1, t1, t2; ld t2, 64(sp); or t1, t1, t2; ld t2, 72(sp); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
   "  slli t0, s3, 7; li t2, 0xa2b20000; add t0, t2, t0\n" ++
-  "  ld t1, 32(a0); sd t1, 32(t0); ld t1, 40(a0); sd t1, 40(t0)\n" ++
-  "  ld t1, 48(a0); sd t1, 48(t0); ld t1, 56(a0); sd t1, 56(t0)\n" ++
+  "  ld t1, 48(sp); sd t1, 32(t0); ld t1, 56(sp); sd t1, 40(t0)\n" ++
+  "  ld t1, 64(sp); sd t1, 48(t0); ld t1, 72(sp); sd t1, 56(t0)\n" ++
   "  j .Lawd_keep_present\n" ++
   ".Lawd_present_none:\n" ++
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0\n" ++
