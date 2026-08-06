@@ -299,11 +299,11 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_charge_regular:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
-  -- Build the stable delegation designator before publishing AccountState.
+  -- Build the stable delegation designator before publishing the account-write
+  -- row.
   -- The same pointer is reused by the optional AccountWrite producer below;
   -- allocating twice would consume two block-lifetime slots for one auth.
-  -- AccountState is execution state, so this producer is unconditional on the
-  -- MTx-only AccountWrite path.
+  -- The account-write producer below is unconditional on the MTx-only path.
   "  beqz s11, .L77prep_state_code_null; la t0, eip7702_auth_code_next; ld t1, 0(t0); li t2, " ++ toString bvEip7702AuthEntryCapacity ++ "; bgeu t1, t2, .L77prep_bad_record; slli t3, t1, 3; slli t4, t1, 4; add t3, t3, t4; la t4, eip7702_auth_code_slots; add s8, t4, t3; addi t1, t1, 1; sd t1, 0(t0); li t0, 0xef; sb t0, 0(s8); li t0, 1; sb t0, 1(s8); sb zero, 2(s8); li t0, 0\n" ++
   ".L77prep_state_code_copy:\n" ++
   "  li t1, 20; beq t0, t1, .L77prep_state_code_ready; add t1, s10, t0; lbu t2, 0(t1); add t1, s8, t0; addi t1, t1, 3; sb t2, 0(t1); addi t0, t0, 1; j .L77prep_state_code_copy\n" ++
@@ -312,13 +312,11 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_state_code_ready:\n" ++
   -- execution-specs `eoa_delegation.py:set_delegation` installs the authority
   -- code and increments its nonce here, before message execution.  Publish the
-  -- append-only code effect and nonce effect at this same point: their
-  -- AccountWrite rows receive the current transaction BAI, rather than a
-  -- post-runtime replay BAI.  The AccountState write above owns the
-  -- execution-state mutation, so the companion producers must not append it a
-  -- second time.  Body REVERT restores only the post-preparation snapshot, so
-  -- this auth record persists through a reverted message as in the spec.
-  "  la a0, b1an_authority; ld a1, 112(sp); addi a1, a1, 1; mv a2, s11; mv a3, s8; jal ra, account_state_record_auth; bnez a0, .L77prep_bad_record\n" ++
+  -- append-only code effect, nonce effect, and account-write row at this same
+  -- point: the row receives the current transaction BAI rather than a
+  -- post-runtime replay BAI.  Body REVERT restores only the post-preparation
+  -- snapshot, so this auth record persists through a reverted message as in
+  -- the spec.
   -- The code-effect log is deliberately written before runtime.  It is the
   -- execution-time source used by code-read suppression and code-effect
   -- comparators; the AccountWrite map below carries the actual marker bytes to
