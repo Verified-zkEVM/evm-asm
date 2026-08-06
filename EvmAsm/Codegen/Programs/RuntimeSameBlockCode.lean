@@ -41,7 +41,7 @@ def runtimeSameBlockDelegationCode_prog : Program :=
     .SD .x2 .x9 (16 : BitVec 12),
     .SD .x2 .x18 (24 : BitVec 12),
     .MV .x8 .x10,
-    .JAL .x1 (jalOff GuestAddrs.account_state_lookup_current (GuestAddrs.runtime_same_block_delegation_code + 24)),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_lookup_current (GuestAddrs.runtime_same_block_delegation_code + 24)),
     .LI .x5 (2 : Word),
     .BEQ .x10 .x5 (128 : BitVec 13),
     .LI .x5 (1 : Word),

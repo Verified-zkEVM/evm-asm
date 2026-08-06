@@ -30,7 +30,7 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   -- current account-write tiers first.  Status 1/2 means a present account;
   -- Present-None status 3 deliberately falls through to the authenticated
   -- header predicate below.
-  "  la t1, " ++ ctxLabel ++ "\n" ++
+  "  la t1, " ++ ctxLabel ++ "; addi a0, t1, 72\n" ++
   "  jal ra, account_writes_lookup_current\n" ++
   "  li t2, 1; beq a0, t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
   "  li t2, 2; beq a0, t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
