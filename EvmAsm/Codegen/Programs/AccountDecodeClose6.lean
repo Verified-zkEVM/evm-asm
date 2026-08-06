@@ -246,7 +246,15 @@ theorem adField1Success
     hlenW hsalign hslack hover hvalid hralign hrover hrootlen hrvalid hcalign hcover hcodelen
     hcvalid hf0 hf1 hl0 hl1
   exact cpsTripleWithin_mono_nSteps (by omega)
-    (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hcopy hbb)
+    (cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by
+        have hg : (adCallPre (AB + 196) spW listBase len nonceOut balanceOut rootOut codeOut
+            o1 l1 (0 : Word) v11 v12 v13 v14 bytes **
+           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
+            bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
+            ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
+        exact hg) hcopy hbb)
 
 #print axioms adField1Success
 
