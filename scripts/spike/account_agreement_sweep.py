@@ -47,6 +47,7 @@ def symbols(elf: Path, nm: str) -> dict[str, int]:
     )
     found: dict[str, int] = {}
     wanted = {
+        "account_agreement_enabled",
         "account_agreement_probe_count",
         "account_agreement_balance_probe_count",
         "account_agreement_nonce_probe_count",
@@ -225,6 +226,11 @@ def main() -> int:
         env = os.environ.copy()
         env["SPIKE_DUMP_RANGES"] = f"{start:#x}:{length:#x}"
         env["SPIKE_DUMP_FILE"] = str(dump_path)
+        # The production guest carries the harness but leaves it inert.  The
+        # sweep is the explicit debug consumer, so arm the runtime flag only
+        # for this process.  The address comes from the candidate ELF rather
+        # than from a hand-pinned layout constant.
+        env["SPIKE_INIT_WRITES"] = f"{syms['account_agreement_enabled']:#x}:1"
         process = subprocess.run(
             [str(args.runner), str(args.elf), str(input_path), str(output_path)],
             env=env,
