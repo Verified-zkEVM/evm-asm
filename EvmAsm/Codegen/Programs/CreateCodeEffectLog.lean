@@ -633,17 +633,16 @@ def accountStateLookupCurrentFunction : String :=
 
 /-! ## account_write_touch_current
 
-    First TOUCHED producer (#11329 / entry6). Snapshots the current
-    AccountState overlay into `account_writes` with mask bit TOUCHED (VALUE 32)
-    sticky-OR'd, so root enumeration sees the address even when no
-    BALANCE/NONCE/CODE delta is present.
+    First TOUCHED producer (#11329 / entry6). Publishes a TOUCHED-only
+    transaction-map row (VALUE 32 sticky-OR'd), so root enumeration sees the
+    address even when no BALANCE/NONCE/CODE delta is present. Existing map
+    components are preserved by `account_write_record`'s fieldwise upsert.
 
     a0 = canonical 20-byte BE address pointer.
     Does NOT call `account_read_record` (touch is a write-side fact, not a read).
-    When an occupied AccountState row exists (pending first, then durable),
-    copies every authoritative component (balance bit5, nonce bit6, code bit2)
-    plus STATE + EXEC_FLAGS so baap map-mode can rebuild the account leaf.
-    Absent overlay → TOUCHED-only row (mask 32).
+    The helper never reads the retired pending/durable AccountState arrays.
+    Missing map components remain missing and are resolved by the map-side
+    builder fallback at the transaction boundary.
 
     Clobbers only what `account_write_record` already restores. -/
 def accountWriteTouchCurrentFunction : String :=
@@ -652,22 +651,6 @@ def accountWriteTouchCurrentFunction : String :=
   "  addi sp, sp, -80; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp); sd a3, 48(sp); sd a4, 56(sp); sd a5, 64(sp); sd a6, 72(sp)\n" ++
   "  mv s0, a0\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lawtc_hit\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lawtc_touch_only\n" ++
-  ".Lawtc_hit:\n" ++
-  "  mv s1, a0; ld t0, 88(s1); andi t1, t0, 16; beqz t1, .Lawtc_touch_only\n" ++
-  "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags + accountWriteHasState) ++ "\n" ++
-  "  mv a7, t0\n" ++
-  "  andi t1, t0, 2; snez a5, t1\n" ++
-  "  li a1, 0; li a2, 0; li a3, 0; li a4, 0\n" ++
-  "  andi t1, t0, 32; beqz t1, .Lawtc_nonce; ori a6, a6, " ++ toString accountWriteHasBalance ++ "; addi a1, s1, 32\n" ++
-  ".Lawtc_nonce:\n" ++
-  "  andi t1, t0, 64; beqz t1, .Lawtc_code; ori a6, a6, " ++ toString accountWriteHasNonce ++ "; ld a2, 64(s1)\n" ++
-  ".Lawtc_code:\n" ++
-  "  andi t1, t0, 4; beqz t1, .Lawtc_record; ori a6, a6, " ++ toString accountWriteHasCode ++ "; ld a3, 72(s1); ld a4, 80(s1)\n" ++
-  ".Lawtc_record:\n" ++
-  "  mv a0, s0; jal ra, account_write_record; j .Lawtc_ret\n" ++
-  ".Lawtc_touch_only:\n" ++
   "  mv a0, s0; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0; li a6, " ++ toString accountWriteHasTouched ++ "; li a7, 0; jal ra, account_write_record\n" ++
   ".Lawtc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
