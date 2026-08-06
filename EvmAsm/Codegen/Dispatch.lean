@@ -1939,23 +1939,8 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
-    accountStateFindFunction ++ "\n" ++
-    accountStateCopyFunction ++ "\n" ++
-    accountStateAppendPendingFunction ++ "\n" ++
-    accountStateUpsertDurableFunction ++ "\n" ++
-    codeStateFinalBalanceNonzeroFunction ++ "\n" ++
-    accountStateCommitPendingFunction ++ "\n" ++
     accountStatePromoteDeleteReadsFunction ++ "\n" ++
-    accountStateRecordNonstorageFunction ++ "\n" ++
-    accountStateRecordCodeFunction ++ "\n" ++
-    accountStateRecordAuthFunction ++ "\n" ++
-    accountStatePublishSenderInclusionFunction ++ "\n" ++
-    accountStateAuthCurrentFunction ++ "\n" ++
-    accountStateLatestBalanceFunction ++ "\n" ++
-    accountStateLatestNonceFunction ++ "\n" ++
-    accountStateLookupCurrentFunction ++ "\n" ++
     accountWriteTouchCurrentFunction ++ "\n" ++
-    accountStateTombstoneBalanceZeroFunction ++ "\n" ++
     accountStateCreatedContainsFunction ++ "\n" ++
     codeStateAddressSetInsertFunction ++ "\n" ++
     codeStateAddressSetFlagFunction ++ "\n" ++
@@ -3104,23 +3089,8 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
-  accountStateFindFunction ++ "\n" ++
-  accountStateCopyFunction ++ "\n" ++
-  accountStateAppendPendingFunction ++ "\n" ++
-  accountStateUpsertDurableFunction ++ "\n" ++
-  codeStateFinalBalanceNonzeroFunction ++ "\n" ++
-  accountStateCommitPendingFunction ++ "\n" ++
   accountStatePromoteDeleteReadsFunction ++ "\n" ++
-  accountStateRecordNonstorageFunction ++ "\n" ++
-  accountStateRecordCodeFunction ++ "\n" ++
-  accountStateRecordAuthFunction ++ "\n" ++
-  accountStatePublishSenderInclusionFunction ++ "\n" ++
-  accountStateAuthCurrentFunction ++ "\n" ++
-  accountStateLatestBalanceFunction ++ "\n" ++
-  accountStateLatestNonceFunction ++ "\n" ++
-  accountStateLookupCurrentFunction ++ "\n" ++
   accountWriteTouchCurrentFunction ++ "\n" ++
-  accountStateTombstoneBalanceZeroFunction ++ "\n" ++
   accountStateCreatedContainsFunction ++ "\n" ++
   codeStateAddressSetInsertFunction ++ "\n" ++
   codeStateAddressSetFlagFunction ++ "\n" ++
