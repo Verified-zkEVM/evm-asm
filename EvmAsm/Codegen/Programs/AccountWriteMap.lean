@@ -445,6 +445,42 @@ def accountWritesCreatedContainsFunction : String :=
   ".Lawc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16; ret\n"
 
+/-! Current execution-code/status lookup over the account-write tiers.
+
+    This preserves the ABI of `account_state_lookup_current` so existing
+    callers can switch independently: a0 = 0 absent/miss, 1 live code with
+    a1/a2 = pointer/length, 2 present but empty, 3 present-but-deleted.  A
+    transaction row wins over the block row when it carries STATE and
+    EXEC_FLAGS; component-only balance/nonce/touch rows are deliberately
+    skipped so they cannot mask a lower-tier code row or the caller's witness
+    fallback. -/
+def accountWritesLookupCurrentFunction : String :=
+  "account_writes_lookup_current:\n" ++
+  "  addi sp, sp, -24; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawlc_tx_loop:\n" ++
+  "  bgeu t3, t1, .Lawlc_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawlc_tx_cmp:\n" ++
+  "  beqz t6, .Lawlc_tx_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlc_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlc_tx_cmp\n" ++
+  ".Lawlc_tx_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlc_tx_loop\n" ++
+  ".Lawlc_tx_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 16; beqz t1, .Lawlc_tx_next; andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
+  ".Lawlc_block_init:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawlc_block_loop:\n" ++
+  "  bgeu t3, t1, .Lawlc_absent; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawlc_block_cmp:\n" ++
+  "  beqz t6, .Lawlc_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlc_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlc_block_cmp\n" ++
+  ".Lawlc_block_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlc_block_loop\n" ++
+  ".Lawlc_block_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 16; beqz t1, .Lawlc_block_next; andi t1, t0, 8; beqz t1, .Lawlc_block_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
+  ".Lawlc_empty:\n  li a0, 2; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
+  ".Lawlc_deleted:\n  li a0, 3; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
+  ".Lawlc_absent:\n  li a0, 0; li a1, 0; li a2, 0\n" ++
+  ".Lawlc_ret:\n  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 24; ret\n"
+
 /-! Runtime-only map/overlay diagnostics.  The probe compares canonical 128-byte
     map rows with the exact pending-then-durable AccountState row; reader 17 is
     BLOCK-tier, other registered readers are TX-tier.  Armed balance and nonce
@@ -1510,6 +1546,7 @@ def accountWriteMapFunctions : String :=
   accountWritesAuthCurrentFunction ++
   accountWritesAuthBlockFunction ++
   accountWritesCreatedContainsFunction ++
+  accountWritesLookupCurrentFunction ++
   accountAgreementRecordFunction ++
   accountAgreementMutationCheckpointFunction ++
   accountAgreementScanFunction ++
@@ -1567,6 +1604,7 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapFunctions.splitOn "account_writes_auth_current:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_auth_block:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_created_contains:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_lookup_current:").length == 2
 #guard (accountWritesLatestNonceBlockFunction.splitOn "account_state_").length == 1
 #guard (accountWriteMapFunctions.splitOn "account_agreement_probe:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_agreement_scan:").length == 2
