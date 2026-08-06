@@ -12,10 +12,10 @@ extcodecopy_at_header_state_root:
   mv s5, a5                  # output buffer ptr
   mv s6, a6                  # witness.state ptr
   mv s7, a7                  # witness.state len
-  # Reject length > 32768 (EIP-7907 deployed-code-size cap).
-  li t0, 32768
+  # Reject length > 65536 (EIP-7907 MAX_CODE_SIZE / deployed-code-size cap).
+  li t0, 65536
   bgtu s4, t0, .Lecc_too_long
-  # Pre-zero output[0..length] byte-by-byte (length <= 32768).
+  # Pre-zero output[0..length] byte-by-byte (length <= 65536).
   mv t0, s5
   mv t1, s4
 .Lecc_zero_loop:
