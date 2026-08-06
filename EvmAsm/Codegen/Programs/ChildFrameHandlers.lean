@@ -1159,6 +1159,11 @@ def callDescendFallThrough
    -- one paired record rather than manufacturing separate debit/credit records.
    -- This remains post-snapshot and therefore inside the child rollback interval;
    -- frame_return drops it together with the live debit/credit on failure.
+   -- The descriptors (cd_caller_be, nse_callee_be, cd_value_be, cd_balance_be,
+   -- nse_acct) are static scratch reused by nested calls, so this must stay in
+   -- the post-descend, pre-dispatch window. The same publisher is used by the
+   -- CREATE endowment site: process_create_message delegates to process_message
+   -- (interpreter.py:212), so both sites implement the spec's single move_ether.
    (if mode != 0 then "" else
      recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
        "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
