@@ -10,7 +10,12 @@
 # silent again, which is the defect #11637 recorded (~103 linked, proven routines
 # invisible to every census, so the proven-count understated reality).
 #
-# Seeded with the backlog as of 2026-08-06. Burn it down; do not grow it.
+# Seeded with the backlog as of 2026-08-06 at 103. Burn it down; do not grow it.
+#
+# ⭐ FIRST REAL BURN-DOWN, same day: #11575 registered `header_validate_extra_data_length`
+# (a tier-A entry), and this gate failed with STALE naming the line to delete rather than
+# letting the exemption outlive its reason. 103 -> 102. That is the ratchet working on a
+# live merge, not a synthetic test.
 #
 # TIER A — a flat `cpsTripleWithin` at `GuestAddrs.<symbol>`. Registrable as
 #   `.proven` in Routines.lean TODAY with no new proof work. These are the ones to
@@ -21,7 +26,7 @@
 #   structured-only spec as a flat triple is exactly the invisible overclaim this
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 
-# --- TIER A: flat triple at the guest address; registrable now (20) ---
+# --- TIER A: flat triple at the guest address; registrable now (19) ---
 account_extract_balance	tier A — flat triple `account_extract_balance_spec_within` at GuestAddrs.account_extract_balance (EvmAsm/Codegen/Programs/AccountAccessorTopSpec.lean); registrable as .proven, not yet rowed (#11637)
 account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
 account_is_eip161_empty	tier A — flat triple `account_is_eip161_empty_spec_within` at GuestAddrs.account_is_eip161_empty (EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose6.lean); registrable as .proven, not yet rowed (#11637)
