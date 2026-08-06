@@ -226,6 +226,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- r59nm S2: cursors/overflow flags for the two storage_writes levels.
     storageWriteMapDataSection ++ "\n" ++
     accountWriteMapDataSection ++ "\n" ++
+    accountAgreementDataSection ++ "\n" ++
     balMapBuilderConsistentDataSection ++ "\n" ++
     balCanonicalSortDataSection ++ "\n" ++
     keccakIncrementalDataSection ++ "\n" ++
@@ -656,6 +657,7 @@ def statelessVerdictV2GuestData : String :=
   -- mirroring state_tracker.py:879-881.
   storageWriteMapDataSection ++ "\n" ++
   accountWriteMapDataSection ++ "\n" ++
+  accountAgreementDataSection ++ "\n" ++
   balMapBuilderConsistentDataSection ++ "\n" ++
   balCanonicalSortDataSection ++ "\n" ++
   keccakIncrementalDataSection ++ "\n" ++

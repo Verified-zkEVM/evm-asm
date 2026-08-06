@@ -150,7 +150,7 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_deleg_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
   -- Header load remains raw: account_read_record already ran at entry.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
