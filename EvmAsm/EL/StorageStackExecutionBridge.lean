@@ -4,7 +4,8 @@
   Pure stack-to-ECALL execution bridge for SLOAD/SSTORE (GH #110).
 -/
 
-import EvmAsm.EL.StorageArgsEcallBridge
+import EvmAsm.Evm64.StorageAccess
+import EvmAsm.Evm64.StorageArgs
 
 namespace EvmAsm.EL
 
@@ -12,7 +13,7 @@ namespace StorageStackExecutionBridge
 
 abbrev EvmWord := EvmAsm.Evm64.EvmWord
 abbrev StorageKind := EvmAsm.Evm64.StorageArgs.Kind
-abbrev StorageAccessList := StorageArgsEcallBridge.StorageAccessList
+abbrev StorageAccessList := EvmAsm.Evm64.StorageAccess.StorageAccessList
 
 /-- Runtime state visible to the pure storage stack bridge. -/
 structure StorageStackState where
