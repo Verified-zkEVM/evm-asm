@@ -6,7 +6,7 @@
   set-code transaction, that current code can be the 0xef0100||address
   delegation marker even though the pre-state trie still has empty code.
 
-  #11396: reads execution AccountState overlay only — never the
+  #11396: reads transaction/block account-write maps only — never the
   supplied BAL. Spec pin e5a8caf1b amsterdam fork.py:928-930 builds BAL
   after execution; provided BAL is not an execution input.
 -/
@@ -25,13 +25,15 @@ open EvmAsm.Rv64
     Calling convention:
       a0 = 20-byte address ptr
     Returns:
-      a0 = 0 if AccountState has authoritative same-tx code that is either
+      a0 = 0 if the account-write map has authoritative same-tx code that is either
            empty (cleared EIP-7702 delegation) or exactly a 23-byte EIP-7702
            delegation marker; then rsbd_code_ptr/rsbd_code_len name those bytes.
       a0 = 1 otherwise (caller falls through to ordinary code lookup).
 
-    Source: `account_state_lookup_current` → AccountState pending/durable overlay
-    written by `eip7702_auth_state_prepare` / code deposits — not BAL. -/
+    Source: `account_writes_lookup_current` → transaction/block account-write
+    maps written by authorization/code effects — not BAL.  The concrete
+    GuestAddrs target is refreshed with the single final guest regeneration;
+    the symbolic relocation below is the emitted call contract. -/
 def runtimeSameBlockDelegationCode_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -85,7 +87,7 @@ def runtimeSameBlockDelegationCode_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def runtimeSameBlockDelegationCode_relocs : RelocTable :=
-  [ (6, .jal .x1 "account_state_lookup_current"),
+  [ (6, .jal .x1 "account_writes_lookup_current"),
     (24, .la .x5 "rsbd_code_ptr"),
     (27, .la .x5 "rsbd_code_len"),
     (32, .la .x5 "rsbd_code_ptr"),
@@ -104,7 +106,7 @@ theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
 
 #guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
 #guard runtimeSameBlockDelegationCode_prog.length = 47
-#guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_state_lookup_current").length == 2
+#guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_writes_lookup_current").length == 2
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "code_state_lookup_current")
