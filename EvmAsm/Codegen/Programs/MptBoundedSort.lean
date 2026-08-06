@@ -647,14 +647,25 @@ def mptBoundedSplitExtensionGroupFunction : String :=
     re-encoding; this is the canonical MPT branch-elision rule.
 
     ABI: `a0=branch frame`, `a1=survivor nibble`, `a2=branch depth`,
-    `a3,a4=witness`; returns 0 with the raw result or 1 when the survivor is
-    not a leaf/extension (branch-survivor collapse is handled separately). -/
+    `a3,a4=witness`, `a5,a6=optional LCP prefix ptr/len`.
+    Returns 0 with the raw result, or 1 on unsupported/malformed input.
+    `a6>0` (LCP-prefixed collapse from split_leaf_group) is fail-closed
+    (#11613 silent wrong-success on large mixed insert+delete). Callers that
+    only need unprefixed collapse (rebuild_subtree / build_missing) pass
+    `a5=a6=0`. Branch-survivor collapse is handled separately. -/
 def mptBoundedCollapseBranchLeafFunction : String :=
   "  .globl mpt_bounded_collapse_branch_leaf\n" ++
   "mpt_bounded_collapse_branch_leaf:\n" ++
   "  addi sp, sp, -96\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  sd a5, 80(sp); sd a6, 88(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu a6, t0, .Lmbcbl_fail; bgeu s2, t0, .Lmbcbl_fail; li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu s1, t0, .Lmbcbl_fail; slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); beqz t1, .Lmbcbl_fail; sd t0, 72(sp); addi a0, t0, 8; mv a1, t1; mv a2, s3; mv a3, s4; addi t0, s2, 1; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t0, t0, t1; la t1, bsr_builder_frames; add s5, t1, t0; mv a4, s5; jal ra, mpt_bounded_open_child_frame; beqz a0, .Lmbcbl_child_opened; ld t0, 72(sp); addi a0, t0, 8; ld a1, 0(t0); addi a2, s2, 1; mv a3, s5; jal ra, mpt_bounded_open_constructed_child_frame; bnez a0, .Lmbcbl_fail\n  .Lmbcbl_child_opened:\n  ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s5); sd t0, 64(sp); beqz t0, .Lmbcbl_branch; li t1, 2; beq t0, t1, .Lmbcbl_kind_ok; li t1, 1; beq t0, t1, .Lmbcbl_kind_ok; j .Lmbcbl_fail\n" ++
+  "  sd a5, 80(sp); sd a6, 88(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
+  -- #11613: LCP-prefixed collapse (a6>0) is only used by split_leaf_group.
+  -- On large mixed insert+delete (12832-34) that path returns a0=0 with a
+  -- wrong root (silent wrong-success; first offline mismatch at N=400).
+  -- rebuild_subtree / build_missing pass a5=a6=0 and remain supported.
+  -- Fail-closed here so baap falls back to legacy mpt_state_root_ins.
+  "  bnez a6, .Lmbcbl_fail\n" ++
+  "  li t0, " ++ toString bsrMptKeyNibbles ++ "; bgtu a6, t0, .Lmbcbl_fail; bgeu s2, t0, .Lmbcbl_fail; li t0, " ++ toString bsrMptRadixFanout ++ "; bgeu s1, t0, .Lmbcbl_fail; slli t0, s1, 5; slli t1, s1, 3; add t0, t0, t1; add t0, s0, t0; ld t1, 0(t0); beqz t1, .Lmbcbl_fail; sd t0, 72(sp); addi a0, t0, 8; mv a1, t1; mv a2, s3; mv a3, s4; addi t0, s2, 1; li t1, " ++ toString bsrMptBuilderFrameBytes ++ "; mul t0, t0, t1; la t1, bsr_builder_frames; add s5, t1, t0; mv a4, s5; jal ra, mpt_bounded_open_child_frame; beqz a0, .Lmbcbl_child_opened; ld t0, 72(sp); addi a0, t0, 8; ld a1, 0(t0); addi a2, s2, 1; mv a3, s5; jal ra, mpt_bounded_open_constructed_child_frame; bnez a0, .Lmbcbl_fail\n  .Lmbcbl_child_opened:\n  ld t0, " ++ toString bsrMptFrameNodeKindOffset ++ "(s5); sd t0, 64(sp); beqz t0, .Lmbcbl_branch; li t1, 2; beq t0, t1, .Lmbcbl_kind_ok; li t1, 1; beq t0, t1, .Lmbcbl_kind_ok; j .Lmbcbl_fail\n" ++
   ".Lmbcbl_branch:\n  ld t0, 72(sp); addi t1, t0, 8; ld t2, 0(t0); sd t1, " ++ toString bsrMptFrameExtensionChildPtrOffset ++ "(s5); sd t2, " ++ toString bsrMptFrameExtensionChildLenOffset ++ "(s5); ld t4, 88(sp); addi t4, t4, 1; li t5, " ++ toString bsrMptKeyNibbles ++ "; sub t5, t5, s2; add t5, t5, t4; bgtu t4, t5, .Lmbcbl_fail; addi t0, s5, " ++ toString bsrMptFrameExtensionPathOffset ++ "; ld t1, 80(sp); ld t2, 88(sp)\n  .Lmbcbl_branch_prefix:\n  beqz t2, .Lmbcbl_branch_nibble; lbu t3, 0(t1); sb t3, 0(t0); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lmbcbl_branch_prefix\n  .Lmbcbl_branch_nibble:\n  sb s1, 0(t0); ld t0, 88(sp); addi t0, t0, 1; sd t0, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); mv a0, s5; la a1, bsr_builder_node; la a2, bsr_builder_result_ref; la a3, bsr_builder_result_len; jal ra, mpt_bounded_encode_extension; bnez a0, .Lmbcbl_fail; li a0, 0; j .Lmbcbl_ret\n" ++
   ".Lmbcbl_kind_ok:\n" ++
   "  li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; addi a1, t0, -1; mv a0, s5; jal ra, mpt_bounded_decode_frame_payload; bnez a0, .Lmbcbl_fail; ld s6, " ++ toString bsrMptFrameExtensionPathLenOffset ++ "(s5); ld t4, 88(sp); li t0, " ++ toString bsrMptKeyNibbles ++ "; sub t0, t0, s2; add t0, t0, t4; add t5, s6, t4; addi t5, t5, 1; bgtu t5, t0, .Lmbcbl_fail; addi t0, s5, " ++ toString bsrMptFrameExtensionPathOffset ++ "; add t1, t0, s6; addi t6, t4, 1\n" ++
@@ -802,8 +813,9 @@ def mptBoundedEncodeExtensionFunction : String :=
 
 /-- Bounded shared-root body for the supported exact-replacement subset.
     The input descriptors have already been normalized to final, distinct
-    committed values.  It intentionally remains disconnected from the live
-    verdict until insert/delete/canonical-collapse cases have comparable KATs.
+    committed values.  LCP-prefixed collapse (split_leaf_group → collapse with
+    a6>0) is fail-closed (#11613); unprefixed collapse and pure insert/delete
+    remain on the bounded path. Legacy mpt_state_root_ins is the baap fallback.
 
     ABI: `a0 = old_root[32]`; `a1 = witness section`; `a2 = witness length`;
     `a3 = descriptors`; `a4 = descriptor count`; `a5 = out_root[32]`.
