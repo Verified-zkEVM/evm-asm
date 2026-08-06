@@ -387,6 +387,33 @@ differential, so there is no `diff` result to inherit. FULL DOMAIN: the only sid
 conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
 is the ABI contract, not an input-domain gate" },
 
+  -- #11348: the block/receipt bloom accumulation.
+  { family := "bloom", routine := "bloom_or_into",
+    spec := some "bloomOrIntoFn_spec",
+    verdict := .agrees, basis := .bridged,
+    reference := "logs_bloom's pointwise-OR decomposition \
+(SpecRef/BloomAlgebra.lean: bloomOr, logs_bloom_append)",
+    note := "⭐ THE COUNTERPART HAD TO BE CONSTRUCTED, which is the whole content of \
+this row. The reference `logs_bloom` (Fork.lean:101) never ORs two blooms: it folds \
+*bit-sets* into one accumulator via `add_to_bloom`'s three `List.set`s, over the \
+block's logs as one flat list. The guest instead materialises a bloom per receipt and \
+ORs them pairwise. So before #11348 there was no reference term for this routine's post \
+at all and the only honest verdict would have been `noCounterpart`. BloomAlgebra supplies \
+the missing algebra: `add_to_bloom b e = bloomOr b (add_to_bloom zeroBloom e)`, whose \
+proof is NOT the obvious disjoint-update argument -- the three bit indices derived from \
+one entry CAN collide into the same byte, so it goes through `setOr_getD` with a case \
+split per step, handling collisions by `Nat.lor` idempotence rather than avoiding them. \
+That yields `logs_bloom_append`, and hence `bloomOrInto_fold_eq_logs_bloom`: folding \
+this routine over per-receipt log groups from the zero bloom equals the reference bloom \
+of all the logs. WHY `.bridged`: the guest side is a machine-level SAsm triple \
+(`bloomOrIntoFn_spec`) whose post is `orWin src orig 32`, and it is tied to `bloomOr` by \
+a Lean theorem (`orWin_full_eq_bloomOr`, BloomOrIntoBridge.lean) rather than by \
+inspection -- the two shapes match definitionally because `bloomOr` was deliberately \
+written in the guest's `(List.range 256).map` form. ⚠️ SCOPE: the FOLD only, per the \
+issue and docs/leaf-routine-targets.md. The per-log index derivation (keccak256 + the \
+11-bit extraction) is an opaque function of the entry here; a divergence in THAT would \
+not be caught by this row" },
+
   -- #11349: the header gas-limit rule. Row is mandatory once the symbol is witnessed
   -- in Routines.lean -- #11342 showed an absent row passes the cross-registry gate
   -- vacuously.
@@ -542,7 +569,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 25 := by decide
+theorem registry_size : registry.length = 26 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
@@ -551,6 +578,9 @@ theorem guest_rows : countFamily "guest" = 1 := by decide
 theorem header_rows : countFamily "header" = 2 := by decide
 /-- #11344. No differential for this family -- see the row's note. -/
 theorem mpt_rows : countFamily "mpt" = 1 := by decide
+/-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
+    than found in the fork spec -- see the row's note. -/
+theorem bloom_rows : countFamily "bloom" = 1 := by decide
 
 /-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
     that is not automatically a sign the schema has stopped discriminating.
@@ -570,7 +600,7 @@ theorem mpt_rows : countFamily "mpt" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 16 ∧ countVerdict .domainRestricted = 4 ∧
+    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 4 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -582,7 +612,7 @@ theorem verdict_counts :
 theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
-    countBasis .diff = 1 ∧ countBasis .bridged = 10 ∧
+    countBasis .diff = 1 ∧ countBasis .bridged = 11 ∧
     countBasis .ported = 4 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
