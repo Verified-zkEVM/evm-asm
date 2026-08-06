@@ -2154,6 +2154,22 @@ theorem Nat.toBytesBE_length_le :
       have := ih k' hk
       omega
 
+/-- **A canonical field's width is bounded by its value.** For a byte list with
+    no leading zero, `fromBytesBE bs < 256 ^ k` forces `bs.length ≤ k`.
+
+    This is the converse direction of `fromBytesBE_lt`, and it only holds under
+    canonicality — `[0, 0, 1]` decodes to `1 < 256 ^ 1` while being three bytes
+    long. It is what lets a caller state a width restriction over the *decoded
+    value* rather than over the encoding: given a decoder that already rejects
+    leading zeros, "fits in `k` bytes" and "is `< 256 ^ k`" are interchangeable
+    (#11513). -/
+theorem Nat.length_le_of_canonical_lt {bs : List Byte} {k : Nat}
+    (hcanon : bs.headD 1 ≠ 0) (hlt : Nat.fromBytesBE bs < 256 ^ k) :
+    bs.length ≤ k := by
+  have hround := Nat.toBytesBE_fromBytesBE_of_canonical bs hcanon
+  calc bs.length = (Nat.toBytesBE (Nat.fromBytesBE bs)).length := by rw [hround]
+    _ ≤ k := Nat.toBytesBE_length_le _ _ hlt
+
 /-- The minimal big-endian encoding of a positive value is a nonempty list whose
     leading (most-significant) byte is nonzero — the canonical no-leading-zero
     shape. Induction follows `toBytesBE`'s division recursion. -/

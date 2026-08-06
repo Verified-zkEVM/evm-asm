@@ -83,15 +83,47 @@ safety-relevant outcome in the schema.
 
 ⚠️ **`stricter` and `looser` attribute the defect to the guest.** When the port is
 the broken side, neither is honest — record `portDefect` and grade the guest on its
-own merits. The worked example is
-`header_extract_number` (#11513): the guest rejects a numeric header field wider
-than eight bytes or carrying a leading zero, `rlp.decode_to` rejects them too, and
-only the port's `getN = bytesBEtoNat` accepts them. Graded `stricter`, that row
-would record a false-reject against a guest that is behaving correctly. Its guest
-verdict is `domain-restricted` — but on **arity**, a genuinely separate
-restriction: the triple only claims agreement where `_decode_header` succeeds, so
-what the guest does on a wrong-arity header is unproven. Grading it `agrees` from
-the content evidence alone would overclaim.
+own merits.
+
+### ⚠️ …but first check that the reference really does reject it
+
+`header_extract_number` (#11513) is the worked example, and it is worth walking
+through in full, because the obvious reading of it was **wrong twice**.
+
+The guest rejects a numeric header field that is wider than eight bytes, or that
+carries a leading zero. The reference decodes via `rlp.decode_to(Header, …)`, a
+*typed* decode. The tempting inference — "a typed decode validates its fields, so
+the reference rejects both, so the guest is right and only the port's
+`getN = bytesBEtoNat` is lenient" — is **half true**, and the false half hid a real
+guest defect behind a port one for two gradings running.
+
+The two checks come from two different places, with different scope:
+
+| check | source | scope |
+|---|---|---|
+| leading zero | `_deserialize_to_uint` (`ethereum_rlp` 0.1.6, `rlp.py:270-271`) | **every** uint field |
+| width | the target type's `from_be_bytes` (`ethereum_types` 0.4.1) | **fixed-width types only** |
+
+`FixedUnsigned.from_be_bytes` raises when the buffer exceeds the type
+(`numeric.py:566-577`), but `Uint.from_be_bytes` is a plain `int.from_bytes` with no
+length check (`numeric.py:523-528`). `Header.number` is annotated `Uint`
+(`amsterdam/blocks.py:157`). **So CPython accepts a nine-byte `number`, and the
+guest rejects it.** That is a false reject against the reference — `stricter`, on
+the guest — and no amount of fixing the port removes it.
+
+The lesson generalises past this row: *"the reference is type-directed"* is a claim
+about mechanism, not about which inputs it rejects. Read the type's own conversion
+before recording a strictness verdict, and record which types are unbounded. The
+grading that follows:
+
+- **canonicality** — a genuine `portDefect` while it lasted, now fixed: the port
+  performs the check.
+- **width** — `stricter`, the registry's first, and a *systemic* one: the guest is a
+  u64 machine reading fields the spec types as arbitrary-precision or 256-bit
+  (`timestamp` is `U256`, so the reference allows 32 bytes where the guest allows 8).
+- **arity** — a genuinely separate restriction, still real: the triple only claims
+  agreement where `_decode_header` succeeds, so what the guest does on a wrong-arity
+  header is unproven. Recorded in the row's note, since a row carries one verdict.
 
 ## 3. Basis — how much a verdict is worth
 
@@ -189,6 +221,17 @@ rather than merely disclosed.
 > Related: a fresh worktree has an **empty** `execution-specs/`, and the main
 > checkout may sit at an older rev than the gitlink. Always
 > `git submodule update --init execution-specs` and check the tag.
+>
+> ⚠️ **`ethereum_types` is the second half of this trap, and it decides width
+> verdicts.** `uv.lock` pins `ethereum-types == 0.4.1`; whether a numeric field
+> is width-bounded at all lives there, not in `ethereum_rlp` —
+> `FixedUnsigned.from_be_bytes` raises on an over-wide buffer while
+> `Uint.from_be_bytes` does not (`numeric.py:566-577` vs `:523-528`). A local
+> `.venv` has been observed carrying **0.1.5 / 0.3.0** while the lock said
+> 0.1.6 / 0.4.1, so check **both** before citing either. If the pinned versions
+> are already in the uv cache
+> (`~/.cache/uv/archive-v0/*/ethereum_{rlp,types}/`), read them from there
+> rather than `uv sync`-ing a shared checkout out from under other work.
 
 ## 7. When NOT to audit a family
 

@@ -8,17 +8,25 @@
   this supplies the vocabulary its `Result` obligation must be read in.
 
   ⚠️ Two of `Result`'s five constructors are *not* reachable under the model's
-  assumptions alone — they are the guest being STRICTER than the port:
+  assumptions alone, and after #11513 the two have DIFFERENT status. They are not
+  a matched pair, and treating them as one was the error that #11493 unpicked:
 
-  * `tooLong` — the guest rejects a field wider than eight bytes; the port's
-    `getN` is plain `bytesBEtoNat`, which does not care.
-  * `noncanonical` — the guest rejects a leading zero byte; `bytesBEtoNat`
-    tolerates one.
+  * `noncanonical` — the guest rejects a leading zero byte. `_decode_header` now
+    rejects it too (`_deserialize_to_uint` does, so the port had been the lenient
+    one), which means this constructor is **discharged here** rather than pushed
+    onto the caller.
+  * `tooLong` — the guest rejects a field wider than eight bytes. The reference
+    does **not**: `number` is annotated `Uint`, whose `from_be_bytes` has no
+    length check at all, so a nine-byte `number` is accepted by CPython and by
+    the (now faithful) port. This is the GUEST being stricter than the
+    reference — a genuine false reject, not a port defect — so it stays a
+    hypothesis, as `hfits`.
 
-  Both restrictions are therefore hypotheses here, and both are what make the
-  Correspondence row `.domainRestricted` rather than `.agrees`.  The guest's
-  extra strictness matches CPython's `rlp.decode_to`, which enforces exactly
-  these; it is the *port* that dropped them.
+  `hfits` is phrased over `hdr.number` rather than over the encoding, which is
+  only possible *because* the port now enforces canonicality: with no leading
+  zeros, "at most eight bytes" and "< 2 ^ 64" are the same restriction
+  (`Nat.length_le_of_canonical_lt`). Before #11513 it had to be an
+  encoding-level side condition the caller could not see.
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
@@ -107,22 +115,32 @@ header arity, so on a list of some other length it still returns a value where
 open EvmAsm.Stateless.SpecRef in
 /-- **`header_extract_number` against `_decode_header`'s `number` field.**
 
-    The `items`/`bs` arguments come from `decode_header_inv`; the two content
-    restrictions are properties of the ENCODING, not of `hdr.number`, which is
-    why they cannot be phrased over the value. -/
+    Takes the decode hypothesis directly and inverts it with
+    `decode_header_inv`, so the port's own typed checks discharge what used to be
+    caller obligations. What remains is `hfits`, the one restriction the
+    reference does not share — see the file preamble. -/
 theorem header_number_of_decode
     (headerBytes : List (BitVec 8)) (base : Word) (hdr : Header)
-    (items : List RLPItem) (bs : List (List (BitVec 8))) (status value : Word)
-    (hfull : decodeFully headerBytes = some (.list items))
-    (hlenEq : bs.length = items.length)
-    (harity : bs.length = 23 ∨ bs.length = 21)
-    (hidx : ∀ i, i < items.length → items[i]? = some (.bytes (bs.getD i [])))
-    (hnum : hdr.number = bytesBEtoNat (bs.getD 8 []))
-    (hshort : (bs.getD 8 []).length ≤ 8)
-    (hcanon : ∀ c, (bs.getD 8 []).head? = some c → c ≠ 0)
+    (status value : Word)
+    (hdec : _decode_header headerBytes = .ok hdr)
+    (hfits : hdr.number < 2 ^ 64)
     (hres : Result headerBytes base headerBytes.length 8 status value)
     (hover : base.toNat + headerBytes.length + 9 < 2 ^ 64) :
     status = 0 ∧ value = BitVec.ofNat 64 hdr.number := by
+  obtain ⟨items, bs, hfull, hlenEq, harity, hidx, hval, hchecks⟩ := decode_header_inv hdec
+  -- field 8's canonicality is now the PORT's check, not the caller's
+  obtain ⟨hcanon, -⟩ := hchecks 8 none (by decide)
+  have hnum : hdr.number = bytesBEtoNat (bs.getD 8 []) := by rw [hval]; rfl
+  -- canonical ∧ < 2 ^ 64 ⇒ at most eight bytes; this is where `hfits` is spent
+  have hcanon1 : (bs.getD 8 []).headD 1 ≠ 0 := by
+    cases hb : (bs.getD 8 []) with
+    | nil => simp
+    | cons x xs => simpa using hcanon x (by rw [hb]; simp)
+  have hshort : (bs.getD 8 []).length ≤ 8 := by
+    refine Nat.length_le_of_canonical_lt hcanon1 ?_
+    calc Nat.fromBytesBE (bs.getD 8 []) = hdr.number := hnum.symm
+      _ < 2 ^ 64 := hfits
+      _ = 256 ^ 8 := by norm_num
   have h8 : 8 < items.length := by rcases harity with h | h <;> omega
   have hidx8 := hidx 8 h8
   -- every child is a byte string, which is what the forward stack needs
