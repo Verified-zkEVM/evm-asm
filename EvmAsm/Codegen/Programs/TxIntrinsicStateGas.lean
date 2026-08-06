@@ -101,11 +101,11 @@ def balAccountNonceBeforeIndexFunction : String :=
 
     Resolve one authority for EIP-7702 auth preparation.
 
-    a1 (nonce) is CURRENT (pending then durable) — auth validation needs the
+    a1 (nonce) is CURRENT (transaction map then block map) — auth validation needs the
     post-prior-auth nonce within the same transaction.
 
     a2 (delegated) is TRANSACTION-START `delegated_before_tx` per
-    eoa_delegation.py:265-281 / get_pre_state_account: durable AccountState
+    eoa_delegation.py:265-281 / get_pre_state_account: block map
     only (prior committed txs), then authenticated pre-block header code —
     NEVER the pending current-tx overlay.  First auth clearing a delegation
     must not make a later same-tx auth see delegated=0 and re-charge AUTH_BASE
@@ -121,27 +121,21 @@ def balAccountNonceBeforeIndexFunction : String :=
 def eip7702AuthorityAsOfFunction : String :=
   "eip7702_authority_asof:\n" ++
   "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0; li s2, 0\n" ++
-  -- Spec get_account records the read before any overlay/pre-state lookup
-  -- (state_tracker.py:139).  Absent authorities must still appear as empty
-  -- BAL rows after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
-  "  mv a0, s0; jal ra, account_read_record\n" ++
-  -- CURRENT overlay for liveness + nonce (pending then durable).
-  "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_state_auth_current\n" ++
+  -- The map contract records the execution read before resolving current
+  -- liveness/nonce.  Absent authorities must still appear as empty BAL rows
+  -- after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
+  -- CURRENT map for liveness + nonce (transaction then block).
+  "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_writes_auth_current\n" ++
   "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
   "  ld s1, 56(sp)\n" ++
-  -- a2 = delegated_before_tx: durable only (skip pending), else header code.
-  -- Durable is authoritative for code/delegation only when bit16 (execution-
-  -- known / code-known) is set — prior-tx auth/code commit.  Sender inclusion
-  -- (`publish_sender_inclusion` flags|=67 = occupied|exists|nonce-auth bit6)
-  -- must NOT mask pre-block header code: bit6 alone with a2=0 was charging
-  -- AUTH_BASE on already-delegated authorities (2ffdac 7702 pointer cluster,
-  -- over-debit = 35190 state gas).  Match record_code's bit4/bit16 contract
-  -- (CreateCodeEffectLog: balance-only must never mask authenticated code).
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find\n" ++
+  -- a2 = delegated_before_tx: block map only (skip transaction rows), else
+  -- header code.  The map contract requires nonce, state, and EXEC_FLAGS
+  -- components, so sender inclusion and balance-only rows cannot mask the
+  -- authenticated pre-block header code.
+  "  mv a0, s0; addi a1, sp, 56; addi a2, sp, 48; jal ra, account_writes_auth_block\n" ++
   "  beqz a0, .L77as_deleg_hdr\n" ++
-  "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .L77as_deleg_empty\n" ++
-  "  andi t1, t0, 16; beqz t1, .L77as_deleg_hdr\n" ++
-  "  andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_deleg_empty\n" ++
+  "  ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_empty:\n" ++
   "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_hdr:\n" ++
@@ -150,9 +144,9 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_deleg_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_state_latest_nonce; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
+  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
-  -- Header load remains raw: account_read_record already ran at entry.
+  -- Header load remains raw: the map accessor recorded the execution read.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
   "  beqz a0, .L77as_found; li t0, 1; beq a0, t0, .L77as_absent; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
   ".L77as_found:\n" ++
