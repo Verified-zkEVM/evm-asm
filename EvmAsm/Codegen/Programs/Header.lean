@@ -16,7 +16,7 @@
     K43  validate_header_basic
     K72  check_gas_limit
     K63  calc_excess_blob_gas
-         amsterdam_blob_gas_price
+         amsterdam_blob_gas_price_u256
     K67  header_validate_post_merge
     K68  header_validate_extra_data_length
 
@@ -664,115 +664,12 @@ def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
   dataAsm     := ziskCalcExcessBlobGasDataSection
 }
 
-/-! ## amsterdam_blob_gas_price -- Amsterdam blob fee fake exponential
-
-    Compute the Amsterdam `calculate_blob_gas_price` helper:
-
-      taylor_exponential(1, excess_blob_gas, 11684671)
-
-    from `execution-specs/src/ethereum/forks/amsterdam/vm/gas.py`.
-    The generic `taylor_exponential` helper in
-    `execution-specs/src/ethereum/utils/numeric.py` uses an accumulator
-    scaled by the denominator:
-
-      i = 1
-      output = 0
-      numerator_accumulated = denominator
-      while numerator_accumulated > 0:
-          output += numerator_accumulated
-          numerator_accumulated =
-              (numerator_accumulated * excess_blob_gas) // (denominator * i)
-          i += 1
-      return output // denominator
-
-    This RV64 implementation is an exact u64 implementation for the
-    EEST-relevant range where every intermediate product and sum fits
-    in u64. It returns status=1 rather than wrapping if the helper's
-    u64 envelope is exceeded; callers that need arbitrary-precision
-    blob prices should extend this helper to the u256 toolkit.
-
-    Calling convention:
-      a0 (input)  : excess_blob_gas (u64)
-      ra (input)  : return
-      a0 (output) : status, 0 ok / 1 u64 overflow
-      a1 (output) : blob gas price (u64; 0 on overflow).
-
-    Pure register arithmetic, no scratch memory, leaf-callable. -/
-def amsterdamBlobGasPrice_prog : Program :=
-  [ .ADDI .x2 .x2 (-48 : BitVec 12),
-    .SD .x2 .x8 (0 : BitVec 12),
-    .SD .x2 .x9 (8 : BitVec 12),
-    .SD .x2 .x18 (16 : BitVec 12),
-    .SD .x2 .x19 (24 : BitVec 12),
-    .SD .x2 .x20 (32 : BitVec 12),
-    .MV .x8 .x10,
-    .LUI .x9 (2853 : BitVec 20),
-    .ADDIW .x9 .x9 (-1217 : BitVec 12),
-    .LI .x18 (1 : Word),
-    .LI .x19 (0 : Word),
-    .MV .x20 .x9,
-    .BEQ .x20 .x0 (124 : BitVec 13),
-    .ADD .x5 .x19 .x20,
-    .BLTU .x5 .x19 (128 : BitVec 13),
-    .MV .x19 .x5,
-    .MULHU .x28 .x20 .x8,
-    .MUL .x29 .x20 .x8,
-    .MULHU .x5 .x9 .x18,
-    .BNE .x5 .x0 (108 : BitVec 13),
-    .MUL .x7 .x9 .x18,
-    .BEQ .x7 .x0 (100 : BitVec 13),
-    .BGEU .x28 .x7 (96 : BitVec 13),
-    .MV .x30 .x28,
-    .LI .x31 (0 : Word),
-    .LI .x6 (64 : Word),
-    .SRLI .x5 .x29 (63 : BitVec 6),
-    .SRLI .x28 .x30 (63 : BitVec 6),
-    .SLLI .x30 .x30 (1 : BitVec 6),
-    .OR .x30 .x30 .x5,
-    .SLLI .x29 .x29 (1 : BitVec 6),
-    .SLLI .x31 .x31 (1 : BitVec 6),
-    .BNE .x28 .x0 (8 : BitVec 13),
-    .BLTU .x30 .x7 (12 : BitVec 13),
-    .SUB .x30 .x30 .x7,
-    .ORI .x31 .x31 (1 : BitVec 12),
-    .ADDI .x6 .x6 (-1 : BitVec 12),
-    .BNE .x6 .x0 (-44 : BitVec 13),
-    .MV .x20 .x31,
-    .ADDI .x5 .x18 (1 : BitVec 12),
-    .BEQ .x5 .x0 (24 : BitVec 13),
-    .MV .x18 .x5,
-    .JAL .x0 (-120 : BitVec 21),
-    .DIVU .x11 .x19 .x9,
-    .LI .x10 (0 : Word),
-    .JAL .x0 (12 : BitVec 21),
-    .LI .x10 (1 : Word),
-    .LI .x11 (0 : Word),
-    .LD .x8 .x2 (0 : BitVec 12),
-    .LD .x9 .x2 (8 : BitVec 12),
-    .LD .x18 .x2 (16 : BitVec 12),
-    .LD .x19 .x2 (24 : BitVec 12),
-    .LD .x20 .x2 (32 : BitVec 12),
-    .ADDI .x2 .x2 (48 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-
-def amsterdamBlobGasPriceFunction : String :=
-  "amsterdam_blob_gas_price:\n" ++ emitProgram amsterdamBlobGasPrice_prog
-
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `amsterdamBlobGasPrice_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
-theorem amsterdamBlobGasPriceFunction_eq_prog :
-    amsterdamBlobGasPriceFunction = "amsterdam_blob_gas_price:\n" ++ emitProgram amsterdamBlobGasPrice_prog := rfl
-
-#guard amsterdamBlobGasPriceFunction.startsWith "amsterdam_blob_gas_price:\n"
-#guard amsterdamBlobGasPrice_prog.length = 55
 /-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
 
-    Same `taylor_exponential(1, excess_blob_gas, 11684671)` as
-    `amsterdam_blob_gas_price`, but accumulates in 256-bit precision and
-    returns the price as a 32-byte big-endian u256. The u64 helper saturates
-    to a `status=1` overflow once the (denominator-scaled) accumulator leaves
+    `taylor_exponential(1, excess_blob_gas, 11684671)`, accumulating in
+    256-bit precision and returning the price as a 32-byte big-endian u256.
+    (A u64 variant existed and was removed in #11350 — zero production
+    callers; this is the only blob-gas-price routine in the guest.)
     the u64 envelope (around excess ≈ 328M), which is well below the EIP-4844
     consensus-reachable range: e.g. `excess_blob_gas = 564,002,816` yields a
     blob gas price ≈ e^48 ≈ 9.4e20 (~70 bits). The spec's `taylor_exponential`
@@ -879,32 +776,6 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
 
 #guard amsterdamBlobGasPriceU256Function.startsWith "amsterdam_blob_gas_price_u256:\n"
 #guard amsterdamBlobGasPriceU256_prog.length = 61
-/-- `zisk_amsterdam_blob_gas_price`: probe BuildUnit. Reads
-    `excess_blob_gas` from host input, writes `(status, price)` to
-    OUTPUT. -/
-def ziskAmsterdamBlobGasPricePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a2, 0x40000000\n" ++
-  "  ld a0, 8(a2)                # excess_blob_gas\n" ++
-  "  jal ra, amsterdam_blob_gas_price\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  sd a1, 8(t0)                # blob gas price\n" ++
-  "  j .Labgp_pdone\n" ++
-  amsterdamBlobGasPriceFunction ++ "\n" ++
-  ".Labgp_pdone:"
-
-def ziskAmsterdamBlobGasPriceDataSection : String :=
-  ".section .data\n" ++
-  "abgp_pad:\n" ++
-  "  .zero 8"
-
-def ziskAmsterdamBlobGasPriceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAmsterdamBlobGasPricePrologue
-  dataAsm     := ziskAmsterdamBlobGasPriceDataSection
-}
-
 /-! ## header_validate_post_merge -- PR-K67
 
     Verify the three post-merge header invariants:
