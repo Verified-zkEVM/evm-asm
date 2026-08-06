@@ -1111,22 +1111,9 @@ def callDescendFallThrough
   "  mv x10, s10                           # restore parent PC for frame_save_regs\n" ++
   "  la a1, cd_desc\n" ++
   "  jal ra, call_frame_descend\n" ++
-  -- The child snapshot is now established.  Publish the paired value-transfer
-  -- BAL effects from the pre-resolved stable descriptors so frame_return drops
-  -- them with a reverting child, matching process_message's snapshot→move_ether
-  -- ordering. The helper performs no state lookup; it only consumes these
-  -- caller-supplied pointers, so the switched x12/x20 registers are irrelevant.
-  -- This is deliberately before the first child dispatch: cd_caller_be,
-  -- nse_callee_be, cd_value_be, cd_balance_be, and nse_acct are static scratch
-  -- reused by nested calls, so they are valid only in this post-descend,
-  -- pre-dispatch window.
+  -- The child snapshot is now established. Credit child env+32 (.selfBalance)
+  -- with the transferred value so nested-frame SELFBALANCE and the child's
    (if mode != 0 then "" else
-     -- GH #10938: the setup is the shared `recordMessageValueTransferAsm`, which the
-     -- CREATE-endowment site also uses.  The spec has ONE `move_ether` for both, since
-     -- `process_create_message` delegates to `process_message` (`interpreter.py:212`).
-     recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
-       "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8") ++
-     -- Credit child env+32 (.selfBalance) with the transferred value so nested-frame
      -- SELFBALANCE and the child's own CREATE value-gate see pre + call.value.
      -- call_frame_descend stages env+32 from pre-transfer balance only; the parent
      -- debit above updates the caller frame, but until now nothing wrote the callee
@@ -1167,6 +1154,19 @@ def callDescendFallThrough
       -- intentionally at the mutation boundary, before child dispatch.
       "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; addi a1, x20, 32; li a2, 2; la t0, evm_call_depth; ld a3, 0(t0); jal ra, account_agreement_mutation_checkpoint; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
       ".Lcd_child_sb_done_" ++ tag ++ ":\n") ++
+   -- Publish the paired value-transfer BAL effects only after both live balance
+   -- mutations. The spec's move_ether is one atomic paired transition, so keep
+   -- one paired record rather than manufacturing separate debit/credit records.
+   -- This remains post-snapshot and therefore inside the child rollback interval;
+   -- frame_return drops it together with the live debit/credit on failure.
+   -- The descriptors (cd_caller_be, nse_callee_be, cd_value_be, cd_balance_be,
+   -- nse_acct) are static scratch reused by nested calls, so this must stay in
+   -- the post-descend, pre-dispatch window. The same publisher is used by the
+   -- CREATE endowment site: process_create_message delegates to process_message
+   -- (interpreter.py:212), so both sites implement the spec's single move_ether.
+   (if mode != 0 then "" else
+     recordMessageValueTransferAsm "cd_caller_be" "nse_callee_be" "cd_value_be" "li a3, 1"
+       "cd_balance_be" "nse_acct" (recipientPreAdjust := "addi a5, a5, 8")) ++
    -- fva3w: x20 now = CHILD env (call_frame_descend repointed it; eventLogCheckpoint@480 is
    -- set to the current count). Emit the deferred EIP-7708 value-CALL transfer log HERE so it
    -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
