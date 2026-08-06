@@ -85,15 +85,14 @@ def nonstorageEffectHasNonce : Nat := 2
     Returns a0 = 0 appended / 1 overflow (not written; exec_nonstorage_effect_overflow set).
     Clobbers t0-t6, a0; preserves s-regs (saved).
 
-    `record_nonstorage_effect_after_account_state` is the companion entry for a
-    caller that has already performed the AccountState mutation and needs only
-    the raw effect plus AccountWrite publications.  It avoids a second pending
-    AccountState append while retaining the same output records.
+    `record_nonstorage_effect_after_account_state` is retained as an ABI alias
+    for callers that used to perform an AccountState mutation first.  It now
+    emits the same raw effect and AccountWrite publication without a second
+    execution-state append.
 
     `record_nonstorage_effect_nonce_only_after_account_state` is the EIP-7702
     authorization variant.  It carries an honest nonce-only raw mask while
-    retaining the AccountWrite publication at the authorization's current BAI;
-    the authorization already owns the AccountState mutation.
+    retaining the AccountWrite publication at the authorization's current BAI.
 
     Raw component mask (byte 20) is derived from actual pre/post deltas — the same
     rule AccountWrite already used — so balance-only producers that pass equal
@@ -145,12 +144,6 @@ def recordNonstorageEffectFunction : String :=
   "  sd s3, 96(t3)               # pre_nonce\n" ++
   "  sd s4, 104(t3)              # post_nonce\n" ++
   "  la t0, exec_nonstorage_effect_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  -- tqj1m: mirror the comparison trace into the full execution AccountState
-  -- journal.  The legacy record remains intact for the BAL comparator until
-  -- the final comparison-materialization switch; a bounded journal failure
-  -- fails closed through this producer's established overflow path.
-  "  bnez a5, .Lrnse_account_state_done; mv a0, s0; mv a1, s1; mv a2, s2; mv a3, s3; mv a4, s4; jal ra, account_state_record_nonstorage; bnez a0, .Lrnse_overflow\n" ++
-  ".Lrnse_account_state_done:\n" ++
   -- Preserve this successful execution effect in the transaction-local map.
   -- It is a fieldwise overlay: a balance-only effect must not overwrite a
   -- prior nonce increment merely because this generic record also carries a

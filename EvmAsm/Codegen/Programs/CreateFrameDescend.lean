@@ -34,6 +34,7 @@
 
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
@@ -135,6 +136,10 @@ def createFrameDescendFunction : String :=
   -- GH #10645: destroy_storage before mark_account_created (interpreter.py:202 then :208).
   "  addi sp, sp, -24; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, create_address_word; jal ra, destroy_storage\n" ++
   "  la a0, create_address_be; la a1, account_state_created; la a2, account_state_created_count; li a3, " ++ toString accountStateCreatedCapacity ++ "; jal ra, code_state_address_set_insert; beqz a0, .Lcfd_account_created_ok; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  -- Mirror the pre-body created membership into the transaction map before
+  -- initcode can execute SELFDESTRUCT.  Code publication is later, so this
+  -- row intentionally carries only STATE, EXEC_FLAGS, and TOUCHED.
+  "  la a0, create_address_be; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 1; li a6, " ++ toString (accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 27; jal ra, account_write_record\n" ++
   ".Lcfd_account_created_ok:\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 24\n" ++
   -- The new account's nonce is 1 before its initcode runs. Register it now

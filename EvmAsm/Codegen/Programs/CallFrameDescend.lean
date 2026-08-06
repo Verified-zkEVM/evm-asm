@@ -415,7 +415,7 @@ def callFrameDescendFunction : String :=
   "  lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, -1; addi t0, t0, 1; addi t2, t2, -1; bnez t2, .Lcfd_lbov_rev\n" ++
   "  addi sp, sp, -8; sd ra, 0(sp)\n" ++
   "  addi a0, s9, 696; addi a1, s9, 728\n" ++
-  "  li a2, 4; jal ra, account_state_latest_balance\n" ++
+  "  li a2, 4; jal ra, account_writes_latest_balance\n" ++
   "  mv t6, a0\n" ++                              -- 1 = found
   "  ld ra, 0(sp); addi sp, sp, 8\n" ++
   "  beqz t6, .Lcfd_lbov_done\n" ++
@@ -500,10 +500,8 @@ def callFrameDescendFunction : String :=
   bodyStateCaptureScalarAsm "exec_code_effect_count" "t1" 16 "t4" "t0" ++
   bodyStateCaptureScalarAsm "exec_code_effect_next" "t1" 24 "t4" "t0" ++
   bodyStateCaptureScalarAsm "exec_code_effect_overflow" "t1" 32 "t4" "t0" ++
-  -- The mutable AccountState is a transaction overlay, so it needs the same
-  -- per-frame high-water-mark discipline as the legacy comparison log.  Keep
-  -- the checkpoints depth-indexed rather than extending the packed env ABI.
-  bodyStateCaptureScalarAsm "account_state_pending_count" "t1" 72 "t4" "t0" ++
+  -- Offset 72 remains reserved in the slab for layout compatibility; the
+  -- retired AccountState pending journal has no frame checkpoint anymore.
   bodyStateCaptureScalarAsm "account_state_delete_count" "t1" 80 "t4" "t0" ++
   "  la t1, evm_selfdestruct_destroyed_count; ld t0, 0(t1); sd t0, 728(s9)  # same-tx destroyed-address snapshot\n" ++
   "  la t1, evm_selfdestruct_seen_count; ld t0, 0(t1)\n" ++

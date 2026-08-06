@@ -2,7 +2,7 @@ runtime_same_block_delegation_code:
   addi sp, sp, -32
   sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)
   mv s0, a0
-  jal ra, account_state_lookup_current
+  jal ra, account_writes_lookup_current
   li t0, 2; beq a0, t0, .Lrsbd_miss
   li t0, 1; bne a0, t0, .Lrsbd_miss
   mv s1, a1; mv s2, a2

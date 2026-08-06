@@ -302,7 +302,7 @@ def recordSuccessfulPrecompileValueEffectsAsm (tag : String) (valueOff? : Option
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     "  beqz t0, .L" ++ tag ++ "_precompile_nse_callee_pre; la t0, nse_acct; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
     ".L" ++ tag ++ "_precompile_nse_callee_pre:\n" ++
-    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; li a2, 6; jal ra, account_state_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
+    "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); la a0, nse_callee_be; la a1, nse_acct; addi a1, a1, 8; li a2, 6; jal ra, account_writes_latest_balance; ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); addi sp, sp, 32\n" ++
     -- `process_message` moves ether before selecting the precompile executor;
     -- use the same producer as the dispatching CALL path with this fast path's
     -- own resolved operands.  It does not force a child-frame descent.

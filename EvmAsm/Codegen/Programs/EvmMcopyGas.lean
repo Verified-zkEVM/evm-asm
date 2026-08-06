@@ -6,6 +6,8 @@
   the file-size guardrail.
 -/
 
+import EvmAsm.Codegen.Programs.EvmMemoryGas
+
 namespace EvmAsm.Codegen
 
 /-- Dispatcher env offset used by MCOPY gas helpers for the runtime active
@@ -38,10 +40,14 @@ def mcopyDynamicGasAsm : String :=
   "  srli x6, x19, 5\n" ++
   "  slli x7, x6, 1\n" ++
   "  add x7, x7, x6\n" ++
+  -- No mulhu here (#10523). Post-guard ends are arena-clamped (depth0 w≤2^17,
+  -- nested w≤2^22); w² fits u64. mulhu would be dead on reachable inputs and
+  -- forced an x19 lifetime change — dropped; unify with updateActiveMemorySizeAsm
+  -- only in a deliberate both-sites PR if wanted.
   "  mul x6, x6, x6\n" ++
   "  srli x6, x6, 9\n" ++
   "  add x6, x6, x7\n" ++
-  -- after cost = words*3 + words^2/512 for x5
+  -- after cost = words*3 + words^2/512 for x5 (x5 survives; only mul into x7)
   "  srli x7, x5, 5\n" ++
   "  slli x17, x7, 1\n" ++
   "  add x17, x17, x7\n" ++
@@ -52,7 +58,7 @@ def mcopyDynamicGasAsm : String :=
   "  add x18, x18, x7\n" ++
   "  mv x19, x5\n" ++
   ".Lmcopy_src_gas_done:\n" ++
-  -- destination extension uses the source-updated current size.
+  -- destination extension uses the source-updated current size (x19).
   "  add x5, x14, x16\n" ++
   "  addi x5, x5, 31\n" ++
   "  li x6, -32\n" ++
@@ -84,7 +90,13 @@ def mcopyDynamicGasAsm : String :=
     source, or destination are treated as memory-expansion OOG. Per
     execution-specs, zero length skips source/destination expansion, so
     high source/destination limbs are accepted when length is exactly zero.
-    Low-limb `offset + length` wraparound also routes to OOG. -/
+    Low-limb `offset + length` wraparound also routes to OOG.
+
+    Arena bound uses `memoryArenaLimitAsm` (same helper as MLOAD/MSTORE/COPY
+    family) — not a hardcoded `0x10000` (#10523). At this site `x13` is the
+    live EVM-memory base (handler later does `add dst/src, x13, offset`);
+    depth 0 → `rootRuntimeMemoryArenaLimitBytes`; nested →
+    `evm_memory_pool_end - x13`. Scratch: loads `x6` (limit); `x5` ends. -/
 def mcopyRangeGuardAsm : String :=
   -- Any non-zero high length limb means length is not representable here.
   "  ld x5, 72(x12)\n" ++
@@ -107,14 +119,14 @@ def mcopyRangeGuardAsm : String :=
   "  bnez x5, .exit_outofgas\n" ++
   "  ld x5, 56(x12)\n" ++
   "  bnez x5, .exit_outofgas\n" ++
-  -- Detect u64 source/destination end wraparound.
+  -- Frame arena limit into x6 (clobbers x6 only). Tag unique to this site.
+  memoryArenaLimitAsm "mcopy" "x6" ++
+  -- Detect u64 source/destination end wraparound; both ends ≤ arena limit.
   "  add x5, x15, x16\n" ++
   "  bltu x5, x15, .exit_outofgas\n" ++
-  "  li x6, 0x10000\n" ++
   "  bltu x6, x5, .exit_outofgas\n" ++
   "  add x5, x14, x16\n" ++
   "  bltu x5, x14, .exit_outofgas\n" ++
-  "  li x6, 0x10000\n" ++
   "  bltu x6, x5, .exit_outofgas\n" ++
   ".Lmcopy_range_ok:\n"
 

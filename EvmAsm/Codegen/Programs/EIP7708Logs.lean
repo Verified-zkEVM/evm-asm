@@ -306,17 +306,11 @@ def eip7708SyntheticLogFunctions : String :=
   "  la a1, bv_pending_upfront_sender_pre\n" ++
   "  la a2, bv_pending_upfront_sender_post\n" ++
   "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
-  -- The upfront debit is live transaction state, not only a BAL-comparison
-  -- observation.  Record it in AccountState before the body checkpoint so
-  -- the later settlement/refund reads the post-debit sender balance and a
-  -- body revert restores only effects after that checkpoint.
-  "  jal ra, account_state_record_nonstorage\n" ++
-  "  bnez a0, .Ldpub_sender_done\n" ++
-  "  la a0, bv_pending_upfront_sender_addr\n" ++
-  "  la a1, bv_pending_upfront_sender_pre\n" ++
-  "  la a2, bv_pending_upfront_sender_post\n" ++
-  "  la t0, bv_pending_upfront_sender_nonce; ld a3, 0(t0); mv a4, a3\n" ++
+  -- The upfront debit is live transaction state, and the transaction-local
+  -- account-write map is now its sole current-state publication.  Record it
+  -- before the body checkpoint so rollback still starts after the debit.
   "  jal ra, record_nonstorage_effect\n" ++
+  "  bnez a0, .Ldpub_sender_done\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd x0, 0(t0)\n" ++
   ".Ldpub_sender_done:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -361,7 +355,7 @@ def eip7708SyntheticLogFunctions : String :=
    -- A successful lookup supplies the current post-gas sender balance required
    -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
    -- skip rather than falling through to the reused scratch cell.
-   "  la a1, bv_pending_value_sender_pre; li a2, 3; jal ra, account_state_latest_balance; beqz a0, .Ldpub_done\n" ++
+   "  la a1, bv_pending_value_sender_pre; li a2, 3; jal ra, account_writes_latest_balance; beqz a0, .Ldpub_done\n" ++
    -- The runtime CALLVALUE word is an EVM stack word (LE limbs), while the
    -- generic producer calls `u256_sub_be`; reverse it at this ABI boundary.
    "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 127\n" ++
