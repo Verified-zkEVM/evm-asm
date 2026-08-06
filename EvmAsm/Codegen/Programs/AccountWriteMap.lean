@@ -709,7 +709,7 @@ def accountAgreementScanFunction : String :=
   ".Laas_done:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 80; ret\n"
 
-def accountAgreementProbeFunction : String :=
+def accountAgreementProbeLegacyFunction : String :=
   "account_agreement_probe:\n" ++
   "  addi sp, sp, -128; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd a0, 56(sp); sd a1, 64(sp); sd a2, 72(sp)\n" ++
   "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laap_done; mv s0, a0; mv s1, a1; mv s2, a2; li s4, 0\n" ++
@@ -769,6 +769,12 @@ def accountAgreementProbeFunction : String :=
   "  bnez s5, .Laap_done; la t0, account_agreement_no_row; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
   ".Laap_done:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 128; ret\n"
+
+/-! The live AccountState mirror has been retired.  Keep the old probe body
+    unreferenced above for migration provenance, but emit only this ABI-safe
+    no-op so legacy wrapper labels cannot silently compare against dead arrays. -/
+def accountAgreementProbeFunction : String :=
+  "account_agreement_probe:\n  ret\n"
 
 /-! ## `account_writes_block_upsert`
 
@@ -1750,7 +1756,8 @@ def accountWriteMapFunctions : String :=
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "tx_account_writes_overflow:" == 1
 #guard (accountWriteMapDataSection.splitOn "\n").count "account_writes_undo_count:" == 1
-#guard (accountAgreementProbeFunction.splitOn ".Laap_nonce_diff_start:").length == 2
+#guard (accountAgreementProbeFunction.splitOn "account_state_").length == 1
+#guard (accountAgreementProbeFunction.splitOn "account_agreement_probe:").length == 2
 
 /-- Standalone e2e probe BuildUnit for #11329 TOUCHED first-producer gate. -/
 def accountWriteTouchE2ePrologue : String :=
