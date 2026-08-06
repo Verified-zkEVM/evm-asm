@@ -361,7 +361,7 @@ def eip7708SyntheticLogFunctions : String :=
    -- A successful lookup supplies the current post-gas sender balance required
    -- by `move_ether`; a genuine miss has no authenticated live pre-balance, so
    -- skip rather than falling through to the reused scratch cell.
-   "  la a1, bv_pending_value_sender_pre; li a2, 3; jal ra, account_state_latest_balance; beqz a0, .Ldpub_done\n" ++
+   "  la a1, bv_pending_value_sender_pre; li a2, 3; jal ra, account_writes_latest_balance; beqz a0, .Ldpub_done\n" ++
    -- The runtime CALLVALUE word is an EVM stack word (LE limbs), while the
    -- generic producer calls `u256_sub_be`; reverse it at this ABI boundary.
    "  la t0, bv_runtime_payload; la t1, srpc_env_base; ld t1, 0(t1); add t0, t0, t1; addi t0, t0, 127\n" ++
