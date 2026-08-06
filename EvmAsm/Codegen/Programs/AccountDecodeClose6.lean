@@ -290,7 +290,7 @@ theorem adField1ContEpi
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro saved1 savedCaller
   -- (1) expose the K20 continue existentials, keeping x5/x6/x7 owned.
@@ -305,7 +305,8 @@ theorem adField1ContEpi
         (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
     (fun h hp => by
       obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
       unfold adK20ContPost at hcont
@@ -327,7 +328,7 @@ theorem adField1ContEpi
         savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
     (fun h hp => by
       have hin : (((⌜Success bytes listBase listLen 1 offset len'⌝ : Assertion) **
           ((((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved1) ** stackFree spW 8) **
@@ -339,7 +340,7 @@ theorem adField1ContEpi
           (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut oldBal **
            bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-           ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
+           ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
       have hout := sepConj_mono_left (adContReshape spW listBase 1 saved1 bytes listLen offset len'
         v11 v12 v5 v6 v7) h hin
       xperm_hyp hout)
@@ -350,7 +351,7 @@ theorem adField1ContEpi
      savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut oldBal **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) (adBalLenCheck v5 v6 v7 len')
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case fail =>
@@ -493,7 +494,7 @@ theorem adBBField1
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
   have hstage := adField1Stage spW raEntry listBase len nonceOut balanceOut rootOut codeOut
@@ -783,7 +784,7 @@ theorem adField0ContEpi
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro saved0 savedCaller
   -- (1) expose the K20 continue existentials, keeping x5/x6/x7 owned.
@@ -797,7 +798,8 @@ theorem adField0ContEpi
         (adOffsetAddr ↦ₘ offset) ** (adLengthAddr ↦ₘ len') ** savedFrame spW savedCaller **
         (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7) h)
     (fun h hp => by
       obtain ⟨h1, h2, hd, hu, hcont, hacc⟩ := hp
       unfold adK20ContPost at hcont
@@ -819,7 +821,7 @@ theorem adField0ContEpi
         savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
     (fun h hp => by
       have hin : (((⌜Success bytes listBase listLen 0 offset len'⌝ : Assertion) **
           ((((.x2 : Reg) ↦ᵣ spW) ** regsAt listNthFrame (savedVals saved0) ** stackFree spW 8) **
@@ -831,7 +833,7 @@ theorem adField0ContEpi
           (savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
            bytesRegion balanceOut oldBal **
            bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-           ((.x15 : Reg) ↦ᵣ codeOut))) h := by xperm_hyp hp
+           ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)) h := by xperm_hyp hp
       have hout := sepConj_mono_left (adContReshape spW listBase 0 saved0 bytes listLen offset len'
         v11 v12 v5 v6 v7) h hin
       xperm_hyp hout)
@@ -842,7 +844,7 @@ theorem adField0ContEpi
      savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
      bytesRegion balanceOut oldBal **
      bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-     ((.x15 : Reg) ↦ᵣ codeOut))
+     ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants)
     (by pcfa) (adNonceLenCheck v5 v6 v7 len')
   refine cpsBranchWithin_merge_same_cr hbr ?fail ?cont
   case fail =>
@@ -980,7 +982,7 @@ theorem adBBField0
        (savedFrame spW savedCaller ** (nonceOut ↦ₘ oldNonce) **
         bytesRegion balanceOut oldBal **
         bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode **
-        ((.x15 : Reg) ↦ᵣ codeOut)))
+        ((.x15 : Reg) ↦ᵣ codeOut) ** adFoldConstants))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
   have hstage := adField0Stage spW raEntry listBase len nonceOut balanceOut rootOut codeOut
@@ -1098,7 +1100,7 @@ theorem account_decode_spec_within
         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ oldOffset) ** (adLengthAddr ↦ₘ oldLen) **
         (nonceOut ↦ₘ oldNonce) ** bytesRegion balanceOut oldBal **
-        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode))
+        bytesRegion rootOut oldRoot ** bytesRegion codeOut oldCode ** adFoldConstants))
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
   intro savedCaller
   have hpro := adPrologue sp0 spW raSaved listBase len nonceOut balanceOut rootOut codeOut
