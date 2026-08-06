@@ -282,6 +282,33 @@ def accountWritesLatestBalanceFunction : String :=
   ".Lawlb_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
 
+/-! ## `account_writes_latest_balance_block`
+
+    Block-only balance lookup.  This is intentionally separate from
+    `account_writes_latest_balance`: reader 17 is a block-tier reader and must
+    not observe a pending transaction row.  A row without the BALANCE-valid
+    component is a miss, including a nonce/code/state-only row.
+
+    a0 = canonical 20-byte BE address, a1 = 32-byte BE output.
+    Returns a0 = 1 on a block-map balance hit, 0 otherwise. -/
+def accountWritesLatestBalanceBlockFunction : String :=
+  "account_writes_latest_balance_block:\n" ++
+  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawlbb_loop:\n" ++
+  "  bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawlbb_cmp:\n" ++
+  "  beqz t6, .Lawlbb_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlbb_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlbb_cmp\n" ++
+  ".Lawlbb_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlbb_loop\n" ++
+  ".Lawlbb_key:\n" ++
+  "  ld t0, 112(t5); andi t0, t0, 1; beqz t0, .Lawlbb_next\n" ++
+  "  ld t0, 32(t5); sd t0, 0(s1); ld t0, 40(t5); sd t0, 8(s1); ld t0, 48(t5); sd t0, 16(s1); ld t0, 56(t5); sd t0, 24(s1); li a0, 1; j .Lawlbb_ret\n" ++
+  ".Lawlbb_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawlbb_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
+
 /-! ## `account_writes_latest_nonce_block`
 
     Block-map-only nonce lookup, with canonical BE20 `a0`, u64 output pointer
@@ -305,6 +332,118 @@ def accountWritesLatestNonceBlockFunction : String :=
   "  li a0, 0\n" ++
   ".Lawlnb_ret:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
+
+/-! ## `account_writes_latest_nonce_tx`
+
+    Transaction-only nonce lookup.  This is the counterpart to the existing
+    BLOCK-only nonce contract and is used by reader 16, whose current
+    transaction state must not be replaced by a prior block row.
+
+    a0 = canonical 20-byte BE address, a1 = u64 output pointer.
+    Returns a0 = 1 on a transaction-map nonce hit, 0 otherwise. -/
+def accountWritesLatestNonceTxFunction : String :=
+  "account_writes_latest_nonce_tx:\n" ++
+  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawlnt_loop:\n" ++
+  "  bgeu t3, t1, .Lawlnt_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
+  ".Lawlnt_cmp:\n" ++
+  "  beqz a2, .Lawlnt_key; lbu a3, 0(t5); lbu a4, 0(t6); bne a3, a4, .Lawlnt_next; addi t5, t5, 1; addi t6, t6, 1; addi a2, a2, -1; j .Lawlnt_cmp\n" ++
+  ".Lawlnt_next:\n" ++
+  "  addi t3, t3, 1; j .Lawlnt_loop\n" ++
+  ".Lawlnt_key:\n" ++
+  "  ld t0, 112(t4); andi t0, t0, 2; beqz t0, .Lawlnt_next; ld t0, 64(t4); sd t0, 0(s1); li a0, 1; j .Lawlnt_ret\n" ++
+  ".Lawlnt_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawlnt_ret:\n" ++
+  "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
+
+/-! ## Account-write AUTH and CREATED contracts
+
+    AUTH uses the map's explicit EXEC_FLAGS field rather than inferring
+    delegation from a code pointer.  The current lookup checks TX then BLOCK;
+    the block-only companion is used for `delegated_before_tx`.  Both require
+    a valid nonce, state, and EXEC_FLAGS component, so a balance-only or
+    sender-inclusion row cannot mask the authenticated header fallback.
+
+    CREATED is transaction-only and checks the explicit `created-this-tx` bit
+    in EXEC_FLAGS.  It is not inferred from code presence: an authorization
+    row and a normal CREATE row have different provenance even when both carry
+    code bytes.
+
+    AUTH ABI: a0 = address, a1 = nonce output, a2 = flags output;
+    return 0 = miss, 1 = present/live, 2 = present/dead. -/
+def accountWritesAuthCurrentFunction : String :=
+  "account_writes_auth_current:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawa_tx_loop:\n" ++
+  "  bgeu t3, t1, .Lawa_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawa_tx_cmp:\n" ++
+  "  beqz t6, .Lawa_tx_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawa_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawa_tx_cmp\n" ++
+  ".Lawa_tx_next:\n" ++
+  "  addi t3, t3, 1; j .Lawa_tx_loop\n" ++
+  ".Lawa_tx_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_tx_next; andi t1, t0, 8; beqz t1, .Lawa_tx_next; andi t1, t0, 16; beqz t1, .Lawa_tx_next; j .Lawa_hit\n" ++
+  ".Lawa_block_init:\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawa_block_loop:\n" ++
+  "  bgeu t3, t1, .Lawa_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawa_block_cmp:\n" ++
+  "  beqz t6, .Lawa_block_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawa_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawa_block_cmp\n" ++
+  ".Lawa_block_next:\n" ++
+  "  addi t3, t3, 1; j .Lawa_block_loop\n" ++
+  ".Lawa_block_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_block_next; andi t1, t0, 8; beqz t1, .Lawa_block_next; andi t1, t0, 16; beqz t1, .Lawa_block_next; j .Lawa_hit\n" ++
+  ".Lawa_hit:\n" ++
+  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t1, 2; bnez t1, .Lawa_live; li a0, 2; j .Lawa_ret\n" ++
+  ".Lawa_live:\n" ++
+  "  li a0, 1; j .Lawa_ret\n" ++
+  ".Lawa_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawa_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 40; ret\n"
+
+def accountWritesAuthBlockFunction : String :=
+  "account_writes_auth_block:\n" ++
+  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  ".Lawab_loop:\n" ++
+  "  bgeu t3, t1, .Lawab_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawab_cmp:\n" ++
+  "  beqz t6, .Lawab_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawab_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawab_cmp\n" ++
+  ".Lawab_next:\n" ++
+  "  addi t3, t3, 1; j .Lawab_loop\n" ++
+  ".Lawab_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawab_next; andi t1, t0, 8; beqz t1, .Lawab_next; andi t1, t0, 16; beqz t1, .Lawab_next\n" ++
+  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t1, 2; bnez t1, .Lawab_live; li a0, 2; j .Lawab_ret\n" ++
+  ".Lawab_live:\n" ++
+  "  li a0, 1; j .Lawab_ret\n" ++
+  ".Lawab_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawab_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 40; ret\n"
+
+/-! Transaction-local CREATED membership from the explicit map EXEC_FLAGS
+    field.  The map must carry this bit on the CREATE code publication; the
+    contract deliberately does not treat every code row as created. -/
+def accountWritesCreatedContainsFunction : String :=
+  "account_writes_created_contains:\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  ".Lawc_loop:\n" ++
+  "  bgeu t3, t1, .Lawc_no; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
+  ".Lawc_cmp:\n" ++
+  "  beqz t6, .Lawc_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawc_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawc_cmp\n" ++
+  ".Lawc_next:\n" ++
+  "  addi t3, t3, 1; j .Lawc_loop\n" ++
+  ".Lawc_key:\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 16; beqz t1, .Lawc_next; ld t1, 96(t5); andi t1, t1, 8; bnez t1, .Lawc_yes; j .Lawc_next\n" ++
+  ".Lawc_yes:\n" ++
+  "  li a0, 1; j .Lawc_ret\n" ++
+  ".Lawc_no:\n" ++
+  "  li a0, 0\n" ++
+  ".Lawc_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16; ret\n"
 
 /-! Runtime-only map/overlay diagnostics.  The probe compares canonical 128-byte
     map rows with the exact pending-then-durable AccountState row; reader 17 is
@@ -1356,7 +1495,12 @@ def accountWriteTouchE2eFunction : String :=
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
   accountWritesLatestBalanceFunction ++
+  accountWritesLatestBalanceBlockFunction ++
   accountWritesLatestNonceBlockFunction ++
+  accountWritesLatestNonceTxFunction ++
+  accountWritesAuthCurrentFunction ++
+  accountWritesAuthBlockFunction ++
+  accountWritesCreatedContainsFunction ++
   accountAgreementRecordFunction ++
   accountAgreementMutationCheckpointFunction ++
   accountAgreementScanFunction ++
@@ -1408,7 +1552,12 @@ def accountWriteMapFunctions : String :=
 -- only thing that would catch it.
 #guard (accountWriteMapFunctions.splitOn "account_write_record:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_latest_balance:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_latest_balance_block:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_writes_latest_nonce_block:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_latest_nonce_tx:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_auth_current:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_auth_block:").length == 2
+#guard (accountWriteMapFunctions.splitOn "account_writes_created_contains:").length == 2
 #guard (accountWritesLatestNonceBlockFunction.splitOn "account_state_").length == 1
 #guard (accountWriteMapFunctions.splitOn "account_agreement_probe:").length == 2
 #guard (accountWriteMapFunctions.splitOn "account_agreement_scan:").length == 2

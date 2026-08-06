@@ -448,7 +448,18 @@ def accountStateRecordAuthFunction : String :=
   -- retain bit 16, the execution-known marker required by the consumer.
   "  sd s1, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 88(t0); ori t1, t1, 83; li t2, -13; and t1, t1, t2; beqz s2, .Lasra_flags; sd s3, 72(t0); li t2, 23; sd t2, 80(t0); ori t1, t1, 12\n" ++
   ".Lasra_flags:\n" ++
-  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasra_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
+  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; bnez a0, .Lasra_overflow\n" ++
+  -- Publish the same accepted authorization into the transaction map.  The
+  -- explicit EXEC_FLAGS field is the map-side AUTH contract; CODE is always
+  -- valid here so an authorization clear erases an older delegation pointer.
+  "  mv a0, s0; li a1, 0; mv a2, s1; mv a3, s3; li a4, 23; li a5, 1; li a6, " ++ toString (accountWriteHasCode + accountWriteHasNonce + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 83; beqz s3, .Lasra_map_record; li a7, 95\n" ++
+  ".Lasra_map_record:\n" ++
+  "  beqz s3, .Lasra_map_code_empty; j .Lasra_map_code_ready\n" ++
+  ".Lasra_map_code_empty:\n  li a3, 0; li a4, 0\n" ++
+  ".Lasra_map_code_ready:\n" ++
+  "  jal ra, account_write_record; j .Lasra_ret\n" ++
+  ".Lasra_overflow:\n" ++
+  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
   ".Lasra_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 56; ret"
 
@@ -968,7 +979,7 @@ def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : Stri
   -- Same expression as the sibling call, recomputed rather than carried because
   -- `account_state_record_code` and the two set helpers between them may clobber
   -- `t0`; `s3` is the entry offset and survives (callees preserve `s`).
-  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record\n" ++
+  "  mv a0, s0; li a1, 0; li a2, 1; la t0, exec_code_effect_log; add t0, t0, s3; addi a3, t0, 48; mv a4, s2; li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 27; jal ra, account_write_record\n" ++
   "  li a0, 0\n" ++
   "  j .Lcrce_ret\n" ++
   (if resolveExecutionState then
