@@ -102,6 +102,19 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent defect fix (2026-08-06)
+
+- ✅ **GH #11619 — failed CREATE endowment refund / AccountState balance
+  authority.** `account_state_record_nonstorage` now writes balance bytes and
+  sets `HAS_BALANCE` only when pre/post balances differ; nonce-only effects
+  preserve an existing balance overlay.  This matches Amsterdam
+  `block_access_lists.py`'s field-change guards and prevents the failed-child
+  refund from being hidden by a stale pre-descent row.  The rebuilt guest
+  passed the five target fixtures (16009, 16010, 16013, 16014, 16016), the two
+  standing CALL controls, and reported `rebuilt_len == supplied_len` on all
+  seven cases.  Runtime agreement reported zero mismatches and zero
+  unregistered readers.
+
 ### Active epic: tests-zkevm@v0.6.0 migration (`evm-asm-0w05f`, GH #10207)
 
 Upstream published `tests-zkevm@v0.6.0` (execution-specs `40f956fab`,
