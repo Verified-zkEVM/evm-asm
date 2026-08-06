@@ -602,7 +602,7 @@ def callDescendFallThrough
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
     -- A callee created earlier in the block is live even when absent from the
-    -- pre-block witness.  Ask the shared current AccountState rather than the
+    -- pre-block witness.  Ask the shared current account-write tiers rather than the
     -- append-only comparator log.
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
@@ -611,7 +611,7 @@ def callDescendFallThrough
     -- tombstone discriminant below (pin is_account_alive); status 3 is a
     -- finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_writes_lookup_current\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- GH #11334: status 2 conflates a balance-preserved EIP-6780 tombstone
@@ -622,7 +622,7 @@ def callDescendFallThrough
     -- status-2 callee fail is_account_alive and owe the new-account charge.
     "  li t5, 2; bne t6, t5, .Lcd_nacc_std_" ++ tag ++ "\n" ++
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la a0, cd_callee_be\n  jal ra, account_state_tombstone_balance_zero\n" ++
+    "  la a0, cd_callee_be\n  jal ra, account_writes_tombstone_balance_zero\n" ++
     "  mv t5, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t5, .Lcd_nacc_seenentry_" ++ tag ++ "\n" ++
@@ -691,24 +691,24 @@ def callDescendFallThrough
   ".Lcd_code_addr_" ++ tag ++ ":\n" ++
   "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
   "  bnez t2, .Lcd_code_addr_" ++ tag ++ "\n" ++
-  -- Layered execution lookup: pending/durable AccountState is authoritative over
+  -- Layered execution lookup: transaction/block account writes are authoritative over
   -- the block-pre witness.  In particular a durable tx1 CREATE must be seen by
   -- tx2 even though absent from the header, while a tx-end same-tx deletion
   -- masks stale header code.  Only an overlay miss may query the witness.
   "  addi sp, sp, -64\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_writes_lookup_current\n" ++
   "  sd a0, 24(sp); sd a1, 32(sp); sd a2, 40(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); ld t1, 32(sp); ld t2, 40(sp); addi sp, sp, 64\n" ++
   "  bnez t0, .Lcd_acst_done_" ++ tag ++ "\n" ++
-  -- AccountState missed: a transaction-finalized EIP-6780 deletion (AccountState
-  -- delete-pending tombstone, written by account_state_commit_pending) makes
+  -- Account-write lookup missed: a transaction-finalized EIP-6780 deletion
+  -- (Present-None row written by account_writes_apply_deletes) makes
   -- the callee non-existent in every later transaction, so descend on empty
   -- code rather than stale witness bytes.  Within the destroying transaction
   -- no tombstone exists yet, so same-tx semantics are unchanged.
   "  addi sp, sp, -64\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_writes_lookup_current\n" ++
   "  sd a0, 24(sp)\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t0, 24(sp); addi sp, sp, 64\n" ++
   "  li t3, 2; beq t0, t3, .Lcd_empty_" ++ tag ++ "\n" ++
@@ -827,15 +827,15 @@ def callDescendFallThrough
   ".Lcd_resolve_not_precompile_" ++ tag ++ ":\n" ++
   "  beqz t3, .Lcd_descend_" ++ tag ++ "\n" ++
   -- CALL into a contract created earlier in this block.  Resolve the current
-  -- mutable AccountState before treating a header-witness miss as an empty EOA.
+  -- mutable account-write tiers before treating a header-witness miss as an empty EOA.
   -- ABSENT from the block-pre witness, so code_at_header_state_root returns status 1 (account
   -- not in state trie) and the delegation resolver also misses -> the call falsely routed to
   -- .Lcd_empty (empty EOA, push 1) and the child's runtime (e.g. its SELFDESTRUCT / outgoing
   -- value-CALLs) NEVER ran in re-execution -> its deletion / beneficiary credit were never
   -- recorded -> the exec-vs-BAL non-storage comparator false-rejects (bv_fail=44 on
   -- selfdestruct_same_tx_via_call + create-then-call families). The CREATE deposit already
-  -- published the child's deployed code into AccountState. On the code-lookup miss, resolve
-  -- `cd_callee_be` from the shared overlay; on a hit, point the descend code/len at its retained
+  -- published the child's deployed code into account_writes. On the code-lookup miss, resolve
+  -- `cd_callee_be` from the shared map; on a hit, point the descend code/len at its retained
   -- byte arena (code pointer + length) by setting cahsr_code_offset/length so
   -- record+40) by setting cahsr_code_offset/length so 608(x20)+offset == record+48 (the existing
   -- .Lcd_descend_ path computes code_ptr = 608(x20)+cahsr_code_offset), then DESCEND so the child
@@ -848,12 +848,12 @@ def callDescendFallThrough
   -- cross-transaction visibility use one current-state rule.
   "  addi sp, sp, -32\n" ++
   "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp); sd t2, 24(sp)\n" ++
-  "  la a0, cd_callee_be; jal ra, account_state_lookup_current\n" ++
+  "  la a0, cd_callee_be; jal ra, account_writes_lookup_current\n" ++
   "  mv t4, a0; mv t5, a1; mv t6, a2\n" ++             -- status, code ptr, code len
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  li t3, 1; bne t4, t3, .Lcd_callee_nocreate_" ++ tag ++ "\n" ++
-  "  la t3, cahsr_code_length; sd t6, 0(t3)\n" ++       -- AccountState code length
+  "  la t3, cahsr_code_length; sd t6, 0(t3)\n" ++       -- account-write code length
   "  ld t3, 608(x20); sub t5, t5, t3\n" ++              -- code offset from codes base
   "  la t3, cahsr_code_offset; sd t5, 0(t3)\n" ++
   "  j .Lcd_descend_" ++ tag ++ "\n" ++
@@ -955,7 +955,7 @@ def callDescendFallThrough
        "  bnez t2, .Lcd_ibnacc_addr_" ++ tag ++ "\n" ++
        -- created this tx -> alive -> no charge
        "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, account_state_lookup_current\n  mv t6, a0\n" ++
+        "  la a0, cd_callee_be\n  jal ra, account_writes_lookup_current\n  mv t6, a0\n" ++
         "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
         -- pin is_account_alive (state_tracker.py:445-463) + system.py:465: same
         -- status-2 / bal-zero-tombstone split as the main nacc site (#11334 /
@@ -963,7 +963,7 @@ def callDescendFallThrough
         -- and undercharges NEW_ACCOUNT 183600 on EMPTY EIP-6780 tombstones.
         "  li t5, 2; bne t6, t5, .Lcd_ibnacc_std_" ++ tag ++ "\n" ++
         "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-        "  la a0, cd_callee_be\n  jal ra, account_state_tombstone_balance_zero\n" ++
+        "  la a0, cd_callee_be\n  jal ra, account_writes_tombstone_balance_zero\n" ++
         "  mv t5, a0\n" ++
         "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
         "  bnez t5, .Lcd_ibnacc_sdskip_done_" ++ tag ++ "\n" ++
