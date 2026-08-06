@@ -600,8 +600,9 @@ def mapAccountApplyPostFieldsFunction : String :=
   "  addi t0, t0, 1; la t1, baap_sc_index; sd t0, 0(t1); j .Lbaap_multi_loop\n" ++
   -- #11385: `storage_root` is derived from the storage_writes rows at this
   -- use via `mpt_bounded_storage_root`; it is not a map field or mask bit.
-  -- The explicit legacy call below is only the conservative builder-failure
-  -- fallback and does not introduce a stored storage-root representation.
+  -- LIVE contract (#11613 framing): bounded-first always; legacy only when
+  -- bounded returns a0≠0 (fail-closed unsupported shape, e.g. LCP-prefixed
+  -- collapse after #11633). Not a disconnected/optional probe.
   ".Lbaap_multi_apply:\n" ++
   "  la t0, baap_sc_out_count; ld a4, 0(t0); beqz a4, .Lbaap_nonce\n" ++
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_apply_empty\n" ++
@@ -617,11 +618,12 @@ def mapAccountApplyPostFieldsFunction : String :=
   "  jal ra, mpt_bounded_storage_root\n" ++
   "  bnez a0, .Lbaap_multi_apply_legacy\n" ++
   "  j .Lbaap_multi_set_account\n" ++
-  "# Conservative bounded-builder bailout fallback: preserve the legacy exact\n" ++
-  "# storage replay instead of rejecting a valid BAL row. This is intentionally\n" ++
-  "# isolated so the normal route remains bounded and the unmasked behavior can\n" ++
-  "# be measured independently.\n" ++
+  "# Fail-closed fallback: bounded returned a0≠0 (unsupported/malformed).\n" ++
+  "# Legacy mpt_state_root_ins keeps the BAL/MPT row accepting when the shape\n" ++
+  "# is outside the bounded subset (measured: r200 fallback ~0%; 12832-class\n" ++
+  "# takes this arm after #11633 LCP gate). Not a second primary path.\n" ++
   ".Lbaap_multi_apply_legacy:\n" ++
+
   "  la t0, baap_storage_empty_flag; ld t0, 0(t0); bnez t0, .Lbaap_multi_legacy_empty\n" ++
   "  la t0, baap_storage_root_ptr; ld a0, 0(t0); la t0, aps_witness_ptr; ld a1, 0(t0); la t0, aps_witness_len; ld a2, 0(t0); j .Lbaap_multi_legacy_args\n" ++
   ".Lbaap_multi_legacy_empty:\n" ++
