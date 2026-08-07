@@ -262,7 +262,25 @@ has no counterpart in the untyped shared model, so it rests on the machine tripl
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
-    reference := "decode_joined_encodings" },
+    reference := "decode_joined_encodings",
+    note := "⛔ BLOCKED ON #11711, and the reason is structural rather than unfinished \
+work. #11341 asked for a bridge from the local `StrictPrefix` walk relation to the shared \
+`DecodeChain`; PR #11694 landed the structural half (`DecodeChain.snoc`, the snoc-vs-cons \
+reversal, plus the count-to-items construction) and two of the three byte-string per-item \
+disjuncts. The remaining per-item obligation CANNOT BE DISCHARGED: `DecodeChain` demands \
+fuel-insensitivity (`∀ m`) per link, which is sound only for byte-string items, whereas a \
+nested list's `decodeAux` recurses into `decodeItems nDepth payload` and IS fuel-sensitive \
+(WalkDecodeBridge.lean:405-408 says so in the tree's own words). ⚠️ AND THE DOMAIN CONTAINS \
+NESTED LISTS: since #11675 this routine is called by `mpt_node_kind` to check node arity, and \
+MPT branch children are either a 32-byte hash or an INLINE EMBEDDED NODE — \
+`SpecRef/IncrementalMpt.lean:155` `resolveChildRefAux` has an explicit `| .list items =>` arm \
+for exactly that. So the hypothesis is not merely unproven on this routine's domain, it is \
+unsatisfiable, and a structural theorem whose hypothesis cannot be instantiated says nothing \
+about the routine. The row therefore stays `machineOnly` until #11711 supplies a \
+fuel-sensitive chain predicate; regrading it earlier would claim a differential transfer that \
+does not exist. Separately noted on #11341: the machine relation accepts a list item whose \
+SPAN fits without validating its interior, where `decode_joined_encodings` decodes every \
+item — a looser-than-reference shape whose reachability is NOT established" },
   { family := "rlp", routine := "rlp_list_nth_item",
     spec := some "rlpListNthItem_spec_within",
     verdict := .agrees, basis := .bridged,
@@ -685,7 +703,87 @@ WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differe
 there is no `diff` result to inherit; the row's value is bounded by the port's fidelity to \
 the Python, which the clause table above is what establishes. Was `.machineOnly` when the \
 rung did not exist — that grade's description was false here, since the tie is \
-machine-checked rather than a local restatement. Regraded in #11341" }
+machine-checked rather than a local restatement. Regraded in #11341" },
+
+  -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
+  -- this registration by months; a name search for the routines found nothing
+  -- because the specs live in sibling `*SAsm` modules. What was missing is the
+  -- SpecRef vocabulary and these rows, not the proofs.
+  { family := "crypto", routine := "blsg_lt_p",
+    spec := some "blsgLtP_spec_specref",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "Bls12.bytes_to_fq (SpecRef/PrecompilesBls.lean:78), a port of \
+amsterdam/vm/precompiled_contracts/bls12_381/__init__.py:426-454",
+    note := "WHY `domainRestricted` AND NOT `agrees`: the tie carries \
+`w.length = 64` and `∀ i < 16, w.getD i 0 = 0` — the EIP-2537 wire pad. That gate is \
+LOAD-BEARING, not decorative: the reference decodes all 64 bytes, so a nonzero pad byte \
+makes the value ≥ 2^384 > p and the reference REJECTS, while this routine scans only the \
+48 compact bytes and would not see it. \
+⭐ THE GUEST DOES CHECK THE PAD, and this is a COVERAGE gap rather than a behavioural one. \
+Every calldata reader of a wire felt calls `blsg_is_zero_n(ptr, 16)` and rejects on \
+nonzero before scanning: `blsg_decode_g1` (Programs/Bls12G1.lean:692-700, both \
+coordinates), `blsg2_decode_g2` (Bls12G2.lean:774-784, all four felts), \
+`zkvm_bls12_map_fp_to_g1` (Bls12MapG1Real.lean:23-29), `zkvm_bls12_map_fp2_to_g2` \
+(Bls12MapG2Real.lean:23-38). All are reachable — the precompile dispatch table wires \
+0x0b..0x11 (PrecompileSharedExecute.lean:136-142). \
+⚠️ WHAT IS NOT PROVED, stated so the gate is not read as narrower than it is: that \
+composition. `blsg_is_zero_n(16) ∧ blsg_lt_p(48) ⟹ bytes_to_fq`'s verdict on the 64-byte \
+felt is not a theorem, and cannot be one yet — those decoders exist only as assembly \
+STRINGS, with no `Program`, no `_eq_prog` drift guard, and no fixture. Closing this row to \
+`agrees` needs that conversion first. \
+⚠️ PREDICATE agreement only: `lt_p` returns a boolean, never the field element, so value \
+agreement is NOT available from this routine and is not claimed. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), four clauses against \
+__init__.py:446-454. (1) `len(data) != 64 -> InvalidParameter` is syntactically the port's \
+`if data.length ≠ 64 then throw` (PrecompilesBls.lean:79). (2) `c = int.from_bytes(data[:64], \
+\"big\")` vs `bytesBEtoNat data`: `data[:64] = data` follows from clause 1 and is DISCHARGED \
+by the theorem's `hlen`; `int.from_bytes(·,\"big\")` vs `Nat.fromBytesBE` is READ, not \
+proved. (3) `c >= FQ.field_modulus` vs `c ≥ blsP` needs `FQ.field_modulus = blsP`; py_ecc \
+`fields/field_properties.py:29` gives 4002409555221667393417789825735904156556882819939\
+007885332058136124031650490837864442687629129015664037894272559787, verified equal to \
+`0x1a0111ea…aaab`. (4) `return FQ(c)` vs `pure c`: the port represents the element by its \
+`Nat` representative and drops the `FQ` wrapper — immaterial here, since the row claims \
+only the accept/reject predicate. \
+⚠️ CITATION KIND: clauses 2 and 3 cite CPython's builtin and the EXTERNAL `py_ecc` \
+package, not the vendored tree, so `scripts/check-spec-refs.sh` cannot machine-check them \
+the way it checks a `forks/.../x.py:NNN` line — they are read, not verified. See \
+docs/agents/spec-correspondence.md 6a. \
+⚠️ BASE FIELD, NOT SCALAR ORDER: #11574 as filed paired this routine with \
+`Kzg.bytes_to_bls_field` / `BLS_MODULUS`, the 255-bit scalar order. Different prime, \
+different routine (`blsk_lt_be`). `Stateless.Crypto.blsP_ne_blsModulus` pins that they \
+differ. See #11574" },
+  { family := "crypto", routine := "bnf_lt_p",
+    spec := some "bnfLtP_spec_specref",
+    verdict := .agrees, basis := .ported,
+    reference := "the `x >= field_modulus` guard of Bn128.bytes_to_g1 \
+(SpecRef/PrecompilesCurve.lean:83), a port of \
+amsterdam/vm/precompiled_contracts/alt_bn128.py:39-82",
+    note := "⭐ NO wire-pad gate, unlike the BLS twin, and the asymmetry is real rather \
+than an oversight: `bytes_to_g1` reads `buffer_read(data, 0, 32)` directly against a guest \
+routine scanning the same 32 bytes, so there is no pad to relate and the restatement is \
+TOTAL over 32-byte inputs. \
+⚠️ THE SUBJECT IS THE CLAUSE, NOT THE FUNCTION. `bytes_to_g1` also bounds `y` and tests \
+`y² = x³ + 3`; this routine looks at neither. `agrees` is graded against the \
+`x >= field_modulus` conjunct named in `reference`, which is what \
+`bnf_lt_p_agrees_field_bound` states. Grading it as whole-function agreement would be an \
+overclaim. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), against alt_bn128.py:59-70. \
+(1) ⚠️ `len(data) != 64 -> InvalidParameter(\"Input should be 64 bytes long\")` is ABSENT \
+from the port. NOT recorded as a `portDefect`: it is UNREACHABLE, because every port call \
+site passes `buffer_read data k 64` (PrecompilesCurve.lean:113/115/124) and `buffer_read` \
+pads to exactly `size` (Vm.lean:299-301), so the guard's precondition holds at every call. \
+An unreachable defensive check is not a behavioural divergence — but a future caller \
+handing `bytes_to_g1` a short list WOULD diverge, so it is named rather than dropped. \
+(2) `x = int(U256.from_be_bytes(buffer_read(data,0,32)))` vs `bytesBEtoNat (data.take 32)`: \
+equal given length 64, where the padding is a no-op; `U256.from_be_bytes` vs \
+`Nat.fromBytesBE` is READ, not proved. (3) The Python raises separately for `x` and for \
+`y`; the port MERGES them into one disjunction. Same accept/reject set, and identical \
+message anyway — and immaterial to this row, which claims only the `x` conjunct. Reason \
+strings are not compared (harness contract, docs/agents/spec-correspondence.md 9). \
+(4) `field_modulus` is syntactically the port's `fieldModulus`, same decimal literal; \
+the Python imports it from py_ecc `fields/field_properties.py:24`, verified identical. \
+⚠️ CITATION KIND: clauses 2 and 4 cite CPython and EXTERNAL `py_ecc`, not the vendored \
+tree — read, not machine-checked. See #11574" }
 ]
 
 /-! ## Counts -/
@@ -701,7 +799,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 29 := by decide
+theorem registry_size : registry.length = 31 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
@@ -715,6 +813,9 @@ theorem account_rows : countFamily "account" = 1 := by decide
 /-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
     than found in the fork spec -- see the row's note. -/
 theorem bloom_rows : countFamily "bloom" = 1 := by decide
+/-- #11574. Two rows, the family's first. Both machine triples predated the rows
+    by months — the gap was vocabulary and registration, not proof. -/
+theorem crypto_rows : countFamily "crypto" = 2 := by decide
 
 /-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
     that is not automatically a sign the schema has stopped discriminating.
@@ -734,7 +835,7 @@ theorem bloom_rows : countFamily "bloom" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 17 ∧ countVerdict .domainRestricted = 7 ∧
+    countVerdict .agrees = 18 ∧ countVerdict .domainRestricted = 8 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
 
@@ -747,7 +848,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
-    countBasis .ported = 6 ∧
+    countBasis .ported = 8 ∧
     countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 3 := by decide
 

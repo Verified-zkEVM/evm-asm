@@ -404,8 +404,22 @@ def accountStateRecordCodeFunction : String :=
   ".Lasrc_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lasrc_code; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasrc_addr\n" ++
   ".Lasrc_code:\n" ++
-  -- bit 4 says code is known (distinct from bit 2 meaning nonempty code), so
-  -- a balance-only snapshot never masks authenticated pre-block code.
+  -- AccountState `flags@+88` (GH #11706). VALUES, never indices — the seed below
+  -- is literal 27 = 16 + 8 + 2 + 1, and `ori t1, t1, 4` raises it to 31:
+  --   VALUE 16 = code is KNOWN, so a balance-only snapshot never masks
+  --              authenticated pre-block code (always set by this writer);
+  --   VALUE  4 = code is NONEMPTY (added only when the length `s2` is nonzero).
+  -- The distinction is code-known versus code-nonempty; an earlier wording gave
+  -- these as "bit 4" and "bit 2", which are the INDICES of 16 and 4 — read as
+  -- values that sentence self-contradicts, because 27 already contains value 2
+  -- yet is the zero-length-code seed.
+  --
+  -- ⛔ These constants belong to `flags@+88` in THIS structure and must not be
+  -- carried into `account_writes`' `execFlags@+96` (stride 128, base 0xa28a0000 /
+  -- 0xa2b20000): 27 and 31 both contain VALUE 8, which at +96 is the
+  -- created-this-tx bit read by `account_writes_created_contains` (.Lawc_key:
+  -- `ld t1, 96(t5); andi t1, t1, 8`). See `accountWriteHasExecFlags` in
+  -- `AccountWriteMap.lean` for the +96 value table.
   "  sd s1, 72(t0); sd s2, 80(t0); li t1, 27; beqz s2, .Lasrc_flags; ori t1, t1, 4\n" ++
   ".Lasrc_flags:\n" ++
   "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrc_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
