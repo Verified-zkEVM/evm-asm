@@ -24,6 +24,14 @@ private def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_state_gas_entry_valid; sd zero, 0(t0)\n" ++
+  -- The inline preparation helper snapshots the message pool for early
+  -- exits, before the callable dispatcher gets a chance to reset its EIP-8037
+  -- cells.  Reset all three pool cells at the common MTx boundary so that
+  -- those early-exit snapshots are post-reset as well.
+  "  la t0, evm_state_gas_left; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_used; sd zero, 0(t0)\n" ++
+  "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_auth_state_used; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++

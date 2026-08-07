@@ -442,6 +442,19 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  li t0, 1; la t1, runtime_tx_state_gas_entry_valid; sd t0, 0(t1)\n" ++
   ".Lbvtgip_call_auth:\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
+  -- Keep the universal pre-auth baseline for early exits, but do not charge
+  -- AUTH_BASE to the executed-state differential.  Mirror the interpreter's
+  -- auth_state_gas_used fold by preserving that quantity separately and
+  -- reopening the reservoir baseline at the post-auth seam.  This runs before
+  -- branching on success/OOG so an auth-phase halt gets the same boundary.
+  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_left; ld t2, 0(t0); sub t2, t2, t1\n" ++
+  "  la t0, evm_state_gas_spilled; ld t3, 0(t0); add t2, t2, t3\n" ++
+  "  la t0, runtime_tx_state_gas_message_spilled; ld t3, 0(t0); sub t2, t2, t3\n" ++
+  "  la t0, runtime_tx_auth_state_used; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_left; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_spilled; sd zero, 0(t0)\n" ++
   "  beqz a0, .Lbvtgip_auth_ok\n" ++
   "  li t1, 2; beq a0, t1, .Lbvtgip_auth_oog\n" ++
   "  j .Lbvtgip_restore\n" ++

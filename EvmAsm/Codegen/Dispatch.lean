@@ -2418,6 +2418,19 @@ private def emitTopLevelMessageD0Preparation : String :=
   ".runtime_tx_auth_state_refund_done:\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
   ".runtime_tx_auth_state_used_done:\n" ++
+  -- The pre-auth message baseline is universal, including early exits.  At
+  -- the auth seam, peel off the preparation-only consumption into its own
+  -- cell and re-snapshot the reservoir so the differential below measures
+  -- executed state gas only.  The spill delta is closed at this boundary;
+  -- later body charges establish their own spill accounting.
+  "  la x11, evm_state_gas_left; ld x8, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_left; ld x9, 0(x11); sub x9, x9, x8\n" ++
+  "  la x11, evm_state_gas_spilled; ld x12, 0(x11); add x9, x9, x12\n" ++
+  "  la x11, runtime_tx_state_gas_message_spilled; ld x12, 0(x11); sub x9, x9, x12\n" ++
+  "  la x11, runtime_tx_auth_state_used; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_left; sd x8, 0(x11)\n" ++
+  "  la x11, evm_state_gas_spilled; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_spilled; sd x0, 0(x11)\n" ++
   -- #10609 slice 1: the universal message snapshot is established by the
   -- inline per-transaction preparation helper immediately after the
   -- reservoir split. Keep a second post-auth frame-entry snapshot here:
@@ -2605,6 +2618,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
+  "  la x28, runtime_tx_auth_state_used; sd x0, 0(x28)\n" ++
   -- MTx resets the marker at its loop boundary, before inline preparation
   -- writes the universal message snapshot. Do not clear it after that
   -- snapshot when entering the callable dispatcher.
@@ -2899,6 +2913,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-8037 differential invariant: the message baseline must be captured
+  -- after the callable per-dispatch pool reset above *and* after this
+  -- transaction's reservoir split, but before the depth-zero preparation
+  -- below charges state gas.  The MTx inline-preparation snapshot is also
+  -- post-reset because blockVerdictMtxTxPreparationReset clears these cells
+  -- before that helper; this callable site is required because the callable
+  -- reset otherwise made the earlier baseline describe the previous
+  -- transaction.  The auth seam later folds preparation-only consumption into
+  -- runtime_tx_auth_state_used and re-snapshots the reservoir; do not insert a
+  -- pool reset between either snapshot and the charges it is intended to
+  -- measure.
+  "  la x11, evm_state_gas_left; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_left; sd x9, 0(x11)\n" ++
+  "  la x11, evm_state_gas_spilled; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_spilled; sd x9, 0(x11)\n" ++
   -- `interpreter.py:356` runs this preparation region only at depth zero.
   -- Cut C will route child frames through this entry; until then every live
   -- caller has depth zero, so this guard is intentionally a no-op. On the
@@ -3493,6 +3520,8 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_auth_state_refund:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_state_charge:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_auth_state_used:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_state_charged:\n" ++
   "  .zero 8\n" ++

@@ -107,9 +107,10 @@ theorem dispatcherCaptureExecStateGasFunction_eq_prog :
     differential array and marker make the disagreement set observable before
     any authority flip.
 
-    The top-level runtime baseline is written after authorization preparation
-    by `Dispatch.lean`.  The entry spill cell is included explicitly even
-    though the pinned Python auth reset makes it zero:
+    The top-level runtime baseline is written before authorization preparation
+    by `Dispatch.lean`; the auth seam folds its preparation-only use into a
+    separate cell and re-snapshots the reservoir.  The entry spill cell is
+    included explicitly even though the pinned Python auth reset makes it zero:
 
       entry_left - current_left + (current_spilled - entry_spilled)
 
