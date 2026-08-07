@@ -755,6 +755,13 @@ def blockAccessListBuilderFunctions : String :=
 -- entirely and no probe could see it, because a one-element list is sorted by definition
 -- and every case had one element at every inner level.
 #guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn "li a5,").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 47522").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 16384").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 105000").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 35000").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 13125").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li a5, 140000").length == 2
 -- Every stride 8-ALIGNED: 96, 64, 64, 40, 64, 24.
 #guard (balSerializerRebuildHashFunction.splitOn "li a2, 96;").length == 2
 #guard (balSerializerRebuildHashFunction.splitOn "li a2, 40;").length == 2
