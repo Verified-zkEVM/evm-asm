@@ -199,6 +199,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
+    -- #11431: MtxRuntime jals process_block_start_system_transactions; standalone
+    -- v2 unit mirrors those handlers and must link the callee (check-build-units-link).
+    processBlockStartSystemTransactionsFunction ++ "\n" ++
     blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
     blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++

@@ -233,7 +233,19 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la a2, bsr_addr_4788\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lpbs_4788_skip\n" ++
+  -- process_unchecked (fork.py:788): no code → run nothing, continue. Distinguishes
+  -- EMPTY_CODE_HASH (case A no-op) from status-5 missing preimage of a real hash
+  -- (case B reject). Pattern: BlockVerdictDispatchTx materialize (#11520 gate).
+  "  li t0, 1; beq a0, t0, .Lpbs_4788_skip\n" ++
+  "  li t0, 5; bne a0, t0, .Lpbs_4788_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  j .Lpbs_4788_skip\n" ++
+  ".Lpbs_4788_lookup_done:\n" ++
+  "  bnez a0, .Lpbs_fail\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_4788_skip\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
@@ -261,7 +273,17 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la a2, bsr_addr_2935\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lpbs_2935_skip\n" ++
+  -- Same EMPTY_CODE_HASH vs missing-preimage split as 4788 (fork.py:788; #11520).
+  "  li t0, 1; beq a0, t0, .Lpbs_2935_skip\n" ++
+  "  li t0, 5; bne a0, t0, .Lpbs_2935_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  j .Lpbs_2935_skip\n" ++
+  ".Lpbs_2935_lookup_done:\n" ++
+  "  bnez a0, .Lpbs_fail\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_2935_skip\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
