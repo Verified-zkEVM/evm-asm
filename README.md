@@ -1,5 +1,9 @@
 # evm.asm: A Verified Macro Assembler for building zkEVM in Lean 4 (early experiment)
 
+<!-- hy-mt2-i18n:start -->
+**Español** · [中文](./README_zh-CN.md) · [English](./README_en.md) · [日本語](./README_ja.md)
+<!-- hy-mt2-i18n:end -->
+
 A prototype implementation of a verified macro assembler targeting the zkEVM,
 built on a RISC-V RV64IM backend, inspired by:
 
