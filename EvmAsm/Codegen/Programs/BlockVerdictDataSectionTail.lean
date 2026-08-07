@@ -640,9 +640,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- (account_at_header_state_root output; nonce@0).
   "bv_mtx_sender_addr:\n  .zero 32\n" ++
   "bv_mtx_sender_acct:\n  .zero 128\n" ++
-  -- bmvmx.5: single-tx contract-recipient sender scratch (same role as the mtx pair, i=0 path).
-  "bv_stx_sender_addr:\n  .zero 32\n" ++
-  "bv_stx_sender_acct:\n  .zero 128\n" ++
+  -- #10685: bv_stx_sender_{addr,acct} retired — BSS twins of the mtx pair with
+  -- zero code refs in the emitted image (label-only). Multi-tx uses bv_mtx_*.
   -- #11245: batsc_*/atsc_*/bts_*/els_* guest data removed with tuple check 42.
   -- Keep the large authorization replay table last so growing it cannot move
   -- any established data symbol or arena anchor.
