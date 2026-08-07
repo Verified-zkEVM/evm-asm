@@ -104,6 +104,7 @@ import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
+import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 import EvmAsm.Codegen.Programs.Secp256k1Curve
@@ -240,6 +241,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.block_access_list_hash_core, blockAccessListHashCore_prog),
   (GuestAddrs.block_access_list_hash, blockAccessListHash_prog),
   (GuestAddrs.block_hash_from_header, blockHashFromHeader_prog),
+  (GuestAddrs.execution_requests_hash, executionRequestsHash_prog),
+  (GuestAddrs.erh_hash_one, erhHashOne_prog),
   (GuestAddrs.step2_verdict, step2Verdict_prog),
   (GuestAddrs.header_extract_state_root, headerExtractStateRoot_prog),
   (GuestAddrs.eph_u32le, ephU32le_prog),
@@ -492,6 +495,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 340
+#guard guestImageEntries.length = 342
 
 end EvmAsm.Codegen
