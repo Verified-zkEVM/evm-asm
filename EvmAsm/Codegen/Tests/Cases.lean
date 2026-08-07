@@ -2466,15 +2466,22 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "2611" }
-    -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
-    -- The dispatcher prologue copies the input file's storage segment
-    -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and
-    -- records the count in `env.slotTableCountOff = 448`. SLOAD /
-    -- SSTORE inline-asm bodies scan the table linearly:
-    --   1. round_trip      — SSTORE then SLOAD with empty preload.
-    --   2. preloaded_match — SLOAD against a preloaded key.
-    --   3. preloaded_no_match — SLOAD against an absent key → 0.
-    --   4. overwrites_preload — SSTORE replaces a preloaded value.
+    -- ## M22 real storage (SLOAD / SSTORE), preload segment RETIRED
+    -- The dispatcher prologue VALIDATES AND SKIPS the input file's storage
+    -- segment: it consumes the rows only to reach the trailers behind them,
+    -- and materializes nothing (`Dispatch.lean:2567-2570`, `:2743` — "not
+    -- copied or re-tagged: no persistent log remains"). The canonical
+    -- transaction map and the authenticated state path are authoritative,
+    -- so honouring an input-supplied preload would be an UNAUTHENTICATED
+    -- pre-state channel. The former `evm_slot_table` arena no longer exists
+    -- anywhere in the tree, and the live slot count is recorded at
+    -- `648(x20)` — env+448 is now the retired persistent-log counter, which
+    -- `Dispatch.lean:1148` hard-zeroes. GH #11710.
+    --
+    -- Consequence for the cases below: a `storage :=` preload changes NOTHING
+    -- observable. Both SLOAD cases read zero, and a preloaded key does not
+    -- make an SSTORE origin non-zero. The two cases that carry a preload and
+    -- still assert a difference are guards on that retirement.
   , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP
     -- SSTORE pops key=0x00 (top) then value=0x42; appends slot.
     -- SLOAD pops key=0x00; reads value=0x42 back.
@@ -2482,11 +2489,15 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x00; SLOAD; STOP with preload [(0x00, 0xdead)].
-    -- 0xdead in limb 0 LE = ad de 00 00 00 00 00 00.
+    -- The key MATCHES the preload row, and the answer is still ZERO: the row
+    -- is validated and skipped, never materialized. This case is the guard on
+    -- that contract — it is the only SLOAD case whose expectation moves if
+    -- anyone restores materialization. It previously expected `adde…`, which
+    -- contradicted the parser and could not have passed (GH #11710).
     { name           := "sload_preloaded_match"
       bytecode       := "0x60, 0x00, 0x54, 0x00"
       storage        := "(0x00, 0xdead)"
-      expectedOutHex := "adde000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0xff; SLOAD; STOP with preload [(0x00, 0xdead)].
     -- key 0xff doesn't match preloaded 0x00 → SLOAD pushes zero.
     { name           := "sload_preloaded_no_match"
@@ -2544,15 +2555,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0100000000000000"
       gasLimit                    := "3006" }
-  , -- Clean nonzero -> nonzero update with a preloaded original costs
-    -- 3000 cold access + 10000 STORAGE_WRITE (no state gas: the
-    -- original is non-zero).
-    { name                        := "sstore_preloaded_nonzero_update_gas_exact"
+  , -- A preloaded key does NOT give the write a non-zero original: the row is
+    -- skipped, so this is a zero-origin creation and costs the same as
+    -- `sstore_cold_gas_exact` above — 6 (PUSH2 3 + PUSH1 3) + 13000 (3000 cold
+    -- access + 10000 STORAGE_WRITE) + 97920 (64 × 1530 EIP-8037 state gas,
+    -- spilled into regular gas) = 110926, appending ONE entry like its
+    -- preload-free sibling. Renamed from `sstore_preloaded_nonzero_update_gas_exact`,
+    -- whose name and 13006 limit both assumed materialization: under the real
+    -- contract that limit is a hard OOG, not a value diff (GH #11710).
+    { name                        := "sstore_preloaded_key_zero_origin_gas_exact"
       bytecode                    := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x00"
       storage                     := "(0x00, 0xdead)"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      gasLimit                    := "13006" }
+      expectedPersistentLogLength := "0100000000000000"
+      gasLimit                    := "110926" }
   , -- The second SSTORE to the same key is warm and dirty: first write costs
     -- 3 + 3 + 13000 + 97920 (zero-origin creation), second 3 + 3 + 100, STOP 0.
     { name                        := "sstore_repeat_same_key_warm_gas_exact"
@@ -2561,8 +2577,10 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedPersistentLogLength := "0200000000000000"
       gasLimit                    := "111032" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
-    -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
-    -- appends a new current-value entry. SLOAD reads back 0xbeef.
+    -- preload [(0x00, 0xdead)]. The preload row is skipped, so SSTORE writes
+    -- 0xbeef over an absent (zero) original and SLOAD reads back its OWN
+    -- write. The expectation is therefore the same under either contract —
+    -- this case does not discriminate the retirement (GH #11710).
     -- 0xbeef in limb 0 LE = ef be 00 00 00 00 00 00.
     { name           := "sstore_overwrites_preload"
       bytecode       := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
