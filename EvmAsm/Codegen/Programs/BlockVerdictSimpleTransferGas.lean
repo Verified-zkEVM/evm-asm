@@ -73,6 +73,8 @@ def directTransferStateGasBaselineAsm (tag : String) : String :=
   "  la t1, evm_state_gas_spilled; ld t3, 0(t1)\n" ++
   "  la t4, runtime_tx_state_gas_entry_left; sd t2, 0(t4)\n" ++
   "  la t4, runtime_tx_state_gas_entry_spilled; sd t3, 0(t4)\n" ++
+  "  la t4, runtime_tx_state_gas_message_left; sd t2, 0(t4)\n" ++
+  "  la t4, runtime_tx_state_gas_message_spilled; sd t3, 0(t4)\n" ++
   "  la t4, runtime_tx_state_gas_entry_valid; li t5, 1; sd t5, 0(t4)\n" ++
   ".L" ++ tag ++ "_state_gas_baseline_done:\n"
 

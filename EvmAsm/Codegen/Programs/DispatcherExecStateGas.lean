@@ -108,17 +108,17 @@ def dispatcherCaptureExecStateGasFunction : String :=
 def dispatcherCaptureExecStateGasDifferentialFunction : String :=
   "dispatcher_capture_exec_state_gas_differential:\n" ++
   "  la t0, evm_state_gas_used; ld t0, 0(t0)\n" ++
-  -- Collision and authorization-phase OOG routes publish a transaction result
-  -- without reaching the post-preparation seam.  Their baseline cells belong
-  -- to the preceding transaction, so the pool-derived executed component is
-  -- exactly zero on those routes.
+  -- Every MTx route now has a baseline before preparation, including collision
+  -- and authorization-phase OOG.  The marker remains a validity bit rather
+  -- than a zero-value convention: a zero derived value is meaningful only
+  -- after this universal snapshot.
   "  la t1, runtime_tx_state_gas_entry_valid; ld t1, 0(t1)\n" ++
   "  beqz t1, .Lcesg_diff_not_derivable\n" ++
   ".Lcesg_diff_post_preparation:\n" ++
-  "  la t1, runtime_tx_state_gas_entry_left; ld t1, 0(t1)\n" ++
+  "  la t1, runtime_tx_state_gas_message_left; ld t1, 0(t1)\n" ++
   "  la t2, evm_state_gas_left; ld t2, 0(t2); sub t1, t1, t2\n" ++
   "  la t2, evm_state_gas_spilled; ld t2, 0(t2); add t1, t1, t2\n" ++
-  "  la t2, runtime_tx_state_gas_entry_spilled; ld t2, 0(t2); sub t1, t1, t2\n" ++
+  "  la t2, runtime_tx_state_gas_message_spilled; ld t2, 0(t2); sub t1, t1, t2\n" ++
   "  slli t3, a0, 3\n" ++
   "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd t1, 0(t2)\n" ++
   "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3\n" ++

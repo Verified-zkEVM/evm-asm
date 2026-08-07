@@ -2358,7 +2358,10 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- its authorization callback. An authorization-phase OOG must roll back
   -- only the current transaction's effects on every caller.
   "  la x11, runtime_tx_auth_phase_halted; sd x0, 0(x11)\n" ++
-  "  la x11, runtime_tx_state_gas_entry_valid; sd x0, 0(x11)\n" ++
+  -- The transaction callers reset the differential-valid marker before this
+  -- shared preparation entry. Do not clear it here: MTx establishes the
+  -- universal message snapshot immediately before entering this function,
+  -- and collision/auth-phase early exits publish before any later seam.
   -- Deferred system re-entry (`system_call_mode=1`) must not re-run the user
   -- transaction's leftover `runtime_tx_auth_exec_fn` (eip7702_auth_state_prepare).
   -- Spec system txs never call set_delegation; re-running prepare after a user
@@ -2415,12 +2418,11 @@ private def emitTopLevelMessageD0Preparation : String :=
   ".runtime_tx_auth_state_refund_done:\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
   ".runtime_tx_auth_state_used_done:\n" ++
-  -- #10609 slice 1: the pinned spec resets the message reservoir baseline
-  -- after authorization preparation.  Capture the post-auth left value before
-  -- prepare_dispatch's staged state charge; this is the depth-0 runtime-frame
-  -- entry reservoir.  The post-auth spill baseline is exactly zero.  Fail
-  -- closed if the implementation ever reaches this seam with a nonzero spill;
-  -- vm/interpreter.py:362-364 resets that field before prepare_dispatch.
+  -- #10609 slice 1: the universal message snapshot is established by the
+  -- inline per-transaction preparation helper immediately after the
+  -- reservoir split. Keep a second post-auth frame-entry snapshot here:
+  -- dispatcher_tx_gas_settle uses it to restore only body state gas on REVERT,
+  -- retaining successful authorization state gas.
   "  la x11, evm_state_gas_spilled; ld x9, 0(x11)\n" ++
   "  bnez x9, .exit_outofgas\n" ++
   "  la x11, evm_state_gas_left; ld x8, 0(x11)\n" ++
@@ -2603,7 +2605,9 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
-  "  la x28, runtime_tx_state_gas_entry_valid; sd x0, 0(x28)\n" ++
+  -- MTx resets the marker at its loop boundary, before inline preparation
+  -- writes the universal message snapshot. Do not clear it after that
+  -- snapshot when entering the callable dispatcher.
   -- This is a memoized control-flow fact, not independent guest state: it is
   -- set only after the common intrinsic, auth-state, and top-frame regular
   -- pre-dispatch charges have all passed their gas-coverage checks below.
@@ -3646,6 +3650,10 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_state_gas_entry_left:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_state_gas_entry_spilled:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_message_left:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_message_spilled:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "srfd_zero:\n" ++
