@@ -484,7 +484,6 @@
 "EvmAsm.Evm64.ExecutableSpecOpcodeBridge": ["Mathlib.Tactic.IntervalCases"],
 "EvmAsm.Evm64.InterpreterExecutableStepBridge": ["EvmAsm.Evm64.InterpreterExecutableFetchBridge"],
 "EvmAsm.EL.RLP.ListDecodeBridge": ["EvmAsm.EL.RLP.PrefixDecode"],
-"EvmAsm.EL.CallOutputMemory": ["Mathlib.Data.List.GetD"],
 "EvmAsm.Evm64.Dispatch.TailSpec":
  ["EvmAsm.Rv64.ControlFlow", "EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.RunBlock"],
 "EvmAsm.Evm64.Calldata.CopySpec":
@@ -500,7 +499,6 @@
 "EvmAsm.Rv64.RLP.Phase3ShortString":
  ["EvmAsm.EL.RLP.ProgramSpec", "EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp"],
 "EvmAsm.EL.RLP.ReadLengthBridge": ["EvmAsm.EL.RLP.ReadLength"],
-"EvmAsm.EL.Secp256k1EcrecoverResultBridge": ["EvmAsm.EL.Secp256k1EcrecoverInputBridge"],
 "EvmAsm.EL.Bls12MapFp2ToG2ResultBridge": ["EvmAsm.EL.Bls12MapFp2ToG2InputBridge"],
 "EvmAsm.Evm64.Dispatch.Compose": ["EvmAsm.Evm64.Dispatch.EntryAddrBridge"],
 "EvmAsm.Evm64.Dispatch.Spec": ["EvmAsm.Evm64.Dispatch.Compose"],
@@ -528,4 +526,3 @@
   "EvmAsm.Rv64.HalfwordOps", "EvmAsm.Rv64.WordOps",
   "EvmAsm.Rv64.Tactics.SpecDb"],
 "EvmAsm.Rv64.HintSpecs": ["EvmAsm.Rv64.SyscallSpecs", "EvmAsm.Rv64.Tactics.XSimp"]}}
-

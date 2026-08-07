@@ -700,7 +700,17 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 #guard (balSortBuilderStorageSegments >>> 40) % 256 < 128
 #guard (balSortBuilderEventSegments >>> 24) % 256 < 128
 
--- The strides must match the two containers' actual record strides (was
--- `li a2, 128`; a2 = x12). Both containers use stride 128.
+-- ⚠️ GH #10817: this used to read "Both containers use stride 128", left over
+-- from the two per-container entry points that #11054 deleted as unreachable.
+-- **No live call site passes 128.** The six calls in
+-- `bal_serializer_rebuild_hash` pass 96 / 64 / 64 / 40 / 64 / 24 -- four distinct
+-- strides, every one 8-aligned because the sort swaps rows with `ld`/`sd`.
+--
+-- They are now data rather than prose, so a stride change cannot leave a comment
+-- quietly wrong: `RegionPredicates.balSortCallSites` carries all six with their
+-- segment descriptors, pinned by `balSortCallSites_count`,
+-- `balSortCallSites_strides_aligned` and `balSortCallSites_stride_count`. That is
+-- also the parameterisation #10817 asks a proof to range over instead of literal
+-- byte offsets.
 
 end EvmAsm.Codegen

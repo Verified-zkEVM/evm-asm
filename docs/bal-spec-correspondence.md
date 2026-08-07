@@ -13,9 +13,11 @@ Read this before changing BAL sorting, and before working
 
 `SpecRef._build_from_builder` agrees with the vendored reference on **1149/1149**
 corpus records — account order, slot order, per-index orders, and the read/write
-exclusion. Every *guest* routine remains `unproven`, because
-`EvmAsm/Codegen/Programs/BalCanonicalSort.lean` defines only `String`s — zero
-`: Program` — so no `cpsTripleWithin` is statable at all.
+exclusion. Every *guest* routine remains `unproven`, but ⚠️ **no longer for the
+reason this page originally gave.** It said `BalCanonicalSort.lean` defines only
+`String`s — zero `: Program` — so no `cpsTripleWithin` was statable. **#11046
+falsified that**: the routine is now `balCanonicalSort_prog` (147 instructions)
+and is registered in the guest image. A triple is statable; none has been stated.
 
 That split is the deliverable. It converts an open question ("is our canonical
 ordering even the right ordering?") into a closed one, and leaves #10817 with a
@@ -110,10 +112,19 @@ against the reference's declared ordering **is** that key, and it now passes. Th
 sortedness predicate #10817 asks for can be written against the model this page
 validates, rather than against a key inferred from the assembly.
 
-**Does not close:** anything requiring a `Program`. Sortedness, permutation and
-uniqueness as *machine* properties still need the ~230-instruction conversion,
-which is separately blocked — the conversion tool refuses all four asm functions
-in the module (leading `.globl`; a spliced `String` ident).
+**Does not close:** the machine-side obligations. ⚠️ This paragraph used to say
+they *"still need the ~230-instruction conversion, which is separately blocked"* —
+**that conversion landed as #11046** (with both deviations approved: `.globl` in
+the string prefix, the digit fragment as its own `Program` composed at list
+level), and #11054 then deleted two of the four routines as unreachable.
+
+What actually remains is a **predicate** gap, not a `Program` gap. #10817's
+headline obligation is **permutation** — a sort that silently drops rows is still
+sorted, and the end-to-end hash comparison structurally cannot see it, because it
+compares against a model built from the *declared* rows. Stating permutation needs
+a `List`-indexed assertion over the row array, now supplied by
+`RegionPredicates.balEntriesFrom` / `balBuffer` / `balOwn` (stride-parameterised:
+the six live calls use four distinct strides, all 8-aligned).
 
 ## Findings — filed, not carried here
 

@@ -424,11 +424,37 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  sub t0, t5, t6\n" ++
   "  sd t0, 0(t1)\n" ++
   "  mv a4, t6\n" ++
-  "  j .Lbvtgip_call_auth\n" ++
+  "  j .Lbvtgip_baseline\n" ++
   ".Lbvtgip_a4_no_res:\n" ++
   "  mv a4, t5\n" ++
+  -- This is the guest equivalent of Message construction: the reservoir
+  -- split is complete, but no authorization or recipient preparation has
+  -- run. Capture it before every early-exit-capable preparation step so a
+  -- collision or authorization-phase halt still has a valid witness. Preserve
+  -- the live pool and snapshot it explicitly for the differential. The
+  -- post-auth frame-entry cells remain owned by the later dispatcher seam,
+  -- because settlement uses them to retain successful authorization charges.
+  ".Lbvtgip_baseline:\n" ++
+  "  la t1, evm_state_gas_spilled; ld t0, 0(t1)\n" ++
+  "  la t1, runtime_tx_state_gas_message_spilled; sd t0, 0(t1)\n" ++
+  "  la t1, evm_state_gas_left; ld t0, 0(t1)\n" ++
+  "  la t1, runtime_tx_state_gas_message_left; sd t0, 0(t1)\n" ++
+  "  li t0, 1; la t1, runtime_tx_state_gas_entry_valid; sd t0, 0(t1)\n" ++
   ".Lbvtgip_call_auth:\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
+  -- Keep the universal pre-auth baseline for early exits, but do not charge
+  -- AUTH_BASE to the executed-state differential.  Mirror the interpreter's
+  -- auth_state_gas_used fold by preserving that quantity separately and
+  -- reopening the reservoir baseline at the post-auth seam.  This runs before
+  -- branching on success/OOG so an auth-phase halt gets the same boundary.
+  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_left; ld t2, 0(t0); sub t2, t2, t1\n" ++
+  "  la t0, evm_state_gas_spilled; ld t3, 0(t0); add t2, t2, t3\n" ++
+  "  la t0, runtime_tx_state_gas_message_spilled; ld t3, 0(t0); sub t2, t2, t3\n" ++
+  "  la t0, runtime_tx_auth_state_used; sd t2, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_left; sd t1, 0(t0)\n" ++
+  "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_message_spilled; sd zero, 0(t0)\n" ++
   "  beqz a0, .Lbvtgip_auth_ok\n" ++
   "  li t1, 2; beq a0, t1, .Lbvtgip_auth_oog\n" ++
   "  j .Lbvtgip_restore\n" ++
