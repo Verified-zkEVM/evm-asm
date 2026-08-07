@@ -173,11 +173,35 @@ theorem blsP_ne_blsModulus : SpecRef.Bls12.blsP ≠ SpecRef.Kzg.BLS_MODULUS := b
     Both sides are `List Byte → Nat`, so a bridge that simply juxtaposed them
     would elaborate — and be about two different lists.
 
-    The pad is a real guest step, not a modelling convenience:
-    `scripts/asm-fixtures/bls12KzgG1WireFunction.s` (`blsk_g1_wire`) writes 16
-    zero bytes with `sb zero` and then copies 48 with `lbu`/`sb`, per coordinate,
-    at a 64-byte stride. So the wire felt is literally `16 zeros ++ 48 compact
-    bytes`, and this section says what that does to the value: nothing.
+    The pad is a real guest artifact, not a modelling convenience, and there are
+    two independent sightings of it:
+
+    * **Written** — `scripts/asm-fixtures/bls12KzgG1WireFunction.s`
+      (`blsk_g1_wire`) emits 16 `sb zero` and then copies 48 with `lbu`/`sb`, per
+      coordinate, at a 64-byte stride. So the wire felt is literally
+      `16 zeros ++ 48 compact bytes`.
+    * **Checked** — every calldata reader calls `blsg_is_zero_n(ptr, 16)` and
+      rejects on nonzero before the 48-byte scan: `blsg_decode_g1`
+      (`Codegen/Programs/Bls12G1.lean:692-700`, both coordinates),
+      `blsg2_decode_g2` (`Bls12G2.lean:774-784`, all four felts),
+      `zkvm_bls12_map_fp_to_g1` (`Bls12MapG1Real.lean:23-29`),
+      `zkvm_bls12_map_fp2_to_g2` (`Bls12MapG2Real.lean:23-38`). All live via the
+      0x0b..0x11 dispatch table (`PrecompileSharedExecute.lean:136-142`).
+
+    ⚠️ The **checked** sighting is the load-bearing one, and an earlier draft of
+    this docstring gave only the written one. `blsk_g1_wire` never sees calldata,
+    so it establishes the wire *layout* but says nothing about whether an
+    attacker-supplied felt satisfies the hypothesis. Recorded rather than
+    silently swapped, because reaching for the first citation that fits is how
+    the wrong one ends up load-bearing.
+
+    ⚠️ What this section does **not** prove is the composition
+    (`blsg_is_zero_n(16) ∧ blsg_lt_p(48)` ⟹ `bytes_to_fq`'s verdict on the
+    64-byte felt), and it cannot yet: those decoders exist only as assembly
+    strings, with no `Program` and no drift guard, so nothing is statable over
+    them. Converting `blsg_decode_g1` is the prerequisite (#11574).
+
+    This section says what the pad does to the value: nothing.
 
     ⭐ **BN254 needs no counterpart, and the asymmetry is recorded rather than
     papered over with a vacuous twin.** `Bn128.bytes_to_g1`
