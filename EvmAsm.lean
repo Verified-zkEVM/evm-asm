@@ -1,4 +1,5 @@
 import EvmAsm.Rv64
+import EvmAsm.Crypto.BeBytesBridge
 import EvmAsm.Crypto.Fermat
 import EvmAsm.Crypto.PowLadder
 import EvmAsm.Crypto.ScalarMul
