@@ -175,13 +175,8 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-    -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
-    -- Keep the standalone verdict-debug ELF's multi-tx closure in lockstep
-    -- with the guest closure: the runtime dispatcher reaches this whitelist
-    -- gate, and the post-dispatch verdict reaches the withdrawal effect walk.
-    -- These are diagnostic-only emissions; verdict code is unchanged.
-    brpsfAddr20EqFunction ++ "\n" ++
-    balStorageWhitelistCleanFunction ++ "\n" ++
+    -- Keep the standalone verdict-debug ELF's withdrawal-effect closure in
+    -- lockstep with the guest closure; verdict code is unchanged.
     blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
     multiTxNthContextFunction ++ "\n" ++
     rlpFieldToU64Function ++ "\n" ++
@@ -577,11 +572,6 @@ def statelessVerdictV2GuestClosure : String :=
   balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
   balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
-  -- #11183: bal_txs_independent + bti_scan_* unlinked (0 live jal; route retired).
-  -- bmvmx.5.5.10: whitelist-v0 gate for the sequential lane (request-predeploy
-  -- storage rows -> conservative bail until the comparator learns the side arena)
-  brpsfAddr20EqFunction ++ "\n" ++
-  balStorageWhitelistCleanFunction ++ "\n" ++
   multiTxNthContextFunction ++ "\n" ++
   -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
   -- block_verdict's block_state-gas floor check. tx_extract_to_address /

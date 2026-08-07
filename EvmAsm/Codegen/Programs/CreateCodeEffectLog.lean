@@ -412,57 +412,6 @@ def accountStateRecordCodeFunction : String :=
   ".Lasrc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
-/-! ## EIP-7702 AccountState adapters
-
-    An accepted authorization mutates account existence, nonce, and delegation
-    before message execution.  Store those execution facts in the same pending
-    overlay as CREATE so the next transaction reads the committed prior-tx
-    state, never a post-state BAL reconstruction.  AccountState flags use bit
-    16 for execution-known, bit 4 for code-present, bit 2 for account-present,
-    bit 8 for delegation state, and bit 6 for the auth-only nonce snapshot.
-    Auth nonce state must remain visible to the authorization resolver without
-    making the generic balance/nonce readers authoritative for the BAL
-    comparator. -/
-def accountStateRecordAuthFunction : String :=
-  "account_state_record_auth:\n" ++
-  -- a3 is the stable 23-byte delegation-designator slot, or zero for a clear.
-  -- AccountState rows use a different layout from AccountWrite rows: code
-  -- pointer/length are +72/+80 and the execution-known bit is +16.
-  "  addi sp, sp, -56; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasra_clone\n" ++
-  "  la t0, account_state_scratch; li t1, 0\n" ++
-  ".Lasra_zero:\n" ++
-  "  li t2, 128; beq t1, t2, .Lasra_fields; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lasra_zero\n" ++
-  ".Lasra_clone:\n" ++
-  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
-  ".Lasra_fields:\n" ++
-  "  la t0, account_state_scratch; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 0\n" ++
-  ".Lasra_addr:\n" ++
-  "  li t2, 20; beq t1, t2, .Lasra_nonce; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasra_addr\n" ++
-  ".Lasra_nonce:\n" ++
-  -- Keep the nonce/delegation bits from the old producer, but also advertise
-  -- that this AccountState row is execution-known and carries code when the
-  -- accepted target is nonzero.  Clear the code/delegation-present bits first
-  -- so a later authorization clearing a delegation cannot inherit stale code;
-  -- retain bit 16, the execution-known marker required by the consumer.
-  "  sd s1, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 88(t0); ori t1, t1, 83; li t2, -13; and t1, t1, t2; beqz s2, .Lasra_flags; sd s3, 72(t0); li t2, 23; sd t2, 80(t0); ori t1, t1, 12\n" ++
-  ".Lasra_flags:\n" ++
-  "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; bnez a0, .Lasra_overflow\n" ++
-  -- Publish the same accepted authorization into the transaction map.  The
-  -- explicit EXEC_FLAGS field is the map-side AUTH contract; CODE is always
-  -- valid here so an authorization clear erases an older delegation pointer.
-  "  mv a0, s0; li a1, 0; mv a2, s1; mv a3, s3; li a4, 23; li a5, 1; li a6, " ++ toString (accountWriteHasCode + accountWriteHasNonce + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 83; beqz s3, .Lasra_map_record; li a7, 95\n" ++
-  ".Lasra_map_record:\n" ++
-  "  beqz s3, .Lasra_map_code_empty; j .Lasra_map_code_ready\n" ++
-  ".Lasra_map_code_empty:\n  li a3, 0; li a4, 0\n" ++
-  ".Lasra_map_code_ready:\n" ++
-  "  jal ra, account_write_record; j .Lasra_ret\n" ++
-  ".Lasra_overflow:\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lasra_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 56; ret"
-
 /-! ## account_state_publish_sender_inclusion
 
     Publish the transaction sender's post-increment nonce to the durable block
@@ -493,30 +442,6 @@ def accountStatePublishSenderInclusionFunction : String :=
   ".Laspsn_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 40; ret"
 
-def accountStateAuthCurrentFunction : String :=
-  "account_state_auth_current:\n" ++
-  -- GH #10619 (review gate 2): a third EXECUTION account read, missed by the
-  -- latest_balance/latest_nonce hooks.  Reached as
-  -- eip7702_auth_state_prepare -> eip7702_authority_asof -> here.  The
-  -- block_verdict_ prefix is misleading: applying EIP-7702 authorizations IS
-  -- transaction execution in the spec (it mutates nonce/code through
-  -- get_account), so these reads belong in account_reads.  Recorded
-  -- UNCONDITIONALLY, per state_tracker.py:139.
-  "  addi sp, sp, -16; sd ra, 0(sp); sd a1, 8(sp)\n" ++
-  "  jal ra, account_read_record\n" ++
-  "  ld ra, 0(sp); ld a1, 8(sp); addi sp, sp, 16\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lasac_entry\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lasac_miss\n" ++
-  ".Lasac_entry:\n" ++
-  "  ld t0, 88(a0); andi t1, t0, 2; beqz t1, .Lasac_dead; andi t1, t0, 64; beqz t1, .Lasac_miss; sd t0, 0(s2); ld t0, 64(a0); sd t0, 0(s1); li a0, 1; j .Lasac_ret\n" ++
-  ".Lasac_dead:\n" ++
-  "  li a0, 2; j .Lasac_ret\n" ++
-  ".Lasac_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lasac_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 32; ret"
-
 /-! ## account_write_touch_current
 
     First TOUCHED producer (#11329 / entry6). Publishes a TOUCHED-only
@@ -542,49 +467,6 @@ def accountWriteTouchCurrentFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); ld a4, 56(sp); ld a5, 64(sp); ld a6, 72(sp)\n" ++
   "  addi sp, sp, 80; ret\n"
-
-/-! ## account_state_tombstone_balance_zero
-
-    Self-sufficient `EMPTY_ACCOUNT` check for a delete-pending AccountState
-    row, matching pin `is_account_alive` / `EMPTY_ACCOUNT`
-    (state_tracker.py:445-463): not-alive iff nonce==0 AND balance==0 AND
-    code empty. Callers (nacc / ibnacc / SELFDESTRUCT NEW_ACCOUNT, #11334 /
-    #11362) use the result as an aliveness gate, so all three conjuncts must
-    live in THIS helper — not as a remote writer invariant.
-
-    Shape filters (tombstone lineage, not a free scan of every row):
-    (1) bit4 set AND bit2 (code) clear — same decode as lookup status 2/3;
-    bit4 alone is insufficient (`account_state_record_code` flags 27 keeps
-    bit4 on live created contracts). (1b) bit3 (created-this-tx) clear —
-    excludes live empty-code CREATE rows (flags 27/59) that keep bit3 across
-    `account_state_upsert_durable`; tombstone writer stores literal 17/51.
-    (2) nonce@+64 == 0. (3) 32 balance bytes all zero.
-
-    History: until #11362 commit 1 cleared nonce on the flags-51 path, a
-    bal-preserved tombstone could sit at flags=0x33 nonce=1 bal=0. This
-    helper (pre-nonce-check) then returned 1 / not-alive while
-    `is_account_alive` says ALIVE — a silent NEW_ACCOUNT overcharge at every
-    caller. Commit 1 repairs that writer; the nonce load here makes the
-    helper correct even if that remote invariant regresses.
-
-    a0 = canonical 20-byte BE address pointer
-    returns a0 = 1 when a matching entry is EMPTY (pending first, then
-                 durable), 0 otherwise.
-    Clobbers a0-a3, t0, t1. -/
-def accountStateTombstoneBalanceZeroFunction : String :=
-  "account_state_tombstone_balance_zero:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0\n" ++
-  "  la a1, account_state_pending; la t0, account_state_pending_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Latbz_entry\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Latbz_no\n" ++
-  ".Latbz_entry:\n" ++
-  "  ld t0, 88(a0); andi t1, t0, 16; beqz t1, .Latbz_no; andi t1, t0, 4; bnez t1, .Latbz_no; andi t1, t0, 8; bnez t1, .Latbz_no\n" ++
-  "  ld t1, 64(a0); bnez t1, .Latbz_no\n" ++
-  "  ld t0, 32(a0); ld t1, 40(a0); or t0, t0, t1; ld t1, 48(a0); or t0, t0, t1; ld t1, 56(a0); or t0, t0, t1; bnez t0, .Latbz_no\n" ++
-  "  li a0, 1; j .Latbz_ret\n" ++
-  ".Latbz_no:\n" ++
-  "  li a0, 0\n" ++
-  ".Latbz_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret"
 
 /-! Transaction-local EIP-6780 membership query.  This reads only the
     AccountState `created_accounts` set, never the durable map: an account
