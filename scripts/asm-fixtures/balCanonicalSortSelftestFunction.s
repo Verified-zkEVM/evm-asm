@@ -12,7 +12,7 @@ bal_canonical_sort_selftest:
   li t1, 0x40; sb t1, 19(t0);   li t1, 3; sb t1, 64(t0)
   addi t0, s0, 384
   li t1, 0x20; sb t1, 19(t0);   li t1, 4; sb t1, 64(t0)
-  mv a0, s0; li a1, 4; li a2, 128; li a3, 0x1400; li a4, 1
+  mv a0, s0; li a1, 4; li a2, 128; li a3, 0x1400; li a4, 1; li a5, 4
   jal ra, bal_canonical_sort
   bnez a0, .Lbalsort_st_fail
   lbu t1, 64(s0);   li t2, 2; bne t1, t2, .Lbalsort_st_fail

@@ -50,6 +50,7 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Programs.BalCapacities
 
 namespace EvmAsm.Codegen
 
@@ -132,7 +133,8 @@ def readSetsIncorporateTxFunction : String :=
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   -- storage_reads: 64 B stride, 64 B compared (addrHash ++ slotKey), cap 16384
   "  li a0, 0xa1da0000; la a1, tx_storage_reads_count; li a2, 0xa1ba0000\n" ++
-  "  la a3, storage_reads_count; li a4, 64; li a5, 64; li a6, 16384\n" ++
+  "  la a3, storage_reads_count; li a4, 64; li a5, 64; li a6, " ++
+  toString balBuilderStorageReadsCapacity ++ "\n" ++
   "  la a7, storage_reads_overflow; jal ra, read_sets_merge_one\n" ++
   -- account_reads: 32 B stride, 20 B compared (the address; bytes 20..31 are padding)
   "  li a0, 0xa1ea0000; la a1, tx_account_reads_count; li a2, 0xa1ca0000\n" ++
