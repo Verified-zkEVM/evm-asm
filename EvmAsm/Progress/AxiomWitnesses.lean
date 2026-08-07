@@ -48,6 +48,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 
+#print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
+
+#print axioms EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
+
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
@@ -95,6 +99,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
+#print axioms EvmAsm.Codegen.blsgLtP_spec_specref
+
+#print axioms EvmAsm.Codegen.bnfLtP_spec_specref
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
