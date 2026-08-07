@@ -9,7 +9,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
-import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.AccountWriteMap
 
@@ -118,54 +117,6 @@ private def blockVerdictMtxRecordSenderRefund : String :=
   "  la a0, bv_mtx_sender_addr; la a1, bv_pending_upfront_sender_post; li a2, 19; jal ra, account_writes_latest_balance\n" ++
   "  beqz a0, .Lbv_mtx_bail  # the preceding account-write credit must be observable\n" ++
 ".Lbv_mtx_sr_done:\n"
-
-/-! Gate the pre-user system-storage seed on the same code-presence predicate as
-    `process_unchecked_system_transaction`.  The MTx lane seeds the canonical
-    block map before dispatch so user SLOADs can resolve the EIP-2935/4788
-    startup writes.  An absent or codeless system contract executes no code and
-    therefore must not leave a storage-map row behind.  `block_state_root`
-    repeats this check for its terminal descriptors; clearing only those
-    descriptors cannot retract a row already inserted into the canonical map.
-
-    The output account buffer is shared between the two lookups, and every
-    nonzero lookup result is treated as "not a writable system contract" here.
-    The terminal root pass remains authoritative for malformed witness handling;
-    this early guard only prevents a speculative map seed. -/
-private def blockVerdictMtxGateSystemStorageSeed : String :=
-  -- account_at_header_state_root ABI: a0/a1 = header RLP, a2/a3 = address,
-  -- a4/a5 = witness state, a6 = out. (Swapped a0↔a2 made status=4 header-parse
-  -- fail, zeroed all system vlens, and left MTx seed a no-op — SLOAD never saw
-  -- 2935/4788 block-start writes; code-1 beacon CALL cluster.)
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bsr_addr_2935; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_sys2935_skip\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
-  ".Lbv_mtx_sys2935_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys2935_ident\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_code_cmp\n" ++
-  ".Lbv_mtx_sys2935_skip:\n" ++
-  "  la t0, swd_2935_vlen; sd zero, 0(t0); j .Lbv_mtx_sys2935_present\n" ++
-  ".Lbv_mtx_sys2935_ident:\n" ++
-  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-2935 hash.\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_2935_code_hash; li t2, 32\n" ++
-  ".Lbv_mtx_sys2935_ident_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys2935_ident_cmp\n" ++
-  ".Lbv_mtx_sys2935_present:\n" ++
-  "  ld a0, 8(s0); ld a1, 16(s0); la a2, bsr_addr_4788; li a3, 20; ld a4, 80(s0); ld a5, 88(s0); la a6, bsr_sys_acct; jal ra, account_at_header_state_root\n" ++
-  "  bnez a0, .Lbv_mtx_sys4788_skip\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
-  ".Lbv_mtx_sys4788_code_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_mtx_sys4788_ident\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_code_cmp\n" ++
-  ".Lbv_mtx_sys4788_skip:\n" ++
-  "  la t0, swd_4788_vlen; sd zero, 0(t0); la t0, swd_4788_root_vlen; sd zero, 0(t0); j .Lbv_mtx_sys4788_present\n" ++
-  ".Lbv_mtx_sys4788_ident:\n" ++
-  "  # GH #11431: non-empty deployed code_hash must be the canonical EIP-4788 hash.\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_4788_code_hash; li t2, 32\n" ++
-  ".Lbv_mtx_sys4788_ident_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbv_mtx_sys4788_ident_cmp\n" ++
-  ".Lbv_mtx_sys4788_present:\n"
 
 /- Materialize the process_transaction sender debit when the shared callable
    dispatcher halts exceptionally before its normal pending-seed and MTx
