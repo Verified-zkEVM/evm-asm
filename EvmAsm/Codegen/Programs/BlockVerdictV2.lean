@@ -246,6 +246,11 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
     builderContractAddrData ++
