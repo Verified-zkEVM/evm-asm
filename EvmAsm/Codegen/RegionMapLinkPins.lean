@@ -22,8 +22,8 @@ abbrev textSizeBytes : Nat := 0x557a8
 abbrev dataSizeBytes : Nat := 0x53b0
 abbrev bssSizeBytes : Nat := 0x190295a0
 
-abbrev callFrameArenaBase : Nat := 0xabd78860
-abbrev evmMemoryPoolBase : Nat := 0xb2191860
-abbrev syslogBase : Nat := 0xaa250100
+abbrev callFrameArenaBase : Nat := 0xabd38860
+abbrev evmMemoryPoolBase : Nat := 0xb2151860
+abbrev syslogBase : Nat := 0xaa210100
 
 end EvmAsm.Codegen.RegionMapLinkPins
