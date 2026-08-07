@@ -262,7 +262,25 @@ has no counterpart in the untyped shared model, so it rests on the machine tripl
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
-    reference := "decode_joined_encodings" },
+    reference := "decode_joined_encodings",
+    note := "⛔ BLOCKED ON #11711, and the reason is structural rather than unfinished \
+work. #11341 asked for a bridge from the local `StrictPrefix` walk relation to the shared \
+`DecodeChain`; PR #11694 landed the structural half (`DecodeChain.snoc`, the snoc-vs-cons \
+reversal, plus the count-to-items construction) and two of the three byte-string per-item \
+disjuncts. The remaining per-item obligation CANNOT BE DISCHARGED: `DecodeChain` demands \
+fuel-insensitivity (`∀ m`) per link, which is sound only for byte-string items, whereas a \
+nested list's `decodeAux` recurses into `decodeItems nDepth payload` and IS fuel-sensitive \
+(WalkDecodeBridge.lean:405-408 says so in the tree's own words). ⚠️ AND THE DOMAIN CONTAINS \
+NESTED LISTS: since #11675 this routine is called by `mpt_node_kind` to check node arity, and \
+MPT branch children are either a 32-byte hash or an INLINE EMBEDDED NODE — \
+`SpecRef/IncrementalMpt.lean:155` `resolveChildRefAux` has an explicit `| .list items =>` arm \
+for exactly that. So the hypothesis is not merely unproven on this routine's domain, it is \
+unsatisfiable, and a structural theorem whose hypothesis cannot be instantiated says nothing \
+about the routine. The row therefore stays `machineOnly` until #11711 supplies a \
+fuel-sensitive chain predicate; regrading it earlier would claim a differential transfer that \
+does not exist. Separately noted on #11341: the machine relation accepts a list item whose \
+SPAN fits without validating its interior, where `decode_joined_encodings` decodes every \
+item — a looser-than-reference shape whose reachability is NOT established" },
   { family := "rlp", routine := "rlp_list_nth_item",
     spec := some "rlpListNthItem_spec_within",
     verdict := .agrees, basis := .bridged,
