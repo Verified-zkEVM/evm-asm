@@ -59,7 +59,9 @@ def createNonceUndoCap : Nat := 2 * createNonceTableCap
 #guard createNonceUndoCap = 12500
 
 /-- The undo journal is indexed by mutation order, never by attacker-controlled
-    node count. -/
+    node count. The child checkpoint is captured after creator-use, so an
+    immediate child revert retains the attempt while an ancestor revert replays
+    the positional record. -/
 def createNonceUndoRecordBytes : Nat := 24
 
 def createNonceUndoBytes : Nat := createNonceUndoCap * createNonceUndoRecordBytes
@@ -90,6 +92,9 @@ def createCreatorNonceUseFunction : String :=
   ".Lccnu_found:\n" ++
   "  ld a0, 32(t3)               # ret = entry.nonce\n" ++
   "  li t4, -1; beq a0, t4, .Lccnu_ret  # max nonce: CREATE must fail; do not wrap table\n" ++
+  -- The child frame checkpoint is captured by create_frame_descend after this
+  -- routine returns. Keep this positional record so an ancestor checkpoint
+  -- can unwind a nested CREATE while the immediate child retains the attempt.
   "  la t4, create_nonce_undo_count; ld t5, 0(t4); li t6, " ++ toString createNonceUndoCap ++ "; bgeu t5, t6, .Lccnu_undo_overflow\n" ++
   "  li t6, 24; mul t6, t5, t6; la t4, create_nonce_undo_log; add t4, t4, t6\n" ++
   "  sd t2, 0(t4); sd a0, 8(t4); sd t1, 16(t4)\n" ++
