@@ -21,7 +21,6 @@ import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.SszWithdrawal
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
-import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.WitnessCodeLookup
@@ -197,8 +196,6 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- #11431: MtxRuntime jals process_block_start_system_transactions; standalone
     -- v2 unit mirrors those handlers and must link the callee (check-build-units-link).
     processBlockStartSystemTransactionsFunction ++ "\n" ++
-    blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
-    blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
     materializeLogRecordsFunction ++ "\n" ++

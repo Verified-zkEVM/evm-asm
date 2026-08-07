@@ -22,7 +22,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.BlockVerdictMtxEoa
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.ParseDepositRequests
-import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.MaterializeLogRecords
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Stateless.Entry
@@ -76,10 +75,8 @@ def statelessGuestUnit : BuildUnit := {
     processBlockStartSystemTransactionsFunction ++ "\n" ++
     -- 8uld3.2.3.2 (B): link the EIP-6110 deposit-request derivation (parse_deposit_requests
     -- scans block receipts for DEPOSIT_CONTRACT_ADDRESS logs -> type-0 deposit bodies, +
-    -- extract_deposit_data). Self-contained (no dispatcher deps). Additive — unused until .C
-    -- replaces the SSZ-deposits trust (BlockVerdictStateRoot.lean:430-445) with derivation.
-    blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
-    blockVerdictAppendDirectDepositFunction ++ "\n" ++
+    -- extract_deposit_data). Self-contained (no dispatcher deps); the receipts tail
+    -- consumes this derived body directly and does not synthesize calldata requests.
     parseDepositRequestsFunction ++ "\n" ++
     extractDepositDataFunction ++ "\n" ++
     materializeLogRecordsFunction ++ "\n" ++
