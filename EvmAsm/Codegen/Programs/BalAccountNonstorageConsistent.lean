@@ -13,11 +13,16 @@
               block-post value (catches a BAL declaring a WRONG final);
     reverse : if exec net-changed the field (block-post != block-pre), the BAL must
               declare it with the right final (catches a BAL OMITTING a real change).
-  It deliberately does NOT reject an account whose final equals its pre-value with a
-  spurious declaration (a net-zero V->...->V account is final-consistent); the per-tx
-  TUPLE-SEQUENCE completeness is a separate layer (bmvmx.1.6.6, gated on the exec log
-  carrying a tx index). Code changes are likewise out of scope here — they only occur
-  via CREATE/SELFDESTRUCT, verified once that exec lands (i3djw create/delete steps).
+    zero-net declaration reject (GH #10615): if exec did NOT net-change a field
+              (pre == post) but the BAL still declares it, reject. Matches the
+              pinned builder at e5a8caf1b `block_access_lists.py:637-664`, which
+              emits each field only when pre != post. A nonce-only change still
+              emits only the nonce field (hasBalance=0); this comparator never
+              invents a balance component — last-post-wins aggregation in
+              `nonstorage_effect_aggregate` would otherwise replace a true final
+              balance with a same-to-same declaration.
+
+  Code changes are out of scope here — they only occur via CREATE/SELFDESTRUCT.
 
   Execution-derived non-storage effect record (112 B, 8-byte aligned; the all-accounts
   wrapper .3 keys BAL accounts to these via addrHash):
@@ -47,61 +52,59 @@ open EvmAsm.Rv64
     a0 (output) = 0 consistent / 1 inconsistent / 2 BAL parse failure.
 
     Internally calls bal_account_nonstorage_finals into a scratch buffer, then for
-    balance and nonce applies the forward+reverse FINAL checks described above. -/
+    balance and nonce applies forward + reverse + zero-net-declaration checks. -/
 def balAccountNonstorageConsistent_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x12,
-    .AUIPC .x9 (laHi GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
-    .ADDI .x9 .x9 (laLo GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
-    .MV .x12 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.c2nsc_finals (GuestAddrs.bal_account_nonstorage_consistent + 20)),
+    .MV .x9 .x12,
     .JAL .x1 (jalOff GuestAddrs.bal_account_nonstorage_finals (GuestAddrs.bal_account_nonstorage_consistent + 32)),
-    .BNE .x10 .x0 (192 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_nonstorage_consistent + 220) (GuestAddrs.bal_account_nonstorage_consistent + 36)),
     .LD .x5 .x9 (0 : BitVec 12),
-    .ADDI .x7 .x8 (32 : BitVec 12),
-    .ADDI .x28 .x8 (64 : BitVec 12),
-    .LI .x6 (0 : Word),
+    .ADDI .x6 .x8 (32 : BitVec 12),
+    .ADDI .x7 .x8 (64 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
     .LD .x29 .x7 (0 : BitVec 12),
-    .LD .x30 .x28 (0 : BitVec 12),
-    .BNE .x29 .x30 (44 : BitVec 13),
+    .BNE .x28 .x29 (48 : BitVec 13),
+    .LD .x28 .x6 (8 : BitVec 12),
     .LD .x29 .x7 (8 : BitVec 12),
-    .LD .x30 .x28 (8 : BitVec 12),
-    .BNE .x29 .x30 (32 : BitVec 13),
+    .BNE .x28 .x29 (36 : BitVec 13),
+    .LD .x28 .x6 (16 : BitVec 12),
     .LD .x29 .x7 (16 : BitVec 12),
-    .LD .x30 .x28 (16 : BitVec 12),
-    .BNE .x29 .x30 (20 : BitVec 13),
+    .BNE .x28 .x29 (24 : BitVec 13),
+    .LD .x28 .x6 (24 : BitVec 12),
     .LD .x29 .x7 (24 : BitVec 12),
-    .LD .x30 .x28 (24 : BitVec 12),
-    .BNE .x29 .x30 (8 : BitVec 13),
-    .JAL .x0 (8 : BitVec 21),
-    .LI .x6 (1 : Word),
-    .BEQ .x6 .x0 (8 : BitVec 13),
-    .BEQ .x5 .x0 (104 : BitVec 13),
-    .BEQ .x5 .x0 (60 : BitVec 13),
-    .ADDI .x7 .x9 (8 : BitVec 12),
-    .ADDI .x28 .x8 (64 : BitVec 12),
+    .BNE .x28 .x29 (12 : BitVec 13),
+    .BNE .x5 .x0 (brOff (GuestAddrs.bal_account_nonstorage_consistent + 212) (GuestAddrs.bal_account_nonstorage_consistent + 100)),
+    .JAL .x0 (jalOff (GuestAddrs.bal_account_nonstorage_consistent + 168) (GuestAddrs.bal_account_nonstorage_consistent + 104)),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.bal_account_nonstorage_consistent + 212) (GuestAddrs.bal_account_nonstorage_consistent + 108)),
+    .ADDI .x6 .x9 (8 : BitVec 12),
+    .ADDI .x7 .x8 (64 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
     .LD .x29 .x7 (0 : BitVec 12),
-    .LD .x30 .x28 (0 : BitVec 12),
-    .BNE .x29 .x30 (80 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.bal_account_nonstorage_consistent + 212) (GuestAddrs.bal_account_nonstorage_consistent + 128)),
+    .LD .x28 .x6 (8 : BitVec 12),
     .LD .x29 .x7 (8 : BitVec 12),
-    .LD .x30 .x28 (8 : BitVec 12),
-    .BNE .x29 .x30 (68 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.bal_account_nonstorage_consistent + 212) (GuestAddrs.bal_account_nonstorage_consistent + 140)),
+    .LD .x28 .x6 (16 : BitVec 12),
     .LD .x29 .x7 (16 : BitVec 12),
-    .LD .x30 .x28 (16 : BitVec 12),
-    .BNE .x29 .x30 (56 : BitVec 13),
+    .BNE .x28 .x29 (60 : BitVec 13),
+    .LD .x28 .x6 (24 : BitVec 12),
     .LD .x29 .x7 (24 : BitVec 12),
-    .LD .x30 .x28 (24 : BitVec 12),
-    .BNE .x29 .x30 (44 : BitVec 13),
+    .BNE .x28 .x29 (48 : BitVec 13),
     .LD .x5 .x9 (40 : BitVec 12),
-    .LD .x7 .x8 (96 : BitVec 12),
-    .LD .x28 .x8 (104 : BitVec 12),
-    .BEQ .x7 .x28 (8 : BitVec 13),
-    .BEQ .x5 .x0 (24 : BitVec 13),
-    .BEQ .x5 .x0 (12 : BitVec 13),
-    .LD .x29 .x9 (48 : BitVec 12),
-    .BNE .x29 .x28 (12 : BitVec 13),
+    .LD .x6 .x8 (96 : BitVec 12),
+    .LD .x7 .x8 (104 : BitVec 12),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .BNE .x5 .x0 (28 : BitVec 13),
+    .JAL .x0 (16 : BitVec 21),
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .LD .x28 .x9 (48 : BitVec 12),
+    .BNE .x28 .x7 (12 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -117,7 +120,7 @@ def balAccountNonstorageConsistent_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def balAccountNonstorageConsistent_relocs : RelocTable :=
-  [ (5, .la .x9 "c2nsc_finals"),
+  [ (5, .la .x12 "c2nsc_finals"),
     (8, .jal .x1 "bal_account_nonstorage_finals") ]
 
 def balAccountNonstorageConsistentFunction : String :=
@@ -132,7 +135,8 @@ theorem balAccountNonstorageConsistentFunction_eq_prog :
     balAccountNonstorageConsistentFunction = "bal_account_nonstorage_consistent:\n" ++ emitProgramR balAccountNonstorageConsistent_prog balAccountNonstorageConsistent_relocs := rfl
 
 #guard balAccountNonstorageConsistentFunction.startsWith "bal_account_nonstorage_consistent:\n"
-#guard balAccountNonstorageConsistent_prog.length = 63
+#guard balAccountNonstorageConsistent_prog.length = 61
+
 /-- `zisk_bal_account_nonstorage_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16   : AccountChanges byte length
