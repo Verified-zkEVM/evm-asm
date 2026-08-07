@@ -21,9 +21,18 @@
   stand on** without this equality: the two sides would be talking about
   syntactically different functions that a reader assumes are the same.
 
-  `U256MinSAsm.beBytesToNat_foldl` proves the accumulator generalisation, but it
-  is `private`, lives under `Codegen`, and stops short of the equality — so it is
-  unavailable to a core-side bridge on both counts.
+  The accumulator generalisation already exists twice under `Codegen` —
+  `U256MinSAsm.beBytesToNat_foldl` (`private`) and
+  `U256MulU64Be/Basic.beBytesToNat_foldl_init` (public) — and **neither is usable
+  here, for one reason: layering.** `Codegen` is a pure sink, so a core-side
+  bridge cannot import either, whatever their visibility. Both also stop short of
+  the equality, generalising within `beBytesToNat` rather than over `fromBytesBE`.
+
+  ⚠️ An earlier draft of this docstring gave "it is `private`" as half the
+  justification. That is wrong about the public one and irrelevant to the private
+  one — visibility never entered into it. Recorded rather than silently corrected,
+  because "this is unavailable" is exactly the kind of claim that gets repeated
+  from a docstring without being re-measured.
 -/
 
 import EvmAsm.Crypto.PowLadder
