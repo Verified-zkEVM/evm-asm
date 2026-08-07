@@ -54,6 +54,7 @@ import EvmAsm.Rv64.RLP.WalkDecodeBridge
 
 namespace EvmAsm.Codegen.RlpListCountItemsBridge
 
+open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
 open EvmAsm.EL.RLP
 open EvmAsm.Codegen.RlpListNthItemSAsm (StrictPrefix)
@@ -78,6 +79,59 @@ def RlpItemDecodeBridges (bytes : List (BitVec 8)) (base endPtr : Word) : Prop :
     ∃ item : RLPItem,
       ∀ m, decodeAux (m + 1) (bytes.drop off)
         = some (item, bytes.drop (next - base).toNat)
+
+
+/-! ## Per-item translation, byte-string forms only (#11341 option 1)
+
+    ⚠️ THE LIST FORMS CANNOT BE BRIDGED THIS WAY, which is why this section stops at
+    byte strings. `rlpItemDecode`'s two list disjuncts require only that the item's
+    SPAN FITS; `decodeAux` (Decode.lean:63) additionally decodes the payload
+    (`decodeItems nDepth payload`, leftover must be empty) and returns `none` if it
+    fails. So a list item with a malformed interior satisfies the machine relation and
+    is REJECTED by the model — the implication is false on those disjuncts, not merely
+    unproven.
+
+    ⭐ The evidence was already in the tree: `WalkDecodeBridge` has
+    `decodeAux_singleByte_*`, `_shortBytes_*`, `_bytes_*` and **no list bridge at
+    all**. That absence is not an oversight; one cannot be written.
+
+    Consequence: the guest walker accepts nested-list input the reference rejects,
+    which against `decode_joined_encodings` is a LOOSER-than-reference shape. Whether
+    that is reachable, and what verdict it deserves, is recorded on #11341 — it is a
+    design question about what `rlp_walk_next` promises, not something to paper over
+    here. This section proves what IS true. -/
+
+/-- The single-byte range guard, read byte-exhaustively. `BitVec.ult` over a
+    `zeroExtend`ed byte against a 64-bit literal is exactly the kind of mixed
+    BitVec/Nat statement `omega` cannot see through, and it is decidable over 256
+    cases — cheap, since the kernel's `Nat` is GMP-backed (CLAUDE.md). -/
+private theorem lt_0x80_of_ult (b : BitVec 8)
+    (h : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true) : b.toNat < 0x80 := by
+  revert b; decide
+
+/-- Single-byte form: the machine disjunct's BitVec guards, translated to the Nat
+    hypotheses `decodeAux_singleByte_bridge` already wants.
+
+    All the decode content is in that existing lemma; this is purely the
+    `BitVec`→`Nat` guard translation.
+
+    ⭐ CURSOR ARITHMETIC IS A HYPOTHESIS (`hstep`), deliberately. Re-deriving
+    `(next - base).toNat = off + 1` here would duplicate what the walk layer already
+    proves (`StrictPrefix.step_bounds` and friends carry exactly these cursor facts),
+    and it is not this lemma's job: this file translates DECODE relations, not pointer
+    arithmetic. Keeping it out also stops an overflow side condition from leaking into
+    every per-form lemma. -/
+theorem decodeAux_of_singleByte
+    {bytes : List (BitVec 8)} {base : Word} {off : Nat} {next : Word} {b : BitVec 8}
+    (hget : bytes[off]? = some b)
+    (hsmall : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hstep : (next - base).toNat = off + 1) :
+    ∀ m, decodeAux (m + 1) (bytes.drop off)
+      = some (.bytes [b], bytes.drop (next - base).toNat) := by
+  intro m
+  have hb : b.toNat < 0x80 := lt_0x80_of_ult b hsmall
+  rw [hstep]
+  exact decodeAux_singleByte_bridge bytes off b hget hb m
 
 /-- ⭐ **The snoc lemma — mismatch (2) in one place.**
 
