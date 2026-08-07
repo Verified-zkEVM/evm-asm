@@ -631,6 +631,7 @@ def statelessVerdictV2GuestClosure : String :=
   -- persist each tx's executed state gas into bvgr_tx_exec_state_gas (behavior-neutral substrate
   -- for the EIP-7778 2D state-dim).
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
+  dispatcherCaptureExecStateGasDifferentialFunction ++ "\n" ++
   -- bmvmx.3.2: per-tx sender recovery vs witness public_keys. block_verdict
   -- calls verify_public_keys_match_senders after public_keys_valid; the TX-side
   -- recovery stack (signature extractors + signing-hash + material/stage/

@@ -87,6 +87,54 @@ def dispatcherCaptureExecStateGas_relocs : RelocTable :=
 def dispatcherCaptureExecStateGasFunction : String :=
   "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs
 
+/-! ## #10609 differential capture
+
+    Keep `dispatcher_capture_exec_state_gas` as the authoritative legacy
+    accumulator capture while recording the pool-derived value beside it.
+    This helper runs immediately after the legacy capture at every settled
+    transaction boundary.  The two arrays are deliberately separate: the
+    existing `bvgr_tx_exec_state_gas` ABI remains untouched, while the
+    differential array and marker make the disagreement set observable before
+    any authority flip.
+
+    The top-level runtime baseline is written after authorization preparation
+    by `Dispatch.lean`.  The entry spill cell is included explicitly even
+    though the pinned Python auth reset makes it zero:
+
+      entry_left - current_left + (current_spilled - entry_spilled)
+
+    (execution-specs `vm/interpreter.py:362-364`, with the reservoir supplied
+    by `fork.py:1101`, `fork.py:1129`, and `utils/message.py:79`). -/
+def dispatcherCaptureExecStateGasDifferentialFunction : String :=
+  "dispatcher_capture_exec_state_gas_differential:\n" ++
+  "  la t0, evm_state_gas_used; ld t0, 0(t0)\n" ++
+  -- Collision and authorization-phase OOG routes publish a transaction result
+  -- without reaching the post-preparation seam.  Their baseline cells belong
+  -- to the preceding transaction, so the pool-derived executed component is
+  -- exactly zero on those routes.
+  "  la t1, runtime_tx_state_gas_entry_valid; ld t1, 0(t1)\n" ++
+  "  beqz t1, .Lcesg_diff_not_derivable\n" ++
+  ".Lcesg_diff_post_preparation:\n" ++
+  "  la t1, runtime_tx_state_gas_entry_left; ld t1, 0(t1)\n" ++
+  "  la t2, evm_state_gas_left; ld t2, 0(t2); sub t1, t1, t2\n" ++
+  "  la t2, evm_state_gas_spilled; ld t2, 0(t2); add t1, t1, t2\n" ++
+  "  la t2, runtime_tx_state_gas_entry_spilled; ld t2, 0(t2); sub t1, t1, t2\n" ++
+  "  slli t3, a0, 3\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd t1, 0(t2)\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3\n" ++
+  "  bne t0, t1, .Lcesg_diff_mismatch\n" ++
+  "  sd zero, 0(t2)\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; sd zero, 0(t2)\n" ++
+  "  ret\n" ++
+  ".Lcesg_diff_mismatch:\n" ++
+  "  li t4, 1; sd t4, 0(t2)\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; sd zero, 0(t2); ret\n" ++
+  ".Lcesg_diff_not_derivable:\n" ++
+  "  slli t3, a0, 3\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd zero, 0(t2)\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3; sd zero, 0(t2)\n" ++
+  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; li t4, 1; sd t4, 0(t2); ret\n"
+
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `dispatcherCaptureExecStateGas_prog` rendered under its label with the `la`/`jal`
     relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
@@ -103,6 +151,16 @@ theorem dispatcherCaptureExecStateGasFunction_eq_prog :
     links it; this copy is for the standalone probe. -/
 def dispatcherExecStateGasArrayDef : String :=
   "bvgr_tx_exec_state_gas:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n"
+
+/-- Per-transaction differential outputs for #10609.  These are diagnostic
+    only: production consumers continue to read `bvgr_tx_exec_state_gas`. -/
+def dispatcherExecStateGasDifferentialData : String :=
+  ".section .state_gas_diag, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  "bvgr_tx_exec_state_gas_derived:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_tx_exec_state_gas_diff:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bvgr_tx_exec_state_gas_nonderivable:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "runtime_tx_state_gas_entry_valid:\n  .zero 8\n"
 
 /-- `zisk_capture_exec_state_gas`: focused probe for
     `dispatcher_capture_exec_state_gas`.
