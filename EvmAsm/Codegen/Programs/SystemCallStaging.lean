@@ -1,13 +1,15 @@
 /-
   EvmAsm.Codegen.Programs.SystemCallStaging
 
-  `stage_system_call_payload` (bead evm-asm-8uld3.2.1.2, EIP-7002/7251) — stage the
-  runtime payload for an Amsterdam system call (process_unchecked_system_transaction):
-  caller = origin = SYSTEM_ADDRESS (0xff..fe), value 0, empty calldata, gas 30M, the
-  target predeploy's code. Reuses the parameterized `stage_runtime_payload_code`
-  (BlockVerdictContractStage.lean) with a synthesized SYSTEM context record, then
-  overwrites the CALLER (env_base+64) + ORIGIN (env_base+128) env words with
-  SYSTEM_ADDRESS (mirroring the 3vc2p.1 tx-sender staging).
+  `stage_system_call_payload` (bead evm-asm-8uld3.2.1.2, EIP-7002/7251/2935/4788) —
+  stage the runtime payload for an Amsterdam system call
+  (process_unchecked_system_transaction / process_checked_system_transaction):
+  caller = origin = SYSTEM_ADDRESS (0xff..fe), value 0, gas 30M, the target
+  predeploy's code. Optional calldata comes from globals `ssc_calldata_ptr` /
+  `ssc_calldata_len` (ctx@56/64); 7002/7251 leave both zero (empty data).
+  Reuses `stage_runtime_payload_code` with a synthesized SYSTEM context record,
+  then overwrites CALLER (env_base+64) + ORIGIN (env_base+128) with
+  SYSTEM_ADDRESS.
 
   This is the staging half of the shared system-call harness (8uld3.2.1); the depth-0
   RETURN-data capture (8uld3.2.1a, #8681) + the compose step (8uld3.2.1c) close the loop.
@@ -35,7 +37,8 @@ open EvmAsm.Rv64
     a3 = block exec payload ptr (stage_runtime_payload_code's env source)
     a4 = output payload buffer ptr
     a0 (output) = 0 ok / 1 unsupported (stage_runtime_payload_code rejected).
-    Stages caller=origin=SYSTEM_ADDRESS, value 0, empty calldata, gas 30M, code=predeploy. -/
+    Stages caller=origin=SYSTEM_ADDRESS, value 0, gas 30M, code=predeploy.
+    Calldata: `ssc_calldata_ptr` / `ssc_calldata_len` (default 0 = empty). -/
 def stageSystemCallPayloadFunction : String :=
   "stage_system_call_payload:\n" ++
   "  addi sp, sp, -48\n" ++
@@ -47,13 +50,17 @@ def stageSystemCallPayloadFunction : String :=
   "  mv s3, a3                    # exec payload\n" ++
   "  mv s4, a4                    # out payload\n" ++
   -- Build the SYSTEM context record in scc_ctx (192 B): status@0=0, gas@40=30M,
-  -- is_creation@48=0, calldata_len@64=0, recipient@72=target, value@96=0.
+  -- is_creation@48=0, calldata from ssc_calldata_*, recipient@72=target, value@96=0.
   "  la t0, scc_ctx\n" ++
   "  mv t1, t0; li t2, 24\n" ++
   ".Lscc_zero:\n" ++
   "  sd zero, 0(t1); addi t1, t1, 8; addi t2, t2, -1; bnez t2, .Lscc_zero\n" ++
   liAmsterdamSystemTransactionGas "t1" ++           -- t1 = 30000000
   "  sd t1, 40(t0)\n" ++                            -- gas@40
+  -- Optional system-tx calldata (EIP-2935 parent_hash / EIP-4788 parent_beacon_root).
+  -- 7002/7251 leave ssc_calldata_len=0 so ctx@56/64 stay zero (empty data).
+  "  la t1, ssc_calldata_ptr; ld t1, 0(t1); sd t1, 56(t0)\n" ++
+  "  la t1, ssc_calldata_len; ld t1, 0(t1); sd t1, 64(t0)\n" ++
   "  addi t1, t0, 72; mv t2, s0; li t3, 20\n" ++    -- recipient@72 = target (20B)
   ".Lscc_recip:\n" ++
   "  beqz t3, .Lscc_recip_d\n" ++
@@ -61,14 +68,15 @@ def stageSystemCallPayloadFunction : String :=
   ".Lscc_recip_d:\n" ++
   -- fhsxz.2.4.2.66.1: conservative payload-size guard (mirrors bmvmx.1.7.2 in
   -- dispatch_tx_runtime_code). stage_runtime_payload_code zeroes + writes
-  -- round8(codelen) + m29_count*32 + 584 bytes into the output
+  -- round8(codelen) + round8(calldata) + m29_count*32 + 584 bytes into the output
   -- buffer with no bound of its own; every verdict call site passes c1_staging
   -- (c1StagingBytes, BlockVerdictParams.lean — shared constant, .66.1.2). Predeploy
   -- code is read from the witness and NOT EIP-170-bounded (the system_contract_errors
   -- EEST predeploys are 72946 B), so an unchecked copy clobbers the .data globals
   -- above c1_staging. Bail (a0=1, unsupported -> requests-hash fail) instead of
-  -- corrupting .data. System-call calldata is always empty (ctx@64 stays 0).
+  -- corrupting .data.
   "  addi t1, s2, 7; andi t1, t1, -8\n" ++                                         -- round8(codelen)
+  "  la t0, ssc_calldata_len; ld t2, 0(t0); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++
   "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++    -- + M29 hashes (count*32)
   -- Account-witness trailer (header+state+codes) is staged after the code body
   -- via stage_runtime_payload_witness_context; include its byte count so a
@@ -184,6 +192,127 @@ def stageSystemCallFunction : String :=
   ".Lssc_ret:\n" ++
   "  la t0, ssc_saved_s0; ld s0, 0(t0)\n" ++
   "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
+  "  ret"
+
+/-! ## process_block_start_system_transactions (GH #11431)
+
+    Spec pin `amsterdam/forks/.../fork.py:897-910` `apply_body`:
+      process_unchecked_system_transaction(BEACON_ROOTS, parent_beacon_block_root)
+      process_unchecked_system_transaction(HISTORY_STORAGE, parent_hash)
+      track_ancestor_access(1)
+    before the user-tx loop. BAI = 0 for both (`block_access_index` starts at 0).
+
+    Replaces the formula path (`system_write_descriptors` +
+    `append_modeled_system_storage_tuple_rows` seed-only + identity fail-65):
+    each contract is looked up via `code_at_header_state_root`, executed through
+    `stage_system_call` with the real 32-byte calldata, then
+    `account_writes_emit_builder_tx` + `write_sets_incorporate_tx` (which emits
+    BAL storage changes at `current_block_access_index` and merges into the
+    block map for tier-2 SLOAD) + `read_sets_incorporate_tx`.
+
+    Unchecked semantics: code_at miss / empty code → skip dispatch (no write),
+    still mark OAO. Staging failure → a0=1 (conservative bail).
+
+    Calldata layout (SystemWrites.lean / SSZ):
+      parent_beacon_block_root @ SSZ_BASE+24 = bv_exec_p - 36
+      parent_hash             @ SSZ_BASE+60 = bv_exec_p + 0
+    a0 (out) = 0 ok / 1 fail. -/
+def processBlockStartSystemTransactionsFunction : String :=
+  "process_block_start_system_transactions:\n" ++
+  "  la t0, pbsst_saved_ra; sd ra, 0(t0)\n" ++
+  -- BAI=0 for both startup system transactions (fork.py apply_body before loop).
+  "  la t0, current_block_access_index; sd zero, 0(t0)\n" ++
+  -- Clear optional calldata; each arm installs its own 32B blob.
+  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
+  -- Witness cells for cold SLOAD / code_at (same as deferred 7002 path).
+  "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
+  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
+  -- == EIP-4788 BEACON_ROOTS (first in apply_body) ==
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bsr_addr_4788\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  -- process_unchecked (fork.py:788): no code → run nothing, continue. Distinguishes
+  -- EMPTY_CODE_HASH (case A no-op) from status-5 missing preimage of a real hash
+  -- (case B reject). Pattern: BlockVerdictDispatchTx materialize (#11520 gate).
+  "  li t0, 1; beq a0, t0, .Lpbs_4788_skip\n" ++
+  "  li t0, 5; bne a0, t0, .Lpbs_4788_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
+  "  j .Lpbs_4788_skip\n" ++
+  ".Lpbs_4788_lookup_done:\n" ++
+  "  bnez a0, .Lpbs_fail\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_4788_skip\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
+  -- calldata = parent_beacon_block_root @ bv_exec_p - 36
+  "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, -36\n" ++
+  "  la t0, ssc_calldata_ptr; sd t1, 0(t0); li t1, 32; la t0, ssc_calldata_len; sd t1, 0(t0)\n" ++
+  "  la a0, bsr_addr_4788\n" ++
+  "  la t0, pbsst_code_ptr; ld a1, 0(t0); la t0, pbsst_code_len; ld a2, 0(t0)\n" ++
+  "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
+  "  jal ra, stage_system_call\n" ++
+  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
+  "  bnez a2, .Lpbs_fail\n" ++
+  -- Storage map + BAL BAI=0 via write_sets_incorporate_tx (bal_emit inside).
+  -- Account-write map: clear any tx-local rows without block merge — system
+  -- contracts are storage-authority only here (formula path never seeded AW);
+  -- merging TOUCHED-only AW rows for 2935/4788 regressed CREATE Present-None
+  -- on 01114 (optionalState flipped 0→1).
+  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  "  jal ra, write_sets_incorporate_tx\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  ".Lpbs_4788_skip:\n" ++
+  -- == EIP-2935 HISTORY_STORAGE ==
+  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
+  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
+  "  la a2, bsr_addr_2935\n" ++
+  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  "  jal ra, code_at_header_state_root\n" ++
+  -- Same EMPTY_CODE_HASH vs missing-preimage split as 4788 (fork.py:788; #11520).
+  "  li t0, 1; beq a0, t0, .Lpbs_2935_skip\n" ++
+  "  li t0, 5; bne a0, t0, .Lpbs_2935_lookup_done\n" ++
+  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
+  "  j .Lpbs_2935_skip\n" ++
+  ".Lpbs_2935_lookup_done:\n" ++
+  "  bnez a0, .Lpbs_fail\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_2935_skip\n" ++
+  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
+  "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
+  -- calldata = parent_hash @ bv_exec_p + 0
+  "  la t0, bv_exec_p; ld t1, 0(t0)\n" ++
+  "  la t0, ssc_calldata_ptr; sd t1, 0(t0); li t1, 32; la t0, ssc_calldata_len; sd t1, 0(t0)\n" ++
+  "  la a0, bsr_addr_2935\n" ++
+  "  la t0, pbsst_code_ptr; ld a1, 0(t0); la t0, pbsst_code_len; ld a2, 0(t0)\n" ++
+  "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
+  "  jal ra, stage_system_call\n" ++
+  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
+  "  bnez a2, .Lpbs_fail\n" ++
+  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  "  jal ra, write_sets_incorporate_tx\n" ++
+  "  jal ra, read_sets_incorporate_tx\n" ++
+  ".Lpbs_2935_skip:\n" ++
+  -- fork.py:908 track_ancestor_access(1) — host-side unconditional after both
+  -- system txs (not a 2935 bytecode side effect). Under-mark is FA-ward for
+  -- BLOCKHASH witness coverage (#11378 FunctionTail).
+  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lpbs_ok\n" ++
+  "  li t1, 1; sd t1, 0(t0)\n" ++
+  ".Lpbs_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  j .Lpbs_ret\n" ++
+  ".Lpbs_fail:\n" ++
+  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
+  "  li a0, 1\n" ++
+  ".Lpbs_ret:\n" ++
+  "  la t0, pbsst_saved_ra; ld ra, 0(t0)\n" ++
   "  ret"
 
 /-! ## derive_withdrawal_requests (8uld3.2b, EIP-7002)

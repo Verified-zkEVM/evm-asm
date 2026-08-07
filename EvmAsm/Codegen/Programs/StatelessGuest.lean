@@ -73,6 +73,7 @@ def statelessGuestUnit : BuildUnit := {
     deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
+    processBlockStartSystemTransactionsFunction ++ "\n" ++
     -- 8uld3.2.3.2 (B): link the EIP-6110 deposit-request derivation (parse_deposit_requests
     -- scans block receipts for DEPOSIT_CONTRACT_ADDRESS logs -> type-0 deposit bodies, +
     -- extract_deposit_data). Self-contained (no dispatcher deps). Additive — unused until .C
@@ -106,6 +107,11 @@ def statelessGuestUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
     builderContractAddrData ++

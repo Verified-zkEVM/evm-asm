@@ -301,25 +301,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t0, 32; beq t3, t0, .Lbv_mtx_bf_rev_done\n" ++
   "  add t0, t1, t3; lbu t5, 0(t0); li t6, 31; sub t6, t6, t3; add t6, t2, t6; sb t5, 0(t6); addi t3, t3, 1; j .Lbv_mtx_bf_rev\n" ++
   ".Lbv_mtx_bf_rev_done:\n" ++
-  -- execution-specs runs the EIP-4788 and EIP-2935 system transactions before
-  -- the user transaction loop.  Derive the same three descriptors here and
-  -- seed the canonical block map before any h_SLOAD can consult it.  The
-  -- row helper's vlen guards preserve the zero-value/deletion no-op cases;
-  -- its seed-only mode does not publish side-log or BAL rows until the
-  -- terminal state-root replay.
-  "  la t0, bv_exec_p; ld a0, 0(t0); addi a0, a0, -60; jal ra, system_write_descriptors\n" ++
-  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
-  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
-  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbv_mtx_oao_2935_done\n" ++
-  "  li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lbv_mtx_oao_2935_done:\n" ++
-  blockVerdictMtxGateSystemStorageSeed ++
-  "  li t1, 1; la t0, bv_system_storage_map_seed_only; sd t1, 0(t0)\n" ++
-  "  jal ra, append_modeled_system_storage_tuple_rows\n" ++
-  "  mv t2, a0; la t0, bv_system_storage_map_seed_only; sd zero, 0(t0)\n" ++
-  "  bnez t2, .Lbv_mtx_bail\n" ++
+  -- GH #11431: execute EIP-4788 then EIP-2935 via process_block_start_system_transactions.
+  "  jal ra, process_block_start_system_transactions\n" ++
+  "  bnez a0, .Lbv_mtx_bail\n" ++
   ".Lbv_mtx_loop:\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); la t2, bv_tx_count; ld t2, 0(t2); beq t1, t2, .Lbv_mtx_done\n" ++
+  -- EIP-7928 BAI for this user tx is i+1 (system startup used 0). Publish
+  -- BEFORE prepare/emit: process_block_start leaves BAI=0, and some paths
+  -- emit sender balance/nonce without re-storing BAI (01869 P→F bv60).
+  "  addi t2, t1, 1; la t0, current_block_access_index; sd t2, 0(t0)\n" ++
   -- Every supported route shares this transaction boundary.  Clear staged
   -- authorization state before extracting the next context; a type-4
   -- dispatcher repopulates it, while ordinary and creation transactions do

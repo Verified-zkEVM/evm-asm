@@ -199,6 +199,9 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     deriveBuilderExitRequestsFunction ++ "\n" ++
     stageSystemCallFunction ++ "\n" ++
     stageSystemCallPayloadFunction ++ "\n" ++
+    -- #11431: MtxRuntime jals process_block_start_system_transactions; standalone
+    -- v2 unit mirrors those handlers and must link the callee (check-build-units-link).
+    processBlockStartSystemTransactionsFunction ++ "\n" ++
     blockVerdictAllDirectDepositTxsFunction ++ "\n" ++
     blockVerdictAppendDirectDepositFunction ++ "\n" ++
     parseDepositRequestsFunction ++ "\n" ++
@@ -246,6 +249,11 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
     builderContractAddrData ++

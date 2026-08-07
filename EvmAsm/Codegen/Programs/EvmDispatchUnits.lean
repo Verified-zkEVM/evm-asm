@@ -481,6 +481,11 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     ".balign 8\n" ++
     "ssc_probe_target:\n  .byte 0x00, 0x00, 0x09, 0x61, 0xef, 0x48, 0x0e, 0xb5, 0x5e, 0x80, 0xd1, 0x9a, 0xd8, 0x35, 0x79, 0xa6, 0x4c, 0x00, 0x70, 0x02\n" ++
     ".balign 8\n" ++
@@ -578,6 +583,11 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     ".balign 8\n" ++
     "dwr_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
@@ -673,6 +683,11 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     consolidationRequestPredeployAddrData ++
     ".balign 8\n" ++
     "dcr_probe_code:\n  .byte 0x60, 0xcd, 0x60, 0x00, 0x52, 0x60, 0x74, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xCD; PUSH1 0; MSTORE; PUSH1 116; PUSH1 0; RETURN
@@ -794,6 +809,11 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     ".balign 8\n" ++
     "drhe_probe_code:\n  .byte 0x60, 0xab, 0x60, 0x00, 0x52, 0x60, 0x4c, 0x60, 0x00, 0xf3\n" ++   -- PUSH1 0xAB; PUSH1 0; MSTORE; PUSH1 76; PUSH1 0; RETURN
@@ -904,6 +924,11 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     ".balign 8\n" ++
     "ssc_saved_ra:\n  .zero 8\n" ++
     "ssc_saved_s0:\n  .zero 8\n" ++
+    "ssc_calldata_ptr:\n  .zero 8\n" ++
+    "ssc_calldata_len:\n  .zero 8\n" ++
+    "pbsst_saved_ra:\n  .zero 8\n" ++
+    "pbsst_code_ptr:\n  .zero 8\n" ++
+    "pbsst_code_len:\n  .zero 8\n" ++
     withdrawalRequestPredeployAddrData ++
     consolidationRequestPredeployAddrData ++
     deriveBlockSystemRequestsData ++

@@ -90,7 +90,8 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_pre_ok\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
+  -- GH #11431: do not skip 2935/4788 in BAL record array (ordinary owners).
+  "  la t1, bara_skip_modeled_system; sd zero, 0(t1)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_pre_cons_records\n" ++
   ".Lbsr_pre_ok:\n" ++
@@ -128,25 +129,8 @@ def executionMapStateChangesFunction : String :=
   "  mv s0, a0                   # descriptor count pointer\n" ++
   "  mv s1, a1                   # legacy BAL address table (unused)\n" ++
   "  mv s2, a2                   # legacy BAL address count (unused)\n" ++
+  -- GH #11431: system 2935/4788 posts are ordinary map owners (no pre-seed).
   "  la t0, bsr_emitted_owner_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lem_seed_4788\n" ++
-  "  la t1, bsr_emitted_owner_count; ld t2, 0(t1); li t3, " ++ toString bsrMapOwnerCapacity ++ "; bgeu t2, t3, .Lem_owner_capacity_fail\n" ++
-  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t4, t4, t3; la t5, bsr_addr_2935; li t6, 20\n" ++
-  ".Lem_seed_2935_copy:\n" ++
-  "  beqz t6, .Lem_seed_2935_done\n" ++
-  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lem_seed_2935_copy\n" ++
-  ".Lem_seed_2935_done:\n" ++
-  "  addi t4, t4, -20; li t0, 1; sb t0, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
-  ".Lem_seed_4788:\n" ++
-  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lem_seed_done\n" ++
-  "  la t1, bsr_emitted_owner_count; ld t2, 0(t1); li t3, " ++ toString bsrMapOwnerCapacity ++ "; bgeu t2, t3, .Lem_owner_capacity_fail\n" ++
-  "  slli t3, t2, 5; la t4, bsr_emitted_owners; add t4, t4, t3; la t5, bsr_addr_4788; li t6, 20\n" ++
-  ".Lem_seed_4788_copy:\n" ++
-  "  beqz t6, .Lem_seed_4788_done\n" ++
-  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lem_seed_4788_copy\n" ++
-  ".Lem_seed_4788_done:\n" ++
-  "  addi t4, t4, -20; li t0, 1; sb t0, 20(t4); addi t2, t2, 1; sd t2, 0(t1)\n" ++
-  ".Lem_seed_done:\n" ++
   "  la t0, account_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa28a0000; li s6, 0\n" ++
   "  j .Lem_account_loop\n" ++
   ".Lem_owner_seen:\n" ++
@@ -336,140 +320,14 @@ def blockStateRootFunction : String :=
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
-  "  # derive the system writes (SSZ_BASE in a6)\n" ++
-  "  la t0, bsr_ssz_p; ld a0, 0(t0); jal ra, system_write_descriptors\n" ++
-  "  # GH #11378: the EIP-2935 system transaction tracks the parent ancestor\n" ++
-  "  # (amsterdam fork.py:908); mark = max(mark, 1).\n" ++
+  -- GH #11431: EIP-2935/4788 already ran at block start via
+  -- process_block_start_system_transactions. Map is sole authority; no formula
+  -- descriptors / identity gate / append_modeled / bsr_sys_change here.
   "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbsr_oao_2935_done\n" ++
   "  li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbsr_oao_2935_done:\n" ++
-  -- v0.6.0: process_unchecked_system_transaction runs the CONTRACT's code
-  -- (fork.py:890-905); an absent or codeless history/beacon-roots contract
-  -- executes nothing and writes nothing. Gate each modeled startup write on
-  -- the pre-state account existing with a non-empty code hash; skipping a
-  -- contract zeroes its descriptor value lengths so the modeled tuple-row
-  -- append becomes a no-op for it as well.
-  "  la t0, bsr_sys_has_2935; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_sys_has_4788; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la a0, bsr_addr_2935; li a1, 20\n" ++
-  "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
-  "  la a5, bsr_sys_acct\n" ++
-  -- `process_unchecked_system_transaction` obtains the target account even when
-  -- it is absent or has empty code.  Mirror that unconditional `get_account`
-  -- in the BAL read set before deciding whether the modeled EIP-2935 call writes.
-  "  jal ra, account_read_record\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  li t0, 1; beq a0, t0, .Lbsr_2935_absent\n" ++
-  "  bnez a0, .Lbsr_cons_sys2935\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
-  ".Lbsr_2935_ch_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_2935_ident\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_2935_ch_cmp\n" ++
-  ".Lbsr_2935_absent:\n" ++
-  "  la t0, bsr_sys_has_2935; sd zero, 0(t0)\n" ++
-  "  la t0, swd_2935_vlen; sd zero, 0(t0); j .Lbsr_2935_gated\n" ++
-  ".Lbsr_2935_ident:\n" ++
-  "  # GH #11431: a non-empty deployed code_hash must be the canonical EIP-2935\n" ++
-  "  # predeploy hash; the modeled formula write is only valid for that code.\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_2935_code_hash; li t2, 32\n" ++
-  ".Lbsr_2935_ident_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_2935_ident_cmp\n" ++
-  ".Lbsr_2935_gated:\n" ++
-  "  # GH #11410: spec reads the deployed system contract's code every block\n" ++
-  "  # (fork.py:807 get_code); record it through the tracked accessor so the\n" ++
-  "  # dynamic preimage gate covers the modeled 2935 path.\n" ++
-  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_2935_no_crec\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  la a0, svf_codes_ptr; ld a0, 0(a0); la a1, svf_codes_len; ld a1, 0(a1)\n" ++
-  "  la a2, bsr_sys_acct; addi a2, a2, 72; mv a3, sp; addi a4, sp, 8\n" ++
-  "  la a5, bsr_addr_2935; jal ra, code_read_fetch\n" ++
-  "  addi sp, sp, 16\n" ++
-  ".Lbsr_2935_no_crec:\n" ++
-  "  la a0, bsr_addr_4788; li a1, 20\n" ++
-  "  la t0, bsr_root_p; ld a2, 0(t0); la t0, bsr_wit_p; ld a3, 0(t0); la t0, bsr_wl_v; ld a4, 0(t0)\n" ++
-  "  la a5, bsr_sys_acct\n" ++
-  -- The EIP-4788 branch has the same unchecked-system contract read.  It is
-  -- recorded even for `bal_4788_absent_contract`: the spec reads the absent
-  -- account, observes no code, and emits a touched-only account entry.
-  "  jal ra, account_read_record\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  li t0, 1; beq a0, t0, .Lbsr_4788_absent\n" ++
-  "  bnez a0, .Lbsr_cons_sys4788\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_empty_code_hash; li t2, 32\n" ++
-  ".Lbsr_4788_ch_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbsr_4788_ident\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_4788_ch_cmp\n" ++
-  ".Lbsr_4788_absent:\n" ++
-  "  la t0, bsr_sys_has_4788; sd zero, 0(t0)\n" ++
-  "  la t0, swd_4788_vlen; sd zero, 0(t0)\n" ++
-  "  la t0, swd_4788_root_vlen; sd zero, 0(t0); j .Lbsr_4788_gated\n" ++
-  ".Lbsr_4788_ident:\n" ++
-  "  # GH #11431: a non-empty deployed code_hash must be the canonical EIP-4788\n" ++
-  "  # predeploy hash; the modeled formula write is only valid for that code.\n" ++
-  "  la t0, bsr_sys_acct; addi t0, t0, 72; la t1, cd_canonical_4788_code_hash; li t2, 32\n" ++
-  ".Lbsr_4788_ident_cmp:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lbv_syscode_identity_fail\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbsr_4788_ident_cmp\n" ++
-  ".Lbsr_4788_gated:\n" ++
-  "  # GH #11410: same tracked-read recording for the EIP-4788 system contract\n" ++
-  "  # (fork.py:807 get_code), covering the modeled 4788 path.\n" ++
-  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_4788_no_crec\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  la a0, svf_codes_ptr; ld a0, 0(a0); la a1, svf_codes_len; ld a1, 0(a1)\n" ++
-  "  la a2, bsr_sys_acct; addi a2, a2, 72; mv a3, sp; addi a4, sp, 8\n" ++
-  "  la a5, bsr_addr_4788; jal ra, code_read_fetch\n" ++
-  "  addi sp, sp, 16\n" ++
-  ".Lbsr_4788_no_crec:\n" ++
-  -- The two startup calls each have their own transaction read set in the
-  -- spec.  They precede user transactions, so merge-and-clear their reads here
-  -- before the BAL builder consumes the block-level container.
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  -- Live across the BAI-0 tuple/builder helper and modeled-system changes:
-  -- s3 = withdrawal descriptors, s4 = descriptor count, s5 = output root,
-  -- s1 = state-change counter after its initialization below.  The helper's
-  -- builder JAL may clobber a0-a4, so each modeled-state-root call reloads them.
-  "  jal ra, append_modeled_system_storage_tuple_rows; bnez a0, .Lbsr_cons_change_cap\n" ++
-  "  li s1, 0                     # change counter\n" ++
-  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_skip_2935\n" ++
-  "  # system change = EIP-2935\n" ++
-  "  la a0, bsr_addr_2935; la a1, swd_2935_slot; la a2, swd_2935_val\n" ++
-  "  la t0, swd_2935_vlen; ld a3, 0(t0); mv a4, s1\n" ++
-  "  la t0, bsr_sys_slot_2935; sd s1, 0(t0)\n" ++
-  "  jal ra, bsr_sys_change; bnez a0, .Lbsr_cons_sys2935\n" ++
-  "  addi s1, s1, 1\n" ++
-  ".Lbsr_skip_2935:\n" ++
-  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_skip_4788\n" ++
-  "  # system change = EIP-4788 (timestamp + parent-root slots in one account)\n" ++
-  "  mv a4, s1\n" ++
-  "  la t0, bsr_sys_slot_4788; sd s1, 0(t0)\n" ++
-  "  jal ra, bsr_beacon_change; bnez a0, .Lbsr_cons_sys4788\n" ++
-  "  jal ra, record_modeled_eip4788_storage_reads\n" ++
-  "  addi s1, s1, 1\n" ++
-  ".Lbsr_skip_4788:\n" ++
-  "  # BAL account changes are tx-execution account post-values.\n" ++
+  "  li s1, 0                     # change counter (map is sole authority)\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  # Seed the applied-owner set with modeled system commits.  An account-map\n" ++
-  "  # row for one of these owners is promoted in place below, so its final\n" ++
-  "  # user post replaces the earlier modeled value without a duplicate path.\n" ++
-  "  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_seed_4788\n" ++
-  "  la t1, bsr_changed_account_count; ld t2, 0(t1); li t3, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  slli t3, t2, 5; la t4, bsr_changed_accounts; add t4, t4, t3; la t5, bsr_addr_2935; li t6, 20\n" ++
-  ".Lbsr_seed_2935_copy:\n" ++
-  "  beqz t6, .Lbsr_seed_2935_done\n" ++
-  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lbsr_seed_2935_copy\n" ++
-  ".Lbsr_seed_2935_done:\n" ++
-  "  addi t2, t2, 1; sd t2, 0(t1)\n" ++
-  ".Lbsr_seed_4788:\n" ++
-  "  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_seed_done\n" ++
-  "  la t1, bsr_changed_account_count; ld t2, 0(t1); li t3, " ++ toString bsrMaxAccessAccounts ++ "; bgeu t2, t3, .Lbsr_cons_change_cap\n" ++
-  "  slli t3, t2, 5; la t4, bsr_changed_accounts; add t4, t4, t3; la t5, bsr_addr_4788; li t6, 20\n" ++
-  ".Lbsr_seed_4788_copy:\n" ++
-  "  beqz t6, .Lbsr_seed_4788_done\n" ++
-  "  lbu t0, 0(t5); sb t0, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lbsr_seed_4788_copy\n" ++
-  ".Lbsr_seed_4788_done:\n" ++
-  "  addi t2, t2, 1; sd t2, 0(t1)\n" ++
-  ".Lbsr_seed_done:\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
@@ -481,7 +339,7 @@ def blockStateRootFunction : String :=
   "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  "  li t0, 1; la t1, bara_skip_modeled_system; sd t0, 0(t1)\n" ++
+  "  la t0, bara_skip_modeled_system; sd zero, 0(t0)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
   "  # BAL storage replay reads the shared witness globals.\n" ++
@@ -502,8 +360,8 @@ def blockStateRootFunction : String :=
   "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
   "  ld a0, 0(t3); ld a1, 8(t3); mv a3, a2; sub a2, s6, a3; ld a4, 16(t3)\n" ++
   "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
-  "  mv a0, a2; mv a1, a3; jal ra, bal_account_is_modeled_system\n" ++
-  "  li t0, 1; beq a0, t0, .Lbsr_bal_copy_system2935\n  li t0, 2; beq a0, t0, .Lbsr_bal_copy_system4788\n  bnez a0, .Lbsr_cons_bal_desc\n" ++
+  -- #11326+#11431: BAL rows never seed bsr_changes.
+  "  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_normal:\n" ++
   -- #11326 entry6: non-system BAL rows do NOT seed bsr_changes.
   -- Spec pin e5a8caf1b amsterdam fork.py:928-930 — BAL is an OUTPUT of the
@@ -518,8 +376,6 @@ def blockStateRootFunction : String :=
   "  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copy_next:\n" ++
   "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
-  ".Lbsr_bal_copy_system2935:\n  la t0, bsr_sys_has_2935; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_2935; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
-  ".Lbsr_bal_copy_system4788:\n  la t0, bsr_sys_has_4788; ld t0, 0(t0); beqz t0, .Lbsr_bal_copy_normal\n  la t0, bsr_bal_item_ptr; ld a0, 0(t0); la t0, bsr_bal_item_len; ld a1, 0(t0); la t0, bsr_sys_slot_4788; ld a2, 0(t0)\n  jal ra, bsr_apply_modeled_system_post_fields; bnez a0, .Lbsr_cons_bal_desc\n  j .Lbsr_bal_copy_next\n" ++
   ".Lbsr_bal_copied:\n" ++
   ".Lbsr_bal_done:\n" ++
   "  # entry6: execution_map_state_changes is the SOLE root authority for\n" ++
