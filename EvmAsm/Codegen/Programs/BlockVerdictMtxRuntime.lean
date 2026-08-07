@@ -9,7 +9,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
-import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
 import EvmAsm.Codegen.Programs.AccountWriteMap
 
