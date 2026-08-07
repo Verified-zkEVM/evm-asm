@@ -133,6 +133,53 @@ theorem decodeAux_of_singleByte
   rw [hstep]
   exact decodeAux_singleByte_bridge bytes off b hget hb m
 
+/-- The short-string range guards and the canonicality equivalence, read
+    byte-exhaustively for the same reason as `lt_0x80_of_ult`. Bundled because they
+    are all facts about the one prefix byte. -/
+private theorem shortBytes_guards (b : BitVec 8)
+    (hlo : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true) :
+    0x80 ≤ b.toNat ∧ b.toNat ≤ 0xB7 ∧
+      ((b.zeroExtend 64 - (0x80 : Word) = (1 : Word)) ↔ b.toNat - 0x80 = 1) := by
+  revert b; decide
+
+/-- The inner canonicality byte's guard: a length-1 short string's content byte must
+    not be below 0x80 (else the single-byte form was required). -/
+private theorem not_lt_0x80_of_not_ult (c : BitVec 8)
+    (h : ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) : ¬ c.toNat < 0x80 := by
+  revert c; decide
+
+/-- Short-string form (`0x80 ≤ p < 0xb8`). Second of the three provable disjuncts.
+
+    Same division of labour as the single-byte case: the decode content is already in
+    `decodeAux_shortBytes_bridge`, so this translates the `BitVec` guards and takes
+    the two facts that belong to other layers as hypotheses —
+    `hstep` (cursor arithmetic, from the walk layer) and `hlen` (the region bound,
+    from the ABI). Neither is a decode fact and re-deriving them here would couple
+    this file to pointer and region reasoning it has no business doing. -/
+theorem decodeAux_of_shortBytes
+    {bytes : List (BitVec 8)} {base : Word} {off : Nat} {next : Word} {b : BitVec 8}
+    (hget : bytes[off]? = some b)
+    (hlo : ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hhi : BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true)
+    (hcanon : b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+      ∃ c : BitVec 8, bytes[off + 1]? = some c ∧
+        ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true)
+    (hlen : off + 1 + (b.toNat - 0x80) ≤ bytes.length)
+    (hstep : (next - base).toNat = off + 1 + (b.toNat - 0x80)) :
+    ∀ m, decodeAux (m + 1) (bytes.drop off)
+      = some (.bytes ((bytes.drop (off + 1)).take (b.toNat - 0x80)),
+          bytes.drop (next - base).toNat) := by
+  intro m
+  obtain ⟨hlo', hhi', hcanonIff⟩ := shortBytes_guards b hlo hhi
+  have hcanon' : b.toNat - 0x80 = 1 →
+      ∃ c : BitVec 8, bytes[off + 1]? = some c ∧ ¬ c.toNat < 0x80 := by
+    intro h1
+    obtain ⟨c, hc, hcnot⟩ := hcanon (hcanonIff.mpr h1)
+    exact ⟨c, hc, not_lt_0x80_of_not_ult c hcnot⟩
+  rw [hstep]
+  exact decodeAux_shortBytes_bridge bytes off b hget hlo' hhi' hlen hcanon' m
+
 /-- ⭐ **The snoc lemma — mismatch (2) in one place.**
 
     `DecodeChain` is defined by recursion on the item list from the FRONT, so
