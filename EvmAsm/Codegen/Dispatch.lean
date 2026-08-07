@@ -3874,7 +3874,7 @@ def emitRuntimeDispatcherDataSectionSharedGuest
     (`emitRuntimeDispatcherEmbeddedHelperFunctions`) and by probes that bundle
     them ad hoc, so the standalone `runtime_dispatcher` / callable-probe ELFs
     stopped linking when those handlers landed. This mirrors the proven probe
-    bundle (see `ziskSstoreClearGasProbeUnit`). Kept OUT of
+    bundle (see `ziskDeriveWithdrawalRequestsProbeUnit`). Kept OUT of
     `emitDispatcherEpilogueCore`'s shared-helpers branch: probes that already
     bundle these functions use that branch, and a second copy would be a
     duplicate-label assembler error. -/
