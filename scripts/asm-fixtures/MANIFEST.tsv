@@ -318,7 +318,6 @@ singleLeafTrieRootFunction	EvmAsm/Codegen/Programs/MptEncode.lean
 slotAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/StateCompose.lean
 slotAtIndexFunction	EvmAsm/Codegen/Programs/State.lean
 slotDecodeU256Function	EvmAsm/Codegen/Programs/State.lean
-slotTupleSequencesMatchFunction	EvmAsm/Codegen/Programs/SlotTupleSequencesMatch.lean
 spwU32leFunction	EvmAsm/Codegen/Programs/SszPayloadWithdrawals.lean
 sszHashTreeRootBytesFunction	EvmAsm/Codegen/Programs/Ssz.lean
 sszHashTreeRootListByteListFunction	EvmAsm/Codegen/Programs/Ssz.lean
