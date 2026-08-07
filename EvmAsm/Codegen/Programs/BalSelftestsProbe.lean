@@ -69,10 +69,12 @@ def ziskBalSelftestsPrologue : String :=
   keccakIncrementalFunctions ++
   zkvmKeccak256Function ++ "\n" ++
   balRlpEncodeFunctions ++
-  -- Only the sorter and its self-test. The full `balCanonicalSortFunctions` aggregate
-  -- also carries the storage- and account-write sorters, which reference
-  -- `storage_writes_count` and would drag the whole write-map arena into a probe that
-  -- does not use it.
+  -- Only the sorter and its self-test. ⚠️ GH #11054: this comment used to explain
+  -- the exclusion by saying the full `balCanonicalSortFunctions` aggregate "also
+  -- carries the storage- and account-write sorters, which reference
+  -- `storage_writes_count`". Those two routines were measured unreachable and
+  -- DELETED, so the aggregate is now this same one routine plus the selftest and
+  -- there is nothing left to exclude -- the explicit list is now just explicitness.
   balCanonicalSortFunction ++
   balCanonicalSortSelftestFunction ++
   ".Lbslf_done:"

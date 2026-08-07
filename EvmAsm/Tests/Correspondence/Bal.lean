@@ -15,13 +15,17 @@
   granularity (method §5). The functional boundary chosen here is
   `builder → canonical BlockAccessList`, which is pure on both sides.
 
-  That choice is what makes this instance possible at all.
-  `EvmAsm/Codegen/Programs/BalCanonicalSort.lean` defines only `String`s — zero
-  `: Program` — so `cpsTripleWithin` cannot state sortedness, and issue #10817
-  is blocked on a ~230-instruction conversion. **A model-boundary differential
-  needs no `Program`, no triple and no conversion**, so it can answer "is our
-  canonical ordering the reference's ordering?" today, leaving "does the asm
-  implement it?" as the named remaining obligation.
+  That choice is what makes this instance possible at all. ⚠️ It used to be
+  additionally *necessary*: `BalCanonicalSort.lean` defined only `String`s — zero
+  `: Program` — so `cpsTripleWithin` could not state sortedness, and #10817 was
+  blocked on a ~230-instruction conversion. **#11046 landed that conversion**, so
+  a triple is statable now; what remains for the machine side is a row-array
+  predicate (`RegionPredicates.balEntriesFrom`) and the proofs themselves.
+
+  The point that survives, and it is the load-bearing one: **a model-boundary
+  differential needs no `Program`, no triple and no conversion**, so it answered
+  "is our canonical ordering the reference's ordering?" independently of any of
+  that — leaving "does the asm implement it?" as the named remaining obligation.
 
   It also answers that module's standing objection — that sortedness plus
   permutation is insufficient because a sort on the wrong key is still sorted

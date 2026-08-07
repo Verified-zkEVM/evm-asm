@@ -365,8 +365,23 @@ encoded-byte), per-index orders, and the read/write exclusion" },
   { family := "bal", routine := "bal_canonical_sort",
     verdict := .unproven, basis := .none,
     reference := "the ordering _build_from_builder imposes",
-    note := "BalCanonicalSort.lean is String-only; no `: Program`, so no \
-cpsTripleWithin is statable. Live path: 6 calls in bal_serializer_rebuild_hash" },
+    note := "⚠️ STALE CLAIM CORRECTED (#10817): this note used to say \
+`BalCanonicalSort.lean is String-only; no \\`: Program\\`, so no cpsTripleWithin is statable`. \
+FALSIFIED by #11046, which converted the routine to `balCanonicalSort_prog` (147 instructions, \
+head ++ digit ++ tail) and registered it in the guest image -- a triple IS statable today, and \
+the row stays `.unproven` because nobody has stated one, not because nobody can. \
+STILL BLOCKING, and it is a PREDICATE gap rather than a Program gap: the headline obligation is \
+PERMUTATION (a sort that silently drops rows is still sorted, and the end-to-end hash test \
+CANNOT see it -- it compares against a model built from the DECLARED rows), and permutation \
+cannot be stated without a List-indexed assertion over the row array. \
+`RegionPredicates.balEntriesFrom`/`balBuffer`/`balOwn` now supply it, stride-parameterised \
+because the six live calls use four distinct strides. \
+INDEPENDENT KEY: available and corpus-validated -- `_build_from_builder` at 1149/1149 via \
+`lake exe correspondence-check bal` (#11016), which is what a sortedness predicate must be \
+stated against rather than against the guest's own digit extraction (the vacuity trap the \
+module header warns about). ⚠️ Slots sort NUMERICALLY (`slot : U256`, \
+block_access_lists.py:564); the reference DOCSTRING says `lexicographically` and is wrong -- \
+see docs/bal-spec-correspondence.md. Live path: 6 calls in bal_serializer_rebuild_hash" },
 
   -- #11344: MPT key expansion. Row mandatory once the symbol is witnessed (#11342).
   { family := "mpt", routine := "bytes_to_nibbles",

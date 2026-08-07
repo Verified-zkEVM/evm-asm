@@ -46,7 +46,7 @@ is exactly the "leaf means leaf in the TRANSITIVE call graph" trap.
 | 2 | `account_decode` (all callees verified: `rlp_list_nth_item` `.proven`; caller `EvmAsm/Codegen/Programs/State.lean:262`) | `decode_account_from_leaf` (`EvmAsm/Stateless/SpecRef/WitnessState.lean:117`) | account leaf RLP → decoded account (nonce, balance, storage root, code hash) | `accountRlpIs` **over `AccountRecord`** (`EvmAsm/Stateless/State/AccountAssertions.lean:118`) — NOT the `EvmAsm/Evm64/AccountRlp.lean:260` assertion of the same name, which is over `Evm64.Account`, a different type — plus `accountDecodedIs` (`:135`); the best-prepared row here |
 | 3 | `account_is_eip161_empty` (all callees verified: `rlp_list_nth_item`; caller `EvmAsm/Codegen/Programs/BlockVerdictSimpleTransferGas.lean:65`) | `account_exists_and_is_empty` (`EvmAsm/Stateless/SpecRef/StateTracker.lean:229`) — the `EMPTY_ACCOUNT` comparison (`:55`); the guest tests the RLP form directly where the spec tests the decoded form, so the row's claim runs through row 2's decode | account leaf RLP | `accountRlpIs` over `AccountRecord` (as row 2; same same-name-different-type caveat) |
 | 4 | `mpt_node_kind` (all callees verified: `rlp_list_nth_item`; 4 fixture in-edges; caller `EvmAsm/Codegen/Programs/Mpt.lean:229`) | the node-shape dispatch of `_decode_witness_node` (`EvmAsm/Stateless/SpecRef/IncrementalMpt.lean:182`) — 17-item branch vs 2-item leaf/extension, that dispatch only | RLP node bytes | input: `bytesRegion`; result side: `mptNodeIs` (`EvmAsm/Evm64/MptAssertions.lean:635`) exists |
-| 5 | `bal_canonical_sort` (leaf; 6 call sites `#guard`-pinned at `EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean:750`) | the stable sorts of `_build_from_builder` (`EvmAsm/Stateless/SpecRef/BlockAccessLists.lean:193`) | BAL builder entry runs (accounts, per-account slot lists) | **NONE** — needs a `balEntriesFrom`-style run predicate; mirror `teerEntriesFrom` (`EvmAsm/Codegen/RegionPredicates.lean:344`). This is the listed prerequisite, and the row that flips the `.unproven` Correspondence entry and unblocks #10817's semantic half |
+| 5 | `bal_canonical_sort` (leaf; 6 call sites `#guard`-pinned at `EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean:750`) | the stable sorts of `_build_from_builder` (`EvmAsm/Stateless/SpecRef/BlockAccessLists.lean:193`) | BAL builder entry runs (accounts, per-account slot lists) | ✅ **LANDED** — `balEntriesFrom` / `balBuffer` / `balOwn` (`EvmAsm/Codegen/RegionPredicates.lean`), mirroring `teerEntriesFrom` as this row asked. ⚠️ **Stride is a parameter**, unlike the teer table: the six live calls use four distinct strides (96/64/40/24, all 8-aligned because the sort swaps rows with `ld`/`sd`), carried as data in `balSortCallSites` with `by decide` guards. This was the prerequisite gating #10817's PERMUTATION obligation — the one the end-to-end hash test structurally cannot see, since it compares against a model built from the *declared* rows |
 | 6 | `bloom_or_into` (leaf; caller `EvmAsm/Codegen/Programs/Bloom.lean:761`; sibling leaf `bloom_eq`) | the OR-accumulation step of `logs_bloom` (`EvmAsm/Stateless/SpecRef/Fork.lean:101`) — the fold, not the per-log index derivation | 256-byte bloom filter | `bytesRegion` (256 bytes) suffices |
 | 7 | `check_gas_limit` (leaf; caller `EvmAsm/Codegen/Programs/HeaderChain.lean:314`) | `check_gas_limit` (`EvmAsm/Stateless/SpecRef/SeamShell.lean:200`) — same name, whole function | scalars only (register ABI) | n/a — register vocabulary (`regsSet`, `EvmAsm/Rv64/SAsm/MultiRegRetTail.lean:51`) suffices, no memory assertion needed |
 | 8 | ~~`amsterdam_blob_gas_price`~~ — **ROUTINE REMOVED (#11350)**. Zero production callers: its only in-edge was its own probe prologue. Per maintainer direction the routine was deleted rather than proven. ⚠️ Not to be confused with `amsterdam_blob_gas_price_u256`, which SURVIVES and has live callers (`header_validate_excess_blob_gas`, `HeaderBaseFee.lean:417`; the runtime payload, `BlockVerdictRuntimePayload.lean:150`) — that is the blob-gas-price routine worth a triple, against the same `calculate_blob_gas_price` (`SpecRef/Gas.lean:136`). | — | — |
@@ -94,12 +94,26 @@ than assumed.
 
 ## Runners-up (not in the ten, recorded so the cut is visible)
 
-- `blsg_lt_p`, `bnf_lt_p` (leaves): the `< p` range check inside `bytes_to_bls_field` /
-  `bytes_to_g1` (`EvmAsm/Stateless/SpecRef/PrecompilesKzg.lean`, `EvmAsm/Stateless/SpecRef/PrecompilesCurve.lean`). Real
-  SpecRef counterparts, but the precompile field towers have no assertion vocabulary at all
-  yet — a bigger prerequisite than any single row above.
-- `derive_withdrawal_requests`, `derive_consolidation_requests` (leaves): the request-derive
-  half of `EvmAsm/Stateless/SpecRef/SeamShell.lean`'s `encode_execution_requests`. Startable, second tier.
+- `blsg_lt_p`, `bnf_lt_p` (leaves): the `< p` range check on a field element.
+  ⚠️ **Two corrections to this bullet as originally written (#11574).** (i) It named
+  `bytes_to_bls_field` (`SpecRef/PrecompilesKzg.lean`) as `blsg_lt_p`'s counterpart. That
+  checks `BLS_MODULUS`, the **scalar field order**; `blsg_lt_p` compares against `blsg_p_be`,
+  the **base field** prime, so its counterpart is `Bls12.bytes_to_fq`
+  (`SpecRef/PrecompilesBls.lean:78`) and `blsP`. Two different primes. The scalar-order check
+  is a different routine, `blsk_lt_be`. (ii) "no assertion vocabulary at all yet" overstates
+  it — `bytesRegion` + `globalConst` + `beBytesToNat` are in place and already carry
+  `blsgLtP_spec` / `bnfLtP_spec`, which are whole-routine triples that **already exist**,
+  `sorry`-free. What is missing is the SpecRef bridge and the registry rows, not the triple.
+- `derive_withdrawal_requests`, `derive_consolidation_requests`: ⚠️ **the "(leaves)"
+  annotation here was wrong, and #11578 was filed on the strength of it.** Each routine is
+  seven instructions — four `mv`, an `la`, and `j stage_system_call` — so it **tail-jumps into
+  `stage_system_call` → `runtime_dispatcher_call`, the whole EVM interpreter**, and has no
+  unproven-premise-free call graph at all. It also touches no memory, so there is no
+  fixed-stride extraction to state, and the `76`/`116` strides are **not** spec constants at
+  the pin (`fork.py:968-971` appends `return_data` opaquely under only `len > 0`).
+  #11578 is retargeted to **`execution_requests_hash`** (`Programs/RequestsHash.lean:52`),
+  where those strides genuinely gate a guest decision and have a real anchor in
+  `compute_requests_hash`. Maintainer-endorsed on #11578.
 - `b1_sender_table_find`, `exec_log_latest_value` (leaves): guest-specific structures with no
   reference function — would enter `Correspondence` as `noCounterpart`, so they orient no
   spec effort and are deliberately left out.
