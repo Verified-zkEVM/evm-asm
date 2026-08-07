@@ -738,7 +738,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Set only around the pre-user descriptor pass: reuse the row conversion
   -- without emitting a duplicate side-log/BAL event before terminal replay.
   "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
-  "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
   -- Keep the modeled-system staging arena standalone from call_frame_arena.
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++

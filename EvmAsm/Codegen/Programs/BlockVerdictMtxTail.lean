@@ -153,11 +153,9 @@ def blockVerdictMtxValidationTail : String :=
   --   bal_all_accounts_nonstorage_covers              (code 45)
   --   plus the nonstorage_effect_aggregate prep that fed 44/45 only
   --   bal_all_accounts_tuple_sequences_consistent_skip_list (code 42)
-  --     — #10646 CLOSED: recipient multi-bai dumps (00337, 00363) show full
-  --       per-tx sequence reaches builder → rebuild → hash. Same property as
-  --       42 (supplied seq vs exec log) with same gate over same bytes; 42
-  --       and its exclusive callee chain unlinked (account/slot/exec_log
-  --       tuple helpers). bv_mtx_skip_list KEPT — still feeds B1/B2.
+  --     — #10646 CLOSED then #11666 RETIRED: exclusive callee chain deleted
+  --       (account/slot/exec_log tuple helpers + capture_system_storage_exec_rows
+  --       + bv_system_storage_txindex). bv_mtx_skip_list KEPT — still feeds B1/B2.
   -- #11183 DIR A only: map finals ↔ highest-BAI builder (guest-internal fail-safe).
   -- DIR B/C (supplied BAL body) dropped — serialised fields ⊆ hash 60/61.
   -- No bv_bal_start/len: not a Class-A edge. Code 66 on map↔builder desync.

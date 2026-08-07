@@ -120,15 +120,6 @@ def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
     blocks far below 200M). -/
 def bsrAccountSlotCap : Nat := bsrMaxBalItems
 
-/-- Max per-slot change-tuple count staged by `bal_slot_tuple_sequence`
-    (consumer buffers `sps_tuples` / `atsc_balbuf` / `atsc_execbuf`, 40 B per
-    tuple). A slot receives at most one net-change tuple per tx (plus the
-    block-end system write and a possible seed entry), and a 200M block holds
-    at most 200,000,000 / 21,000 = 9,523 txs; 10,000 adds margin. Above this
-    the helper writes nothing and returns the true count — callers bail
-    conservatively (also closes the .66.1.1 unbounded-write corruption). -/
-def bsrMaxTuplesPerSlot : Nat := 10000
-
 /-- Conservative upper bound on `witness.state` byte length accepted by
     `block_state_root`. Beyond this the post-state recompute bails conservatively
     (bsr_fail=111). This is a coarse size guard, NOT a fixed-buffer limit: the
@@ -253,13 +244,7 @@ def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
     `slotKey@32`, `original@64`, `current@96`. -/
 def bvStorageLogRowBytes : Nat := 128
 
-/-- Byte width of one `txindex` stamp, parallel to `bvStorageLogRowBytes`: the
-    txindex arenas hold one 8-byte `block_access_index` per log row. -/
-def bvStorageLogTxindexEntryBytes : Nat := 8
-
 def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRowBytes
-def bvSystemStorageTxindexBytes : Nat :=
-  bvSystemStorageLogCapacity * bvStorageLogTxindexEntryBytes
 
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam
@@ -442,7 +427,6 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvPersistentStorageLogCapacity = 16384
 #guard bvSystemStorageLogCapacity = 32768
 #guard bvSystemStorageLogBytes = 4194304
-#guard bvSystemStorageTxindexBytes = 262144
 #guard bvMtxFullTxCap = 9523
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
 #guard bvMtxU64ArenaBytes = 76184
