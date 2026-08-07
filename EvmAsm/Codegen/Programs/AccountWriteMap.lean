@@ -427,6 +427,10 @@ def accountWritesAuthCurrentFunction : String :=
   ".Lawa_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 40; ret\n"
 
+/-! Block-only AUTH additionally returns the matched row's code pointer and
+    code length in a1/a2 on return.  These registers replace the input scratch
+    pointers after the nonce and flags have been written; a row without a CODE
+    component returns zeroes there. -/
 def accountWritesAuthBlockFunction : String :=
   "account_writes_auth_block:\n" ++
   "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
@@ -439,11 +443,14 @@ def accountWritesAuthBlockFunction : String :=
   "  addi t3, t3, 1; j .Lawab_loop\n" ++
   ".Lawab_key:\n" ++
   "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawab_next; andi t1, t0, 8; beqz t1, .Lawab_next; andi t1, t0, 16; beqz t1, .Lawab_next\n" ++
-  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t1, 2; bnez t1, .Lawab_live; li a0, 2; j .Lawab_ret\n" ++
+  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t0, 4; beqz t1, .Lawab_no_code; ld a1, 80(t5); ld a2, 88(t5); j .Lawab_code_ready\n" ++
+  ".Lawab_no_code:\n  li a1, 0; li a2, 0\n" ++
+  ".Lawab_code_ready:\n" ++
+  "  ld t1, 96(t5); andi t1, t1, 2; bnez t1, .Lawab_live; li a0, 2; j .Lawab_ret\n" ++
   ".Lawab_live:\n" ++
   "  li a0, 1; j .Lawab_ret\n" ++
   ".Lawab_miss:\n" ++
-  "  li a0, 0\n" ++
+  "  li a0, 0; li a1, 0; li a2, 0\n" ++
   ".Lawab_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 40; ret\n"
 
