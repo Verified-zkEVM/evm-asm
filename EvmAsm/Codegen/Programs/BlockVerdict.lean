@@ -352,7 +352,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
-  executionRequestsHashFunction ++ "\n" ++
+  executionRequestsHashFunctions ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++

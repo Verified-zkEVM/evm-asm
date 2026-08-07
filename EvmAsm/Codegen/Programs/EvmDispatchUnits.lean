@@ -765,7 +765,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
     requestsHashVerifyFunction ++ "\n" ++
     assembleExecutionRequestsFunction ++ "\n" ++
-    executionRequestsHashFunction ++ "\n" ++
+    executionRequestsHashFunctions ++ "\n" ++
     bgvU32leFunction ++ "\n" ++
     -- NOTE: zkvm_sha256 + its sha256_w_* data are already provided by the dispatcher harness
     -- (tinyInterpRegistry's SHA256 precompile), so we do NOT re-bundle them here (double-def).

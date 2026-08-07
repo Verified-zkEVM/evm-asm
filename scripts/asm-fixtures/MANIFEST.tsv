@@ -178,7 +178,9 @@ eip8037ReservoirSplitFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
+erhHashOneFunction	EvmAsm/Codegen/Programs/RequestsHash.lean
 execLogLatestValueFunction	EvmAsm/Codegen/Programs/ExecLogLatestValue.lean
+executionRequestsHashFunction	EvmAsm/Codegen/Programs/RequestsHash.lean
 expGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 extcodecopyAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean
 extcodehashAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmOpcodes.lean
