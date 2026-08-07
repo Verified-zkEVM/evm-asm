@@ -660,5 +660,168 @@ theorem baapStorageValues_guest_size_eq_formula :
 theorem baapStorageValues_sizes_distinct :
     (baapStorageValuesUnitSizes.map (·.2)).eraseDups.length = 3 := by decide
 
+/-! ## `bal_canonical_sort` row arrays (GH #10817)
+
+    The prerequisite `docs/leaf-routine-targets.md:49` names: *"needs a
+    `balEntriesFrom`-style run predicate; mirror `teerEntriesFrom`"*. Without a
+    `List`-indexed assertion over the row array, #10817's headline obligation —
+    that the output is a **permutation** of the input — cannot be *stated* at
+    all, only its sortedness.
+
+    ⚠️ **Stride is a parameter here, unlike `teerEntriesFrom`.** The teer table
+    has one entry width; `bal_canonical_sort` is called at **six** live sites
+    (`BalSerializer.lean:1071-1108`, `#guard`-pinned at 6 in
+    `BlockAccessListBuilder.lean`) with **four** distinct strides among them —
+    `a2` is 96, 64, 64, 40, 64, 24, so `64` is shared by the storage reads and
+    the balance and code changes. #10817 asks explicitly to *"parameterise over
+    the descriptors"* rather than over literal byte offsets, so that a
+    row-content change cannot silently invalidate a proof. `balSortCallSites`
+    below is that parameterisation.
+
+    ⚠️ Both counts here are pinned by `by decide` rather than left as prose —
+    `balSortCallSites_count` (six sites) and `balSortCallSites_stride_count`
+    (four strides). That is not decoration: this docstring said *"five distinct
+    strides"* on arrival, and `balSortCallSites_stride_count` is exactly the
+    theorem that refutes it. A prose count that disagrees with the data is the
+    case for moving counts into the data, so the numbers quoted above are the
+    ones those theorems assert.
+
+    ⚠️ **Rows are opaque bytes, deliberately.** A typed `BalRow` with a
+    `.render` (the `TeerEntry` shape) would bake one call site's segment layout
+    into the predicate, and the six sites disagree — including one whose slot
+    segment is **little-endian** where every other is big-endian. The sort moves
+    whole rows and never interprets them, so opaque bytes is the faithful
+    vocabulary; the *key* is where interpretation belongs, and it belongs to the
+    spec-side model (`SpecRef._build_from_builder`), not here. -/
+
+/-- Every row of `rs` is exactly `stride` bytes wide.
+
+    Threaded as a `Prop` rather than folded into `balEntriesFrom`, matching the
+    `teerBuffer` capacity call: the assertion stays about *resource*, and the
+    shape obligation stays visible in each theorem's hypotheses. -/
+def balRowsWf (stride : Nat) (rs : List (List (BitVec 8))) : Prop :=
+  ∀ r ∈ rs, r.length = stride
+
+theorem balRowsWf_nil (stride : Nat) : balRowsWf stride [] := by
+  intro r hr; exact absurd hr (by simp)
+
+theorem balRowsWf_cons {stride : Nat} {r : List (BitVec 8)}
+    {rs : List (List (BitVec 8))} (h : balRowsWf stride (r :: rs)) :
+    r.length = stride ∧ balRowsWf stride rs := by
+  refine ⟨h r (by simp), ?_⟩
+  intro x hx
+  exact h x (by simp [hx])
+
+/-- **The partial run** — `rs` in consecutive `stride`-byte rows from `base`,
+    saying nothing about what follows. The composable form, and the one a proof
+    about one row should be handed. Structure mirrors `teerEntriesFrom`. -/
+def balEntriesFrom (stride : Nat) (base : Word) :
+    List (List (BitVec 8)) → Assertion
+  | [] => empAssertion
+  | r :: rs =>
+      bytesRegion base r
+        ** balEntriesFrom stride (base + BitVec.ofNat 64 stride) rs
+
+theorem pcFree_balEntriesFrom (stride : Nat) (base : Word)
+    (rs : List (List (BitVec 8))) : (balEntriesFrom stride base rs).pcFree := by
+  induction rs generalizing base with
+  | nil => exact pcFree_emp
+  | cons r rs ih => exact pcFree_sepConj (bytesRegion_pcFree _ _) (ih _)
+
+theorem balEntriesFrom_cons (stride : Nat) (base : Word) (r : List (BitVec 8))
+    (rs : List (List (BitVec 8))) :
+    balEntriesFrom stride base (r :: rs)
+      = (bytesRegion base r
+          ** balEntriesFrom stride (base + BitVec.ofNat 64 stride) rs) := rfl
+
+/-- **The whole buffer** — the run *and* that this is all of it: `rs.length`
+    live rows, then the remainder owned-unconstrained out to `cap` rows.
+
+    `rs.length ≤ cap` is a hypothesis rather than a conjunct, as in
+    `teerBuffer`. The operational form of the same bound is the sort's own
+    fail-closed capacity check. -/
+def balBuffer (stride cap : Nat) (base : Word) (rs : List (List (BitVec 8)))
+    (_hcap : rs.length ≤ cap) : Assertion :=
+  balEntriesFrom stride base rs
+    ** anyBytes (base + BitVec.ofNat 64 (rs.length * stride))
+         ((cap - rs.length) * stride)
+
+theorem pcFree_balBuffer (stride cap : Nat) (base : Word)
+    (rs : List (List (BitVec 8))) (hcap : rs.length ≤ cap) :
+    (balBuffer stride cap base rs hcap).pcFree :=
+  pcFree_sepConj (pcFree_balEntriesFrom _ _ _) (pcFree_anyBytes _ _)
+
+/-- **Ownership only** — the array's bytes, contents arbitrary. -/
+def balOwn (stride cap : Nat) (base : Word) : Assertion :=
+  anyBytes base (cap * stride)
+
+theorem pcFree_balOwn (stride cap : Nat) (base : Word) :
+    (balOwn stride cap base).pcFree := pcFree_anyBytes _ _
+
+/-! ### The six live call sites, as data
+
+    #10817 asks for the row shapes as parameters rather than literals. These are
+    read off `BalSerializer.lean:1071-1108` — the `a2` (stride), `a3`
+    (segment descriptor) and `a4` (segment count) actually passed.
+
+    ⚠️ The issue's own table lists **four** row kinds and omits two, both
+    unusual: `storage_reads`, whose descriptor `0x2020` carries **no BE flag**
+    (the only little-endian segment on the live path — the read row's slot is an
+    LE stack word at `+32`), and the `accounts` array itself at stride **24**.
+    A proof covering only the issue's four covers 4 of 6 live sites. -/
+structure BalSortCallSite where
+  /-- The row array's guest symbol, or its literal address for the read arena. -/
+  array : String
+  /-- `a2` — the row stride in bytes. -/
+  stride : Nat
+  /-- `a3` — the packed segment descriptor. -/
+  segments : Nat
+  /-- `a4` — how many key segments the descriptor carries. -/
+  segCount : Nat
+  deriving Repr, DecidableEq
+
+/-- The six calls in `bal_serializer_rebuild_hash`, in emission order. -/
+def balSortCallSites : List BalSortCallSite :=
+  [ { array := "bal_builder_storage_changes", stride := 96,
+      segments := 0x0818a0209400, segCount := 3 },
+    { array := "0xa1ba0000 (storage_reads)", stride := 64,
+      segments := 0x2020, segCount := 1 },
+    { array := "bal_builder_balance_changes", stride := 64,
+      segments := 0x08189400, segCount := 2 },
+    { array := "bal_builder_nonce_changes", stride := 40,
+      segments := 0x08189400, segCount := 2 },
+    { array := "bal_builder_code_changes", stride := 64,
+      segments := 0x08189400, segCount := 2 },
+    { array := "bal_builder_accounts", stride := 24,
+      segments := 0x9400, segCount := 1 } ]
+
+/-- The `#guard` at `BlockAccessListBuilder.lean` pins six calls; this pins that
+    this table is the same six. -/
+theorem balSortCallSites_count : balSortCallSites.length = 6 := by decide
+
+/-- ⭐ **Every live stride is 8-aligned**, which is not cosmetic:
+    `bal_canonical_sort` swaps rows with `ld`/`sd`, so a non-8-aligned stride
+    faults. `BlockAccessListBuilder.lean` states the rule
+    (*"ANY ROW ARRAY THAT WILL BE SORTED MUST HAVE AN 8-ALIGNED STRIDE"*) and
+    the probe found the empirical version — a stride-20 arena puts row 1 at
+    `base+20` and faults. Any triple over the sort carries this as a hypothesis;
+    this theorem is why the six live sites satisfy it. -/
+theorem balSortCallSites_strides_aligned :
+    balSortCallSites.all (fun c => c.stride % 8 == 0) = true := by decide
+
+/-- ⚠️ Four distinct strides (96, 64, 40, 24) across six sites — so a predicate
+    with a fixed stride could not describe the live path, which is why
+    `balEntriesFrom` takes one as a parameter. (`64` is shared by the storage
+    reads and the balance and code changes.) -/
+theorem balSortCallSites_stride_count :
+    (balSortCallSites.map (·.stride)).eraseDups.length = 4 := by decide
+
+/-- ⚠️ Exactly one live site sorts on a little-endian segment. Recorded because
+    a canonical-key definition that assumes big-endian throughout would be wrong
+    on precisely this one, with no local symptom — the failure mode this
+    module's header warns about. -/
+theorem balSortCallSites_one_le_segment :
+    (balSortCallSites.filter (fun c => c.segments == 0x2020)).length = 1 := by decide
+
 end RegionPredicates
 end EvmAsm.Codegen
