@@ -679,16 +679,21 @@ def accountWritesBlockUpsertFunction : String :=
 
     Map-row balance alone is insufficient after self-burn: `record_nonstorage_effect`
     derives HAS_BALANCE only from pre≠post, so clear_preserving with pre=post=live
-    leaves the write-map bal at the CREATE seed (often 0).  When map bal=0, resolve
-    the preserved balance through the same lower-tier chain as `get_account`: the
-    block map for a prior transaction, then the authenticated parent witness.  Do
-    not use the live AccountState overlay here; it is not a pre-state tier and can
-    hide the exact map miss this fallback is meant to resolve (03736 self_burn).
-    This is the same correction documented in `account_resolve_pre_state` below:
-    its former durable-overlay tier was removed because `update_builder_from_tx`
-    had already applied the sender's post value before that routine was asked for
-    a pre-state value.  The two consumers must therefore share the same
-    map-then-parent precedence, not recreate a live overlay tier.
+    leaves the write-map bal at the CREATE seed (often 0) **without** HAS_BALANCE.
+    When map bal=0 and HAS_BALANCE is clear, resolve the preserved balance through
+    the same lower-tier chain as `get_account`: the block map for a prior
+    transaction, then the authenticated parent witness.  When map bal=0 **and**
+    HAS_BALANCE is set, the zero is authoritative (SELFDESTRUCT drained the
+    account); do **not** re-fetch parent pre-balance — that resurrected a
+    pre-seeded CREATE address (bal=100) as Present on 01114 and failed NPR.
+    Do not use the live AccountState overlay here; it is not a pre-state tier
+    and can hide the exact map miss this fallback is meant to resolve (03736
+    self_burn).  This is the same correction documented in
+    `account_resolve_pre_state` below: its former durable-overlay tier was
+    removed because `update_builder_from_tx` had already applied the sender's
+    post value before that routine was asked for a pre-state value.  The two
+    consumers must therefore share the same map-then-parent precedence, not
+    recreate a live overlay tier.
 
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
@@ -713,10 +718,13 @@ def accountWritesApplyDeletesFunction : String :=
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
-  -- Map bal=0: resolve the lower-tier pre-state balance.  This is the exact
-  -- `get_account` fallback after tx and block account-write maps: a missing
-  -- balance component means the current balance was never changed above that
-  -- tier, so the authenticated parent account is the preserved value.
+  -- Map bal=0 + HAS_BALANCE: authoritative post-drain zero (do not resurrect
+  -- parent pre-balance).  GH #11688 / fixture 01114.
+  "  ld t1, 112(t0); andi t1, t1, " ++ toString accountWriteHasBalance ++ "; bnez t1, .Lawd_present_none\n" ++
+  -- Map bal=0 without HAS_BALANCE: resolve the lower-tier pre-state balance.
+  -- Missing balance component means the current balance was never changed
+  -- above that tier, so the authenticated parent account is the preserved
+  -- value (self-burn / CREATE-seed path).
   "  sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp); sd zero, 64(sp); sd zero, 72(sp)\n" ++
   "  mv a0, s0; addi a1, sp, 40; la t1, sv_pre_rlp_ptr; ld a2, 0(t1); la t1, sv_pre_rlp_len; ld a3, 0(t1); la t1, bv_witness_state_ptr; ld a4, 0(t1); la t1, bv_witness_state_len; ld a5, 0(t1); jal ra, account_resolve_pre_state\n" ++
   -- Resolver status 1 is a malformed/unavailable authenticated lookup.  It is
