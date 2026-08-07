@@ -43,7 +43,10 @@ namespace EvmAsm.Codegen
     than local to this table.
 
     ANY ROW ARRAY THAT WILL BE SORTED MUST HAVE AN 8-ALIGNED STRIDE. `bal_canonical_sort`
-    swaps rows with `ld`/`sd` (`BalCanonicalSort.lean:254`), and per AGENTS.md:211 the
+    swaps rows with `ld`/`sd` (`scripts/asm-fixtures/balCanonicalSortFunction.s:65-67`,
+    the `.Lbalsort_swap` loop — this cited `BalCanonicalSort.lean:254` until #10817,
+    which had drifted to a range-frame load; the fixture is the stable citation),
+    and per AGENTS.md:211 the
     verified RV64 semantics give `LD`/`SD` NO SEMANTICS unless the address is a multiple
     of 8 -- `isValidDwordAccess` is `isValidMemAddr && isAligned8`. This is not a platform
     quirk to be worked around: a proof that reaches a misaligned access cannot close. 24

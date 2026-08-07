@@ -49,9 +49,12 @@ def ziskBalSelftestsPrologue : String :=
   -- needs (0x9400: offset 0, width 0x80|20, the 0x80 being the big-endian flag). The
   -- only variable is the row stride: 32 here, against the 20 that faults.
   --
-  -- `bal_canonical_sort` swaps rows with 8-byte loads (BalCanonicalSort.lean:254), and
-  -- 20-byte rows put row 1 at base+20, which is not 8-aligned. The probe supplies its
-  -- own two-row capacity explicitly. If stride is the constraint this sorts cleanly and row 0 comes back
+  -- `bal_canonical_sort` swaps rows with 8-byte loads
+  -- (`scripts/asm-fixtures/balCanonicalSortFunction.s:65-67`, the `.Lbalsort_swap`
+  -- loop -- this used to cite `BalCanonicalSort.lean:254`, which drifted to a
+  -- range-frame load; the fixture is the stable citation), and
+  -- 20-byte rows put row 1 at base+20, which is not 8-aligned. Every existing caller
+  -- passes 128. If stride is the constraint this sorts cleanly and row 0 comes back
   -- 0xAA; if it faults at the same instruction, alignment is not the whole story.
   --
   -- Seeded DESCENDING (B then A) so a sort that never runs is distinguishable from one

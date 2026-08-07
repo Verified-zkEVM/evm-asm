@@ -374,17 +374,54 @@ theorem balCanonicalSortFunction_eq_prog :
     vacuously on a limb-swapped order. So the expected permutation is computed from
     the canonical rule alone and hardcoded.
 
-    The rows differ only in field byte 19, which is the address's canonical BE MOST
-    SIGNIFICANT byte (the address occupies the low 20 bytes of an LE word). Values
-    0x30, 0x10, 0x40, 0x20 in rows 0..3, so canonical ascending order is rows
-    1, 3, 0, 2. Each row carries its 1-based tag at offset 64, so the tag sequence
-    after sorting must read 2, 4, 1, 3.
+    ## Three row sets (#10817), each reusing the same 512-byte arena
 
-    A byte-index sort would order by field[0] instead — all zero here — and leave the
-    rows untouched, giving 1, 2, 3, 4. That is exactly the failure this catches.
+    ⚠️ **`s1` carries the row-set number and the failure code IS that number**, so
+    a red probe says *which* set failed. Before this the self-test returned a bare
+    `1` from every one of its failure edges, while
+    `scripts/codegen-zisk-bal-probes.sh:359` already printed
+    `failed at row set {sort}` and the probe header already claimed "3 row sets" —
+    the multi-case discipline was **declared and unimplemented**. Adding sets
+    without the counter would have made that worse, not better, so the counter
+    came first. `s1` is safe to use across the call: `bal_canonical_sort` saves and
+    restores `s0`-`s11` (`balCanonicalSortFunction.s:2-5`).
 
-    a0 = a scratch arena of at least 4 * 128 bytes, 8-aligned.
-    a0 (out) = 0 on the expected order, else 1.
+    All three sets use ONE segment descriptor (`a3 = 0x1400`: offset 0, width 20,
+    endianness flag clear) and stride 128, so none of them can fail for a reason
+    involving descriptor decoding — that is deliberate, since a mis-encoded
+    descriptor would produce a case that passes vacuously.
+
+    **Set 1 — differ at the canonical MOST significant byte.** Field byte 19 is the
+    address's canonical BE MSB (the address occupies the low 20 bytes of an LE
+    word). Values 0x30, 0x10, 0x40, 0x20 in rows 0..3, so canonical ascending order
+    is rows 1, 3, 0, 2 and the tag sequence must read 2, 4, 1, 3.
+
+    ⭐ This is the **negative control** and must not be weakened. A byte-index sort
+    would order by field[0] instead — all zero here — and leave the rows untouched,
+    giving 1, 2, 3, 4. That is exactly the failure it catches.
+
+    **Set 2 — differ at the canonical LEAST significant byte.** The same four
+    values at field byte 0, everything else zero. Same expected tags (2, 4, 1, 3),
+    reached a completely different way: the MSD radix must walk **38 all-equal
+    nibbles** before it finds a difference. Since the depth bound is
+    `2 * keysum = 40` nibbles, this sits two nibbles inside the cap — so it
+    exercises the deep-descent path *and* its boundary, neither of which set 1
+    touches (set 1 splits on the very first nibble).
+
+    **Set 3 — input already in canonical order.** Keys 0x10, 0x20, 0x30, 0x40 at
+    byte 19 with tags 1, 2, 3, 4, so the expected output is the identity. This
+    catches a sort that permutes when it must not — spurious swaps, or a
+    write-cursor that advances on a self-match.
+
+    ⚠️ **Set 3 is not a standalone test and must never be read as one**: a sort
+    that does nothing at all passes it. Its value is only as a complement — a
+    do-nothing sort fails sets 1 and 2 — so the suite is strictly stronger than
+    before, but set 3 alone is weaker than any of them.
+
+    a0 = a scratch arena of at least 4 * 128 bytes, 8-aligned. All three sets share
+    it and each re-zeroes it, so no extra space is needed.
+    a0 (out) = 0 if every set produced its expected order, else the 1-based number
+    of the first set that did not.
 
     Probe-only: not linked into `stateless_guest`. The Program's jalOff pc-base is
     a local placeholder (emitProgramR emits a symbolic `jal` via the reloc table);
@@ -396,6 +433,7 @@ def balCanonicalSortSelftest_prog : Program :=
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x10,
+    .LI .x9 (1 : Word),
     .MV .x5 .x8,
     .LI .x6 (64 : Word),
     .SD .x5 .x0 (0 : BitVec 12),
@@ -428,34 +466,139 @@ def balCanonicalSortSelftest_prog : Program :=
     .ADDIW .x13 .x13 (1024 : BitVec 12),
     .LI .x14 (1 : Word),
     .LI .x15 (4 : Word),
-    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 144)),
-    .BNE .x10 .x0 (72 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 152)),
+    .BNE .x10 .x0 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 156)),
     .LBU .x6 .x8 (64 : BitVec 12),
     .LI .x7 (2 : Word),
-    .BNE .x6 .x7 (60 : BitVec 13),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 168)),
     .ADDI .x5 .x8 (128 : BitVec 12),
     .LBU .x6 .x5 (64 : BitVec 12),
     .LI .x7 (4 : Word),
-    .BNE .x6 .x7 (44 : BitVec 13),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 184)),
     .ADDI .x5 .x8 (256 : BitVec 12),
     .LBU .x6 .x5 (64 : BitVec 12),
     .LI .x7 (1 : Word),
-    .BNE .x6 .x7 (28 : BitVec 13),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 200)),
     .ADDI .x5 .x8 (384 : BitVec 12),
     .LBU .x6 .x5 (64 : BitVec 12),
     .LI .x7 (3 : Word),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 216)),
+    .LI .x9 (2 : Word),
+    .MV .x5 .x8,
+    .LI .x6 (64 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .LI .x6 (48 : Word),
+    .SB .x8 .x6 (0 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SB .x8 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (128 : BitVec 12),
+    .LI .x6 (16 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (256 : BitVec 12),
+    .LI .x6 (64 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (3 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (384 : BitVec 12),
+    .LI .x6 (32 : Word),
+    .SB .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .MV .x10 .x8,
+    .LI .x11 (4 : Word),
+    .LI .x12 (128 : Word),
+    .LUI .x13 (1 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (1 : Word),
+    .LI .x15 (4 : Word),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 352)),
+    .BNE .x10 .x0 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 356)),
+    .LBU .x6 .x8 (64 : BitVec 12),
+    .LI .x7 (2 : Word),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 368)),
+    .ADDI .x5 .x8 (128 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (4 : Word),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 384)),
+    .ADDI .x5 .x8 (256 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 400)),
+    .ADDI .x5 .x8 (384 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (3 : Word),
+    .BNE .x6 .x7 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 416)),
+    .LI .x9 (3 : Word),
+    .MV .x5 .x8,
+    .LI .x6 (64 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .LI .x6 (16 : Word),
+    .SB .x8 .x6 (19 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SB .x8 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (128 : BitVec 12),
+    .LI .x6 (32 : Word),
+    .SB .x5 .x6 (19 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (256 : BitVec 12),
+    .LI .x6 (48 : Word),
+    .SB .x5 .x6 (19 : BitVec 12),
+    .LI .x6 (3 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .ADDI .x5 .x8 (384 : BitVec 12),
+    .LI .x6 (64 : Word),
+    .SB .x5 .x6 (19 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .SB .x5 .x6 (64 : BitVec 12),
+    .MV .x10 .x8,
+    .LI .x11 (4 : Word),
+    .LI .x12 (128 : Word),
+    .LUI .x13 (1 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (1 : Word),
+    .LI .x15 (4 : Word),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 552)),
+    .BNE .x10 .x0 (brOff (balCanonicalSortSelftestPc + 628) (balCanonicalSortSelftestPc + 556)),
+    .LBU .x6 .x8 (64 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (60 : BitVec 13),
+    .ADDI .x5 .x8 (128 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (2 : Word),
+    .BNE .x6 .x7 (44 : BitVec 13),
+    .ADDI .x5 .x8 (256 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (3 : Word),
+    .BNE .x6 .x7 (28 : BitVec 13),
+    .ADDI .x5 .x8 (384 : BitVec 12),
+    .LBU .x6 .x5 (64 : BitVec 12),
+    .LI .x7 (4 : Word),
     .BNE .x6 .x7 (12 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
-    .LI .x10 (1 : Word),
+    .MV .x10 .x9,
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
-/-- Reloc side-table for `balCanonicalSortSelftest_prog`. -/
+
+/-- Reloc side-table for `balCanonicalSortSelftest_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
 def balCanonicalSortSelftest_relocs : RelocTable :=
-  [ (37, .jal .x1 "bal_canonical_sort") ]
+  [ (38, .jal .x1 "bal_canonical_sort"),
+    (88, .jal .x1 "bal_canonical_sort"),
+    (138, .jal .x1 "bal_canonical_sort") ]
 
 def balCanonicalSortSelftestFunction : String :=
   "  .globl bal_canonical_sort_selftest\n" ++
@@ -566,7 +709,7 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- no guard below names the instruction in question.
 #guard balCanonicalDigit_prog.length == 28
 #guard balCanonicalSort_prog.length == 147
-#guard balCanonicalSortSelftest_prog.length == 62
+#guard balCanonicalSortSelftest_prog.length == 163
 
 -- Each converted Function ends at its last instruction with NO trailing newline, so
 -- the aggregate must insert the separators itself (see `balCanonicalSortFunctions`).
@@ -659,7 +802,8 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 -- now fails. t2 = x7. Written as the ordered projection rather than four separate
 -- occurrence counts, because the ORDER is the content of this guard.
 #guard (balCanonicalSortSelftest_prog.filterMap (fun i =>
-  match i with | .LI .x7 w => some w.toNat | _ => none)) == [2, 4, 1, 3]
+  match i with | .LI .x7 w => some w.toNat | _ => none))
+    == [2, 4, 1, 3,  2, 4, 1, 3,  1, 2, 3, 4]
 #guard balCanonicalSortSelftest_prog.contains (.LI .x15 (4 : Word))
 
 -- Entry-point key layouts, packed one byte per field: for segment i, byte 2i is the
