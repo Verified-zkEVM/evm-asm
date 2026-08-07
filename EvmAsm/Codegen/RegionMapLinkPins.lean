@@ -9,7 +9,7 @@
   bases that move when the guest image moves. Class B stable bases stay
   hand-typed in RegionMap.lean.
 
-  Regenerated from: gen-out/regionmap/stateless_guest.elf
+  Regenerated from: ../../../tmp/opencode/i10685/cand.elf
   Guard contract (check-region-map.sh): pins are this file (regen-time
   ELF reading); expectation is readelf/nm of the ELF built at *check*
   time. Two independent readings of two artefacts. Catches: image moved
@@ -20,7 +20,7 @@ namespace EvmAsm.Codegen.RegionMapLinkPins
 
 abbrev textSizeBytes : Nat := 0x55c08
 abbrev dataSizeBytes : Nat := 0x53b0
-abbrev bssSizeBytes : Nat := 0x190295c0
+abbrev bssSizeBytes : Nat := 0x19029520
 
 abbrev callFrameArenaBase : Nat := 0xabd38860
 abbrev evmMemoryPoolBase : Nat := 0xb2151860
