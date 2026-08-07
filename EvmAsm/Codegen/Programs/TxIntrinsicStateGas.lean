@@ -277,8 +277,13 @@ def eip7702AuthStatePrepareFunction : String :=
   -- passes -1 and retains the aggregate compatibility path.
   "  ld t0, 104(sp); bnez t0, .L77prep_no_new; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString amsterdamNewAccountStateGas ++ "; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_no_new:\n" ++
-  "  beqz s11, .L77prep_auth_charge; ld t0, 120(sp); bnez t0, .L77prep_auth_charge; ld t0, 168(sp); bnez t0, .L77prep_auth_charge; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0); li t0, 1; sw t0, 20(t4)\n" ++
-  ".L77prep_auth_charge:\n" ++
+  -- AUTH_BASE is charged (fall-through) iff s11 != 0 (non-null delegation
+  -- target) AND 120(sp) == 0 (not delegated_before_tx) AND 168(sp) == 0
+  -- (not already charged this tx via teer_success_table +20). Each failed
+  -- conjunct branches to .L77prep_no_auth_base — the SKIP path, not the
+  -- charge path (GH #11724). Spec: e5a8caf1b eoa_delegation.py:278.
+  "  beqz s11, .L77prep_no_auth_base; ld t0, 120(sp); bnez t0, .L77prep_no_auth_base; ld t0, 168(sp); bnez t0, .L77prep_no_auth_base; la t0, runtime_tx_auth_state_refund; ld t1, 0(t0); li t2, " ++ toString (amsterdamStateBytesPerAuthBase * amsterdamCostPerStateByte) ++ "; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); add t1, t1, t2; sd t1, 0(t0); li t0, 1; sw t0, 20(t4)\n" ++
+  ".L77prep_no_auth_base:\n" ++
   "  ld t0, 136(sp); li t1, -1; beq t0, t1, .L77prep_auth_charge_done; la t0, runtime_tx_auth_state_charge; ld t1, 0(t0); beqz t1, .L77prep_auth_charge_done; la t2, evm_state_gas_left; ld t3, 0(t2); bgeu t3, t1, .L77prep_auth_charge_reservoir; sub t4, t1, t3; ld t0, 136(sp); bltu t0, t4, .L77prep_auth_charge_oog; sd zero, 0(t2); sub t0, t0, t4; sd t0, 136(sp); j .L77prep_auth_charge_used\n" ++
   ".L77prep_auth_charge_reservoir:\n" ++
   "  sub t3, t3, t1; sd t3, 0(t2)\n" ++

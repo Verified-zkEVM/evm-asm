@@ -181,7 +181,11 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- (it reads create_nonce for the seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 21; jal ra, account_writes_latest_nonce_tx\n" ++
+    -- Cross-transaction CREATEs must see the block-cumulative nonce overlay:
+    -- the transaction-only map has already been incorporated and cleared by
+    -- the time the next transaction starts.  Keep the later tx-only lookup
+    -- for same-transaction target liveness below.
+    "  li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
     "  mv t0, a0\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
@@ -363,8 +367,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- child failure. Emit the nonce-only effect in the parent before descent
     -- so the all-accounts non-storage check sees every attempt. The same
     -- pre-balance scratch is used for zero- and nonzero-endowment records;
-    -- equal balance operands make the record's mask balance-only.
-    "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- equal balance operands make the record's mask nonce-only.
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -373,7 +376,6 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    ".Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
@@ -589,9 +591,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
     "  jal ra, runtime_access_account_seed\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- v0.6.0 (C11): an EIP-684 collision target holds code or a nonce, so
     -- is_account_alive is true and generic_create charges NO NEW_ACCOUNT
     -- state gas -- the burned child allowance is a plain 63/64 of the

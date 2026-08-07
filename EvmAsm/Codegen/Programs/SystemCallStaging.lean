@@ -232,6 +232,10 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bsr_addr_4788\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  -- The spec records the target read before resolving its code. Keep this outside
+  -- the executable-code gate so an absent/codeless predeploy still contributes its
+  -- empty AccountChanges row while the unchecked system call itself is skipped.
+  "  mv t0, a0; mv t1, a1; mv a0, a2; jal ra, account_read_record; mv a0, t0; mv a1, t1\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   -- process_unchecked (fork.py:788): no code → run nothing, continue. Distinguishes
   -- EMPTY_CODE_HASH (case A no-op) from status-5 missing preimage of a real hash
@@ -272,6 +276,8 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, bsr_addr_2935\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
+  -- As above, record the lookup even when the target is absent or codeless.
+  "  mv t0, a0; mv t1, a1; mv a0, a2; jal ra, account_read_record; mv a0, t0; mv a1, t1\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   -- Same EMPTY_CODE_HASH vs missing-preimage split as 4788 (fork.py:788; #11520).
   "  li t0, 1; beq a0, t0, .Lpbs_2935_skip\n" ++
