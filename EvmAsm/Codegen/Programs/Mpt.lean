@@ -143,27 +143,31 @@ def mptNodeKind_prog : Program :=
     .SD .x2 .x9 (16 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
-    .LI .x12 (2 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.mnk_dummy_offset (GuestAddrs.mpt_node_kind + 28)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.mnk_dummy_offset (GuestAddrs.mpt_node_kind + 28)),
-    .AUIPC .x14 (laHi GuestAddrs.mnk_dummy_length (GuestAddrs.mpt_node_kind + 36)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.mnk_dummy_length (GuestAddrs.mpt_node_kind + 36)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 44)),
-    .BEQ .x10 .x0 (100 : BitVec 13),
+    .AUIPC .x12 (laHi GuestAddrs.mnk_item_count (GuestAddrs.mpt_node_kind + 24)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mnk_item_count (GuestAddrs.mpt_node_kind + 24)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.mpt_node_kind + 32)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 36)),
+    .AUIPC .x5 (laHi GuestAddrs.mnk_item_count (GuestAddrs.mpt_node_kind + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_item_count (GuestAddrs.mpt_node_kind + 40)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (17 : Word),
+    .BEQ .x6 .x7 (brOff (GuestAddrs.mpt_node_kind + 164) (GuestAddrs.mpt_node_kind + 56)),
+    .LI .x7 (2 : Word),
+    .BNE .x6 .x7 (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 64)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .LI .x12 (0 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 64)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 64)),
-    .AUIPC .x14 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 72)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 72)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 80)),
-    .BNE .x10 .x0 (88 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 88)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 88)),
+    .AUIPC .x13 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 80)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 80)),
+    .AUIPC .x14 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 88)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 88)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 96)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 100)),
+    .AUIPC .x5 (laHi GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 104)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_offset (GuestAddrs.mpt_node_kind + 104)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 100)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 100)),
+    .AUIPC .x5 (laHi GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mnk_path_length (GuestAddrs.mpt_node_kind + 116)),
     .LD .x7 .x5 (0 : BitVec 12),
     .BEQ .x7 .x0 (60 : BitVec 13),
     .ADD .x28 .x8 .x6,
@@ -191,14 +195,14 @@ def mptNodeKind_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def mptNodeKind_relocs : RelocTable :=
-  [ (7, .la .x13 "mnk_dummy_offset"),
-    (9, .la .x14 "mnk_dummy_length"),
-    (11, .jal .x1 "rlp_list_nth_item"),
-    (16, .la .x13 "mnk_path_offset"),
-    (18, .la .x14 "mnk_path_length"),
-    (20, .jal .x1 "rlp_list_nth_item"),
-    (22, .la .x5 "mnk_path_offset"),
-    (25, .la .x5 "mnk_path_length") ]
+  [ (6, .la .x12 "mnk_item_count"),
+    (8, .jal .x1 "rlp_list_count_items"),
+    (10, .la .x5 "mnk_item_count"),
+    (20, .la .x13 "mnk_path_offset"),
+    (22, .la .x14 "mnk_path_length"),
+    (24, .jal .x1 "rlp_list_nth_item"),
+    (26, .la .x5 "mnk_path_offset"),
+    (29, .la .x5 "mnk_path_length") ]
 
 def mptNodeKindFunction : String :=
   "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs
@@ -212,7 +216,7 @@ theorem mptNodeKindFunction_eq_prog :
     mptNodeKindFunction = "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs := rfl
 
 #guard mptNodeKindFunction.startsWith "mpt_node_kind:\n"
-#guard mptNodeKind_prog.length = 49
+#guard mptNodeKind_prog.length = 53
 /-- `zisk_mpt_node_kind`: probe BuildUnit. Reads
     (node_len, node_bytes) from host input, writes
     classification result to OUTPUT.
@@ -244,6 +248,9 @@ def ziskMptNodeKindDataSection : String :=
   "mnk_path_offset:\n" ++
   "  .zero 8\n" ++
   "mnk_path_length:\n" ++
+  "  .zero 8\n" ++
+  -- #11347: see the guest-image copy in Dispatch.lean.
+  "mnk_item_count:\n" ++
   "  .zero 8"
 
 def ziskMptNodeKindProbeUnit : BuildUnit := {
@@ -1038,6 +1045,11 @@ def ziskMptWalkDataSection : String :=
   "mnk_path_offset:\n" ++
   "  .zero 8\n" ++
   "mnk_path_length:\n" ++
+  "  .zero 8\n" ++
+  -- #11347: mpt_node_kind's arity-check scratch. This block is the copy the
+  -- LINKED guest gets (ziskMptWalkDataSection); the probe-unit copy in
+  -- ziskMptNodeKindDataSection is separate and must stay in sync.
+  "mnk_item_count:\n" ++
   "  .zero 8\n" ++
   ".balign 8\n" ++
   "mbc_offset:\n" ++

@@ -60,8 +60,14 @@ if command -v readelf >/dev/null 2>&1; then
   READELF="$(command -v readelf)"
 elif command -v riscv64-unknown-elf-readelf >/dev/null 2>&1; then
   READELF="$(command -v riscv64-unknown-elf-readelf)"
+# Homebrew's riscv64-elf-binutils installs `riscv64-elf-readelf`. Omitting this
+# spelling made the gate UNRUNNABLE on macOS (#11043's class): the same probe gap
+# was fixed in gen-region-map-link-pins.py, and the two must agree or the pins can
+# be regenerated locally while the gate that checks them cannot run.
+elif command -v riscv64-elf-readelf >/dev/null 2>&1; then
+  READELF="$(command -v riscv64-elf-readelf)"
 else
-  echo "check-region-map: missing required readelf (readelf or riscv64-unknown-elf-readelf)" >&2
+  echo "check-region-map: missing required readelf (readelf, riscv64-unknown-elf-readelf or riscv64-elf-readelf)" >&2
   exit 2
 fi
 
