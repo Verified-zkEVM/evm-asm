@@ -345,7 +345,10 @@ def eip7702AuthStatePrepareFunction : String :=
   -- added by #11382, so an auth-only account cannot disappear from the map.
   "  la a0, b1an_authority; li a1, 0; ld a2, 112(sp); addi a2, a2, 1; mv a3, s8; li a4, 23; bnez s11, .L77prep_auth_code_record_emit; li a4, 0\n" ++
   ".L77prep_auth_code_record_emit:\n" ++
-  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasTouched) ++ "; jal ra, account_write_record; j .L77prep_next\n" ++
+  -- The +96 EXEC_FLAGS table in AccountWriteMap.lean defines bit 2 as LIVE;
+  -- this authorization row must carry that bit so later auth readers retain it.
+  "  li a5, 1; li a6, " ++ toString (accountWriteHasNonce + accountWriteHasCode + accountWriteHasState + accountWriteHasExecFlags + accountWriteHasTouched) ++ "; li a7, 2\n" ++
+  "  jal ra, account_write_record; j .L77prep_next\n" ++
   ".L77prep_next:\n" ++
   "  addi s7, s7, 1; j .L77prep_loop\n" ++
   ".L77prep_ok:\n" ++
@@ -373,7 +376,7 @@ def eip7702AuthStatePrepareFunction : String :=
 -- presence all valid.  Keep the state bit pinned so a future mask edit cannot
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
-  "li a5, 1; li a6, 46; jal ra, account_write_record"
+  "li a5, 1; li a6, 62; li a7, 2"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
