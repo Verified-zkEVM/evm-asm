@@ -166,6 +166,29 @@ theorem Nat.toBytesBE_fromBytesBE_of_canonical :
     have hmod : (Nat.fromBytesBE xs * 256 + b.toNat) % 256 = b.toNat := by omega
     rw [hdiv, hmod, ihxs, ofNat8_toNat]
 
+/-- Leading zero bytes do not change the big-endian value: each contributes
+    `0 * 256 ^ _`. This is the *non-canonical* companion to
+    `toBytesBE_fromBytesBE_of_canonical` — that lemma needs a non-zero head, this
+    one is about exactly the case it excludes.
+
+    Motivation (#11574): EIP-2537 transmits a BLS12-381 base-field element as a
+    **64-byte** wire felt whose first 16 bytes are zero, while the guest's
+    `blsg_lt_p` scan reads only the **48** compact bytes. Without this lemma the
+    two sides are different lists and any bridge between them would relate
+    different objects while typechecking cleanly. -/
+theorem Nat.fromBytesBE_zero_prefix :
+    ∀ (zs xs : List Byte), (∀ z ∈ zs, z = 0) →
+      Nat.fromBytesBE (zs ++ xs) = Nat.fromBytesBE xs
+  | [], _, _ => by simp
+  | z :: zs, xs, hz => by
+    have hz0 : z = 0 := hz z (List.mem_cons_self ..)
+    have he : Nat.fromBytesBE ((z :: zs) ++ xs)
+        = z.toNat * 256 ^ (zs ++ xs).length + Nat.fromBytesBE (zs ++ xs) := rfl
+    have hrec : Nat.fromBytesBE (zs ++ xs) = Nat.fromBytesBE xs :=
+      Nat.fromBytesBE_zero_prefix zs xs fun x hx => hz x (List.mem_cons_of_mem _ hx)
+    rw [he, hrec, hz0]
+    simp
+
 /-! ## takeBytes properties -/
 
 /-- Taking 0 bytes always succeeds with an empty prefix and the original list. -/

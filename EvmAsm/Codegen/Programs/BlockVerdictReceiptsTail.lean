@@ -10,7 +10,6 @@
 
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.BlockVerdictDepositFallback
 
 namespace EvmAsm.Codegen
 
@@ -104,13 +103,9 @@ def blockVerdictReceiptsTail : String :=
   "  jal ra, parse_deposit_requests\n" ++
   "  la t2, c1_dlen; sd a0, 0(t2)\n" ++
   "  la t2, c1_dstatus; ld t2, 0(t2); bnez t2, .Lbv_requests_hash_fail\n" ++
-  "  la t2, c1_dlen; ld t2, 0(t2); bnez t2, .Lbv_deposit_body_ready\n" ++
-  -- #11183: bv_deposit_runtime_capture_complete is RESERVED always-0 (capture-only
-  -- route retired). Empty log body falls through to DirectDepositFallback — the
-  -- spec-shaped path (parse logs, else derive from tx calldata).
-  blockVerdictDirectDepositFallback ++
-  ".Lbv_deposit_after_direct:\n" ++
-  ".Lbv_deposit_body_ready:\n" ++
+  -- The specification appends a type-0 request only when the receipt-log scan
+  -- found a matching DepositEvent.  An empty derived body is therefore the
+  -- normal no-deposit case; there is no calldata-derived alternate producer.
   "  la a0, c1_dbody; la t2, c1_dlen; ld a1, 0(t2)\n" ++
   "  la a2, dbsr_wbody; la t2, dbsr_wlen; ld a3, 0(t2)\n" ++
   "  la a4, dbsr_cbody; la t2, dbsr_clen; ld a5, 0(t2)\n" ++
@@ -216,8 +211,6 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 14; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_blockhash_headers_fail:\n" ++
   "  li t0, 15; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_syscode_identity_fail:\n" ++
-  "  li t0, 65; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_empty_tx_fail:\n" ++
   "  li t0, 16; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_tx_gas_precharge_fail:\n" ++

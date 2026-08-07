@@ -82,6 +82,7 @@ import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
+import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 
 namespace EvmAsm.Progress
 
@@ -309,7 +310,41 @@ def routineRegistry : List RoutineEntry := [
       (notes := "whole-routine triple at `GuestAddrs.bytes_to_nibbles`: the destination "
         ++ "region holds `SpecRef.keyToNibbles (srcBytes.take len)` — the REFERENCE "
         ++ "function, not the routine's own accumulator. ABI hyps only (region wf, "
-        ++ "non-overlap, non-overflow, aligned ra)")
+        ++ "non-overlap, non-overflow, aligned ra)"),
+
+  -- #11574: the two field-bound scans. ⚠️ BOTH machine triples predate this
+  -- registration by months and were simply never registered — a name search for
+  -- the routines found nothing because the specs are in sibling `*SAsm` modules,
+  -- which is the #10779 lesson recurring. What #11574 asked for that genuinely
+  -- did not exist is the SpecRef vocabulary, not the triples.
+  routine "blsg_lt_p" .proven (some "blsgLtP_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_lt_p`: `a0 = 1` iff the "
+        ++ "48-byte big-endian input is `< beBytesToNat bls12PBytes`, input and the "
+        ++ "read-only prime region intact. ABI hyps only (alignment, non-overflow, "
+        ++ "byte-access validity, aligned ra). The `la` materialization of "
+        ++ "`blsg_p_be` is PROVEN, not assumed"),
+  routine "blsg_lt_p" .conditional (some "blsgLtP_spec_specref")
+      (gate := "the input is the 48-byte compact SUFFIX of a well-formed EIP-2537 "
+        ++ "wire felt — `w.length = 64` and the first 16 bytes zero. Load-bearing, "
+        ++ "not decorative: the reference decodes all 64 bytes, so a nonzero pad "
+        ++ "byte makes the value ≥ 2^384 > p and the reference rejects, while the "
+        ++ "guest scan never reads those bytes and would not. The two sides agree "
+        ++ "exactly ON the well-formed felts")
+      (notes := "model-facing restatement: `a0` IS the accept/reject indicator of "
+        ++ "`SpecRef.Bls12.bytes_to_fq` on the wire felt. ⚠️ PREDICATE agreement "
+        ++ "only — `lt_p` returns a boolean, never the field element, so value "
+        ++ "agreement is not available from this routine and is not claimed"),
+  routine "bnf_lt_p" .proven (some "bnfLtP_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_lt_p`: the BN254 twin of "
+        ++ "`blsgLtP_spec` over 32 bytes and `bn254PBytes`. Same ABI-only hyps"),
+  routine "bnf_lt_p" .proven (some "bnfLtP_spec_specref")
+      (notes := "model-facing restatement: `a0 = 1` iff `bytesBEtoNat xs < "
+        ++ "SpecRef.Bn128.fieldModulus`. ⭐ NO wire-pad gate, unlike the BLS twin — "
+        ++ "`Bn128.bytes_to_g1` slices `data.take 32` directly, so the guest and the "
+        ++ "reference read the same 32 bytes and the restatement is total. ⚠️ It is "
+        ++ "the `x`-BOUND CLAUSE of `bytes_to_g1`, not its verdict: that function "
+        ++ "also bounds `y` and tests the curve equation, neither of which this "
+        ++ "routine looks at")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -321,10 +356,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 29 := by decide
+theorem routineCount_eq : routineCount = 33 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 21 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 8 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 24 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -338,7 +373,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 21 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 23 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -502,5 +537,17 @@ private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
   @EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+-- #11574: the two field-bound scans. The MACHINE triples were unwitnessed by
+-- `check-axioms.sh` until now despite predating this registration by months —
+-- exactly the "witnessed symbol with no row" / "row with no witness" pair of
+-- omissions #11342 and #11348 each caught once.
+private noncomputable abbrev _blsg_lt_p_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
+private noncomputable abbrev _blsg_lt_p_specref_routine_witness :=
+  @EvmAsm.Codegen.blsgLtP_spec_specref
+private noncomputable abbrev _bnf_lt_p_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
+private noncomputable abbrev _bnf_lt_p_specref_routine_witness :=
+  @EvmAsm.Codegen.bnfLtP_spec_specref
 
 end EvmAsm.Progress

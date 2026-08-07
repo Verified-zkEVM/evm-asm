@@ -138,8 +138,38 @@ def accountWriteHasBalance : Nat := 1
 def accountWriteHasNonce : Nat := 2
 def accountWriteHasCode : Nat := 4
 def accountWriteHasState : Nat := 8
-/-- VALUE 16 = bit index 4. When set, `execFlags@96` carries a full
-    AccountState-compatible flags word (see `CreateCodeEffectLog` flags@+88). -/
+/-- VALUE 16 = bit index 4. A **components-mask** value living at `+112`, NOT a
+    payload value: when set it gates whether `execFlags@96` is stored
+    (`.Lawr_no_flags`) or copied from the tx row (`.Lawb_no_flags`).
+
+    ## `execFlags@+96` — what this structure's flag word means (GH #11706)
+
+    Structure: `account_writes` rows, base `0xa28a0000` (block map) and
+    `tx_account_writes`, base `0xa2b20000` (tx map). **Stride 128.** Flag word at
+    `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
+    every mask cited is an emitted `andi` immediate.
+
+    | value | meaning | readers (emitted masks) |
+    |-------|---------|--------------------------|
+    | 2  | **live** — zero means present-dead or deleted | `.Lawa_tx_key` / `.Lawa_block_key`, `.Lawab_key`, `.Lawlc_*` (all `andi …, 2` on the `+96` word) |
+    | 8  | **created-this-tx** | `account_writes_created_contains` `.Lawc_key`: `ld t1, 96(t5); andi t1, t1, 8` |
+    | 1, 4, 32 | no `+96` reader mask exists | — |
+
+    **Value 8 is created-this-tx, established from the WRITERS rather than from any
+    consumer's variable name.** The only three call sites that put value 8 into
+    `+96` are all CREATE paths, each passing `a7 = 27` (= 16+8+2+1):
+    `BlockVerdictCreationStage` (`bv_create_addr`), `CreateCodeEffectLog` (the CREATE
+    code publication) and `CreateFrameDescend` (`create_address_be`). The one
+    non-create exec-flags writer passes `a7 = 0x33` (= 51 = 32+16+2+1), which does
+    **not** contain value 8.
+
+    ⛔ **Do not carry `AccountState flags@+88` constants into this field.** They are a
+    different structure with overlapping values: `account_state_record_code` seeds
+    `+88` with **27**, or **31** when the code length is nonzero, and *both contain
+    value 8* — so storing either here sets the bit `.Lawc_key` reads as
+    created-this-tx. A value derived from `+96`'s own readers is what belongs here
+    (e.g. `a7 = 2` for a live, not-created row). GH #11697's first fix took `a7`
+    from the `+88` seed and broke five rows. -/
 def accountWriteHasExecFlags : Nat := 16
 /-- VALUE 32 = bit index 5. Sticky: once OR'd into the row mask it is never
     cleared by a later write that omits it. Marks execution-touched accounts

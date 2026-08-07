@@ -286,7 +286,7 @@ private theorem ltIter_spec
   have hlbuP := liftCode (cr' := CR)
     (bytesRegion_lbu_within .x29 .x5 pConstAddr v29 (ltPBase + 24)
       bls12PBytes i (by decide) (by decide) hip
-      (by have h : pConstAddr.toNat = 0xa3001110 := by decide
+      (by have h : pConstAddr.toNat = 0xa30010d0 := by decide
           omega)
       (pByte_valid i hi))
     (by rw [hCR]; code_mem)

@@ -39,6 +39,7 @@
 -/
 
 import EvmAsm.Crypto.BeBytesBridge
+import EvmAsm.EL.RLP.Properties
 import EvmAsm.Rv64.SAsm.AccelStep
 import EvmAsm.Stateless.SpecRef.PrecompilesBls
 import EvmAsm.Stateless.SpecRef.PrecompilesKzg
@@ -162,5 +163,97 @@ example : ¬ bnG1OnCurve 0 0 := by unfold bnG1OnCurve; decide
     the correction this module's header records. -/
 theorem blsP_ne_blsModulus : SpecRef.Bls12.blsP ≠ SpecRef.Kzg.BLS_MODULUS := by
   decide
+
+/-! ## The EIP-2537 wire pad — the relation that keeps the BLS bridge honest
+
+    ⚠️ **Without this, a BLS bridge would relate two different objects while
+    typechecking cleanly.** `bytes_to_fq` (`SpecRef/PrecompilesBls.lean:78`)
+    rejects anything whose length is not **64** and decodes the whole 64 bytes;
+    `blsg_lt_p` scans the **48** compact bytes and states its post over those.
+    Both sides are `List Byte → Nat`, so a bridge that simply juxtaposed them
+    would elaborate — and be about two different lists.
+
+    The pad is a real guest artifact, not a modelling convenience, and there are
+    two independent sightings of it:
+
+    * **Written** — `scripts/asm-fixtures/bls12KzgG1WireFunction.s`
+      (`blsk_g1_wire`) emits 16 `sb zero` and then copies 48 with `lbu`/`sb`, per
+      coordinate, at a 64-byte stride. So the wire felt is literally
+      `16 zeros ++ 48 compact bytes`.
+    * **Checked** — every calldata reader calls `blsg_is_zero_n(ptr, 16)` and
+      rejects on nonzero before the 48-byte scan: `blsg_decode_g1`
+      (`Codegen/Programs/Bls12G1.lean:692-700`, both coordinates),
+      `blsg2_decode_g2` (`Bls12G2.lean:774-784`, all four felts),
+      `zkvm_bls12_map_fp_to_g1` (`Bls12MapG1Real.lean:23-29`),
+      `zkvm_bls12_map_fp2_to_g2` (`Bls12MapG2Real.lean:23-38`). All live via the
+      0x0b..0x11 dispatch table (`PrecompileSharedExecute.lean:136-142`).
+
+    ⚠️ The **checked** sighting is the load-bearing one, and an earlier draft of
+    this docstring gave only the written one. `blsk_g1_wire` never sees calldata,
+    so it establishes the wire *layout* but says nothing about whether an
+    attacker-supplied felt satisfies the hypothesis. Recorded rather than
+    silently swapped, because reaching for the first citation that fits is how
+    the wrong one ends up load-bearing.
+
+    ⚠️ What this section does **not** prove is the composition
+    (`blsg_is_zero_n(16) ∧ blsg_lt_p(48)` ⟹ `bytes_to_fq`'s verdict on the
+    64-byte felt), and it cannot yet: those decoders exist only as assembly
+    strings, with no `Program` and no drift guard, so nothing is statable over
+    them. Converting `blsg_decode_g1` is the prerequisite (#11574).
+
+    This section says what the pad does to the value: nothing.
+
+    ⭐ **BN254 needs no counterpart, and the asymmetry is recorded rather than
+    papered over with a vacuous twin.** `Bn128.bytes_to_g1`
+    (`SpecRef/PrecompilesCurve.lean:83`) reads `bytesBEtoNat (data.take 32)`
+    directly, against a guest routine that scans the same 32 bytes — there is no
+    pad on that side, so there is nothing to relate. -/
+
+/-- **The pad is value-preserving.** If the first 16 of 64 wire bytes are zero,
+    the big-endian value of the wire felt is the big-endian value of its 48-byte
+    compact suffix.
+
+    Stated over `EL.RLP.Nat.fromBytesBE` on the left and `Crypto.beBytesToNat` on
+    the right *on purpose*: those are the two decoders the two sides actually use
+    (`bytesBEtoNat` is an abbrev for the former, `SpecRef/Crypto.lean:58`), so this
+    discharges both the pad and the decoder mismatch in one step, over
+    `beBytesToNat_eq_fromBytesBE` (#11677). -/
+theorem eip2537_wire_pad_value (w : List (BitVec 8)) (hlen : w.length = 64)
+    (hpad : ∀ i, i < 16 → w.getD i 0 = 0) :
+    EL.RLP.Nat.fromBytesBE w = beBytesToNat (w.drop 16) := by
+  have hz : ∀ z ∈ w.take 16, z = 0 := by
+    intro z hzmem
+    obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hzmem
+    have hi16 : i < 16 := by
+      have hle : (w.take 16).length ≤ 16 := List.length_take_le ..
+      omega
+    have hwi : w.getD i 0 = z := by
+      rw [List.getElem_take] at hget
+      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), hget]
+      rfl
+    exact (hwi ▸ hpad i hi16 : z = 0)
+  calc EL.RLP.Nat.fromBytesBE w
+      = EL.RLP.Nat.fromBytesBE (w.take 16 ++ w.drop 16) := by
+        rw [List.take_append_drop]
+    _ = EL.RLP.Nat.fromBytesBE (w.drop 16) :=
+        EL.RLP.Nat.fromBytesBE_zero_prefix _ _ hz
+    _ = beBytesToNat (w.drop 16) := (Crypto.beBytesToNat_eq_fromBytesBE _).symm
+
+/-- The compact suffix really is 48 bytes — the width `blsFpBeIs` and
+    `blsgLtP_spec` both fix. Trivial, but stated so the bridge can cite it rather
+    than re-derive `64 - 16` inline. -/
+theorem eip2537_wire_suffix_length (w : List (BitVec 8)) (hlen : w.length = 64) :
+    (w.drop 16).length = 48 := by
+  rw [List.length_drop, hlen]
+
+/-- The same statement at `bytesBEtoNat`, the name the SpecRef side is written
+    over. Definitionally the theorem above (`bytesBEtoNat` is an abbrev), stated
+    anyway so the connection is machine-checked rather than asserted in prose —
+    a reader of `bytes_to_fq` sees `bytesBEtoNat` and should not have to unfold an
+    abbrev to believe the bridge applies. -/
+theorem eip2537_wire_pad_specref (w : SpecRef.Bytes) (hlen : w.length = 64)
+    (hpad : ∀ i, i < 16 → w.getD i 0 = 0) :
+    SpecRef.bytesBEtoNat w = beBytesToNat (w.drop 16) :=
+  eip2537_wire_pad_value w hlen hpad
 
 end EvmAsm.Stateless.Crypto
