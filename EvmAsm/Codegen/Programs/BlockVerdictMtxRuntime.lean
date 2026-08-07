@@ -542,8 +542,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- #10695 INVARIANT: EVERY PATH REACHING `dispatch_tx_runtime_code` MUST FIRST STORE THIS
   -- TRANSACTION'S block_access_index (i+1; EIP-7928: 0 for system, i+1 for the i-th user tx,
   -- fork.py:1030) INTO `current_block_access_index`.  Exactly four stores satisfy it: the one
-  -- below, the EOA-recipient path (.Lbv_mtx_recipient_lookup_resolved), the creation path
-  -- (.Lbv_mtx_creation_access_done), and the single-tx lane (.Lbv_stx_checks_done).
+  -- below, the EOA-recipient path (.Lbv_mtx_recipient_lookup_resolved), and the
+  -- creation path (.Lbv_mtx_creation_access_done).
   --
   -- This comment is the whole gate, deliberately.  An emitted-asm path enumeration would need a
   -- codegen artifact at check time for an invariant unlikely to regress once fixed, and what
