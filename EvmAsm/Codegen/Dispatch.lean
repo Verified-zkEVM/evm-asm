@@ -1807,13 +1807,18 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
                     receipt `succeeded` field (.63.1.6.2.1).
     halt_kind is read from OUTPUT+32 (set by every halt path): 0 STOP / 1 RETURN /
     5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
-    drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3. Read-only
-    (callable repeatedly; mutates no dispatcher state). -/
+    drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3 and restores the
+    state-gas pool on an error. -/
 /- Preserve executed state gas for successful halts (including the deposit STOP
    lane), but do not publish reverted/exceptional frame charges as
    `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
    accounts for authorization charges; on an error the frame portion is
    refilled by the settlement fold and must be captured as 0. -/
+-- `refill_frame_state_gas` restores the frame's entry reservoir before
+-- settlement observes the pools. The entry-left cell is adjacent to the
+-- three global pool cells (left, used, spilled); use the existing left
+-- relocation and its fixed +24-byte entry-left slot so this helper does not
+-- introduce a second link-facts symbol.
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1829,11 +1834,11 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (100 : BitVec 13),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 56)),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (92 : BitVec 13),
+    .BEQ .x6 .x28 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 64)),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (84 : BitVec 13),
+    .BEQ .x6 .x28 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 72)),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
@@ -1842,9 +1847,16 @@ def dispatcherTxGasSettle_prog : Program :=
     .AUIPC .x31 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .ADDI .x31 .x31 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_tx_gas_settle + 96)),
     .LD .x29 .x31 (0 : BitVec 12),
-    .BNE .x12 .x0 (8 : BitVec 13),
+    .BNE .x12 .x0 (40 : BitVec 13),
     .SD .x30 .x0 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 120)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 120)),
+    .ADDI .x30 .x30 (24 : BitVec 12),
+    .LD .x7 .x30 (0 : BitVec 12),
+    .ADDI .x30 .x30 (-24 : BitVec 12),
+    .SD .x30 .x7 (0 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
     .BGEU .x29 .x28 (16 : BitVec 13),
     .SUB .x28 .x28 .x29,
     .ADD .x7 .x7 .x28,
@@ -1865,7 +1877,8 @@ def dispatcherTxGasSettle_relocs : RelocTable :=
     (7, .la .x7 "evm_state_gas_left"),
     (10, .la .x28 "evm_refund_acc"),
     (21, .la .x30 "evm_state_gas_used"),
-    (24, .la .x31 "evm_state_gas_spilled") ]
+    (24, .la .x31 "evm_state_gas_spilled"),
+    (30, .la .x30 "evm_state_gas_left") ]
 
 def dispatcherTxGasSettleFunction : String :=
   "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs
@@ -1879,7 +1892,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 41
+#guard dispatcherTxGasSettle_prog.length = 48
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -2345,6 +2358,10 @@ private def emitTopLevelMessageD0Preparation : String :=
   -- its authorization callback. An authorization-phase OOG must roll back
   -- only the current transaction's effects on every caller.
   "  la x11, runtime_tx_auth_phase_halted; sd x0, 0(x11)\n" ++
+  -- The transaction callers reset the differential-valid marker before this
+  -- shared preparation entry. Do not clear it here: MTx establishes the
+  -- universal message snapshot immediately before entering this function,
+  -- and collision/auth-phase early exits publish before any later seam.
   -- Deferred system re-entry (`system_call_mode=1`) must not re-run the user
   -- transaction's leftover `runtime_tx_auth_exec_fn` (eip7702_auth_state_prepare).
   -- Spec system txs never call set_delegation; re-running prepare after a user
@@ -2401,6 +2418,30 @@ private def emitTopLevelMessageD0Preparation : String :=
   ".runtime_tx_auth_state_refund_done:\n" ++
   "  la x11, runtime_tx_auth_state_charge; sd x0, 0(x11)\n" ++
   ".runtime_tx_auth_state_used_done:\n" ++
+  -- The pre-auth message baseline is universal, including early exits.  At
+  -- the auth seam, peel off the preparation-only consumption into its own
+  -- cell and re-snapshot the reservoir so the differential below measures
+  -- executed state gas only.  The spill delta is closed at this boundary;
+  -- later body charges establish their own spill accounting.
+  "  la x11, evm_state_gas_left; ld x8, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_left; ld x9, 0(x11); sub x9, x9, x8\n" ++
+  "  la x11, evm_state_gas_spilled; ld x12, 0(x11); add x9, x9, x12\n" ++
+  "  la x11, runtime_tx_state_gas_message_spilled; ld x12, 0(x11); sub x9, x9, x12\n" ++
+  "  la x11, runtime_tx_auth_state_used; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_left; sd x8, 0(x11)\n" ++
+  "  la x11, evm_state_gas_spilled; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_spilled; sd x0, 0(x11)\n" ++
+  -- #10609 slice 1: the universal message snapshot is established by the
+  -- inline per-transaction preparation helper immediately after the
+  -- reservoir split. Keep a second post-auth frame-entry snapshot here:
+  -- dispatcher_tx_gas_settle uses it to restore only body state gas on REVERT,
+  -- retaining successful authorization state gas.
+  "  la x11, evm_state_gas_spilled; ld x9, 0(x11)\n" ++
+  "  bnez x9, .exit_outofgas\n" ++
+  "  la x11, evm_state_gas_left; ld x8, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_entry_left; sd x8, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_entry_spilled; sd x0, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_entry_valid; li x9, 1; sd x9, 0(x11)\n" ++
   -- 3. prepare_dispatch's staged creation state-gas charge
   "  la x11, runtime_tx_create_state_charge\n" ++
   "  ld x9, 0(x11)\n" ++
@@ -2577,6 +2618,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_state_gas_left; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_used; sd x0, 0(x28)\n" ++
   "  la x28, evm_state_gas_spilled; sd x0, 0(x28)\n" ++
+  "  la x28, runtime_tx_auth_state_used; sd x0, 0(x28)\n" ++
+  -- MTx resets the marker at its loop boundary, before inline preparation
+  -- writes the universal message snapshot. Do not clear it after that
+  -- snapshot when entering the callable dispatcher.
   -- This is a memoized control-flow fact, not independent guest state: it is
   -- set only after the common intrinsic, auth-state, and top-frame regular
   -- pre-dispatch charges have all passed their gas-coverage checks below.
@@ -2868,6 +2913,19 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- EIP-8037 differential invariant: the message baseline must be captured
+  -- after the callable per-dispatch pool reset above *and* after this
+  -- transaction's reservoir split, but before the depth-zero preparation
+  -- below charges state gas.  The MTx inline-preparation snapshot is also
+  -- post-reset because blockVerdictMtxTxPreparationReset clears these cells
+  -- before that helper; this callable site is required because the callable
+  -- reset otherwise made the earlier baseline describe the previous
+  -- transaction.  The auth seam later folds preparation-only consumption into
+  -- runtime_tx_auth_state_used and re-snapshots the reservoir; do not insert a
+  -- pool reset between either snapshot and the charges it is intended to
+  -- measure.
+  "  la x11, evm_state_gas_left; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_left; sd x9, 0(x11)\n" ++
+  "  la x11, evm_state_gas_spilled; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_spilled; sd x9, 0(x11)\n" ++
   -- `interpreter.py:356` runs this preparation region only at depth zero.
   -- Cut C will route child frames through this entry; until then every live
   -- caller has depth zero, so this guard is intentionally a no-op. On the
@@ -3463,6 +3521,8 @@ def emitRuntimeDispatcherDataSectionCore
   "  .zero 8\n" ++
   "runtime_tx_auth_state_charge:\n" ++
   "  .zero 8\n" ++
+  "runtime_tx_auth_state_used:\n" ++
+  "  .zero 8\n" ++
   "runtime_tx_auth_state_charged:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_auth_regular_refund:\n" ++
@@ -3610,6 +3670,19 @@ def emitRuntimeDispatcherDataSectionCore
   "evm_state_gas_used:\n" ++
   "  .zero 8\n" ++
   "evm_state_gas_spilled:\n" ++
+  "  .zero 8\n" ++
+  -- #10609 slice 1: depth-0's entry pool baseline cannot use env+624
+  -- (EIP-7843 SLOTNUM) or env+760 (outside the 656-byte root env).  Keep
+  -- dedicated zero-only cells beside the pool globals so Layout promotes them
+  -- to `.bss` without moving any existing data symbol.  The spill baseline is
+  -- explicitly zeroed at the post-auth seam, matching vm/interpreter.py:362-364.
+  "runtime_tx_state_gas_entry_left:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_entry_spilled:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_message_left:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_gas_message_spilled:\n" ++
   "  .zero 8\n" ++
   ".balign 32\n" ++
   "srfd_zero:\n" ++

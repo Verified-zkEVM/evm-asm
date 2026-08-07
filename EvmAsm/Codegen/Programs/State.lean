@@ -1001,6 +1001,15 @@ def ziskAccountEncodePrologue : String :=
 
 def ziskAccountEncodeDataSection : String :=
   ".section .data\n" ++
+  -- #11522: these three are `.globl` so `scripts/asm_to_program.py` can resolve the
+  -- `la` targets in `account_encode`. Without them the mechanical converter refuses
+  -- the routine ("symbol not in address table"), which forces a HAND conversion --
+  -- and hand conversion is what produced #11518 (reversed SD operands) and #11519
+  -- (laLo anchored at the wrong PC). `.globl` on a data label changes the SYMBOL
+  -- TABLE only, never `.text`, so the byte-identity gates are unaffected.
+  ".globl ae_nonce_len\n" ++
+  ".globl ae_balance_len\n" ++
+  ".globl ae_scratch\n" ++
   ".balign 8\n" ++
   "ae_nonce_len:\n" ++
   "  .zero 8\n" ++

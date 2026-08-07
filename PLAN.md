@@ -202,6 +202,30 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Registry-coverage gate** (`scripts/check-registry-coverage.py`, GH #11637):
+  fails when a routine is **linked into the guest, carries a routine-level spec
+  theorem, and has NO row in either proof registry**. Both registries already gated
+  row *contents* (`gen-axiom-witnesses.py`, `verdict_requires_spec`,
+  `crossVerdictOk`, `routineRegistry_all_witnessed`) — every one of those quantifies
+  over rows that EXIST, so row *existence* was ungated and proven work could count
+  toward nothing. The sweep that motivated it found **103** such routines against 27
+  registered; `bloom_or_into` (#11348) looked unstarted while being ~90% proven.
+  Seeded allowlist (`scripts/registry-coverage-allow.txt`) **expires**: an entry goes
+  STALE and fails the run once the symbol gains a row, loses its spec, or leaves the
+  image, so the backlog burns down visibly (103 → 101 on day one). Tier A entries are
+  flat triples at `GuestAddrs.<sym>`, registrable as `.proven` today; tier B are
+  structured SAsm `.Spec`s that need `Fn.retSpecFlat` first. ⛔ Do NOT grade a tier-B
+  spec `.proven` to shorten the file — that converts a visible backlog into a false
+  census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
+  is name-based, so it can UNDER-report a gap but never invent one: a floor on the
+  backlog, not a census.
+- **Witness ≠ row** (GH #11348, #11516): a Correspondence/Routines row naming a
+  theorem does NOT put that theorem in the axiom gate — the `private noncomputable
+  abbrev _<name>_witness := @…` is what does. They are separate obligations: the
+  witness is always warranted for a named theorem; the row claims a *tier* and only
+  if earned. Codegen-side specs are witnessed in `Routines.lean` (which imports those
+  modules), never in `Correspondence.lean` (kept light on purpose).
+
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
   separate things, and getting any wrong yields assembly that LINKS CLEANLY while

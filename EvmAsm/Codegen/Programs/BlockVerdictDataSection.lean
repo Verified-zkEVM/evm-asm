@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 
 namespace EvmAsm.Codegen
 
@@ -738,7 +739,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- Set only around the pre-user descriptor pass: reuse the row conversion
   -- without emitting a duplicate side-log/BAL event before terminal replay.
   "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
-  "bv_system_storage_txindex:\n  .zero " ++ toString bvSystemStorageTxindexBytes ++ "\n" ++
   -- Keep the modeled-system staging arena standalone from call_frame_arena.
   ".balign 32\n" ++
   "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
@@ -1055,6 +1055,13 @@ def ziskStatelessVerdictV2DataSection : String :=
   "precompile_shared_ctx:\n  .zero 24\n" ++
   "precompile_shared_selector:\n  .zero 8\n" ++
   "precompile_shared_cost:\n  .zero 8\n" ++
-  "precompile_shared_status:\n  .zero 8\n"
+  "precompile_shared_status:\n  .zero 8\n" ++
+  -- #10609: append the diagnostic arrays after the established verdict data
+  -- so no existing verdict or frame symbol moves.  The old accumulator array
+  -- remains the ABI-authoritative producer; these arrays are comparison-only.
+  dispatcherExecStateGasDifferentialData ++
+  -- Continue the established BSS input section for the data fragments that
+  -- follow this diagnostic-only section in the guest closure.
+  ".section .bss, \"aw\", @nobits\n"
 
 end EvmAsm.Codegen

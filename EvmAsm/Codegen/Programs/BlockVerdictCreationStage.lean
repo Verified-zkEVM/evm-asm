@@ -710,7 +710,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- the existing scalar path for single tx, while the multi-tx adapter asks
   -- us to scatter the identical settled result at its current index.
   "  la t4, bv_creation_output_mode; ld t5, 0(t4); bnez t5, .Lbvcr_mtx_publish\n" ++
-  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   -- Every terminal transaction route finalizes its one combined EIP-8037
   -- state-gas cell after execution capture and authoritative status are known.
   -- A successful creation keeps its captured execution component; a reverted
@@ -725,7 +725,7 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  li a0, 0\n" ++
   "  j .Lbvcr_ret\n" ++
   ".Lbvcr_mtx_publish:\n" ++
-  "  la t4, bv_creation_output_index; ld t1, 0(t4); mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t4, bv_creation_output_index; ld t1, 0(t4); mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t4, bv_creation_output_index; ld t1, 0(t4)\n" ++
   "  slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; la t4, bv_runtime_gas_left; ld t5, 0(t4); sd t5, 0(t3)\n" ++

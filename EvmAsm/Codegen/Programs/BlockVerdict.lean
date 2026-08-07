@@ -60,11 +60,6 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
-import EvmAsm.Codegen.Programs.BalSlotTupleSequence
-import EvmAsm.Codegen.Programs.ExecLogSlotTuples
-import EvmAsm.Codegen.Programs.SlotTupleSequencesMatch
-import EvmAsm.Codegen.Programs.AccountTupleSequencesConsistent
-import EvmAsm.Codegen.Programs.BalAllAccountsTupleSequences
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictSysChange
@@ -470,6 +465,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
+  dispatcherCaptureExecStateGasDifferentialFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++
