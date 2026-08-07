@@ -470,6 +470,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   dispatcherCaptureExecStateGasFunction ++ "\n" ++
+  dispatcherCaptureExecStateGasDifferentialFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++
   blockVerdictGasResultArenaPrepareFunction ++ "\n" ++
   b1SenderCountTableFunction ++ "\n" ++

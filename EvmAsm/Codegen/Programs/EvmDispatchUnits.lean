@@ -174,6 +174,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     stageCreationRuntimePayloadFunction ++ "\n" ++
     blockLogWindowSnapshotFunction ++ "\n" ++
     dispatcherCaptureExecStateGasFunction ++ "\n" ++
+    dispatcherCaptureExecStateGasDifferentialFunction ++ "\n" ++
     frameBaseFunction ++ "\n" ++
     frameDepthPushFunction ++ "\n" ++
     frameDepthPopFunction ++ "\n" ++
@@ -235,6 +236,10 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     "bvgr_runtime_calldata_floor_ptr:\n  .zero 8\n" ++
     "bvgr_runtime_count:\n  .zero 8\n" ++
     dispatcherExecStateGasArrayDef ++
+    dispatcherExecStateGasDifferentialData ++
+    -- The diagnostic section is isolated; the established probe data below
+    -- remains in the runtime data section it used before this instrumentation.
+    ".section .data\n" ++
     ".balign 8\n" ++
     "bv_block_log_count:\n  .zero 8\n" ++
     "bv_block_log_data_used:\n  .zero 8\n" ++

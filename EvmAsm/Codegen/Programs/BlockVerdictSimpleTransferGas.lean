@@ -62,6 +62,36 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  li t0, 0\n" ++
   ".L" ++ tag ++ "_recipient_state_done:\n"
 
+/-! The simple-transfer/precompile publication arm does not pass through the
+    callable dispatcher's post-authorization seam.  Capture the state-gas pool
+    at its equivalent point, immediately after intrinsic gas has succeeded and
+    before the top-level recipient charge is evaluated.  Keep both pool fields
+    as baselines: a direct route may enter with a nonzero spill after a shared
+    preparation prefix. -/
+def directTransferStateGasBaselineAsm (tag : String) : String :=
+  "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
+  "  la t1, evm_state_gas_spilled; ld t3, 0(t1)\n" ++
+  "  la t4, runtime_tx_state_gas_entry_left; sd t2, 0(t4)\n" ++
+  "  la t4, runtime_tx_state_gas_entry_spilled; sd t3, 0(t4)\n" ++
+  "  la t4, runtime_tx_state_gas_entry_valid; li t5, 1; sd t5, 0(t4)\n" ++
+  ".L" ++ tag ++ "_state_gas_baseline_done:\n"
+
+/-! Charge the direct top-level recipient state amount held in `t0`.  This is
+    deliberately the same reservoir-first/spill-second accounting used by the
+    runtime SSTORE path.  The surrounding publish code still performs the
+    complete transaction-gas check, so this helper only materializes the pool
+    transition and the authoritative executed-state accumulator. -/
+def directTransferStateGasChargeAsm (tag : String) : String :=
+  "  la t1, evm_state_gas_left; ld t2, 0(t1)\n" ++
+  "  bltu t2, t0, .L" ++ tag ++ "_state_gas_spill\n" ++
+  "  sub t2, t2, t0; sd t2, 0(t1)\n" ++
+  "  j .L" ++ tag ++ "_state_gas_used\n" ++
+  ".L" ++ tag ++ "_state_gas_spill:\n" ++
+  "  sub t3, t0, t2; sd zero, 0(t1)\n" ++
+  "  la t1, evm_state_gas_spilled; ld t4, 0(t1); add t4, t4, t3; sd t4, 0(t1)\n" ++
+  ".L" ++ tag ++ "_state_gas_used:\n" ++
+  "  la t1, evm_state_gas_used; ld t2, 0(t1); add t2, t2, t0; sd t2, 0(t1)\n"
+
 /-! Compute Amsterdam intrinsic regular gas and calldata floor for the non-creation
     simple-transfer shortcut. This mirrors the runtime dispatcher setup path but
     reads calldata/access-list fields from the already extracted simple-transfer

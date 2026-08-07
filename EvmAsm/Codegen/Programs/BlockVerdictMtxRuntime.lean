@@ -23,6 +23,7 @@ private def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
+  "  la t0, runtime_tx_state_gas_entry_valid; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
   "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
@@ -617,7 +618,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   bvReceiptsShapeSet 5 true ++  -- fhsxz.2.4.2.57.11.6.5.2.1 P1: persist this tx's executed state gas into bvgr_tx_exec_state_gas[i]
   -- (i = bv_mtx_i; evm_state_gas_used is fresh per-tx). Clobbers only a0/t0-t2, preserves the dispatch
   -- results a1-a4 used below. Behavior-neutral substrate (array not yet read by the gate).
-  "  la a0, bv_mtx_i; ld a0, 0(a0); jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la a0, bv_mtx_i; ld a0, 0(a0); jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
@@ -856,7 +857,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- staged process_transaction gas debit itself before the shared settlement
   -- postlude reads the sender's live balance for the refund.
   "  jal ra, dispatcher_seed_pending_upfront_sender_balance\n" ++
-  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   bvReceiptsShapeSet 5 true ++
   "  li a4, 0\n" ++
   -- The shared postlude keys the effective recipient from ctx+72.  A CREATE
@@ -879,7 +880,7 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t3, bv_tx_auth_phase_applied_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
-  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  la t0, bv_mtx_i; ld a0, 0(t0); jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   bvReceiptsShapeSet 5 true ++
   "  j .Lbv_mtx_effects_kept\n" ++
   -- Fresh target: mirror the single CREATE prepare_dispatch charge.  A
