@@ -716,12 +716,22 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_recipient_read_done:\n" ++
   "  la t4, runtime_dispatcher_input_ptr; sd zero, 0(t4)\n" ++
   "  la t4, bv_mtx_recipient_lookup_deferred; ld t5, 0(t4); beqz t5, .Ldtrc_deferred_lookup_done\n" ++
-  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 2; beq t5, t6, .Ldtrc_deferred_lookup_unresolvable\n" ++
+  "  la t4, runtime_tx_prepare_prefix_status; ld t5, 0(t4); li t6, 2; beq t5, t6, .Ldtrc_deferred_status2\n" ++
   "  li t6, 1; bne t5, t6, .Ldtrc_code_lookup_unsupported\n" ++
   "  la t4, bv_mtx_recipient_lookup_deferred; sd zero, 0(t4)\n" ++
   "  j .Ldtrc_deferred_lookup_done\n" ++
+  -- GH #11305: status-2 after authorization-phase OOG is not missing-recipient.
+  -- e5a8caf1b interpreter.py:123-125 runs set_delegation before process_message;
+  -- auth OOG rolls back atomically (test_authorization_oog.py:143-169) and never
+  -- loads the recipient. Continue ordinary settlement. Completed-prep status-2
+  -- (auth_phase_halted=0) remains true unresolvable → a0=8 → bv_fail=47.
+  ".Ldtrc_deferred_status2:\n" ++
+  "  la t4, runtime_tx_auth_phase_halted; ld t6, 0(t4); bnez t6, .Ldtrc_deferred_auth_oog\n" ++
   ".Ldtrc_deferred_lookup_unresolvable:\n" ++
   "  li a0, 8; j .Ldtrc_ret\n" ++
+  ".Ldtrc_deferred_auth_oog:\n" ++
+  "  la t4, bv_mtx_recipient_lookup_deferred; sd zero, 0(t4)\n" ++
+  "  j .Ldtrc_deferred_lookup_done\n" ++
   ".Ldtrc_deferred_lookup_done:\n" ++
   -- A CREATE child whose authenticated pre-balance lookup parse/decode failed
   -- cannot safely execute with zero.  This sticky flag is set by
