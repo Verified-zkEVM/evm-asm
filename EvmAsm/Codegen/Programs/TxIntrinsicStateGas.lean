@@ -112,6 +112,11 @@ def balAccountNonceBeforeIndexFunction : String :=
     (GH #11310).  Header-only would also be wrong when an earlier tx in the
     block left durable delegated=1.
 
+    The block-map branch reads the actual code pointer/length returned by
+    `account_writes_auth_block` and recognizes the EF0100 marker bytes.  The
+    EXEC_FLAGS word remains an account-state flag payload; it is not a
+    delegation marker.
+
     BAL post-state fields are intentionally not consulted.
 
     a0 = canonical authority address
@@ -135,7 +140,7 @@ def eip7702AuthorityAsOfFunction : String :=
   "  mv a0, s0; addi a1, sp, 56; addi a2, sp, 48; jal ra, account_writes_auth_block\n" ++
   "  beqz a0, .L77as_deleg_hdr\n" ++
   "  li t0, 2; beq a0, t0, .L77as_deleg_empty\n" ++
-  "  ld t0, 48(sp); andi t0, t0, 8; snez a2, t0; mv a1, s1; li a0, 1; j .L77as_ret\n" ++
+  "  beqz a2, .L77as_deleg_empty; li t0, 23; bne a2, t0, .L77as_deleg_empty; lbu t0, 0(a1); li t1, 239; bne t0, t1, .L77as_deleg_empty; lbu t0, 1(a1); li t1, 1; bne t0, t1, .L77as_deleg_empty; lbu t0, 2(a1); bnez t0, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_empty:\n" ++
   "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
   ".L77as_deleg_hdr:\n" ++
@@ -377,6 +382,8 @@ def eip7702AuthStatePrepareFunction : String :=
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
   "li a5, 1; li a6, 62; li a7, 2"
+#guard eip7702AuthorityAsOfFunction.contains
+  "lbu t0, 0(a1); li t1, 239; bne t0, t1, .L77as_deleg_empty"
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
