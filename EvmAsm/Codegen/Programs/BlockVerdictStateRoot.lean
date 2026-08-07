@@ -814,12 +814,22 @@ def statelessVerdictV2Function : String :=
   -- (empty) output would not change requests_hash. The spec reads through a
   -- TransactionState so a contract deployed EARLIER IN THIS BLOCK counts; the
   -- exec code-effect log carries that same-block case for the guest.
+  --
+  -- GH #11693: split cahsr status classes. Status 1 (absent) and 2
+  -- (EMPTY_CODE_HASH) are genuine NO CODE → same-block ladder. Status 4/5
+  -- (header fail / missing preimage) and other nonzero are CANNOT KNOW →
+  -- .Ldsr_fail; they must not share the no-code path (same distinction as
+  -- #11691 EMPTY_CODE vs status-5 missing preimage).
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, builder_deposit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lc1_bd_same_block\n" ++
+  "  beqz a0, .Lc1_bd_check_len\n" ++
+  "  li t0, 1; beq a0, t0, .Lc1_bd_same_block\n" ++
+  "  li t0, 2; beq a0, t0, .Lc1_bd_same_block\n" ++
+  "  j .Ldsr_fail\n" ++
+  ".Lc1_bd_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_bd_code_ok\n" ++
   ".Lc1_bd_same_block:\n" ++
   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
@@ -845,7 +855,11 @@ def statelessVerdictV2Function : String :=
   "  la a2, builder_exit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lc1_be_same_block\n" ++
+  "  beqz a0, .Lc1_be_check_len\n" ++
+  "  li t0, 1; beq a0, t0, .Lc1_be_same_block\n" ++
+  "  li t0, 2; beq a0, t0, .Lc1_be_same_block\n" ++
+  "  j .Ldsr_fail\n" ++
+  ".Lc1_be_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_be_code_ok\n" ++
   ".Lc1_be_same_block:\n" ++
   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
