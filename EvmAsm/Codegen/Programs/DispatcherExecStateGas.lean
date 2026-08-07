@@ -87,6 +87,16 @@ def dispatcherCaptureExecStateGas_relocs : RelocTable :=
 def dispatcherCaptureExecStateGasFunction : String :=
   "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `dispatcherCaptureExecStateGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem dispatcherCaptureExecStateGasFunction_eq_prog :
+    dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs := rfl
+
+#guard dispatcherCaptureExecStateGasFunction.startsWith "dispatcher_capture_exec_state_gas:\n"
+#guard dispatcherCaptureExecStateGas_prog.length = 9
 /-! ## #10609 differential capture
 
     Keep `dispatcher_capture_exec_state_gas` as the authoritative legacy
@@ -134,17 +144,6 @@ def dispatcherCaptureExecStateGasDifferentialFunction : String :=
   "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd zero, 0(t2)\n" ++
   "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3; sd zero, 0(t2)\n" ++
   "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; li t4, 1; sd t4, 0(t2); ret\n"
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `dispatcherCaptureExecStateGas_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem dispatcherCaptureExecStateGasFunction_eq_prog :
-    dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs := rfl
-
-#guard dispatcherCaptureExecStateGasFunction.startsWith "dispatcher_capture_exec_state_gas:\n"
-#guard dispatcherCaptureExecStateGas_prog.length = 9
 /-- The per-tx executed-state-gas array definition (`bvMtxArenaTxCap` entries,
     matching `bvgr_tx_state_gas`). c1 adds this identical line next to
     `bvgr_tx_state_gas` in `BlockVerdictDataSection.lean` so the verdict program

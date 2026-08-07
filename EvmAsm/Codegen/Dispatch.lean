@@ -1814,6 +1814,11 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
    `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
    accounts for authorization charges; on an error the frame portion is
    refilled by the settlement fold and must be captured as 0. -/
+-- `refill_frame_state_gas` restores the frame's entry reservoir before
+-- settlement observes the pools. The entry-left cell is adjacent to the
+-- three global pool cells (left, used, spilled); use the existing left
+-- relocation and its fixed +24-byte entry-left slot so this helper does not
+-- introduce a second link-facts symbol.
 def dispatcherTxGasSettle_prog : Program :=
   [ .LUI .x5 (10 : BitVec 20),
     .ADDIW .x5 .x5 (1 : BitVec 12),
@@ -1829,11 +1834,11 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.evm_refund_acc (GuestAddrs.dispatcher_tx_gas_settle + 40)),
     .LD .x11 .x28 (0 : BitVec 12),
     .LI .x12 (1 : Word),
-    .BEQ .x6 .x0 (128 : BitVec 13),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 56)),
     .LI .x28 (1 : Word),
-    .BEQ .x6 .x28 (120 : BitVec 13),
+    .BEQ .x6 .x28 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 64)),
     .LI .x28 (5 : Word),
-    .BEQ .x6 .x28 (112 : BitVec 13),
+    .BEQ .x6 .x28 (brOff (GuestAddrs.dispatcher_tx_gas_settle + 184) (GuestAddrs.dispatcher_tx_gas_settle + 72)),
     .LI .x11 (0 : Word),
     .LI .x12 (0 : Word),
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 84)),
@@ -1845,11 +1850,6 @@ def dispatcherTxGasSettle_prog : Program :=
     .BNE .x12 .x0 (40 : BitVec 13),
     .SD .x30 .x0 (0 : BitVec 12),
     .SD .x31 .x0 (0 : BitVec 12),
-    -- `refill_frame_state_gas` restores the frame's entry reservoir before
-    -- settlement observes the pools.  The entry-left cell is adjacent to the
-    -- three global pool cells (left, used, spilled); use the existing left
-    -- relocation and its fixed +24-byte entry-left slot so this helper does
-    -- not introduce a second link-facts symbol.
     .AUIPC .x30 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 120)),
     .ADDI .x30 .x30 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 120)),
     .ADDI .x30 .x30 (24 : BitVec 12),
