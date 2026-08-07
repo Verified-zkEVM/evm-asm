@@ -187,9 +187,10 @@ def balCanonicalDigit_prog : Program :=
       a3 = packed segment descriptor: for segment i, byte 2i is its offset and
            byte 2i+1 its width, little-endian within the register (up to 3 segments)
       a4 = segment count (1..3)
+      a5 = caller-owned row capacity; zero is invalid and fails closed
     returns
       a0 = 0 success
-         = 1 count exceeds capacity
+         = 1 zero capacity or count exceeds the caller-supplied capacity
          = 2 unsupported field count (a3 not in {1,2})
          = 3 range-stack capacity violation
          = 4 unsupported firstSig (not in {20,32})
@@ -219,8 +220,10 @@ def balCanonicalSortHead_prog : Program :=
     .JAL .x0 (12 : BitVec 21),
     .LI .x10 (2 : Word),
     .JAL .x0 (448 : BitVec 21),
-    .LUI .x5 (5 : BitVec 20),
-    .BLTU .x5 .x11 (420 : BitVec 13),
+    -- `a5` is mandatory: zero is a fail-closed missing-argument signal, and
+    -- every caller supplies the physical capacity of its own row arena.
+    .BEQ .x15 .x0 (424 : BitVec 13),
+    .BLTU .x15 .x11 (420 : BitVec 13),
     .MV .x8 .x10,
     .MV .x9 .x11,
     .MV .x24 .x12,
@@ -424,6 +427,7 @@ def balCanonicalSortSelftest_prog : Program :=
     .LUI .x13 (1 : BitVec 20),
     .ADDIW .x13 .x13 (1024 : BitVec 12),
     .LI .x14 (1 : Word),
+    .LI .x15 (4 : Word),
     .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (balCanonicalSortSelftestPc + 144)),
     .BNE .x10 .x0 (72 : BitVec 13),
     .LBU .x6 .x8 (64 : BitVec 12),
@@ -451,7 +455,7 @@ def balCanonicalSortSelftest_prog : Program :=
     .JALR .x0 .x1 (0 : BitVec 12) ]
 /-- Reloc side-table for `balCanonicalSortSelftest_prog`. -/
 def balCanonicalSortSelftest_relocs : RelocTable :=
-  [ (36, .jal .x1 "bal_canonical_sort") ]
+  [ (37, .jal .x1 "bal_canonical_sort") ]
 
 def balCanonicalSortSelftestFunction : String :=
   "  .globl bal_canonical_sort_selftest\n" ++
@@ -459,7 +463,7 @@ def balCanonicalSortSelftestFunction : String :=
     emitProgramR balCanonicalSortSelftest_prog balCanonicalSortSelftest_relocs
 
 /-- Kernel-checked drift guard; guest byte-identity verified by assemble+cmp:
-    244 vs 244 bytes, IDENTICAL. -/
+    248 vs 248 bytes, IDENTICAL. -/
 theorem balCanonicalSortSelftestFunction_eq_prog :
     balCanonicalSortSelftestFunction = "  .globl bal_canonical_sort_selftest\n" ++
       "bal_canonical_sort_selftest:\n" ++
@@ -562,7 +566,7 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 -- no guard below names the instruction in question.
 #guard balCanonicalDigit_prog.length == 28
 #guard balCanonicalSort_prog.length == 147
-#guard balCanonicalSortSelftest_prog.length == 61
+#guard balCanonicalSortSelftest_prog.length == 62
 
 -- Each converted Function ends at its last instruction with NO trailing newline, so
 -- the aggregate must insert the separators itself (see `balCanonicalSortFunctions`).
@@ -639,6 +643,8 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 -- No silent bail: every failure path must set a DISTINCT nonzero status. If these
 -- collapse to one code a caller cannot tell misuse from capacity exhaustion.
 -- Was `li a0, 1;` / `2;` / `3;`; a0 = x10.
+#guard balCanonicalSortHead_prog.contains (.BEQ .x15 .x0 (424 : BitVec 13))
+#guard balCanonicalSortHead_prog.contains (.BLTU .x15 .x11 (420 : BitVec 13))
 #guard balSortInfixCount [.LI .x10 (1 : Word)] balCanonicalSort_prog == 1
 #guard balSortInfixCount [.LI .x10 (2 : Word)] balCanonicalSort_prog == 1
 #guard balSortInfixCount [.LI .x10 (3 : Word)] balCanonicalSort_prog == 1
@@ -654,6 +660,7 @@ private def balSortInfixCount (pat : List Instr) : List Instr → Nat
 -- occurrence counts, because the ORDER is the content of this guard.
 #guard (balCanonicalSortSelftest_prog.filterMap (fun i =>
   match i with | .LI .x7 w => some w.toNat | _ => none)) == [2, 4, 1, 3]
+#guard balCanonicalSortSelftest_prog.contains (.LI .x15 (4 : Word))
 
 -- Entry-point key layouts, packed one byte per field: for segment i, byte 2i is the
 -- offset and byte 2i+1 the width, with bit 7 of the width byte the endianness flag.
