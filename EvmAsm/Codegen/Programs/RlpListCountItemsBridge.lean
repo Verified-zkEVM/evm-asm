@@ -180,6 +180,54 @@ theorem decodeAux_of_shortBytes
   rw [hstep]
   exact decodeAux_shortBytes_bridge bytes off b hget hlo' hhi' hlen hcanon' m
 
+
+/-! ## The restricted predicate, and a witness (#11694 review ask)
+
+    ⛔ THIS IS NOT THE ROW'S BRIDGE and must not be mistaken for progress toward
+    `.bridged`. `RlpItemDecodeBridges` — quantified over all five disjuncts — is
+    UNSATISFIABLE on this routine's actual domain, because since #11675
+    `rlp_list_count_items` is reached from `mpt_node_kind` and MPT branch children
+    include INLINE EMBEDDED NODES, i.e. nested lists (`SpecRef/IncrementalMpt.lean:155`
+    `resolveChildRefAux` has an explicit `| .list items =>` arm). A nested list's
+    `decodeAux` is fuel-sensitive, so the `∀ m` link `DecodeChain` demands is false
+    there — see #11711.
+
+    What IS true, and what this section records, is the byte-string restriction. It is
+    stated with the restriction VISIBLE in the predicate rather than hidden in a
+    comment, so no caller can pick it up believing it covers lists. -/
+
+/-- Per-item bridge restricted to byte-string prefix bytes (`p < 0xc0`).
+
+    ⚠️ The `hbytes` guard is the whole point: it is what makes this provable, and it
+    is what makes it insufficient for `rlp_list_count_items`. -/
+def RlpItemDecodeBridgesBytes (bytes : List (BitVec 8)) (base endPtr : Word) : Prop :=
+  ∀ (off : Nat) (next len : Word) (b : BitVec 8),
+    bytes[off]? = some b →
+    BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true →
+    rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
+    (next - base).toNat = off + 1 →
+    ∃ item : RLPItem,
+      ∀ m, decodeAux (m + 1) (bytes.drop off)
+        = some (item, bytes.drop (next - base).toNat)
+
+/-- ⭐ **Non-vacuity witness.** The single-byte form satisfies the restricted
+    predicate's obligation, so the structural theorems are demonstrably about
+    something rather than vacuously true.
+
+    Deliberately stated for the sub-case that is *actually* dischargeable, rather than
+    hand-picking an input to make the unrestricted predicate look inhabited — the
+    latter would demonstrate the proposition is non-empty while saying nothing about
+    the routine, which is the vacuity the review was guarding against. -/
+theorem bridgesBytes_witness_singleByte
+    {bytes : List (BitVec 8)} {base : Word} {off : Nat} {next : Word} {b : BitVec 8}
+    (hget : bytes[off]? = some b)
+    (hsmall : BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true)
+    (hstep : (next - base).toNat = off + 1) :
+    ∃ item : RLPItem,
+      ∀ m, decodeAux (m + 1) (bytes.drop off)
+        = some (item, bytes.drop (next - base).toNat) :=
+  ⟨.bytes [b], decodeAux_of_singleByte hget hsmall hstep⟩
+
 /-- ⭐ **The snoc lemma — mismatch (2) in one place.**
 
     `DecodeChain` is defined by recursion on the item list from the FRONT, so
