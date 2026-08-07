@@ -203,6 +203,13 @@ BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
+# GH #11737: a fixture failure must make the RUN fail.  Until this existed the
+# script exited 0 with any number of failing rows unless an opt-in --min-*
+# threshold happened to be passed, so `harness && echo ok` printed ok on a run
+# with 116 of 648 rows failing.  That is the dangerous direction: a tool that
+# errors loudly gets fixed, one that reports success gets trusted.  Callers that
+# genuinely want the summary regardless of the outcome must say so explicitly.
+EXIT_ZERO_ON_FAILURES="${EEST_EXIT_ZERO_ON_FAILURES:-0}"
 DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
 DEFAULT_TAG="${DEFAULT_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
@@ -248,6 +255,9 @@ Usage:
 
 Options:
   --all                    run every stateless block (slow); default: smoke subset
+  --exit-zero-on-failures  exit 0 even when rows FAIL or ERROR (GH #11737). Default is
+                           to exit non-zero, so a failing run cannot read as green.
+                           Use only when the summary is wanted regardless of outcome.
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
@@ -307,6 +317,7 @@ require_arg() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
+    --exit-zero-on-failures) EXIT_ZERO_ON_FAILURES=1; shift ;;
     --all) ALL=1; shift ;;
     --backend) require_arg "$1" "${2:-}"; BACKEND="$2"; shift 2 ;;
     --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
@@ -862,6 +873,18 @@ run_guest_elf() {
 format_verdict_debug() {
   local out="$1"
   local raw
+  # GH #11738: THESE OFFSETS DESCRIBE THE DIAGNOSTIC BUILD'S OUTPUT, NOT THE
+  # PRODUCTION GUEST'S.  The two layouts are different and neither is self-
+  # describing:
+  #   diagnostic : 21 u64 words from +0 -- verdict@+0, bv_fail@+8, ...,
+  #                tx_state0@+104, tx_state1@+112, then two 32-byte roots at
+  #                +168 (sv_recomputed) and +200 (payload state root).
+  #   production : bytes 0:32 are the new_payload_request_root, byte 32 is
+  #                successful_validation, and the rest is the SSZ tail.
+  # Decoding a PRODUCTION .out at the offsets below yields plausible garbage with
+  # no error -- a keccak digest read as `verdict` produced 1841024047515375962
+  # while investigating #11306.  The guard below refuses that rather than
+  # returning numbers that look like measurements.
   local -a labels=(
     verdict
     bv_fail
@@ -890,6 +913,14 @@ format_verdict_debug() {
 
   raw="$(od -An -v -tu8 -N 168 "$out" 2>/dev/null | xargs || true)"
   read -r -a words <<< "$raw"
+  # Shape gate (GH #11738).  In the diagnostic layout word[0] is the verdict BIT,
+  # so it is 0 or 1.  In a production artefact word[0] is the first 8 bytes of a
+  # keccak digest, which exceeds 1 with probability 1 - 2^-63.  Refuse loudly
+  # instead of emitting a decode of the wrong shape.
+  if [[ -n "${words[0]:-}" && "${words[0]}" =~ ^[0-9]+$ && "${words[0]}" -gt 1 ]]; then
+    echo "dbg=[UNDECODABLE: word0=${words[0]} is not a verdict bit (0|1) -- this looks like a PRODUCTION output, whose bytes 0:32 are the new_payload_request_root and byte 32 successful_validation. format_verdict_debug decodes the DIAGNOSTIC build only; see GH #11738]"
+    return 0
+  fi
   for i in "${!labels[@]}"; do
     value="${words[$i]:-?}"
     dbg="${dbg:+$dbg }${labels[$i]}=$value"
@@ -1700,5 +1731,19 @@ if [[ -n "$MIN_FULL" && "$full" -lt "$MIN_FULL" ]]; then
 fi
 if [[ -n "$MIN_ROOT" && "$root" -lt "$MIN_ROOT" ]]; then
   echo "==> REGRESSION: root match $root < --min-root $MIN_ROOT" >&2; rc=1
+fi
+# GH #11737: fixture failures and infrastructure errors now fail the run.  Both
+# counts are reported because they mean different things: `fail` is a guest/
+# fixture mismatch, `err` is the harness or emulator not completing a row.
+# `budget` is deliberately NOT included -- the summary already labels it "NOT a
+# correctness failure".
+if [[ "$fail" -gt 0 || "$err" -gt 0 ]]; then
+  if [[ "$EXIT_ZERO_ON_FAILURES" -eq 1 ]]; then
+    echo "==> $fail fixture failure(s) and $err error(s); exiting 0 because --exit-zero-on-failures was given" >&2
+  else
+    echo "==> FAILURES: fail=$fail errored=$err of selected=$selectedCount (ran=$ran, full match=$full)" >&2
+    echo "    read the summary block above for the verdict; pass --exit-zero-on-failures only if you need the summary regardless of outcome" >&2
+    rc=1
+  fi
 fi
 exit $rc
