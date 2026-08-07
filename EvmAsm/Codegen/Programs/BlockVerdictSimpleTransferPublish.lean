@@ -33,8 +33,9 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   -- published array; otherwise a preceding top-frame value charge survives as
   -- executed state gas even though the transaction rolled back.
   "  la t4, evm_state_gas_used; sd zero, 0(t4)\n  la t4, evm_state_gas_spilled; sd zero, 0(t4)\n" ++
+  directTransferStateGasBaselineAsm "bv_st_precompile" ++
   "  la t0, bv_mtx_precompile_lane; ld t0, 0(t0); bnez t0, .Lbv_mtx_precompile_fail_publish\n" ++
-  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t4, bv_tx_status_arr; sd zero, 0(t4)\n  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
   "  li a0, 0; li a1, 0; jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
@@ -48,7 +49,7 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
-  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
   "  li a4, 0\n" ++
   "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
@@ -56,6 +57,7 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, " ++ ctxLabel ++ "; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  directTransferStateGasBaselineAsm "bv_st_no_log" ++
   "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_no_log" ctxLabel ++
@@ -74,6 +76,7 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  addi sp, sp, -48\n  sd ra, 0(sp)\n  sd t6, 8(sp)\n" ++
   "  la a0, " ++ ctxLabel ++ "; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbv_simple_transfer_runtime_publish_fail\n" ++
+  directTransferStateGasBaselineAsm "bv_st_emit" ++
   "  la t4, tgbpv_direct_oog; sd zero, 0(t4)\n" ++
   "  sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
   topLevelValueRecipientStateGasAsm "bv_st_publish_pre_emit" ctxLabel ++
@@ -94,15 +97,15 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   ".Lbv_simple_transfer_after_log_snapshot:\n" ++
   topLevelValueRecipientStateGasAsm "bv_st" ctxLabel ++
   "  sd t0, 40(sp)\n" ++
-  "  ld t6, 8(sp)\n" ++
-  "  ld t4, 16(sp)\n" ++
-  "  ld t3, 32(sp)\n" ++
   "  ld t0, 40(sp)\n" ++
   "  la t2, tgbpv_skip_value; ld t2, 0(t2); beqz t2, .Lbv_simple_transfer_state_publish_ok\n" ++
   "  la t1, evm_state_gas_used; sd zero, 0(t1)\n" ++
   "  li t5, 0; j .Lbv_simple_transfer_gas_have_left\n" ++
   ".Lbv_simple_transfer_state_publish_ok:\n" ++
-  "  la t1, evm_state_gas_used; sd t0, 0(t1)\n" ++
+  directTransferStateGasChargeAsm "bv_st" ++
+  "  ld t6, 8(sp)\n" ++
+  "  ld t4, 16(sp)\n" ++
+  "  ld t3, 32(sp)\n" ++
   "  la t5, " ++ ctxLabel ++ "; ld t5, 40(t5); add t6, t6, t4; add t6, t6, t3; add t6, t6, t0\n" ++
   "  bltu t5, t6, .Lbv_simple_transfer_gas_exhausted\n" ++
   "  sub t5, t5, t6; j .Lbv_simple_transfer_gas_have_left\n" ++
@@ -134,7 +137,7 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  la t4, bv_tx_is_creation_arr; sd zero, 0(t4)\n" ++
   "  la t4, bv_last_log_start; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 0(t4)\n" ++
   "  la t4, bv_last_log_count; ld t5, 0(t4); la t4, bv_tx_log_window; sd t5, 8(t4)\n" ++
-  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  li a0, 0; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  li a0, 0; la t0, bv_tx_status_arr; ld a1, 0(t0); jal ra, block_verdict_tx_state_gas_inline_finalize\n" ++
   "  ld ra, 0(sp)\n  addi sp, sp, 48\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
@@ -147,7 +150,7 @@ def blockVerdictSimpleTransferPublishAsmFor (ctxLabel : String) : String :=
   "  la t3, bv_runtime_calldata_floor; ld t4, 0(t3); la t3, bv_mtx_calldata; add t3, t3, t2; sd t4, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t2; sd t5, 0(t3); la t3, bv_tx_is_creation_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  slli t2, t1, 4; la t3, bv_tx_log_window; add t3, t3, t2; la t4, bv_last_log_start; ld t5, 0(t4); sd t5, 0(t3); la t4, bv_last_log_count; ld t5, 0(t4); sd t5, 8(t3)\n" ++
-  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n" ++
+  "  mv a0, t1; jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
   "  la t0, bv_tx_status_arr; slli t2, t1, 3; add t0, t0, t2; ld a4, 0(t0)\n" ++
   "  ld ra, 0(sp); addi sp, sp, 48; j .Lbv_mtx_effects_kept\n" ++
