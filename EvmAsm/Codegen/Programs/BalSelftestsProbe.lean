@@ -50,8 +50,8 @@ def ziskBalSelftestsPrologue : String :=
   -- only variable is the row stride: 32 here, against the 20 that faults.
   --
   -- `bal_canonical_sort` swaps rows with 8-byte loads (BalCanonicalSort.lean:254), and
-  -- 20-byte rows put row 1 at base+20, which is not 8-aligned. Every existing caller
-  -- passes 128. If stride is the constraint this sorts cleanly and row 0 comes back
+  -- 20-byte rows put row 1 at base+20, which is not 8-aligned. The probe supplies its
+  -- own two-row capacity explicitly. If stride is the constraint this sorts cleanly and row 0 comes back
   -- 0xAA; if it faults at the same instruction, alignment is not the whole story.
   --
   -- Seeded DESCENDING (B then A) so a sort that never runs is distinguishable from one
@@ -61,7 +61,7 @@ def ziskBalSelftestsPrologue : String :=
   "  sd zero, 0(t0);  sd zero, 8(t0);  sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
   "  li t1, 0xBB; sb t1, 0(t0); li t1, 0xAA; sb t1, 32(t0)\n" ++
-  "  la a0, bslf_stride_rows; li a1, 2; li a2, 32; li a3, 0x9400; li a4, 1\n" ++
+  "  la a0, bslf_stride_rows; li a1, 2; li a2, 32; li a3, 0x9400; li a4, 1; li a5, 2\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  sd a0, 16(s0)\n" ++
   "  la t0, bslf_stride_rows; lbu t1, 0(t0); sd t1, 24(s0)\n" ++
@@ -108,6 +108,7 @@ def ziskBalSelftestsProbeUnit : BuildUnit := {
 -- links cleanly and reports two zeros -- which reads as two passes.
 #guard (ziskBalSelftestsPrologue.splitOn "jal ra, bal_rlp_encode_selftest").length == 2
 #guard (ziskBalSelftestsPrologue.splitOn "jal ra, bal_canonical_sort_selftest").length == 2
+#guard (ziskBalSelftestsPrologue.splitOn "li a5, 2").length == 2
 
 -- Two DISTINCT output slots. Publishing both to the same offset makes the second
 -- silently overwrite the first, and one zero would stand for two passes.

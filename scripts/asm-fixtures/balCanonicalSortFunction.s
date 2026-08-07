@@ -9,7 +9,7 @@ bal_canonical_sort:
 .Lbalsort_bad_segs:
   li a0, 2; j .Lbalsort_ret
 .Lbalsort_segs_ok:
-  li t0, 20480; bgtu a1, t0, .Lbalsort_over_capacity
+  beqz a5, .Lbalsort_over_capacity; bltu a5, a1, .Lbalsort_over_capacity
   mv s0, a0
   mv s1, a1
   mv s8, a2

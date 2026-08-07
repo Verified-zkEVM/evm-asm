@@ -1,4 +1,5 @@
 import EvmAsm.Codegen.Programs.BalRlpEncode
+import EvmAsm.Codegen.Programs.BalCapacities
 
 /-!
 # BAL serializer: the measure and emit passes
@@ -1070,7 +1071,8 @@ def balSerializerRebuildHashFunction : String :=
   -- 24 width 8 LE.
   "  la a0, bal_builder_storage_changes\n" ++
   "  la t0, bal_builder_storage_change_count; ld a1, 0(t0)\n" ++
-  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3\n" ++
+  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3; li a5, " ++
+  toString balBuilderStorageChangeCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbsrh_ret\n" ++
@@ -1078,7 +1080,8 @@ def balSerializerRebuildHashFunction : String :=
   -- segment carries no BE flag: offset 0x20, width 0x20.
   "  li a0, 0xa1ba0000\n" ++
   "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x2020; li a4, 1\n" ++
+  "  li a2, 64; li a3, 0x2020; li a4, 1; li a5, " ++
+  toString balBuilderStorageReadsCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbsrh_ret\n" ++
@@ -1086,25 +1089,29 @@ def balSerializerRebuildHashFunction : String :=
   -- BE20 address, segment 1 the native-LE u64 index at +24 -> 0x08189400.
   "  la a0, bal_builder_balance_changes\n" ++
   "  la t0, bal_builder_balance_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
+  toString balBuilderBalanceCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbsrh_ret\n" ++
   "  la a0, bal_builder_nonce_changes\n" ++
   "  la t0, bal_builder_nonce_count; ld a1, 0(t0)\n" ++
-  "  li a2, 40; li a3, 0x08189400; li a4, 2\n" ++
+  "  li a2, 40; li a3, 0x08189400; li a4, 2; li a5, " ++
+  toString balBuilderNonceCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbsrh_ret\n" ++
   "  la a0, bal_builder_code_changes\n" ++
   "  la t0, bal_builder_code_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2\n" ++
+  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
+  toString balBuilderCodeCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  bnez a0, .Lbsrh_ret\n" ++
   "  la a0, bal_builder_accounts\n" ++
   "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
-  "  li a2, 24; li a3, 0x9400; li a4, 1\n" ++
+  "  li a2, 24; li a3, 0x9400; li a4, 1; li a5, " ++
+  toString balBuilderAccountCapacity ++ "\n" ++
   "  jal ra, bal_canonical_sort\n" ++
   "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
   "  beqz a0, .Lbsrh_sorted\n" ++

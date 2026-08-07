@@ -138,8 +138,38 @@ def accountWriteHasBalance : Nat := 1
 def accountWriteHasNonce : Nat := 2
 def accountWriteHasCode : Nat := 4
 def accountWriteHasState : Nat := 8
-/-- VALUE 16 = bit index 4. When set, `execFlags@96` carries a full
-    AccountState-compatible flags word (see `CreateCodeEffectLog` flags@+88). -/
+/-- VALUE 16 = bit index 4. A **components-mask** value living at `+112`, NOT a
+    payload value: when set it gates whether `execFlags@96` is stored
+    (`.Lawr_no_flags`) or copied from the tx row (`.Lawb_no_flags`).
+
+    ## `execFlags@+96` — what this structure's flag word means (GH #11706)
+
+    Structure: `account_writes` rows, base `0xa28a0000` (block map) and
+    `tx_account_writes`, base `0xa2b20000` (tx map). **Stride 128.** Flag word at
+    `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
+    every mask cited is an emitted `andi` immediate.
+
+    | value | meaning | readers (emitted masks) |
+    |-------|---------|--------------------------|
+    | 2  | **live** — zero means present-dead or deleted | `.Lawa_tx_key` / `.Lawa_block_key`, `.Lawab_key`, `.Lawlc_*` (all `andi …, 2` on the `+96` word) |
+    | 8  | **created-this-tx** | `account_writes_created_contains` `.Lawc_key`: `ld t1, 96(t5); andi t1, t1, 8` |
+    | 1, 4, 32 | no `+96` reader mask exists | — |
+
+    **Value 8 is created-this-tx, established from the WRITERS rather than from any
+    consumer's variable name.** The only three call sites that put value 8 into
+    `+96` are all CREATE paths, each passing `a7 = 27` (= 16+8+2+1):
+    `BlockVerdictCreationStage` (`bv_create_addr`), `CreateCodeEffectLog` (the CREATE
+    code publication) and `CreateFrameDescend` (`create_address_be`). The one
+    non-create exec-flags writer passes `a7 = 0x33` (= 51 = 32+16+2+1), which does
+    **not** contain value 8.
+
+    ⛔ **Do not carry `AccountState flags@+88` constants into this field.** They are a
+    different structure with overlapping values: `account_state_record_code` seeds
+    `+88` with **27**, or **31** when the code length is nonzero, and *both contain
+    value 8* — so storing either here sets the bit `.Lawc_key` reads as
+    created-this-tx. A value derived from `+96`'s own readers is what belongs here
+    (e.g. `a7 = 2` for a live, not-created row). GH #11697's first fix took `a7`
+    from the `+88` seed and broke five rows. -/
 def accountWriteHasExecFlags : Nat := 16
 /-- VALUE 32 = bit index 5. Sticky: once OR'd into the row mask it is never
     cleared by a later write that omits it. Marks execution-touched accounts
@@ -656,16 +686,21 @@ def accountWritesBlockUpsertFunction : String :=
 
     Map-row balance alone is insufficient after self-burn: `record_nonstorage_effect`
     derives HAS_BALANCE only from pre≠post, so clear_preserving with pre=post=live
-    leaves the write-map bal at the CREATE seed (often 0).  When map bal=0, resolve
-    the preserved balance through the same lower-tier chain as `get_account`: the
-    block map for a prior transaction, then the authenticated parent witness.  Do
-    not use the live AccountState overlay here; it is not a pre-state tier and can
-    hide the exact map miss this fallback is meant to resolve (03736 self_burn).
-    This is the same correction documented in `account_resolve_pre_state` below:
-    its former durable-overlay tier was removed because `update_builder_from_tx`
-    had already applied the sender's post value before that routine was asked for
-    a pre-state value.  The two consumers must therefore share the same
-    map-then-parent precedence, not recreate a live overlay tier.
+    leaves the write-map bal at the CREATE seed (often 0) **without** HAS_BALANCE.
+    When map bal=0 and HAS_BALANCE is clear, resolve the preserved balance through
+    the same lower-tier chain as `get_account`: the block map for a prior
+    transaction, then the authenticated parent witness.  When map bal=0 **and**
+    HAS_BALANCE is set, the zero is authoritative (SELFDESTRUCT drained the
+    account); do **not** re-fetch parent pre-balance — that resurrected a
+    pre-seeded CREATE address (bal=100) as Present on 01114 and failed NPR.
+    Do not use the live AccountState overlay here; it is not a pre-state tier
+    and can hide the exact map miss this fallback is meant to resolve (03736
+    self_burn).  This is the same correction documented in
+    `account_resolve_pre_state` below: its former durable-overlay tier was
+    removed because `update_builder_from_tx` had already applied the sender's
+    post value before that routine was asked for a pre-state value.  The two
+    consumers must therefore share the same map-then-parent precedence, not
+    recreate a live overlay tier.
 
     No arguments; a0 = 0 on success / 1 on bounded-arena failure. -/
 def accountWritesApplyDeletesFunction : String :=
@@ -690,10 +725,13 @@ def accountWritesApplyDeletesFunction : String :=
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
-  -- Map bal=0: resolve the lower-tier pre-state balance.  This is the exact
-  -- `get_account` fallback after tx and block account-write maps: a missing
-  -- balance component means the current balance was never changed above that
-  -- tier, so the authenticated parent account is the preserved value.
+  -- Map bal=0 + HAS_BALANCE: authoritative post-drain zero (do not resurrect
+  -- parent pre-balance).  GH #11688 / fixture 01114.
+  "  ld t1, 112(t0); andi t1, t1, " ++ toString accountWriteHasBalance ++ "; bnez t1, .Lawd_present_none\n" ++
+  -- Map bal=0 without HAS_BALANCE: resolve the lower-tier pre-state balance.
+  -- Missing balance component means the current balance was never changed
+  -- above that tier, so the authenticated parent account is the preserved
+  -- value (self-burn / CREATE-seed path).
   "  sd zero, 40(sp); sd zero, 48(sp); sd zero, 56(sp); sd zero, 64(sp); sd zero, 72(sp)\n" ++
   "  mv a0, s0; addi a1, sp, 40; la t1, sv_pre_rlp_ptr; ld a2, 0(t1); la t1, sv_pre_rlp_len; ld a3, 0(t1); la t1, bv_witness_state_ptr; ld a4, 0(t1); la t1, bv_witness_state_len; ld a5, 0(t1); jal ra, account_resolve_pre_state\n" ++
   -- Resolver status 1 is a malformed/unavailable authenticated lookup.  It is
