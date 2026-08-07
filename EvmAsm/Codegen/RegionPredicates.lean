@@ -670,11 +670,21 @@ theorem baapStorageValues_sizes_distinct :
 
     ⚠️ **Stride is a parameter here, unlike `teerEntriesFrom`.** The teer table
     has one entry width; `bal_canonical_sort` is called at **six** live sites
-    with **five distinct strides** (`BalSerializer.lean:1071-1108`,
-    `#guard`-pinned at 6 in `BlockAccessListBuilder.lean`). #10817 asks
-    explicitly to *"parameterise over the descriptors"* rather than over literal
-    byte offsets, so that a row-content change cannot silently invalidate a
-    proof. `balSortCallSites` below is that parameterisation.
+    (`BalSerializer.lean:1071-1108`, `#guard`-pinned at 6 in
+    `BlockAccessListBuilder.lean`) with **four** distinct strides among them —
+    `a2` is 96, 64, 64, 40, 64, 24, so `64` is shared by the storage reads and
+    the balance and code changes. #10817 asks explicitly to *"parameterise over
+    the descriptors"* rather than over literal byte offsets, so that a
+    row-content change cannot silently invalidate a proof. `balSortCallSites`
+    below is that parameterisation.
+
+    ⚠️ Both counts here are pinned by `by decide` rather than left as prose —
+    `balSortCallSites_count` (six sites) and `balSortCallSites_stride_count`
+    (four strides). That is not decoration: this docstring said *"five distinct
+    strides"* on arrival, and `balSortCallSites_stride_count` is exactly the
+    theorem that refutes it. A prose count that disagrees with the data is the
+    case for moving counts into the data, so the numbers quoted above are the
+    ones those theorems assert.
 
     ⚠️ **Rows are opaque bytes, deliberately.** A typed `BalRow` with a
     `.render` (the `TeerEntry` shape) would bake one call site's segment layout
