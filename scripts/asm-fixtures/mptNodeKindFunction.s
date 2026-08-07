@@ -4,14 +4,19 @@ mpt_node_kind:
   sd s0,  8(sp); sd s1, 16(sp)
   mv s0, a0                  # node ptr
   mv s1, a1                  # node_len
-  # Probe item 2 (index 2). If found ⇒ 17-item branch list.
-  li a2, 2
-  la a3, mnk_dummy_offset
-  la a4, mnk_dummy_length
-  jal ra, rlp_list_nth_item
-  beqz a0, .Lmnk_branch
-  # Item 2 absent ⇒ 2-item list (leaf or extension).
-  # Get item 0 to read path's first byte.
+  # #11347: count the items. execution-specs `decodeNodeItemAux` rejects a node
+  # list whose length is not 17; the old code probed item 2 and treated "present"
+  # as "17-item branch", which also accepts 3..16 and 18+.
+  la a2, mnk_item_count
+  jal ra, rlp_list_count_items
+  bnez a0, .Lmnk_fail        # count failed ⇒ parse fail
+  la t0, mnk_item_count
+  ld t1, 0(t0)
+  li t2, 17
+  beq t1, t2, .Lmnk_branch   # exactly 17 ⇒ branch
+  li t2, 2
+  bne t1, t2, .Lmnk_fail     # neither 2 nor 17 ⇒ malformed
+  # 2-item list ⇒ leaf or extension. Get item 0 to read path's first byte.
   mv a0, s0
   mv a1, s1
   li a2, 0
