@@ -50,10 +50,20 @@ Two facts dominate every per-kernel row below:
    rfl` **string-drift guards** on the ~40 converted leaf helpers (these prove
    "string == rendered `Program`", *not* that the math is correct), and (c)
    **spec-side EL ecall-ABI bridges** under `EvmAsm/EL/*Bridge.lean` (model the
-   precompile ABI, *not* the RV64 body). **No `cpsTripleWithin` / SAsm port
-   connects any crypto asm body to its spec.** Correctness rests entirely on the
-   differential `scripts/codegen-zisk-*-check.sh` probes against py_ecc /
-   execution-specs / the `cryptography` lib.
+   precompile ABI, *not* the RV64 body).
+
+   ⚠️ **This paragraph used to end "No `cpsTripleWithin` / SAsm port connects any
+   crypto asm body to its spec." That was false, and #11574 was filed partly on
+   the strength of it.** Roughly 40 `*SAsm.lean` modules carry whole-routine
+   `cpsTripleWithin` triples over crypto bodies — `blsgLtP_spec`
+   (`Programs/Bls12G1LtPSAsm.lean:734`) and `bnfLtP_spec`
+   (`Programs/Bn254FieldLtPSAsm.lean:732`) among them, both `sorry`-free and both
+   predating this correction by months. The accurate statement is narrower: the
+   *accelerated* kernels (pairing, MSM, hashing) have no body-level triple, and
+   for those correctness does rest on the differential
+   `scripts/codegen-zisk-*-check.sh` probes against py_ecc / execution-specs /
+   the `cryptography` lib. The scan and bound helpers around them are proved.
+   See `docs/crypto-spec-correspondence.md`.
 
 The spec-gap ladder used throughout (increasing difficulty):
 
