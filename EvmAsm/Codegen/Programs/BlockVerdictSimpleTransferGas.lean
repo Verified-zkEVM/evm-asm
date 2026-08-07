@@ -34,6 +34,72 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  jal ra, account_writes_lookup_current\n" ++
   "  li t2, 1; beq a0, t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
   "  li t2, 2; beq a0, t2, .L" ++ tag ++ "_recipient_state_zero\n" ++
+  -- GH #11713: lookup_current requires STATE bit (8) and skips component-only
+  -- BALANCE/NONCE/TOUCH/CODE rows so they cannot mask lower-tier code.  A prior
+  -- top-level value transfer writes BALANCE|TOUCHED only (vm=0x21).  Spec
+  -- charges NEW_ACCOUNT only when value>0 and not is_account_alive
+  -- (interpreter.py:285-288 at e5a8caf1b).  is_account_alive = exists ∧
+  -- ≠ EMPTY_ACCOUNT (state_tracker.py:445-463); EMPTY_ACCOUNT is zero balance
+  -- AND zero nonce AND empty code.  So any of {nonzero bal, nonzero nonce,
+  -- nonempty code} on the tx-then-block-cumulative map ⇒ alive.  Map helpers
+  -- used: latest_balance, latest_nonce_tx, latest_nonce_block.  Code without
+  -- STATE is covered below by a dual-tier HAS_CODE/codeLen probe (same maps,
+  -- NOT created-set — mark_account_created is sticky on revert).
+  "  addi sp, sp, -32\n" ++
+  "  la t1, " ++ ctxLabel ++ "; addi a0, t1, 72; mv a1, sp\n" ++
+  "  jal ra, account_writes_latest_balance\n" ++
+  "  beqz a0, .L" ++ tag ++ "_recipient_nonce\n" ++
+  "  ld t2, 0(sp); ld t3, 8(sp); or t2, t2, t3\n" ++
+  "  ld t3, 16(sp); or t2, t2, t3\n" ++
+  "  ld t3, 24(sp); or t2, t2, t3\n" ++
+  "  bnez t2, .L" ++ tag ++ "_recipient_map_alive\n" ++
+  ".L" ++ tag ++ "_recipient_nonce:\n" ++
+  "  la t1, " ++ ctxLabel ++ "; addi a0, t1, 72; mv a1, sp\n" ++
+  "  jal ra, account_writes_latest_nonce_tx\n" ++
+  "  bnez a0, .L" ++ tag ++ "_recipient_nonce_got\n" ++
+  "  la t1, " ++ ctxLabel ++ "; addi a0, t1, 72; mv a1, sp\n" ++
+  "  jal ra, account_writes_latest_nonce_block\n" ++
+  "  beqz a0, .L" ++ tag ++ "_recipient_code\n" ++
+  ".L" ++ tag ++ "_recipient_nonce_got:\n" ++
+  "  ld t2, 0(sp); bnez t2, .L" ++ tag ++ "_recipient_map_alive\n" ++
+  ".L" ++ tag ++ "_recipient_code:\n" ++
+  -- Dual-tier HAS_CODE (mask value 4) with codeLen@+88: tx map then block map.
+  -- Re-load addr: nonce helpers clobber t0-t6.
+  "  la t1, " ++ ctxLabel ++ "; addi t0, t1, 72\n" ++
+  "  la t1, tx_account_writes_count; ld t2, 0(t1); li t3, 0xa2b20000; li t4, 0\n" ++
+  ".L" ++ tag ++ "_recipient_code_tx:\n" ++
+  "  bgeu t4, t2, .L" ++ tag ++ "_recipient_code_blk_init\n" ++
+  "  slli t5, t4, 7; add t5, t3, t5; mv a0, t5; mv a1, t0; li a2, 20\n" ++
+  ".L" ++ tag ++ "_recipient_code_tx_cmp:\n" ++
+  "  beqz a2, .L" ++ tag ++ "_recipient_code_tx_key\n" ++
+  "  lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .L" ++ tag ++ "_recipient_code_tx_next\n" ++
+  "  addi a0, a0, 1; addi a1, a1, 1; addi a2, a2, -1; j .L" ++ tag ++ "_recipient_code_tx_cmp\n" ++
+  ".L" ++ tag ++ "_recipient_code_tx_next:\n" ++
+  "  addi t4, t4, 1; j .L" ++ tag ++ "_recipient_code_tx\n" ++
+  ".L" ++ tag ++ "_recipient_code_tx_key:\n" ++
+  "  ld t6, 112(t5); andi t6, t6, 4; beqz t6, .L" ++ tag ++ "_recipient_code_tx_next\n" ++
+  "  ld t6, 88(t5); bnez t6, .L" ++ tag ++ "_recipient_map_alive\n" ++
+  "  j .L" ++ tag ++ "_recipient_code_tx_next\n" ++
+  ".L" ++ tag ++ "_recipient_code_blk_init:\n" ++
+  "  la t1, account_writes_count; ld t2, 0(t1); li t3, 0xa28a0000; li t4, 0\n" ++
+  ".L" ++ tag ++ "_recipient_code_blk:\n" ++
+  "  bgeu t4, t2, .L" ++ tag ++ "_recipient_map_miss\n" ++
+  "  slli t5, t4, 7; add t5, t3, t5; mv a0, t5; mv a1, t0; li a2, 20\n" ++
+  ".L" ++ tag ++ "_recipient_code_blk_cmp:\n" ++
+  "  beqz a2, .L" ++ tag ++ "_recipient_code_blk_key\n" ++
+  "  lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .L" ++ tag ++ "_recipient_code_blk_next\n" ++
+  "  addi a0, a0, 1; addi a1, a1, 1; addi a2, a2, -1; j .L" ++ tag ++ "_recipient_code_blk_cmp\n" ++
+  ".L" ++ tag ++ "_recipient_code_blk_next:\n" ++
+  "  addi t4, t4, 1; j .L" ++ tag ++ "_recipient_code_blk\n" ++
+  ".L" ++ tag ++ "_recipient_code_blk_key:\n" ++
+  "  ld t6, 112(t5); andi t6, t6, 4; beqz t6, .L" ++ tag ++ "_recipient_code_blk_next\n" ++
+  "  ld t6, 88(t5); bnez t6, .L" ++ tag ++ "_recipient_map_alive\n" ++
+  "  j .L" ++ tag ++ "_recipient_code_blk_next\n" ++
+  ".L" ++ tag ++ "_recipient_map_alive:\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  j .L" ++ tag ++ "_recipient_state_zero\n" ++
+  ".L" ++ tag ++ "_recipient_map_miss:\n" ++
+  "  addi sp, sp, 32\n" ++
   ".L" ++ tag ++ "_recipient_state_header:\n" ++
   "  la t1, " ++ ctxLabel ++ "\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); addi a2, t1, 72; ld a3, 80(s0); ld a4, 88(s0)\n" ++
