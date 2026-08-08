@@ -163,6 +163,14 @@ if ! lake build "$WITNESS_MODULE" > "$RAWOUT" 2>&1; then
   exit 1
 fi
 
+# Keep a count of lines naming the witness module before filtering the lake
+# message stream.  A zero parsed report can mean either that lake emitted no
+# witness diagnostics at all or that its diagnostic format moved; both are a
+# harness failure, not evidence that all witnesses are axiom-clean.  The
+# count makes the failure actionable without dumping the (potentially large)
+# transitive build log.
+RAW_WITNESS_LINES="$(grep -cF "$WITNESS_FILE" "$RAWOUT" || true)"
+
 # `lake build` prints each report as `info: <file>:<line>:<col>: <text>`
 # (the axiom list may wrap onto space-indented continuation lines that carry
 # no prefix).  Strip the position prefix so records match the classic
@@ -213,6 +221,13 @@ mapfile -t REPORTED < <(
 )
 if (( ${#REPORTED[@]} != ${#NAMES[@]} )) \
   || ! diff -q <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}") >/dev/null; then
+  if (( ${#REPORTED[@]} == 0 )); then
+    echo "check-axioms: ERROR: could not run #print axioms — parsed 0 reports for ${#NAMES[@]} registry witnesses" >&2
+    echo "check-axioms: this is a harness/diagnostic failure, not a clean axiom result" >&2
+    echo "check-axioms: raw lake output contained $RAW_WITNESS_LINES line(s) naming $WITNESS_FILE before parsing" >&2
+    echo "check-axioms: expected one report per witness; inspect lake output format or message routing" >&2
+    exit 2
+  fi
   echo "check-axioms: FAIL: parsed ${#REPORTED[@]} axiom report(s) for ${#NAMES[@]} registry witness(es)" >&2
   MISSING="$(comm -23 <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}"))"
   if [[ -n "$MISSING" ]]; then
