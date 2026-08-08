@@ -10,6 +10,7 @@ Link-layout-dependent only (class A). Class B stable bases stay hand-typed in Re
 from __future__ import annotations
 
 import argparse
+import difflib
 import os
 import re
 import subprocess
@@ -111,6 +112,42 @@ def render(elf: Path) -> str:
     return "\n".join(lines)
 
 
+def _without_provenance_path(text: str) -> str:
+    """Normalize only the generated file's non-semantic source-path comment."""
+    return re.sub(
+        r"(?m)^  Regenerated from: .*$",
+        "  Regenerated from: <path>",
+        text,
+    )
+
+
+def _report_drift(cur: str, body: str) -> None:
+    """Explain a stale generated file instead of emitting an opaque DRIFT."""
+    if _without_provenance_path(cur) == _without_provenance_path(body):
+        print(
+            "DRIFT cause: only the Regenerated-from provenance path differs; "
+            "pin values are unchanged",
+            file=sys.stderr,
+        )
+
+    diff = list(
+        difflib.unified_diff(
+            cur.splitlines(),
+            body.splitlines(),
+            fromfile="committed",
+            tofile="generated",
+            lineterm="",
+        )
+    )
+    if diff:
+        limit = 40
+        print("DRIFT differing lines (committed vs generated):", file=sys.stderr)
+        for line in diff[:limit]:
+            print(line, file=sys.stderr)
+        if len(diff) > limit:
+            print(f"... ({len(diff) - limit} more diff lines)", file=sys.stderr)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--elf", type=Path, default=DEFAULT_ELF)
@@ -127,6 +164,7 @@ def main() -> int:
                 f"`python3 scripts/gen-region-map-link-pins.py`",
                 file=sys.stderr,
             )
+            _report_drift(cur, body)
             return 1
         print(f"check-region-map-link-pins: CLEAN ({OUT.relative_to(REPO)})")
         return 0
