@@ -539,12 +539,30 @@ abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
     removal absorbs in the same direction (#10986, #10988). -/
 abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
 
-/-- ELF-measured base of `.state_gas_diag`. Unlike every other RAM section this
-    one carries **no `--section-start` flag**: the linker places it immediately
-    after `.bss`, so its base is a *consequence* of `bssSizeBytes` and moves on
-    every `.bss` growth. A hand-typed constant here would silently go stale, so
-    it is a class-A pin like the three BSS symbol bases. -/
-abbrev stateGasDiagBase : Nat := RegionMapLinkPins.stateGasDiagBase
+/-- Base of `.state_gas_diag`. Unlike every other RAM section this one carries
+    **no `--section-start` flag**: the linker places it immediately after
+    `.bss`, so its base is a *consequence* of `bssSizeBytes` — and it is
+    therefore **DERIVED here, not pinned**.
+
+    ⚠️ GH #11186 landed this as an independent class-A pin first, on the
+    reasoning that a hand-typed constant would go stale. Correct premise, wrong
+    conclusion: **the right conclusion from *it is a consequence* is to derive
+    it.** An independent pin for a derived quantity can contradict its own
+    premise the moment the two are regenerated at different times — and while
+    both were pins, `guestScratch_sat`'s `sepConj` join typechecked only because
+    the two `abbrev`s happened to *reduce to the same numeral*. That is
+    agreement by coincidence, not by construction: when `bssSizeBytes` moved
+    under a branch, CI failed with an application type mismatch at
+    `GuestImage.lean`, and a **clean** rebase (no conflict, no marker) produced a
+    `RegionMapLinkPins` whose `stateGasDiagBase` described the old image while
+    its `bssSizeBytes` described the new one.
+
+    Derived, the join holds because the two bounds are the SAME TERM, with no
+    reduction and no coincidence involved. `check-region-map.sh` then checks this
+    derivation against the linked ELF (`.state_gas_diag base == .bss end`),
+    which is also the only thing that can catch the one way it could break:
+    padding, if a future `.bss` size were not 8-aligned. -/
+abbrev stateGasDiagBase : Nat := 0xa3110000 + bssSizeBytes
 
 /-- ELF-measured `.state_gas_diag` size. -/
 abbrev stateGasDiagSizeBytes : Nat := RegionMapLinkPins.stateGasDiagSizeBytes
