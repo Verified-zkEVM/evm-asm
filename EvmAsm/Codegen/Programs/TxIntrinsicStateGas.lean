@@ -160,7 +160,18 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_deleg_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
+  -- CURRENT nonce: TX map, then BLOCK map, then header pre-state. Spec has one
+  -- live tx_state (validate_authorization reads authority.nonce after prior
+  -- txs' inclusion bumps). Our dual map splits that; the miss arm must not
+  -- stop at TX-then-header and skip BLOCK, or a prior-tx inclusion bump is
+  -- invisible and a reused-nonce auth falsely accepts (GH #11542 24517:
+  -- authorization_reusing_nonce — FA masked by auth-phase OOG / receipts_root).
+  "  li t0, 2; beq a0, t0, .L77as_absent\n" ++
+  "  mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx\n" ++
+  "  beqz a0, .L77as_try_block; ld s1, 56(sp); li s2, 1; j .L77as_header\n" ++
+  ".L77as_try_block:\n" ++
+  "  mv a0, s0; addi a1, sp, 56; li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
+  "  beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
   -- Header load remains raw: the map accessor recorded the execution read.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
@@ -177,12 +188,13 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_live_empty:\n" ++
   "  li a2, 0\n" ++
   ".L77as_live:\n" ++
-  -- Prefer map nonce (s1) when account_writes_latest_nonce_tx found a CURRENT
-  -- row (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
+  -- Prefer map nonce (s1) when TX or BLOCK latest_nonce found a CURRENT row
+  -- (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
   -- auth_current misses that row, so the normal_nonce path stashes the map
   -- nonce in s1. Loading teer_pre_acct here would wipe it with the header
   -- nonce and reject self-sponsored AUTH whose signed nonce is post-inclusion
-  -- (GH #11744: 352 regular shortfall on call_to_precompile_in_pointer_context).
+  -- (GH #11744), or accept a prior-tx-consumed nonce on miss→header (GH #11542
+  -- 24517) when BLOCK held the live nonce but was not consulted.
   "  bnez s2, .L77as_live_map; la t0, teer_pre_acct; ld s1, 0(t0)\n" ++
   ".L77as_live_map:\n" ++
   "  mv a1, s1; li a0, 1; j .L77as_ret\n" ++
