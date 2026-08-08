@@ -2094,10 +2094,11 @@ clean (`lake build EvmAsm.Codegen` exits 0).
 
 ### M25 — Post-state slot serializer — **RETIRED (#11556 / #11326)**
 
-Historically walked the Option-A persistent log and wrote
-deduped `(slotKey, current)` pairs at `OUTPUT[56..]`, with an
-`expectedPostStorage` opcode-test field and a
-`codegen-opcodes-runtime-check.sh` column assert.
+The retired implementation walked the Option-A persistent log and
+wrote deduped `(slotKey, current)` pairs at `OUTPUT[56..]`. Its
+`expectedPostStorage` opcode-test field and
+`codegen-opcodes-runtime-check.sh` column assertion were removed
+with M25; neither artifact exists now.
 
 **Why retired (not restored):**
 

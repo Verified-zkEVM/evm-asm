@@ -594,14 +594,24 @@ def callDescendFallThrough
     "  jal ra, account_state_delegation_code_resolve\n" ++
     "  mv t6, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  li t5, 1; bne t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    -- Resolver status vocabulary (BalCodePreimages account_state_delegation_code_resolve):
+    --   0 = live EIP-7702 marker → recipient alive → no NEW_ACCOUNT
+    --   1 = no current code fact → fall through to lookup_current
+    --   2 = marker target empty/deleted/precompile → recipient still marked → alive
+    --   3 = not_delegated (empty/clear or non-marker code write) → NOT a liveness
+    --       proof; fall through. Collapsing 3 into the alive short-circuit
+    --       (`bne t6,1,done`) under-charged CALL NEW_ACCOUNT 183600 on
+    --       create2-after-selfdestruct multi-tx (#11542 / 11619 TT).
+    -- Only 0 and 2 short-circuit; 1 and 3 continue to account_writes_lookup_current.
+    "  beqz t6, .Lcd_nacc_done_" ++ tag ++ "\n" ++
+    "  li t5, 2; beq t6, t5, .Lcd_nacc_done_" ++ tag ++ "\n" ++
     -- A callee created earlier in the block is live even when absent from the
     -- pre-block witness.  Ask the shared current account-write tiers rather than the
     -- append-only comparator log.
     -- is True -> no NEW_ACCOUNT state-gas charge. It is ABSENT from the block-pre witness, so
     -- account_exists_at_header_state_root below would falsely report "not exists" -> wrongly charge the
     -- 183600 new-account state gas -> OOG (.exit_outofgas) -> the value-CALL exceptional-fails and the
-    -- child never descends/runs.  Status 1 is live; status 2 needs the bal-zero
+    -- child never descends/runs.  lookup status 1 is live; status 2 needs the bal-zero
     -- tombstone discriminant below (pin is_account_alive); status 3 is a
     -- finalized deletion and must charge.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
