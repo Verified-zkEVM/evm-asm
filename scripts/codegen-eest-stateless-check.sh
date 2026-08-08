@@ -1441,10 +1441,11 @@ wait_for_one_worker() {
 }
 
 # --- classify ---------------------------------------------------------------
-# Most successful Amsterdam SszStatelessValidationResult values are 105 bytes,
-# but execution-specs' deserialize-failure sentinel is 73 bytes. Compare the
-# exact fixture-provided length; the region counters below still classify the
-# common 105-byte layout where present.
+# Most successful Amsterdam SszStatelessValidationResult values are 69 bytes on
+# the current v0.6.x pin (ChainConfig dropped fork/blob-schedule; pre-v0.6 was
+# 105). Deserialize-failure sentinels use other lengths. Compare the exact
+# fixture-provided length; region counters classify root/succ when present and
+# treat the remainder as tail.
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
 #   tail [33:]    = remaining expected SSZ tail (hex 66..)
