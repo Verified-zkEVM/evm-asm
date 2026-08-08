@@ -65,6 +65,26 @@ FALLBACK_SYMS = {
 AW_STRIDE = 128
 AW_MAX_ROWS = 128
 
+# account_writes `+112` validMask bits (GH #11736).  A FLAG says whether a field
+# is MEANINGFUL; the field says what it is.  Reading an unset field as data is the
+# defect this decoder had: a clear balance bit means the balance is UNSPECIFIED,
+# not zero, so comparing it against a nonzero expectation invents a mismatch.
+VM_BALANCE = 0x1
+VM_NONCE = 0x2
+VM_CODE = 0x4
+VM_STATE = 0x8
+VM_TOUCHED = 0x20
+
+# Classes that are NOT defects: informational records a reader must not treat as
+# findings.  Kept out of the primary work-list and out of the diverging-leaf count.
+NON_DEFECT_CLASSES = (
+    "guest_absent_ok",
+    "balance_unspecified",
+    "nonce_unspecified",
+    "enumeration_entry_touched_only",
+    "storage_in_separate_structure",
+)
+
 
 def nm_syms(elf: str) -> dict[str, int]:
     out = subprocess.check_output(["nm", elf], text=True, stderr=subprocess.DEVNULL)
@@ -213,6 +233,16 @@ def field_records(
                              "post": f"bal={pe.get('balance')}", "guest": "Present-None"})
             continue
         if pe is None:
+            # GH #11736: a TOUCHED-only row carries no value bits. It is an
+            # execution-map / root-enumeration entry, NOT a post-state delta, so
+            # its absence from postState is expected and must not read as a
+            # "guest-extra presence" finding.
+            if not (r["vmask"] & (VM_BALANCE | VM_NONCE | VM_CODE | VM_STATE)):
+                recs.append({**base, "field": "presence",
+                             "class": "enumeration_entry_touched_only",
+                             "post": "absent (expected)",
+                             "guest": "touched-only row, no value bits set"})
+                continue
             recs.append({**base, "field": "presence", "class": "guest_extra_not_in_post",
                          "post": "absent", "guest": f"bal={r['bal']} nonce={r['nonce']}"})
             continue
@@ -220,10 +250,23 @@ def field_records(
         exp_nonce = int(pe.get("nonce", "0x0"), 16)
         code_hex = pe.get("code", "0x")
         exp_clen = (len(code_hex) - 2) // 2 if code_hex.startswith("0x") else len(code_hex) // 2
-        if r["bal"] != exp_bal and (r["vmask"] & 0x1 or r["bal"] or exp_bal):
+        # GH #11736: gate on the validMask bit ALONE.  The former condition was
+        # `mask & bit OR guest_value OR expected_value`, whose trailing clauses
+        # defeated the gate exactly when it mattered: an unset balance bit with a
+        # nonzero expectation was reported as a mismatch (row 6295ee1b…, vmask
+        # 0x3a). An unset field is UNSPECIFIED and is reported as such.
+        if not (r["vmask"] & VM_BALANCE):
+            recs.append({**base, "field": "balance", "class": "balance_unspecified",
+                         "post": str(exp_bal),
+                         "guest": "UNSPECIFIED (validMask balance bit clear)"})
+        elif r["bal"] != exp_bal:
             recs.append({**base, "field": "balance", "class": "balance_mismatch",
                          "post": str(exp_bal), "guest": str(r["bal"])})
-        if r["nonce"] != exp_nonce and (r["vmask"] & 0x2 or r["nonce"] or exp_nonce):
+        if not (r["vmask"] & VM_NONCE):
+            recs.append({**base, "field": "nonce", "class": "nonce_unspecified",
+                         "post": str(exp_nonce),
+                         "guest": "UNSPECIFIED (validMask nonce bit clear)"})
+        elif r["nonce"] != exp_nonce:
             recs.append({**base, "field": "nonce", "class": "nonce_mismatch",
                          "post": str(exp_nonce), "guest": str(r["nonce"])})
         # code_len alone is weak (code body lives outside the row); only flag
@@ -251,6 +294,21 @@ def field_records(
         if (pr or {}).get("storage") != pe.get("storage"):
             diffs.append("storage")
         if diffs:
+            # GH #11736: a storage-only delta has no counterpart here BY DESIGN --
+            # `storage_writes` is a separate structure and
+            # `execution_map_state_changes` enumerates the union -- so reporting it
+            # as "absent from the account-writes arena" is a false residual. Say
+            # where the counterpart lives instead of reporting an absence.
+            if diffs == ["storage"]:
+                recs.append({
+                    "account": addr, "field": "storage",
+                    "class": "storage_in_separate_structure",
+                    "post": f"storage delta only ({len(pe.get('storage') or {})} slot(s))",
+                    "guest": "not in account_writes by design; see storage_writes",
+                    "vmask": "", "opt": "", "guest_bal": "", "guest_nonce": "",
+                    "guest_code_len": "",
+                })
+                continue
             recs.append({
                 "account": addr, "field": "+".join(diffs),
                 "class": "post_delta_missing_from_aw",
@@ -409,8 +467,10 @@ def decode_one(
 
     match = post_usable and guest.hex() == post_root
     recs = field_records(aw_rows, pre, post) if post_usable else []
-    # keep only mismatch-class records for the primary work-list
-    mism = [r for r in recs if r["class"] not in ("guest_absent_ok",)]
+    # GH #11736: informational records are excluded from the work-list so an
+    # UNSPECIFIED field or a by-design absence cannot read as a defect.
+    mism = [r for r in recs if r["class"] not in NON_DEFECT_CLASSES]
+    info = [r for r in recs if r["class"] in NON_DEFECT_CLASSES]
     hits = []
     if do_ablate and post_usable and not match:
         hits = ablate(pre, post, guest, max_k=3)
@@ -445,6 +505,18 @@ def decode_one(
         "match": int(match),
         "aw_count": len(aw_rows),
         "n_field_recs": len(mism),
+        # GH #11736: a single `primary_*` triple reads as a complete answer. On
+        # #11306 it surfaced only the sender and hid the coinbase leaf, and the
+        # hidden leaf was the corroborating datum that turned a single-quantity
+        # match into a three-way consistency check. These three fields make a
+        # second leaf visible without anyone re-deriving the leaf set by hand.
+        # `n_field_recs` does NOT answer this: it mixes field classes.
+        "n_diverging_leaves": len({r["account"] for r in mism}),
+        "diverging_accounts": ",".join(sorted({r["account"] for r in mism})),
+        "diverging_by_field": ";".join(
+            f"{f}={n}" for f, n in sorted(Counter(r["field"] for r in mism).items())
+        ),
+        "n_informational": len(info),
         "primary_class": primary_class,
         "primary_account": primary_account,
         "primary_field": primary_field,
@@ -534,10 +606,17 @@ def main() -> int:
         print(f"wrote {args.jsonl}")
 
     if args.out:
+        # GH #11736: the four new columns are APPENDED, never inserted, so every
+        # existing column keeps its index and a reader using `cut -f N` against an
+        # older report is unaffected. See the PR body: the CLASS NAMES did change
+        # for three previously-misreported cases, so class strings must not be
+        # compared across the fix boundary even though the column layout is stable.
         fields = [
             "id", "succ", "bv", "match", "exp_succ", "block", "nblocks", "post_usable",
             "primary_class", "primary_field", "primary_account",
             "n_field_recs", "aw_count", "guest_root", "post_root", "label",
+            "n_diverging_leaves", "diverging_accounts", "diverging_by_field",
+            "n_informational",
         ]
         with open(args.out, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=fields, delimiter="\t", extrasaction="ignore")
@@ -574,6 +653,25 @@ def main() -> int:
     n_err = sum(1 for r in results if r.get("err"))
     n_mis = len(results) - n_match - n_err
     print(f"\n# summary: n={len(results)} match={n_match} mismatch={n_mis} err={n_err}")
+    # GH #11736: make a hidden second leaf impossible to miss from the summary
+    # alone. `primary_*` names ONE account; on #11306 every failing row had two,
+    # and the second was the corroborating datum.
+    multi = [r for r in results if (r.get("n_diverging_leaves") or 0) > 1]
+    if multi:
+        dist = Counter(r["n_diverging_leaves"] for r in multi)
+        print(
+            "# ⚠ MULTI-LEAF: "
+            + f"{len(multi)} of {len(results)} row(s) diverge on MORE THAN ONE account "
+            + "(" + ", ".join(f"{n} leaves×{c}" for n, c in sorted(dist.items())) + "). "
+            + "primary_* names only the first -- read diverging_accounts."
+        )
+    n_info = sum(r.get("n_informational") or 0 for r in results)
+    if n_info:
+        print(
+            f"# {n_info} informational record(s) excluded from the work-list "
+            "(UNSPECIFIED fields, touched-only enumeration rows, storage handled in "
+            "a separate structure) -- these are NOT defects, see GH #11736"
+        )
     print("# note: guest_root is sv_recomputed (#11547), never out[0:32]")
     return 0
 
