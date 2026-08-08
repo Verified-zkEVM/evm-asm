@@ -168,25 +168,26 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x18, 0(x18)\n" ++
     "  li x19, -1\n" ++
     "  beq x18, x19, 7f\n" ++
-    -- bmvmx.5.5.10: cross-tx CREATE-nonce threading (sequential mtx lane).
-    -- create_creator_nonce_table resets PER TX (.61.8a) and the witness seed
-    -- above reads the PRE-state nonce, so a contract that CREATEs in tx i and
-    -- again in tx j would re-derive with the stale pre-state nonce. The
-    -- non-storage effect log records every creator bump (drj99.1 5a) and
-    -- created-account record (post_nonce=1) and persists across txs
-    -- (truncated only for FAILED txs, whose nonce bumps revert). Consult it:
-    -- hit -> override the seed with the latest post_nonce; miss -> witness
-    -- seed (today's behavior). Same case analysis as the SELFBALANCE live
-    -- overlay (DispatchTx:769-789). Must run BEFORE create_creator_nonce_use
-    -- (it reads create_nonce for the seed-and-bump on table miss).
+    -- Creator-nonce seed for address derivation must mirror
+    -- `get_account(tx_env.state, creator).nonce` (execution-specs amsterdam
+    -- system.py:198-202 at e5a8caf1b). Spec has one live tx_state; our dual
+    -- map splits it as TX (same-tx writers, e.g. EIP-7702 AUTH) then BLOCK
+    -- (prior txs in the block). TX shadows BLOCK — not BLOCK-then-TX —
+    -- because a same-tx AUTH nonce bump lives only in the TX map and would
+    -- be invisible under block-only overlay (#11542 SOURCE: 01991/24631/24632
+    -- CREATE address = keccak(rlp(auth, 0)) vs spec keccak(rlp(auth, 1))).
+    -- create_creator_nonce_table still handles same-tx multi-CREATE after
+    -- this seed; this overlay only supplies the first-CREATE baseline.
+    -- Must run BEFORE create_creator_nonce_use (seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    -- Cross-transaction CREATEs must see the block-cumulative nonce overlay:
-    -- the transaction-only map has already been incorporated and cleared by
-    -- the time the next transaction starts.  Keep the later tx-only lookup
-    -- for same-transaction target liveness below.
+    "  li a2, 22; jal ra, account_writes_latest_nonce_tx\n" ++
+    "  mv t0, a0\n" ++
+    "  bnez t0, 12f\n" ++
+    "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
     "  li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
     "  mv t0, a0\n" ++
+    "12:\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
     "  la x19, create_nonce_latest; ld x18, 0(x19)\n" ++
