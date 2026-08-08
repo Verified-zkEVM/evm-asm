@@ -10,6 +10,11 @@ recorded expectation:
     guest succ=1, expected succ=0  ->  FALSE ACCEPT  (inviolable: must stay 0)
     guest succ=0, expected succ=1  ->  FALSE REJECT  (allowed; fewer is better)
 
+Byte-identity is checked against the full captured output window (bytes 0..255)
+from each successful case's `.output` file. The `.result.tsv` field remains the
+fixture-sized projection used for FA/FR classification; it is not sufficient for
+the equivalence check because normal Amsterdam fixtures project only 105 bytes.
+
 WHY THIS EXISTS
 ---------------
 Three ways an A/B number silently becomes meaningless, all hit in practice:
@@ -90,9 +95,18 @@ import sys
 from collections import defaultdict
 
 
-def scan_results(run_dir: str) -> dict[str, tuple[str, str]]:
-    """label -> (status, output_hex).  In-process; no argv limit (see #1 above)."""
+CAPTURED_OUTPUT_BYTES = 256
+
+
+def scan_results(run_dir: str) -> tuple[dict[str, tuple[str, str]], list[str]]:
+    """Return ``label -> (status, full_output_hex)`` and short captures.
+
+    The result TSV intentionally stores only the fixture-sized prefix. For a
+    successful case, the raw output file is the authoritative source for the
+    A/B identity comparison, including diagnostic offsets 105..255.
+    """
     out: dict[str, tuple[str, str]] = {}
+    short_captures: list[str] = []
     suffix = ".result.tsv"
     try:
         entries = list(os.scandir(run_dir))
@@ -107,8 +121,20 @@ def scan_results(run_dir: str) -> dict[str, tuple[str, str]]:
                 fields = handle.read().strip().split("\t")
         except OSError:
             continue
-        out[label] = (fields[0], fields[1] if len(fields) > 1 else "")
-    return out
+        status = fields[0]
+        output_hex = fields[1] if len(fields) > 1 else ""
+        if status == "OK":
+            output_path = os.path.join(run_dir, f"{label}.output")
+            try:
+                with open(output_path, "rb") as output_handle:
+                    output = output_handle.read()
+            except OSError:
+                output = b""
+            if len(output) < CAPTURED_OUTPUT_BYTES:
+                short_captures.append(label)
+            output_hex = output[:CAPTURED_OUTPUT_BYTES].hex()
+        out[label] = (status, output_hex)
+    return out, short_captures
 
 
 def read_manifest(run_dir: str) -> dict[str, tuple[str, str, str]]:
@@ -249,13 +275,23 @@ def main() -> int:
         sys.exit(f"usage: {os.path.basename(sys.argv[0])} BASE_RUN_DIR CANDIDATE_RUN_DIR")
     base_dir, cand_dir = sys.argv[1], sys.argv[2]
 
-    base_res, cand_res = scan_results(base_dir), scan_results(cand_dir)
+    base_res, base_short = scan_results(base_dir)
+    cand_res, cand_short = scan_results(cand_dir)
     base_man, cand_man = read_manifest(base_dir), read_manifest(cand_dir)
 
     print(f"base      {base_dir}: {len(base_res)} scored / {len(base_man)} manifest rows")
     print(f"candidate {cand_dir}: {len(cand_res)} scored / {len(cand_man)} manifest rows")
 
     ok = True
+
+    for side, short_captures in (("BASE", base_short), ("CANDIDATE", cand_short)):
+        if short_captures:
+            print(f"!! {side} has {len(short_captures)} successful case(s) with less than "
+                  f"{CAPTURED_OUTPUT_BYTES}-byte captured output -- cannot compare the "
+                  "full output window")
+            for label in short_captures[:3]:
+                print(f"   SHORT {label[:70]}")
+            ok = False
 
     # Self-check 0: the two legs must be DIFFERENT artifacts.  Comparing a
     # build to itself yields a flawless zero delta that means nothing, and the
