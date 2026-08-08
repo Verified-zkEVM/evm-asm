@@ -2092,130 +2092,35 @@ choice; M24 is the foundation either way.
 real semantics). `scripts/check-progress.sh` exits 0. Build
 clean (`lake build EvmAsm.Codegen` exits 0).
 
-### M25 — Post-state slot serializer: modified slots → OUTPUT — **DONE (2026-05-29)**
+### M25 — Post-state slot serializer — **RETIRED (#11556 / #11326)**
 
-M24 surfaced storage log **lengths** at `OUTPUT[40..56]` but
-not the actual slot data. Tests could only assert "the
-persistent log has N entries" — they couldn't ask "which
-slots changed, and to what values". M25 closes that gap by
-walking the persistent log from end (last-write-wins),
-deduping, and emitting up to 3 `(slotKey, current)` pairs at
-`OUTPUT[64..256]` with a count cell at `OUTPUT[56..64]`.
+Historically walked the Option-A persistent log and wrote
+deduped `(slotKey, current)` pairs at `OUTPUT[56..]`, with an
+`expectedPostStorage` opcode-test field and a
+`codegen-opcodes-runtime-check.sh` column assert.
 
-After M25, an EEST-style post-state assertion ("after this
-bytecode + preload, slot K has value V") is directly
-expressible via the new `expectedPostStorage` test field —
-the load-bearing piece for running real EEST fixtures.
+**Why retired (not restored):**
 
-The OUTPUT contract is layout-agnostic: the dedup+emit
-mechanism produces a flat list of modified slots regardless
-of which storage architecture sits behind it. If/when
-storage migrates from Option A to D+flat overlay, the inner
-walk changes but the OUTPUT layout stays stable.
+1. **Guest surface gone.** `#11326` deleted the persistent
+   storage log; `Dispatch` now writes zeros at the old count
+   cells and reuses `OUTPUT+56` for M26 event-log count (and
+   selfdestruct beneficiary). Restoring M25 would mean
+   re-introducing an unauthenticated in-guest storage dump
+   that nothing in `stateless_guest` consumes.
+2. **No execution-specs counterpart** (pin `e5a8caf1b`).
+   Spec post-state is account storage / MPT roots
+   (`expected_post_state_root`, fixture `postState`), not a
+   ≤3-slot diagnostic window on the opcode-test OUTPUT.
+   EEST already covers storage post-state via those roots.
+3. **No runner.** `scripts/codegen-opcodes-runtime-check.sh`
+   is not in the tree; the four M25 cases could not fail for
+   a wrong slot list — cannot-fail-for-the-right-reason.
 
-### OUTPUT layout (post-M25)
-
-```
-OUTPUT_ADDR (0xa0010000):
-  +0..32    <result>                              (M21/M23)
-  +32..40   <u64 LE halt_kind>                    (M23)
-  +40..48   <u64 LE persistentLogLength>          (M24 — raw count, with duplicates)
-  +48..56   <u64 LE transientLogLength>           (M24)
-  +56..64   <u64 LE numModifiedPersistentSlots>   (NEW M25 — deduped count, ≤ 3)
-  +64..(64 + N*64)
-            <modified slots: (slotKey:32, current:32) × N>  (NEW M25)
-  +...      <zero-padded to 256 B by ziskemu init>
-```
-
-The 3-slot cap follows from the 256-byte ziskemu OUTPUT
-region: `256 - 64 = 192 = 3 × 64`. Sufficient for pure-
-computation EEST tests that modify ≤ 3 slots. Larger
-workloads need a future PR to extend OUTPUT or switch to a
-hash digest.
-
-### Why dedup (and why reverse-write order)
-
-Under Option A, SSTORE always appends, so the log can hold
-multiple entries for the same slotKey. For an EEST-style
-post-state assertion, what matters is the **final** value
-per unique key. The dedup walks the log from end (newest
-entries first), checks each slotKey against the
-already-emitted output list, and emits only on first sight.
-Result: slots appear in **reverse write order** (most-
-recently-modified first). Documented; test authors construct
-expected strings accordingly.
-
-### Delivered
-
-- **`EvmAsm/Codegen/Dispatch.lean`** —
-  `emitDispatcherEpilogue` gains ~60 instructions after the
-  M24 log-length writes. Walks `evm_persistent_log` (base
-  `0xa0630000`, length `env+448`) from end, dedups in an
-  inner O(N²) scan against the already-emitted slot list,
-  emits `(slotKey, current)` pairs at `OUTPUT[64 +
-  i*64..]`, updates the count cell. Numeric local labels
-  `1:`–`6:` reused within the block; no collision with
-  handler bodies (unique-per-use across the file).
-
-- **`EvmAsm/Codegen/Tests/Cases.lean`** — `OpcodeTestCase`
-  gains an optional `expectedPostStorage : String := ""`
-  field. Hex string starts at `OUTPUT[56]`; runner reads
-  exactly `len/2` bytes.
-
-- **`EvmAsm/Codegen/Cli.lean`** — `--list-test-cases` emits
-  9-column TSV (append `expectedPostStorage` after
-  `expectedTransientLogLength`).
-
-- **`scripts/codegen-opcodes-runtime-check.sh`** — reads
-  column 9 via `cut -f9`. When non-empty, computes
-  `post_len_bytes = ${#expected_post_storage}/2` and reads
-  via `xxd -p -c 256 -s 56 -l <bytes>`. Mismatch added to
-  the per-test failure list separately from output /
-  halt-kind / log-length failures.
-
-- **4 new test cases** exercising the new surface:
-  - `sstore_post_state_single_slot` — basic single-slot
-    emission (count=1, slotKey=0, value=0x42).
-  - `sstore_revert_post_state_empty` — after REVERT, the
-    rollback truncates the log, so dedup-and-emit produces
-    just count=0. **Proves rollback also clears the
-    surfaced slot data.**
-  - `sstore_two_slots_post_state` — two distinct slots
-    SSTORE'd; output entries appear in reverse write order
-    (slot 0x02 first, then 0x01). **Asserts the ordering
-    convention.**
-  - `sstore_dup_keeps_latest` — same slotKey written twice;
-    dedup picks the most-recent value. **Proves dedup.**
-
-**Known limitations** (documented in CODEGEN.md / dispatcher
-asm comments):
-
-- **3-slot cap** from the 256-byte OUTPUT region. Silent
-  truncation: when > 3 unique slots are modified, only the
-  3 most-recently-written keys appear. Future PR can extend
-  OUTPUT or use a hash digest.
-- **Persistent only.** Transient post-state isn't surfaced
-  (would need another OUTPUT region; observability via
-  `OUTPUT[48..56]` transient log length is what we have).
-- **Reverse write order.** Test authors must know this.
-- **Layout-dependent asm.** The dispatcher asm hard-codes
-  the 128-byte Option A entry shape (offset 32 = slotKey,
-  offset 96 = current). If layout changes to D+flat, the
-  asm needs updating. The OUTPUT contract (count + entries
-  at +56) stays.
-- **Dedup is O(N²).** For each scanned log entry, the inner
-  dedup loop iterates the emitted-so-far list (≤ 3
-  entries). With raw log length L, that's ≤ 3L compares.
-  Negligible for tests; future PR can address at scale.
-- **Inline asm**, not a verified body.
-
-**Exit criteria (met).**
-`scripts/codegen-opcodes-runtime-check.sh` exits 0 with all
-**74 cases PASS** (70 pre-M25 + 4 new; existing tests
-unchanged — they don't assert on `OUTPUT[56..]` and the
-dedup-and-emit only writes within that previously-unused
-range). `scripts/check-progress.sh` exits 0. Build clean
-(`lake build EvmAsm.Codegen` exits 0).
+ABI removal (#11556): drop `OpcodeTestCase.expectedPostStorage`,
+the TSV column, the four M25-only cases, and this historical
+"DONE" claim. **No guest-image / four-artefact regen** — the
+serializer was already gone from the linked image; only the
+test-tooling declaration remained.
 
 ### M27 — Real EXP (0x0a): graduate from no-op to verified body — **DONE (2026-06-02)**
 
@@ -2289,7 +2194,7 @@ exits 0).
 
 ### Sequencing
 
-M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M15.5 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M23.5 ✅ → M24 ✅ → M25 ✅ → M30 ✅ → M27 ✅ → M33 ✅ → M31 ✅ → **M15.6 ✅ (2026-06-07, latest)**.
+M0 ✅ → M1 ✅ → M2 ✅ → M4 ✅ → M5a ✅ → M5b ✅ → M6a ✅ → M6b ✅ → M7 ✅ → M8 ✅ → M8.5 ✅ → M9 ✅ → M10 ✅ → M11 ✅ → M12 ✅ → M13 ✅ → M14 ✅ → M15 ✅ → M15.5 ✅ → M16 ✅ → M17 ✅ → M18 ✅ → M19 ✅ → M20 ✅ 🎯 100% → M21 ✅ → M22 ✅ → M23 ✅ → M23.5 ✅ → M24 ✅ → M25 ⛔retired → M30 ✅ → M27 ✅ → M33 ✅ → M31 ✅ → **M15.6 ✅ (2026-06-07, latest)**.
 
 > **Section ordering.** The milestone sections below are written in
 > *completion order*, which is **not** numeric order — M30/M33/M31 shipped
@@ -2319,9 +2224,9 @@ status; new `.exit_no_epilogue` exit path — storage-orthogonal
 pivot prompted by #7130) shipped 2026-05-28;
 M24 (storage on Option A — append-log + journal + real
 TLOAD/TSTORE; supersedes M22's slot-table v1) shipped
-2026-05-29; **M25 (post-state slot serializer — modified
-slots at OUTPUT+56; unlocks EEST-style post-state
-assertions) shipped 2026-05-29.**
+2026-05-29; **M25 (post-state slot serializer) shipped
+2026-05-29 and retired #11556** (guest surface deleted with
+the persistent log; no spec counterpart; ABI removed).
 
 **The codegen track is in "spec-compliance upgrades" mode,
 building toward EEST tests.** Storage architecture is now
@@ -2332,7 +2237,7 @@ of C vs D-flat overlay is ongoing in parallel. Status:
 - M23 ✅ real RETURN/REVERT with halt-kind
 - M23.5 ✅ distinct INVALID / SELFDESTRUCT halt kinds
 - M24 ✅ storage on Option A + real TLOAD/TSTORE + REVERT rollback
-- M25 ✅ post-state slot serializer (modified slots at OUTPUT+56)
+- M25 ⛔ retired — post-state slot serializer (#11556)
 - M27 ✅ real EXP body (graduated from the M20 no-op)
 - M30 ✅ gas metering — static base costs
 - M31 ✅ memory-expansion dynamic gas
