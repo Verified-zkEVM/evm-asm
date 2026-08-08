@@ -583,7 +583,7 @@ def lookupProgramMain (lookupProgramTail : String → Option BuildUnit) : String
   | "runtime_create_initcode_frame" => some runtimeCreateInitcodeFrameProbeUnit
   | "runtime_create_initcode_execute" => some runtimeCreateInitcodeExecuteProbeUnit
   | "runtime_selfdestruct_eip7708_logs" => some runtimeSelfdestructEip7708LogsProbeUnit
-  | "zisk_balance_at_header_state_root" => some ziskBalanceAtHeaderStateRootProbeUnit
+  | "zisk_balance_live_else_header_state_root" => some ziskBalanceLiveElseHeaderStateRootProbeUnit
   | "zisk_nonce_at_header_state_root" => some ziskNonceAtHeaderStateRootProbeUnit
   | "zisk_storage_root_at_header_state_root" => some ziskStorageRootAtHeaderStateRootProbeUnit
   | "zisk_code_hash_at_header_state_root" => some ziskCodeHashAtHeaderStateRootProbeUnit

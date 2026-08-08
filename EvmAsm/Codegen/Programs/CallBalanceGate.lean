@@ -8,7 +8,7 @@
   The gate (`callDescendFallThrough`, ChildFrameHandlers.lean) rejects a
   value-bearing CALL/CALLCODE — pushing 0 and NOT descending — when the caller's
   **live** balance is below the transfer value. The handlers read env+32
-  (`.selfBalance`), not `balance_at_header_state_root` (drj99.1; #11019).
+  (`.selfBalance`), not `balance_live_else_header_state_root` (drj99.1; #11019).
   This probe drives the live `callFrameGuestRegistry` h_CALL handler (with the
   gate wired in, unlike the push-0 `callFrameProbeRegistry`) so the rejection
   is exercised end-to-end.

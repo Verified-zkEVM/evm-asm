@@ -395,7 +395,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bv_mtx_i:\n  .zero 8\n" ++
   -- fhsxz.2.4.2.57.11.6.5: parent (PRE-state) header RLP ptr/len, stashed by
   -- block_verdict from its input frame (8(s0)/16(s0)). dispatch_tx_runtime_code's
-  -- witness lookups (code/slot/balance_at_header_state_root) MUST use the PRE-state
+  -- witness lookups (code/slot/balance_live_else_header_state_root) MUST use the PRE-state
   -- root (the witness is the parent's post-state = this block's pre-state proof),
   -- not sv_this_rlp (this block's POST-state header), else a recipient whose account
   -- changes within the block (e.g. an SSTORE contract) is unprovable -> false bail.

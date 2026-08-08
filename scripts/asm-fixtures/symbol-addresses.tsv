@@ -512,7 +512,7 @@ stateless_guest	.runtime_tx_top_level_message_d0_done	0x80030be0	.text	LINK_DEPE
 stateless_guest	.runtime_tx_shared_message_body	0x80030bf0	.text	LINK_DEPENDENT
 stateless_guest	.dispatch_loop	0x80030d20	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_child_message_entry	0x80030ebc	.text	LINK_DEPENDENT
-stateless_guest	balance_at_header_state_root	0x80030f1c	.text	LINK_DEPENDENT
+stateless_guest	balance_live_else_header_state_root	0x80030f1c	.text	LINK_DEPENDENT
 stateless_guest	nonce_at_header_state_root	0x80031074	.text	LINK_DEPENDENT
 stateless_guest	account_exists_at_header_state_root	0x80031148	.text	LINK_DEPENDENT
 stateless_guest	account_is_empty_at_header_state_root	0x80031220	.text	LINK_DEPENDENT

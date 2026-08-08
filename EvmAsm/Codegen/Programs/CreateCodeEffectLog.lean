@@ -544,7 +544,7 @@ def codeStateFinalBalanceNonzeroFunction : String :=
     consumer must gate status-2 through balance (and nonce where relevant)
     before trusting this helper — see ChildFrameHandlers nacc/ibnacc,
     Selfdestruct beneficiary surcharge, and ChildFrameCreateTail
-    (balance_at_header_state_root + nonce). -/
+    (balance_live_else_header_state_root + nonce). -/
 def codeStateStatusIsLiveAsm (statusReg : String) : String :=
   "  addi t0, " ++ statusReg ++ ", -1\n" ++
   "  sltiu " ++ statusReg ++ ", t0, 2\n"

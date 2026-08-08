@@ -242,7 +242,7 @@ def knownProgramNames : List String :=
    "runtime_create_initcode_frame",
    "runtime_create_initcode_execute",
    "runtime_selfdestruct_eip7708_logs",
-   "zisk_balance_at_header_state_root",
+   "zisk_balance_live_else_header_state_root",
    "zisk_nonce_at_header_state_root",
    "zisk_storage_root_at_header_state_root",
    "zisk_code_hash_at_header_state_root",
