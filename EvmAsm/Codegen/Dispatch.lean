@@ -1837,8 +1837,6 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
 -- relocation and its fixed +24-byte entry-left slot so this helper does not
 -- introduce a second link-facts symbol.
 def dispatcherTxGasSettle_prog : Program :=
-  -- Instr 0-2: la x5, rdg_halt_kind; ld x6, 0(x5). Instr 3: pad so later
-  -- PC offsets match the pre-#11798 layout (OUTPUT+32 load was 4 instrs).
   [ .AUIPC .x5 (laHi GuestAddrs.rdg_halt_kind (GuestAddrs.dispatcher_tx_gas_settle + 0)),
     .ADDI .x5 .x5 (laLo GuestAddrs.rdg_halt_kind (GuestAddrs.dispatcher_tx_gas_settle + 0)),
     .LD .x6 .x5 (0 : BitVec 12),
