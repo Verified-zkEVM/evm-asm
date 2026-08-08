@@ -1511,7 +1511,36 @@ classify_case_result() {
   fi
   classifiedLabels["$label"]=1
   total=$((total + 1))
-  IFS=$'\t' read -r status actual_hex oracle_hex < "$result"
+  # Result schema: TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>")
+  # on every write except the --specref-oracle path, which appends a third
+  # (oracle_hex).  Reading with three names is therefore correct: oracle_hex is
+  # empty whenever the oracle is off.
+  #
+  # ⛔ Why a distinct NAME rather than a field-count check: in the DEFAULT
+  # configuration the two schemas are IDENTICAL.  Every codegen-eest-stateless-check
+  # write is TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>") except
+  # the single --specref-oracle path, which writes three.  A collided file is
+  # therefore indistinguishable in shape from a legitimate one, in BOTH directions,
+  # so no arity or content check can detect it -- and the guest harness reading a
+  # SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
+  # all: a silent wrong verdict.  Distinct filenames make that impossible instead.
+  #
+  # ⚠️ Reachability, measured rather than assumed: BOTH harnesses run an
+  # UNCONDITIONAL `rm -rf "$RUN_DIR"` at startup, including when the directory came
+  # from --run-dir or EEST_RUN_DIR.  So two SEQUENTIAL runs against one directory
+  # cannot mis-read each other -- the second deletes the first's outputs outright.
+  # The mis-read is reachable only when the two run CONCURRENTLY against one
+  # directory.  That `rm -rf` race is a separate and larger hazard, NOT addressed
+  # here.
+  #
+  # The _extra sink below catches only a file with MORE fields than this schema,
+  # i.e. a future intra-harness schema drift -- the GH #11308 class recurring.
+  IFS=$'\t' read -r status actual_hex oracle_hex _extra < "$result"
+  if [[ -n "$_extra" ]]; then
+    err=$((err + 1))
+    echo "  ERROR(schema)  $(case_identity "$label" "$relpath" "$case_id") (expected 3 fields in $result, found more: is another harness writing this directory?)"
+    return 0
+  fi
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))

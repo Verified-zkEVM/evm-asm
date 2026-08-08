@@ -303,7 +303,29 @@ succ_allowlisted() {
 
 # Worker: invoke the exe and write a per-case result TSV so the dispatcher
 # can run many cases in parallel and the classifier can read them back in
-# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>".
+# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>" -- TWO fields.
+#
+# GH #11746: this file is named "<label>.specref-result.tsv", NOT
+# "<label>.result.tsv", which is what codegen-eest-stateless-check.sh writes.
+# Both harnesses honour EEST_RUN_DIR and --run-dir, so the two could otherwise
+# target one directory under one filename.
+#
+# ⛔ Why a distinct NAME rather than a field-count check: in the DEFAULT
+# configuration the two schemas are IDENTICAL.  Every codegen-eest-stateless-check
+# write is TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>") except
+# the single --specref-oracle path, which writes three.  A collided file is
+# therefore indistinguishable in shape from a legitimate one, in BOTH directions,
+# so no arity or content check can detect it -- and the guest harness reading a
+# SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
+# all: a silent wrong verdict.  Distinct filenames make that impossible instead.
+#
+# ⚠️ Reachability, measured rather than assumed: BOTH harnesses run an
+# UNCONDITIONAL `rm -rf "$RUN_DIR"` at startup, including when the directory came
+# from --run-dir or EEST_RUN_DIR.  So two SEQUENTIAL runs against one directory
+# cannot mis-read each other -- the second deletes the first's outputs outright.
+# The mis-read is reachable only when the two run CONCURRENTLY against one
+# directory.  That `rm -rf` race is a separate and larger hazard, NOT addressed
+# here.
 run_worker() {
   local line="$1"
   local label input expected_hex succ_bit input_len gas_limit relpath case_id
@@ -320,7 +342,7 @@ run_worker() {
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.log"
-  local result="$RUN_DIR/$label.result.tsv"
+  local result="$RUN_DIR/$label.specref-result.tsv"
 
   if ! lake exe specref-eest-check "$input" "$out" >"$log" 2>&1; then
     printf 'ERROR\tspec\n' > "$result"
@@ -332,7 +354,7 @@ run_worker() {
 }
 
 wait_for_one_worker() {
-  # Workers always write a per-case result.tsv; their exit code is irrelevant
+  # Workers always write a per-case specref-result.tsv; their exit code is irrelevant
   # (a lake-exe failure is recorded as an ERROR row, not a crash). Swallow it
   # so `set -e` in the dispatcher never aborts on a finished-but-nonzero job.
   wait -n 2>/dev/null || true
@@ -352,15 +374,24 @@ classify_case() {
   # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
   # positional fields[:7] slices and are already column-count tolerant.)
   IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
-  local result="$RUN_DIR/$label.result.tsv"
+  local result="$RUN_DIR/$label.specref-result.tsv"
   total=$((total + 1))
   if [[ ! -f "$result" ]]; then
     err=$((err + 1))
     echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
-  local status actual_hex
-  IFS=$'\t' read -r status actual_hex < "$result"
+  local status actual_hex _extra
+  # The _extra sink plus the emptiness check below is the arity half of GH
+  # #11746: it catches a file with MORE fields than this schema (which the
+  # length gate would report as a confusing FAIL[malformed]).  The FEWER-fields
+  # direction is closed by the distinct filename, not here.
+  IFS=$'\t' read -r status actual_hex _extra < "$result"
+  if [[ -n "$_extra" ]]; then
+    err=$((err + 1))
+    echo "  ERROR(schema)  $(case_identity "$label" "$relpath" "$case_id") (expected 2 fields in $result, found more: is another harness writing this directory?)"
+    return 0
+  fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
