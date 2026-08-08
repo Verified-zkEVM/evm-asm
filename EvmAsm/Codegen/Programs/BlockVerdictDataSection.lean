@@ -842,6 +842,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- `runtime_dispatcher_call`, because that buffer is rewritten by
   -- `call_frame_descend`/`create_frame_descend` and so cannot survive the constructor.
   "bvcr_created_pre_bal:\n  .zero 32\n" ++
+  -- Live top-level CREATE balance, pre-balance plus endowment, kept separate
+  -- from both the authenticated pre value and the transfer descriptor.
+  "bvcr_created_live_bal_be:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
   -- Output routing for the generalized top-level creation runner.  Mode 0 is
