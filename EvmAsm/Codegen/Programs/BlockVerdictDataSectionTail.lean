@@ -18,7 +18,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- a1vvy step 3: baap_storage_desc/paths/values (~18 MiB) are
   -- UNIONED into call_frame_arena (emitted below) to free the last .data headroom
   -- for the vv4hr.3.4.2 full log-arena lift. They are Phase-H-only (referenced only
-  -- in BalAccountApplyPostFields / BlockVerdictSysChange / BlockVerdictStateRoot --
+  -- in BalAccountApplyPostFields / the state-root recompute --
   -- BAL post-field apply + system-change application within the state-root
   -- recompute) and dead during Phase-D dispatch when call_frame_arena is live.
   -- A state-node HP path decodes to <= 2047 nibbles; deletion can join two.
@@ -105,7 +105,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "bara_acct_len:\n  .zero 8\n" ++
   "bara_bal_end:\n  .zero 8\n" ++
   "bara_next_item:\n  .zero 8\n" ++
-  "bara_skip_modeled_system:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bara_path:\n  .zero 64\n" ++
   "bara_acct:\n  .zero 256\n" ++

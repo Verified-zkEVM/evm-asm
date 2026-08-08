@@ -281,7 +281,7 @@ EXPECTED_BARE_J_SITES = 174
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 882
+EXPECTED_BARE_B_SITES = 880
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""

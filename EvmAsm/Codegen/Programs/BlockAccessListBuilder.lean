@@ -815,8 +815,8 @@ def blockAccessListBuilderFunctions : String :=
       system            0, the value before any transaction sets it
 
     The guest realizes all three channels:
-    * system rows pass `0` as an explicit argument to
-      `bal_builder_record_storage_change` (`BlockVerdictSystemStorageCapture.lean:213`);
+    * live begin/end system-call paths pass `0` as an explicit argument to
+      `bal_builder_record_storage_change`;
     * user-transaction rows read `current_block_access_index`, which the MTx entry
       paths set to `bv_mtx_i + 1` (`BlockVerdictMtxRuntime.lean:519,547,909`); and
     * post-execution rows use the same global after it is set to `bv_tx_count + 1`

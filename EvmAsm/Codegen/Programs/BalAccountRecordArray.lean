@@ -36,10 +36,8 @@ open EvmAsm.Rv64
     Read-only BAL rows are recorded as the canonical empty account RLP with
     is_insert=3 so descriptor construction can skip re-classifying them.
 
-    If `bara_skip_modeled_system` is nonzero, EIP-2935/EIP-4788 rows are also
-    recorded with is_insert=3 because the verdict path has already replayed
-    those system writes explicitly. The flag defaults to zero for standalone
-    BAL state-root callers. -/
+    All changed rows follow the authenticated account path. System-contract
+    effects are ordinary execution-map owners; no formula-side skip is needed. -/
 def balAccountRecordArray_prog : Program :=
   [ .ADDI .x2 .x2 (-112 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -65,10 +63,10 @@ def balAccountRecordArray_prog : Program :=
     .AUIPC .x6 (laHi GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 84)),
     .ADDI .x6 .x6 (laLo GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 84)),
     .SD .x6 .x5 (0 : BitVec 12),
-    .BGEU .x19 .x5 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 96)),
+    .BGEU .x19 .x5 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 96)),
     .LBU .x7 .x19 (0 : BitVec 12),
     .LI .x28 (192 : Word),
-    .BLTU .x7 .x28 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 108)),
+    .BLTU .x7 .x28 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 108)),
     .LI .x28 (248 : Word),
     .BLTU .x7 .x28 (24 : BitVec 13),
     .LI .x28 (247 : Word),
@@ -78,11 +76,11 @@ def balAccountRecordArray_prog : Program :=
     .JAL .x0 (8 : BitVec 21),
     .ADDI .x25 .x19 (1 : BitVec 12),
     .LI .x24 (0 : Word),
-    .BEQ .x24 .x21 (brOff (GuestAddrs.bal_account_record_array + 560) (GuestAddrs.bal_account_record_array + 148)),
+    .BEQ .x24 .x21 (brOff (GuestAddrs.bal_account_record_array + 488) (GuestAddrs.bal_account_record_array + 148)),
     .AUIPC .x5 (laHi GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 152)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 152)),
     .LD .x5 .x5 (0 : BitVec 12),
-    .BGEU .x25 .x5 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 164)),
+    .BGEU .x25 .x5 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 164)),
     .MV .x10 .x25,
     .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.bal_account_record_array + 172)),
     .MV .x31 .x10,
@@ -90,7 +88,7 @@ def balAccountRecordArray_prog : Program :=
     .AUIPC .x6 (laHi GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 184)),
     .ADDI .x6 .x6 (laLo GuestAddrs.bara_bal_end (GuestAddrs.bal_account_record_array + 184)),
     .LD .x6 .x6 (0 : BitVec 12),
-    .BLTU .x6 .x5 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 196)),
+    .BLTU .x6 .x5 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 196)),
     .AUIPC .x6 (laHi GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 200)),
     .ADDI .x6 .x6 (laLo GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 200)),
     .SD .x6 .x5 (0 : BitVec 12),
@@ -102,70 +100,52 @@ def balAccountRecordArray_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.bal_account_has_state_change (GuestAddrs.bal_account_record_array + 232)),
     .LI .x5 (1 : Word),
     .BEQ .x10 .x5 (28 : BitVec 13),
-    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 244)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 244)),
     .AUIPC .x25 (laHi GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 248)),
     .ADDI .x25 .x25 (laLo GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 248)),
     .LI .x6 (70 : Word),
     .LI .x7 (3 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.bal_account_record_array + 484) (GuestAddrs.bal_account_record_array + 264)),
-    .AUIPC .x5 (laHi GuestAddrs.bara_skip_modeled_system (GuestAddrs.bal_account_record_array + 268)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bara_skip_modeled_system (GuestAddrs.bal_account_record_array + 268)),
-    .LD .x5 .x5 (0 : BitVec 12),
-    .BEQ .x5 .x0 (44 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.bal_account_record_array + 412) (GuestAddrs.bal_account_record_array + 264)),
     .MV .x10 .x25,
-    .AUIPC .x5 (laHi GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 288)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 288)),
+    .AUIPC .x5 (laHi GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 272)),
     .LD .x11 .x5 (0 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bal_account_is_modeled_system (GuestAddrs.bal_account_record_array + 300)),
-    .LI .x5 (1 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.bal_account_record_array + 468) (GuestAddrs.bal_account_record_array + 308)),
-    .LI .x5 (2 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.bal_account_record_array + 468) (GuestAddrs.bal_account_record_array + 316)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 320)),
-    .MV .x10 .x25,
-    .AUIPC .x5 (laHi GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 328)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bara_item_len (GuestAddrs.bal_account_record_array + 328)),
-    .LD .x11 .x5 (0 : BitVec 12),
-    .AUIPC .x12 (laHi GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 340)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 340)),
-    .JAL .x1 (jalOff GuestAddrs.bal_account_path (GuestAddrs.bal_account_record_array + 348)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 352)),
+    .AUIPC .x12 (laHi GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 284)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 284)),
+    .JAL .x1 (jalOff GuestAddrs.bal_account_path (GuestAddrs.bal_account_record_array + 292)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 296)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x18,
-    .AUIPC .x13 (laHi GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 368)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 368)),
+    .AUIPC .x13 (laHi GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 312)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bara_path (GuestAddrs.bal_account_record_array + 312)),
     .LI .x14 (64 : Word),
-    .AUIPC .x15 (laHi GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 380)),
-    .ADDI .x15 .x15 (laLo GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 380)),
-    .AUIPC .x16 (laHi GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 388)),
-    .ADDI .x16 .x16 (laLo GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 388)),
-    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bal_account_record_array + 396)),
+    .AUIPC .x15 (laHi GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 324)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 324)),
+    .AUIPC .x16 (laHi GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 332)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 332)),
+    .JAL .x1 (jalOff GuestAddrs.mpt_walk (GuestAddrs.bal_account_record_array + 340)),
     .BEQ .x10 .x0 (32 : BitVec 13),
     .LI .x5 (1 : Word),
-    .BNE .x10 .x5 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 408)),
-    .AUIPC .x25 (laHi GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 412)),
-    .ADDI .x25 .x25 (laLo GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 412)),
+    .BNE .x10 .x5 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 352)),
+    .AUIPC .x25 (laHi GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 356)),
+    .ADDI .x25 .x25 (laLo GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 356)),
     .LI .x6 (70 : Word),
     .LI .x7 (1 : Word),
-    .JAL .x0 (56 : BitVec 21),
-    .AUIPC .x25 (laHi GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 432)),
-    .ADDI .x25 .x25 (laLo GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 432)),
-    .AUIPC .x5 (laHi GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 440)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 440)),
+    .JAL .x0 (40 : BitVec 21),
+    .AUIPC .x25 (laHi GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 376)),
+    .ADDI .x25 .x25 (laLo GuestAddrs.bara_acct (GuestAddrs.bal_account_record_array + 376)),
+    .AUIPC .x5 (laHi GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bara_acct_len (GuestAddrs.bal_account_record_array + 384)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x5 (256 : Word),
-    .BLTU .x5 .x6 (brOff (GuestAddrs.bal_account_record_array + 568) (GuestAddrs.bal_account_record_array + 456)),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.bal_account_record_array + 496) (GuestAddrs.bal_account_record_array + 400)),
     .LI .x7 (0 : Word),
-    .JAL .x0 (20 : BitVec 21),
-    .AUIPC .x25 (laHi GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 468)),
-    .ADDI .x25 .x25 (laLo GuestAddrs.bara_empty_account (GuestAddrs.bal_account_record_array + 468)),
-    .LI .x6 (70 : Word),
-    .LI .x7 (3 : Word),
+    .JAL .x0 (4 : BitVec 21),
     .MV .x10 .x23,
     .MV .x11 .x25,
     .MV .x12 .x6,
-    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.bal_account_record_array + 496)),
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.bal_account_record_array + 424)),
     .SLLI .x5 .x24 (4 : BitVec 6),
     .SLLI .x28 .x24 (3 : BitVec 6),
     .ADD .x5 .x5 .x28,
@@ -176,11 +156,11 @@ def balAccountRecordArray_prog : Program :=
     .ADD .x23 .x23 .x6,
     .ADDI .x23 .x23 (7 : BitVec 12),
     .ANDI .x23 .x23 (-8 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 540)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 540)),
+    .AUIPC .x5 (laHi GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 468)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bara_next_item (GuestAddrs.bal_account_record_array + 468)),
     .LD .x25 .x5 (0 : BitVec 12),
     .ADDI .x24 .x24 (1 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.bal_account_record_array + 148) (GuestAddrs.bal_account_record_array + 556)),
+    .JAL .x0 (jalOff (GuestAddrs.bal_account_record_array + 148) (GuestAddrs.bal_account_record_array + 484)),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -210,22 +190,18 @@ def balAccountRecordArray_relocs : RelocTable :=
     (53, .la .x6 "bara_item_len"),
     (58, .jal .x1 "bal_account_has_state_change"),
     (62, .la .x25 "bara_empty_account"),
-    (67, .la .x5 "bara_skip_modeled_system"),
-    (72, .la .x5 "bara_item_len"),
-    (75, .jal .x1 "bal_account_is_modeled_system"),
-    (82, .la .x5 "bara_item_len"),
-    (85, .la .x12 "bara_path"),
-    (87, .jal .x1 "bal_account_path"),
-    (92, .la .x13 "bara_path"),
-    (95, .la .x15 "bara_acct"),
-    (97, .la .x16 "bara_acct_len"),
-    (99, .jal .x1 "mpt_walk"),
-    (103, .la .x25 "bara_empty_account"),
-    (108, .la .x25 "bara_acct"),
-    (110, .la .x5 "bara_acct_len"),
-    (117, .la .x25 "bara_empty_account"),
-    (124, .jal .x1 "mset_memcpy"),
-    (135, .la .x5 "bara_next_item") ]
+    (68, .la .x5 "bara_item_len"),
+    (71, .la .x12 "bara_path"),
+    (73, .jal .x1 "bal_account_path"),
+    (78, .la .x13 "bara_path"),
+    (81, .la .x15 "bara_acct"),
+    (83, .la .x16 "bara_acct_len"),
+    (85, .jal .x1 "mpt_walk"),
+    (89, .la .x25 "bara_empty_account"),
+    (94, .la .x25 "bara_acct"),
+    (96, .la .x5 "bara_acct_len"),
+    (106, .jal .x1 "mset_memcpy"),
+    (117, .la .x5 "bara_next_item") ]
 
 def balAccountRecordArrayFunction : String :=
   "bal_account_record_array:\n" ++ emitProgramR balAccountRecordArray_prog balAccountRecordArray_relocs
@@ -239,7 +215,7 @@ theorem balAccountRecordArrayFunction_eq_prog :
     balAccountRecordArrayFunction = "bal_account_record_array:\n" ++ emitProgramR balAccountRecordArray_prog balAccountRecordArray_relocs := rfl
 
 #guard balAccountRecordArrayFunction.startsWith "bal_account_record_array:\n"
-#guard balAccountRecordArray_prog.length = 156
+#guard balAccountRecordArray_prog.length = 138
 /-- `zisk_bal_account_record_array`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness length (u64)
@@ -287,12 +263,8 @@ def ziskBalAccountRecordArrayPrologue : String :=
 def ziskBalAccountRecordArrayDataSection : String :=
   ziskMptWalkDataSection ++ "\n" ++
   ziskBalAccountHasStateChangeDataSection ++ "\n" ++
-  ziskBalAccountIsModeledSystemDataSection ++ "\n" ++
+  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 8\n" ++
-  -- CONVERGENCE DEPENDENCY (#10765): paired with the skip in
-  -- bal_all_accounts_storage_consistent. This flag is load-bearing until a
-  -- rebuilt BAL has BAI-0 system rows; per-tx rows cannot replace explicit replay.
-  "bara_skip_modeled_system:\n  .zero 8\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++
   "bara_acct_len:\n  .zero 8\n" ++

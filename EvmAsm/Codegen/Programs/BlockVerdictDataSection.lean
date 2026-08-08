@@ -12,7 +12,6 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
@@ -121,24 +120,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
-  ".balign 32\n" ++
-  "swd_2935_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_2935_val:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_val:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_root_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_root_val:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "swd_2935_vlen:\n  .zero 8\n" ++
-  "swd_4788_vlen:\n  .zero 8\n" ++
-  "swd_4788_root_vlen:\n  .zero 8\n" ++
   "bv_eip4788_current_fast_seen:\n  .zero 8\n" ++
-  "swd_ts_be8:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bsr_root_p:\n  .zero 8\n" ++
   "bsr_wit_p:\n  .zero 8\n" ++
@@ -164,7 +146,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
   "bsr_bal_item_ptr:\n  .zero 8\n" ++
   "bsr_bal_item_len:\n  .zero 8\n" ++
-  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
@@ -234,14 +215,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
   ".balign 8\n" ++
-  -- v0.6.0: begin-of-block system-call code gates (process_unchecked_system_
-  -- transaction runs the CONTRACT's code; an absent/codeless history or
-  -- beacon-roots contract writes nothing).
-  "bsr_sys_has_2935:\n  .zero 8\n" ++
-  "bsr_sys_has_4788:\n  .zero 8\n" ++
-  "bsr_sys_acct:\n  .zero 104\n" ++
-  "bsr_sys_slot_2935:\n  .zero 8\n" ++
-  "bsr_sys_slot_4788:\n  .zero 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
   "bgv_size:\n  .zero 8\n" ++

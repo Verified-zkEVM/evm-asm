@@ -10,7 +10,6 @@ namespace EvmAsm.Codegen
 def knownProgramNamesTail : List String :=
   knownReceiptProgramNamesTail ++
   ["zisk_single_leaf_trie_root",
-   "zisk_system_write_descriptors",
    "zisk_bal_gas_valid",
    "zisk_bal_section_info",
    "zisk_bal_account_path",

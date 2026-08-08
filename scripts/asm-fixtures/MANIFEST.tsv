@@ -143,8 +143,6 @@ bn254PtCopyFunction	EvmAsm/Codegen/Programs/Bn254Pairing.lean
 bn254ScalarMulFunction	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254ValidateG1Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bsrApplyModeledSystemPostFieldsFunction	EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean
-bsrBeaconChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
-bsrSysChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
@@ -331,13 +329,8 @@ sszWithdrawalToRlpFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 statelessVerdictFromSszFunction	EvmAsm/Codegen/Programs/StatelessVerdict.lean
 step2VerdictFunction	EvmAsm/Codegen/Programs/Step2Verdict.lean
 storageRootSingleSlotFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
-swdMinimalCopyFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdReadU64leFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdWriteBe32U64Function	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdWriteBe8Function	EvmAsm/Codegen/Programs/SystemWrites.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
-systemWriteDescriptorsFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
 txEffectiveGasPricingFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txEip1559DecodeFunction	EvmAsm/Codegen/Programs/TxDecode1559.lean

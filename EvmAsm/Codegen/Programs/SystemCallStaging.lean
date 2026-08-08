@@ -202,8 +202,8 @@ def stageSystemCallFunction : String :=
       track_ancestor_access(1)
     before the user-tx loop. BAI = 0 for both (`block_access_index` starts at 0).
 
-    Replaces the formula path (`system_write_descriptors` +
-    `append_modeled_system_storage_tuple_rows` seed-only + identity fail-65):
+    Replaces the retired formula-descriptor path and its seed-only identity
+    shortcut:
     each contract is looked up via `code_at_header_state_root`, executed through
     `stage_system_call` with the real 32-byte calldata, then
     `account_writes_emit_builder_tx` + `write_sets_incorporate_tx` (which emits
@@ -213,7 +213,7 @@ def stageSystemCallFunction : String :=
     Unchecked semantics: code_at miss / empty code → skip dispatch (no write),
     still mark OAO. Staging failure → a0=1 (conservative bail).
 
-    Calldata layout (SystemWrites.lean / SSZ):
+    Calldata layout (retired formula path / SSZ):
       parent_beacon_block_root @ SSZ_BASE+24 = bv_exec_p - 36
       parent_hash             @ SSZ_BASE+60 = bv_exec_p + 0
     a0 (out) = 0 ok / 1 fail. -/

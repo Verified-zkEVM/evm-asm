@@ -36,7 +36,6 @@ import EvmAsm.Codegen.Programs.BalAccountRecordArray
 import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.BalGasValid
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
@@ -48,7 +47,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
-import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.BloomAddValue
@@ -124,7 +122,6 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.SystemCallStaging
-import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.TxDecode1559
@@ -259,11 +256,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.account_set_storage_root, accountSetStorageRoot_prog),
   (GuestAddrs.account_apply_storage_slot, accountApplyStorageSlot_prog),
   (GuestAddrs.account_apply_storage_slot_acc, accountApplyStorageSlotAcc_prog),
-  (GuestAddrs.swd_read_u64le, swdReadU64le_prog),
-  (GuestAddrs.swd_write_be32_u64, swdWriteBe32U64_prog),
-  (GuestAddrs.swd_write_be8, swdWriteBe8_prog),
-  (GuestAddrs.swd_minimal_copy, swdMinimalCopy_prog),
-  (GuestAddrs.system_write_descriptors, systemWriteDescriptors_prog),
   (GuestAddrs.account_set_uint_field, accountSetUintField_prog),
   (GuestAddrs.account_is_eip161_empty, accountIsEip161Empty_prog),
   (GuestAddrs.bal_account_has_state_change, balAccountHasStateChange_prog),
@@ -273,9 +265,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.map_account_change_value, mapAccountChangeValue_prog),
   (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
   (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
-  (GuestAddrs.bal_account_is_modeled_system, balAccountIsModeledSystem_prog),
-  (GuestAddrs.bsr_sys_change, bsrSysChange_prog),
-  (GuestAddrs.bsr_beacon_change, bsrBeaconChange_prog),
   (GuestAddrs.bsr_apply_modeled_system_post_fields, bsrApplyModeledSystemPostFields_prog),
   (GuestAddrs.bloom_add_value, bloomAddValue_prog),
   (GuestAddrs.log_bloom_add, logBloomAdd_prog),
@@ -495,6 +484,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 342
+#guard guestImageEntries.length = 334
 
 end EvmAsm.Codegen
