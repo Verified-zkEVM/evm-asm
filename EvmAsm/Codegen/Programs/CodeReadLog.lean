@@ -171,12 +171,13 @@ def codeReadFetchFunction : String :=
   "  bne t2, t3, .Lcrf_record\n" ++
   "  addi t1, t1, 1; j .Lcrf_empty_cmp\n" ++
   ".Lcrf_record:\n" ++
-  -- state_tracker.py:265-268: a hit in code_writes returns WITHOUT recording.
-  -- exec_code_effect_log is the guest's code-write overlay; a hit there means
-  -- this code was produced in-block, so it is not a pre-state fetch.
+  -- state_tracker.py:265-268: code_writes is Dict[Hash32, Bytes] — hit on
+  -- **hash** (tx or parent/block), not address. find_code_effect_by_address
+  -- missed eip8025 create-same-hash-then-read (CREATE addr A, later CALL
+  -- pre-state B with identical bytecode): over-recorded code_read → CPG bv11.
   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-  "  mv a2, a5\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
+  "  ld a2, 24(sp)               # code-hash ptr (saved a2)\n" ++
+  "  jal ra, find_code_effect_by_hash\n" ++
   "  mv t1, a0\n" ++
   "  ld a5, 48(sp)\n" ++
   "  ld a2, 24(sp)\n" ++
