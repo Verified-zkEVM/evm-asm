@@ -15,7 +15,7 @@
     [39] JAL  x0, -24       -- back to AB+132
 
   This is exactly the merged `AccountIsEip161EmptyLoop.aieNonceLoop`
-  accumulate-scan (`beAccFrom`), re-derived here at the account-decode guest
+  accumulate-scan (`beAccum`), re-derived here at the account-decode guest
   offsets with the content tie the byte-identical `AccountDecodeSpec.beAccum`.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
