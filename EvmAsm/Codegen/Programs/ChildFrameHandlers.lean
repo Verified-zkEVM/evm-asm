@@ -860,6 +860,14 @@ def callDescendFallThrough
   ".Lcd_callee_nocreate_" ++ tag ++ ":\n" ++
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- A delegated target resolved to an active precompile (status 2) is an
+  -- empty-success frame in the Amsterdam spec: delegation resolution has
+  -- already charged the delegated address access, then disable_precompiles
+  -- suppresses the precompile body and the interpreter loop is not entered.
+  -- Route it through the existing empty-success tail; do not send it through
+  -- the status-5 code-hash validation or the generic failure tail.
+  "  li t3, 2\n" ++
+  "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   -- coc3g.9.3 (#9458 follow-up, bv_fail=53): status 5 = code_hash not found in
   -- witness.codes. An EXISTING EOA is in the state trie (step 2 ok) but its
   -- code_hash is EMPTY_CODE_HASH (keccak ""), which is never stored in the codes
@@ -880,7 +888,7 @@ def callDescendFallThrough
   "  ld t5, 16(t3); ld t6,  88(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
   "  ld t5, 24(t3); ld t6,  96(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
   "  j .Lcd_empty_" ++ tag ++ "\n" ++
-  -- fail (status 2/3/4): pop args, push 0
+  -- fail (status 3/4 and non-empty status 5 witness miss): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   (if valueBearing then
      "  la t0, cd_xfer_gas_precharged\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_xfer_done_" ++ tag ++ "\n" ++
