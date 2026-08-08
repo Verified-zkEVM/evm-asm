@@ -415,7 +415,7 @@ def accountStateRecordCodeFunction : String :=
   -- yet is the zero-length-code seed.
   --
   -- ⛔ These constants belong to `flags@+88` in THIS structure and must not be
-  -- carried into `account_writes`' `execFlags@+96` (stride 128, base 0xa28a0000 /
+  -- carried into `account_writes`' `execFlags@+96` (stride 128, base 0xbdd80000 /
   -- 0xa2b20000): 27 and 31 both contain VALUE 8, which at +96 is the
   -- created-this-tx bit read by `account_writes_created_contains` (.Lawc_key:
   -- `ld t1, 96(t5); andi t1, t1, 8`). See `accountWriteHasExecFlags` in
