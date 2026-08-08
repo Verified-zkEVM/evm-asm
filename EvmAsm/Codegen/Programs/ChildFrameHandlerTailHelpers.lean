@@ -99,13 +99,16 @@ def callDelegationAccessChargeAsm (tag : String) (valueOff? : Option Nat := none
   "  jal ra, account_state_delegation_code_resolve\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp); ld t3, 24(sp)\n  addi sp, sp, 32\n" ++
-  -- The resolver returns 0 for a selected transaction-state delegation,
-  -- 1 when the BAL has no same-block delegation row, and 2 for an active
-  -- precompile target.  Status 0/2 export the selected target to
-  -- `bsbd_deleg_target`; status 1 must retain the prior-block marker found by
-  -- `code_at_header_state_root`, whose target is `t3 + 3`.  The two sources
-  -- are semantically distinct, so select one pointer before either charge or
-  -- record rather than treating a resolver miss as an all-zero target.
+  -- The resolver returns:
+  --   0 = selected transaction-state delegation marker (charge target)
+  --   1 = no current account-write code fact → retain prior-block marker
+  --       from `code_at_header_state_root` at `t3 + 3` (pre-state fallback)
+  --   2 = live marker whose target is empty/deleted or a precompile (charge)
+  --   3 = current write proves authority is NOT a live delegation (clear or
+  --       non-marker code) → NO charge, NO pre-state fallback (#11542 A)
+  -- Status 0/2 export the selected target to `bsbd_deleg_target`. Status 1
+  -- and 3 are distinct: collapsing empty/clear into status 1 re-charged the
+  -- stale pre-state designator after EIP-7702 set_delegation cleared code.
   "  beqz t6, .Lcdac_sameblock_" ++ tag ++ "\n" ++
   "  li t4, 2; beq t6, t4, .Lcdac_sameblock_" ++ tag ++ "\n" ++
   "  li t4, 1; bne t6, t4, .Lcdac_done_" ++ tag ++ "\n" ++
