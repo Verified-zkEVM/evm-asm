@@ -5,18 +5,23 @@
 
   ## Layout faithfulness (what this describes)
 
-  The RISC-V guest keeps the current frame's EVM memory as a flat byte
-  buffer at `EVM_MEMORY_AREA = 0xa0b70000` inside ziskemu's writable RAM
-  zone (`EvmAsm/Stateless/MemoryLayout.lean`, working-RAM anchor table).
-  The region is **statically allocated at 16 MiB per frame**: the block
-  gas limit (~200 Mgas) bounds how far EVM memory can ever expand
-  (quadratic memory-expansion gas makes even a single frame's memory far
-  smaller than 16 MiB), so the guest never grows or relocates the buffer.
-  `EVM_MEMORY_CAPACITY` below is that static allocation, and
-  `evmMemoryIs` is parametrized by it.
+  `evmMemoryIs` is the separation-logic assertion for the EVM memory
+  buffer of **one guest frame**. It is deliberately base- and
+  capacity-parametrized because no single static anchor is the guest's
+  real EVM memory: the emitted guest places the depth-0 frame in the
+  dispatcher-era 4 MiB `evm_memory` slab (`runtimeMemoryBytes`,
+  `Codegen/Dispatch.lean`) and carves deeper frames out of the shared
+  96 MiB LIFO pool `evm_memory_pool` (`evmMemoryPoolBytes`,
+  `Codegen/CallFrameLayout.lean`), child base = parent memBase +
+  parent MSIZE, with a sparse overflow store for beyond-pool growth
+  (`Codegen/Programs/EvmMemoryHandlers.lean`). The former
+  `EVM_MEMORY_AREA = 0xa0b70000` 16 MiB-per-frame anchor is ASPIRATIONAL
+  (a `MemoryLayout` constant; issue #10526) — **not** the emitted layout.
+  Callers instantiate `base`/`capacity` from the frame's actual
+  placement; the assertion itself is the generic dense byte-buffer atom.
 
   The MLOAD/MSTORE/MSTORE8 guest routines (`EvmAsm/Evm64/MLoad/*`,
-  `MStore/*`, `MStore8/*`) access this buffer with byte loads/stores
+  `MStore/*`, `MStore8/*`) access the buffer with byte loads/stores
   (`LBU`/`SB`) at `memBase + offset + c`; at the separation-logic level
   each 8-byte-aligned group of bytes is one RV64 dword cell (`↦ₘ`,
   little-endian `packBytes`), exactly the `bytesRegion` representation
@@ -25,15 +30,15 @@
   against raw dword cells) can be restated against it by *peeling* the
   touched dword window — see `evmMemoryIs_peel_word` /
   `evmMemoryIs_peel_window64` and
-  `EvmAsm/Evm64/MLoad/MemoryRegionStackSpec.lean` (the reframed MLOAD
-  stack spec, which proves this assertion is the guest's real memory).
+  `EvmAsm/Evm64/MLoad/MemoryRegionStackSpec.lean` (the generic
+  `evm_mload_stack_spec_within`, the memory-handler template).
 
   ## Zero-extended tail
 
   EVM memory reads beyond the current high-water mark return zero. The
   guest gets this for free: ziskemu's RAM is zero-initialized and the
   region is written only by the memory opcodes, so the not-yet-written
-  tail of the 16 MiB allocation holds zero bytes. `evmMemoryIs` models
+  tail of the allocation holds zero bytes. `evmMemoryIs` models
   the *full* allocation (`contents.length = capacity` is part of the
   assertion); the freshly-initialized state is `evmMemoryInit`, whose
   contents are all zeros, and a partially-written state is
@@ -47,23 +52,16 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-/-! ## Static capacity of the EVM memory region
-
-The per-frame EVM memory allocation. 16 MiB, per the working-RAM anchor
-table in `EvmAsm/Stateless/MemoryLayout.lean` (`EVM_MEMORY_AREA` row):
-the ~200 Mgas block gas limit and the quadratic memory-expansion cost
-bound any frame's EVM memory well below this, so the guest allocates a
-fixed 16 MiB slab and never grows it. -/
-def EVM_MEMORY_CAPACITY : Nat := 0x1000000
-
 /-! ## The assertion -/
 
-/-- `evmMemoryIs base capacity contents` — ownership of the guest's EVM
-    memory buffer: the byte list `contents` stored little-endian-per-dword
-    from `base` (`bytesRegion`), together with the pure fact that the
-    buffer covers the full static allocation (`contents.length =
-    capacity`). Instantiate `base := Stateless.EVM_MEMORY_AREA` and
-    `capacity := EVM_MEMORY_CAPACITY` for the real guest region; the
+/-- `evmMemoryIs base capacity contents` — ownership of one guest frame's
+    EVM memory buffer: the byte list `contents` stored little-endian-per-
+    dword from `base` (`bytesRegion`), together with the pure fact that
+    the buffer covers the full allocation (`contents.length = capacity`).
+    `base`/`capacity` are parameters: the guest places each frame's EVM
+    memory elsewhere (depth-0 `evm_memory` slab, deeper frames in the
+    shared `evm_memory_pool` LIFO pool — see the module docstring), so
+    callers instantiate them from the frame's actual placement. The
     parameters keep the peel/framing lemmas usable for any statically
     allocated byte buffer. -/
 def evmMemoryIs (base : Word) (capacity : Nat) (contents : List (BitVec 8)) : Assertion :=
@@ -330,76 +328,15 @@ theorem evmMemoryIs_peel_window64 (base : Word) (capacity k : Nat) (bs : List (B
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc', sepConj_assoc',
       sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
-/-! ## Region placement facts
+/-! ## Address facts for the (aspirational) anchor constant
 
-Validity and disjointness of the concrete `EVM_MEMORY_AREA` allocation
-against the rest of the working-RAM anchor map
-(`EvmAsm/Stateless/MemoryLayout.lean`). These discharge the
-`isValidByteAccess` side conditions of the byte-level opcode specs and
-document that the 16 MiB slab does not alias its neighbours
-(`EVM_VALUE_STACK` below, `KECCAK_SCRATCH` above). -/
+The `EVM_MEMORY_AREA` anchor constant itself (`EvmAsm/Stateless/MemoryLayout.lean`).
+`EVM_MEMORY_AREA` is ASPIRATIONAL — the emitted guest does not place EVM
+memory there (issue #10526) — so these are pure arithmetic facts kept for
+clients that reference the constant; they are **not** allocation claims. -/
 
 theorem EVM_MEMORY_AREA_toNat : Stateless.EVM_MEMORY_AREA.toNat = 0xa0b70000 := rfl
 
 theorem EVM_MEMORY_AREA_aligned : Stateless.EVM_MEMORY_AREA.toNat % 8 = 0 := by decide
-
-/-- Every byte of the 16 MiB EVM memory slab is a valid guest address:
-    `0xa0b70000 + k` with `k < 0x1000000` sits inside ziskemu's writable
-    RAM zone `RAM_MEM_START .. RAM_MEM_END` (`0xa0000000 .. 0xc0000000`). -/
-theorem isValidMemAddr_evmMemoryArea {k : Nat} (hk : k < EVM_MEMORY_CAPACITY) :
-    isValidMemAddr (Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 k) = true := by
-  have hcap : EVM_MEMORY_CAPACITY = 0x1000000 := rfl
-  have htoNat : (Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 k).toNat = 0xa0b70000 + k := by
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat, EVM_MEMORY_AREA_toNat]
-    omega
-  simp only [isValidMemAddr_eq, htoNat, Bool.or_eq_true, Bool.and_eq_true,
-    decide_eq_true_eq]
-  right
-  constructor
-  · show RAM_MEM_START ≤ 0xa0b70000 + k
-    have : RAM_MEM_START = 0xa0000000 := rfl
-    omega
-  · show 0xa0b70000 + k ≤ RAM_MEM_END
-    have : RAM_MEM_END = 0xc0000000 := rfl
-    omega
-
-/-- The EVM memory slab is disjoint from the EVM value stack below it
-    (`EVM_VALUE_STACK = 0xa0a70000`, 1 MiB): no address aliases. -/
-theorem evmMemoryArea_disjoint_valueStack {i j : Nat}
-    (hi : i < EVM_MEMORY_CAPACITY) (hj : j < 0x100000) :
-    Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 i ≠
-      Stateless.EVM_VALUE_STACK + BitVec.ofNat 64 j := by
-  intro h
-  have hcap : EVM_MEMORY_CAPACITY = 0x1000000 := rfl
-  have hmem : (Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 i).toNat = 0xa0b70000 + i := by
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat, EVM_MEMORY_AREA_toNat]
-    omega
-  have hstk : (Stateless.EVM_VALUE_STACK + BitVec.ofNat 64 j).toNat = 0xa0a70000 + j := by
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat,
-        show Stateless.EVM_VALUE_STACK.toNat = 0xa0a70000 from rfl]
-    omega
-  have := congrArg BitVec.toNat h
-  rw [hmem, hstk] at this
-  omega
-
-/-- The EVM memory slab is disjoint from the Keccak scratch buffer above
-    it (`KECCAK_SCRATCH = 0xa1b70000`, 64 KiB): the slab ends exactly at
-    the scratch base. -/
-theorem evmMemoryArea_disjoint_keccakScratch {i j : Nat}
-    (hi : i < EVM_MEMORY_CAPACITY) (hj : j < 0x10000) :
-    Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 i ≠
-      Stateless.KECCAK_SCRATCH + BitVec.ofNat 64 j := by
-  intro h
-  have hcap : EVM_MEMORY_CAPACITY = 0x1000000 := rfl
-  have hmem : (Stateless.EVM_MEMORY_AREA + BitVec.ofNat 64 i).toNat = 0xa0b70000 + i := by
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat, EVM_MEMORY_AREA_toNat]
-    omega
-  have hscr : (Stateless.KECCAK_SCRATCH + BitVec.ofNat 64 j).toNat = 0xa1b70000 + j := by
-    rw [BitVec.toNat_add, BitVec.toNat_ofNat,
-        show Stateless.KECCAK_SCRATCH.toNat = 0xa1b70000 from rfl]
-    omega
-  have := congrArg BitVec.toNat h
-  rw [hmem, hscr] at this
-  omega
 
 end EvmAsm.Evm64

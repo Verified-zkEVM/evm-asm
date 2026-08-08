@@ -143,10 +143,17 @@ def stageSystemCallPayloadFunction : String :=
     a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length
     a3 = block exec payload ptr        a4 = output payload buffer ptr
     Returns: a0 = system_call_returndata ptr, a1 = system_call_returndata_len,
-             a2 = 0 ok / 1 staging unsupported (no dispatch run).
+             a2 = 0 ok / 1 staging unsupported / empty code (no dispatch run).
     Stages the SYSTEM payload, runs the callable runtime dispatcher with
     system_call_mode=1 so the predeploy's depth-0 RETURN is captured (NoopHalt
-    #8681) into system_call_returndata, then clears the flag. -/
+    #8681) into system_call_returndata, then clears the flag.
+
+    Spec pin `process_checked_system_transaction` (fork.py:761-765): empty
+    system-contract code raises InvalidBlock. Callers of this seam are the
+    checked request predeploys (7002/7251/8282); block-start unchecked
+    (4788/2935) already skip before jal when code is empty. Rejecting `a2=0`
+    here restores the checked empty-code gate without changing those skip
+    paths (#11806). -/
 def stageSystemCallFunction : String :=
   "stage_system_call:\n" ++
   -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
@@ -162,6 +169,10 @@ def stageSystemCallFunction : String :=
   -- duplicating four per-predeploy hooks.  t1 is restored by account_read_record,
   -- preserving the target for the staging ABI.
   "  mv t1, a0; jal ra, account_read_record; mv a0, t1\n" ++
+  -- fork.py:761-765 process_checked: len(system_contract_code) == 0 → InvalidBlock.
+  -- Do not fall through to empty-code STOP success (would accept a forged empty
+  -- predeploy). a1/a2 survive account_read_record (t-regs only).
+  "  beqz a2, .Lssc_fail\n" ++
   "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
   -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
   -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN within
