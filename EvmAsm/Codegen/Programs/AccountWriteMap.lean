@@ -465,7 +465,7 @@ def accountWritesLookupCurrentFunction : String :=
   ".Lawlc_tx_next:\n" ++
   "  addi t3, t3, 1; j .Lawlc_tx_loop\n" ++
   ".Lawlc_tx_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
   ".Lawlc_block_init:\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
   ".Lawlc_block_loop:\n" ++
@@ -475,7 +475,7 @@ def accountWritesLookupCurrentFunction : String :=
   ".Lawlc_block_next:\n" ++
   "  addi t3, t3, 1; j .Lawlc_block_loop\n" ++
   ".Lawlc_block_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_block_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
+  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_block_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
   ".Lawlc_empty:\n  li a0, 2; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
   ".Lawlc_deleted:\n  li a0, 3; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
   ".Lawlc_absent:\n  li a0, 0; li a1, 0; li a2, 0\n" ++
