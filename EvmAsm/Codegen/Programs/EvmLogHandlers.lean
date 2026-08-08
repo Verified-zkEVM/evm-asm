@@ -163,9 +163,7 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  sd x15, 472(x20)\n" ++
   "  j 8f\n" ++
   "9:\n" ++
-  "  li x16, 0xa0010000\n" ++
-  "  li x17, 4\n" ++                 -- LOG buffer overflow
-  "  sd x17, 32(x16)\n" ++
+  emitHaltKindStore "4" ++  -- LOG buffer overflow
   -- 4ch8f.10.3: LOG-overflow halt via flag+ret (routes to .exit_no_epilogue).
   dispatchHaltRet 2 ++ "\n" ++
   "8:\n"

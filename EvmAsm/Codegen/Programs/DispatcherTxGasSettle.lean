@@ -41,7 +41,7 @@ def multiTxSequentialGasSettleStepFunction : String :=
   "  la t0, evm_refund_acc; sd s3, 0(t0)\n" ++
   "  la t0, evm_state_gas_used; sd s4, 0(t0)\n" ++
   "  la t0, evm_state_gas_spilled; sd s5, 0(t0)\n" ++
-  "  li t0, 0xa0010000; sd s6, 32(t0)\n" ++
+  "  la t0, rdg_halt_kind; sd s6, 0(t0)\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  sd a0, 0(s0); sd a1, 8(s0); sd a2, 16(s0)\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 64\n" ++
@@ -84,7 +84,8 @@ def ziskDispatcherTxGasSettleDataSection : String :=
   "evm_state_gas_left:\n  .zero 8\n" ++
   "evm_state_gas_used:\n  .zero 8\n" ++
   "evm_state_gas_spilled:\n  .zero 8\n" ++
-  "evm_refund_acc:\n  .zero 8\n"
+  "evm_refund_acc:\n  .zero 8\n" ++
+  "rdg_halt_kind:\n  .zero 8\n"
 
 def ziskDispatcherTxGasSettleProbeUnit : BuildUnit := {
   body        := NOP

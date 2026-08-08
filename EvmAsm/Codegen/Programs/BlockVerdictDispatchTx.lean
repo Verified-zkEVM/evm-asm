@@ -822,7 +822,8 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  j .exit_no_epilogue\n" ++
   ".Ldtrc_mtx_precompile_failure:\n" ++
   "  la t0, evm_env; sd zero, 568(t0)\n" ++
-  "  li t0, 0xa0010000; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0); li t1, 6; sd t1, 32(t0)\n" ++
+  "  li t0, 0xa0010000; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
+  "  la t0, rdg_halt_kind; li t1, 6; sd t1, 0(t0)\n" ++
   "  la t0, bv_mtx_precompile_lane; sd zero, 0(t0)\n" ++
   "  j .exit_no_epilogue"
 

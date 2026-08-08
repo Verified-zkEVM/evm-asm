@@ -1175,6 +1175,9 @@ def _collect_guest_addr_syms():
         # extcodecopy/extcodesize/code-at-state-root Program views, which are not
         # in the asm-fixture manifest, so it is not discovered by the scan above.
         'code_read_fetch',
+        # GH #11798: halt_kind cell moved off OUTPUT+32; dispatcherTxGasSettle_prog
+        # (hand-maintained in Dispatch.lean) loads GuestAddrs.rdg_halt_kind.
+        'rdg_halt_kind',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
