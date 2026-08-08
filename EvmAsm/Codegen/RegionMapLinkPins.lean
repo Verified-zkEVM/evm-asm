@@ -5,9 +5,10 @@
   `python3 scripts/gen-region-map-link-pins.py` regenerates this from the
   linked stateless_guest ELF (issue #11230).
 
-  Link-layout-dependent pins only (class A): section sizes + three BSS
-  bases that move when the guest image moves. Class B stable bases stay
-  hand-typed in RegionMap.lean.
+  Link-layout-dependent pins only (class A): section sizes and three
+  BSS bases, which move when the guest image moves. Class B stable
+  bases stay hand-typed in RegionMap.lean; `.state_gas_diag`'s base is
+  neither — RegionMap DERIVES it from `bssSizeBytes` (GH #11186).
 
   Regenerated from: gen-out/regionmap/stateless_guest.elf
   Guard contract (check-region-map.sh): pins are this file (regen-time
@@ -18,9 +19,11 @@
 
 namespace EvmAsm.Codegen.RegionMapLinkPins
 
-abbrev textSizeBytes : Nat := 0x543a0
+abbrev textSizeBytes : Nat := 0x544b4
 abbrev dataSizeBytes : Nat := 0x5370
 abbrev bssSizeBytes : Nat := 0x18c03c00
+
+abbrev stateGasDiagSizeBytes : Nat := 0x37cd0
 
 abbrev callFrameArenaBase : Nat := 0xabd38880
 abbrev evmMemoryPoolBase : Nat := 0xb2151880
