@@ -10,8 +10,46 @@ import EvmAsm.Rv64.Program
 
 namespace EvmAsm.Codegen
 
-/-- Transaction-local entries and undo records share one fixed capacity. -/
+/-- Transaction-local **map** capacity: DISTINCT accounts written by one
+    transaction.
+
+    Derived (GH #11770) against the per-transaction regular-gas ceiling, which
+    is `TX_MAX_GAS_LIMIT - intrinsic.regular` = 16,777,216 - 12,000 =
+    **16,765,216** (`transactions.py:63`, `fork.py:1099-1100` at `e5a8caf1b`) --
+    NOT the 200M block limit, because this map is cleared at transaction
+    incorporation (`state_tracker.py:874`). The cheapest way to put a DISTINCT
+    account in it is a cold `CALL` into a code-bearing account
+    (`COLD_ACCOUNT_ACCESS` = 3000) plus one `SSTORE` (104) plus call setup
+    (~17) ~= 3,121 gas, so at most **5,371** distinct keys per transaction.
+    16384 is a 3.05x margin -- AMPLE, and deliberately not shrunk. -/
 def txAccountWritesCapacity : Nat := 16384
+
+/-- Transaction-local **undo journal** capacity: account-write EVENTS, which is
+    a strictly larger quantity than distinct accounts and is why this is no
+    longer the same constant as `txAccountWritesCapacity`.
+
+    ⛔ The journal counts WRITES, not accounts: `account_write_record` pushes one
+    entry on BOTH arms -- the overwrite hit (`AccountWriteMap.lean:230`) and the
+    append (`:234`) -- so a transaction that writes a handful of accounts many
+    times consumes a slot per write while the map stays small.
+
+    Derived (GH #11770): the cheapest repeatable event is a warm no-op `SSTORE`,
+    which pushes one entry unconditionally via `Storage.lean:664` ->
+    `account_write_touch_current`. `sstore` always charges the access cost and
+    `WARM_ACCESS` is 100 (`vm/gas.py:69`); the `STORAGE_WRITE` charge is gated on
+    `original == current and current != new`, so a no-op pays access only.
+    `PUSH0 PUSH0 SSTORE` is 104 gas, hence **16,765,216 / 104 = 161,204** events
+    reachable in one transaction. Rounded up to the next power of two.
+
+    ⚠️ Note `check_gas(evm, max(gas_cost, CALL_STIPEND + 1))` = 2301 in `sstore`
+    is a LIVENESS CHECK, not a debit -- `charge_gas` takes 100. Deriving from
+    the check would under-count the reachable maximum by 23x.
+
+    The superseded justification derived 4,294 rows from EIP-7702
+    authorizations at 7,816 regular gas. That arithmetic was right; its producer
+    census was incomplete -- it omitted the SSTORE touch, which is 75x cheaper
+    per event and is what false-rejected rows 18635, 18637 and 20992. -/
+def accountWritesUndoCapacity : Nat := 163840
 
 /-! ## `account_writes_undo_push`
 
@@ -19,15 +57,12 @@ def txAccountWritesCapacity : Nat := 16384
 
     a5 = entryIndex, a6 = wasAbsent (1 on append, 0 on overwrite).
     On an overwrite the superseded fields are read from the entry itself, so the
-    caller does not have to stage them. The journal has the same provisioned
-    16384-entry capacity as the transaction map, but the push is separately
-    bounded because repeated updates can add undo rows without increasing the
-    live map count. The current producer census derives 4294 rows for the
-    densest path: two pushes for each EIP-7702 MTx authorization at 7816 regular
-    gas, plus six fixed boundary records. This is workload justification for
-    retaining the physical reservation, not a replacement for its fail-closed
-    bound. On exhaustion it returns `a0 = 1` and latches both overflow flags
-    before any out-of-range store; success returns `a0 = 0`. -/
+    caller does not have to stage them. The journal is bounded by
+    `accountWritesUndoCapacity`, NOT by the map's capacity: repeated updates add
+    undo rows without increasing the live map count, so the two count different
+    things and are now sized separately (GH #11770). On exhaustion it returns
+    `a0 = 1` and latches both overflow flags before any out-of-range store;
+    success returns `a0 = 0`. -/
 def accountWritesUndoPushFunction : String :=
   "account_writes_undo_push:\n" ++
   -- GH #10810: save t5/t6 as well, so this routine's CONTRACT matches what its callers
@@ -51,8 +86,8 @@ def accountWritesUndoPushFunction : String :=
   "  addi sp, sp, -64\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
-  "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawu_fail\n" ++
-  "  li t2, 0xa2d20000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
+  "  li t2, " ++ toString accountWritesUndoCapacity ++ "; bgeu t1, t2, .Lawu_fail\n" ++
+  "  li t2, 0xbe580000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
   "  sd a5, 0(t3)\n" ++                                            -- entryIndex
   "  sd a6, 8(t3)\n" ++                                            -- wasAbsent
@@ -94,7 +129,7 @@ def accountWritesRestoreFrameFunction : String :=
   ".Lawf_loop:\n" ++
   "  bgeu a0, t1, .Lawf_done\n" ++                                 -- count <= mark: nothing left
   "  addi t1, t1, -1\n" ++                                         -- pop the newest
-  "  li t2, 0xa2d20000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
+  "  li t2, 0xbe580000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
   "  ld t4, 0(t3)\n" ++                                            -- entryIndex
   "  ld t5, 8(t3)\n" ++                                            -- wasAbsent
   "  beqz t5, .Lawf_overwrite\n" ++

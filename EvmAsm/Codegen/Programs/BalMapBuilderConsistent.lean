@@ -206,21 +206,21 @@ def balMapBuilderConsistentFunction : String :=
   "  la t0, account_writes_count; ld s0, 0(t0); li s1, 0\n" ++
   ".Lbmb_bal:\n" ++
   "  bgeu s1, s0, .Lbmb_nonce\n" ++
-  "  slli t1, s1, 7; li t2, 0xa28a0000; add t2, t2, t1\n" ++
+  "  slli t1, s1, 7; li t2, 0xbdd80000; add t2, t2, t1\n" ++
   "  mv a0, t2; li a1, 1; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail\n" ++
   "  addi s1, s1, 1; j .Lbmb_bal\n" ++
   ".Lbmb_nonce:\n" ++
   "  la t0, account_writes_count; ld s0, 0(t0); li s1, 0\n" ++
   ".Lbmb_non:\n" ++
   "  bgeu s1, s0, .Lbmb_code\n" ++
-  "  slli t1, s1, 7; li t2, 0xa28a0000; add t2, t2, t1\n" ++
+  "  slli t1, s1, 7; li t2, 0xbdd80000; add t2, t2, t1\n" ++
   "  mv a0, t2; li a1, 2; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail\n" ++
   "  addi s1, s1, 1; j .Lbmb_non\n" ++
   ".Lbmb_code:\n" ++
   "  la t0, account_writes_count; ld s0, 0(t0); li s1, 0\n" ++
   ".Lbmb_cod:\n" ++
   "  bgeu s1, s0, .Lbmb_ok\n" ++
-  "  slli t1, s1, 7; li t2, 0xa28a0000; add t2, t2, t1\n" ++
+  "  slli t1, s1, 7; li t2, 0xbdd80000; add t2, t2, t1\n" ++
   "  mv a0, t2; li a1, 3; jal ra, bal_map_final_value_matches; bnez a0, .Lbmb_fail\n" ++
   "  addi s1, s1, 1; j .Lbmb_cod\n" ++
   ".Lbmb_ok:\n  li a0, 0; j .Lbmb_ret\n" ++
@@ -268,16 +268,16 @@ def ziskBalMapBuilderConsistentPrologue : String :=
   ".Lbmprobe_addr_done:\n" ++
   "  la t0, bal_builder_balance_changes; li t1, 1; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); sd t1, 24(t0)\n" ++
   "  la t0, bal_builder_balance_count; sd t1, 0(t0)\n" ++
-  "  li t0, 0xa28a0000; la t2, bal_builder_balance_changes; li t3, 20\n" ++
+  "  li t0, 0xbdd80000; la t2, bal_builder_balance_changes; li t3, 20\n" ++
   ".Lbmprobe_map_addr:\n  beqz t3, .Lbmprobe_map_fields; lbu t4, 0(t2); sb t4, 0(t0); addi t2, t2, 1; addi t0, t0, 1; addi t3, t3, -1; j .Lbmprobe_map_addr\n" ++
-  ".Lbmprobe_map_fields:\n  li t0, 0xa28a0000; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); li t2, 1; sd t2, 112(t0); la t0, account_writes_count; sd t2, 0(t0)\n" ++
+  ".Lbmprobe_map_fields:\n  li t0, 0xbdd80000; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); li t2, 1; sd t2, 112(t0); la t0, account_writes_count; sd t2, 0(t0)\n" ++
   -- match: map final == builder highest-BAI balance
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 0(t1)\n" ++
   -- desync: flip map balance low byte
-  "  li t0, 0xa28a0000; li t1, 2; sb t1, 63(t0)\n" ++
+  "  li t0, 0xbdd80000; li t1, 2; sb t1, 63(t0)\n" ++
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 8(t1)\n" ++
   -- restore match
-  "  li t0, 0xa28a0000; li t1, 1; sb t1, 63(t0)\n" ++
+  "  li t0, 0xbdd80000; li t1, 1; sb t1, 63(t0)\n" ++
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 16(t1)\n" ++
   "  j .Lbmprobe_done\n" ++
   balMapBuilderConsistentFunctions ++ "\n" ++
