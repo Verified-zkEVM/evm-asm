@@ -58,8 +58,7 @@ open EvmAsm.Rv64.Program
                           in [0, 8] for nonce, [0, 32] for balance)
       * storage_root / code_hash : exactly 32 bytes each. -/
 def accountDecode_prog : Program :=
-  [
-    .ADDI .x2 .x2 (-64 : BitVec 12),
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
@@ -81,7 +80,7 @@ def accountDecode_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 76)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 76)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 84)),
-    .BNE .x10 .x0 (464 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 88)),
     .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 92)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 92)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -96,7 +95,7 @@ def accountDecode_prog : Program :=
     .ADDI .x6 .x6 (-1 : BitVec 12),
     .JAL .x0 (-20 : BitVec 21),
     .LI .x7 (8 : Word),
-    .BLTU .x7 .x6 (404 : BitVec 13),
+    .BLTU .x7 .x6 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 148)),
     .LI .x7 (0 : Word),
     .BEQ .x6 .x0 (28 : BitVec 13),
     .SLLI .x7 .x7 (8 : BitVec 6),
@@ -114,7 +113,7 @@ def accountDecode_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 208)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 208)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 216)),
-    .BNE .x10 .x0 (332 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 220)),
     .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 224)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 224)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -129,7 +128,7 @@ def accountDecode_prog : Program :=
     .ADDI .x6 .x6 (-1 : BitVec 12),
     .JAL .x0 (-20 : BitVec 21),
     .LI .x7 (32 : Word),
-    .BLTU .x7 .x6 (272 : BitVec 13),
+    .BLTU .x7 .x6 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 280)),
     .SD .x19 .x0 (0 : BitVec 12),
     .SD .x19 .x0 (8 : BitVec 12),
     .SD .x19 .x0 (16 : BitVec 12),
@@ -151,12 +150,12 @@ def accountDecode_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 356)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 356)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 364)),
-    .BNE .x10 .x0 (184 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 368)),
     .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 372)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 372)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (204 : BitVec 13),
+    .BNE .x6 .x7 (brOff (GuestAddrs.account_decode + 592) (GuestAddrs.account_decode + 388)),
     .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 392)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 392)),
     .LD .x28 .x5 (0 : BitVec 12),
@@ -177,12 +176,12 @@ def accountDecode_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 460)),
     .ADDI .x14 .x14 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 460)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 468)),
-    .BNE .x10 .x0 (80 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 472)),
     .AUIPC .x5 (laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 476)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 476)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (152 : BitVec 13),
+    .BNE .x6 .x7 (brOff (GuestAddrs.account_decode + 644) (GuestAddrs.account_decode + 492)),
     .AUIPC .x5 (laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 496)),
     .ADDI .x5 .x5 (laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 496)),
     .LD .x28 .x5 (0 : BitVec 12),
@@ -219,9 +218,9 @@ def accountDecode_prog : Program :=
     .SD .x20 .x7 (16 : BitVec 12),
     .LD .x7 .x5 (24 : BitVec 12),
     .SD .x20 .x7 (24 : BitVec 12),
-    .JAL .x0 (-200 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.account_decode + 440) (GuestAddrs.account_decode + 640)),
     .BEQ .x6 .x0 (8 : BitVec 13),
-    .JAL .x0 (-96 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.account_decode + 552) (GuestAddrs.account_decode + 648)),
     .AUIPC .x5 (laHi GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 652)),
     .ADDI .x5 .x5 (laLo GuestAddrs.aie_empty_code_hash (GuestAddrs.account_decode + 652)),
     .LD .x7 .x5 (0 : BitVec 12),
@@ -232,15 +231,13 @@ def accountDecode_prog : Program :=
     .SD .x21 .x7 (16 : BitVec 12),
     .LD .x7 .x5 (24 : BitVec 12),
     .SD .x21 .x7 (24 : BitVec 12),
-    .JAL .x0 (-148 : BitVec 21)
-  ]
+    .JAL .x0 (jalOff (GuestAddrs.account_decode + 544) (GuestAddrs.account_decode + 692)) ]
 
 /-- Reloc side-table for `accountDecode_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def accountDecode_relocs : RelocTable :=
-  [
-    (17, .la .x13 "ad_offset"),
+  [ (17, .la .x13 "ad_offset"),
     (19, .la .x14 "ad_length"),
     (21, .jal .x1 "rlp_list_nth_item"),
     (23, .la .x5 "ad_length"),
@@ -261,8 +258,8 @@ def accountDecode_relocs : RelocTable :=
     (119, .la .x5 "ad_length"),
     (124, .la .x5 "ad_offset"),
     (150, .la .x5 "iw_empty_trie_root"),
-    (163, .la .x5 "aie_empty_code_hash")
-  ]
+    (163, .la .x5 "aie_empty_code_hash") ]
+
 def accountDecodeFunction : String :=
   "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs
 

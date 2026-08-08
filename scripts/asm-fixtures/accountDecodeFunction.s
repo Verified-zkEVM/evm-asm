@@ -1,130 +1,157 @@
 account_decode:
-  addi sp, sp, -64
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp)
-  mv s0, a0                  # account ptr
-  mv s1, a1                  # account_len
-  mv s2, a2                  # nonce out
-  mv s3, a3                  # balance out
-  mv s4, a4                  # storage_root out
-  mv s5, a5                  # code_hash out
-  # Field 0: nonce (u64 BE → LE store)
-  mv a0, s0
-  mv a1, s1
-  li a2, 0
-  la a3, ad_offset
-  la a4, ad_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lad_fail
-  la t0, ad_length; ld t1, 0(t0)
-  li t2, 8
-  bgtu t1, t2, .Lad_fail      # nonce > 8 bytes
-  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-  li t2, 0                   # accumulator
-.Lad_nonce_loop:
-  beqz t1, .Lad_nonce_done
-  slli t2, t2, 8
-  lbu t4, 0(t3)
-  or t2, t2, t4
-  addi t3, t3, 1
-  addi t1, t1, -1
-  j .Lad_nonce_loop
-.Lad_nonce_done:
-  sd t2, 0(s2)               # nonce_out (LE u64)
-  # Field 1: balance (u256 BE → BE 32-byte buffer)
-  mv a0, s0
-  mv a1, s1
-  li a2, 1
-  la a3, ad_offset
-  la a4, ad_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lad_fail
-  la t0, ad_length; ld t1, 0(t0)
-  li t2, 32
-  bgtu t1, t2, .Lad_fail      # balance > 32 bytes
-  # Zero balance_out
-  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)
-  # Right-align: write to s3 + (32 - length)
-  sub t2, t2, t1             # 32 - length
-  add t4, s3, t2             # dst
-  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-.Lad_bal_loop:
-  beqz t1, .Lad_bal_done
-  lbu t5, 0(t3)
-  sb  t5, 0(t4)
-  addi t3, t3, 1
-  addi t4, t4, 1
-  addi t1, t1, -1
-  j .Lad_bal_loop
-.Lad_bal_done:
-  # Field 2: storage_root (must be exactly 32 bytes)
-  mv a0, s0
-  mv a1, s1
-  li a2, 2
-  la a3, ad_offset
-  la a4, ad_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lad_fail
-  la t0, ad_length; ld t1, 0(t0)
-  li t2, 32
-  bne t1, t2, .Lad_root_zero      # GH #11483: len != 32 -> zero-length dispatch
-  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-  lbu t4, 0(t3); sb t4, 0(s4)
-  addi t3, t3, 1; addi s4, s4, 1; addi t1, t1, -1
-  bnez t1, .-20
+  addi x2, x2, -64
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  mv x20, x14
+  mv x21, x15
+  mv x10, x8
+  mv x11, x9
+  li x12, 0
+  la x13, ad_offset
+  la x14, ad_length
+  jal x1, rlp_list_nth_item
+  bne x10, x0, .+464
+  la x5, ad_length
+  ld x6, 0(x5)
+  la x5, ad_offset
+  ld x28, 0(x5)
+  add x28, x8, x28
+  beq x6, x0, .+24
+  lbu x29, 0(x28)
+  bne x29, x0, .+16
+  addi x28, x28, 1
+  addi x6, x6, -1
+  jal x0, .-20
+  li x7, 8
+  bltu x7, x6, .+404
+  li x7, 0
+  beq x6, x0, .+28
+  slli x7, x7, 8
+  lbu x29, 0(x28)
+  or x7, x7, x29
+  addi x28, x28, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  sd x7, 0(x18)
+  mv x10, x8
+  mv x11, x9
+  li x12, 1
+  la x13, ad_offset
+  la x14, ad_length
+  jal x1, rlp_list_nth_item
+  bne x10, x0, .+332
+  la x5, ad_length
+  ld x6, 0(x5)
+  la x5, ad_offset
+  ld x28, 0(x5)
+  add x28, x8, x28
+  beq x6, x0, .+24
+  lbu x29, 0(x28)
+  bne x29, x0, .+16
+  addi x28, x28, 1
+  addi x6, x6, -1
+  jal x0, .-20
+  li x7, 32
+  bltu x7, x6, .+272
+  sd x0, 0(x19)
+  sd x0, 8(x19)
+  sd x0, 16(x19)
+  sd x0, 24(x19)
+  sub x7, x7, x6
+  add x29, x19, x7
+  beq x6, x0, .+28
+  lbu x30, 0(x28)
+  sb x30, 0(x29)
+  addi x28, x28, 1
+  addi x29, x29, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  mv x10, x8
+  mv x11, x9
+  li x12, 2
+  la x13, ad_offset
+  la x14, ad_length
+  jal x1, rlp_list_nth_item
+  bne x10, x0, .+184
+  la x5, ad_length
+  ld x6, 0(x5)
+  li x7, 32
+  bne x6, x7, .+204
+  la x5, ad_offset
+  ld x28, 0(x5)
+  add x28, x8, x28
+  lbu x29, 0(x28)
+  sb x29, 0(x20)
+  addi x28, x28, 1
+  addi x20, x20, 1
+  addi x6, x6, -1
+  bne x6, x0, .-20
   nop
   nop
-.Lad_field3:
-  # Field 3: code_hash (must be exactly 32 bytes)
-  mv a0, s0
-  mv a1, s1
-  li a2, 3
-  la a3, ad_offset
-  la a4, ad_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lad_fail
-  la t0, ad_length; ld t1, 0(t0)
-  li t2, 32
-  bne t1, t2, .Lad_code_zero      # GH #11483: len != 32 -> zero-length dispatch
-  la t0, ad_offset; ld t3, 0(t0); add t3, s0, t3
-  lbu t4, 0(t3); sb t4, 0(s5)
-  addi t3, t3, 1; addi s5, s5, 1; addi t1, t1, -1
-  bnez t1, .-20
+  mv x10, x8
+  mv x11, x9
+  li x12, 3
+  la x13, ad_offset
+  la x14, ad_length
+  jal x1, rlp_list_nth_item
+  bne x10, x0, .+80
+  la x5, ad_length
+  ld x6, 0(x5)
+  li x7, 32
+  bne x6, x7, .+152
+  la x5, ad_offset
+  ld x28, 0(x5)
+  add x28, x8, x28
+  lbu x29, 0(x28)
+  sb x29, 0(x21)
+  addi x28, x28, 1
+  addi x21, x21, 1
+  addi x6, x6, -1
+  bne x6, x0, .-20
   nop
   nop
-.Lad_ok:
-  li a0, 0
-  j .Lad_ret
-.Lad_fail:
-  li a0, 1
-.Lad_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp)
-  addi sp, sp, 64
-  ret
-
-  # GH #11483: fold a zero-length storage_root / code_hash to EMPTY_TRIE_ROOT /
-  # EMPTY_CODE_HASH, mirroring execution-specs amsterdam witness_state.py:114-119.
-  # Reached only from the exact-32 checks above; any other length still fails.
-.Lad_root_zero:
-  beq t1, x0, .Lad_root_fold
-  j .Lad_fail
-.Lad_root_fold:
-  la t0, iw_empty_trie_root
-  ld t2, 0(t0); sd t2, 0(s4)
-  ld t2, 8(t0); sd t2, 8(s4)
-  ld t2, 16(t0); sd t2, 16(s4)
-  ld t2, 24(t0); sd t2, 24(s4)
-  j .Lad_field3
-.Lad_code_zero:
-  beq t1, x0, .Lad_code_fold
-  j .Lad_fail
-.Lad_code_fold:
-  la t0, aie_empty_code_hash
-  ld t2, 0(t0); sd t2, 0(s5)
-  ld t2, 8(t0); sd t2, 8(s5)
-  ld t2, 16(t0); sd t2, 16(s5)
-  ld t2, 24(t0); sd t2, 24(s5)
-  j .Lad_ok
+  li x10, 0
+  jal x0, .+8
+  li x10, 1
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  addi x2, x2, 64
+  jalr x0, 0(x1)
+  beq x6, x0, .+8
+  jal x0, .-44
+  la x5, iw_empty_trie_root
+  ld x7, 0(x5)
+  sd x7, 0(x20)
+  ld x7, 8(x5)
+  sd x7, 8(x20)
+  ld x7, 16(x5)
+  sd x7, 16(x20)
+  ld x7, 24(x5)
+  sd x7, 24(x20)
+  jal x0, .-200
+  beq x6, x0, .+8
+  jal x0, .-96
+  la x5, aie_empty_code_hash
+  ld x7, 0(x5)
+  sd x7, 0(x21)
+  ld x7, 8(x5)
+  sd x7, 8(x21)
+  ld x7, 16(x5)
+  sd x7, 16(x21)
+  ld x7, 24(x5)
+  sd x7, 24(x21)
+  jal x0, .-148
