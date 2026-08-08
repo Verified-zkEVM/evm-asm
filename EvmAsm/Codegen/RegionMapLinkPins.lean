@@ -22,7 +22,7 @@ abbrev textSizeBytes : Nat := 0x544b4
 abbrev dataSizeBytes : Nat := 0x5370
 abbrev bssSizeBytes : Nat := 0x18c03c00
 
-abbrev stateGasDiagBase : Nat := 0xbc139560
+abbrev stateGasDiagBase : Nat := 0xbbd13c00
 abbrev stateGasDiagSizeBytes : Nat := 0x37cd0
 
 abbrev callFrameArenaBase : Nat := 0xabd38880
