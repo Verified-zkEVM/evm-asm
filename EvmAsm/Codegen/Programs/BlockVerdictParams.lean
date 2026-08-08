@@ -351,7 +351,19 @@ def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
 def bvReceiptsRlpBytes : Nat := 1048576
 def bvReceiptEncodePayloadBytes : Nat := 1048576
 def bvReceiptListPayloadBytes : Nat := 1048576
-def bvReceiptConsensusDescCapacity : Nat := 128
+/-- One `{ptr,len}` descriptor per logical receipt for
+    `block_validate_receipts_consensus_list` → `block_validate_receipts_root_indexed`.
+    Must cover the full MTx receipt list, not a fixed 128: exact-intrinsic multi-tx
+    blocks with >128 receipts (GH #11542 03361 tx_count=1020, 23017 tx_count=200)
+    hit `.Lbrcl_root_fail` → validator status 1 → bv_fail=56 while state root matched.
+
+    Bound is `bvMtxFullTxCap` (shape: derived from block gas limit / intrinsic floor).
+    That floor is still the pre-Amsterdam phantom 21000 (`bvMtxIntrinsicGasFloor`);
+    EIP-2780 minimum is 12000, so true full-tx capacity is ~16666 not 9523. Correcting
+    the floor is a separate change (five+ consumers of `bvMtxFullTxCap`). This PR only
+    replaces the detached 128 with the existing derived constant. Pin rows 1020/200 sit
+    above 128 and below both 9523 and 16666 — they do not discriminate the two floors. -/
+def bvReceiptConsensusDescCapacity : Nat := bvMtxFullTxCap
 def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
 
 /-- Amsterdam SSZ execution-request capacity:
@@ -464,7 +476,7 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvReceiptsRlpBytes = 1048576
 #guard bvReceiptEncodePayloadBytes = 1048576
 #guard bvReceiptListPayloadBytes = 1048576
-#guard bvReceiptConsensusDescBytes = 2048
+#guard bvReceiptConsensusDescBytes = 152368
 #guard bvMaxDepositRequestBodyBytes = 1572864
 #guard bvMaxExecutionRequestSectionBytes = 1574324
 #guard bvDepositLogRecordBytes = 656
