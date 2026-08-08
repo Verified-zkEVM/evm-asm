@@ -51,8 +51,9 @@
 
   ## ⚠️ Every extent claim names its build unit
 
-  `baap_storage_values` is emitted at three sizes in three units (#11222) and
-  `evm_memory_pool` at two (guest 96 MiB vs a 1 MiB probe emit in
+  `baap_storage_values` is emitted by three units (#11222), with the guest and
+  BAAP probe sharing the gas-derived extent while the descriptor probe is
+  smaller, and `evm_memory_pool` at two (guest 96 MiB vs a 1 MiB probe emit in
   `CallFrameDescend.lean`). A predicate that does not name its unit is false in
   at least one of them. A symbol exists per *image*, not per repository.
 -/
@@ -626,12 +627,12 @@ theorem calleeSeedAbsentSymbols_length : calleeSeedAbsentSymbols.length = 3 := b
     anything beyond the byte range would be asserting something the code does
     not maintain.
 
-    ⛔ **And the extent is unit-dependent (#11222):** the same symbol name is
-    emitted at **three sizes in three units** — guest `6_400_000`
-    (`bsrMaxBalItems * bsrPathBytes`), the `BalAccountApplyPostFields` probe
-    `3_840_000`, and `BalAccountDescriptorArray` `32_768`. An `extent =`
-    theorem is therefore true in `stateless_guest` and **false** in the other
-    two. Closing #11222 (overload vs dead) is required before any single global
+    ⛔ **And the extent remains unit-dependent (#11222):** the same symbol name
+    is emitted by three units — guest and `BalAccountApplyPostFields` probe at
+    `bsrMaxBalItems * bsrPathBytes` (= `6_400_000` today), and
+    `BalAccountDescriptorArray` at `32_768`. An `extent =` theorem is therefore
+    true for the guest and BAAP probe but **false** for the descriptor probe.
+    Closing #11222 (overload vs dead) is required before any single global
     claim; until then the unit must be named at every use, which is why
     `statelessGuest` exists above. Its initialisation contract is
     **self-discharged** — the routine clears the cells in its own entry block
@@ -642,10 +643,11 @@ theorem calleeSeedAbsentSymbols_length : calleeSeedAbsentSymbols.length = 3 := b
 
 /-- The three build units that emit `baap_storage_values`, with the size each
     one uses. Recorded as data so the overload is checkable rather than prose:
-    a predicate naming no unit is wrong in two of these three. -/
+    the guest and BAAP probe are formula-matched; the descriptor probe remains
+    a smaller unit-local arena. -/
 def baapStorageValuesUnitSizes : List (String × Nat) :=
-  [ ("stateless_guest", 6400000),
-    ("BalAccountApplyPostFields probe", 3840000),
+  [ ("stateless_guest", bsrMaxBalItems * bsrPathBytes),
+    ("BalAccountApplyPostFields probe", bsrMaxBalItems * bsrPathBytes),
     ("BalAccountDescriptorArray", 32768) ]
 
 /-- The guest size is the layout formula's, not a literal — so if
@@ -655,10 +657,10 @@ theorem baapStorageValues_guest_size_eq_formula :
     (baapStorageValuesUnitSizes.head?.map (·.2)) = some (bsrMaxBalItems * bsrPathBytes) := by
   decide
 
-/-- ⚠️ The three sizes really are distinct — the overload is not a
-    documentation artifact of one number written three ways. -/
+/-- The guest and BAAP probe now share a size; the descriptor probe remains
+    the distinct small unit-local extent. -/
 theorem baapStorageValues_sizes_distinct :
-    (baapStorageValuesUnitSizes.map (·.2)).eraseDups.length = 3 := by decide
+    (baapStorageValuesUnitSizes.map (·.2)).eraseDups.length = 2 := by decide
 
 /-! ## `bal_canonical_sort` row arrays (GH #10817)
 
@@ -733,6 +735,83 @@ theorem balEntriesFrom_cons (stride : Nat) (base : Word) (r : List (BitVec 8))
     balEntriesFrom stride base (r :: rs)
       = (bytesRegion base r
           ** balEntriesFrom stride (base + BitVec.ofNat 64 stride) rs) := rfl
+
+/-- **A run splits at a row boundary.** The piece #11676 should have shipped and
+    did not: it built this vocabulary for a whole buffer, and every proof about
+    `bal_canonical_sort` needs it for *sub-ranges*.
+
+    ⚠️ This is what the sort's range stack is made of. `.Lbalsort_pop` pops a frame
+    denoting a slice `[start, end)` and may push successors, so the pop-level
+    invariant is over a stack of disjoint sub-ranges — and there was no way to even
+    *state* "these rows here, those rows there" over `balEntriesFrom` before this
+    (only `_cons`, which peels one row from the front). Maintainer-endorsed on
+    #10817.
+
+    Note the offset is `xs.length * stride`, i.e. rows are counted then scaled;
+    that is the same arithmetic the routine does with `mul t0, t1, s8`
+    (`balCanonicalSortFunction.s:40`), so the predicate and the machine agree on
+    how a row index becomes an address. -/
+theorem balEntriesFrom_append (stride : Nat) (base : Word)
+    (xs ys : List (List (BitVec 8))) :
+    balEntriesFrom stride base (xs ++ ys)
+      = (balEntriesFrom stride base xs
+          ** balEntriesFrom stride
+               (base + BitVec.ofNat 64 (xs.length * stride)) ys) := by
+  induction xs generalizing base with
+  | nil =>
+    rw [List.nil_append, List.length_nil, Nat.zero_mul]
+    have hb : base + BitVec.ofNat 64 0 = base := by
+      apply BitVec.eq_of_toNat_eq; simp
+    rw [hb]
+    exact (sepConj_emp_left' _).symm
+  | cons x xs ih =>
+    rw [List.cons_append, balEntriesFrom_cons stride base x (xs ++ ys),
+      ih (base + BitVec.ofNat 64 stride), balEntriesFrom_cons stride base x xs,
+      ← sepConj_assoc']
+    have hlen : ((x :: xs).length * stride) = stride + xs.length * stride := by
+      rw [List.length_cons, Nat.add_mul, Nat.one_mul, Nat.add_comm]
+    rw [hlen]
+    congr 2
+    rw [BitVec.add_assoc]
+    congr 1
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_add, Nat.add_mod]
+
+/-! ### The permutation vocabulary carries at the sort's row type
+
+    ⚠️ **Checked, not assumed.** The #10817 assessment rested on the claim that
+    `perm_range_of_permCheck` + the bridge factored out of `seps_permute` transfer
+    from `List Assertion` to a `List (List (BitVec 8))` of sort rows. That was the
+    one load-bearing assumption in the plan, so it is discharged here rather than
+    left as prose — a vocabulary that turned out not to carry would have been
+    discovered mid-proof. -/
+
+example (rs : List (List (BitVec 8))) (σ : List Nat)
+    (h : permCheck σ rs.length = true) :
+    (σ.map (fun i => rs.getD i [])).Perm rs :=
+  perm_map_getD_of_perm_range rs [] σ (perm_range_of_permCheck σ rs.length h)
+
+/-- The self-test's own expected permutation, discharged end to end by `decide`.
+    `σ = [1, 3, 0, 2]` is exactly the canonical order of
+    `bal_canonical_sort_selftest`'s row set 1 (keys `0x30, 0x10, 0x40, 0x20`), so
+    this is the sort's real obligation shape at n = 4, not a synthetic one. -/
+example (rs : List (List (BitVec 8))) (hlen : rs.length = 4) :
+    (([1, 3, 0, 2] : List Nat).map (fun i => rs.getD i [])).Perm rs :=
+  perm_map_getD_of_perm_range rs [] [1, 3, 0, 2]
+    (perm_range_of_permCheck _ _ (by rw [hlen]; decide))
+
+/-- The `take`/`drop` form, which is how an index-shaped invariant arrives: rows
+    `[0, i)` at `base`, rows `[i, n)` at `base + i * stride`. Immediate from
+    `balEntriesFrom_append`. -/
+theorem balEntriesFrom_split (stride : Nat) (base : Word)
+    (rs : List (List (BitVec 8))) (i : Nat) :
+    balEntriesFrom stride base rs
+      = (balEntriesFrom stride base (rs.take i)
+          ** balEntriesFrom stride
+               (base + BitVec.ofNat 64 ((rs.take i).length * stride))
+               (rs.drop i)) := by
+  conv_lhs => rw [← List.take_append_drop i rs]
+  exact balEntriesFrom_append stride base (rs.take i) (rs.drop i)
 
 /-- **The whole buffer** — the run *and* that this is all of it: `rs.length`
     live rows, then the remainder owned-unconstrained out to `cap` rows.

@@ -294,15 +294,15 @@ zero-tail: "bytes at index ≥ msize are 0", i.e.
 `∀ i ≥ msize, getByteAt contents i = 0` as the invariant linking logical size
 to the full-capacity contents).
 
-**Alignment / divergence.** (a) reserved capacity (16 MiB
-`EVM_MEMORY_CAPACITY`, contents pinned to full length) vs abstract unbounded
-zero-extended memory — bridged exactly by the zero-tail invariant above; (b)
+**Alignment / divergence.** (a) reserved capacity (contents pinned to full
+length) vs abstract unbounded zero-extended memory — bridged exactly by the
+zero-tail invariant above; (b)
 **the anchor caveat**: `evmMemoryIs` is base-parametrized, and per the
 call-frame audit the emitted dispatcher uses per-frame 128 KiB arenas (and a
 global `evm_memory`), *not* the aspirational `EVM_MEMORY_AREA` — the
 refinement must instantiate `base`/capacity per frame from
-`CallFrameWindows.frameMemWindow`, and the 16 MiB-vs-128 KiB capacity
-divergence (bead `.71` cluster) has to be resolved first; (c) endianness is
+`CallFrameWindows.frameMemWindow`, and the capacity divergence (bead `.71`
+cluster, issue #10526) has to be resolved first; (c) endianness is
 already internalized (`dwordAt` little-endian cells vs big-endian EVM words —
 `evmMemoryReadWord` does the flip, proven).
 

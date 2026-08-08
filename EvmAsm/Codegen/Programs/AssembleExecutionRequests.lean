@@ -205,7 +205,7 @@ def ziskAssembleExecutionRequestsPrologue : String :=
   "  j .Laerp_pdone\n" ++
   assembleExecutionRequestsFunction ++ "\n" ++
   requestsHashVerifyFunction ++ "\n" ++
-  executionRequestsHashFunction ++ "\n" ++
+  executionRequestsHashFunctions ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   zkvmSha256Function ++ "\n" ++
   ".Laerp_pdone:"

@@ -5,6 +5,25 @@ after any change that alters the guest's emitted bytes or layout (a re-emit, a n
 routine, a `.text`/`.data` size change). Editing them by hand is wrong — each carries a
 `GENERATED — do not edit` header.
 
+## Emission vs pins (where the cycle lives)
+
+The four artefacts below are a **proof/pin surface**, not the linker reloc input for the
+guest image. Do not attempt an “emission-side” fix for this cycle (#11641):
+
+| Concern | Needs fresh `GuestAddrs` / pins? |
+|---|---|
+| Linked **ELF bytes** | **No** for ordinary layout moves. Emission is already **symbolic**: hand-written Programs use string `la`/`jal`, and converted `_prog`s emit via `emitProgramR` + `RelocTable` (`EvmAsm/Codegen/Emit.lean`) so the assembler/linker resolves symbols. The `Program` still stores concrete `AsmReloc.laHi`/`laLo`/`jalOff(GuestAddrs.*, pc)` for the verification/byte-tie view only. |
+| Lean elaboration of `_prog`s, byte-identity gates, `GuestImageEntries`, address `#guard`s | **Yes** — this is the binding constraint. |
+
+Fleet experience matches: a second regen pass is often a **NO-OP on the ELF hash** while
+`GuestAddrs`/TSV/LinkPins/GuestImageEntries still move. What must converge is the **pin
+set against the already-correct image**, not a wrongly-linked image chasing itself.
+
+**Regeneration contract unchanged.** Same four files, same step order, same second-pass
+NO-OP rule, same guards (`check-asm-to-program.sh`, `check-region-map.sh`). This section
+only names *why* the loop exists so the next reader does not re-scope it as an emission
+bug.
+
 The generated files, what regenerates each, and what it depends on:
 
 | File | Regenerate with | Derived from |
@@ -47,19 +66,24 @@ python3 scripts/guest_image_coverage.py --emit-lean
 # 4. Derive class-A RegionMap pins from the linked ELF (#11230).
 python3 scripts/gen-region-map-link-pins.py
 
-# 5. Repeat steps 1-4 until a complete pass makes no changes. Updating
-#    RegionMapLinkPins.textSizeBytes (re-exported as RegionMap.textSizeBytes)
-#    can itself change the emitted image, so a one-pass relink is not a
-#    convergence check. The *second* gen-region-map-link-pins pass must be a
-#    NO-OP (diff empty) or stop and investigate.
+# 5. Repeat steps 1-4 until a complete pass makes no changes to the four
+#    generated artefacts (and reported section sizes). The *second*
+#    gen-region-map-link-pins pass must be a NO-OP (diff empty) or stop and
+#    investigate. On address-only moves the ELF hash is often already stable
+#    after step 1; the loop is still required so pins match that image.
 ```
 
 ## Layout invariants during a regen
 
-- **Reach a fixed point.** `textSizeBytes` is an input to emission as well as a
-  record of it. After regenerating LinkPins, relink and repeat the complete
-  procedure until a further pass changes neither the generated files nor the
-  reported section sizes. Do not trust a one-pass repin.
+- **Reach a fixed point (pins, not ELF reloc).** `RegionMapLinkPins.textSizeBytes`
+  (re-exported as `RegionMap.textSizeBytes`) is a **record of the linked image**
+  and an input to **proof** extent checks (`GuestImage` /
+  `CodeReq.extentsOkFrom`). It is **not** threaded into live `.s` emission or
+  the linker flags (those use fixed bases such as `-Ttext=0x80000000`). After
+  regenerating LinkPins, relink and repeat the complete procedure until a
+  further pass changes neither the generated pin files nor the reported section
+  sizes. Do not trust a one-pass repin — and do not read a stable ELF hash alone
+  as “pins are fresh.”
 - **Keep `.data` fixed.** Its base is `0xa3000000`; growth shifts downstream
   data symbols and breaks the hard `rfl` address proofs. In particular,
   `GuestAddrs.bnf_le_a` must remain `2734690016` (`0xa3000ee0`). A changed
@@ -91,9 +115,10 @@ guest change, a regen step above was missed or RegionMap's sizes are stale.
   *absence* of the file it had failed to write, so it printed `REGEN_CLEAN pass=1` and exited
   0 regardless of actual drift. Use the commands above.
 - Step 2 (`GuestAddrs.lean`) is the file that churns on essentially every layout change: the
-  per-function `_prog` defs reference its constants by name (`AsmReloc.{laHi,laLo,jalOff}`), so a
-  size change only requires regenerating the TSV + `GuestAddrs.lean`, never the hundreds of
-  `_prog`s.
+  per-function `_prog` defs reference its constants by name (`AsmReloc.{laHi,laLo,jalOff}`) for the
+  **verification view**, so a size change only requires regenerating the TSV + `GuestAddrs.lean`,
+  never the hundreds of `_prog`s. Emission of those same sites stays symbolic via `emitProgramR`
+  (see “Emission vs pins” above).
 - See also `docs/4ch8f-region-map.md` §5 ("Drift handling") for the RegionMap/TSV rationale and
   the STABLE-vs-LINK_DEPENDENT symbol classification.
 
@@ -189,8 +214,12 @@ Verify the bootstrap was free the same way as above: `git diff --quiet` on **bot
 ### Iterate to a fixpoint, and check exit codes rather than file stability
 
 When one branch shrinks `.text` and another grows it, a single regen pass is not enough — the size
-change moves addresses, which changes the emitted `la`/`jal` encodings, which changes the size
-again. Iterate steps 1–3 until the TSV stops changing.
+change moves **linked addresses**, so the pin artefacts (TSV / `GuestAddrs` / GuestImageEntries /
+LinkPins) must be re-derived until they match the new image. With symbolic emission
+(`emitProgramR` / string `la`/`jal`), ordinary address moves do **not** rewrite reloc immediates
+in the `.s` and re-expand `.text` through stale `GuestAddrs` values; the second pass is still
+required so pins and proof extent checks catch up. Iterate steps 1–4 until the generated
+artefacts stop changing.
 
 Do **not** decide convergence by comparing the TSV before and after a pass. A failed
 `gen-symbol-addresses.py` leaves the file untouched, and "unchanged" then looks exactly like

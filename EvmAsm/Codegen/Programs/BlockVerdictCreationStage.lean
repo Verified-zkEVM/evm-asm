@@ -367,13 +367,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- Restore the env base for the adjacent SELFBALANCE staging below.
   "  la t0, srpc_env_base; ld t0, 0(t0); la t1, bv_runtime_payload; add t1, t1, t0\n" ++
   -- `process_create_message` credits the newly-created account with tx.value
-  -- before initcode executes.  The context stores that value in canonical BE
-  -- order, while h_SELFBALANCE copies env+32 directly onto the LE EVM stack.
-  -- Seed this fresh CREATE frame by reversing BE tx.value into the LE env word,
-  -- so SELFDESTRUCT and SELFBALANCE observe the spec's live account balance.
-  "  addi t1, t1, 32; addi t2, s0, 127; li t3, 32\n" ++
-  ".Lbvcr_stage_selfbalance_rev:\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t3, t3, -1; bnez t3, .Lbvcr_stage_selfbalance_rev\n" ++
+  -- before initcode executes.  The authenticated pre-balance is combined with
+  -- that endowment below, after the lookup and before the dispatcher enters
+  -- initcode, so SELFDESTRUCT and SELFBALANCE observe the spec's live account
+  -- balance.
   -- A transaction-level CREATE enters initcode in the freshly-created account,
   -- just like `process_create_message`: mark depth zero as a CREATE frame and
   -- publish its address/nonce before the dispatcher starts.  The runtime uses
@@ -544,12 +541,22 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  addi t0, s0, 96; la t1, bvcr_endow_val_be; li t2, 32\n" ++
   ".Lbvcr_endow_val_cp:\n" ++
   "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_endow_val_cp\n" ++
+  -- `u256_add_be` keeps the authenticated pre-balance available for the final
+  -- non-storage effect record while producing the live pre+endowment balance
+  -- for the CREATE frame.  The latter is reversed into the LE env word read by
+  -- SELFDESTRUCT and SELFBALANCE before arbitrary initcode starts.
   -- The descriptor is consumed by `dispatcher_seed_pending_value_transfer`
   -- after the sender gas seed and body snapshot.  Calling the producer here
   -- would observe the still-zero sender-post scratch and underflow exactly as
   -- seen on 00078 (execution-specs `interpreter.py:380-390`).
   ".Lbvcr_endow_done:\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
+  "  la a0, bvcr_created_pre_bal; la a1, bvcr_endow_val_be; la a2, bvcr_created_live_bal_be\n" ++
+  "  jal ra, u256_add_be; bnez a0, .Lbvcr_payload_unsupported\n" ++
+  "  la t0, bvcr_created_live_bal_be; addi t0, t0, 31\n" ++
+  "  la t1, srpc_env_base; ld t1, 0(t1); la t2, bv_runtime_payload; add t1, t1, t2; addi t1, t1, 32; li t2, 32\n" ++
+  ".Lbvcr_stage_selfbalance_rev:\n" ++
+  "  lbu t3, 0(t0); sb t3, 0(t1); addi t0, t0, -1; addi t1, t1, 1; addi t2, t2, -1; bnez t2, .Lbvcr_stage_selfbalance_rev\n" ++
   "  la t4, runtime_dispatcher_input_ptr; la t5, bv_runtime_payload; addi t5, t5, 8; sd t5, 0(t4)\n" ++
   "  jal ra, runtime_dispatcher_call\n" ++
   -- `return`/`revert` clear child-depth markers, while a top-level frame has

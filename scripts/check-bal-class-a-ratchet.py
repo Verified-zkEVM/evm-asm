@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Class-A provided-BAL ratchet (#11183).
+"""Class-A provided-BAL ratchet (#11183, #11796).
 
-Enumerate emitted paths that touch bv_bal_start / bv_bal_len (and, when the
-linked addresses are known, li/imm of those addresses). Compare to a checked-in
-baseline:
+Enumerate emitted paths that touch the supplied-BAL cursor cells
+(`bv_bal_*`, `bsr_bal_*`, and `c1_bal_*`; and, when the linked addresses are
+known, li/imm of those addresses). Compare to a checked-in baseline:
 
   * NEW path not in baseline  → fail (regression: new Class-A read)
   * BASELINE path disappeared → fail (force explicit baseline shrink on retirement)
@@ -36,6 +36,7 @@ Blind spots (CANNOT see) — documented for reviewers:
 
 Usage:
   scripts/check-bal-class-a-ratchet.py [--elf-dir DIR] [--write-baseline]
+  scripts/check-bal-class-a-ratchet.py --self-test
   scripts/check-bal-class-a-ratchet.py --baseline PATH   # default scripts/bal-class-a-baseline.tsv
 """
 from __future__ import annotations
@@ -45,13 +46,28 @@ from collections import Counter
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
 DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
 EXPECTED_ANNOTATION_COUNT = 1
-SEEDS = ("bv_bal_start", "bv_bal_len")
+# Class-A predicate: every emitted reference to a supplied-BAL cursor. Keep the
+# predicate here, beside the baseline/debt check, so the next reader can
+# re-derive the census instead of trusting the TSV row count (#11796).
+SEEDS = (
+    "bv_bal_start",
+    "bv_bal_len",
+    "bsr_bal_start",
+    "bsr_bal_len",
+    "c1_bal_start",
+    "c1_bal_len",
+)
+# One-way debt ratchet: this is the number of currently baselined emitted
+# paths in the predicate above. It is a debt figure, not a target; it may only
+# decrease, and a retirement plus this constant's decrease must land together.
+EXPECTED_CLASS_A_DEBT = 9
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
     r"\bjal\s+ra,\s*([A-Za-z0-9_.]+)"
@@ -123,7 +139,11 @@ def analyze(s_path: Path) -> list[dict[str, str]]:
         if not seed_hit(line):
             continue
         # skip pure definitions
-        if re.match(r"^(bv_bal_start|bv_bal_len):\s*$", line.strip()):
+        if re.match(
+            r"^(bv_bal_start|bv_bal_len|bsr_bal_start|bsr_bal_len|"
+            r"c1_bal_start|c1_bal_len):\s*$",
+            line.strip(),
+        ):
             continue
         if line.strip().startswith("#"):
             continue
@@ -190,7 +210,9 @@ def row_key(r: dict[str, str]) -> str:
 
 
 HEADER = (
-    "# bal-class-a-baseline.tsv — emitted paths touching bv_bal_start/bv_bal_len\n"
+    "# bal-class-a-baseline.tsv — emitted paths touching supplied-BAL cursors\n"
+    "# Predicate: bv_bal_*, bsr_bal_*, and c1_bal_* start/len cells\n"
+    "# Debt count constant: EXPECTED_CLASS_A_DEBT in check-bal-class-a-ratchet.py\n"
     "# Columns: function  kind  jal_or_sink  return_status_tested  insn\n"
     "# Maintained by scripts/check-bal-class-a-ratchet.py\n"
     "# NEW path => fail; MISSING baselined path => fail (shrink baseline on purpose).\n"
@@ -217,6 +239,80 @@ def load_baseline(path: Path) -> set[str]:
             continue
         keys.add(line.rstrip("\n"))
     return keys
+
+
+def compare_rows(
+    rows: list[dict[str, str]], baseline: set[str]
+) -> tuple[list[str], list[str]]:
+    """Return new and disappeared paths for the Class-A set comparison."""
+    current = {row_key(r) for r in rows}
+    return sorted(current - baseline), sorted(baseline - current)
+
+
+def self_test() -> int:
+    """Prove a newly planted cursor read fails, then removal returns to OK."""
+    clean_asm = """\
+.text
+synthetic_bal_consumer:
+  la t0, bv_bal_start
+  ld a0, 0(t0)
+  ret
+bv_bal_start:
+  .zero 8
+c1_bal_start:
+  .zero 8
+"""
+    planted_asm = clean_asm.replace(
+        "  ret\n",
+        "  la t1, c1_bal_start\n"
+        "  ld a1, 0(t1)\n"
+        "  ret\n",
+        1,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="bal-class-a-self-test-") as td:
+        root = Path(td)
+        clean_path = root / "clean.s"
+        planted_path = root / "planted.s"
+        clean_path.write_text(clean_asm)
+        planted_path.write_text(planted_asm)
+
+        clean_rows = analyze(clean_path)
+        baseline = {row_key(row) for row in clean_rows}
+        planted_rows = analyze(planted_path)
+        new, missing = compare_rows(planted_rows, baseline)
+        if len(new) != 1 or missing:
+            print(
+                "check-bal-class-a-ratchet --self-test: FAIL — planted "
+                "c1_bal_start read did not create exactly one new path",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            "check-bal-class-a-ratchet --self-test: planted synthetic "
+            "c1_bal_start read"
+        )
+        print(
+            "check-bal-class-a-ratchet: FAIL (expected; 1 new Class-A path)"
+        )
+        print(f"  + {new[0]}")
+
+        new, missing = compare_rows(clean_rows, baseline)
+        if new or missing:
+            print(
+                "check-bal-class-a-ratchet --self-test: FAIL — removing the "
+                "synthetic read did not restore the baseline",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            "check-bal-class-a-ratchet --self-test: synthetic read removed"
+        )
+        print(
+            f"check-bal-class-a-ratchet: OK (debt={len(clean_rows)} "
+            "synthetic baseline paths; no new Class-A edges)"
+        )
+    return 0
 
 
 ANNOTATION_COUNT_RE = re.compile(r"^\s*<!--\s*annotation-count:\s*(\d+)\s*-->\s*$")
@@ -352,7 +448,15 @@ def main() -> int:
         action="store_true",
         help="require existing .s under --elf-dir",
     )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="plant a synthetic cursor read, prove FAIL, then remove it and prove OK",
+    )
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test()
 
     if args.elf_dir:
         s_path = args.elf_dir / "stateless_guest.s"
@@ -368,7 +472,7 @@ def main() -> int:
     rows = analyze(s_path)
     if not rows:
         print(
-            "check-bal-class-a-ratchet: FAIL closed — zero bv_bal_start/len refs in emitted asm",
+            "check-bal-class-a-ratchet: FAIL closed — zero supplied-BAL cursor refs in emitted asm",
             file=sys.stderr,
         )
         return 1
@@ -378,7 +482,7 @@ def main() -> int:
     if args.write_baseline:
         write_baseline(args.baseline, rows)
         print(
-            f"wrote {args.baseline} ({len(rows)} paths; "
+            f"wrote {args.baseline} (debt={len(rows)} paths; "
             f"{annotation_count} annotations) from {s_path}"
         )
         return 0
@@ -388,12 +492,19 @@ def main() -> int:
         return 2
 
     base = load_baseline(args.baseline)
-    cur = {row_key(r) for r in rows}
-    new = sorted(cur - base)
-    missing = sorted(base - cur)
+    new, missing = compare_rows(rows, base)
+    debt_drift = len(rows) != EXPECTED_CLASS_A_DEBT
 
-    if new or missing:
+    if debt_drift or new or missing:
         print("check-bal-class-a-ratchet: FAIL", file=sys.stderr)
+        if debt_drift:
+            print(
+                "\nClass-A debt ratchet drift: "
+                f"expected exactly {EXPECTED_CLASS_A_DEBT} paths, found {len(rows)}; "
+                "update the committed debt only with the corresponding source "
+                "retirement.",
+                file=sys.stderr,
+            )
         if new:
             print(f"\nNEW paths not in baseline ({len(new)}):", file=sys.stderr)
             for k in new:
@@ -414,7 +525,7 @@ def main() -> int:
         return 1
 
     print(
-        f"check-bal-class-a-ratchet: OK ({len(rows)} baselined paths; "
+        f"check-bal-class-a-ratchet: OK (debt={len(rows)} baselined paths; "
         f"no new Class-A edges; no silent shrink; "
         f"{annotation_count} sidecar bullet annotations present)"
     )

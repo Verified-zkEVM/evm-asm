@@ -18,7 +18,7 @@
     * balance (field 1): length ≤ 32, all content bytes == 0;
     * code_hash (field 3): length == 32, bytes == EMPTY_CODE_HASH.
 
-  This module hosts the genuine semantic model (`beAccFrom`,
+  This module consumes the shared semantic model (`beAccum`,
   `aieEmptyCodeHashBytes`, `accountEip161Empty`), the byte-scan bridge
   lemmas, and the code-layout infrastructure.  Composition of the whole
   108-instruction triple (`account_is_eip161_empty_spec_within`) builds on
@@ -29,6 +29,7 @@
 
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.AccountDecodeSpec
 
 namespace EvmAsm.Codegen.AccountIsEip161EmptySpec
 
@@ -36,6 +37,9 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.EL.RLP
 open EvmAsm.Codegen.RlpListNthItemSAsm
+open EvmAsm.Codegen.AccountDecodeSpec (beAccum beAccum_zero beAccum_succ
+  beAccum_eq_zero_of_allZero beAccum_toNat_lt beAccum_allZero_of_eq_zero
+  beAccum_eq_zero_iff)
 
 /-! ## Code layout -/
 
@@ -62,116 +66,6 @@ def aieEmptyCodeHashBytes : List (BitVec 8) :=
     0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 ]
 
 theorem aieEmptyCodeHashBytes_length : aieEmptyCodeHashBytes.length = 32 := by decide
-
-/-! ## Big-endian accumulate (the nonce scan's `x7`)
-
-    Mirrors the guest's per-byte `x7 := (x7 <<< 8) ||| bs[off+i]` scan:
-    `beAccFrom bs off n` is the big-endian value of the `n` content bytes
-    of `bs` starting at absolute index `off`. -/
-
-def beAccFrom (bs : List (BitVec 8)) (off : Nat) : Nat → Word
-  | 0     => 0
-  | i + 1 => (beAccFrom bs off i <<< (8 : Nat)) ||| (bs.getD (off + i) 0).zeroExtend 64
-
-@[simp] theorem beAccFrom_zero (bs : List (BitVec 8)) (off : Nat) :
-    beAccFrom bs off 0 = 0 := rfl
-
-theorem beAccFrom_succ (bs : List (BitVec 8)) (off i : Nat) :
-    beAccFrom bs off (i + 1) =
-      (beAccFrom bs off i <<< (8 : Nat)) ||| (bs.getD (off + i) 0).zeroExtend 64 := rfl
-
-/-- If every processed content byte is zero, the big-endian accumulator is
-    zero (the `←` direction of the nonce verdict). -/
-theorem beAccFrom_eq_zero_of_allZero (bs : List (BitVec 8)) (off n : Nat)
-    (hz : ∀ k, k < n → bs.getD (off + k) 0 = 0) :
-    beAccFrom bs off n = 0 := by
-  induction n with
-  | zero => rfl
-  | succ m ih =>
-      rw [beAccFrom_succ, ih (fun k hk => hz k (by omega)),
-        hz m (by omega)]
-      decide
-
-/-- For a nonce field of at most 8 content bytes the accumulator never
-    overflows: its natural value is bounded by `2^(8n)`. -/
-theorem beAccFrom_toNat_lt (bs : List (BitVec 8)) (off n : Nat) (hn : n ≤ 8) :
-    (beAccFrom bs off n).toNat < 2 ^ (8 * n) := by
-  induction n with
-  | zero => simp [beAccFrom]
-  | succ m ih =>
-      have hm : m ≤ 8 := by omega
-      have hib := ih hm
-      have hib56 : (beAccFrom bs off m).toNat < 2 ^ 56 :=
-        lt_of_lt_of_le hib (Nat.pow_le_pow_right (by omega) (by omega))
-      rw [beAccFrom_succ, BitVec.toNat_or, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
-      have hnowrap : (beAccFrom bs off m).toNat * 2 ^ 8 % 2 ^ 64
-          = (beAccFrom bs off m).toNat * 2 ^ 8 := by
-        apply Nat.mod_eq_of_lt
-        calc (beAccFrom bs off m).toNat * 2 ^ 8 < 2 ^ 56 * 2 ^ 8 :=
-              Nat.mul_lt_mul_of_pos_right hib56 (by norm_num)
-          _ = 2 ^ 64 := by norm_num
-      rw [hnowrap]
-      have hleft : (beAccFrom bs off m).toNat * 2 ^ 8 < 2 ^ (8 * (m + 1)) := by
-        rw [show 8 * (m + 1) = 8 * m + 8 from by ring, pow_add]
-        exact Nat.mul_lt_mul_of_pos_right hib (by norm_num)
-      have hbyte : (BitVec.setWidth 64 (bs.getD (off + m) 0)).toNat < 2 ^ (8 * (m + 1)) := by
-        rw [BitVec.toNat_setWidth]
-        have hb := (bs.getD (off + m) 0).isLt
-        have h8 : (2 : Nat) ^ 8 ≤ 2 ^ (8 * (m + 1)) := Nat.pow_le_pow_right (by omega) (by omega)
-        have hmod : (bs.getD (off + m) 0).toNat % 2 ^ 64 = (bs.getD (off + m) 0).toNat :=
-          Nat.mod_eq_of_lt (by omega)
-        omega
-      exact Nat.or_lt_two_pow hleft hbyte
-
-/-- `→` direction of the nonce bridge: a zero accumulator over ≤ 8 content
-    bytes forces every content byte to be zero. -/
-theorem beAccFrom_allZero_of_eq_zero (bs : List (BitVec 8)) (off : Nat) :
-    ∀ n, n ≤ 8 → beAccFrom bs off n = 0 → ∀ k, k < n → bs.getD (off + k) 0 = 0 := by
-  intro n
-  induction n with
-  | zero => intro _ _ k hk; omega
-  | succ m ih =>
-      intro hn h k hk
-      have hm : m ≤ 8 := by omega
-      rw [beAccFrom_succ] at h
-      obtain ⟨hleft, hright⟩ := BitVec.or_eq_zero_iff.mp h
-      have haccm : beAccFrom bs off m = 0 := by
-        have hlt : (beAccFrom bs off m).toNat < 2 ^ 56 :=
-          lt_of_lt_of_le (beAccFrom_toNat_lt bs off m hm)
-            (Nat.pow_le_pow_right (by omega) (by omega))
-        have hval : (beAccFrom bs off m <<< (8 : Nat)).toNat
-            = (beAccFrom bs off m).toNat * 2 ^ 8 := by
-          rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
-          apply Nat.mod_eq_of_lt
-          calc (beAccFrom bs off m).toNat * 2 ^ 8 < 2 ^ 56 * 2 ^ 8 :=
-                Nat.mul_lt_mul_of_pos_right hlt (by norm_num)
-            _ = 2 ^ 64 := by norm_num
-        have hshift : (beAccFrom bs off m).toNat * 2 ^ 8 = 0 := by
-          rw [← hval, hleft]; rfl
-        have hz : (beAccFrom bs off m).toNat = 0 := by
-          rcases Nat.mul_eq_zero.mp hshift with h' | h'
-          · exact h'
-          · exact absurd h' (by norm_num)
-        exact BitVec.eq_of_toNat_eq (by rw [hz]; rfl)
-      have hbytem : bs.getD (off + m) 0 = 0 := by
-        have hcong : (bs.getD (off + m) 0).toNat % 2 ^ 64 = 0 := by
-          have := congrArg BitVec.toNat hright
-          simpa [BitVec.toNat_setWidth] using this
-        have hbb := (bs.getD (off + m) 0).isLt
-        rw [Nat.mod_eq_of_lt (by omega)] at hcong
-        exact BitVec.eq_of_toNat_eq (by rw [hcong]; rfl)
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hk' | hk'
-      · exact ih hm haccm k hk'
-      · subst hk'; exact hbytem
-
-/-- **The nonce verdict bridge.**  For a field of at most 8 content bytes,
-    the guest's big-endian accumulator is zero exactly when every content
-    byte is zero — so testing `x7 == 0` is the lenient EIP-161 "nonce is
-    zero" check (accepts non-canonical zero encodings). -/
-theorem beAccFrom_eq_zero_iff (bs : List (BitVec 8)) (off n : Nat) (hn : n ≤ 8) :
-    beAccFrom bs off n = 0 ↔ ∀ k, k < n → bs.getD (off + k) 0 = 0 :=
-  ⟨fun h => beAccFrom_allZero_of_eq_zero bs off n hn h,
-   fun h => beAccFrom_eq_zero_of_allZero bs off n h⟩
 
 /-! ## The genuine EIP-161-empty verdict
 

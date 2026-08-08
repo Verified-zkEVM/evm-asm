@@ -19,7 +19,9 @@ namespace EvmAsm.Codegen.AccountDecodeBridge
 
 open EvmAsm.Rv64 EvmAsm.EL.RLP
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
-open EvmAsm.Codegen.AccountDecodeSpec (beAccum balanceCopied fixed32Copied)
+open EvmAsm.Codegen.AccountDecodeSpec
+  (beAccum nonceAccum balanceCopied fixed32Copied significantBytes significantLen
+   significantOff fieldContent numLeadingZerosBE)
 
 /-- A full-width copy at a nonzero **source** offset is the corresponding slice.
 
@@ -147,39 +149,75 @@ theorem fixed32Copied_of_content (bytes oldOut : List (BitVec 8)) (o : Word)
   unfold fixed32Copied
   rw [copyIntoRegion_eq_slice oldOut bytes o.toNat 32 hold hbound, hcontent]
 
-/-- The nonce cell holds the big-endian value of the selected field. -/
+/-- Raw `beAccum` of a field window equals `fromBytesBE` of those bytes. -/
 theorem beAccum_of_content (bytes : List (BitVec 8)) (o : Word) (n : Nat)
     (fld : List (BitVec 8)) (hn : n ≤ 8) (hbound : o.toNat + n ≤ bytes.length)
     (hcontent : (bytes.drop o.toNat).take n = fld) :
     beAccum bytes o.toNat n = BitVec.ofNat 64 (Nat.fromBytesBE fld) := by
   rw [beAccum_eq_fromBytesBE bytes o.toNat n hn hbound, hcontent]
 
-/-- The balance cell holds the selected field **right-aligned** in 32 zero
-    bytes — which is exactly `beBytes32`'s left-padding, once the field is
-    identified with the minimal big-endian encoding. -/
+/-- Minimal big-endian encodings have no leading zero bytes. -/
+theorem numLeadingZerosBE_toBytesBE (n : Nat) :
+    numLeadingZerosBE (Nat.toBytesBE n) = 0 := by
+  rcases Nat.eq_zero_or_pos n with h | h
+  · subst h; simp [numLeadingZerosBE, Nat.toBytesBE_zero]
+  · obtain ⟨b, tl, hbtl, hb⟩ := Nat.toBytesBE_eq_cons_of_pos n h
+    -- hb : b ≠ (0 : Byte); Byte = BitVec 8
+    have hbne : (b == (0 : BitVec 8)) = false := by
+      simpa [beq_eq_false_iff_ne] using hb
+    simp only [numLeadingZerosBE, hbtl, List.takeWhile_cons, hbne,
+      Bool.false_eq_true, ↓reduceIte, List.length_nil]
+
+/-- When the field is already minimal BE (no leading zeros), `nonceAccum` =
+    raw `beAccum` = `fromBytesBE fld`. -/
+theorem nonceAccum_of_content (bytes : List (BitVec 8)) (o : Word) (n : Nat)
+    (fld : List (BitVec 8)) (hn : n ≤ 8) (hbound : o.toNat + n ≤ bytes.length)
+    (hcontent : (bytes.drop o.toNat).take n = fld)
+    (hnlz : numLeadingZerosBE fld = 0) :
+    nonceAccum bytes o.toNat n = BitVec.ofNat 64 (Nat.fromBytesBE fld) := by
+  have hfld : fld.length = n := by
+    rw [← hcontent, List.length_take, List.length_drop]; omega
+  -- Avoid unfolding significantBytes (not in residual goal after dsimp).
+  dsimp only [nonceAccum, significantOff, significantLen, fieldContent]
+  rw [hcontent, hnlz, hfld, Nat.add_zero, Nat.sub_zero]
+  exact beAccum_of_content bytes o n fld hn hbound hcontent
+
+/-- When the field is already minimal BE, balance cell is right-aligned raw
+    content — matching `beBytes32`. -/
 theorem balanceCopied_of_content (bytes : List (BitVec 8)) (o : Word) (n : Nat)
     (fld : List (BitVec 8)) (hn : n ≤ 32) (hbound : o.toNat + n ≤ bytes.length)
-    (hcontent : (bytes.drop o.toNat).take n = fld) :
+    (hcontent : (bytes.drop o.toNat).take n = fld)
+    (hnlz : numLeadingZerosBE fld = 0) :
     balanceCopied bytes o n = List.replicate (32 - n) 0 ++ fld := by
-  subst hcontent
-  have hfld : ((bytes.drop o.toNat).take n).length = n := by
-    rw [List.length_take, List.length_drop]; omega
+  have hfld : fld.length = n := by
+    rw [← hcontent, List.length_take, List.length_drop]; omega
+  have hsig : significantBytes (fieldContent bytes o.toNat n) = fld := by
+    unfold significantBytes fieldContent
+    rw [hcontent, hnlz, List.drop_zero]
   unfold balanceCopied
-  have hlen : (copyIntoRegion (List.replicate 32 (0 : BitVec 8)) bytes (32 - n) o.toNat n).length
-      = (List.replicate (32 - n) (0 : BitVec 8) ++ (bytes.drop o.toNat).take n).length := by
+  -- reduce let-binding
+  change copyIntoRegion (List.replicate 32 (0 : BitVec 8))
+      (significantBytes (fieldContent bytes o.toNat n))
+      (32 - (significantBytes (fieldContent bytes o.toNat n)).length) 0
+      (significantBytes (fieldContent bytes o.toNat n)).length
+    = List.replicate (32 - n) 0 ++ fld
+  rw [hsig, hfld]
+  have hlen :
+      (copyIntoRegion (List.replicate 32 (0 : BitVec 8)) fld (32 - n) 0 n).length
+        = (List.replicate (32 - n) (0 : BitVec 8) ++ fld).length := by
     rw [copyIntoRegion_length, List.length_replicate, List.length_append,
-      List.length_replicate, hfld]
-    omega
+      List.length_replicate, hfld]; omega
   refine List.ext_getElem hlen ?_
   intro j h1 h2
   rw [copyIntoRegion_length, List.length_replicate] at h1
-  rw [copyIntoRegion_getElem _ bytes (32 - n) o.toNat n j (by simp; omega)]
+  have hget := copyIntoRegion_getElem (List.replicate 32 (0 : BitVec 8)) fld
+    (32 - n) 0 n j (by simp; omega)
+  rw [hget]
   by_cases hj : 32 - n ≤ j
   · rw [if_pos ⟨hj, by omega⟩,
       List.getElem_append_right (by rw [List.length_replicate]; omega)]
-    simp only [List.length_replicate]
-    rw [List.getElem_take, List.getElem_drop, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem (by omega)]
+    simp only [List.length_replicate, Nat.zero_add]
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
     rfl
   · rw [if_neg (by omega),
       List.getElem_append_left (by rw [List.length_replicate]; omega)]

@@ -221,9 +221,12 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
   -- `runtime_dispatcher_call`, because that buffer is rewritten by
   -- `call_frame_descend`/`create_frame_descend` and so cannot survive the constructor.
   "bvcr_created_pre_bal:\n  .zero 32\n" ++
-    ".balign 8\n" ++
-    "bv_creation_ctx_ptr:\n  .zero 8\n" ++
-    "bv_tx_log_window:\n  .zero 16\n" ++
+  -- Live top-level CREATE balance, pre-balance plus endowment, kept separate
+  -- from both the authenticated pre value and the transfer descriptor.
+  "bvcr_created_live_bal_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
+  "bv_creation_ctx_ptr:\n  .zero 8\n" ++
+  "bv_tx_log_window:\n  .zero 16\n" ++
     ".balign 32\n" ++
     "wclh_scratch_hash:\n  .zero 32\n" ++
     ".balign 8\n" ++
@@ -765,7 +768,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     -- requests_hash machinery (assemble -> sha256 -> verify); zkvm_sha256 is an ecall bridge
     requestsHashVerifyFunction ++ "\n" ++
     assembleExecutionRequestsFunction ++ "\n" ++
-    executionRequestsHashFunction ++ "\n" ++
+    executionRequestsHashFunctions ++ "\n" ++
     bgvU32leFunction ++ "\n" ++
     -- NOTE: zkvm_sha256 + its sha256_w_* data are already provided by the dispatcher harness
     -- (tinyInterpRegistry's SHA256 precompile), so we do NOT re-bundle them here (double-def).

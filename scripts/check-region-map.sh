@@ -100,6 +100,7 @@ read TEXT_BASE TEXT_SIZE <<<"$(sec .text)"
 read DATA_BASE DATA_SIZE <<<"$(sec .data)"
 read BSS_BASE  BSS_SIZE  <<<"$(sec .bss)"
 read SSZ_BASE  SSZ_SIZE  <<<"$(sec .sszscratch)"
+read SGD_BASE  SGD_SIZE  <<<"$(sec .state_gas_diag)"
 COMMITTED_SECTION_COUNT=$("$READELF" -SW "$ELF" | awk '$2 == ".committed_storage" { n++ } END { print n + 0 }')
 
 echo "== structural (must never drift) =="
@@ -127,12 +128,20 @@ fi
 # top RW LOAD below RAM ceiling + .data/.bss below .sszscratch
 DATA_END=$(python3 -c "print('%x' % (0x$DATA_BASE + 0x$DATA_SIZE))")
 BSS_END=$(python3 -c "print('%x' % (0x$BSS_BASE + 0x$BSS_SIZE))")
-python3 - "$DATA_END" "$BSS_END" <<'PY' || fail=1
+# GH #11186: `.state_gas_diag` carries no --section-start; the linker places it
+# immediately after `.bss`. It was in the image but in no region list, so nothing
+# ranged over it. Its base is therefore CHECKED against `.bss`'s end rather than
+# against a constant, and its own end must clear `.sszscratch`.
+SGD_END=$(python3 -c "print('%x' % (0x$SGD_BASE + 0x$SGD_SIZE))")
+python3 - "$DATA_END" "$BSS_END" "$SGD_BASE" "$SGD_END" <<'PY' || fail=1
 import sys
-data_end, bss_end = [int(x, 16) for x in sys.argv[1:]]
-ok = data_end <= 0xa3110000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
+data_end, bss_end, sgd_base, sgd_end = [int(x, 16) for x in sys.argv[1:]]
+ok = (data_end <= 0xa3110000 and bss_end < 0xbf980000 and bss_end < 0xc0000000
+      and sgd_base == bss_end and sgd_end < 0xbf980000)
 print(f"  {'OK  ' if ok else 'DRIFT'} .data end 0x{data_end:x} <= .bss base 0xa3110000")
 print(f"  {'OK  ' if ok else 'DRIFT'} .bss end 0x{bss_end:x} < .sszscratch 0xbf980000 and < RAM ceiling 0xc0000000")
+print(f"  {'OK  ' if ok else 'DRIFT'} .state_gas_diag base 0x{sgd_base:x} == .bss end 0x{bss_end:x}")
+print(f"  {'OK  ' if ok else 'DRIFT'} .state_gas_diag end 0x{sgd_end:x} < .sszscratch 0xbf980000")
 sys.exit(0 if ok else 1)
 PY
 
@@ -380,7 +389,7 @@ fi
 echo "check-region-map: region map matches the linked ELF"
 
 # --- Class-A provided-BAL ratchet (#11183) ---
-# Fail on NEW bv_bal_start/len edges or silent baseline shrink. See
+# Fail on NEW supplied-BAL cursor edges or silent baseline shrink. See
 # scripts/check-bal-class-a-ratchet.py and scripts/bal-class-a-baseline.tsv.
 # The ratchet also requires scripts/bal-class-a-notes.md and counts its explicit
 # rationale bullets.

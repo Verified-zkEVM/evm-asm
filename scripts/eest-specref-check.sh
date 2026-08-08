@@ -6,34 +6,57 @@
 # scripts/codegen-eest-stateless-check.sh, and report how the reference
 # output compares to each fixture's recorded `statelessOutputBytes`.
 #
-# Why this exists alongside the ziskemu harness:
-#   SpecRef runs in-process (a `lake exe`, no ELF / ziskemu / step budget), so
-#   it is a fast, environment-free way to tie the Lean port's
-#   deserialization / SSZ-codec / NPR-root hashing / header /
-#   chain-config / witness-assembly path to the canonical conformance
-#   fixtures. Fixture selection (tag, --all/--skip/--limit/--filter,
-#   --random/--seed/--reverse) is identical to the ziskemu harness so the two
+# Why this exists alongside the guest harness (ziskemu/spike):
+#   SpecRef runs in-process (a `lake exe`, no ELF / emulator / step budget), so
+#   it is a fast, environment-free way to tie the Lean port's full path —
+#   deserialization / SSZ-codec / NPR-root hashing / header / chain-config /
+#   witness-assembly / execution — to the canonical conformance fixtures.
+#   Fixture selection (tag, --all/--skip/--limit/--filter,
+#   --random/--seed/--reverse) is identical to the guest harness so the two
 #   report on the same rows.
 #
-# The execution seam:
-#   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to
-#   `executeAlwaysOk` -- a placeholder that accepts every payload. The Python
-#   `run_stateless_guest` at tests-$(cat scripts/eest-fixture-tag.txt) runs the REAL EVM. Therefore:
+# The execution seam (post-s1d19.5):
+#   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to the
+#   full ported `elExecute` (`PrecompilesTable.lean`). The placeholder
+#   `executeAlwaysOk` still exists for unit tests but is NOT the harness
+#   default. The Python `run_stateless_guest` at the pinned fixture tag
+#   (`scripts/eest-fixture-tag.txt`) runs the same EVM surface. ALL THREE
+#   output regions are therefore expected to match:
 #
 #     * root  (bytes 0:32,  new_payload_request_root)  -- pre-execution hashing;
 #              SpecRef MUST match on every fixture.            [gateable]
-#     * tail  (bytes 33:69, chain_config echo)         -- pure echo;
-#              SpecRef MUST match on every fixture.            [gateable]
-#     * succ  (byte 32,     successful_validation)     -- SpecRef always reports
-#              true here; it DIVERGES on every fixture whose real EVM execution
-#              failed (succ=0). This is the expected execution-seam gap, NOT a
-#              SpecRef defect, and is reported separately rather than folded
-#              into fail / the --min-* gates.
-#     * full  (all 69 bytes match)                     -- informational only.
+#     * succ  (byte 32,     successful_validation)     -- real execution verdict;
+#              un-allowlisted divergence is FAIL (rc=1).       [gateable]
+#     * tail  (bytes 33:N,  chain_config echo)         -- pure echo of the
+#              fixture chain config; N is the SSZ-encoded length.
+#              On the current pin (v0.6.x) ChainConfig dropped fork /
+#              blob-schedule fields, so a normal success result is **69
+#              bytes** (tail 33:69; 138 hex chars). Pre-v0.6 layouts were
+#              105 bytes; do not revive that figure from older docs.
+#                                                                  [gateable]
+#     * full  (all N bytes match)                      -- root + succ + tail.
 #
-#   A per-case line shows which regions matched, e.g. "[root/----/tail]" means
-#   root + tail matched but the succ bit diverged. "[----/----/----]" means the
-#   pre-execution path itself disagreed with the fixture (a real SpecRef bug).
+#   Variable-length deserialize-failure sentinels are compared byte-for-byte
+#   (PASS(malformed) / FAIL[malformed]), not by the three-region split.
+#
+#   A per-case line shows which regions matched. Any root/tail miss means the
+#   pre-execution path disagreed with the fixture (a real SpecRef bug). A
+#   succ-only miss is FAIL[succ] unless the fixture is listed in
+#   `scripts/eest-succ-allow.txt` (fixture-vs-pinned-spec burndown; goal is
+#   an empty file). Allowlisted succ misses print PASS(allow).
+#
+# Per-case artefacts under the run directory:
+#   <label>.specref-result.tsv  -- TWO fields: `OK\t<hex>` or `ERROR\t<reason>`
+#     (GH #11746 / PR #11747: NOT `<label>.result.tsv`, which is the guest
+#     harness filename. Default schemas are identical in shape, so a name
+#     collision would be a silent wrong verdict — distinct names close it.)
+#   <label>.output / <label>.log -- raw SpecRef bytes and lake-exe log
+#
+# Run-dir ownership (GH #11748 / PR #11749):
+#   `scripts/lib/eest-run-dir.sh` claims the directory with an `.eest-run-dir`
+#   marker naming this harness. Recreates a dir this harness owns (documented
+#   behaviour); refuses to delete a dir owned by another harness, a live peer
+#   pid, or an unmarked non-empty tree. Shared with the guest harness.
 #
 # Usage:
 #   scripts/eest-specref-check.sh [options]
@@ -57,11 +80,13 @@
 # Environment:
 #   EEST_FIXTURES_DIR   fixtures root (default gen-out/eest-fixtures/<tag>/fixtures/fixtures)
 #   EEST_FIXTURE_TAG    default fixture tag
-#   EEST_RUN_DIR        explicit run directory
+#   EEST_RUN_DIR        explicit run directory (ownership-guarded; see above)
 #
 # Exit:
-#   0 -- ran to completion, and all --min-{root,tail} thresholds met
-#   1 -- build/convert failure, no fixtures, or a --min-{root,tail} regression
+#   0 -- ran to completion; --min-{root,tail,succ} met; no un-allowlisted
+#        succ FAIL; and (when no --min-* set) no pre-execution FAIL/ERROR
+#   1 -- build/convert failure, no fixtures, a --min-* regression, an
+#        un-allowlisted succ FAIL, or a pre-execution disagreement
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -204,8 +229,14 @@ elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
 else
   RUN_DIR="$REPO_ROOT/gen-out/eest-specref-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 fi
-rm -rf "$RUN_DIR"
-mkdir -p "$RUN_DIR"
+# GH #11748: this used to be an unconditional `rm -rf "$RUN_DIR"`, which would
+# destroy a user-supplied directory and could delete a concurrent run's inputs
+# mid-flight. The guard recreates a directory this harness owns (the documented
+# behaviour) and refuses to delete anything else.
+source "$REPO_ROOT/scripts/lib/eest-run-dir.sh"
+if ! eest_prepare_run_dir "$RUN_DIR" "eest-specref-check.sh"; then
+  exit 1
+fi
 
 # --- convert fixtures -> inputs + manifest (same selection as the guest) -----
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
@@ -256,11 +287,19 @@ if [[ "$REVERSE_ORDER" -eq 1 ]]; then
   selection="$selection, reverse"
 fi
 
+# GH #11308: optional third argument is manifest column 8 = `case_id`, a SHA-256
+# over (fixture relpath, full test name, block index, ORIGINAL stateless input
+# bytes).  It is a CASE IDENTITY, not a hash of the on-disk input file -- an
+# overwritten file still matches its case_id (#11301) -- so it cannot establish
+# file integrity.  Printed with an explicit `case_id=` prefix so it cannot be
+# misread as a content hash (that misreading cost a false lead on #11362).
 case_identity() {
   local label="$1"
   local relpath="$2"
+  local case_id="${3:-}"
   local manifest_row="${manifestRowByLabel[$label]:-?}"
   local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  [[ -n "$case_id" ]] && id="$id case_id=$case_id"
   if [[ "$manifest_row" != "?" ]]; then
     id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
   fi
@@ -271,15 +310,15 @@ case_identity() {
 }
 
 # --- run + classify ---------------------------------------------------------
-# A normal 69-byte SszStatelessValidationResult ($(cat scripts/eest-fixture-tag.txt): the
+# A normal 69-byte SszStatelessValidationResult on the current pin (v0.6.x:
 # ChainConfig lost its fork and blob-schedule fields) decomposes into three
-# regions:
+# regions. Pre-v0.6 was 105 bytes — do not hardcode that figure from old docs.
 #   root  [0:32]   (hex chars 0..64)   = new_payload_request_root
-#   succ  [32]     (hex chars 64..66)  = successful_validation
-#   tail  [33:69]  (hex chars 66..138) = u32 offset + 32-byte chain_config
+#   succ  [32]     (hex chars 64..66)  = successful_validation (real elExecute)
+#   tail  [33:69]  (hex chars 66..138) = u32 offset + chain_config echo
 # Results whose ForkActivation optionals differ from the common
 # timestamp-only shape encode to other lengths. Compare those byte-for-byte.
-# See the file header for why `succ` diverges (placeholder execution seam).
+# Un-allowlisted succ divergence is a FAIL (seam is real; see file header).
 total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 succfail=0 malformed=0
 
 SUCC_ALLOW_FILE="$REPO_ROOT/scripts/eest-succ-allow.txt"
@@ -295,14 +334,43 @@ succ_allowlisted() {
 
 # Worker: invoke the exe and write a per-case result TSV so the dispatcher
 # can run many cases in parallel and the classifier can read them back in
-# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>".
+# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>" -- TWO fields.
+#
+# GH #11746: this file is named "<label>.specref-result.tsv", NOT
+# "<label>.result.tsv", which is what codegen-eest-stateless-check.sh writes.
+# Both harnesses honour EEST_RUN_DIR and --run-dir, so the two could otherwise
+# target one directory under one filename.
+#
+# ⛔ Why a distinct NAME rather than a field-count check: in the DEFAULT
+# configuration the two schemas are IDENTICAL.  Every codegen-eest-stateless-check
+# write is TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>") except
+# the single --specref-oracle path, which writes three.  A collided file is
+# therefore indistinguishable in shape from a legitimate one, in BOTH directions,
+# so no arity or content check can detect it -- and the guest harness reading a
+# SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
+# all: a silent wrong verdict.  Distinct filenames make that impossible instead.
+#
+# Run-dir ownership (GH #11748 / PR #11749): both harnesses now go through
+# `eest_prepare_run_dir` rather than an unconditional `rm -rf`. That closes the
+# sequential clobber of a foreign directory; concurrent same-dir runs by two
+# harnesses are still refused by the marker (other-harness / live-pid cases).
 run_worker() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.log"
-  local result="$RUN_DIR/$label.result.tsv"
+  local result="$RUN_DIR/$label.specref-result.tsv"
 
   if ! lake exe specref-eest-check "$input" "$out" >"$log" 2>&1; then
     printf 'ERROR\tspec\n' > "$result"
@@ -314,7 +382,7 @@ run_worker() {
 }
 
 wait_for_one_worker() {
-  # Workers always write a per-case result.tsv; their exit code is irrelevant
+  # Workers always write a per-case specref-result.tsv; their exit code is irrelevant
   # (a lake-exe failure is recorded as an ERROR row, not a crash). Swallow it
   # so `set -e` in the dispatcher never aborts on a finished-but-nonzero job.
   wait -n 2>/dev/null || true
@@ -322,22 +390,41 @@ wait_for_one_worker() {
 
 classify_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
-  local result="$RUN_DIR/$label.result.tsv"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
+  local result="$RUN_DIR/$label.specref-result.tsv"
   total=$((total + 1))
   if [[ ! -f "$result" ]]; then
     err=$((err + 1))
-    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
-  local status actual_hex
-  IFS=$'\t' read -r status actual_hex < "$result"
+  local status actual_hex _extra
+  # The _extra sink plus the emptiness check below is the arity half of GH
+  # #11746: it catches a file with MORE fields than this schema (which the
+  # length gate would report as a confusing FAIL[malformed]).  The FEWER-fields
+  # direction is closed by the distinct filename, not here.
+  IFS=$'\t' read -r status actual_hex _extra < "$result"
+  if [[ -n "$_extra" ]]; then
+    err=$((err + 1))
+    echo "  ERROR(schema)  $(case_identity "$label" "$relpath" "$case_id") (expected 2 fields in $result, found more: is another harness writing this directory?)"
+    return 0
+  fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $RUN_DIR/$label.log)" ;;
-      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath" "$case_id") (see $RUN_DIR/$label.log)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath" "$case_id")" ;;
     esac
     return 0
   fi
@@ -347,10 +434,10 @@ classify_case() {
       full=$((full + 1))
       malformed=$((malformed + 1))
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(malformed) $(case_identity "$label" "$relpath")"
+        echo "  PASS(malformed) $(case_identity "$label" "$relpath" "$case_id")"
       fi
     else
-      echo "  FAIL[malformed] $(case_identity "$label" "$relpath")"
+      echo "  FAIL[malformed] $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
       err=$((err + 1))
@@ -389,23 +476,22 @@ classify_case() {
     fi
   fi
 
-  # Reporting: a case is a real failure only when the pre-execution path
-  # itself disagrees (root or tail mismatch). A succ-only divergence is the
-  # known execution-seam gap and is reported separately at the end.
+  # Reporting: root/tail mismatch => pre-execution FAIL. succ-only miss =>
+  # FAIL[succ] unless allowlisted (seam is real elExecute; not a placeholder gap).
   if [[ "$r" == "root" && "$t" == "tail" ]]; then
     if [[ "$s" == "succ" ]]; then
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+        echo "  PASS(full)  $(case_identity "$label" "$relpath" "$case_id")"
       fi
     elif succ_allowlisted "$label"; then
-      echo "  PASS(allow) $(case_identity "$label" "$relpath") [root/succ(div:fixture-allowlisted)/tail]"
+      echo "  PASS(allow) $(case_identity "$label" "$relpath" "$case_id") [root/succ(div:fixture-allowlisted)/tail]"
     else
-      echo "  FAIL[succ]  $(case_identity "$label" "$relpath")"
+      echo "  FAIL[succ]  $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
     fi
   else
-    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
+    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath" "$case_id")"
     echo "    expected: $expected_hex"
     echo "    actual:   $actual_hex"
     err=$((err + 1))
@@ -445,7 +531,7 @@ echo "  succ FAIL   : $succfail  (verdict disagreement -- a real SpecRef bug)"
 echo "  full match  : $full   (root + succ + tail -- the guest's exact output)"
 echo "  root match  : $root   (pre-execution NPR-root hashing)   [gateable]"
 echo "  tail match  : $tail   (chain-config echo)                [gateable]"
-echo "  succ match  : $succ   (only on fixtures whose real EVM execution succeeded)"
+echo "  succ match  : $succ   (successful_validation; counted only when root+tail also match)"
 echo "  succ diverg : $succdiv  (fixture-vs-pinned-spec, allowlisted in eest-succ-allow.txt)"
 echo "  malformed   : $malformed  (variable-length failed sentinel; exact-byte match)"
 echo "============================================================"

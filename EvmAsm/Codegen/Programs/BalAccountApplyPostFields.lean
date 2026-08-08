@@ -893,9 +893,11 @@ def ziskMapAccountApplyPostFieldsDataSection : String :=
   "bsr_builder_result_len:\n  .zero 8\n" ++
   "bsr_builder_value_max:\n  .zero 8\n" ++
   "bsr_builder_witness_value_max:\n  .zero 8\n" ++
-  "baap_storage_desc:\n  .zero 2400000\n" ++
-  "baap_storage_paths:\n  .zero 3840000\n" ++
-  "baap_storage_values:\n  .zero 3840000\nbaap_storage_values_end:\n" ++
+  -- Keep the standalone probe's sibling arenas on the same gas-derived bound
+  -- as the production guest. A capacity raise must move all three together.
+  "baap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++ "\n" ++
+  "baap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\n" ++
+  "baap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\nbaap_storage_values_end:\n" ++
   "baap_out_pad:\n  .zero 8"
 
 def ziskMapAccountApplyPostFieldsProbeUnit : BuildUnit := {

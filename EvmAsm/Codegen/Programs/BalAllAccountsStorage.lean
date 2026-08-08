@@ -143,7 +143,7 @@ def ziskBalAllAccountsStorageConsistentPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lc2baas_pdone\n" ++
   balAllAccountsStorageConsistentFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++   -- .57.11.6.5.1: modeled-system skip dep
+  balAccountIsModeledSystemFunction ++ "\n" ++   -- probe-only classifier dependency
   balStorageMatchesExecLogFunction ++ "\n" ++
   balStorageCoversExecLogFunction ++ "\n" ++
   balStorageChangeValuesFunction ++ "\n" ++
@@ -190,7 +190,7 @@ def ziskBalAllAccountsStorageConsistentDataSection : String :=
   balStorageChangeValuesData ++
   balStorageMatchesExecLogData ++
   balStorageCoversExecLogData ++
-  ziskBalAccountIsModeledSystemDataSection ++   -- .57.11.6.5.1: bams_* for the modeled-system skip
+  ziskBalAccountIsModeledSystemDataSection ++   -- probe-only classifier constants
   -- lv44p: empty captured-system-log stub so the focused probe links the bsme/bsce
   -- bv_system_storage_log scan (count 0 -> inert; the verdict links the real globals).
   ".balign 8\n" ++
