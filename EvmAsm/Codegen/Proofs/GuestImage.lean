@@ -17,7 +17,7 @@
     .63 track the uncovered ranges — `.64` needs the FULL image).
 
   * `guestFraming : GuestFraming` — the scratch/residue bundle: the `**`
-    of `anyBytes` havoc over the seven writable (`zone = .ram`) regions of
+    of `anyBytes` havoc over the eight writable (`zone = .ram`) regions of
     `RegionMap.guestRegionMap` (`guestScratch_matches_regionMap` pins the
     bundle to the map, so a region-map change breaks the build here), with
     the `scratch_sat` non-vacuity witness built from the `Rv64.MemSat`
@@ -74,13 +74,19 @@ theorem guestImage_block_sub :
 def regionScratch (r : RegionMap.GuestRegion) : Assertion :=
   anyBytes (BitVec.ofNat 64 r.base) r.size
 
-/-- The guest's working-state ownership at entry: the eight writable
+/-- The guest's working-state ownership at entry: the **eight** writable
     (`zone = .ram`) regions of the emitted-reality map, ascending —
     `zisk_system ** OUTPUT ** guest_stack ** state_tracker_live **
-    .data ** .bss ** .sszscratch`.  (The `.bss` tile contains the
-    `call_frame_arena`; `CallFramePhase.phaseDView` is a sub-tile split
-    of it via `anyBytes_add`, so phase-view consumers frame out of this
-    same resource.) -/
+    .data ** .bss ** .state_gas_diag ** .sszscratch`.  (The `.bss` tile
+    contains the `call_frame_arena`; `CallFramePhase.phaseDView` is a
+    sub-tile split of it via `anyBytes_add`, so phase-view consumers frame
+    out of this same resource.)
+
+    ⚠️ The count in this docstring and in the two below said *eight*, *eight*
+    and *six* while the bundle held **seven** tiles (GH #11186). It is eight
+    now because `.state_gas_diag` was declared; do not read a matching number
+    as evidence that anyone checked it — `guestScratch_matches_regionMap`
+    below is what checks it, and it is the only statement here that can fail. -/
 def guestScratch : Assertion :=
   regionScratch RegionMap.ziskSystemRegion **
   regionScratch RegionMap.outputRegion **
@@ -88,11 +94,20 @@ def guestScratch : Assertion :=
   regionScratch RegionMap.stateTrackerLiveRegion **
   regionScratch RegionMap.dataRegion **
   regionScratch RegionMap.bssRegion **
+  regionScratch RegionMap.stateGasDiagRegion **
   regionScratch RegionMap.sszScratchRegion
 
 /-- Drift pin: the eight tiles of `guestScratch` are EXACTLY the writable
     regions of `guestRegionMap`, in map order.  Adding/renaming a `.ram`
-    region breaks this `decide`, forcing the bundle to follow. -/
+    region breaks this `decide`, forcing the bundle to follow.
+
+    GH #11186 is the worked example: declaring `.state_gas_diag` in
+    `RegionMap` broke this `decide` on its own branch, one layer above the
+    disjointness and zone-fit theorems that both still passed. Those answer
+    *is it disjoint and does it fit*; this one answers *is the writable set
+    the one the scratch bundle claims* — a different obligation, and the
+    reason a bot must not extend this list: an enumeration that exists to
+    catch silent extensions cannot be silently extended. -/
 theorem guestScratch_matches_regionMap :
     (RegionMap.guestRegionMap.filter
         fun r => r.zone matches RegionMap.RegionZone.ram).map (·.name)
@@ -100,6 +115,7 @@ theorem guestScratch_matches_regionMap :
          RegionMap.guestStackRegion.name,
          RegionMap.stateTrackerLiveRegion.name,
          RegionMap.dataRegion.name, RegionMap.bssRegion.name,
+         RegionMap.stateGasDiagRegion.name,
          RegionMap.sszScratchRegion.name] := by
   decide
 
@@ -108,7 +124,7 @@ theorem guestScratch_matches_regionMap :
     An explicit heap satisfying `guestInputAssertion input ** guestScratch`
     for every admissible input: the input's dwords live in the model's
     legacy/input zones (`[0x40000008, 0x78000008)` at worst — exactly why
-    `MAX_INPUT_BYTES = 0x37FFFFF8`), the six scratch tiles in the RAM zone
+    `MAX_INPUT_BYTES = 0x37FFFFF8`), the eight scratch tiles in the RAM zone
     `[0xa0000000, 0xc0000000)`; all footprints ascend, so the `MemSat`
     combinators chain them. -/
 
@@ -171,7 +187,9 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       0x40000008 (0x40000010 + 8 * ((input.length + 7) / 8)) :=
     (satWithin_inputLen input).sepConj (satWithin_inputBody input hlen)
       (by omega) (by omega)
-  -- the six RAM tiles, ascending
+  -- The eight RAM tiles, ascending. Numbering is t1..t4, t6..t8 plus t7b:
+  -- there is no t5, and the gap is historical rather than meaningful. Count
+  -- the `have`s, not the names (GH #11186).
   have t1 : (regionScratch RegionMap.ziskSystemRegion).SatWithin
       0xa0000000 0xa0010000 :=
     satWithin_ramRegion 0xa0000000 0x10000 (by omega) (by omega)
@@ -203,6 +221,17 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
       (0xa3000000 + RegionMap.dataSizeBytes) (0xa3110000 + RegionMap.bssSizeBytes) :=
     t7.mono (by decide) (le_refl _)
+  -- GH #11186: `.state_gas_diag` is linker-placed immediately after `.bss`, so
+  -- its base IS `t7`'s upper bound — this join needs no `mono` widening, unlike
+  -- the `t8` hop below. Both pins are `abbrev`, hence `decide` not `omega`;
+  -- alignment holds structurally (`.balign 8` in its emitter).
+  have t7b : (regionScratch RegionMap.stateGasDiagRegion).SatWithin
+      RegionMap.stateGasDiagBase
+      (RegionMap.stateGasDiagBase + RegionMap.stateGasDiagSizeBytes) := by
+    dsimp [regionScratch, RegionMap.stateGasDiagRegion,
+      RegionMap.stateGasDiagBase, RegionMap.stateGasDiagSizeBytes,
+      RegionMapLinkPins.stateGasDiagBase, RegionMapLinkPins.stateGasDiagSizeBytes]
+    apply satWithin_ramRegion <;> decide
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=
     satWithin_ramRegion 0xbf980000 0x680000 (by decide) (by decide)
@@ -214,7 +243,9 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
           ((t4.mono (by decide) (by decide)).sepConj
             (t6.sepConj
               (t7'.sepConj
-                (t8.mono (by decide) (le_refl _))
+                (t7b.sepConj
+                  (t8.mono (by decide) (le_refl _))
+                  (by decide) (by decide))
                 (by decide) (by decide))
               (by decide) (by decide))
             (by decide) (by decide))
@@ -273,8 +304,15 @@ theorem regionScratch_output_carve :
             (RegionMap.outputRegion.size - OUTPUT_CLAIM_BYTES) from by decide]
   exact EvmAsm.Rv64.SAsm.anyBytes_add _ _ _ (by decide)
 
-/-- The halt-state residue: the six-region havoc with the observation
-    window carved out of the OUTPUT tile. -/
+/-- The halt-state residue: the **eight**-region havoc with the observation
+    window carved out of the OUTPUT tile.
+
+    ⚠️ This is the FOURTH place the tile list is written out by hand, after
+    `guestScratch`, `guestScratch_matches_regionMap` and `guestScratch_sat`'s
+    `t`-chain. GH #11186: only the second of those is a `decide` that names the
+    omission; this one fails as `unsolved goals` on the retiling identity below,
+    which is loud but does not say *which* tile is missing. If you add a `.ram`
+    region, expect to edit all four. -/
 def guestResidue : Assertion :=
   regionScratch RegionMap.ziskSystemRegion **
   outputTailScratch **
@@ -282,6 +320,7 @@ def guestResidue : Assertion :=
   regionScratch RegionMap.stateTrackerLiveRegion **
   regionScratch RegionMap.dataRegion **
   regionScratch RegionMap.bssRegion **
+  regionScratch RegionMap.stateGasDiagRegion **
   regionScratch RegionMap.sszScratchRegion
 
 /-- **The retiling identity `.64` consumes**: the entry scratch is
@@ -300,7 +339,7 @@ theorem guestScratch_eq_window_residue :
     sepConj_comm' (regionScratch RegionMap.ziskSystemRegion),
     sepConj_assoc']
 
-/-- **The `.63` framing bundle**: `scratch` = the six-region havoc (the
+/-- **The `.63` framing bundle**: `scratch` = the eight-region havoc (the
     guest owns the FULL OUTPUT region at entry), `residue` = the same
     havoc minus the observation window (which `guestOutputSound` owns in
     the post — see the carve note above), with the non-vacuity

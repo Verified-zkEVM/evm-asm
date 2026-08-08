@@ -111,22 +111,157 @@ theorem rlpWalkInitFunction_eq_verified_prog :
                       4 long-form non-minimal (decoded < 56)
                       5 long-form length-field leading zero (len[0] == 0)
                       6 single-byte short-string non-canonical (len==1, content < 0x80)
+                      7 recursively invalid list payload (malformed child or fuel exhaustion)
       a2 (output) : content length (0 on every fail path)
                       (byte-string items: prefix-stripped payload;
                        sub-list items: full encoded span)
 
     The content pointer is derived by the caller as `advanced_cursor - content_length`.
     Frameless leaf -- clobbers t0..t6, returns in a0/a1/a2. -/
-def rlpWalkNextFunction : String :=
-  "rlp_walk_next:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog
+/-! ### Recursive list validation
 
-/-- Kernel-checked drift guard: the Codegen helper string is exactly the
-    verified `rlp_walk_next_prog` rendered under its label, so any future
-    hand-edit of `rlpWalkNextFunction` that diverges from the verified body
-    fails to typecheck here. -/
-theorem rlpWalkNextFunction_eq_verified_prog :
-    rlpWalkNextFunction =
-      "rlp_walk_next:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog :=
+The verified leaf above classifies one item and checks its own header/span, but
+the execution-specs decoder also decodes every item in a list payload.  Keep
+that single-item body as the mechanical core and put the recursive part in a
+small ABI wrapper.  The wrapper deliberately has no accepting fallback: a
+child failure (including fuel exhaustion) is returned as status `7`.
+
+`s0` is the shared, input-derived fuel counter.  The top entry seeds it from
+twice the remaining input length; every successfully decoded item consumes two
+units, matching `EL.RLP.decode`'s `2 * bs.length` budget.  Nested calls use the
+same counter rather than resetting it.  `s1` tracks simultaneously open list
+levels and is capped at 1024: this is at or above the CPython recursion boundary
+where the pinned reference raises `RecursionError` (outside its caught
+`DecodingError` behavior), and below the guest-stack ceiling.  The ordinary
+entry saves/restores `s0` and `s1`, while the nested entry is used only by the
+validator.
+
+The frames are ordinary RV64 call-stack frames and are restored on all paths;
+the fuel bounds item work and termination, while the 1024-level cap bounds
+active-list stack use separately.  Each active level uses 96 bytes (the 64-byte
+shared frame plus the 32-byte validator frame), so 1024 levels consume 96 KiB
+within the fixed 192 KiB guest stack `[0xa0020000,0xa0050000)`; if either the
+fuel or depth bound is exhausted, the result is an explicit status-`7` reject.
+If frame sizes change, this capacity check must be redone.  A list's payload is
+accepted only when repeated calls reach its end exactly; malformed, truncated,
+non-canonical, nested-malformed, trailing and fuel-exhausted payloads all
+return status `7`.
+-/
+def rlpWalkNextCoreFunction : String :=
+  "rlp_walk_next_core:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog
+
+def rlpWalkNextFunction : String :=
+  "rlp_walk_next:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd s0, 8(sp)\n" ++
+  "  sd s1, 16(sp)\n" ++
+  "  sub t0, a1, a0\n" ++
+  "  slli s0, t0, 1\n" ++
+  "  li s1, 0\n" ++
+  "  jal ra, rlp_walk_next_shared\n" ++
+  "  ld s0, 8(sp)\n" ++
+  "  ld s1, 16(sp)\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n" ++
+  "rlp_walk_next_nested:\n" ++
+  "  j rlp_walk_next_shared\n" ++
+  "rlp_walk_next_shared:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd a0, 8(sp)\n" ++
+  "  sd a1, 16(sp)\n" ++
+  "  jal ra, rlp_walk_next_core\n" ++
+  "  sd a0, 24(sp)\n" ++
+  "  sd a1, 32(sp)\n" ++
+  "  sd a2, 40(sp)\n" ++
+  "  bnez a1, .Lrw_shared_done\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s0, t0, .Lrw_shared_fuel\n" ++
+  "  addi s0, s0, -2\n" ++
+  "  ld t0, 8(sp)\n" ++
+  "  lbu t1, 0(t0)\n" ++
+  "  li t2, 0xc0\n" ++
+  "  bltu t1, t2, .Lrw_shared_done\n" ++
+  "  li t2, 1024\n" ++
+  "  bgeu s1, t2, .Lrw_shared_fuel\n" ++
+  "  addi s1, s1, 1\n" ++
+  "  ld a1, 24(sp)\n" ++
+  "  li t2, 0xf8\n" ++
+  "  bltu t1, t2, .Lrw_shared_short_list\n" ++
+  "  li t2, 0xf7\n" ++
+  "  sub t3, t1, t2\n" ++
+  "  mv a3, t3\n" ++
+  "  addi t4, t0, 1\n" ++
+  "  li t5, 0\n" ++
+  ".Lrw_shared_long_len:\n" ++
+  "  beqz t3, .Lrw_shared_long_done\n" ++
+  "  slli t5, t5, 8\n" ++
+  "  lbu t6, 0(t4)\n" ++
+  "  or t5, t5, t6\n" ++
+  "  addi t4, t4, 1\n" ++
+  "  addi t3, t3, -1\n" ++
+  "  j .Lrw_shared_long_len\n" ++
+  ".Lrw_shared_long_done:\n" ++
+  "  add a2, t0, a3\n" ++
+  "  addi a2, a2, 1\n" ++
+  "  j .Lrw_shared_validate\n" ++
+  ".Lrw_shared_short_list:\n" ++
+  "  addi a2, t0, 1\n" ++
+  ".Lrw_shared_validate:\n" ++
+  "  mv a0, a2\n" ++
+  "  jal ra, rlp_validate_payload\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  beqz a0, .Lrw_shared_done\n" ++
+  ".Lrw_shared_fuel:\n" ++
+  "  ld a0, 8(sp)\n" ++
+  "  li a1, 7\n" ++
+  "  li a2, 0\n" ++
+  "  j .Lrw_shared_restore_fail\n" ++
+  ".Lrw_shared_done:\n" ++
+  "  ld a0, 24(sp)\n" ++
+  "  ld a1, 32(sp)\n" ++
+  "  ld a2, 40(sp)\n" ++
+  ".Lrw_shared_restore_fail:\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 64\n" ++
+  "  ret\n" ++
+  "rlp_validate_payload:\n" ++
+  "  addi sp, sp, -32\n" ++
+  "  sd ra, 0(sp)\n" ++
+  "  sd a0, 8(sp)\n" ++
+  "  sd a1, 16(sp)\n" ++
+  ".Lrw_validate_loop:\n" ++
+  "  ld a0, 8(sp)\n" ++
+  "  ld t0, 16(sp)\n" ++
+  "  mv a1, t0\n" ++
+  "  beq a0, t0, .Lrw_validate_ok\n" ++
+  "  bltu t0, a0, .Lrw_validate_fail\n" ++
+  "  jal ra, rlp_walk_next_nested\n" ++
+  "  bnez a1, .Lrw_validate_fail\n" ++
+  "  ld t0, 16(sp)\n" ++
+  "  bltu t0, a0, .Lrw_validate_fail\n" ++
+  "  sd a0, 8(sp)\n" ++
+  "  j .Lrw_validate_loop\n" ++
+  ".Lrw_validate_ok:\n" ++
+  "  li a0, 0\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n" ++
+  ".Lrw_validate_fail:\n" ++
+  "  li a0, 7\n" ++
+  "  ld ra, 0(sp)\n" ++
+  "  addi sp, sp, 32\n" ++
+  "  ret\n" ++
+  rlpWalkNextCoreFunction
+
+/-- Kernel-checked drift guard for the mechanical single-item core.  The
+    recursive wrapper above is intentionally codegen-specific; this theorem
+    keeps the verified leaf it delegates to tied to its emitted program. -/
+theorem rlpWalkNextCoreFunction_eq_verified_prog :
+    rlpWalkNextCoreFunction =
+      "rlp_walk_next_core:\n" ++ emitProgram EvmAsm.Rv64.RLP.rlp_walk_next_prog :=
   rfl
 
 #guard rlpWalkNextFunction.startsWith "rlp_walk_next:\n"
@@ -267,7 +402,7 @@ def rlpWalkHelpersClosure : String :=
     the four guarded helper definitions, so future edits cannot quietly
     bypass one of them (each helper is itself tied to its verified Rv64
     program by `rlpWalkInitFunction_eq_verified_prog`,
-    `rlpWalkNextFunction_eq_verified_prog`,
+    `rlpWalkNextCoreFunction_eq_verified_prog`,
     `rlpContentToU64Function_eq_verified_prog`, and
     `rlpContentToU256BeFunction_eq_verified_prog`). -/
 theorem rlpWalkHelpersClosure_eq_helpers :

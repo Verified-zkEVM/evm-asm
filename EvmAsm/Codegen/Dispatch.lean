@@ -705,7 +705,7 @@ def emitCreateChildFrameData : String :=
   -- scratch (callee addr / account struct / post-balance), co-located so callDescendFallThrough's
   -- producer resolves record_nonstorage_effect + its buffers in EVERY closure (guest + probes).
   nonstorageEffectLogData ++ "\n" ++
-  nonstorageEffectAggregateScratch ++ "\n" ++   -- bmvmx.5.5.7.3: radix-sort scratch for nonstorage_effect_aggregate
+  nonstorageEffectSharedScratch ++ "\n" ++   -- shared AccountState and sender-count radix-sort scratch
   ".balign 8\n" ++
   "nse_callee_be:\n  .zero 32\n" ++
   ".balign 32\n" ++
@@ -2486,21 +2486,30 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_body_continue\n" ++
   "  la x11, runtime_tx_prepare_prefix_status; li x9, 2; sd x9, 0(x11)\n" ++
   "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
-  -- A staged top-frame ACCOUNT_WRITE charge is part of transaction
-  -- preparation.  If the exact intrinsic-gas transaction has no regular
-  -- gas left, return a transaction-level exceptional halt to the caller so
-  -- settlement burns regular gas and preserves block validation.  The
-  -- preparation snapshot must be unwound atomically before the caller's OOG
-  -- hook materializes the sender fee debit.  The hook is the same transaction
-  -- boundary used by the normal exceptional-exit path.
+  -- A staged top-frame ACCOUNT_WRITE / recipient regular charge is part of
+  -- transaction preparation (`prepare_dispatch`).  OOG here is ExceptionalHalt
+  -- in the prep_snapshot window (interpreter.py:356-378): set_delegation must
+  -- roll back and settlement must keep the staged sender debit.
+  --
+  -- Both prepare_only and full `runtime_dispatcher_call` (MTx) entries reach
+  -- this label before `post_preparation_reached`.  The prepare_only arm already
+  -- set `auth_phase_halted` and joined `.exit_outofgas`.  The normal arm used to
+  -- return via `prepare_only_return` with the flag clear; MTx then body-restored
+  -- and wiped the sender debit → refund bail / empty runtime gas arena
+  -- (bv_fail=53 on recipient_charge_new_account, #11542).  Route both arms
+  -- through `.exit_outofgas` so the exceptional-exit promote and OOG hook run.
   ".runtime_tx_prepare_prefix_oog:\n" ++
   "  la x11, runtime_tx_prepare_only; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_normal_oog\n" ++
   "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11)\n" ++
   "  j .exit_outofgas\n" ++
   ".runtime_tx_prepare_normal_oog:\n" ++
-  "  sd x0, 568(x20)\n" ++
-  "  li x9, 6; li x11, 0xa0010000; sd x9, 32(x11)\n" ++
-  "  la x11, runtime_tx_prepare_only; sd x0, 0(x11); j runtime_dispatcher_prepare_only_return\n" ++
+  -- Full dispatcher entry (prepare_only=0): still pre-body.  Mark auth-phase
+  -- halt when set_delegation published so restore skips body wipe; promote in
+  -- emitExceptionalExit is a second line of defense for the same predicate.
+  "  la x11, runtime_tx_auth_prepared; ld x9, 0(x11); beqz x9, .runtime_tx_prepare_normal_oog_exit\n" ++
+  "  la x11, runtime_tx_auth_phase_halted; li x9, 1; sd x9, 0(x11)\n" ++
+  ".runtime_tx_prepare_normal_oog_exit:\n" ++
+  "  j .exit_outofgas\n" ++
   ".runtime_tx_prepare_body_continue:\n" ++
   "  ld x6, 0(x5)\n" ++
   "  sd x6, 584(x20)\n" ++
@@ -3230,7 +3239,6 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
   nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   nonstorageEffectLatestNonceFunction ++ "\n" ++   -- bmvmx.5.5.10: live-NONCE read (CREATE seed threading)
-  nonstorageEffectAggregateFunction ++ "\n" ++   -- bmvmx.5.5.7.3: O(N) per-account effect aggregation (block_verdict tail)
   nonstorageApplyDestroyedNormFunction ++ "\n" ++   -- fc44: raw-log destroyed-norm at tx finalize
   frameReturnFunction ++ "\n" ++
   sparseWindowReadFunction ++ "\n" ++   -- evm-asm-0w05f.13: depth-1+ RETURN/REVERT window materialization
