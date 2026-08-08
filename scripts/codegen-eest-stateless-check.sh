@@ -738,8 +738,14 @@ elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
 else
   RUN_DIR="$REPO_ROOT/gen-out/eest-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 fi
-rm -rf "$RUN_DIR"
-mkdir -p "$RUN_DIR"
+# GH #11748: this used to be an unconditional `rm -rf "$RUN_DIR"`, which would
+# destroy a user-supplied directory and could delete a concurrent run's inputs
+# mid-flight. The guard recreates a directory this harness owns (the documented
+# behaviour) and refuses to delete anything else.
+source "$REPO_ROOT/scripts/lib/eest-run-dir.sh"
+if ! eest_prepare_run_dir "$RUN_DIR" "codegen-eest-stateless-check.sh"; then
+  exit 1
+fi
 GUEST_PREFIX="$RUN_DIR/stateless_guest"
 RESOLVED_GUEST_ELF="$GUEST_PREFIX.elf"
 
