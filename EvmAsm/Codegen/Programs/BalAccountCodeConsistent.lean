@@ -3,7 +3,7 @@
 
   `bal_account_code_consistent` (bead i3djw / bmvmx.1.6.4.4 — the CODE field) — the
   per-account CODE exec-vs-BAL comparator, completing the non-storage field family
-  alongside bal_account_nonstorage_consistent (#8586, balance + nonce). It uses the
+  alongside the retired balance/nonce comparator (#8586). It uses the
   code field LOCATED by bal_account_nonstorage_finals (#8584, step .1) and compares
   the BAL's declared deployed code bytes against an execution-derived code effect,
   forward + reverse.
@@ -140,7 +140,7 @@ def ziskBalAccountCodeConsistentDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "bacc_finals:\n  .zero 88\n" ++
-  ziskBalAccountNonstorageFinalsDataSection  -- c2nsf_* + rfu scratch for the inlined finals helper
+  ziskBalAccountNonstorageFinalsDataSection  -- finals helper scratch
 
 def ziskBalAccountCodeConsistentProbeUnit : BuildUnit := {
   body        := NOP

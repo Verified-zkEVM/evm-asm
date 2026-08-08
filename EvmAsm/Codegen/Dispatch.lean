@@ -705,7 +705,7 @@ def emitCreateChildFrameData : String :=
   -- scratch (callee addr / account struct / post-balance), co-located so callDescendFallThrough's
   -- producer resolves record_nonstorage_effect + its buffers in EVERY closure (guest + probes).
   nonstorageEffectLogData ++ "\n" ++
-  nonstorageEffectAggregateScratch ++ "\n" ++   -- bmvmx.5.5.7.3: radix-sort scratch for nonstorage_effect_aggregate
+  nonstorageEffectSharedScratch ++ "\n" ++   -- shared AccountState and sender-count radix-sort scratch
   ".balign 8\n" ++
   "nse_callee_be:\n  .zero 32\n" ++
   ".balign 32\n" ++
@@ -3230,7 +3230,6 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   recordNonstorageEffectFunction ++ "\n" ++   -- i3djw.1: per-account non-storage effect producer (CALL value-transfer)
   nonstorageEffectLatestBalanceFunction ++ "\n" ++   -- yisv8 .spine.1: live-BALANCE read of the latest effect post_balance
   nonstorageEffectLatestNonceFunction ++ "\n" ++   -- bmvmx.5.5.10: live-NONCE read (CREATE seed threading)
-  nonstorageEffectAggregateFunction ++ "\n" ++   -- bmvmx.5.5.7.3: O(N) per-account effect aggregation (block_verdict tail)
   nonstorageApplyDestroyedNormFunction ++ "\n" ++   -- fc44: raw-log destroyed-norm at tx finalize
   frameReturnFunction ++ "\n" ++
   sparseWindowReadFunction ++ "\n" ++   -- evm-asm-0w05f.13: depth-1+ RETURN/REVERT window materialization

@@ -37,9 +37,6 @@ import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.StageBlockhashM29
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
-import EvmAsm.Codegen.Programs.BalAllAccountsNonstorage
-import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
-import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.ExecLogLatestValue
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
@@ -170,10 +167,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
   blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
   headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
-  balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
-  balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
-  balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
     -- Keep the standalone verdict-debug ELF's withdrawal-effect closure in
     -- lockstep with the guest closure; verdict code is unchanged.
     blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
@@ -573,10 +567,7 @@ def statelessVerdictV2GuestClosure : String :=
   stageBlockhashM29Function ++ "\n" ++   -- 3vc2p.3b: M29 recent-blockhash table reconstruction (dispatch staging)
   blockhashFromWitnessHeadersFunction ++ "\n" ++   -- 3vc2p.3b dep: find header by number -> keccak(header)
   headerExtractNumberFunction ++ "\n" ++   -- 3vc2p.3b dep: header NUMBER field extractor
-  balAllAccountsNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3: all-accounts NON-STORAGE forward (balance/nonce)
-  balAccountNonstorageConsistentFunction ++ "\n" ++   -- i3djw.3 dep: per-account non-storage compare
   balAccountNonstorageFinalsFunction ++ "\n" ++   -- i3djw.3 dep: BAL account balance/nonce finals
-  balAllAccountsNonstorageCoversFunction ++ "\n" ++   -- i3djw.3 reverse: exec net-change -> BAL presence
   multiTxNthContextFunction ++ "\n" ++
   -- g8zeq.1.4.2: per-tx EIP-8037 intrinsic state-gas + array assembly, used by
   -- block_verdict's block_state-gas floor check. tx_extract_to_address /
