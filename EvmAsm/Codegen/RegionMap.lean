@@ -288,11 +288,12 @@ def schemeAAnchors : List GuestRegion :=
     -- (19047), the tx map by what one transaction can touch -- so sizing them
     -- together would either waste 2.5 MiB or cap the block level too low.
     -- Bases shifted +0x180000 when storage undo grew 64->160 B/entry (#10645 review).
-    { name := "account_writes_area",    base := 0xa28a0000, size := 0x280000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 2.5 MiB = 20480x128 "
+    { name := "account_writes_area",    base := 0xbdd80000, size := 0x800000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 8 MiB = 65536x128 "
         ++ "(addr++nonce++present++balance++codeHash, 128 B stride); block level, "
-        ++ "filled only by account_writes_incorporate_tx; 20480 covers the 19047 "
-        ++ "distinct block-account bound" },
+        ++ "filled only by account_writes_incorporate_tx; 65536 covers the 64035 "
+        ++ "distinct-account bound derived against 200M in GH #11770; RELOCATED out "
+        ++ "of the scheme-A block into the gap above .bss because it had to grow" },
     { name := "tx_account_writes_area", base := 0xa2b20000, size := 0x200000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
         ++ "account_writes, target of account_write_record (mirrors the spec's "
@@ -300,11 +301,12 @@ def schemeAAnchors : List GuestRegion :=
     -- Same rationale as storage_writes_undo_area: the spec rolls a frame back by
     -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
     -- depth, so the bounded equivalent is a reverse-replayed journal.
-    { name := "account_writes_undo_area", base := 0xa2d20000, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 2 MiB = 16384x128 provisioned; "
-        ++ "current census needs 4294 (4288 auth pushes + 6 fixed records), "
-        ++ "about 3.8x headroom; per-tx regular cap 16777216; "
-        ++ "fail-closed bgeu-before-store and overflow latch; "
+    { name := "account_writes_undo_area", base := 0xbe580000, size := 0x1400000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 20 MiB = 163840x128; covers the "
+        ++ "161204 account-write-EVENT bound derived in GH #11770 (cheapest event is a warm "
+        ++ "no-op SSTORE at 104 gas via Storage.lean:664, against the per-tx regular cap "
+        ++ "16765216); EVENTS not distinct accounts -- the overwrite arm pushes too; "
+        ++ "fail-closed bgeu-before-store and overflow latch; abuts .sszscratch; "
         ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
         ++ "reverse-replayed by account_writes_restore_frame" } ]
 
@@ -539,12 +541,30 @@ abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
     removal absorbs in the same direction (#10986, #10988). -/
 abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
 
-/-- ELF-measured base of `.state_gas_diag`. Unlike every other RAM section this
-    one carries **no `--section-start` flag**: the linker places it immediately
-    after `.bss`, so its base is a *consequence* of `bssSizeBytes` and moves on
-    every `.bss` growth. A hand-typed constant here would silently go stale, so
-    it is a class-A pin like the three BSS symbol bases. -/
-abbrev stateGasDiagBase : Nat := RegionMapLinkPins.stateGasDiagBase
+/-- Base of `.state_gas_diag`. Unlike every other RAM section this one carries
+    **no `--section-start` flag**: the linker places it immediately after
+    `.bss`, so its base is a *consequence* of `bssSizeBytes` — and it is
+    therefore **DERIVED here, not pinned**.
+
+    ⚠️ GH #11186 landed this as an independent class-A pin first, on the
+    reasoning that a hand-typed constant would go stale. Correct premise, wrong
+    conclusion: **the right conclusion from *it is a consequence* is to derive
+    it.** An independent pin for a derived quantity can contradict its own
+    premise the moment the two are regenerated at different times — and while
+    both were pins, `guestScratch_sat`'s `sepConj` join typechecked only because
+    the two `abbrev`s happened to *reduce to the same numeral*. That is
+    agreement by coincidence, not by construction: when `bssSizeBytes` moved
+    under a branch, CI failed with an application type mismatch at
+    `GuestImage.lean`, and a **clean** rebase (no conflict, no marker) produced a
+    `RegionMapLinkPins` whose `stateGasDiagBase` described the old image while
+    its `bssSizeBytes` described the new one.
+
+    Derived, the join holds because the two bounds are the SAME TERM, with no
+    reduction and no coincidence involved. `check-region-map.sh` then checks this
+    derivation against the linked ELF (`.state_gas_diag base == .bss end`),
+    which is also the only thing that can catch the one way it could break:
+    padding, if a future `.bss` size were not 8-aligned. -/
+abbrev stateGasDiagBase : Nat := 0xa3110000 + bssSizeBytes
 
 /-- ELF-measured `.state_gas_diag` size. -/
 abbrev stateGasDiagSizeBytes : Nat := RegionMapLinkPins.stateGasDiagSizeBytes

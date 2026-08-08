@@ -222,15 +222,24 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       (0xa3000000 + RegionMap.dataSizeBytes) (0xa3110000 + RegionMap.bssSizeBytes) :=
     t7.mono (by decide) (le_refl _)
   -- GH #11186: `.state_gas_diag` is linker-placed immediately after `.bss`, so
-  -- its base IS `t7`'s upper bound — this join needs no `mono` widening, unlike
-  -- the `t8` hop below. Both pins are `abbrev`, hence `decide` not `omega`;
-  -- alignment holds structurally (`.balign 8` in its emitter).
+  -- its base IS `t7`'s upper bound, and this join needs no `mono` widening —
+  -- but ONLY because the base is DERIVED as `0xa3110000 + bssSizeBytes` and the
+  -- two bounds are therefore the SAME TERM. While it was an independent pin the
+  -- join typechecked only because the two `abbrev`s reduced to the same numeral;
+  -- when `bssSizeBytes` moved, that coincidence ended and CI failed here with an
+  -- application type mismatch.
+  --
+  -- `t8.mono` below is a DIFFERENT case and stays: `.state_gas_diag` ends well
+  -- below `.sszscratch`'s base, so that hop crosses a genuine gap and must be
+  -- widened. Pins are `abbrev`, hence `decide` not `omega`; alignment holds
+  -- structurally (`.balign 8` in its emitter).
   have t7b : (regionScratch RegionMap.stateGasDiagRegion).SatWithin
-      RegionMap.stateGasDiagBase
-      (RegionMap.stateGasDiagBase + RegionMap.stateGasDiagSizeBytes) := by
+      (0xa3110000 + RegionMap.bssSizeBytes)
+      (0xa3110000 + RegionMap.bssSizeBytes + RegionMap.stateGasDiagSizeBytes) := by
     dsimp [regionScratch, RegionMap.stateGasDiagRegion,
       RegionMap.stateGasDiagBase, RegionMap.stateGasDiagSizeBytes,
-      RegionMapLinkPins.stateGasDiagBase, RegionMapLinkPins.stateGasDiagSizeBytes]
+      RegionMap.bssSizeBytes, RegionMapLinkPins.bssSizeBytes,
+      RegionMapLinkPins.stateGasDiagSizeBytes]
     apply satWithin_ramRegion <;> decide
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
       0xbf980000 0xc0000000 :=

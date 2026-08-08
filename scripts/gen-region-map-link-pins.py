@@ -38,10 +38,11 @@ def _find_tool(*names: str) -> str:
     sys.exit(f"missing required tool (tried {', '.join(names)})")
 
 
-# Sections whose (addr, size) this generator pins.  `.state_gas_diag` carries a
-# BASE as well as a size: it is placed by the linker immediately after `.bss`
-# rather than by a `--section-start` flag, so a hand-typed base in RegionMap
-# would go stale on every `.bss` growth.  It is emitted unconditionally by
+# Sections this generator reads.  `.state_gas_diag`'s SIZE is pinned; its BASE
+# deliberately is NOT.  The linker places that section immediately after `.bss`,
+# so RegionMap DERIVES the base as `0xa3110000 + bssSizeBytes` and the two can
+# never disagree -- pinning it independently let it contradict its own premise
+# (GH #11186).  Emitted unconditionally by
 # `dispatcherExecStateGasDifferentialData` (DispatcherExecStateGas.lean:158).
 SECTIONS = (".text", ".data", ".bss", ".state_gas_diag")
 
@@ -92,9 +93,10 @@ def render(elf: Path) -> str:
         "  `python3 scripts/gen-region-map-link-pins.py` regenerates this from the",
         "  linked stateless_guest ELF (issue #11230).",
         "",
-        "  Link-layout-dependent pins only (class A): section sizes, three BSS",
-        "  bases, and `.state_gas_diag`'s base — all move when the guest image",
-        "  moves. Class B stable bases stay hand-typed in RegionMap.lean.",
+        "  Link-layout-dependent pins only (class A): section sizes and three",
+        "  BSS bases, which move when the guest image moves. Class B stable",
+        "  bases stay hand-typed in RegionMap.lean; `.state_gas_diag`'s base is",
+        "  neither — RegionMap DERIVES it from `bssSizeBytes` (GH #11186).",
         "",
         f"  Regenerated from: {rel}",
         "  Guard contract (check-region-map.sh): pins are this file (regen-time",
@@ -110,9 +112,7 @@ def render(elf: Path) -> str:
         f"abbrev dataSizeBytes : Nat := {sec['.data'][1]:#x}",
         f"abbrev bssSizeBytes : Nat := {sec['.bss'][1]:#x}",
         "",
-        # `.state_gas_diag` is linker-placed after `.bss` (no --section-start), so
-        # its BASE is pinned here too rather than hand-typed in RegionMap.
-        f"abbrev stateGasDiagBase : Nat := {sec['.state_gas_diag'][0]:#x}",
+        # SIZE only -- the BASE is derived in RegionMap (see SECTIONS above).
         f"abbrev stateGasDiagSizeBytes : Nat := {sec['.state_gas_diag'][1]:#x}",
         "",
         f"abbrev callFrameArenaBase : Nat := {addrs['callFrameArenaBase']:#x}",

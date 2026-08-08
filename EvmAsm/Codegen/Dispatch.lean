@@ -1969,6 +1969,7 @@ def emitDispatcherEpilogueCore
     createDeployedCodeValidFunction ++ "\n" ++
     createRecordCodeEffectFunction ++ "\n" ++
     findCodeEffectByAddressFunction ++ "\n" ++
+    findCodeEffectByHashFunction ++ "\n" ++
     accountStatePromoteDeleteReadsFunction ++ "\n" ++
     accountWriteTouchCurrentFunction ++ "\n" ++
     accountStateCreatedContainsFunction ++ "\n" ++
@@ -3172,6 +3173,7 @@ def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
   createDeployedCodeValidFunction ++ "\n" ++
   createRecordCodeEffectFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+    findCodeEffectByHashFunction ++ "\n" ++
   accountStatePromoteDeleteReadsFunction ++ "\n" ++
   accountWriteTouchCurrentFunction ++ "\n" ++
   accountStateCreatedContainsFunction ++ "\n" ++

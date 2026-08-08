@@ -57,7 +57,7 @@ SCAN_ROOTS = [
 ]
 ALLOW_PATH = ROOT / "scripts" / "code-preimage-empty-hash-allow.txt"
 # Durability: every allow-list line is one known violator. Drive to zero.
-EXPECTED_VIOLATOR_COUNT = 6
+EXPECTED_VIOLATOR_COUNT = 5
 
 JAL_CODE = re.compile(r"jal\s+ra,\s*code_at_header_state_root\b")
 EMPTY_LA = re.compile(r"la\s+\w+,\s*\w*empty_code_hash\b")
