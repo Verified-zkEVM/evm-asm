@@ -18,6 +18,7 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen.RlpListNthItemSAsm
+open EvmAsm.Codegen.AccountDecodeSpec (beAccum beAccum_zero beAccum_eq_zero_iff)
 
 set_option maxRecDepth 8000
 
@@ -673,7 +674,7 @@ set_option maxRecDepth 8000 in
 /-- Field-0 nonce content continuation: materialise the content cursor, run the
     big-endian nonce scan, and test `x7 == 0` ([35]).  A zero nonce continues into
     the field-1 subtree (`aieField1Cont`); a nonzero nonce returns not-empty.
-    Uses the lenient nonce bridge (`beAccFrom_eq_zero_iff`). -/
+    Uses the lenient nonce bridge (`beAccum_eq_zero_iff`). -/
 theorem aieField0ContentCont
     (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 s3 s4 s5 : Word)
     (bytes : List (BitVec 8)) (listLen : Nat) (offset len v11 v12 : Word)
@@ -710,10 +711,10 @@ theorem aieField0ContentCont
     exact hnu (by simp only [BitVec.ult, decide_eq_true_eq]; omega)
   have hspan : offset.toNat + len.toNat ≤ bytes.length :=
     aieSpanBound bytes accBase listLen 0 offset len hoverL hbound hS0
-  by_cases hnz : beAccFrom bytes offset.toNat len.toNat = 0
+  by_cases hnz : beAccum bytes offset.toNat len.toNat = 0
   · -- ZERO nonce → continue into field 1
     have hz0' : ∀ k, k < len.toNat → bytes.getD (offset.toNat + k) 0 = 0 :=
-      (beAccFrom_eq_zero_iff bytes offset.toNat len.toNat hle).mp hnz
+      (beAccum_eq_zero_iff bytes offset.toNat len.toNat hle).mp hnz
     refine cpsTripleWithin_weaken (fun h hp => by unfold aieFldFrame at hp; xperm_chunked hp)
       (fun _ hq => hq)
       (cpsTripleWithin_of_forall_regIs_to_regOwn4
@@ -732,7 +733,7 @@ theorem aieField0ContentCont
       (by pcfR) hptr
     have hloop := aieNonceLoop accBase bytes offset.toNat len.toNat 0 v29
       halign (by omega) hover hvalid
-    rw [beAccFrom_zero, Nat.zero_add,
+    rw [beAccum_zero, Nat.zero_add,
         show (BitVec.ofNat 64 len.toNat : Word) = len from (word_eq_ofNat_toNat len).symm,
         show accBase + BitVec.ofNat 64 (offset.toNat + 0) = accBase + offset from by
           rw [Nat.add_zero]; rw [← word_eq_ofNat_toNat offset]] at hloop
@@ -742,7 +743,7 @@ theorem aieField0ContentCont
     have hT0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hptrF hloopF
     -- [35] BNE x7 x0 (not taken, x7 = 0) → AB+144
     have hbne := bne_spec_gen_within .x7 .x0 (244 : BitVec 13)
-      (beAccFrom bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
+      (beAccum bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
     rw [show (AB + 140 : Word) + 4 = AB + 144 from by bv_omega] at hbne
     have hbnee := cpsBranchWithin_extend_code
       (aieFC 35, (AB + 140), (.BNE .x7 .x0 (244 : BitVec 13))) hbne
@@ -767,7 +768,7 @@ theorem aieField0ContentCont
     have hfull := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
         have hp2 : (aieMidResidual spA newSp accBase lenW outPtr raIn c8 c9 c18 (AB + 68)
             (0 : Word) v11 v12 v13 v14 OffA (0 : Word)
-            (beAccFrom bytes offset.toNat len.toNat) (0 : Word) offset len
+            (beAccum bytes offset.toNat len.toNat) (0 : Word) offset len
             (AB + 68) s3 s4 s5 bytes ** bytesRegion ECB aieEmptyCodeHashBytes) h := by
           unfold aieMidResidual; xperm_chunked hp
         exact sepConj_mono_left (aieMidResidual_to_aieMidPre _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
@@ -796,7 +797,7 @@ theorem aieField0ContentCont
       (by pcfR) hptr
     have hloop := aieNonceLoop accBase bytes offset.toNat len.toNat 0 v29
       halign (by omega) hover hvalid
-    rw [beAccFrom_zero, Nat.zero_add,
+    rw [beAccum_zero, Nat.zero_add,
         show (BitVec.ofNat 64 len.toNat : Word) = len from (word_eq_ofNat_toNat len).symm,
         show accBase + BitVec.ofNat 64 (offset.toNat + 0) = accBase + offset from by
           rw [Nat.add_zero]; rw [← word_eq_ofNat_toNat offset]] at hloop
@@ -808,7 +809,7 @@ theorem aieField0ContentCont
     have hT0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hptrF hloopF
     -- [35] BNE x7 x0 (taken, x7 ≠ 0) → AB+384
     have hbne := bne_spec_gen_within .x7 .x0 (244 : BitVec 13)
-      (beAccFrom bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
+      (beAccum bytes offset.toNat len.toNat) (0 : Word) (AB + 140)
     rw [show (AB + 140 : Word) + signExtend13 (244 : BitVec 13) = AB + 384 from by
       rw [show signExtend13 (244 : BitVec 13) = (244 : Word) from by decide]; bv_omega] at hbne
     have hbnee := cpsBranchWithin_extend_code
@@ -836,7 +837,7 @@ theorem aieField0ContentCont
             (.x8 ↦ᵣ accBase) ** (.x9 ↦ᵣ lenW) ** (.x18 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
             (.x10 ↦ᵣ (0 : Word)) ** (outPtr ↦ₘ (0 : Word)) **
             aieResMixedNoX0 newSp accBase bytes OffA
-              (beAccFrom bytes offset.toNat len.toNat) v11 v12 s3 s4 s5 offset len
+              (beAccum bytes offset.toNat len.toNat) v11 v12 s3 s4 s5 offset len
               (AB + 68) accBase lenW outPtr s3 s4 s5) h := by
           unfold savedFrame at hp
           simp only [mkSaved] at hp

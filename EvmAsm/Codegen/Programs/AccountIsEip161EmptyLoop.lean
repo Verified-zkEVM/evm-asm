@@ -22,6 +22,7 @@ namespace EvmAsm.Codegen.AccountIsEip161EmptySpec
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
+open EvmAsm.Codegen.AccountDecodeSpec (beAccum beAccum_succ)
 
 set_option maxRecDepth 8000
 
@@ -70,13 +71,13 @@ local macro "aieMem" k:term ", " A:term ", " ins:term : term =>
     The big-endian accumulate loop: `x6` = byte countdown, `x7` = big-endian
     accumulator, `x28` = advancing content pointer.  The exit test is at the
     top (`BEQ x6, x0, +28`); each taken iteration shifts the accumulator left
-    a byte and ORs in the next content byte (`beAccFrom`). -/
+    a byte and ORs in the next content byte (`beAccum`). -/
 
 private theorem aie_x7_or_step (bytes : List (BitVec 8)) (o0 i : Nat)
     (hi : o0 + i < bytes.length) :
-    ((beAccFrom bytes o0 i) <<< (8 : BitVec 6).toNat) |||
-      ((bytes[o0 + i]'hi).zeroExtend 64) = beAccFrom bytes o0 (i + 1) := by
-  rw [beAccFrom_succ]
+    ((beAccum bytes o0 i) <<< (8 : BitVec 6).toNat) |||
+      ((bytes[o0 + i]'hi).zeroExtend 64) = beAccum bytes o0 (i + 1) := by
+  rw [beAccum_succ]
   have hgetd : bytes.getD (o0 + i) 0 = bytes[o0 + i]'hi := by
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi]; rfl
   rw [hgetd, show (8 : BitVec 6).toNat = 8 from by decide]
@@ -93,18 +94,18 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
       isValidByteAccess (accBase + BitVec.ofNat 64 j) = true) :
     cpsTripleWithin 6 (AB + 116) (AB + 112) aieCode
       (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
-       ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 i) **
+       ((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
        ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion accBase bytes)
       (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 k) **
-       ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 (i + 1)) **
+       ((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + (i + 1)))) **
        ((.x29 : Reg) ↦ᵣ ((bytes[o0 + i]'hlt).zeroExtend 64)) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion accBase bytes) := by
   -- [29] SLLI x7, x7, 8
-  have h29 := slli_spec_gen_same_within .x7 (beAccFrom bytes o0 i) (8 : BitVec 6)
+  have h29 := slli_spec_gen_same_within .x7 (beAccum bytes o0 i) (8 : BitVec 6)
     (AB + 116) (by decide)
   rw [show (AB + 116 : Word) + 4 = AB + 120 from by bv_omega] at h29
   have e29 := cpsTripleWithin_extend_code
@@ -122,12 +123,12 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
   have e30 := cpsTripleWithin_extend_code
     (aieMem 30, (AB + 120), (.LBU .x29 .x28 (0 : BitVec 12))) h30
   have f30 := cpsTripleWithin_frameR
-    (((.x7 : Reg) ↦ᵣ ((beAccFrom bytes o0 i) <<< (8 : BitVec 6).toNat)) **
+    (((.x7 : Reg) ↦ᵣ ((beAccum bytes o0 i) <<< (8 : BitVec 6).toNat)) **
      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
     (by pcFreeR) e30
   -- [31] OR x7, x7, x29
   have h31 := or_spec_gen_rd_eq_rs1_within .x7 .x29
-    ((beAccFrom bytes o0 i) <<< (8 : BitVec 6).toNat) ((bytes[o0 + i]'hlt).zeroExtend 64)
+    ((beAccum bytes o0 i) <<< (8 : BitVec 6).toNat) ((bytes[o0 + i]'hlt).zeroExtend 64)
     (AB + 124) (by decide)
   rw [aie_x7_or_step bytes o0 i hlt,
       show (AB + 124 : Word) + 4 = AB + 128 from by bv_omega] at h31
@@ -147,7 +148,7 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
   have e32 := cpsTripleWithin_extend_code
     (aieMem 32, (AB + 128), (.ADDI .x28 .x28 (1 : BitVec 12))) h32
   have f32 := cpsTripleWithin_frameR
-    (((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 (i + 1)) **
+    (((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
      ((.x29 : Reg) ↦ᵣ ((bytes[o0 + i]'hlt).zeroExtend 64)) **
      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
@@ -159,7 +160,7 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
   have e33 := cpsTripleWithin_extend_code
     (aieMem 33, (AB + 132), (.ADDI .x6 .x6 (-1 : BitVec 12))) h33
   have f33 := cpsTripleWithin_frameR
-    (((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 (i + 1)) **
+    (((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
      ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + (i + 1)))) **
      ((.x29 : Reg) ↦ᵣ ((bytes[o0 + i]'hlt).zeroExtend 64)) **
      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
@@ -172,7 +173,7 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
     (aieMem 34, (AB + 136), (.JAL .x0 (-24 : BitVec 21))) h34
   have f34 := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 k) **
-     ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 (i + 1)) **
+     ((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
      ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + (i + 1)))) **
      ((.x29 : Reg) ↦ᵣ ((bytes[o0 + i]'hlt).zeroExtend 64)) **
      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
@@ -191,7 +192,7 @@ private theorem aieNonceBody (accBase : Word) (bytes : List (BitVec 8))
 /-- **The nonce accumulate-scan loop closure** ([28]-[34], `AB+112 → AB+140`):
     by induction on the byte countdown `n`, process the remaining `n` content
     bytes into the big-endian accumulator and exit through the top `BEQ` with
-    `x6 = 0` and `x7 = beAccFrom bytes o0 (i+n)`. -/
+    `x6 = 0` and `x7 = beAccum bytes o0 (i+n)`. -/
 theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
     (o0 n i : Nat) (v29 : Word)
     (halign : accBase.toNat % 8 = 0)
@@ -201,12 +202,12 @@ theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
       isValidByteAccess (accBase + BitVec.ofNat 64 j) = true) :
     cpsTripleWithin (7 * n + 1) (AB + 112) (AB + 140) aieCode
       (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
-       ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 i) **
+       ((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
        ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion accBase bytes)
       (((.x6 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 (i + n)) **
+       ((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + n)) **
        regOwn .x28 ** regOwn .x29 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion accBase bytes) := by
   have hbne : (AB + 112 : Word) + signExtend13 (28 : BitVec 13) = AB + 140 := by
@@ -223,7 +224,7 @@ theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
       obtain ⟨_, _, _, _, _, hQ⟩ := hQf
       exact ((sepConj_pure_right _).1 hQ).2 (by decide))
     have htf := cpsTripleWithin_frameR
-      (((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 i) **
+      (((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
        ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion accBase bytes)
       (by pcFreeR) htaken
@@ -233,7 +234,7 @@ theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
           simp only [show i + 0 = i from by omega]
           rw [show (BitVec.ofNat 64 0 : Word) = 0 from by decide] at hq
           have hq2 : (((.x6 : Reg) ↦ᵣ (0 : Word)) **
-              ((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 i) **
+              ((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
               ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
               ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
               bytesRegion accBase bytes) sState := by xperm_chunked hq
@@ -253,7 +254,7 @@ theorem aieNonceLoop (accBase : Word) (bytes : List (BitVec 8))
       obtain ⟨_, _, _, _, _, hQ⟩ := hQt
       exact aie_succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)
     have hntf := cpsTripleWithin_frameR
-      (((.x7 : Reg) ↦ᵣ beAccFrom bytes o0 i) **
+      (((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
        ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion accBase bytes)
       (by pcFreeR) hnt

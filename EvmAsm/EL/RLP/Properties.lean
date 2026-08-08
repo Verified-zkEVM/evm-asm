@@ -87,7 +87,7 @@ theorem Nat.fromBytesBE_toBytesBE (n : Nat) :
     alongside the empty string.
 
     Consumed by #11346: the guest's EIP-161 nonce/balance test is the lenient
-    "every content byte is zero" (`beAccFrom_eq_zero_iff`), and this says the
+    "every content byte is zero" (`beAccum_eq_zero_iff`), and this says the
     reference's `bytesBEtoNat` is lenient in exactly the same way.  That makes
     the agreement a proved fact rather than a coincidence worth a comment. -/
 theorem Nat.fromBytesBE_eq_zero_iff : ∀ (bs : List Byte),
@@ -2990,7 +2990,6 @@ example : decode [0xF9, 0x00, 0x40] = none := by decide
 example : decode [0xF8, 0x05] = none := by decide
 
 end EvmAsm.EL.RLP
-
 
 
 
