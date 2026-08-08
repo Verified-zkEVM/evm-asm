@@ -339,9 +339,9 @@ def callDescendFallThrough
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n" ++
     "  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_val_" ++ tag ++ "\n" ++
-    -- balance_at_header_state_root(caller) -> cd_balance_be. Save x10/x12/x13
+    -- balance_live_else_header_state_root(caller) -> cd_balance_be. Save x10/x12/x13
     -- (helper clobbers the a-regs that alias them); it preserves x20/x21.
-    -- drj99.1: use the caller's LIVE selfBalance (env+32), NOT the PRE-STATE balance_at_header_state_root
+    -- drj99.1: use the caller's LIVE selfBalance (env+32), NOT the PRE-STATE balance_live_else_header_state_root
     -- lookup. The pre-state lookup returns 0 for a freshly-CREATEd contract (absent pre-block) -> the gate
     -- would falsely deem its value-CALL insufficient -> .Lcd_fail -> no transfer -> the created contract's
     -- balance AND the callee credit are mis-recorded (bv_fail=44/45, initcode_calls_with_value etc.). env+32

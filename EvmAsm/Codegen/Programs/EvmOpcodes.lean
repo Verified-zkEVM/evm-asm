@@ -325,11 +325,11 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
   dataAsm     := ziskExtcodehashAtHeaderStateRootDataSection
 }
 
-/-! ## balance_at_header_state_root  (EVM BALANCE opcode)
+/-! ## balance_live_else_header_state_root  (EVM BALANCE opcode)
 
-    **LIVE-FIRST, not header-only.** The symbol name is historical and
-    misdescribes the body (#11019). Every production caller wants
-    live-else-header; the code is correct and the name/docs used to lie.
+    **LIVE-FIRST, not header-only.** Every production caller wants
+    live-else-header; the helper reads live effects first and falls back to
+    the header witness only on a miss (#11019).
 
     Spec baseline (execution-specs Amsterdam): one mutable
     `TransactionState`; `BALANCE` reads
@@ -379,11 +379,11 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
       (Code 1 is intentionally absent: missing accounts map to
       `status=0, balance=0` per the EVM BALANCE semantic.)
 
-    Rename to `balance_live_else_header_state_root` tracked separately
-    (regen cost); do not treat the current name as a contract.
+    This helper is named `balance_live_else_header_state_root` to reflect its
+    live-first, header-fallback control flow.
 -/
-def balanceAtHeaderStateRootFunction : String :=
-  "balance_at_header_state_root:\n" ++
+def balanceLiveElseHeaderStateRootFunction : String :=
+  "balance_live_else_header_state_root:\n" ++
   "  addi sp, sp, -64\n" ++
   "  sd ra,  0(sp)\n" ++
   "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -453,7 +453,7 @@ def balanceAtHeaderStateRootFunction : String :=
   "  addi sp, sp, 64\n" ++
   "  ret"
 
-/-- `zisk_balance_at_header_state_root`: probe BuildUnit.
+/-- `zisk_balance_live_else_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -465,7 +465,7 @@ def balanceAtHeaderStateRootFunction : String :=
     Output layout:
       bytes  0.. 8 : status (0 / 2 / 3 / 4)
       bytes  8..40 : balance (u256 BE; 0 on absent) -/
-def ziskBalanceAtHeaderStateRootPrologue : String :=
+def ziskBalanceLiveElseHeaderStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t1, 0x40000000\n" ++
   "  ld t2, 8(t1)                # header_rlp_len\n" ++
@@ -476,7 +476,7 @@ def ziskBalanceAtHeaderStateRootPrologue : String :=
   "  add a3, a0, t2              # witness.state ptr\n" ++
   "  mv a4, t3                   # witness_state_len\n" ++
   "  li a5, 0xa0010008           # 32 B output\n" ++
-  "  jal ra, balance_at_header_state_root\n" ++
+  "  jal ra, balance_live_else_header_state_root\n" ++
   "  li t0, 0xa0010000\n" ++
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbal_pdone\n" ++
@@ -492,10 +492,10 @@ def ziskBalanceAtHeaderStateRootPrologue : String :=
   accountDecodeFunction ++ "\n" ++
   accountAtAddressFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
-  balanceAtHeaderStateRootFunction ++ "\n" ++
+  balanceLiveElseHeaderStateRootFunction ++ "\n" ++
   ".Lbal_pdone:"
 
-def ziskBalanceAtHeaderStateRootDataSection : String :=
+def ziskBalanceLiveElseHeaderStateRootDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
   "zk3_state:\n" ++
@@ -579,10 +579,10 @@ def ziskBalanceAtHeaderStateRootDataSection : String :=
   "bal_addr_padded:\n" ++   -- yisv8 .spine.2: 32B padded query addr (20B BE + 12B zero) for the live-balance scan
   "  .zero 32"
 
-def ziskBalanceAtHeaderStateRootProbeUnit : BuildUnit := {
+def ziskBalanceLiveElseHeaderStateRootProbeUnit : BuildUnit := {
   body        := NOP
-  prologueAsm := ziskBalanceAtHeaderStateRootPrologue
-  dataAsm     := ziskBalanceAtHeaderStateRootDataSection
+  prologueAsm := ziskBalanceLiveElseHeaderStateRootPrologue
+  dataAsm     := ziskBalanceLiveElseHeaderStateRootDataSection
 }
 
 

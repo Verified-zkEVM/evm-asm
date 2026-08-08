@@ -111,7 +111,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- `get_account(tx_state, sender).balance < endowment` against the LIVE mutable tx state
     -- (amsterdam vm/instructions/system.py:108-119), and the endowment DEBIT below
     -- (.Lcr_deb_done, lines ~256-276) already debits the LIVE balance env+32 (.selfBalance).
-    -- The previous gate compared the witness pre-state balance (balance_at_header_state_root)
+    -- The previous gate compared the witness pre-state balance (balance_live_else_header_state_root)
     -- against the endowment, which falsely bailed when the creator is funded THIS tx (e.g. the
     -- tx.to recipient does CREATE(value): witness balance = 0 but live balance = pre + tx.value).
     -- That false bail skipped the entire CREATE descend, so a failing initcode (OOG / invalid
@@ -408,12 +408,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     -- spec is_account_alive(target) on mutable tx_state (state_tracker.py):
-    -- LIVE balance via balance_at_header_state_root (live-first, #11019), not
+    -- LIVE balance via balance_live_else_header_state_root (live-first, #11019), not
     -- pure header. Code/nonce holders already took the collision branch; plus
     -- the shared current account-write tiers for prior same-tx creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
-    "  jal ra, balance_at_header_state_root\n" ++
+    "  jal ra, balance_live_else_header_state_root\n" ++
     "  mv t2, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t2, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -427,7 +427,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT
     -- (system.py:110-112). EMPTY = nonce0 AND balance0 AND code empty.
     -- BALANCE PREMISE (instruction-level, FINDING 3): immediately above,
-    -- `jal balance_at_header_state_root` writes `cr_alive_bal`; then
+    -- `jal balance_live_else_header_state_root` writes `cr_alive_bal`; then
     -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
     -- so any nonzero limb sets alive and never reaches this status/nonce arm.
     -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.

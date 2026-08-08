@@ -345,7 +345,7 @@ table and the script are authoritative.)
 | `0x800310ec` | `0x8003121c` | 304 | `.runtime_tx_shared_message_body` | UNCONVERTED |
 | `0x8003121c` | `0x800313b8` | 412 | `.dispatch_loop` | UNCONVERTED |
 | `0x800313b8` | `0x80031418` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
-| `0x80031418` | `0x80031570` | 344 | `balance_at_header_state_root` | UNCONVERTED |
+| `0x80031418` | `0x80031570` | 344 | `balance_live_else_header_state_root` | UNCONVERTED |
 | `0x800321d0` | `0x800321f8` | 40 | `create_deployed_code_valid` | UNCONVERTED |
 | `0x800321f8` | `0x80032408` | 528 | `create_record_code_effect` | UNCONVERTED |
 | `0x80032468` | `0x80032514` | 172 | `account_state_promote_delete_reads` | UNCONVERTED |

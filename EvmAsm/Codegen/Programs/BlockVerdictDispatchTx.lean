@@ -497,7 +497,7 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- INERT until yisv8.2 removes SELFBALANCE(0x47) from the self-contained reject set.
   -- Conservative: a lookup miss/error leaves SELFBALANCE 0. account_at_header_state_root
   -- preserves s-regs (s0=state ptr, s1=state len, s2=ctx survive); clobbers only dead a/t-regs.
-  -- Use the raw account lookup here instead of balance_at_header_state_root: the BALANCE helper
+  -- Use the raw account lookup here instead of balance_live_else_header_state_root: the BALANCE helper
   -- intentionally overlays the live nonstorage-effect log, but at top-level dispatch time that
   -- log may already contain transaction settlement effects. SELFBALANCE staging needs the
   -- execution-start account balance, then credits only tx.value below.
