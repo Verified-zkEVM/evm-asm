@@ -1953,7 +1953,7 @@ def emitDispatcherEpilogueCore
     accountSetUintFieldFunction ++ "\n" ++
     selfdestructBalanceTransferFunction ++ "\n" ++
     headerExtractStateRootFunction ++ "\n" ++
-    balanceAtHeaderStateRootFunction ++ "\n" ++
+    balanceLiveElseHeaderStateRootFunction ++ "\n" ++
     nonceAtHeaderStateRootFunction ++ "\n" ++
     accountExistsAtHeaderStateRootFunction ++ "\n" ++
     accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++
@@ -3150,7 +3150,7 @@ def emitRuntimeDispatcherCallableCore
     hash/RLP/MPT/account base helpers, so this list intentionally contains only
     runtime opcode support functions and safe-fail precompile wrappers. -/
 def emitRuntimeDispatcherEmbeddedHelperFunctions : String :=
-  balanceAtHeaderStateRootFunction ++ "\n" ++
+  balanceLiveElseHeaderStateRootFunction ++ "\n" ++
   nonceAtHeaderStateRootFunction ++ "\n" ++
   accountExistsAtHeaderStateRootFunction ++ "\n" ++
   accountIsEmptyAtHeaderStateRootFunction ++ "\n" ++

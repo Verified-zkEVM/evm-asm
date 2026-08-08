@@ -504,7 +504,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `multiTxSequentialGasSettleStepFunction` | `EvmAsm/Codegen/Programs/DispatcherTxGasSettle.lean` | 49 | 6 reloc sym(s) |
 | `messageValueTransferFunction` | `EvmAsm/Codegen/Programs/EIP7708Logs.lean` | 71 | 5 reloc sym(s) |
 | `eip7702WarmRecoveredAuthoritiesFunction` | `EvmAsm/Codegen/Programs/Eip7702Authority.lean` | 100 | 15 reloc sym(s) |
-| `balanceAtHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/EvmOpcodes.lean` | 86 | 6 reloc sym(s) |
+| `balanceLiveElseHeaderStateRootFunction` | `EvmAsm/Codegen/Programs/EvmOpcodes.lean` | 86 | 6 reloc sym(s) |
 | `headerExtractBlobGasPairFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 35 | 1 reloc sym(s) |
 | `headerExtractTimestampFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 8 | 1 reloc sym(s) |
 | `headerMinimalDecodeFunction` | `EvmAsm/Codegen/Programs/HeaderDecode.lean` | 114 | 3 reloc sym(s) |

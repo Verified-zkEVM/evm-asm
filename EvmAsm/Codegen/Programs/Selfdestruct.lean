@@ -30,7 +30,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld a3, 592(x20)\n" ++
   "  ld a4, 600(x20)\n" ++
   "  la a5, bal_output_scratch\n" ++
-  "  jal ra, balance_at_header_state_root\n" ++
+  "  jal ra, balance_live_else_header_state_root\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
