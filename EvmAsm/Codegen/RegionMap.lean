@@ -539,6 +539,16 @@ abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
     removal absorbs in the same direction (#10986, #10988). -/
 abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
 
+/-- ELF-measured base of `.state_gas_diag`. Unlike every other RAM section this
+    one carries **no `--section-start` flag**: the linker places it immediately
+    after `.bss`, so its base is a *consequence* of `bssSizeBytes` and moves on
+    every `.bss` growth. A hand-typed constant here would silently go stale, so
+    it is a class-A pin like the three BSS symbol bases. -/
+abbrev stateGasDiagBase : Nat := RegionMapLinkPins.stateGasDiagBase
+
+/-- ELF-measured `.state_gas_diag` size. -/
+abbrev stateGasDiagSizeBytes : Nat := RegionMapLinkPins.stateGasDiagSizeBytes
+
 /-- Host input window (`INPUT_ADDR = 0x40000000`, 8 KiB; SSZ body at `+16`). -/
 def inputRegion : GuestRegion :=
   { name := "INPUT", base := 0x40000000, size := 0x2000, mode := .ro, zone := .input,
@@ -577,6 +587,19 @@ def dataRegion : GuestRegion :=
 def bssRegion : GuestRegion :=
   { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
     evidence := "ELF --section-start=.bss=0xa3110000; 0x" ++ natToHex bssSizeBytes ++ "-byte NOBITS extent" }
+
+/-- `.state_gas_diag` NOBITS per-transaction state-gas differential outputs
+    (`DispatcherExecStateGas.lean:158`, emitted unconditionally). GH #11186:
+    this section was in the image but in **no** region list, so neither
+    `guestRegionMap_fits_ram` nor `guestRegionMap_pairwise_disjoint` ranged over
+    it and `check-memorylayout-region-coverage.sh` could not see it — it is not
+    a `MemoryLayout` anchor. It sits at the base of the largest free RAM gap,
+    which is where an undeclared neighbour stops being harmless. -/
+def stateGasDiagRegion : GuestRegion :=
+  { name := ".state_gas_diag", base := stateGasDiagBase, size := stateGasDiagSizeBytes,
+    mode := .nobits, zone := .ram,
+    evidence := "ELF NOBITS section placed after .bss (no --section-start); base 0x"
+      ++ natToHex stateGasDiagBase ++ ", 0x" ++ natToHex stateGasDiagSizeBytes ++ "-byte extent" }
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
@@ -628,8 +651,14 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `transient_storage_log` ends `0xa0a30000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbe6a4860`,
-    both below `.sszscratch`; INPUT and `.text` sit in their own zones. The
+    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbc139560` where
+    `.state_gas_diag` begins, and that ends `0xbc171230`, all below
+    `.sszscratch`; INPUT and `.text` sit in their own zones.
+    ⚠️ The `.bss` end quoted here is a **current fact read off the image**, not a
+    constant: it is `bssRegion.base + bssSizeBytes` and moves with every `.bss`
+    growth. It read `0xbe6a4860` until GH #11186 found it stale by 37 MiB — the
+    kernel-checked statements below are the load-bearing ones, this sentence is
+    orientation. The
     guest's one intentional overlap lives strictly inside the `.bss` member and
     is expanded — as its own inventory —
     in `dataUnionChildren`/`aliasedPairs` below. The scheme-A anchors are the
@@ -638,7 +667,7 @@ def stateTrackerLiveRegion : GuestRegion :=
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
     stateTrackerLiveRegion, textRegion, dataRegion,
-    bssRegion, sszScratchRegion ]
+    bssRegion, stateGasDiagRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
