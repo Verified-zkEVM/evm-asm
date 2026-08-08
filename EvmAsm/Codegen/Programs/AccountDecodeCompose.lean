@@ -51,10 +51,11 @@ namespace EvmAsm.Codegen.AccountDecodeCompose
 open EvmAsm.Rv64 EvmAsm.EL.RLP
 open EvmAsm.Stateless (AccountRecord accountDecodedIs accountDecodedIs_eq beBytes32)
 open EvmAsm.Codegen.RlpListNthItemSAsm (Success)
-open EvmAsm.Codegen.AccountDecodeSpec (Decoded outputSuccess beAccum balanceCopied fixed32Copied
+open EvmAsm.Codegen.AccountDecodeSpec (Decoded outputSuccess beAccum nonceAccum balanceCopied fixed32Copied
   hashCell hashCell_of_ne_zero adEmptyTrieRootBytes adEmptyCodeHashBytes)
 open EvmAsm.Codegen.AccountDecodeBridge
-  (beAccum_of_content balanceCopied_of_content fixed32Copied_of_content)
+  (nonceAccum_of_content balanceCopied_of_content fixed32Copied_of_content
+  numLeadingZerosBE_toBytesBE)
 
 /-! ## The record's four RLP children -/
 
@@ -158,12 +159,13 @@ theorem outputSuccess_eq_accountDecodedIs
   have hn1 : l1.toNat = (Nat.toBytesBE a.balance).length := by
     rw [he1, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
   -- the four cell-value equations
-  have hvNonce : beAccum a.rlp o0.toNat l0.toNat = BitVec.ofNat 64 a.nonce := by
-    rw [hn0, beAccum_of_content a.rlp o0 (Nat.toBytesBE a.nonce).length
-      (Nat.toBytesBE a.nonce) hnlen hb0 hc0, Nat.fromBytesBE_toBytesBE]
+  have hvNonce : nonceAccum a.rlp o0.toNat l0.toNat = BitVec.ofNat 64 a.nonce := by
+    rw [hn0, nonceAccum_of_content a.rlp o0 (Nat.toBytesBE a.nonce).length
+      (Nat.toBytesBE a.nonce) hnlen hb0 hc0 (numLeadingZerosBE_toBytesBE a.nonce),
+      Nat.fromBytesBE_toBytesBE]
   have hvBal : balanceCopied a.rlp o1 l1.toNat = beBytes32 a.balance := by
     rw [hn1, balanceCopied_of_content a.rlp o1 (Nat.toBytesBE a.balance).length
-      (Nat.toBytesBE a.balance) hblen hb1 hc1]
+      (Nat.toBytesBE a.balance) hblen hb1 hc1 (numLeadingZerosBE_toBytesBE a.balance)]
     rfl
   -- ⭐ the #11483 fold arm is unreachable *here*, and that is the point.  The
   -- guest now folds a zero-length hash field to `EMPTY_TRIE_ROOT` /
