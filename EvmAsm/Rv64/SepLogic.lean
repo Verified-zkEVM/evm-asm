@@ -3022,6 +3022,38 @@ theorem seps_perm {l₁ l₂ : List Assertion} (h : l₁.Perm l₂) : seps l₁ 
   | swap x y l => rw [seps_cons, seps_cons, seps_cons, seps_cons, sepConj_left_comm']
   | trans _ _ ih₁ ih₂ => rw [ih₁, ih₂]
 
+/-- **Gathering a list by a permuted index vector permutes the list.** For any
+    element type: given `σ.Perm (List.range l.length)`, reading `l` through `σ`
+    yields a permutation of `l`.
+
+    ⚠️ **Factored out of `seps_permute` (#10817), where it lived as two inlined
+    `have`s specialised to `Assertion`.** Both steps are type-generic, and the
+    specialisation was the only thing making them unusable elsewhere — #10817's
+    permutation obligation is over a `List (List (BitVec 8))` of sort rows, and
+    needed exactly this and could not reach it.
+
+    ⛔ Do **not** reach for `seps_permute` for that obligation. It proves
+    AC-reordering of separating conjuncts — one atom multiset re-listed — and a
+    row sort holds addresses fixed while changing *contents*, so before and after
+    are different assertions at the same addresses. Instantiating it there would
+    state that the rows can be *listed* in another order, which is a triviality:
+    a green, vacuous theorem that nothing downstream would flag. This lemma is the
+    piece that actually transfers; `seps_permute` is re-proved through it below so
+    the two cannot drift. -/
+theorem perm_map_getD_of_perm_range {α : Type _} (l : List α) (d : α)
+    (σ : List Nat) (hσ : σ.Perm (List.range l.length)) :
+    (σ.map (fun i => l.getD i d)).Perm l := by
+  have hrec : (List.range l.length).map (fun i => l.getD i d) = l := by
+    apply List.ext_getElem
+    · simp
+    · intro i h1 h2
+      simp only [List.getElem_map, List.getElem_range]
+      simp [h2]
+  have hp : (σ.map (fun i => l.getD i d)).Perm
+            ((List.range l.length).map (fun i => l.getD i d)) := hσ.map _
+  rw [hrec] at hp
+  exact hp
+
 /-- Index-based permutation certificate for `seps`.
 
     `σ` is a list of indices into `l`; `seps l` equals the `seps` of `l`
@@ -3035,18 +3067,8 @@ theorem seps_perm {l₁ l₂ : List Assertion} (h : l₁.Perm l₂) : seps l₁ 
     work on the (potentially large) atom expressions. -/
 theorem seps_permute (l : List Assertion) (σ : List Nat)
     (hσ : σ.Perm (List.range l.length)) :
-    seps l = seps (σ.map (fun i => l.getD i empAssertion)) := by
-  have hrec : (List.range l.length).map (fun i => l.getD i empAssertion) = l := by
-    apply List.ext_getElem
-    · simp
-    · intro i h1 h2
-      simp only [List.getElem_map, List.getElem_range]
-      simp [h2]
-  have hp : ((List.range l.length).map (fun i => l.getD i empAssertion)).Perm
-            (σ.map (fun i => l.getD i empAssertion)) := hσ.symm.map _
-  calc seps l
-      = seps ((List.range l.length).map (fun i => l.getD i empAssertion)) := by rw [hrec]
-    _ = seps (σ.map (fun i => l.getD i empAssertion)) := seps_perm hp
+    seps l = seps (σ.map (fun i => l.getD i empAssertion)) :=
+  (seps_perm (perm_map_getD_of_perm_range l empAssertion σ hσ)).symm
 
 /-- XOR-clearing bitmask permutation checker: `mask` holds the still-unused
     indices as set bits; each visited index must have its bit set (else a
