@@ -339,21 +339,23 @@ def callDescendFallThrough
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n" ++
     "  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_val_" ++ tag ++ "\n" ++
-    -- balance_live_else_header_state_root(caller) -> cd_balance_be. Save x10/x12/x13
-    -- (helper clobbers the a-regs that alias them); it preserves x20/x21.
-    -- drj99.1: use the caller's LIVE selfBalance (env+32), NOT the PRE-STATE balance_live_else_header_state_root
-    -- lookup. The pre-state lookup returns 0 for a freshly-CREATEd contract (absent pre-block) -> the gate
-    -- would falsely deem its value-CALL insufficient -> .Lcd_fail -> no transfer -> the created contract's
-    -- balance AND the callee credit are mis-recorded (bv_fail=44/45, initcode_calls_with_value etc.). env+32
-    -- is the authoritative current balance (authenticated pre-state + the create endowment-credit + live
-    -- debits), and the .Lcd_notself transfer below ALSO debits env+32, so gate and transfer now agree (the
-    -- prior split was unsound for a 2nd same-frame value-CALL: the pre-state read is stale-high). env+32 is
-    -- LE -> reverse to BE into cd_balance_be. At worst conservative (env+32 missing -> 0 -> false-reject,
-    -- never false-accept). cd_caller_be (built above) still feeds the .Lcd_notself self-call guard.
-    "  addi t0, x20, 63\n  la t1, cd_balance_be\n  li t2, 32\n" ++
-    ".Lcd_livebal_" ++ tag ++ ":\n" ++
-    "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcd_livebal_" ++ tag ++ "\n" ++
-    -- compare cd_balance_be (now the live env+32, BE) vs cd_value_be (32-byte big-endian, MSB first)
+     -- Caller live balance -> cd_balance_be (BE). Spec keeps one live balance in
+     -- tx_state; env+32 is only a per-frame cache. Prefer account_writes_latest_balance
+     -- (same map rmv publishes) so a re-entrant outer frame cannot re-read a pre that
+     -- an inner same-account value-CALL already invalidated (#11542/20177). On map miss
+     -- fall back to env+32 LE->BE (create endowment / first debit before any AW row).
+     -- Save x10/x12/x13 around the helper (clobbers a-regs); x20/x21 preserved.
+     -- cd_caller_be (built above) still feeds the .Lcd_notself self-call guard.
+     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+     "  la a0, cd_caller_be\n  la a1, cd_balance_be\n" ++
+     "  jal ra, account_writes_latest_balance\n  mv t6, a0\n" ++
+     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+     "  bnez t6, .Lcd_livebal_ready_" ++ tag ++ "\n" ++
+     "  addi t0, x20, 63\n  la t1, cd_balance_be\n  li t2, 32\n" ++
+     ".Lcd_livebal_" ++ tag ++ ":\n" ++
+     "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcd_livebal_" ++ tag ++ "\n" ++
+     ".Lcd_livebal_ready_" ++ tag ++ ":\n" ++
+     -- compare cd_balance_be (live caller balance, BE) vs cd_value_be (32-byte big-endian, MSB first)
     "  la t0, cd_balance_be\n" ++
     "  la t1, cd_value_be\n" ++
     "  li t2, 32\n" ++
@@ -364,52 +366,44 @@ def callDescendFallThrough
     "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n" ++
     "  bnez t2, .Lcd_cmp_" ++ tag ++ "\n" ++
     ".Lcd_balok_" ++ tag ++ ":\n" ++
-    -- 5em02.1: debit the caller's LIVE balance (env+32 = .selfBalance, big-endian) by the
-    -- transferred value so SELFBALANCE reads B-V mid-execution. The transfer was inert, so
-    -- SELFBALANCE read the staged pre-state balance -> false-reject for value-moving
-    -- contracts. CALL (mode 0) only: CALLCODE keeps the value in the caller's own context
-    -- (transfer-to-self, no balance change). Guards: value!=0 + account-witness ctx present
-    -- (so cd_value_be is the valid BE value the gate populated above) + borrow-check (the
-    -- gate verified PRE-state balance>=value; the LIVE env+32 may be lower from an earlier
-    -- value-CALL in this frame -> skip on underflow, conservative no-op). u256_sub_be
-    -- clobbers a-regs aliasing x10/x12/x13; x20 is preserved.
-    (if mode != 0 then "" else
-      "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
-      "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
-      "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
-      "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
-      "  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++       -- value == 0: no debit
-      "  ld t3, 584(x20)\n  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++   -- no ctx -> cd_value_be stale -> skip
-      -- self-call guard: if the callee (x12+32, 20-byte BE) == the caller (cd_caller_be,
-      -- the gate's 20-byte BE), the value returns to self -> net-zero. The per-frame env
-      -- model would otherwise leave the caller frame at B-V after return -> false-reject.
-      "  la t0, cd_caller_be\n  addi t1, x12, 32\n  li t2, 20\n" ++
-      ".Lcd_selfchk_" ++ tag ++ ":\n" ++
-      "  beqz t2, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- all 20 bytes equal -> self-call -> skip
-      "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .Lcd_notself_" ++ tag ++ "\n" ++
-      "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_selfchk_" ++ tag ++ "\n" ++
-      ".Lcd_notself_" ++ tag ++ ":\n" ++
-      "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-      -- env+32 (.selfBalance) is LITTLE-ENDIAN (stack-word: byte 0 = LSB), the same convention as
-      -- CALLVALUE@96 (which NoopHalt reverses x20+127->+96 to obtain BE); u256_sub_be is big-endian
-      -- (byte 31 = LSB, U256.lean). The prior code fed env+32 STRAIGHT to u256_sub_be -> byte-scrambled
-      -- selfBalance debit (drj99.1 part 4). Reverse env[32..63] (LE) -> cd_caller_newbal (BE), subtract
-      -- in place (a0==a2 is byte-safe: u256_sub_be reads a0[i] then writes a2[i] at the same index),
-      -- then reverse the result back to env+32 (LE).
-      "  addi t0, x20, 63\n  la t1, cd_caller_newbal\n  li t2, 32\n" ++
-      ".Lcd_sbrev_" ++ tag ++ ":\n" ++
-      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, -1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbrev_" ++ tag ++ "\n" ++
-      "  la a0, cd_caller_newbal\n" ++                     -- a0 = caller LIVE balance, now BE
-      "  la a1, cd_value_be\n" ++                          -- a1 = transferred value (BE)
-      "  la a2, cd_caller_newbal\n" ++                     -- a2 = out (in place = balance - value, BE)
-      "  jal ra, u256_sub_be\n" ++
-      "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
-      "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-      "  bnez t0, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- underflow (live < value): conservative skip
-      -- reverse cd_caller_newbal (BE) back into env+32 (LE)
-      "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
-      ".Lcd_sbwb_" ++ tag ++ ":\n" ++
-      "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
+     -- 5em02.1: debit from the gate-resolved live pre in cd_balance_be (AW-preferred),
+     -- write B-V back to this frame's env+32 so SELFBALANCE mid-frame matches the map.
+     -- Do NOT re-read env+32 here: after re-entrant same-account activity the outer
+     -- frame cache can be stale-high while cd_balance_be already holds the map truth
+     -- (#11542/20177). rmv consumes cd_balance_be as pre — gate and debit must share it.
+     -- CALL (mode 0) only: CALLCODE is transfer-to-self (net-zero). Guards: value!=0 +
+     -- account-witness ctx + self-call skip + borrow-check. u256_sub_be clobbers a-regs.
+     (if mode != 0 then "" else
+       "  ld t3, " ++ toString valueOff ++ "(x12)\n" ++
+       "  ld t4, " ++ toString (valueOff+8) ++ "(x12)\n  or t3, t3, t4\n" ++
+       "  ld t4, " ++ toString (valueOff+16) ++ "(x12)\n  or t3, t3, t4\n" ++
+       "  ld t4, " ++ toString (valueOff+24) ++ "(x12)\n  or t3, t3, t4\n" ++
+       "  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++       -- value == 0: no debit
+       "  ld t3, 584(x20)\n  beqz t3, .Lcd_deb_done_" ++ tag ++ "\n" ++   -- no ctx -> cd_value_be stale -> skip
+       -- self-call guard: if the callee (x12+32, 20-byte BE) == the caller (cd_caller_be,
+       -- the gate's 20-byte BE), the value returns to self -> net-zero. The per-frame env
+       -- model would otherwise leave the caller frame at B-V after return -> false-reject.
+       "  la t0, cd_caller_be\n  addi t1, x12, 32\n  li t2, 20\n" ++
+       ".Lcd_selfchk_" ++ tag ++ ":\n" ++
+       "  beqz t2, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- all 20 bytes equal -> self-call -> skip
+       "  lbu t3, 0(t0)\n  lbu t4, 0(t1)\n  bne t3, t4, .Lcd_notself_" ++ tag ++ "\n" ++
+       "  addi t0, t0, 1\n  addi t1, t1, 1\n  addi t2, t2, -1\n  j .Lcd_selfchk_" ++ tag ++ "\n" ++
+       ".Lcd_notself_" ++ tag ++ ":\n" ++
+       "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
+       -- cd_balance_be is already BE live pre (AW hit or env fallback). Subtract into
+       -- cd_caller_newbal (leave cd_balance_be intact for rmv pre), reverse newbal -> env+32 LE.
+       "  la a0, cd_balance_be\n" ++                        -- a0 = caller LIVE pre (BE)
+       "  la a1, cd_value_be\n" ++                          -- a1 = transferred value (BE)
+       "  la a2, cd_caller_newbal\n" ++                     -- a2 = out (balance - value, BE)
+       "  jal ra, u256_sub_be\n" ++
+       "  mv t0, a0\n" ++                                   -- t0 = borrow flag (before x10=a0 restore)
+       "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
+       "  bnez t0, .Lcd_deb_done_" ++ tag ++ "\n" ++        -- underflow (live < value): conservative skip
+       -- reverse cd_caller_newbal (BE) back into env+32 (LE) — write-through cache for this frame
+       "  la t0, cd_caller_newbal\n  addi t1, x20, 63\n  li t2, 32\n" ++
+       ".Lcd_sbwb_" ++ tag ++ ":\n" ++
+       "  lbu t3, 0(t0)\n  sb t3, 0(t1)\n  addi t0, t0, 1\n  addi t1, t1, -1\n  addi t2, t2, -1\n  bnez t2, .Lcd_sbwb_" ++ tag ++ "\n" ++
+
       -- Debug-only post-mutation witness for the caller debit.  The later
       -- frame-return path supplies the rollback semantics; this checkpoint
       -- records the live balance at the actual debit boundary.
