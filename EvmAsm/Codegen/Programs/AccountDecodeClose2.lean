@@ -53,17 +53,17 @@ theorem adField0Stage
     cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 56) fullCode
       (adCallPre raIn spW listBase len nonceOut s3 s4 s5 oldOffset oldLen
         v10 v11 v12 v13 v14 bytes)
-      (AB + 504) (adK20FailPost spW listBase oldOffset oldLen 0 saved bytes listLen)
+      (AB + 552) (adK20FailPost spW listBase oldOffset oldLen 0 saved bytes listLen)
       (AB + 92) (adK20ContPost spW listBase 0 saved bytes listLen) := by
   intro saved n20
   have hcall := adField0Call spW raIn listBase len nonceOut s3 s4 s5 oldOffset oldLen
     v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
-  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 88) (416 : BitVec 13) 0
+  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 88) (464 : BitVec 13) 0
     saved bytes listLen
-    (by rw [show signExtend13 (416 : BitVec 13) = (416 : Word) from by decide]; bv_omega)
+    (by rw [show signExtend13 (464 : BitVec 13) = (464 : Word) from by decide]; bv_omega)
     (fun a i hi => ad_mono a i
       (CodeReq.ofProg_mem_at AB (AB + 88) accountDecode_prog 22
-        (.BNE .x10 .x0 (416 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
+        (.BNE .x10 .x0 (464 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
         (by rw [ad_length]; decide) a i hi))
   rw [show (AB + 88 : Word) + 4 = AB + 92 from by bv_omega] at hdisp
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun _ hq => hq) hcall hdisp
@@ -83,25 +83,25 @@ theorem adField1Stage
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 196, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
+      { ra := AB + 220, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (1 + 2)) + 6)) + 9
-    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 164) fullCode
+    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 188) fullCode
       (adCallPre raIn spW listBase len nonceOut s3 s4 s5 oldOffset oldLen
         v10 v11 v12 v13 v14 bytes)
-      (AB + 504) (adK20FailPost spW listBase oldOffset oldLen 1 saved bytes listLen)
-      (AB + 200) (adK20ContPost spW listBase 1 saved bytes listLen) := by
+      (AB + 552) (adK20FailPost spW listBase oldOffset oldLen 1 saved bytes listLen)
+      (AB + 224) (adK20ContPost spW listBase 1 saved bytes listLen) := by
   intro saved n20
   have hcall := adField1Call spW raIn listBase len nonceOut s3 s4 s5 oldOffset oldLen
     v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
-  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 196) (308 : BitVec 13) 1
+  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 220) (332 : BitVec 13) 1
     saved bytes listLen
-    (by rw [show signExtend13 (308 : BitVec 13) = (308 : Word) from by decide]; bv_omega)
+    (by rw [show signExtend13 (332 : BitVec 13) = (332 : Word) from by decide]; bv_omega)
     (fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 196) accountDecode_prog 49
-        (.BNE .x10 .x0 (308 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
+      (CodeReq.ofProg_mem_at AB (AB + 220) accountDecode_prog 55
+        (.BNE .x10 .x0 (332 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
         (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 196 : Word) + 4 = AB + 200 from by bv_omega] at hdisp
+  rw [show (AB + 220 : Word) + 4 = AB + 224 from by bv_omega] at hdisp
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun _ hq => hq) hcall hdisp
 
 #print axioms adField1Stage
@@ -119,25 +119,25 @@ theorem adField2Stage
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 320, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
+      { ra := AB + 368, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (2 + 2)) + 6)) + 9
-    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 288) fullCode
+    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 336) fullCode
       (adCallPre raIn spW listBase len nonceOut s3 s4 s5 oldOffset oldLen
         v10 v11 v12 v13 v14 bytes)
-      (AB + 504) (adK20FailPost spW listBase oldOffset oldLen 2 saved bytes listLen)
-      (AB + 324) (adK20ContPost spW listBase 2 saved bytes listLen) := by
+      (AB + 552) (adK20FailPost spW listBase oldOffset oldLen 2 saved bytes listLen)
+      (AB + 372) (adK20ContPost spW listBase 2 saved bytes listLen) := by
   intro saved n20
   have hcall := adField2Call spW raIn listBase len nonceOut s3 s4 s5 oldOffset oldLen
     v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
-  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 320) (184 : BitVec 13) 2
+  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 368) (184 : BitVec 13) 2
     saved bytes listLen
     (by rw [show signExtend13 (184 : BitVec 13) = (184 : Word) from by decide]; bv_omega)
     (fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 320) accountDecode_prog 80
+      (CodeReq.ofProg_mem_at AB (AB + 368) accountDecode_prog 92
         (.BNE .x10 .x0 (184 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
         (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 320 : Word) + 4 = AB + 324 from by bv_omega] at hdisp
+  rw [show (AB + 368 : Word) + 4 = AB + 372 from by bv_omega] at hdisp
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun _ hq => hq) hcall hdisp
 
 #print axioms adField2Stage
@@ -155,25 +155,25 @@ theorem adField3Stage
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 424, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
+      { ra := AB + 472, s0 := listBase, s1 := len, s2 := nonceOut, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (3 + 2)) + 6)) + 9
-    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 392) fullCode
+    cpsBranchWithin ((7 + (1 + n20)) + 1) (AB + 440) fullCode
       (adCallPre raIn spW listBase len nonceOut s3 s4 s5 oldOffset oldLen
         v10 v11 v12 v13 v14 bytes)
-      (AB + 504) (adK20FailPost spW listBase oldOffset oldLen 3 saved bytes listLen)
-      (AB + 428) (adK20ContPost spW listBase 3 saved bytes listLen) := by
+      (AB + 552) (adK20FailPost spW listBase oldOffset oldLen 3 saved bytes listLen)
+      (AB + 476) (adK20ContPost spW listBase 3 saved bytes listLen) := by
   intro saved n20
   have hcall := adField3Call spW raIn listBase len nonceOut s3 s4 s5 oldOffset oldLen
     v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
-  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 424) (80 : BitVec 13) 3
+  have hdisp := adK20Dispatch spW listBase oldOffset oldLen (AB + 472) (80 : BitVec 13) 3
     saved bytes listLen
     (by rw [show signExtend13 (80 : BitVec 13) = (80 : Word) from by decide]; bv_omega)
     (fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 424) accountDecode_prog 106
+      (CodeReq.ofProg_mem_at AB (AB + 472) accountDecode_prog 118
         (.BNE .x10 .x0 (80 : BitVec 13)) (by bv_omega) (by rw [ad_length]; decide) rfl
         (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 424 : Word) + 4 = AB + 428 from by bv_omega] at hdisp
+  rw [show (AB + 472 : Word) + 4 = AB + 476 from by bv_omega] at hdisp
   exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr (fun _ hq => hq) hcall hdisp
 
 #print axioms adField3Stage

@@ -25,14 +25,14 @@
   each: nth_item call → `BNE x10,x0` (parse fail) → a per-field length check →
   a byte-materialisation loop.  The four field materialisers differ:
 
-    * field 0 (nonce): variable-length, `len ≤ 8`; a top-tested big-endian
+    * field 0 (nonce): leading-zero-tolerant value bound (significant bytes
+      fit u64); a top-tested big-endian
       accumulation loop building a u64 register value, then `SD`.
-    * field 1 (balance): variable-length, `len ≤ 32`; the 32-byte output is
-      zeroed then the `len` content bytes are copied right-aligned (top-tested
-      `BEQ`/`JAL` copy loop into `out + (32-len)`).
-    * field 2 (storage_root): fixed `len = 32`; a bottom-tested 32-byte LBU/SB
-      copy loop (`BNE x6,x0 -20` back-edge), like withdrawal's address copy.
-    * field 3 (code_hash): fixed `len = 32`; same bottom-tested 32-byte copy.
+    * field 1 (balance): leading-zero-tolerant value bound (significant bytes
+      fit u256); 32-byte out zeroed, significant bytes right-aligned.
+    * field 2 (storage_root): length ∈ {0, 32} (Bytes32 / EMPTY fold) — stays a
+      length constraint; leading zeros are part of the hash.
+    * field 3 (code_hash): length ∈ {0, 32} — same.
 
   The only linked callee is `rlp_list_nth_item`, so the full linked closure is
   `adCode ∪ RlpListNthItemSAsm.code`.
@@ -58,7 +58,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 abbrev AB : Word := (GuestAddrs.account_decode : Word)
 
 set_option maxRecDepth 8000 in
-theorem ad_length : accountDecode_prog.length = 162 := by decide
+theorem ad_length : accountDecode_prog.length = 174 := by decide
 
 /-- The wrapper's own re-emitted instructions at `account_decode`. -/
 def adCode : CodeReq := CodeReq.ofProg AB accountDecode_prog
@@ -97,32 +97,195 @@ theorem k20_mono :
 /-! ## Semantic decode model
 
     Every field decodes via K20's `Success`/`Failure` relation on the same
-    strict RLP list.  The two variable-length fields (nonce/balance) carry an
-    upper length bound; the two fixed fields (storage_root/code_hash) require
-    exactly 32 content bytes.  No decode-determinism is assumed: each failure
-    arm names the *actual* failing stage (mirroring `WithdrawalDecodeSpec`). -/
+    strict RLP list.  GH #11523: nonce/balance are **value** bounds on the
+    leading-zero-stripped content (u64 / u256), matching
+    `witness_state.py:112-118` `int.from_bytes` (e5a8caf1b).  storage_root /
+    code_hash stay **length** ∈ {0,32} (`Root`/`Hash32` = Bytes32).  No
+    decode-determinism is assumed: each failure arm names the *actual* failing
+    stage (mirroring `WithdrawalDecodeSpec`). -/
 
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
 
+/-- Content bytes of one RLP string field at relative offset `o` length `l`. -/
+def fieldContent (bytes : List (BitVec 8)) (o l : Nat) : List (BitVec 8) :=
+  (bytes.drop o).take l
+
+/-- Leading-zero count of a big-endian integer encoding (all-zero → full length). -/
+def numLeadingZerosBE (bs : List (BitVec 8)) : Nat :=
+  (bs.takeWhile (· == 0)).length
+
+/-- Significant (leading-zero-stripped) length.  Empty after strip ⇒ 0. -/
+def significantLen (bs : List (BitVec 8)) : Nat :=
+  bs.length - numLeadingZerosBE bs
+
+/-- Significant content bytes (drop leading zeros). -/
+def significantBytes (bs : List (BitVec 8)) : List (BitVec 8) :=
+  bs.drop (numLeadingZerosBE bs)
+
+/-- Relative offset of the first significant byte within a field. -/
+def significantOff (bytes : List (BitVec 8)) (o l : Nat) : Nat :=
+  o + numLeadingZerosBE (fieldContent bytes o l)
+
+/-- Value-bound for nonce: significant encoding fits in 8 bytes (u64).
+    Equivalent to `int.from_bytes(field, "big") < 2^64` for big-endian content. -/
+def nonceValueOk (bytes : List (BitVec 8)) (o l : Word) : Prop :=
+  significantLen (fieldContent bytes o.toNat l.toNat) ≤ 8
+
+/-- Value-bound for balance: significant encoding fits in 32 bytes (u256). -/
+def balanceValueOk (bytes : List (BitVec 8)) (o l : Word) : Prop :=
+  significantLen (fieldContent bytes o.toNat l.toNat) ≤ 32
+
 /-- Big-endian accumulation of `len` content bytes starting at relative offset
-    `off`, matching the nonce loop `x7 := (x7 <<< 8) ||| byte`.  After `len`
-    iterations this is the big-endian numeric value the program stores (LE) into
-    the 8-byte nonce slot. -/
+    `off`, matching the nonce loop `x7 := (x7 <<< 8) ||| byte` after the
+    leading-zero strip.  Callers pass the *significant* off/len. -/
 def beAccum (bytes : List (BitVec 8)) (off : Nat) : Nat → Word
   | 0 => 0
   | (i + 1) => (beAccum bytes off i) <<< 8 |||
       ((bytes.getD (off + i) 0).zeroExtend 64)
 
-/-- The 32-byte balance buffer after a successful decode: a fully-zeroed 32-byte
-    region into which the `len` content bytes are copied *right-aligned* (forward
-    copy into destination offset `32 - len`), matching the program's
-    `SD x0` zeroing + `ADD x29, x19, (32-len)` + forward LBU/SB copy. -/
+/-- Nonce u64 after a successful decode: accumulate the significant bytes. -/
+def nonceAccum (bytes : List (BitVec 8)) (o l : Nat) : Word :=
+  beAccum bytes (significantOff bytes o l) (significantLen (fieldContent bytes o l))
+
+/-- The 32-byte balance buffer after a successful decode: zeroed 32-byte region
+    with the *significant* content bytes right-aligned (strip then
+    `out + (32 - sigLen)` forward copy), matching the program post-#11523. -/
 def balanceCopied (bytes : List (BitVec 8)) (o1 : Word) (l1 : Nat) : List (BitVec 8) :=
-  copyIntoRegion (List.replicate 32 (0 : BitVec 8)) bytes (32 - l1) o1.toNat l1
+  let sig := significantBytes (fieldContent bytes o1.toNat l1)
+  copyIntoRegion (List.replicate 32 (0 : BitVec 8)) sig (32 - sig.length) 0 sig.length
 
 theorem balanceCopied_length (bytes : List (BitVec 8)) (o1 : Word) (l1 : Nat) :
     (balanceCopied bytes o1 l1).length = 32 := by
   unfold balanceCopied; rw [copyIntoRegion_length]; simp
+
+theorem numLeadingZerosBE_le (bs : List (BitVec 8)) :
+    numLeadingZerosBE bs ≤ bs.length := by
+  unfold numLeadingZerosBE
+  induction bs with
+  | nil => decide
+  | cons b bs ih =>
+    rw [List.takeWhile_cons]
+    split_ifs with hb
+    · simp only [List.length_cons]; exact Nat.succ_le_succ ih
+    · simp only [List.length_nil]; exact Nat.zero_le _
+
+theorem significantLen_le (bs : List (BitVec 8)) :
+    significantLen bs ≤ bs.length := by
+  unfold significantLen; have := numLeadingZerosBE_le bs; omega
+
+/-- `((bs.drop o).take l).drop k = (bs.drop (o+k)).take (l-k)`. -/
+theorem drop_take_drop_eq (bs : List (BitVec 8)) (o l k : Nat) :
+    ((bs.drop o).take l).drop k = (bs.drop (o + k)).take (l - k) := by
+  rw [List.drop_take, List.drop_drop]
+
+/-- Significant window as a slice of the ambient byte buffer. -/
+theorem significantBytes_eq_slice (bytes : List (BitVec 8)) (o l : Nat)
+    (_hbound : o + l ≤ bytes.length) :
+    let nlz := numLeadingZerosBE (fieldContent bytes o l)
+    significantBytes (fieldContent bytes o l) = (bytes.drop (o + nlz)).take (l - nlz) := by
+  intro nlz
+  unfold significantBytes fieldContent
+  exact drop_take_drop_eq bytes o l nlz
+
+/-- Significant length equals field length minus leading zeros. -/
+theorem significantLen_eq_field (bytes : List (BitVec 8)) (o l : Nat)
+    (hbound : o + l ≤ bytes.length) :
+    significantLen (fieldContent bytes o l) = l - numLeadingZerosBE (fieldContent bytes o l) := by
+  unfold significantLen fieldContent
+  have hlen : ((bytes.drop o).take l).length = l := by
+    rw [List.length_take, List.length_drop]; omega
+  rw [hlen]
+
+private theorem ads_getD_drop_take (src : List (BitVec 8)) (sOff i n : Nat)
+    (hi : i < n) (hbound : sOff + n ≤ src.length) :
+    ((src.drop sOff).take n).getD i 0 = src.getD (sOff + i) 0 := by
+  have hlen : ((src.drop sOff).take n).length = n := by
+    rw [List.length_take, List.length_drop]; omega
+  have hi' : i < ((src.drop sOff).take n).length := by omega
+  have hs : sOff + i < src.length := by omega
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi',
+    List.getElem?_eq_getElem hs, Option.getD_some]
+  rw [List.getElem_take, List.getElem_drop]
+
+/-- Copying `k` bytes from a longer take-window equals copying from the exact take. -/
+private theorem ads_copyInto_take_short (dest win : List (BitVec 8)) (dOff k m : Nat)
+    (hk : k ≤ m) :
+    copyIntoRegion dest (win.take m) dOff 0 k = copyIntoRegion dest (win.take k) dOff 0 k := by
+  induction k generalizing dest m with
+  | zero => rfl
+  | succ k ih =>
+    simp only [copyIntoRegion]
+    have hget : (win.take m).getD k 0 = (win.take (k + 1)).getD k 0 := by
+      by_cases hkm : k < win.length
+      · have hm : k < (win.take m).length := by rw [List.length_take]; omega
+        have hk1 : k < (win.take (k + 1)).length := by rw [List.length_take]; omega
+        simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hm,
+          List.getElem?_eq_getElem hk1, Option.getD_some, List.getElem_take]
+      · have hm : (win.take m).length ≤ k := by rw [List.length_take]; omega
+        have hk1 : (win.take (k + 1)).length ≤ k := by rw [List.length_take]; omega
+        simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_none hm,
+          List.getElem?_eq_none hk1]
+    have hrec : copyIntoRegion dest (win.take m) dOff 0 k =
+        copyIntoRegion dest (win.take (k + 1)) dOff 0 k := by
+      have h1 := ih dest m (by omega)
+      have h2 := ih dest (k + 1) (by omega)
+      rw [h1, h2]
+    simp only [Nat.zero_add]
+    rw [hrec, hget]
+
+/-- `copyIntoRegion` from an ambient buffer at `srcOff` equals copying the
+    sliced window as a standalone source list. -/
+theorem copyIntoRegion_of_slice (dest src : List (BitVec 8)) (dOff sOff n : Nat)
+    (hbound : sOff + n ≤ src.length) :
+    copyIntoRegion dest src dOff sOff n =
+      copyIntoRegion dest ((src.drop sOff).take n) dOff 0 n := by
+  induction n generalizing dest with
+  | zero => rfl
+  | succ n ih =>
+    simp only [copyIntoRegion]
+    have hih := ih dest (by omega)
+    rw [hih]
+    have hget : ((src.drop sOff).take (n + 1)).getD n 0 = src.getD (sOff + n) 0 :=
+      ads_getD_drop_take src sOff n (n + 1) (by omega) hbound
+    simp only [Nat.zero_add] at hget ⊢
+    have hrec : copyIntoRegion dest ((src.drop sOff).take (n + 1)) dOff 0 n =
+        copyIntoRegion dest ((src.drop sOff).take n) dOff 0 n :=
+      ads_copyInto_take_short dest (src.drop sOff) dOff n (n + 1) (by omega)
+    rw [hrec, hget]
+
+/-- Loop form of `balanceCopied`: right-aligned copy from ambient significant window. -/
+theorem balanceCopied_eq_loop (bytes : List (BitVec 8)) (o1 : Word) (l1 : Nat)
+    (hbound : o1.toNat + l1 ≤ bytes.length) :
+    let sigN := significantLen (fieldContent bytes o1.toNat l1)
+    let sigO := significantOff bytes o1.toNat l1
+    copyIntoRegion (List.replicate 32 (0 : BitVec 8)) bytes (32 - sigN) sigO sigN =
+      balanceCopied bytes o1 l1 := by
+  intro sigN sigO
+  unfold balanceCopied
+  have hslice := significantBytes_eq_slice bytes o1.toNat l1 hbound
+  have hsigN : sigN = l1 - numLeadingZerosBE (fieldContent bytes o1.toNat l1) :=
+    significantLen_eq_field bytes o1.toNat l1 hbound
+  have hsigO : sigO = o1.toNat + numLeadingZerosBE (fieldContent bytes o1.toNat l1) := rfl
+  have hsrc : sigO + sigN ≤ bytes.length := by
+    rw [hsigO, hsigN]
+    have hlenField : (fieldContent bytes o1.toNat l1).length = l1 := by
+      unfold fieldContent; rw [List.length_take, List.length_drop]; omega
+    have hnlz := numLeadingZerosBE_le (fieldContent bytes o1.toNat l1)
+    omega
+  have hcopy := copyIntoRegion_of_slice (List.replicate 32 (0 : BitVec 8)) bytes
+    (32 - sigN) sigO sigN hsrc
+  rw [hcopy]
+  have hwin : (bytes.drop sigO).take sigN =
+      significantBytes (fieldContent bytes o1.toNat l1) := by
+    dsimp only [sigO, sigN] at hslice ⊢
+    simpa [significantOff, significantLen_eq_field bytes o1.toNat l1 hbound] using hslice.symm
+  rw [hwin]
+  -- length of significantBytes = sigN by definition of significantLen
+  have hlenEq : (significantBytes (fieldContent bytes o1.toNat l1)).length = sigN := by
+    dsimp only [sigN, significantBytes, significantLen]
+    rw [List.length_drop]
+  rw [← hlenEq]
+
 
 /-- A fixed 32-byte content copy (storage_root / code_hash): the 32 content
     bytes at relative offset `o` copied forward into the caller's old 32-byte
@@ -243,19 +406,20 @@ theorem pcFree_adFoldConstants : adFoldConstants.pcFree := by
   exact pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)
 
 /-- The genuine success verdict: all four fields decode as K20 successes, with
-    the two variable fields within their length caps and the two hash fields
-    either exactly 32 bytes or zero-length (the #11483 fold).  The output values
-    are tied to the actual content:
-      * nonce   = `beAccum` of the `l0` content bytes at `o0`,
-      * balance = right-aligned 32-byte copy of the `l1` content bytes at `o1`,
+    nonce/balance satisfying **value** bounds (GH #11523: significant bytes fit
+    u64 / u256 — leading zeros are padding) and the two hash fields either
+    exactly 32 bytes or zero-length (the #11483 fold).  The output values are
+    tied to the actual content:
+      * nonce   = `nonceAccum` of field 0 (strip then `beAccum`),
+      * balance = right-aligned 32-byte copy of significant field-1 bytes,
       * root / code_hash = 32-byte copy at `o2` / `o3`, or the EMPTY constant
         when the field was zero-length. -/
 def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
     (o0 l0 o1 l1 o2 l2 o3 l3 : Word) : Prop :=
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 0 o0 l0 ∧
-  l0.toNat ≤ 8 ∧
+  nonceValueOk bytes o0 l0 ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 1 o1 l1 ∧
-  l1.toNat ≤ 32 ∧
+  balanceValueOk bytes o1 l1 ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2 ∧
   (l2.toNat = 32 ∨ l2.toNat = 0) ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 3 o3 l3 ∧
@@ -265,16 +429,16 @@ def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
     actual decoded field value. -/
 def outputSuccess (nonceOut balanceOut rootOut codeOut o0 o1 o2 o3 : Word)
     (l0 l1 l2 l3 : Nat) (bytes oldRoot oldCode : List (BitVec 8)) : Assertion :=
-  (nonceOut ↦ₘ beAccum bytes o0.toNat l0) **
+  (nonceOut ↦ₘ nonceAccum bytes o0.toNat l0) **
   bytesRegion balanceOut (balanceCopied bytes o1 l1) **
   bytesRegion rootOut (hashCell bytes oldRoot o2 l2 adEmptyTrieRootBytes) **
   bytesRegion codeOut (hashCell bytes oldCode o3 l3 adEmptyCodeHashBytes)
 
 /-- An account-decode **failure** outcome, matching the program's short-circuit
-    dispatch (field 0 list → field 0 len>8 → field 1 list → field 1 len>32 →
-    field 2 list → field 2 len≠32 → field 3 list → field 3 len≠32).  Each arm
-    names the *actual* failing stage via K20's semantics (no determinism
-    assumed).  Mirrors `WithdrawalDecodeSpec.DecodeFailure`. -/
+    dispatch (field 0 list → field 0 value overflow → field 1 list → field 1
+    value overflow → field 2 list → field 2 len∉{0,32} → field 3 list → field 3
+    len∉{0,32}).  Each arm names the *actual* failing stage via K20's semantics
+    (no determinism assumed).  Mirrors `WithdrawalDecodeSpec.DecodeFailure`. -/
 inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
     (listLen : Nat) : Prop
   -- ⚠️ GH #11483: `field2Len`/`field3Len` carry `≠ 0` as well as `≠ 32`, because a
@@ -283,19 +447,21 @@ inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
   -- program *accepts*, i.e. it would stop characterising the failure set even though
   -- the whole-program theorem stayed true (a weaker post is still sound). The point
   -- of the predicate is to say what the routine rejects, so it has to track the fold.
+  -- GH #11523: `field0Len`/`field1Len` are **value** overflows (significant length
+  -- exceeds u64/u256 width), not raw RLP string length caps.
   | field0List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 0) :
       DecodeFailure bytes listBase listLen
   | field0Len (o0 l0 : Word)
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 0 o0 l0)
-      (hlen : 8 < l0.toNat) :
+      (hoven : ¬ nonceValueOk bytes o0 l0) :
       DecodeFailure bytes listBase listLen
   | field1List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 1) :
       DecodeFailure bytes listBase listLen
   | field1Len (o1 l1 : Word)
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 1 o1 l1)
-      (hlen : 32 < l1.toNat) :
+      (hoven : ¬ balanceValueOk bytes o1 l1) :
       DecodeFailure bytes listBase listLen
   | field2List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 2) :

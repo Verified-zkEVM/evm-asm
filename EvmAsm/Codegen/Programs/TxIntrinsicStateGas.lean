@@ -166,7 +166,15 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_live_empty:\n" ++
   "  li a2, 0\n" ++
   ".L77as_live:\n" ++
-  "  la t0, teer_pre_acct; ld a1, 0(t0); li a0, 1; j .L77as_ret\n" ++
+  -- Prefer map nonce (s1) when account_writes_latest_nonce_tx found a CURRENT
+  -- row (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
+  -- auth_current misses that row, so the normal_nonce path stashes the map
+  -- nonce in s1. Loading teer_pre_acct here would wipe it with the header
+  -- nonce and reject self-sponsored AUTH whose signed nonce is post-inclusion
+  -- (GH #11744: 352 regular shortfall on call_to_precompile_in_pointer_context).
+  "  bnez s2, .L77as_live_map; la t0, teer_pre_acct; ld s1, 0(t0)\n" ++
+  ".L77as_live_map:\n" ++
+  "  mv a1, s1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_absent:\n" ++
   "  li a0, 0; li a1, 0; li a2, 0\n" ++
   ".L77as_ret:\n" ++

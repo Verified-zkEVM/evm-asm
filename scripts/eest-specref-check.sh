@@ -204,8 +204,14 @@ elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
 else
   RUN_DIR="$REPO_ROOT/gen-out/eest-specref-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 fi
-rm -rf "$RUN_DIR"
-mkdir -p "$RUN_DIR"
+# GH #11748: this used to be an unconditional `rm -rf "$RUN_DIR"`, which would
+# destroy a user-supplied directory and could delete a concurrent run's inputs
+# mid-flight. The guard recreates a directory this harness owns (the documented
+# behaviour) and refuses to delete anything else.
+source "$REPO_ROOT/scripts/lib/eest-run-dir.sh"
+if ! eest_prepare_run_dir "$RUN_DIR" "eest-specref-check.sh"; then
+  exit 1
+fi
 
 # --- convert fixtures -> inputs + manifest (same selection as the guest) -----
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
@@ -256,11 +262,19 @@ if [[ "$REVERSE_ORDER" -eq 1 ]]; then
   selection="$selection, reverse"
 fi
 
+# GH #11308: optional third argument is manifest column 8 = `case_id`, a SHA-256
+# over (fixture relpath, full test name, block index, ORIGINAL stateless input
+# bytes).  It is a CASE IDENTITY, not a hash of the on-disk input file -- an
+# overwritten file still matches its case_id (#11301) -- so it cannot establish
+# file integrity.  Printed with an explicit `case_id=` prefix so it cannot be
+# misread as a content hash (that misreading cost a false lead on #11362).
 case_identity() {
   local label="$1"
   local relpath="$2"
+  local case_id="${3:-}"
   local manifest_row="${manifestRowByLabel[$label]:-?}"
   local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  [[ -n "$case_id" ]] && id="$id case_id=$case_id"
   if [[ "$manifest_row" != "?" ]]; then
     id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
   fi
@@ -295,14 +309,46 @@ succ_allowlisted() {
 
 # Worker: invoke the exe and write a per-case result TSV so the dispatcher
 # can run many cases in parallel and the classifier can read them back in
-# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>".
+# manifest order. Result schema: "<STATUS>\t<actual_hex|reason>" -- TWO fields.
+#
+# GH #11746: this file is named "<label>.specref-result.tsv", NOT
+# "<label>.result.tsv", which is what codegen-eest-stateless-check.sh writes.
+# Both harnesses honour EEST_RUN_DIR and --run-dir, so the two could otherwise
+# target one directory under one filename.
+#
+# ⛔ Why a distinct NAME rather than a field-count check: in the DEFAULT
+# configuration the two schemas are IDENTICAL.  Every codegen-eest-stateless-check
+# write is TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>") except
+# the single --specref-oracle path, which writes three.  A collided file is
+# therefore indistinguishable in shape from a legitimate one, in BOTH directions,
+# so no arity or content check can detect it -- and the guest harness reading a
+# SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
+# all: a silent wrong verdict.  Distinct filenames make that impossible instead.
+#
+# ⚠️ Reachability, measured rather than assumed: BOTH harnesses run an
+# UNCONDITIONAL `rm -rf "$RUN_DIR"` at startup, including when the directory came
+# from --run-dir or EEST_RUN_DIR.  So two SEQUENTIAL runs against one directory
+# cannot mis-read each other -- the second deletes the first's outputs outright.
+# The mis-read is reachable only when the two run CONCURRENTLY against one
+# directory.  That `rm -rf` race is a separate and larger hazard, NOT addressed
+# here.
 run_worker() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.log"
-  local result="$RUN_DIR/$label.result.tsv"
+  local result="$RUN_DIR/$label.specref-result.tsv"
 
   if ! lake exe specref-eest-check "$input" "$out" >"$log" 2>&1; then
     printf 'ERROR\tspec\n' > "$result"
@@ -314,7 +360,7 @@ run_worker() {
 }
 
 wait_for_one_worker() {
-  # Workers always write a per-case result.tsv; their exit code is irrelevant
+  # Workers always write a per-case specref-result.tsv; their exit code is irrelevant
   # (a lake-exe failure is recorded as an ERROR row, not a crash). Swallow it
   # so `set -e` in the dispatcher never aborts on a finished-but-nonzero job.
   wait -n 2>/dev/null || true
@@ -322,22 +368,41 @@ wait_for_one_worker() {
 
 classify_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
-  local result="$RUN_DIR/$label.result.tsv"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
+  local result="$RUN_DIR/$label.specref-result.tsv"
   total=$((total + 1))
   if [[ ! -f "$result" ]]; then
     err=$((err + 1))
-    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
-  local status actual_hex
-  IFS=$'\t' read -r status actual_hex < "$result"
+  local status actual_hex _extra
+  # The _extra sink plus the emptiness check below is the arity half of GH
+  # #11746: it catches a file with MORE fields than this schema (which the
+  # length gate would report as a confusing FAIL[malformed]).  The FEWER-fields
+  # direction is closed by the distinct filename, not here.
+  IFS=$'\t' read -r status actual_hex _extra < "$result"
+  if [[ -n "$_extra" ]]; then
+    err=$((err + 1))
+    echo "  ERROR(schema)  $(case_identity "$label" "$relpath" "$case_id") (expected 2 fields in $result, found more: is another harness writing this directory?)"
+    return 0
+  fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $RUN_DIR/$label.log)" ;;
-      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath" "$case_id") (see $RUN_DIR/$label.log)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath" "$case_id")" ;;
     esac
     return 0
   fi
@@ -347,10 +412,10 @@ classify_case() {
       full=$((full + 1))
       malformed=$((malformed + 1))
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(malformed) $(case_identity "$label" "$relpath")"
+        echo "  PASS(malformed) $(case_identity "$label" "$relpath" "$case_id")"
       fi
     else
-      echo "  FAIL[malformed] $(case_identity "$label" "$relpath")"
+      echo "  FAIL[malformed] $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
       err=$((err + 1))
@@ -395,17 +460,17 @@ classify_case() {
   if [[ "$r" == "root" && "$t" == "tail" ]]; then
     if [[ "$s" == "succ" ]]; then
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+        echo "  PASS(full)  $(case_identity "$label" "$relpath" "$case_id")"
       fi
     elif succ_allowlisted "$label"; then
-      echo "  PASS(allow) $(case_identity "$label" "$relpath") [root/succ(div:fixture-allowlisted)/tail]"
+      echo "  PASS(allow) $(case_identity "$label" "$relpath" "$case_id") [root/succ(div:fixture-allowlisted)/tail]"
     else
-      echo "  FAIL[succ]  $(case_identity "$label" "$relpath")"
+      echo "  FAIL[succ]  $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
     fi
   else
-    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
+    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath" "$case_id")"
     echo "    expected: $expected_hex"
     echo "    actual:   $actual_hex"
     err=$((err + 1))

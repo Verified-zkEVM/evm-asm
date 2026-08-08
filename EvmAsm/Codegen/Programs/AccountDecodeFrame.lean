@@ -189,43 +189,43 @@ theorem adEpilogue (sp0 newSp : Word) (saved : Saved)
     (F : Assertion) (hF : F.pcFree)
     (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
-    cpsTripleWithin 9 (AB + 508) saved.ra fullCode
+    cpsTripleWithin 9 (AB + 556) saved.ra fullCode
       (((.x2 ↦ᵣ newSp) ** regsOwnAt listNthFrame **
         savedFrame newSp saved) ** F)
       (((.x2 ↦ᵣ sp0) ** regsAt listNthFrame (savedVals saved) **
         savedFrame newSp saved) ** F) := by
   have hl0 := loadSeq_spec_own listNthFrame newSp (savedVals saved)
-    (AB + 508) (by decide) (by decide)
+    (AB + 556) (by decide) (by decide)
   have hlMono : ∀ a i,
-      CodeReq.ofProg (AB + 508) (loadProg listNthFrame) a = some i → fullCode a = some i := by
+      CodeReq.ofProg (AB + 556) (loadProg listNthFrame) a = some i → fullCode a = some i := by
     intro a i hmem
-    exact ad_mono a i (CodeReq.ofProg_mono_sub AB (AB + 508) accountDecode_prog
-      (loadProg listNthFrame) 127 (by bv_omega) (by rfl)
+    exact ad_mono a i (CodeReq.ofProg_mono_sub AB (AB + 556) accountDecode_prog
+      (loadProg listNthFrame) 139 (by bv_omega) (by rfl)
       (by rw [ad_length]; simp [listNthFrame])
       (by rw [ad_length]; norm_num) a i hmem)
   have hl := cpsTripleWithin_extend_code hlMono hl0
-  rw [show AB + 508 + BitVec.ofNat 64 (4 * listNthFrame.length) = AB + 536 from by
+  rw [show AB + 556 + BitVec.ofNat 64 (4 * listNthFrame.length) = AB + 584 from by
     simp [listNthFrame]; bv_omega] at hl
   rw [frameSlotsSaved_listNthFrame] at hl
   have hlF := cpsTripleWithin_frameR F hF hl
-  have hd0 := addi_spec_gen_same_within .x2 newSp (64 : BitVec 12) (AB + 536)
+  have hd0 := addi_spec_gen_same_within .x2 newSp (64 : BitVec 12) (AB + 584)
     (by decide)
   rw [show newSp + signExtend12 (64 : BitVec 12) = sp0 from by
     rw [hnewSp]
     exact sext_frameRestore sp0 (-64 : BitVec 12) (64 : BitVec 12) (by decide)] at hd0
   have hd := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 536) accountDecode_prog 134
+      (CodeReq.ofProg_mem_at AB (AB + 584) accountDecode_prog 146
         (.ADDI .x2 .x2 (64 : BitVec 12)) (by bv_omega)
         (by rw [ad_length]; norm_num) rfl (by rw [ad_length]; norm_num)) hd0)
   have hdF := cpsTripleWithin_frameR
     (regsAt listNthFrame (savedVals saved) ** savedFrame newSp saved ** F)
     (by unfold savedFrame; pcf; assumption) hd
-  have hr0 := EvmAsm.Evm64.ret_spec_within' (AB + 540) saved.ra
+  have hr0 := EvmAsm.Evm64.ret_spec_within' (AB + 588) saved.ra
   rw [hret] at hr0
   have hr := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 540) accountDecode_prog 135
+      (CodeReq.ofProg_mem_at AB (AB + 588) accountDecode_prog 147
         (.JALR .x0 .x1 (0 : BitVec 12)) (by bv_omega)
         (by rw [ad_length]; norm_num) rfl (by rw [ad_length]; norm_num)) hr0)
   have hrF := cpsTripleWithin_frameR
