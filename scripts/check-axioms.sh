@@ -134,9 +134,11 @@ WITNESS_MODULE="EvmAsm.Progress.AxiomWitnesses"
 WITNESS_FILE="EvmAsm/Progress/AxiomWitnesses.lean"
 
 # GH #10601: the axiom audit is a checked-in witness module built by
-# `lake build`, so it works when LAKE_ARTIFACT_CACHE satisfies the graph
-# without materializing oleans (where `lake env lean` cannot resolve
-# cache-satisfied modules — issue #10537).  The module carries one
+# `lake build`.  A cache-satisfied graph does NOT replay the module's
+# `#print axioms` messages (and does not materialize its olean), so force a
+# cache-disabled build for this one target.  This is the same materialization
+# pattern used by `scripts/asm_to_program.py` before invoking `lake env lean`.
+# The module carries one
 # `#print axioms` line per registry witness and is generated from
 # EvmAsm/Progress.lean and EvmAsm/Progress/Routines.lean by
 # scripts/gen-axiom-witnesses.py; the registries are the single source of
@@ -153,15 +155,24 @@ if ! diff -q "$REGEN" "$WITNESS_FILE" >/dev/null; then
 fi
 
 # Capture both streams (do NOT suppress stderr — a real build failure
-# must surface).  `#print axioms` reports ride lake's message channel;
-# lake replays recorded messages even when the module is satisfied from
-# the artifact cache (measured on this checkout), so the reports are
-# present on cached rebuilds too.
-if ! lake build "$WITNESS_MODULE" > "$RAWOUT" 2>&1; then
+# must surface).  `#print axioms` reports ride lake's message channel; the
+# cache-disabled override above ensures the witness module is actually built
+# and its reports are emitted rather than fetched silently.
+# Keep the override local to this audit; the rest of the build may continue to
+# use the artifact cache.  Without it, a fetched module produces zero reports.
+if ! LAKE_ARTIFACT_CACHE=false lake build "$WITNESS_MODULE" > "$RAWOUT" 2>&1; then
   echo "check-axioms: 'lake build $WITNESS_MODULE' failed — output follows:" >&2
   cat "$RAWOUT" >&2
   exit 1
 fi
+
+# Keep a count of lines naming the witness module before filtering the lake
+# message stream.  A zero parsed report can mean either that lake emitted no
+# witness diagnostics at all or that its diagnostic format moved; both are a
+# harness failure, not evidence that all witnesses are axiom-clean.  The
+# count makes the failure actionable without dumping the (potentially large)
+# transitive build log.
+RAW_WITNESS_LINES="$(grep -cF "$WITNESS_FILE" "$RAWOUT" || true)"
 
 # `lake build` prints each report as `info: <file>:<line>:<col>: <text>`
 # (the axiom list may wrap onto space-indented continuation lines that carry
@@ -213,6 +224,13 @@ mapfile -t REPORTED < <(
 )
 if (( ${#REPORTED[@]} != ${#NAMES[@]} )) \
   || ! diff -q <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}") >/dev/null; then
+  if (( ${#REPORTED[@]} == 0 )); then
+    echo "check-axioms: ERROR: could not run #print axioms — parsed 0 reports for ${#NAMES[@]} registry witnesses" >&2
+    echo "check-axioms: this is a harness/diagnostic failure, not a clean axiom result" >&2
+    echo "check-axioms: raw lake output contained $RAW_WITNESS_LINES line(s) naming $WITNESS_FILE before parsing" >&2
+    echo "check-axioms: expected one report per witness; inspect lake output format or message routing" >&2
+    exit 2
+  fi
   echo "check-axioms: FAIL: parsed ${#REPORTED[@]} axiom report(s) for ${#NAMES[@]} registry witness(es)" >&2
   MISSING="$(comm -23 <(printf '%s\n' "${NAMES[@]}") <(printf '%s\n' "${REPORTED[@]}"))"
   if [[ -n "$MISSING" ]]; then

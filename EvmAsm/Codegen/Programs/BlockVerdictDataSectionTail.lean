@@ -458,17 +458,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- recipient, this holds the derived CREATE address for a creation tx.
   ".balign 8\n" ++
   "bv_mtx_effective_recipient_table:\n  .zero " ++ toString bvMtxCreatedRecipientBytes ++ "\n" ++
-  -- bmvmx.5.5.1 (umbrella-A2a): per-account aggregation of exec_nonstorage_effect_log
-  -- for the multi-tx nonstorage comparators. record_nonstorage_effect APPENDS one record
-  -- per CALL, so a multi-tx-touched account has N records; fold them into one entry keyed
-  -- by the 20B BE address (first-seen pre kept, last-seen post overwritten) so the per-
-  -- account comparator sees the block-aggregate {pre, post}. Dedup -> count <= the log cap,
-  -- so cap x 112 B suffices. Interpolated as nonstorageEffectLogCap * 112 (NonstorageEffectLog.lean):
-  -- the .Lbv_agg_append / nonstorage_effect_aggregate path has no separate bounds check, so an
-  -- undersized buffer is a heap overflow; tying it to the cap keeps it correct as the cap is lifted.
-  ".balign 8\n" ++
-  "exec_nonstorage_effect_agg_count:\n  .zero 8\n" ++
-  "exec_nonstorage_effect_agg:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   -- fva3w: pre-tx snapshots of the exec effect logs. A top-level tx that REVERTS or
   -- exceptionally aborts discards ALL its state changes (the spec rolls them back), so the
   -- value-transfer / CREATE non-storage + code effects recorded during it must be discarded
@@ -490,8 +479,8 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "body_state_snapshot_by_depth:\n  .zero " ++ toString bodyStateSlabBytes ++ "\n" ++
   -- bmvmx.5.5.2 (umbrella-B1): scratch for the multi-tx per-sender FINAL-nonce check
   -- (BAL sender post nonce == pre + total sender tx count). bv_b1_finals is the 88-byte
-  -- bal_account_nonstorage_finals output (separate from c2nsc_finals, which A2a's
-  -- comparator uses); bv_b1_acct_ptr/len receive the sender's BAL AccountChanges.
+  -- bal_account_nonstorage_finals output; bv_b1_acct_ptr/len receive the sender's
+  -- BAL AccountChanges.
   -- bv_b1_sender_table is sized to bvMtxSenderCountEntries distinct senders,
   -- which follows the full 200M tx-count target. Each row is a 32-byte padded
   -- address plus an unused count word; the table is now an address enumerator
@@ -538,31 +527,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 32\n" ++
   "bv_b23_feedebit:\n  .zero 32\n" ++
   "mtxsd_gascost:\n  .zero 32\n" ++
-  -- i3djw.3: scratch for bal_all_accounts_nonstorage_consistent + its per-account deps
-  -- (bal_account_nonstorage_consistent / _finals). rfu_* is already linked (other rlp users).
-  ".balign 8\n" ++
-  "c3ns_acct_count:\n  .zero 8\n" ++
-  "c3ns_acct_off:\n  .zero 8\n" ++
-  "c3ns_acct_len:\n  .zero 8\n" ++
-  "c3ns_addr_off:\n  .zero 8\n" ++
-  "c3ns_addr_len:\n  .zero 8\n" ++
-  "c2nsc_finals:\n  .zero 88\n" ++
-  "c2nsf_off:\n  .zero 8\n" ++
-  "c2nsf_len:\n  .zero 8\n" ++
-  "c2nsf_cnt:\n  .zero 8\n" ++
-  "c2nsf_toff:\n  .zero 8\n" ++
-  "c2nsf_tlen:\n  .zero 8\n" ++
-  "c2nsf_coff:\n  .zero 8\n" ++
-  "c2nsf_clen:\n  .zero 8\n" ++
-  -- i3djw.3 reverse: scratch for bal_all_accounts_nonstorage_covers.
-  "c3cov_acct_count:\n  .zero 8\n" ++
-  "c3cov_acct_off:\n  .zero 8\n" ++
-  "c3cov_acct_len:\n  .zero 8\n" ++
-  "c3cov_addr_off:\n  .zero 8\n" ++
-  "c3cov_addr_len:\n  .zero 8\n" ++
-  -- bmvmx.5.5.7.3 step c: matched-bitmap for the LINEARIZED bal_all_accounts_nonstorage_covers
-  -- (1 byte per agg entry, indexed by agg index). MUST be >= nonstorageEffectLogCap bytes.
-  "c3cov_covered:\n  .zero " ++ toString nonstorageEffectLogCap ++ "\n" ++
   -- #11118: baac_* account-iteration scratch removed with dead code_consistent (46).
   -- bacc_finals KEPT: shared 88B finals scratch still used live by
   -- account_state_delegation_code_resolve (BalCodePreimages) and
