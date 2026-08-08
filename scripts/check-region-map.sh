@@ -389,7 +389,7 @@ fi
 echo "check-region-map: region map matches the linked ELF"
 
 # --- Class-A provided-BAL ratchet (#11183) ---
-# Fail on NEW bv_bal_start/len edges or silent baseline shrink. See
+# Fail on NEW supplied-BAL cursor edges or silent baseline shrink. See
 # scripts/check-bal-class-a-ratchet.py and scripts/bal-class-a-baseline.tsv.
 # The ratchet also requires scripts/bal-class-a-notes.md and counts its explicit
 # rationale bullets.
