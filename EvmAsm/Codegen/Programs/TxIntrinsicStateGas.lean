@@ -133,6 +133,17 @@ def eip7702AuthorityAsOfFunction : String :=
   "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_writes_auth_current\n" ++
   "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
   "  ld s1, 56(sp)\n" ++
+  -- auth_current requires nonce|state|EXEC_FLAGS, so a sender-inclusion
+  -- row (nonce|touched only) never hits on the TX map.  On a later MTx
+  -- self-sponsored auth the BLOCK map still holds the prior-tx full AUTH
+  -- row and auth_current returns that pre-inclusion nonce.  Overlay the
+  -- TX-map nonce when present so a1 is post-inclusion current (fork.py
+  -- inclusion bump before validate_authorization).  Sponsored authorities
+  -- have no TX inclusion row and keep the auth_current nonce unchanged.
+  -- (GH #11542 YES_all/MIXED: asof short-by-one → AUTH reject → post−1.)
+  "  mv a0, s0; addi a1, sp, 56; jal ra, account_writes_latest_nonce_tx\n" ++
+  "  beqz a0, .L77as_hit_nonce_done; ld s1, 56(sp)\n" ++
+  ".L77as_hit_nonce_done:\n" ++
   -- a2 = delegated_before_tx: block map only (skip transaction rows), else
   -- header code.  The map contract requires nonce, state, and EXEC_FLAGS
   -- components, so sender inclusion and balance-only rows cannot mask the
