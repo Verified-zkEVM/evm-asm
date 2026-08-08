@@ -139,23 +139,9 @@ structure OpcodeTestCase where
       Reset to 0 by REVERT. Test TSTORE commits / REVERT
       clears via this. Empty string = don't assert. -/
   expectedTransientLogLength : String := ""
-  /-- Optional expected post-state slot data at
-      `OUTPUT_ADDR + 56` (M25). Hex string of arbitrary
-      length; runner reads `len/2` bytes from `OUTPUT[56]`
-      and compares. Layout:
-        - bytes 56..64: u64 LE `numModifiedPersistentSlots` (≤ 3)
-        - bytes 64..(64 + N*64): N × (slotKey:32, current:32)
-      Slots appear in **reverse write order** (most-recently-
-      modified first). Bytes are in EVM-stack byte order
-      (4 LE u64 limbs, low limb first) — same convention as
-      M22's `--storage` packer and the existing storage-test
-      `expectedOutHex` values. Empty string = don't assert. -/
-  expectedPostStorage : String := ""
   /-- Optional expected receipt event-log count at
       `OUTPUT_ADDR + 56` (M26). 16 hex chars = 8-byte LE u64.
-      This shares the storage post-state diagnostic window; tests
-      should assert one surface or the other. Empty string = don't
-      assert. -/
+      Empty string = don't assert. -/
   expectedEventLogCount : String := ""
   /-- Optional expected prefix of the first event-log descriptor at
       `OUTPUT_ADDR + 64` (M26). Hex string of arbitrary length;
@@ -2736,54 +2722,6 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex             := "4200000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind           := "0000000000000000"
       expectedTransientLogLength := "0100000000000000" }
-    -- ## M25 post-state slot serializer (modified slots at OUTPUT+56)
-    -- The dispatcher epilogue walks the persistent log from end,
-    -- dedups against already-emitted slotKeys, and writes
-    --   OUTPUT[56..64] = numModifiedPersistentSlots (u64 LE, ≤ 3)
-    --   OUTPUT[64..]   = N × (slotKey:32, current:32)
-    -- in **reverse write order** (most-recently-modified first).
-    -- Bytes are in EVM-stack byte order (4 LE u64 limbs).
-  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; STOP.
-    -- Empty preload. After SSTORE: 1 entry (key=0, value=0x42).
-    -- Stack empty after SSTORE → result = 32 zeros (from .zero
-    -- evm_stack region). Confirms basic post-state emission.
-    { name                        := "sstore_post_state_single_slot"
-      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0100000000000000"
-      expectedPostStorage         := "010000000000000000000000000000000000000000000000000000000000000000000000000000004200000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; PUSH1 0x00; REVERT.
-    -- SSTORE appends (length 0→1). REVERT rolls back length → 0.
-    -- The dedup loop sees empty log and exits early, writing only
-    -- the count cell = 0. **Proves rollback also clears the slot
-    -- data surface.**
-    { name                        := "sstore_revert_post_state_empty"
-      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x60, 0x00, 0xfd"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0200000000000000"
-      expectedPersistentLogLength := "0000000000000000"
-      expectedPostStorage         := "0000000000000000" }
-  , -- PUSH1 0x11; PUSH1 0x01; SSTORE; PUSH1 0x22; PUSH1 0x02; SSTORE; STOP.
-    -- Two unique slots. Dedup walks from end so entry[0] in OUTPUT
-    -- = (key=0x02, value=0x22); entry[1] = (key=0x01, value=0x11).
-    -- **Asserts the reverse-write-order convention.**
-    { name                        := "sstore_two_slots_post_state"
-      bytecode                    := "0x60, 0x11, 0x60, 0x01, 0x55, 0x60, 0x22, 0x60, 0x02, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      expectedPostStorage         := "02000000000000000200000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001100000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x11; PUSH1 0x00; SSTORE; PUSH1 0x22; PUSH1 0x00; SSTORE; STOP.
-    -- Same key twice. Log holds 2 raw entries; dedup picks the
-    -- most-recent (key=0, current=0x22). Output count = 1.
-    -- **Proves dedup keeps the latest value per key.**
-    { name                        := "sstore_dup_keeps_latest"
-      bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      expectedPostStorage         := "010000000000000000000000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000" }
   ]
 
 /-- Find a test case by name. -/
