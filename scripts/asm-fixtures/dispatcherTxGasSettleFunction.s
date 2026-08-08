@@ -1,8 +1,7 @@
 dispatcher_tx_gas_settle:
-  lui x5, 0xa
-  addiw x5, x5, 1
-  slli x5, x5, 16
-  ld x6, 32(x5)
+  la x5, rdg_halt_kind
+  ld x6, 0(x5)
+  addi x0, x0, 0
   la x5, evm_env
   ld x5, 568(x5)
   la x7, evm_state_gas_left
