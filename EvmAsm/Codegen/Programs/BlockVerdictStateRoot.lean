@@ -81,18 +81,15 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t1, 0(t0); addi t1, t1, 60; la t0, bsr_exec_p; sd t1, 0(t0)\n" ++
+  -- #11797 P0b: locate BAL + count only. Do not materialize basr_records /
+  -- basr_accounts from the supplied body — that fill fed only the vestigial
+  -- cursor walk (removed) and teer_records_ptr is write-only with no reader.
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_pre_cons_section\n" ++
-  "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_pre_ok\n" ++
-  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  "  la a6, basr_records; la a7, basr_accounts\n" ++
-  "  jal ra, bal_account_record_array; bnez a0, .Lbsr_pre_cons_records\n" ++
   ".Lbsr_pre_ok:\n" ++
   "  li a0, 0; j .Lbsr_pre_ret\n" ++
   ".Lbsr_pre_cons_cap:\n  li t0, 101; j .Lbsr_pre_cons_set\n" ++
-  ".Lbsr_pre_cons_section:\n  li t0, 102; j .Lbsr_pre_cons_set\n" ++
-  ".Lbsr_pre_cons_records:\n  li t0, 103\n" ++
+  ".Lbsr_pre_cons_section:\n  li t0, 102\n" ++
   ".Lbsr_pre_cons_set:\n" ++
   "  la t1, bsr_fail_code; sd t0, 0(t1); li a0, 1\n" ++
   ".Lbsr_pre_ret:\n" ++
@@ -326,56 +323,24 @@ def blockStateRootFunction : String :=
   "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
   "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
   "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
+  -- #11797 P0/P0b: count + gas/cap checks only. Do NOT materialize basr_* from
+  -- the supplied BAL and do NOT cursor-walk body rows — both were vestigial
+  -- after #11326/#11431 (map is sole root authority; walk ended in unconditional
+  -- j next and seeded nothing). Hash of the supplied BAL remains on the
+  -- compliant header path. P1 (deferred builder BAL finals) is NOT in this change.
   ".Lbsr_bal_replay:\n" ++
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
   "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
   "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
   "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
-  "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  "  la a6, basr_records; la a7, basr_accounts\n" ++
-  "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
-  "  # BAL storage replay reads the shared witness globals.\n" ++
+  -- Keep witness globals for later account_apply_storage (map path). Previously
+  -- these stores sat next to the removed BAL body walk; they are not vestigial.
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  "  la t0, bsr_bal_start; ld a0, 0(t0); la t0, bsr_bal_len; ld a1, 0(t0)\n" ++
-  "  jal ra, rlp_walk_init; bnez a2, .Lbsr_cons_bal_desc\n" ++
-  "  mv s6, a0; mv s7, a1       # BAL cursor/end for sequential row copy\n" ++
-  "  li s0, 0                     # scan BAL records; append only changed accounts\n" ++
-  ".Lbsr_bal_copy:\n" ++
-  "  la t6, bsr_bal_count; ld t6, 0(t6); beq s0, t6, .Lbsr_bal_copied\n" ++
-  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld t4, 16(t3); li t5, 3; beq t4, t5, .Lbsr_bal_copy_load_item\n" ++
-  ".Lbsr_bal_copy_load_item:\n" ++
-  "  mv a0, s6; mv a1, s7; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbsr_cons_bal_desc\n" ++
-  "  mv s6, a0\n" ++
-  "  slli t3, s0, 4; slli t4, s0, 3; add t3, t3, t4; la t4, basr_records; add t3, t4, t3\n" ++
-  "  ld a0, 0(t3); ld a1, 8(t3); mv a3, a2; sub a2, s6, a3; ld a4, 16(t3)\n" ++
-  "  la t0, bsr_bal_item_ptr; sd a2, 0(t0); la t0, bsr_bal_item_len; sd a3, 0(t0)\n" ++
-  -- #11326+#11431: BAL rows never seed bsr_changes.
-  "  j .Lbsr_bal_copy_next\n" ++
-  ".Lbsr_bal_copy_normal:\n" ++
-  -- #11326 entry6: non-system BAL rows do NOT seed bsr_changes.
-  -- Spec pin e5a8caf1b amsterdam fork.py:928-930 — BAL is an OUTPUT of the
-  -- builder plus tracked state; the state root comes from tracked state alone
-  -- (fork.py:358). Seeding the root candidate set from the supplied BAL made
-  -- the witness BAL an INPUT to the root (inverted data flow). Map path
-  -- `execution_map_state_changes` is the sole root authority for user-tx
-  -- accounts (TOUCHED producers #11382 fill the former A\\B leaves). Keep the
-  -- RLP walk (load_item above) so the cursor advances; system 2935/4788 arms
-  -- still apply_modeled. Residual: merge account_writes into pre-seeded system
-  -- owners when system contracts also appear in the map.
-  "  j .Lbsr_bal_copy_next\n" ++
-  ".Lbsr_bal_copy_next:\n" ++
-  "  addi s0, s0, 1; j .Lbsr_bal_copy\n" ++
-  ".Lbsr_bal_copied:\n" ++
   ".Lbsr_bal_done:\n" ++
-  "  # entry6: execution_map_state_changes is the SOLE root authority for\n" ++
-  "  # user-tx account leaves (plus true execution system/withdrawal effects).\n" ++
-  "  # Non-system BAL no longer seeds bsr_changes; s1 is 0 here unless a prior\n" ++
-  "  # path left residues. System modeled posts may have side effects via\n" ++
-  "  # bsr_apply_modeled_system_post_fields above.\n" ++
+  "  # execution_map_state_changes is the SOLE root authority for user-tx account\n" ++
+  "  # leaves (plus true execution system/withdrawal effects). s1 is 0 here unless\n" ++
+  "  # a prior path left residues.\n" ++
   "  la t0, bsr_change_count; sd s1, 0(t0); mv a0, t0; la a1, bsr_changed_accounts; la t0, bsr_changed_account_count; ld a2, 0(t0)\n" ++
   "  jal ra, execution_map_state_changes; bnez a0, .Lbsr_cons_map\n" ++
   "  la t0, bsr_change_count; ld s1, 0(t0)\n" ++
@@ -510,10 +475,6 @@ def blockStateRootFunction : String :=
   "  li t0, 110; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_change_cap:\n" ++
   "  li t0, 111; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
-  ".Lbsr_cons_bal_records:\n" ++
-  "  li t0, 112; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
-  ".Lbsr_cons_bal_desc:\n" ++
-  "  li t0, 113; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_map:\n" ++
   "  la t1, bsr_fail_code; ld t2, 0(t1); bnez t2, .Lbsr_cons; li t0, 116; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_account_access:\n" ++
