@@ -314,12 +314,16 @@ eip8037_tx_gas_gate:
   li x7, 3
   beq x6, x7, .+24
   jal x0, .+36
+  # fork.py:657-659 EmptyAuthorizationListError — type-4 with zero auths is invalid.
+  # Prior .+576 landed on success li x10,0 (FA #11818). Target fail3 (a0=3).
   la x5, bsg_auth_count
   ld x7, 0(x5)
-  beq x7, x0, .+576
+  beq x7, x0, .+568
+  # fork.py:653-655 TransactionTypeContractCreationError — type-3/4 empty to.
+  # Prior .+560 also landed on success; retarget fail3.
   la x5, bsg_to_len
   ld x7, 0(x5)
-  beq x7, x0, .+560
+  beq x7, x0, .+552
   li x31, 0
   la x5, bsg_to_len
   ld x6, 0(x5)

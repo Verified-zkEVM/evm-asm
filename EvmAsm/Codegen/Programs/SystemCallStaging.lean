@@ -143,7 +143,20 @@ def stageSystemCallPayloadFunction : String :=
     a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length
     a3 = block exec payload ptr        a4 = output payload buffer ptr
     Returns: a0 = system_call_returndata ptr, a1 = system_call_returndata_len,
-             a2 = 0 ok / 1 staging unsupported / empty code (no dispatch run).
+             a2 status (two failure classes — MUST stay distinguishable, #11810):
+               0 = ok (dispatch ran; halt_kind ∈ {STOP=0, RETURN=1, SELFDESTRUCT=5})
+               1 = staging failure (empty code / payload reject; no dispatch run)
+               2 = execution failure (dispatch ran; MessageCallOutput.error —
+                   REVERT or ExceptionalHalt; halt_kind ∉ success set)
+
+    Callers MUST NOT collapse 1 and 2:
+      - checked (7002/7251/8282): `bnez a2` rejects both — fork.py:773-777
+        `if system_tx_output.error` plus empty-code InvalidBlock (:761-765).
+      - unchecked (4788/2935): reject **only** a2=1; ignore a2=2 — fork.py:782
+        process_unchecked "WITHOUT CHECKING … if the transaction fails".
+        Staging failure is guest-internal undefined (arena/payload bound); we
+        deliberately reject it (stricter than the spec) as the safe side.
+
     Stages the SYSTEM payload, runs the callable runtime dispatcher with
     system_call_mode=1 so the predeploy's depth-0 RETURN is captured (NoopHalt
     #8681) into system_call_returndata, then clears the flag.
@@ -151,9 +164,13 @@ def stageSystemCallPayloadFunction : String :=
     Spec pin `process_checked_system_transaction` (fork.py:761-765): empty
     system-contract code raises InvalidBlock. Callers of this seam are the
     checked request predeploys (7002/7251/8282); block-start unchecked
-    (4788/2935) already skip before jal when code is empty. Rejecting `a2=0`
-    here restores the checked empty-code gate without changing those skip
-    paths (#11806). -/
+    (4788/2935) already skip before jal when code is empty. Rejecting empty
+    code here restores the checked empty-code gate without changing those skip
+    paths (#11806 / #11809).
+
+    Exec-status discriminator is `rdg_halt_kind` (#11798 / #11815) — the same
+    cell `dispatcher_tx_gas_settle` reads. Do NOT read OUTPUT+32: after #11815
+    the verdict-callable path never stamps halt_kind there (claim-window fix). -/
 def stageSystemCallFunction : String :=
   "stage_system_call:\n" ++
   -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
@@ -187,6 +204,9 @@ def stageSystemCallFunction : String :=
   -- Drop any leftover user-tx auth callback before re-entering the dispatcher
   -- (code44: system path must not re-run eip7702_auth_state_prepare).
   "  la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1)\n" ++
+  -- Clear rdg_halt_kind so a prior dispatch's REVERT/exceptional cannot leak
+  -- into the post-dispatch status map (#11798 / #11815).
+  "  la t0, rdg_halt_kind; sd zero, 0(t0)\n" ++
   "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
   "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
   "  addi t1, s0, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++   -- input = out + 8 (skip codelen header)
@@ -195,6 +215,17 @@ def stageSystemCallFunction : String :=
   "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- disable capture
   "  la a0, system_call_returndata\n" ++
   "  la t0, system_call_returndata_len; ld a1, 0(t0)\n" ++
+  -- fork.py:773-777 / MessageCallOutput.error: REVERT and ExceptionalHalt both
+  -- set error. Map rdg_halt_kind like dispatcher_tx_gas_settle success inverted:
+  -- success {0,1,5} → a2=0; else a2=2 (exec fail). Not gas_left (REVERT keeps gas).
+  -- MUST read rdg_halt_kind, not OUTPUT+32 (#11815 claim-window).
+  "  la t0, rdg_halt_kind; ld t1, 0(t0)\n" ++
+  "  beqz t1, .Lssc_ok\n" ++
+  "  li t0, 1; beq t1, t0, .Lssc_ok\n" ++
+  "  li t0, 5; beq t1, t0, .Lssc_ok\n" ++
+  "  li a2, 2\n" ++
+  "  j .Lssc_ret\n" ++
+  ".Lssc_ok:\n" ++
   "  li a2, 0\n" ++
   "  j .Lssc_ret\n" ++
   ".Lssc_fail:\n" ++
@@ -221,8 +252,10 @@ def stageSystemCallFunction : String :=
     BAL storage changes at `current_block_access_index` and merges into the
     block map for tier-2 SLOAD) + `read_sets_incorporate_tx`.
 
-    Unchecked semantics: code_at miss / empty code → skip dispatch (no write),
-    still mark OAO. Staging failure → a0=1 (conservative bail).
+    Unchecked semantics (fork.py:782 process_unchecked): code_at miss / empty
+    code → skip dispatch (no write), still mark OAO. Spec-level exec failure
+    (a2=2 REVERT/ExceptionalHalt) is **ignored**. Staging failure (a2=1) still
+    rejects — guest-internal undefined; stricter than the spec on purpose (#11810).
 
     Calldata layout (retired formula path / SSZ):
       parent_beacon_block_root @ SSZ_BASE+24 = bv_exec_p - 36
@@ -272,7 +305,8 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
   "  jal ra, stage_system_call\n" ++
   "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  "  bnez a2, .Lpbs_fail\n" ++
+  -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
+  "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
   -- Storage map + BAL BAI=0 via write_sets_incorporate_tx (bal_emit inside).
   -- Account-write map: clear any tx-local rows without block merge — system
   -- contracts are storage-authority only here (formula path never seeded AW);
@@ -312,7 +346,8 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
   "  jal ra, stage_system_call\n" ++
   "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  "  bnez a2, .Lpbs_fail\n" ++
+  -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
+  "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
   "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
@@ -347,7 +382,8 @@ def processBlockStartSystemTransactionsFunction : String :=
     len 0 (the caller appends nothing). Thin compose over `stage_system_call` (8uld3.2.1c):
       a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
     Returns (tail-call to stage_system_call):
-      a0 = withdrawal body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+      a0 = withdrawal body ptr (= system_call_returndata)   a1 = body len
+      a2 = stage_system_call status (0 ok / 1 staging / 2 exec fail; checked callers bnez) -/
 def deriveWithdrawalRequests_prog : Program :=
   [ .MV .x14 .x13,
     .MV .x13 .x12,
@@ -399,7 +435,8 @@ def withdrawalRequestPredeployAddrData : String :=
     nothing). Identical compose to `derive_withdrawal_requests`, only the predeploy differs:
       a0 = predeploy code ptr   a1 = code len   a2 = block exec payload ptr   a3 = output buffer
     Returns (tail-call to stage_system_call):
-      a0 = consolidation body ptr (= system_call_returndata)   a1 = body len   a2 = 0 ok / 1 unsupported -/
+      a0 = consolidation body ptr (= system_call_returndata)   a1 = body len
+      a2 = stage_system_call status (0 ok / 1 staging / 2 exec fail; checked callers bnez) -/
 def deriveConsolidationRequests_prog : Program :=
   [ .MV .x14 .x13,
     .MV .x13 .x12,
@@ -480,7 +517,7 @@ def deriveBuilderExitRequestsFunction : String :=
       a2 = consolidation predeploy code ptr a3 = ccode len
       a4 = block exec payload ptr           a5 = staging output buffer ptr (reused per call)
     Writes: dbsr_wbody + dbsr_wlen; dbsr_cbody + dbsr_clen.
-    Returns a0 = 0 ok / 1 = a system call's staging was unsupported. -/
+    Returns a0 = 0 ok / 1 = a system call returned staging or exec failure. -/
 def deriveBlockSystemRequestsFunction : String :=
   "derive_block_system_requests:\n" ++
   "  la t0, dbsr_saved_ra; sd ra, 0(t0)\n" ++
