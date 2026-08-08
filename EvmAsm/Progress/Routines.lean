@@ -496,12 +496,10 @@ private noncomputable abbrev _account_decode_matches_specRef_witness :=
   @EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 private noncomputable abbrev _account_decode_output_witness :=
   @EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
--- #11346 item 2: the leniency agreement, plus the identity that lets #11345's
--- `beAccum_eq_fromBytesBE` transfer to `beAccFrom` instead of being re-proved.
+-- #11346 item 2: the leniency agreement now consumes the shared `beAccum`
+-- model directly; no duplicate-definition identity witness is needed.
 private noncomputable abbrev _account_eip161_leniency_witness :=
   @EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
-private noncomputable abbrev _beAccFrom_eq_beAccum_witness :=
-  @EvmAsm.Codegen.AccountIsEip161EmptySpec.beAccFrom_eq_beAccum
 -- #11348: Correspondence's `bloom_or_into` row names this, and it is Codegen-side,
 -- so like the #11351/#11345 witnesses above the abbrev lives here.
 --

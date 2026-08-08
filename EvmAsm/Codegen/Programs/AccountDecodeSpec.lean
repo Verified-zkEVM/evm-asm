@@ -143,6 +143,110 @@ def beAccum (bytes : List (BitVec 8)) (off : Nat) : Nat → Word
   | (i + 1) => (beAccum bytes off i) <<< 8 |||
       ((bytes.getD (off + i) 0).zeroExtend 64)
 
+@[simp] theorem beAccum_zero (bytes : List (BitVec 8)) (off : Nat) :
+    beAccum bytes off 0 = 0 := rfl
+
+theorem beAccum_succ (bytes : List (BitVec 8)) (off i : Nat) :
+    beAccum bytes off (i + 1) =
+      (beAccum bytes off i <<< (8 : Nat)) |||
+        (bytes.getD (off + i) 0).zeroExtend 64 := rfl
+
+/-- If every processed content byte is zero, the big-endian accumulator is
+    zero (the `←` direction of the nonce verdict). -/
+theorem beAccum_eq_zero_of_allZero (bytes : List (BitVec 8)) (off n : Nat)
+    (hz : ∀ k, k < n → bytes.getD (off + k) 0 = 0) :
+    beAccum bytes off n = 0 := by
+  induction n with
+  | zero => rfl
+  | succ m ih =>
+      rw [beAccum_succ, ih (fun k hk => hz k (by omega)),
+        hz m (by omega)]
+      decide
+
+/-- For a nonce field of at most 8 content bytes the accumulator never
+    overflows: its natural value is bounded by `2^(8n)`. -/
+theorem beAccum_toNat_lt (bytes : List (BitVec 8)) (off n : Nat) (hn : n ≤ 8) :
+    (beAccum bytes off n).toNat < 2 ^ (8 * n) := by
+  induction n with
+  | zero => simp [beAccum]
+  | succ m ih =>
+      have hm : m ≤ 8 := by omega
+      have hib := ih hm
+      have hib56 : (beAccum bytes off m).toNat < 2 ^ 56 :=
+        lt_of_lt_of_le hib (Nat.pow_le_pow_right (by omega) (by omega))
+      rw [beAccum_succ, BitVec.toNat_or, BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+      have hnowrap : (beAccum bytes off m).toNat * 2 ^ 8 % 2 ^ 64
+          = (beAccum bytes off m).toNat * 2 ^ 8 := by
+        apply Nat.mod_eq_of_lt
+        calc (beAccum bytes off m).toNat * 2 ^ 8 < 2 ^ 56 * 2 ^ 8 :=
+              Nat.mul_lt_mul_of_pos_right hib56 (by norm_num)
+          _ = 2 ^ 64 := by norm_num
+      rw [hnowrap]
+      have hleft : (beAccum bytes off m).toNat * 2 ^ 8 < 2 ^ (8 * (m + 1)) := by
+        rw [show 8 * (m + 1) = 8 * m + 8 from by ring, pow_add]
+        exact Nat.mul_lt_mul_of_pos_right hib (by norm_num)
+      have hbyte : (BitVec.setWidth 64 (bytes.getD (off + m) 0)).toNat
+          < 2 ^ (8 * (m + 1)) := by
+        rw [BitVec.toNat_setWidth]
+        have hb := (bytes.getD (off + m) 0).isLt
+        have h8 : (2 : Nat) ^ 8 ≤ 2 ^ (8 * (m + 1)) :=
+          Nat.pow_le_pow_right (by omega) (by omega)
+        have hmod : (bytes.getD (off + m) 0).toNat % 2 ^ 64
+            = (bytes.getD (off + m) 0).toNat :=
+          Nat.mod_eq_of_lt (by omega)
+        omega
+      exact Nat.or_lt_two_pow hleft hbyte
+
+/-- `→` direction of the nonce bridge: a zero accumulator over ≤ 8 content
+    bytes forces every content byte to be zero. -/
+theorem beAccum_allZero_of_eq_zero (bytes : List (BitVec 8)) (off : Nat) :
+    ∀ n, n ≤ 8 → beAccum bytes off n = 0 →
+      ∀ k, k < n → bytes.getD (off + k) 0 = 0 := by
+  intro n
+  induction n with
+  | zero => intro _ _ k hk; omega
+  | succ m ih =>
+      intro hn h k hk
+      have hm : m ≤ 8 := by omega
+      rw [beAccum_succ] at h
+      obtain ⟨hleft, hright⟩ := BitVec.or_eq_zero_iff.mp h
+      have haccm : beAccum bytes off m = 0 := by
+        have hlt : (beAccum bytes off m).toNat < 2 ^ 56 :=
+          lt_of_lt_of_le (beAccum_toNat_lt bytes off m hm)
+            (Nat.pow_le_pow_right (by omega) (by omega))
+        have hval : (beAccum bytes off m <<< (8 : Nat)).toNat
+            = (beAccum bytes off m).toNat * 2 ^ 8 := by
+          rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+          apply Nat.mod_eq_of_lt
+          calc (beAccum bytes off m).toNat * 2 ^ 8 < 2 ^ 56 * 2 ^ 8 :=
+                Nat.mul_lt_mul_of_pos_right hlt (by norm_num)
+            _ = 2 ^ 64 := by norm_num
+        have hshift : (beAccum bytes off m).toNat * 2 ^ 8 = 0 := by
+          rw [← hval, hleft]; rfl
+        have hz : (beAccum bytes off m).toNat = 0 := by
+          rcases Nat.mul_eq_zero.mp hshift with h' | h'
+          · exact h'
+          · exact absurd h' (by norm_num)
+        exact BitVec.eq_of_toNat_eq (by rw [hz]; rfl)
+      have hbytem : bytes.getD (off + m) 0 = 0 := by
+        have hcong : (bytes.getD (off + m) 0).toNat % 2 ^ 64 = 0 := by
+          have := congrArg BitVec.toNat hright
+          simpa [BitVec.toNat_setWidth] using this
+        have hbb := (bytes.getD (off + m) 0).isLt
+        rw [Nat.mod_eq_of_lt (by omega)] at hcong
+        exact BitVec.eq_of_toNat_eq (by rw [hcong]; rfl)
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hk' | hk'
+      · exact ih hm haccm k hk'
+      · subst hk'; exact hbytem
+
+/-- **The nonce verdict bridge.** For a field of at most 8 content bytes,
+    the accumulator is zero exactly when every content byte is zero. -/
+theorem beAccum_eq_zero_iff (bytes : List (BitVec 8)) (off n : Nat) (hn : n ≤ 8) :
+    beAccum bytes off n = 0 ↔
+      ∀ k, k < n → bytes.getD (off + k) 0 = 0 :=
+  ⟨fun h => beAccum_allZero_of_eq_zero bytes off n hn h,
+   fun h => beAccum_eq_zero_of_allZero bytes off n h⟩
+
 /-- Nonce u64 after a successful decode: accumulate the significant bytes. -/
 def nonceAccum (bytes : List (BitVec 8)) (o l : Nat) : Word :=
   beAccum bytes (significantOff bytes o l) (significantLen (fieldContent bytes o l))
