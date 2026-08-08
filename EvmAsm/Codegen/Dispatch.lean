@@ -1244,19 +1244,38 @@ def emitExceptionalExitModeTeardown : String :=
   -- Prepare-only seam (#11249); must not suppress a later full dispatcher body.
   "  la x5, runtime_tx_prepare_only; sd x0, 0(x5)\n"
 
+/-- Canonical halt_kind cell (u64 LE). Lives in `.data` as `rdg_halt_kind`,
+    never in the claim-window OUTPUT region (#11798). Scheme:
+    `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
+    `4` invalid JUMP/JUMPI dest · `5` SELFDESTRUCT · `6` out-of-gas ·
+    `7` stack underflow · `8` stack overflow. -/
+def emitHaltKindStore (kindImm : String) : String :=
+  "  la x28, rdg_halt_kind\n" ++
+  s!"  li x17, {kindImm}\n" ++
+  "  sd x17, 0(x28)\n"
+
+def emitHaltKindStoreReg (kindReg : String) : String :=
+  "  la x28, rdg_halt_kind\n" ++
+  s!"  sd {kindReg}, 0(x28)\n"
+
+def emitHaltKindClear : String :=
+  "  la x28, rdg_halt_kind; sd x0, 0(x28)\n"
+
+/-- Host-facing surface: copy `rdg_halt_kind` → `OUTPUT+32` for standalone
+    opcode probes that dump OUTPUT after ecall. Must NOT run on the
+    skipExitFinalization (verdict-callable) path — that is the claim window. -/
+def emitHaltKindSurfaceToOutput : String :=
+  "  la x28, rdg_halt_kind; ld x17, 0(x28)\n" ++
+  "  li x16, 0xa0010000; sd x17, 32(x16)\n"
+
 /-- Emit an exceptional-halt exit block: zero the result bytes at
     `OUTPUT[0..32]` (no return data), tag `halt_kind = kind` at
-    `OUTPUT + 32`, then `j .exit_no_epilogue` (the universal exit join,
-    bypassing `evmAddEpilogue` which would force `halt_kind = 0` and a
-    stack-top result). Reached only via `j <label>`.
+    `rdg_halt_kind` (#11798; never OUTPUT+32), then `j .exit_no_epilogue`
+    (the universal exit join, bypassing `evmAddEpilogue` which would force
+    `halt_kind = 0` and a stack-top result). Reached only via `j <label>`.
 
     Runs `emitExceptionalExitModeTeardown` first (#11250) so nested and top
-    share one mode-clear site.
-
-    `halt_kind` scheme (`OUTPUT + 32`, u64 LE):
-    `0` STOP/unspecified · `1` RETURN · `2` REVERT · `3` INVALID (0xfe) ·
-    `4` invalid JUMP/JUMPI dest (M15.5) · `5` SELFDESTRUCT (0xff) ·
-    `6` out-of-gas · `7` stack underflow · `8` stack overflow. -/
+    share one mode-clear site. -/
 def emitExceptionalExit (label : String) (kind : Nat) : String :=
   s!"{label}:\n" ++
   -- Mode teardown first so nested and top share one site (#11250).
@@ -1385,8 +1404,7 @@ def emitExceptionalExit (label : String) (kind : Nat) : String :=
   "  sd x0, 8(x16)\n" ++            -- (exceptional/return-data-free halt,
   "  sd x0, 16(x16)\n" ++           --  surfaced deterministically)
   "  sd x0, 24(x16)\n" ++
-  s!"  li x17, {kind}\n" ++         -- halt_kind
-  "  sd x17, 32(x16)\n" ++
+  emitHaltKindStore (toString kind) ++
   "  j .exit_no_epilogue\n"
 /-- STATICCALL write violation. At child depth, fail only the child frame and
     resume the parent. At depth 0, surface the same halt kind as INVALID. -/
@@ -1431,8 +1449,7 @@ def emitSelfdestructExit : String :=
   "  sd x0, 8(x16)\n" ++
   "  sd x0, 16(x16)\n" ++
   "  sd x0, 24(x16)\n" ++
-  "  li x17, 5\n" ++         -- halt_kind = SELFDESTRUCT
-  "  sd x17, 32(x16)\n" ++
+  emitHaltKindStore "5" ++  -- halt_kind = SELFDESTRUCT
   "  j .exit_no_epilogue\n"
 
 
@@ -1805,10 +1822,10 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
       a2 (output) = tx success bit (1 when halt_kind is 0 STOP / 1 RETURN /
                     5 SELFDESTRUCT; 0 on REVERT or an exceptional halt) — the
                     receipt `succeeded` field (.63.1.6.2.1).
-    halt_kind is read from OUTPUT+32 (set by every halt path): 0 STOP / 1 RETURN /
-    5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left but folds state gas and
-    drops refunds; 3/4/6/7/8 are exceptional. Clobbers t0-t3 and restores the
-    state-gas pool on an error. -/
+    halt_kind is read from `rdg_halt_kind` (set by every halt path; #11798):
+    0 STOP / 1 RETURN / 5 SELFDESTRUCT are successes; 2 REVERT keeps gas_left
+    but folds state gas and drops refunds; 3/4/6/7/8 are exceptional. Clobbers
+    t0-t3 and restores the state-gas pool on an error. -/
 /- Preserve executed state gas for successful halts (including the deposit STOP
    lane), but do not publish reverted/exceptional frame charges as
    `tx_output.state_gas_used`.  The tx-level intrinsic state gas already
@@ -1820,10 +1837,12 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
 -- relocation and its fixed +24-byte entry-left slot so this helper does not
 -- introduce a second link-facts symbol.
 def dispatcherTxGasSettle_prog : Program :=
-  [ .LUI .x5 (10 : BitVec 20),
-    .ADDIW .x5 .x5 (1 : BitVec 12),
-    .SLLI .x5 .x5 (16 : BitVec 6),
-    .LD .x6 .x5 (32 : BitVec 12),
+  -- Instr 0-2: la x5, rdg_halt_kind; ld x6, 0(x5). Instr 3: pad so later
+  -- PC offsets match the pre-#11798 layout (OUTPUT+32 load was 4 instrs).
+  [ .AUIPC .x5 (laHi GuestAddrs.rdg_halt_kind (GuestAddrs.dispatcher_tx_gas_settle + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rdg_halt_kind (GuestAddrs.dispatcher_tx_gas_settle + 0)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .AUIPC .x5 (laHi GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.evm_env (GuestAddrs.dispatcher_tx_gas_settle + 16)),
     .LD .x5 .x5 (568 : BitVec 12),
@@ -1873,7 +1892,8 @@ def dispatcherTxGasSettle_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def dispatcherTxGasSettle_relocs : RelocTable :=
-  [ (4, .la .x5 "evm_env"),
+  [ (0, .la .x5 "rdg_halt_kind"),
+    (4, .la .x5 "evm_env"),
     (7, .la .x7 "evm_state_gas_left"),
     (10, .la .x28 "evm_refund_acc"),
     (21, .la .x30 "evm_state_gas_used"),
@@ -2026,9 +2046,9 @@ def emitDispatcherEpilogueCore
   -- `j .exit_no_epilogue` so none fall through into exitBody). Unknown opcode
   -- bytes route through h_invalid into .exit_invalid_op, which is depth-aware:
   -- a child frame returns CALL failure, while depth 0 marks the tx exceptional. Each
-  -- zero-fills the result and tags a distinct halt_kind so callers can
-  -- tell STOP / RETURN / REVERT / INVALID / invalid-jump / SELFDESTRUCT
-  -- apart at OUTPUT + 32.
+  -- zero-fills the result and tags a distinct halt_kind at rdg_halt_kind
+  -- (#11798) so callers can tell STOP / RETURN / REVERT / INVALID /
+  -- invalid-jump / SELFDESTRUCT apart.
   --   .exit_invalid     (4) — M15.5 invalid JUMP/JUMPI dest
   --                            (`jumpValidityTail`'s `bne … .exit_invalid`)
   --   .exit_invalid_op  (3) — M23.5 INVALID opcode (0xfe)
@@ -2053,6 +2073,9 @@ def emitDispatcherEpilogueCore
   (if skipExitFinalization then "" else emitProgram exitBody) ++ "\n" ++
   ".exit_no_epilogue:\n" ++
   (if skipExitFinalization then "" else
+  -- Host-only: surface rdg_halt_kind → OUTPUT+32 for Cases expectedHaltKind.
+  -- skipExitFinalization (verdict claim window) never surfaces (#11798).
+  emitHaltKindSurfaceToOutput ++
   -- The persistent storage log and its modified-slot output are retired.
   -- Keep the output ABI cells deterministic for older callers: the removed
   -- persistent count and slot-list count are both zero. The transient count
@@ -2640,12 +2663,12 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x28, evm_sparse_memory_count; sd x0, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_next_epoch; li x29, 1; sd x29, 0(x28)\n" ++
   "  la x28, evm_sparse_memory_epoch_by_depth; sd x0, 0(x28)\n" ++
-  -- halt_kind (OUTPUT+32) = 0: the skip-finalization (verdict-callable) exit
-  -- join never writes the success kind, so without this reset a prior
+  -- halt_kind (rdg_halt_kind) = 0: the skip-finalization (verdict-callable)
+  -- exit join never writes the success kind, so without this reset a prior
   -- dispatch's REVERT/exceptional kind would leak into dispatcher_tx_gas_settle.
   -- The exceptional exits and RETURN/REVERT tails overwrite it during this
-  -- dispatch; a clean STOP leaves this 0.
-  "  li x28, 0xa0010000; sd x0, 32(x28)\n" ++
+  -- dispatch; a clean STOP leaves this 0. Never OUTPUT+32 (#11798).
+  emitHaltKindClear ++
   -- GH #10981: no env+480 checkpoint write; body slab is sole event checkpoint.
   "  sd x0, 488(x20)\n" ++         -- runtime activeMemorySize = 0
   "  sd x0, 512(x20)\n" ++         -- M28: blobBaseFee[0] = 0 (overwritten by trailer load below)
@@ -3635,6 +3658,10 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "evm_refund_acc:\n" ++
   "  .zero 8\n" ++
+  -- #11798: halt_kind lives here (not OUTPUT+32) so the claim window never
+  -- carries a transient success byte across skipExitFinalization returns.
+  "rdg_halt_kind:\n" ++
+  "  .zero 8\n" ++
   -- .62.2.5: ECRECOVER backend surface. `ecrecover_backend_ptr` holds the
   -- address of `secp256k1_recover_pubkey_staged` when the linking closure arms
   -- it (the stateless guest in dispatch_tx_runtime_code; the focused probe in
@@ -3990,9 +4017,9 @@ def buildRuntimeDispatchCallableProbeUnit
         SSTORE refund accumulator (reset per dispatch, signed-accumulated in the
         SSTORE handler). SELFDESTRUCT refunds were removed in EIP-3529, so SSTORE
         is the only accumulation source on Amsterdam.
-      * `halt_kind`            := `OUTPUT+32` (0 STOP/RETURN, 2 REVERT, …),
-        captured separately so exceptional halts stay distinguishable from a
-        normal STOP/RETURN.
+      * `halt_kind`            := `rdg_halt_kind` (0 STOP/RETURN, 2 REVERT, …;
+        #11798 moved off OUTPUT+32), captured separately so exceptional halts
+        stay distinguishable from a normal STOP/RETURN.
 
     The captured arrays live at `rdg_*` and are also surfaced to the stable
     `OUTPUT+160` diagnostic window (within ziskemu's 256-byte `-o` dump, past
@@ -4024,10 +4051,9 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     "  sd t5, 0(t4)\n" ++
     "  la t4, rdg_refund_counter\n" ++
     "  sd t6, 0(t4)\n" ++
-    "  li t0, 0xa0010000\n" ++
-    "  ld t1, 32(t0)              # halt_kind from OUTPUT+32\n" ++
     "  la t4, rdg_halt_kind\n" ++
-    "  sd t1, 0(t4)\n" ++
+    "  ld t1, 0(t4)               # halt_kind already canonical here\n" ++
+    "  li t0, 0xa0010000\n" ++
     "  sd t3, 160(t0)             # surface gas_left\n" ++
     "  sd t6, 168(t0)             # surface refund_counter\n" ++
     "  sd t5, 176(t0)             # surface calldata_floor\n" ++
@@ -4046,8 +4072,8 @@ def buildRuntimeDispatchGasCaptureProbeUnit
     ".balign 8\n" ++
     "rdg_gas_left:\n  .zero 128\n" ++
     "rdg_refund_counter:\n  .zero 128\n" ++
-    "rdg_calldata_floor:\n  .zero 128\n" ++
-    "rdg_halt_kind:\n  .zero 8\n"
+    "rdg_calldata_floor:\n  .zero 128\n"
+    -- rdg_halt_kind is in emitRuntimeDispatcherDataSectionCore (#11798)
 }
 
 /-- Build a `BuildUnit` that runs the dispatcher over `bytecodeBytes`
