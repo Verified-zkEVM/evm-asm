@@ -234,48 +234,48 @@ theorem adField0Call
 
 /-- `la x13, ad_offset` at field 1 [44]-[45] (`AB+176 → AB+184`). -/
 theorem adLaOff176 (v : Word) :
-    cpsTripleWithin 2 (AB + 176) (AB + 184) fullCode
+    cpsTripleWithin 2 (AB + 200) (AB + 208) fullCode
       (.x13 ↦ᵣ v) (.x13 ↦ᵣ adOffsetAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 176)
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 200)
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 200)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 176) accountDecode_prog 44
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)))
+    (CodeReq.ofProg_mem_at AB (AB + 200) accountDecode_prog 50
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 200)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 180)
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)))
+  have had : ∀ a i, CodeReq.singleton (AB + 204)
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 200)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 180) accountDecode_prog 45
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 176)))
+    (CodeReq.ofProg_mem_at AB (AB + 204) accountDecode_prog 51
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 200)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x13 v (AB + 176) adOffsetAddr (by decide) (by decide) hau had
-  rw [show (AB + 176 : Word) + 8 = AB + 184 from by bv_omega] at h
+  have h := la_materialize_within .x13 v (AB + 200) adOffsetAddr (by decide) (by decide) hau had
+  rw [show (AB + 200 : Word) + 8 = AB + 208 from by bv_omega] at h
   exact h
 
 /-- `la x14, ad_length` at field 1 [46]-[47] (`AB+184 → AB+192`). -/
 theorem adLaLen184 (v : Word) :
-    cpsTripleWithin 2 (AB + 184) (AB + 192) fullCode
+    cpsTripleWithin 2 (AB + 208) (AB + 216) fullCode
       (.x14 ↦ᵣ v) (.x14 ↦ᵣ adLengthAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 184)
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 184)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 208)
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 208)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 184) accountDecode_prog 46
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 184)))
+    (CodeReq.ofProg_mem_at AB (AB + 208) accountDecode_prog 52
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 208)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 188)
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 184)))
+  have had : ∀ a i, CodeReq.singleton (AB + 212)
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 208)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 188) accountDecode_prog 47
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 184)))
+    (CodeReq.ofProg_mem_at AB (AB + 212) accountDecode_prog 53
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 208)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x14 v (AB + 184) adLengthAddr (by decide) (by decide) hau had
-  rw [show (AB + 184 : Word) + 8 = AB + 192 from by bv_omega] at h
+  have h := la_materialize_within .x14 v (AB + 208) adLengthAddr (by decide) (by decide) hau had
+  rw [show (AB + 208 : Word) + 8 = AB + 216 from by bv_omega] at h
   exact h
 
 set_option maxRecDepth 8000 in
 /-- Field-1 call setup [41]-[47] (`AB+164 → AB+192`): `li a2,1`. -/
 theorem adField1Setup (v10 v11 v12 v13 v14 listBase len : Word) :
-    cpsTripleWithin 7 (AB + 164) (AB + 192) fullCode
+    cpsTripleWithin 7 (AB + 188) (AB + 216) fullCode
       (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
        ((.x13 : Reg) ↦ᵣ v13) ** ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len))
@@ -283,20 +283,20 @@ theorem adField1Setup (v10 v11 v12 v13 v14 listBase len : Word) :
        ((.x12 : Reg) ↦ᵣ (1 : Word)) ** ((.x13 : Reg) ↦ᵣ adOffsetAddr) **
        ((.x14 : Reg) ↦ᵣ adLengthAddr) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len)) := by
-  have h41 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 164) (by decide)
+  have h41 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 188) (by decide)
   have h41e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 164) accountDecode_prog 41 (.MV .x10 .x8)
+      (CodeReq.ofProg_mem_at AB (AB + 188) accountDecode_prog 47 (.MV .x10 .x8)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h41)
-  have h42 := mv_spec_gen_within .x11 .x9 len v11 (AB + 168) (by decide)
+  have h42 := mv_spec_gen_within .x11 .x9 len v11 (AB + 192) (by decide)
   have h42e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 168) accountDecode_prog 42 (.MV .x11 .x9)
+      (CodeReq.ofProg_mem_at AB (AB + 192) accountDecode_prog 48 (.MV .x11 .x9)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h42)
-  have h43 := li_spec_gen_within .x12 v12 (1 : Word) (AB + 172) (by decide)
+  have h43 := li_spec_gen_within .x12 v12 (1 : Word) (AB + 196) (by decide)
   have h43e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 172) accountDecode_prog 43 (.LI .x12 (1 : Word))
+      (CodeReq.ofProg_mem_at AB (AB + 196) accountDecode_prog 49 (.LI .x12 (1 : Word))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h43)
   have h44 := adLaOff176 v13
   have h46 := adLaLen184 v14
@@ -341,10 +341,10 @@ theorem adField1Call
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 196, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
+      { ra := AB + 220, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (1 + 2)) + 6)) + 9
-    cpsTripleWithin (7 + (1 + n20)) (AB + 164) (AB + 196) fullCode
+    cpsTripleWithin (7 + (1 + n20)) (AB + 188) (AB + 220) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -365,7 +365,7 @@ theorem adField1Call
     (by repeat' first
         | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
         | exact pcFree_regOwn | exact pcFree_stackFree _ _ | apply pcFree_sepConj) hsetup
-  have hhead : cpsTripleWithin 7 (AB + 164) (AB + 192) fullCode
+  have hhead : cpsTripleWithin 7 (AB + 188) (AB + 216) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -380,14 +380,14 @@ theorem adField1Call
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by unfold entryRest; xperm_hyp hq) hsetupF
   have hjal := jal_link_spec_within
-    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 192)) (AB + 192) raIn
-  rw [show (AB + 192) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 192)) = B from by decide,
-    show (AB + 192 + 4 : Word) = AB + 196 from by bv_omega] at hjal
+    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 216)) (AB + 216) raIn
+  rw [show (AB + 216) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_decode + 216)) = B from by decide,
+    show (AB + 216 + 4 : Word) = AB + 220 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 192) accountDecode_prog 48
-        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 192)))
+      (CodeReq.ofProg_mem_at AB (AB + 216) accountDecode_prog 54
+        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 216)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ s2v) **
@@ -402,13 +402,13 @@ theorem adField1Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (1 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 1 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 196) &&& ~~~(1 : Word) = AB + 196; decide)
+    hsalign hslack hover hvalid (by show (AB + 220) &&& ~~~(1 : Word) = AB + 220; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       rw [regsAt_listNthFrame]
-      simp only [show saved.ra = AB + 196 from rfl, show saved.s0 = listBase from rfl,
+      simp only [show saved.ra = AB + 220 from rfl, show saved.s0 = listBase from rfl,
         show saved.s1 = len from rfl, show saved.s2 = s2v from rfl,
         show saved.s3 = s3 from rfl, show saved.s4 = s4 from rfl,
         show saved.s5 = s5 from rfl]
@@ -419,48 +419,48 @@ theorem adField1Call
 
 /-- `la x13, ad_offset` at field 2 [75]-[76] (`AB+300 → AB+308`). -/
 theorem adLaOff300 (v : Word) :
-    cpsTripleWithin 2 (AB + 300) (AB + 308) fullCode
+    cpsTripleWithin 2 (AB + 348) (AB + 356) fullCode
       (.x13 ↦ᵣ v) (.x13 ↦ᵣ adOffsetAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 300)
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 348)
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 348)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 300) accountDecode_prog 75
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)))
+    (CodeReq.ofProg_mem_at AB (AB + 348) accountDecode_prog 87
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 348)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 304)
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)))
+  have had : ∀ a i, CodeReq.singleton (AB + 352)
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 348)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 304) accountDecode_prog 76
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 300)))
+    (CodeReq.ofProg_mem_at AB (AB + 352) accountDecode_prog 88
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 348)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x13 v (AB + 300) adOffsetAddr (by decide) (by decide) hau had
-  rw [show (AB + 300 : Word) + 8 = AB + 308 from by bv_omega] at h
+  have h := la_materialize_within .x13 v (AB + 348) adOffsetAddr (by decide) (by decide) hau had
+  rw [show (AB + 348 : Word) + 8 = AB + 356 from by bv_omega] at h
   exact h
 
 /-- `la x14, ad_length` at field 2 [77]-[78] (`AB+308 → AB+316`). -/
 theorem adLaLen308 (v : Word) :
-    cpsTripleWithin 2 (AB + 308) (AB + 316) fullCode
+    cpsTripleWithin 2 (AB + 356) (AB + 364) fullCode
       (.x14 ↦ᵣ v) (.x14 ↦ᵣ adLengthAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 308)
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 308)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 356)
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 356)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 308) accountDecode_prog 77
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 308)))
+    (CodeReq.ofProg_mem_at AB (AB + 356) accountDecode_prog 89
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 356)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 312)
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 308)))
+  have had : ∀ a i, CodeReq.singleton (AB + 360)
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 356)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 312) accountDecode_prog 78
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 308)))
+    (CodeReq.ofProg_mem_at AB (AB + 360) accountDecode_prog 90
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 356)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x14 v (AB + 308) adLengthAddr (by decide) (by decide) hau had
-  rw [show (AB + 308 : Word) + 8 = AB + 316 from by bv_omega] at h
+  have h := la_materialize_within .x14 v (AB + 356) adLengthAddr (by decide) (by decide) hau had
+  rw [show (AB + 356 : Word) + 8 = AB + 364 from by bv_omega] at h
   exact h
 
 set_option maxRecDepth 8000 in
 /-- Field-2 call setup [72]-[78] (`AB+288 → AB+316`): `li a2,2`. -/
 theorem adField2Setup (v10 v11 v12 v13 v14 listBase len : Word) :
-    cpsTripleWithin 7 (AB + 288) (AB + 316) fullCode
+    cpsTripleWithin 7 (AB + 336) (AB + 364) fullCode
       (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
        ((.x13 : Reg) ↦ᵣ v13) ** ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len))
@@ -468,20 +468,20 @@ theorem adField2Setup (v10 v11 v12 v13 v14 listBase len : Word) :
        ((.x12 : Reg) ↦ᵣ (2 : Word)) ** ((.x13 : Reg) ↦ᵣ adOffsetAddr) **
        ((.x14 : Reg) ↦ᵣ adLengthAddr) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len)) := by
-  have h72 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 288) (by decide)
+  have h72 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 336) (by decide)
   have h72e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 288) accountDecode_prog 72 (.MV .x10 .x8)
+      (CodeReq.ofProg_mem_at AB (AB + 336) accountDecode_prog 84 (.MV .x10 .x8)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h72)
-  have h73 := mv_spec_gen_within .x11 .x9 len v11 (AB + 292) (by decide)
+  have h73 := mv_spec_gen_within .x11 .x9 len v11 (AB + 340) (by decide)
   have h73e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 292) accountDecode_prog 73 (.MV .x11 .x9)
+      (CodeReq.ofProg_mem_at AB (AB + 340) accountDecode_prog 85 (.MV .x11 .x9)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h73)
-  have h74 := li_spec_gen_within .x12 v12 (2 : Word) (AB + 296) (by decide)
+  have h74 := li_spec_gen_within .x12 v12 (2 : Word) (AB + 344) (by decide)
   have h74e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 296) accountDecode_prog 74 (.LI .x12 (2 : Word))
+      (CodeReq.ofProg_mem_at AB (AB + 344) accountDecode_prog 86 (.LI .x12 (2 : Word))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h74)
   have h75 := adLaOff300 v13
   have h77 := adLaLen308 v14
@@ -526,10 +526,10 @@ theorem adField2Call
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 320, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
+      { ra := AB + 368, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (2 + 2)) + 6)) + 9
-    cpsTripleWithin (7 + (1 + n20)) (AB + 288) (AB + 320) fullCode
+    cpsTripleWithin (7 + (1 + n20)) (AB + 336) (AB + 368) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -550,7 +550,7 @@ theorem adField2Call
     (by repeat' first
         | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
         | exact pcFree_regOwn | exact pcFree_stackFree _ _ | apply pcFree_sepConj) hsetup
-  have hhead : cpsTripleWithin 7 (AB + 288) (AB + 316) fullCode
+  have hhead : cpsTripleWithin 7 (AB + 336) (AB + 364) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -565,14 +565,14 @@ theorem adField2Call
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by unfold entryRest; xperm_hyp hq) hsetupF
   have hjal := jal_link_spec_within
-    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 316)) (AB + 316) raIn
-  rw [show (AB + 316) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 316)) = B from by decide,
-    show (AB + 316 + 4 : Word) = AB + 320 from by bv_omega] at hjal
+    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 364)) (AB + 364) raIn
+  rw [show (AB + 364) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_decode + 364)) = B from by decide,
+    show (AB + 364 + 4 : Word) = AB + 368 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 316) accountDecode_prog 79
-        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 316)))
+      (CodeReq.ofProg_mem_at AB (AB + 364) accountDecode_prog 91
+        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 364)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ s2v) **
@@ -587,13 +587,13 @@ theorem adField2Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (2 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 2 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 320) &&& ~~~(1 : Word) = AB + 320; decide)
+    hsalign hslack hover hvalid (by show (AB + 368) &&& ~~~(1 : Word) = AB + 368; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       rw [regsAt_listNthFrame]
-      simp only [show saved.ra = AB + 320 from rfl, show saved.s0 = listBase from rfl,
+      simp only [show saved.ra = AB + 368 from rfl, show saved.s0 = listBase from rfl,
         show saved.s1 = len from rfl, show saved.s2 = s2v from rfl,
         show saved.s3 = s3 from rfl, show saved.s4 = s4 from rfl,
         show saved.s5 = s5 from rfl]
@@ -604,48 +604,48 @@ theorem adField2Call
 
 /-- `la x13, ad_offset` at field 3 [101]-[102] (`AB+404 → AB+412`). -/
 theorem adLaOff404 (v : Word) :
-    cpsTripleWithin 2 (AB + 404) (AB + 412) fullCode
+    cpsTripleWithin 2 (AB + 452) (AB + 460) fullCode
       (.x13 ↦ᵣ v) (.x13 ↦ᵣ adOffsetAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 404)
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 452)
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 452)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 404) accountDecode_prog 101
-      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)))
+    (CodeReq.ofProg_mem_at AB (AB + 452) accountDecode_prog 113
+      (.AUIPC .x13 (Codegen.laHi GuestAddrs.ad_offset (GuestAddrs.account_decode + 452)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 408)
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)))
+  have had : ∀ a i, CodeReq.singleton (AB + 456)
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 452)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 408) accountDecode_prog 102
-      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 404)))
+    (CodeReq.ofProg_mem_at AB (AB + 456) accountDecode_prog 114
+      (.ADDI .x13 .x13 (Codegen.laLo GuestAddrs.ad_offset (GuestAddrs.account_decode + 452)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x13 v (AB + 404) adOffsetAddr (by decide) (by decide) hau had
-  rw [show (AB + 404 : Word) + 8 = AB + 412 from by bv_omega] at h
+  have h := la_materialize_within .x13 v (AB + 452) adOffsetAddr (by decide) (by decide) hau had
+  rw [show (AB + 452 : Word) + 8 = AB + 460 from by bv_omega] at h
   exact h
 
 /-- `la x14, ad_length` at field 3 [103]-[104] (`AB+412 → AB+420`). -/
 theorem adLaLen412 (v : Word) :
-    cpsTripleWithin 2 (AB + 412) (AB + 420) fullCode
+    cpsTripleWithin 2 (AB + 460) (AB + 468) fullCode
       (.x14 ↦ᵣ v) (.x14 ↦ᵣ adLengthAddr) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 412)
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 412)))
+  have hau : ∀ a i, CodeReq.singleton (AB + 460)
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 460)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 412) accountDecode_prog 103
-      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 412)))
+    (CodeReq.ofProg_mem_at AB (AB + 460) accountDecode_prog 115
+      (.AUIPC .x14 (Codegen.laHi GuestAddrs.ad_length (GuestAddrs.account_decode + 460)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 416)
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 412)))
+  have had : ∀ a i, CodeReq.singleton (AB + 464)
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 460)))
         a = some i → fullCode a = some i := fun a i hi => ad_mono a i
-    (CodeReq.ofProg_mem_at AB (AB + 416) accountDecode_prog 104
-      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 412)))
+    (CodeReq.ofProg_mem_at AB (AB + 464) accountDecode_prog 116
+      (.ADDI .x14 .x14 (Codegen.laLo GuestAddrs.ad_length (GuestAddrs.account_decode + 460)))
       (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x14 v (AB + 412) adLengthAddr (by decide) (by decide) hau had
-  rw [show (AB + 412 : Word) + 8 = AB + 420 from by bv_omega] at h
+  have h := la_materialize_within .x14 v (AB + 460) adLengthAddr (by decide) (by decide) hau had
+  rw [show (AB + 460 : Word) + 8 = AB + 468 from by bv_omega] at h
   exact h
 
 set_option maxRecDepth 8000 in
 /-- Field-3 call setup [98]-[104] (`AB+392 → AB+420`): `li a2,3`. -/
 theorem adField3Setup (v10 v11 v12 v13 v14 listBase len : Word) :
-    cpsTripleWithin 7 (AB + 392) (AB + 420) fullCode
+    cpsTripleWithin 7 (AB + 440) (AB + 468) fullCode
       (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
        ((.x13 : Reg) ↦ᵣ v13) ** ((.x14 : Reg) ↦ᵣ v14) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len))
@@ -653,20 +653,20 @@ theorem adField3Setup (v10 v11 v12 v13 v14 listBase len : Word) :
        ((.x12 : Reg) ↦ᵣ (3 : Word)) ** ((.x13 : Reg) ↦ᵣ adOffsetAddr) **
        ((.x14 : Reg) ↦ᵣ adLengthAddr) ** ((.x8 : Reg) ↦ᵣ listBase) **
        ((.x9 : Reg) ↦ᵣ len)) := by
-  have h98 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 392) (by decide)
+  have h98 := mv_spec_gen_within .x10 .x8 listBase v10 (AB + 440) (by decide)
   have h98e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 392) accountDecode_prog 98 (.MV .x10 .x8)
+      (CodeReq.ofProg_mem_at AB (AB + 440) accountDecode_prog 110 (.MV .x10 .x8)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h98)
-  have h99 := mv_spec_gen_within .x11 .x9 len v11 (AB + 396) (by decide)
+  have h99 := mv_spec_gen_within .x11 .x9 len v11 (AB + 444) (by decide)
   have h99e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 396) accountDecode_prog 99 (.MV .x11 .x9)
+      (CodeReq.ofProg_mem_at AB (AB + 444) accountDecode_prog 111 (.MV .x11 .x9)
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h99)
-  have h100 := li_spec_gen_within .x12 v12 (3 : Word) (AB + 400) (by decide)
+  have h100 := li_spec_gen_within .x12 v12 (3 : Word) (AB + 448) (by decide)
   have h100e := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 400) accountDecode_prog 100 (.LI .x12 (3 : Word))
+      (CodeReq.ofProg_mem_at AB (AB + 448) accountDecode_prog 112 (.LI .x12 (3 : Word))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) h100)
   have h101 := adLaOff404 v13
   have h103 := adLaLen412 v14
@@ -711,10 +711,10 @@ theorem adField3Call
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let saved : Saved :=
-      { ra := AB + 424, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
+      { ra := AB + 472, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
         s5 := s5 }
     let n20 := (12 + ((85 + 93 * (3 + 2)) + 6)) + 9
-    cpsTripleWithin (7 + (1 + n20)) (AB + 392) (AB + 424) fullCode
+    cpsTripleWithin (7 + (1 + n20)) (AB + 440) (AB + 472) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -735,7 +735,7 @@ theorem adField3Call
     (by repeat' first
         | exact pcFree_regIs | exact pcFree_memIs | exact bytesRegion_pcFree _ _
         | exact pcFree_regOwn | exact pcFree_stackFree _ _ | apply pcFree_sepConj) hsetup
-  have hhead : cpsTripleWithin 7 (AB + 392) (AB + 420) fullCode
+  have hhead : cpsTripleWithin 7 (AB + 440) (AB + 468) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ s2v) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x13 ↦ᵣ v13) **
@@ -750,14 +750,14 @@ theorem adField3Call
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by unfold entryRest; xperm_hyp hq) hsetupF
   have hjal := jal_link_spec_within
-    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 420)) (AB + 420) raIn
-  rw [show (AB + 420) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 420)) = B from by decide,
-    show (AB + 420 + 4 : Word) = AB + 424 from by bv_omega] at hjal
+    (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 468)) (AB + 468) raIn
+  rw [show (AB + 468) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_decode + 468)) = B from by decide,
+    show (AB + 468 + 4 : Word) = AB + 472 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 420) accountDecode_prog 105
-        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 420)))
+      (CodeReq.ofProg_mem_at AB (AB + 468) accountDecode_prog 117
+        (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 468)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) ** (.x18 ↦ᵣ s2v) **
@@ -772,13 +772,13 @@ theorem adField3Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (3 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 3 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 424) &&& ~~~(1 : Word) = AB + 424; decide)
+    hsalign hslack hover hvalid (by show (AB + 472) &&& ~~~(1 : Word) = AB + 472; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       rw [regsAt_listNthFrame]
-      simp only [show saved.ra = AB + 424 from rfl, show saved.s0 = listBase from rfl,
+      simp only [show saved.ra = AB + 472 from rfl, show saved.s0 = listBase from rfl,
         show saved.s1 = len from rfl, show saved.s2 = s2v from rfl,
         show saved.s3 = s3 from rfl, show saved.s4 = s4 from rfl,
         show saved.s5 = s5 from rfl]

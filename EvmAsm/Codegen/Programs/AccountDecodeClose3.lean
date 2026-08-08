@@ -24,7 +24,7 @@ set_option maxRecDepth 8000 in
 theorem adFailEpi (sp0 newSp v10old : Word) (saved : Saved) (F : Assertion) (hF : F.pcFree)
     (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
-    cpsTripleWithin (1 + 9) (AB + 504) saved.ra fullCode
+    cpsTripleWithin (1 + 9) (AB + 552) saved.ra fullCode
       (((.x10 : Reg) ↦ᵣ v10old) **
        (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt listNthFrame ** savedFrame newSp saved) ** F)
       (((.x10 : Reg) ↦ᵣ (1 : Word)) **
@@ -48,7 +48,7 @@ set_option maxRecDepth 8000 in
 theorem adSuccessEpi (sp0 newSp v10old : Word) (saved : Saved) (F : Assertion) (hF : F.pcFree)
     (hnewSp : newSp = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
-    cpsTripleWithin (2 + 9) (AB + 496) saved.ra fullCode
+    cpsTripleWithin (2 + 9) (AB + 544) saved.ra fullCode
       (((.x10 : Reg) ↦ᵣ v10old) **
        (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt listNthFrame ** savedFrame newSp saved) ** F)
       (((.x10 : Reg) ↦ᵣ (0 : Word)) **

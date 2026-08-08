@@ -144,51 +144,51 @@ local macro "pcfa" : tactic =>
 /-- `la x5, iw_empty_trie_root` at the field-2 fold arm [138]-[139]
     (`AB+552 → AB+560`). -/
 private theorem adLaItrX5_552 (v : Word) :
-    cpsTripleWithin 2 (AB + 552) (AB + 560) fullCode
+    cpsTripleWithin 2 (AB + 600) (AB + 608) fullCode
       (.x5 ↦ᵣ v) (.x5 ↦ᵣ ITR) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 552)
+  have hau : ∀ a i, CodeReq.singleton (AB + 600)
       (.AUIPC .x5 (Codegen.laHi GuestAddrs.iw_empty_trie_root
-        (GuestAddrs.account_decode + 552))) a = some i → fullCode a = some i :=
+        (GuestAddrs.account_decode + 600))) a = some i → fullCode a = some i :=
     fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 552) accountDecode_prog 138
+      (CodeReq.ofProg_mem_at AB (AB + 600) accountDecode_prog 150
         (.AUIPC .x5 (Codegen.laHi GuestAddrs.iw_empty_trie_root
-          (GuestAddrs.account_decode + 552)))
+          (GuestAddrs.account_decode + 600)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 556)
+  have had : ∀ a i, CodeReq.singleton (AB + 604)
       (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.iw_empty_trie_root
-        (GuestAddrs.account_decode + 552))) a = some i → fullCode a = some i :=
+        (GuestAddrs.account_decode + 600))) a = some i → fullCode a = some i :=
     fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 556) accountDecode_prog 139
+      (CodeReq.ofProg_mem_at AB (AB + 604) accountDecode_prog 151
         (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.iw_empty_trie_root
-          (GuestAddrs.account_decode + 552)))
+          (GuestAddrs.account_decode + 600)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x5 v (AB + 552) ITR (by decide) (by decide) hau had
-  rw [show (AB + 552 : Word) + 8 = AB + 560 from by bv_omega] at h
+  have h := la_materialize_within .x5 v (AB + 600) ITR (by decide) (by decide) hau had
+  rw [show (AB + 600 : Word) + 8 = AB + 608 from by bv_omega] at h
   exact h
 
 /-- `la x5, aie_empty_code_hash` at the field-3 fold arm [151]-[152]
     (`AB+604 → AB+612`). -/
 private theorem adLaEchX5_604 (v : Word) :
-    cpsTripleWithin 2 (AB + 604) (AB + 612) fullCode
+    cpsTripleWithin 2 (AB + 652) (AB + 660) fullCode
       (.x5 ↦ᵣ v) (.x5 ↦ᵣ ECH) := by
-  have hau : ∀ a i, CodeReq.singleton (AB + 604)
+  have hau : ∀ a i, CodeReq.singleton (AB + 652)
       (.AUIPC .x5 (Codegen.laHi GuestAddrs.aie_empty_code_hash
-        (GuestAddrs.account_decode + 604))) a = some i → fullCode a = some i :=
+        (GuestAddrs.account_decode + 652))) a = some i → fullCode a = some i :=
     fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 604) accountDecode_prog 151
+      (CodeReq.ofProg_mem_at AB (AB + 652) accountDecode_prog 163
         (.AUIPC .x5 (Codegen.laHi GuestAddrs.aie_empty_code_hash
-          (GuestAddrs.account_decode + 604)))
+          (GuestAddrs.account_decode + 652)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have had : ∀ a i, CodeReq.singleton (AB + 608)
+  have had : ∀ a i, CodeReq.singleton (AB + 656)
       (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.aie_empty_code_hash
-        (GuestAddrs.account_decode + 604))) a = some i → fullCode a = some i :=
+        (GuestAddrs.account_decode + 652))) a = some i → fullCode a = some i :=
     fun a i hi => ad_mono a i
-      (CodeReq.ofProg_mem_at AB (AB + 608) accountDecode_prog 152
+      (CodeReq.ofProg_mem_at AB (AB + 656) accountDecode_prog 164
         (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.aie_empty_code_hash
-          (GuestAddrs.account_decode + 604)))
+          (GuestAddrs.account_decode + 652)))
         (by bv_omega) (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi)
-  have h := la_materialize_within .x5 v (AB + 604) ECH (by decide) (by decide) hau had
-  rw [show (AB + 604 : Word) + 8 = AB + 612 from by bv_omega] at h
+  have h := la_materialize_within .x5 v (AB + 652) ECH (by decide) (by decide) hau had
+  rw [show (AB + 652 : Word) + 8 = AB + 660 from by bv_omega] at h
   exact h
 
 /-! ## The 32-byte constant stores
@@ -252,7 +252,7 @@ set_option maxRecDepth 8000 in
     unlike the copy loop's cursor). -/
 theorem adRootFoldStore (rootOut v5 v7 : Word) (oldRoot : List (BitVec 8))
     (holdRootlen : oldRoot.length = 32) :
-    cpsTripleWithin 10 (AB + 552) (AB + 592) fullCode
+    cpsTripleWithin 10 (AB + 600) (AB + 640) fullCode
       (((.x5 : Reg) ↦ᵣ v5) ** ((.x7 : Reg) ↦ᵣ v7) ** ((.x20 : Reg) ↦ᵣ rootOut) **
        bytesRegion rootOut oldRoot ** bytesRegion ITR adEmptyTrieRootBytes)
       ((((.x5 : Reg) ↦ᵣ ITR) ** ((.x20 : Reg) ↦ᵣ rootOut) **
@@ -264,41 +264,41 @@ theorem adRootFoldStore (rootOut v5 v7 : Word) (oldRoot : List (BitVec 8))
       bytesRegion32_dwords_eq rootOut oldRoot holdRootlen,
       bytesRegion32_dwords_eq rootOut adEmptyTrieRootBytes adEmptyTrieRootBytes_length]
   have p0 := adFoldPair .x20 ITR rootOut ITR rootOut
-    (packBytes (adEmptyTrieRootBytes.take 8)) (packBytes (oldRoot.take 8)) v7 (0 : BitVec 12) (AB + 560) hs0 hd0
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 560)
-      accountDecode_prog 140 (.LD .x7 .x5 (0 : BitVec 12)) (by bv_omega)
+    (packBytes (adEmptyTrieRootBytes.take 8)) (packBytes (oldRoot.take 8)) v7 (0 : BitVec 12) (AB + 608) hs0 hd0
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 608)
+      accountDecode_prog 152 (.LD .x7 .x5 (0 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 560 + 4)
-      accountDecode_prog 141 (.SD .x20 .x7 (0 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 608 + 4)
+      accountDecode_prog 153 (.SD .x20 .x7 (0 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 560 : Word) + 8 = AB + 568 from by bv_omega] at p0
+  rw [show (AB + 608 : Word) + 8 = AB + 616 from by bv_omega] at p0
   have p1 := adFoldPair .x20 ITR rootOut (ITR + 8) (rootOut + 8)
-    (packBytes ((adEmptyTrieRootBytes.drop 8).take 8)) (packBytes ((oldRoot.drop 8).take 8)) (packBytes (adEmptyTrieRootBytes.take 8)) (8 : BitVec 12) (AB + 568) hs8 hd8
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 568)
-      accountDecode_prog 142 (.LD .x7 .x5 (8 : BitVec 12)) (by bv_omega)
+    (packBytes ((adEmptyTrieRootBytes.drop 8).take 8)) (packBytes ((oldRoot.drop 8).take 8)) (packBytes (adEmptyTrieRootBytes.take 8)) (8 : BitVec 12) (AB + 616) hs8 hd8
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 616)
+      accountDecode_prog 154 (.LD .x7 .x5 (8 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 568 + 4)
-      accountDecode_prog 143 (.SD .x20 .x7 (8 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 616 + 4)
+      accountDecode_prog 155 (.SD .x20 .x7 (8 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 568 : Word) + 8 = AB + 576 from by bv_omega] at p1
+  rw [show (AB + 616 : Word) + 8 = AB + 624 from by bv_omega] at p1
   have p2 := adFoldPair .x20 ITR rootOut (ITR + 16) (rootOut + 16)
-    (packBytes (((adEmptyTrieRootBytes.drop 8).drop 8).take 8)) (packBytes (((oldRoot.drop 8).drop 8).take 8)) (packBytes ((adEmptyTrieRootBytes.drop 8).take 8)) (16 : BitVec 12) (AB + 576) hs16 hd16
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 576)
-      accountDecode_prog 144 (.LD .x7 .x5 (16 : BitVec 12)) (by bv_omega)
+    (packBytes (((adEmptyTrieRootBytes.drop 8).drop 8).take 8)) (packBytes (((oldRoot.drop 8).drop 8).take 8)) (packBytes ((adEmptyTrieRootBytes.drop 8).take 8)) (16 : BitVec 12) (AB + 624) hs16 hd16
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 624)
+      accountDecode_prog 156 (.LD .x7 .x5 (16 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 576 + 4)
-      accountDecode_prog 145 (.SD .x20 .x7 (16 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 624 + 4)
+      accountDecode_prog 157 (.SD .x20 .x7 (16 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 576 : Word) + 8 = AB + 584 from by bv_omega] at p2
+  rw [show (AB + 624 : Word) + 8 = AB + 632 from by bv_omega] at p2
   have p3 := adFoldPair .x20 ITR rootOut (ITR + 24) (rootOut + 24)
-    (packBytes ((((adEmptyTrieRootBytes.drop 8).drop 8).drop 8).take 8)) (packBytes ((((oldRoot.drop 8).drop 8).drop 8).take 8)) (packBytes (((adEmptyTrieRootBytes.drop 8).drop 8).take 8)) (24 : BitVec 12) (AB + 584) hs24 hd24
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 584)
-      accountDecode_prog 146 (.LD .x7 .x5 (24 : BitVec 12)) (by bv_omega)
+    (packBytes ((((adEmptyTrieRootBytes.drop 8).drop 8).drop 8).take 8)) (packBytes ((((oldRoot.drop 8).drop 8).drop 8).take 8)) (packBytes (((adEmptyTrieRootBytes.drop 8).drop 8).take 8)) (24 : BitVec 12) (AB + 632) hs24 hd24
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 632)
+      accountDecode_prog 158 (.LD .x7 .x5 (24 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 584 + 4)
-      accountDecode_prog 147 (.SD .x20 .x7 (24 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 632 + 4)
+      accountDecode_prog 159 (.SD .x20 .x7 (24 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 584 : Word) + 8 = AB + 592 from by bv_omega] at p3
+  rw [show (AB + 632 : Word) + 8 = AB + 640 from by bv_omega] at p3
   have f0 := cpsTripleWithin_frameR
     (((ITR + 8) ↦ₘ (packBytes ((adEmptyTrieRootBytes.drop 8).take 8))) **
      ((ITR + 16) ↦ₘ (packBytes (((adEmptyTrieRootBytes.drop 8).drop 8).take 8))) **
@@ -360,7 +360,7 @@ set_option maxRecDepth 8000 in
     zero-length `code_hash` field (`witness_state.py:119`). -/
 theorem adCodeFoldStore (codeOut v5 v7 : Word) (oldCode : List (BitVec 8))
     (holdCodelen : oldCode.length = 32) :
-    cpsTripleWithin 10 (AB + 604) (AB + 644) fullCode
+    cpsTripleWithin 10 (AB + 652) (AB + 692) fullCode
       (((.x5 : Reg) ↦ᵣ v5) ** ((.x7 : Reg) ↦ᵣ v7) ** ((.x21 : Reg) ↦ᵣ codeOut) **
        bytesRegion codeOut oldCode ** bytesRegion ECH adEmptyCodeHashBytes)
       ((((.x5 : Reg) ↦ᵣ ECH) ** ((.x21 : Reg) ↦ᵣ codeOut) **
@@ -372,41 +372,41 @@ theorem adCodeFoldStore (codeOut v5 v7 : Word) (oldCode : List (BitVec 8))
       bytesRegion32_dwords_eq codeOut oldCode holdCodelen,
       bytesRegion32_dwords_eq codeOut adEmptyCodeHashBytes adEmptyCodeHashBytes_length]
   have p0 := adFoldPair .x21 ECH codeOut ECH codeOut
-    (packBytes (adEmptyCodeHashBytes.take 8)) (packBytes (oldCode.take 8)) v7 (0 : BitVec 12) (AB + 612) hs0 hd0
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 612)
-      accountDecode_prog 153 (.LD .x7 .x5 (0 : BitVec 12)) (by bv_omega)
+    (packBytes (adEmptyCodeHashBytes.take 8)) (packBytes (oldCode.take 8)) v7 (0 : BitVec 12) (AB + 660) hs0 hd0
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 660)
+      accountDecode_prog 165 (.LD .x7 .x5 (0 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 612 + 4)
-      accountDecode_prog 154 (.SD .x21 .x7 (0 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 660 + 4)
+      accountDecode_prog 166 (.SD .x21 .x7 (0 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 612 : Word) + 8 = AB + 620 from by bv_omega] at p0
+  rw [show (AB + 660 : Word) + 8 = AB + 668 from by bv_omega] at p0
   have p1 := adFoldPair .x21 ECH codeOut (ECH + 8) (codeOut + 8)
-    (packBytes ((adEmptyCodeHashBytes.drop 8).take 8)) (packBytes ((oldCode.drop 8).take 8)) (packBytes (adEmptyCodeHashBytes.take 8)) (8 : BitVec 12) (AB + 620) hs8 hd8
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 620)
-      accountDecode_prog 155 (.LD .x7 .x5 (8 : BitVec 12)) (by bv_omega)
+    (packBytes ((adEmptyCodeHashBytes.drop 8).take 8)) (packBytes ((oldCode.drop 8).take 8)) (packBytes (adEmptyCodeHashBytes.take 8)) (8 : BitVec 12) (AB + 668) hs8 hd8
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 668)
+      accountDecode_prog 167 (.LD .x7 .x5 (8 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 620 + 4)
-      accountDecode_prog 156 (.SD .x21 .x7 (8 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 668 + 4)
+      accountDecode_prog 168 (.SD .x21 .x7 (8 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 620 : Word) + 8 = AB + 628 from by bv_omega] at p1
+  rw [show (AB + 668 : Word) + 8 = AB + 676 from by bv_omega] at p1
   have p2 := adFoldPair .x21 ECH codeOut (ECH + 16) (codeOut + 16)
-    (packBytes (((adEmptyCodeHashBytes.drop 8).drop 8).take 8)) (packBytes (((oldCode.drop 8).drop 8).take 8)) (packBytes ((adEmptyCodeHashBytes.drop 8).take 8)) (16 : BitVec 12) (AB + 628) hs16 hd16
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 628)
-      accountDecode_prog 157 (.LD .x7 .x5 (16 : BitVec 12)) (by bv_omega)
+    (packBytes (((adEmptyCodeHashBytes.drop 8).drop 8).take 8)) (packBytes (((oldCode.drop 8).drop 8).take 8)) (packBytes ((adEmptyCodeHashBytes.drop 8).take 8)) (16 : BitVec 12) (AB + 676) hs16 hd16
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 676)
+      accountDecode_prog 169 (.LD .x7 .x5 (16 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 628 + 4)
-      accountDecode_prog 158 (.SD .x21 .x7 (16 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 676 + 4)
+      accountDecode_prog 170 (.SD .x21 .x7 (16 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 628 : Word) + 8 = AB + 636 from by bv_omega] at p2
+  rw [show (AB + 676 : Word) + 8 = AB + 684 from by bv_omega] at p2
   have p3 := adFoldPair .x21 ECH codeOut (ECH + 24) (codeOut + 24)
-    (packBytes ((((adEmptyCodeHashBytes.drop 8).drop 8).drop 8).take 8)) (packBytes ((((oldCode.drop 8).drop 8).drop 8).take 8)) (packBytes (((adEmptyCodeHashBytes.drop 8).drop 8).take 8)) (24 : BitVec 12) (AB + 636) hs24 hd24
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 636)
-      accountDecode_prog 159 (.LD .x7 .x5 (24 : BitVec 12)) (by bv_omega)
+    (packBytes ((((adEmptyCodeHashBytes.drop 8).drop 8).drop 8).take 8)) (packBytes ((((oldCode.drop 8).drop 8).drop 8).take 8)) (packBytes (((adEmptyCodeHashBytes.drop 8).drop 8).take 8)) (24 : BitVec 12) (AB + 684) hs24 hd24
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 684)
+      accountDecode_prog 171 (.LD .x7 .x5 (24 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 636 + 4)
-      accountDecode_prog 160 (.SD .x21 .x7 (24 : BitVec 12)) (by bv_omega)
+    (fun a i hi => ad_mono a i (CodeReq.ofProg_mem_at AB (AB + 684 + 4)
+      accountDecode_prog 172 (.SD .x21 .x7 (24 : BitVec 12)) (by bv_omega)
       (by rw [ad_length]; decide) rfl (by rw [ad_length]; decide) a i hi))
-  rw [show (AB + 636 : Word) + 8 = AB + 644 from by bv_omega] at p3
+  rw [show (AB + 684 : Word) + 8 = AB + 692 from by bv_omega] at p3
   have f0 := cpsTripleWithin_frameR
     (((ECH + 8) ↦ₘ (packBytes ((adEmptyCodeHashBytes.drop 8).take 8))) **
      ((ECH + 16) ↦ₘ (packBytes (((adEmptyCodeHashBytes.drop 8).drop 8).take 8))) **
@@ -474,13 +474,13 @@ set_option maxRecDepth 8000 in
     post-field-2 continuation — exactly where the 32-byte copy loop's exit lands,
     so `adBBField3` serves both arms. -/
 theorem adRootFoldJal :
-    cpsTripleWithin 1 (AB + 592) (AB + 392) fullCode empAssertion empAssertion := by
-  have hjal := jal_x0_spec_gen_within (-200 : BitVec 21) (AB + 592)
-  rw [show (AB + 592 : Word) + signExtend21 (-200 : BitVec 21) = AB + 392 from by
+    cpsTripleWithin 1 (AB + 640) (AB + 440) fullCode empAssertion empAssertion := by
+  have hjal := jal_x0_spec_gen_within (-200 : BitVec 21) (AB + 640)
+  rw [show (AB + 640 : Word) + signExtend21 (-200 : BitVec 21) = AB + 440 from by
     rw [show signExtend21 (-200 : BitVec 21) = (-200 : Word) from by decide]; bv_omega] at hjal
   exact cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 592) accountDecode_prog 148
+      (CodeReq.ofProg_mem_at AB (AB + 640) accountDecode_prog 160
         (.JAL .x0 (-200 : BitVec 21)) (by bv_omega) (by rw [ad_length]; decide)
         rfl (by rw [ad_length]; decide)) hjal)
 
@@ -490,13 +490,13 @@ set_option maxRecDepth 8000 in
 /-- Field-3 fold rejoin [161] (`AB+644 → AB+496`): `jal x0, -148` to the
     success-status store `LI x10, 0`, where field 3's copy loop also lands. -/
 theorem adCodeFoldJal :
-    cpsTripleWithin 1 (AB + 644) (AB + 496) fullCode empAssertion empAssertion := by
-  have hjal := jal_x0_spec_gen_within (-148 : BitVec 21) (AB + 644)
-  rw [show (AB + 644 : Word) + signExtend21 (-148 : BitVec 21) = AB + 496 from by
+    cpsTripleWithin 1 (AB + 692) (AB + 544) fullCode empAssertion empAssertion := by
+  have hjal := jal_x0_spec_gen_within (-148 : BitVec 21) (AB + 692)
+  rw [show (AB + 692 : Word) + signExtend21 (-148 : BitVec 21) = AB + 544 from by
     rw [show signExtend21 (-148 : BitVec 21) = (-148 : Word) from by decide]; bv_omega] at hjal
   exact cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
-      (CodeReq.ofProg_mem_at AB (AB + 644) accountDecode_prog 161
+      (CodeReq.ofProg_mem_at AB (AB + 692) accountDecode_prog 173
         (.JAL .x0 (-148 : BitVec 21)) (by bv_omega) (by rw [ad_length]; decide)
         rfl (by rw [ad_length]; decide)) hjal)
 
@@ -534,16 +534,16 @@ theorem adField3FoldSuccess
     let savedCaller : Saved :=
       { ra := raIn, s0 := listBase, s1 := len, s2 := nonceOut, s3 := balanceOut,
         s4 := rootOut, s5 := codeOut }
-    cpsTripleWithin (10 + (1 + (2 + 9))) (AB + 604) raIn fullCode
+    cpsTripleWithin (10 + (1 + (2 + 9))) (AB + 652) raIn fullCode
       (((.x6 : Reg) ↦ᵣ l3) ** ((.x7 : Reg) ↦ᵣ (32 : Word)) ** ((.x5 : Reg) ↦ᵣ adLengthAddr) **
-       (adLengthAddr ↦ₘ l3) ** ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 424)) **
+       (adLengthAddr ↦ₘ l3) ** ((.x2 : Reg) ↦ᵣ spW) ** ((.x1 : Reg) ↦ᵣ (AB + 472)) **
        ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) ** ((.x18 : Reg) ↦ᵣ nonceOut) **
        ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) ** ((.x21 : Reg) ↦ᵣ codeOut) **
        stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
        ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
        regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** ((.x15 : Reg) ↦ᵣ codeOut) **
-       savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+       savedFrame spW savedCaller ** (nonceOut ↦ₘ nonceAccum bytes o0.toNat l0.toNat) **
        bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
        bytesRegion rootOut (rootCell) ** bytesRegion codeOut oldCode ** adFoldConstants)
       (adWholePost sp0 spW savedCaller listBase listLen bytes oldRoot oldCode) := by
@@ -552,13 +552,13 @@ theorem adField3FoldSuccess
   have h1 := adCodeFoldStore codeOut adLengthAddr (32 : Word) oldCode hcodelen
   have h1f := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ l3) ** (adLengthAddr ↦ₘ l3) ** ((.x2 : Reg) ↦ᵣ spW) **
-     ((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+     ((.x1 : Reg) ↦ᵣ (AB + 472)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
      ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) **
      stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
      ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
      regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** ((.x15 : Reg) ↦ᵣ codeOut) **
-     savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     savedFrame spW savedCaller ** (nonceOut ↦ₘ nonceAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
      bytesRegion rootOut (rootCell) ** bytesRegion ITR adEmptyTrieRootBytes)
     (by pcfa) h1
@@ -568,20 +568,20 @@ theorem adField3FoldSuccess
      bytesRegion codeOut adEmptyCodeHashBytes ** bytesRegion ECH adEmptyCodeHashBytes **
      regOwn .x7 **
      ((.x6 : Reg) ↦ᵣ l3) ** (adLengthAddr ↦ₘ l3) ** ((.x2 : Reg) ↦ᵣ spW) **
-     ((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+     ((.x1 : Reg) ↦ᵣ (AB + 472)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
      ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) ** ((.x20 : Reg) ↦ᵣ s4v) **
      stackFree spW 8 ** ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
      ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
      regOwn .x30 ** regOwn .x31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      bytesRegion listBase bytes ** (adOffsetAddr ↦ₘ o3) ** ((.x15 : Reg) ↦ᵣ codeOut) **
-     savedFrame spW savedCaller ** (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+     savedFrame spW savedCaller ** (nonceOut ↦ₘ nonceAccum bytes o0.toNat l0.toNat) **
      bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
      bytesRegion rootOut (rootCell) ** bytesRegion ITR adEmptyTrieRootBytes)
     (by pcfa) adCodeFoldJal
   rw [sepConj_emp_left'] at h2f
   -- (3) the shared success epilogue, with the fold constant in the code cell.
   set F : Assertion :=
-    (nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+    (nonceOut ↦ₘ nonceAccum bytes o0.toNat l0.toNat) **
     bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
     bytesRegion rootOut (rootCell) **
     bytesRegion codeOut adEmptyCodeHashBytes ** bytesRegion listBase bytes **
@@ -599,11 +599,11 @@ theorem adField3FoldSuccess
       rw [hFdef]
       have hg : (((.x10 : Reg) ↦ᵣ (0 : Word)) **
           (((.x2 : Reg) ↦ᵣ spW) **
-           (((.x1 : Reg) ↦ᵣ (AB + 424)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
+           (((.x1 : Reg) ↦ᵣ (AB + 472)) ** ((.x8 : Reg) ↦ᵣ listBase) ** ((.x9 : Reg) ↦ᵣ len) **
             ((.x18 : Reg) ↦ᵣ nonceOut) ** ((.x19 : Reg) ↦ᵣ balanceOut) **
             ((.x20 : Reg) ↦ᵣ s4v) ** ((.x21 : Reg) ↦ᵣ codeOut)) **
            savedFrame spW savedCaller) **
-          ((nonceOut ↦ₘ beAccum bytes o0.toNat l0.toNat) **
+          ((nonceOut ↦ₘ nonceAccum bytes o0.toNat l0.toNat) **
            bytesRegion balanceOut (balanceCopied bytes o1 l1.toNat) **
            bytesRegion rootOut (rootCell) **
            bytesRegion codeOut adEmptyCodeHashBytes ** bytesRegion listBase bytes **
