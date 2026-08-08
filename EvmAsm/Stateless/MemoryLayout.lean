@@ -193,9 +193,9 @@ def EVM_VALUE_STACK         : Word := 0xa0a70000
     `call_frame_arena` (64 KiB window per slot,
     `Codegen/CallFrameLayout.lean`; dispatcher-era global `evm_memory`
     lives in `.data`). The `evmMemoryIs` assertion
-    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized; only its
-    `..._evmMemoryArea` convenience corollary targets this anchor and is
-    therefore a port-contract statement, not an emitted-guest one. -/
+    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized and carries
+    no fixed anchor; callers instantiate `base`/`capacity` from the
+    frame's actual placement (issue #10526). -/
 def EVM_MEMORY_AREA         : Word := 0xa0b70000
 /-- ASPIRATIONAL — emitted reality: keccak inputs are staged in `.data`
     scratch (`wlh_scratch_hash`, `mset_db_hash`, …) and via the ZisK

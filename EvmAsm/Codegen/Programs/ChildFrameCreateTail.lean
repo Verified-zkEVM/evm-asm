@@ -309,9 +309,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- to_other receipt cumulativeGasUsed over-counted by exactly 2500 -> bv_fail=53). The warm
     -- table is a single global (evm_access_account_table, capacity 100000, reset only at tx setup),
     -- so the seed persists across create_frame_descend into the parent's subsequent CALL.
-    -- runtime_access_account_seed inserts WITHOUT charging gas and ignores duplicates; it clobbers
-    -- the a-regs that alias x10/x12/x13, so save/restore them. create_address_be is the canonical
-    -- 20-byte BE address (a0 expects exactly that).
+    -- runtime_access_account_seed inserts WITHOUT charging gas and ignores duplicates; it
+    -- clobbers a0-a3 (x10-x13). Save/restore the dispatcher invariants x10/x12/x13 (PC/stack/
+    -- mem-base); x11 is dead here. create_address_be is the canonical 20-byte BE address
+    -- (a0 expects exactly that).
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, create_address_be\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -487,7 +488,23 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- address was pre-funded), so add the endowment on top = the EVM "new account balance". x20 = the
     -- CHILD env (switched by the descend). env+32 is LE; reverse to BE, u256_add_be the BE endowment
     -- (create_value_be, still valid — the initcode has not run yet), reverse back. create_creator_newbal
-    -- is the BE scratch (free after the gate's creator-debit). a0-a2 alias x10/x12/x13 -> save/restore.
+    -- is the BE scratch (free after the gate's creator-debit).
+    --
+    -- Save set around `u256_add_be` below is INTENTIONAL and is NOT meant to match the
+    -- helper's a0-a2 write set. This CREATE-tail region uses a regional convention:
+    -- preserve dispatcher invariants x10=PC, x12=stack-top, x13=mem-base across every
+    -- helper call (same pattern as L182/L258/L275 above). Those three are live; restore
+    -- them. RV ABI: a0=x10, a1=x11, a2=x12 — so the `la a0/a1/a2` setup also clobbers
+    -- x11. x11 is DEAD here (CREATE live set is only x10/x12/x13; nothing reads prior
+    -- x11 after restore; `create_frame_descend` already clobbered a0-a7). Do NOT "fix"
+    -- the save set to x10/x11/x12 to match the write set: that would drop x13 for no
+    -- gain, or add a dead x11 slot for hygiene-only churn (#11083). `u256_add_be` itself
+    -- touches x5-7,x10-12,x28-31 only (not x13); x13 stays in the save for the regional
+    -- convention and for callees that do clobber it. Prior text claimed "a0-a2 alias
+    -- x10/x12/x13" — false under RV ABI, and that false claim is what propagated the
+    -- mismatched CALL save set fixed in #11082. The mismatch that remains (save ≠ write
+    -- set) is deliberate invariant preservation, not an oversight.
+    --
     -- drj99.1 (initcode_calls_with_value bv_fail=44): FIRST capture the child's staged PRE-state
     -- balance (env+32 BEFORE the endowment credit, = block-pre balance: 0 for a fresh address) into
     -- nse_create_pre_bal (BE), so the created-account endowment-credit nonstorage record below carries

@@ -56,10 +56,13 @@ DEFAULT_FXROOT = (
 
 # Fallback absolute addresses when nm is unavailable (main 14e3fb2e7 era).
 # Prefer nm resolution from --elf.
+# account_writes_area is RegionMap-only (no nm symbol). Keep in lockstep with
+# EvmAsm/Codegen/RegionMap.lean account_writes_area (0xbdd80000). Stale
+# 0xA28A0000 predated the AW relocation and silently dumped the wrong arena.
 FALLBACK_SYMS = {
     "sv_recomputed": 0xA46940E0,
-    "account_writes_count": 0xB9D22FF8,
-    "account_writes_area": 0xA28A0000,
+    "account_writes_count": 0xB9A7F318,  # nm moves with .bss; prefer --elf nm
+    "account_writes_area": 0xBDD80000,  # RegionMap.lean — not an nm symbol
 }
 
 AW_STRIDE = 128

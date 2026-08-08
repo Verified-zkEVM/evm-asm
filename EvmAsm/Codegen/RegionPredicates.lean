@@ -51,8 +51,9 @@
 
   ## ⚠️ Every extent claim names its build unit
 
-  `baap_storage_values` is emitted at three sizes in three units (#11222) and
-  `evm_memory_pool` at two (guest 96 MiB vs a 1 MiB probe emit in
+  `baap_storage_values` is emitted by three units (#11222), with the guest and
+  BAAP probe sharing the gas-derived extent while the descriptor probe is
+  smaller, and `evm_memory_pool` at two (guest 96 MiB vs a 1 MiB probe emit in
   `CallFrameDescend.lean`). A predicate that does not name its unit is false in
   at least one of them. A symbol exists per *image*, not per repository.
 -/
@@ -626,12 +627,12 @@ theorem calleeSeedAbsentSymbols_length : calleeSeedAbsentSymbols.length = 3 := b
     anything beyond the byte range would be asserting something the code does
     not maintain.
 
-    ⛔ **And the extent is unit-dependent (#11222):** the same symbol name is
-    emitted at **three sizes in three units** — guest `6_400_000`
-    (`bsrMaxBalItems * bsrPathBytes`), the `BalAccountApplyPostFields` probe
-    `3_840_000`, and `BalAccountDescriptorArray` `32_768`. An `extent =`
-    theorem is therefore true in `stateless_guest` and **false** in the other
-    two. Closing #11222 (overload vs dead) is required before any single global
+    ⛔ **And the extent remains unit-dependent (#11222):** the same symbol name
+    is emitted by three units — guest and `BalAccountApplyPostFields` probe at
+    `bsrMaxBalItems * bsrPathBytes` (= `6_400_000` today), and
+    `BalAccountDescriptorArray` at `32_768`. An `extent =` theorem is therefore
+    true for the guest and BAAP probe but **false** for the descriptor probe.
+    Closing #11222 (overload vs dead) is required before any single global
     claim; until then the unit must be named at every use, which is why
     `statelessGuest` exists above. Its initialisation contract is
     **self-discharged** — the routine clears the cells in its own entry block
@@ -642,10 +643,11 @@ theorem calleeSeedAbsentSymbols_length : calleeSeedAbsentSymbols.length = 3 := b
 
 /-- The three build units that emit `baap_storage_values`, with the size each
     one uses. Recorded as data so the overload is checkable rather than prose:
-    a predicate naming no unit is wrong in two of these three. -/
+    the guest and BAAP probe are formula-matched; the descriptor probe remains
+    a smaller unit-local arena. -/
 def baapStorageValuesUnitSizes : List (String × Nat) :=
-  [ ("stateless_guest", 6400000),
-    ("BalAccountApplyPostFields probe", 3840000),
+  [ ("stateless_guest", bsrMaxBalItems * bsrPathBytes),
+    ("BalAccountApplyPostFields probe", bsrMaxBalItems * bsrPathBytes),
     ("BalAccountDescriptorArray", 32768) ]
 
 /-- The guest size is the layout formula's, not a literal — so if
@@ -655,10 +657,10 @@ theorem baapStorageValues_guest_size_eq_formula :
     (baapStorageValuesUnitSizes.head?.map (·.2)) = some (bsrMaxBalItems * bsrPathBytes) := by
   decide
 
-/-- ⚠️ The three sizes really are distinct — the overload is not a
-    documentation artifact of one number written three ways. -/
+/-- The guest and BAAP probe now share a size; the descriptor probe remains
+    the distinct small unit-local extent. -/
 theorem baapStorageValues_sizes_distinct :
-    (baapStorageValuesUnitSizes.map (·.2)).eraseDups.length = 3 := by decide
+    (baapStorageValuesUnitSizes.map (·.2)).eraseDups.length = 2 := by decide
 
 /-! ## `bal_canonical_sort` row arrays (GH #10817)
 
