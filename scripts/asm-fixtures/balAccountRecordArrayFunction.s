@@ -34,12 +34,6 @@ bal_account_record_array:
   bnez a0, .Lbara_fail
   la s9, bara_empty_account; li t1, 70; li t2, 3; j .Lbara_record
 .Lbara_changed:
-  la t0, bara_skip_modeled_system; ld t0, 0(t0); beqz t0, .Lbara_walk_changed
-  mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)
-  jal ra, bal_account_is_modeled_system
-  li t0, 1; beq a0, t0, .Lbara_modeled_system
-  li t0, 2; beq a0, t0, .Lbara_modeled_system
-  bnez a0, .Lbara_fail
 .Lbara_walk_changed:
   mv a0, s9; la t0, bara_item_len; ld a1, 0(t0)
   la a2, bara_path
@@ -60,8 +54,6 @@ bal_account_record_array:
   li t0, 256; bgtu t1, t0, .Lbara_fail
   li t2, 0                    # modify existing
   j .Lbara_record
-.Lbara_modeled_system:
-  la s9, bara_empty_account; li t1, 70; li t2, 3
 .Lbara_record:
   mv a0, s7; mv a1, s9; mv a2, t1
   jal ra, mset_memcpy

@@ -121,8 +121,6 @@ import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomSpec
 import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomSpec
 import EvmAsm.Codegen.Programs.MptEncode
-import EvmAsm.Codegen.Programs.SystemWrites
-import EvmAsm.Codegen.Programs.SwdReadU64leSAsm
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
@@ -135,11 +133,8 @@ import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.RequestsHashParams
 import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
-import EvmAsm.Codegen.Programs.SwdWriteBe8SAsm
-import EvmAsm.Codegen.Programs.SwdWriteBe32U64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
 import EvmAsm.Codegen.Programs.BhrRevLeBeSAsm
-import EvmAsm.Codegen.Programs.SwdMinimalCopySAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Codegen.Programs.MsetMemcpySAsm
 import EvmAsm.Codegen.Programs.BloomOrIntoSAsm

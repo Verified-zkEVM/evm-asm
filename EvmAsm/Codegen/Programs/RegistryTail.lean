@@ -59,7 +59,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.B3CoinbaseFee
 import EvmAsm.Codegen.Programs.BlockVerdictRecipientCredits
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.BlockVerdictSystemStorageCapture
 import EvmAsm.Codegen.Programs.SparseEpochProbe
 
 namespace EvmAsm.Codegen
@@ -68,7 +67,6 @@ def lookupProgramTail : String → Option BuildUnit
   | "zisk_call_depth_precompile_limit" => some callDepthPrecompileLimitUnit
   | "zisk_call_depth_eip4788_limit" => some callDepthEip4788LimitUnit
   | "zisk_single_leaf_trie_root" => some ziskSingleLeafTrieRootProbeUnit
-  | "zisk_system_write_descriptors" => some ziskSystemWriteDescriptorsProbeUnit
   | "zisk_storage_access_gas" => some ziskStorageAccessGasProbeUnit
   | "zisk_bal_gas_valid" => some ziskBalGasValidProbeUnit
   | "zisk_bal_section_info" => some ziskBalSectionInfoProbeUnit

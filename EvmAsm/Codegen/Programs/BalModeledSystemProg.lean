@@ -25,8 +25,8 @@ open EvmAsm.Rv64
     a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
     a0 (output) = 1 EIP-2935 row / 2 EIP-4788 row / 0 other row / 3 parse failure.
 
-    The verdict already replays EIP-2935 and EIP-4788 system writes before BAL
-    post-state replay, so those BAL rows can be skipped in that verdict path. -/
+    This classifier is retained for standalone BAL probes; the live verdict
+    records system-contract effects through the authenticated execution maps. -/
 def balAccountIsModeledSystem_prog_of (L : GuestLayout) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),

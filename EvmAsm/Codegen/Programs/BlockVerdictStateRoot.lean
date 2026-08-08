@@ -12,13 +12,11 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageWrite
-import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
@@ -51,8 +49,6 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
-import EvmAsm.Codegen.Programs.BlockVerdictSysChange
-import EvmAsm.Codegen.Programs.BlockVerdictSystemStorageCapture
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
@@ -90,8 +86,6 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_pre_ok\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  -- GH #11431: do not skip 2935/4788 in BAL record array (ordinary owners).
-  "  la t1, bara_skip_modeled_system; sd zero, 0(t1)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_pre_cons_records\n" ++
   ".Lbsr_pre_ok:\n" ++
@@ -320,9 +314,9 @@ def blockStateRootFunction : String :=
   "  mv s3, a3                   # wds descriptors\n" ++
   "  mv s4, a4                   # n_wds\n" ++
   "  mv s5, a5                   # out_root\n" ++
-  -- GH #11431: EIP-2935/4788 already ran at block start via
+  -- EIP-2935/4788 already ran at block start via
   -- process_block_start_system_transactions. Map is sole authority; no formula
-  -- descriptors / identity gate / append_modeled / bsr_sys_change here.
+  -- descriptors or synthetic modeled-system rows are consumed here.
   "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lbsr_oao_2935_done\n" ++
   "  li t1, 1; sd t1, 0(t0)\n" ++
   ".Lbsr_oao_2935_done:\n" ++
@@ -339,7 +333,6 @@ def blockStateRootFunction : String :=
   "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
   "  la t0, bsr_root_p; ld a0, 0(t0); la t0, bsr_wit_p; ld a1, 0(t0); la t0, bsr_wl_v; ld a2, 0(t0)\n" ++
   "  la t0, bsr_bal_start; ld a3, 0(t0); la t0, bsr_bal_len; ld a4, 0(t0); mv a5, t6\n" ++
-  "  la t0, bara_skip_modeled_system; sd zero, 0(t0)\n" ++
   "  la a6, basr_records; la a7, basr_accounts\n" ++
   "  jal ra, bal_account_record_array; bnez a0, .Lbsr_cons_bal_records\n" ++
   "  # BAL storage replay reads the shared witness globals.\n" ++

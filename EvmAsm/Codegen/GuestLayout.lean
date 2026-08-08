@@ -62,12 +62,12 @@ structure GuestLayout where
   -- MptDeleteWalkDb (tail-call target + own entry for jal PC).
   mpt_set_record_walk_db : Nat
   mpt_delete_walk_db : Nat
-  -- Shared RLP walk helpers (BalAccountHasStateChange + BalModeledSystem).
+  -- Shared RLP walk helpers (BAL probes).
   rlp_walk_init : Nat
   rlp_walk_next : Nat
   -- BalAccountHasStateChange own entry for jal PC.
   bal_account_has_state_change : Nat
-  -- BalModeledSystem system-address constants + own entry.
+  -- BalModeledSystem probe-only constants + own entry.
   bams_addr_ptr : Nat
   bams_addr_2935 : Nat
   bams_addr_4788 : Nat

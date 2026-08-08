@@ -380,11 +380,6 @@ def statelessVerdictV2GuestClosure : String :=
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
   accountApplyStorageSlotAccFunction ++ "\n" ++
-  swdReadU64leFunction ++ "\n" ++
-  swdWriteBe32U64Function ++ "\n" ++
-  swdWriteBe8Function ++ "\n" ++
-  swdMinimalCopyFunction ++ "\n" ++
-  systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
@@ -395,12 +390,7 @@ def statelessVerdictV2GuestClosure : String :=
   mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
-  bsrSysChangeFunction ++ "\n" ++
-  bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
-  recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++

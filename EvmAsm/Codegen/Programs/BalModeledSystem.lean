@@ -1,8 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.BalModeledSystem
 
-  Classifier for BAL AccountChanges rows whose effects are already modeled by
-  the verdict's explicit system-write replay.
+  Classifier for standalone BAL probes.  The live guest records these rows
+  through the authenticated execution maps; it no longer uses this classifier
+  as a formula-side skip.
 
   GH #10753 bridge module: the program itself lives in the leaf
   `BalModeledSystemProg.lean` parameterised over the abstract `GuestLayout`;
@@ -26,8 +27,8 @@ open EvmAsm.Rv64
     a0 = AccountChanges RLP ptr   a1 = AccountChanges RLP length
     a0 (output) = 1 EIP-2935 row / 2 EIP-4788 row / 0 other row / 3 parse failure.
 
-    The verdict already replays EIP-2935 and EIP-4788 system writes before BAL
-    post-state replay, so those BAL rows can be skipped in that verdict path. -/
+    The live verdict no longer calls this classifier; it is retained only by
+    the standalone BAL probe units. -/
 def balAccountIsModeledSystem_prog : Program := balAccountIsModeledSystem_prog_of guestLayout
 
 def ziskBalAccountIsModeledSystemDataSection : String :=
