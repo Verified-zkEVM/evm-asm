@@ -753,6 +753,15 @@ gen-out/eest-run/run-<timestamp>-<pid>/
 Set `EEST_RUN_DIR=/path/to/dir` to force a stable directory for a single
 reproducible run; that directory is recreated at the start of the invocation.
 
+The harness only recreates a directory it owns. On first use it drops an
+`.eest-run-dir` marker recording the harness name and pid; on a later run it
+recreates the directory if that marker names the same harness and the recorded
+run has exited. Otherwise it **refuses and deletes nothing** (GH #11748) — a
+non-empty directory with no marker, a directory created by the other EEST
+harness, or one whose recorded run is still live. Point `--run-dir` at a new or
+empty directory, or remove the old one yourself. Reusing one directory per A/B
+leg still works exactly as before.
+
 Important files:
 
 - `manifest.tsv`: one row per selected guest invocation.
