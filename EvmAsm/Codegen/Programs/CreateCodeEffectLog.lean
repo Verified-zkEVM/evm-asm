@@ -825,6 +825,64 @@ theorem findCodeEffectByAddressFunction_eq_prog :
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
 #guard findCodeEffectByAddress_prog.length = 24
+
+/-! ## find_code_effect_by_hash
+
+    Spec `code_writes` is `Dict[Hash32, Bytes]` (state_tracker get_code): a hit
+    on **hash**, not address, returns without recording a code_read. CREATE of
+    code C then CALL to a different pre-state account with the same bytecode
+    (eip8025 `witness_codes_create_same_hash_then_read`) must not demand C in
+    witness.codes — GH #11542 bv11 / 02274.
+
+    Calling convention:
+      a0 = code-effect log base
+      a1 = entry count
+      a2 = 32-byte code-hash ptr
+    Returns a0 = matching record ptr or 0.
+    Walks variable-stride entries; keccak256(code@+48, code_len@+40) vs a2. -/
+def findCodeEffectByHashFunction : String :=
+  "find_code_effect_by_hash:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # cursor\n" ++
+  "  mv s1, a1                   # remaining\n" ++
+  "  mv s2, a2                   # want hash ptr\n" ++
+  ".Lfceh_loop:\n" ++
+  "  beqz s1, .Lfceh_miss\n" ++
+  "  ld a1, 40(s0)               # code_len\n" ++
+  "  addi a0, s0, 48             # code bytes\n" ++
+  "  addi a2, sp, 48             # 32-byte out on stack\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li t0, 0\n" ++
+  ".Lfceh_cmp:\n" ++
+  "  li t1, 32\n" ++
+  "  beq t0, t1, .Lfceh_hit\n" ++
+  "  add t2, sp, t0\n" ++
+  "  lbu t2, 48(t2)\n" ++
+  "  add t3, s2, t0\n" ++
+  "  lbu t3, 0(t3)\n" ++
+  "  bne t2, t3, .Lfceh_next\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lfceh_cmp\n" ++
+  ".Lfceh_next:\n" ++
+  "  ld t0, 40(s0)\n" ++
+  "  addi t0, t0, 55\n" ++
+  "  andi t0, t0, -8\n" ++
+  "  add s0, s0, t0\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  j .Lfceh_loop\n" ++
+  ".Lfceh_hit:\n" ++
+  "  mv a0, s0\n" ++
+  "  j .Lfceh_ret\n" ++
+  ".Lfceh_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lfceh_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
 /-- Data region for the code-effect log (linked wherever CREATE deposit runs;
     included in this probe and, in step .8b-2, the runtime dispatcher data). -/
 def createCodeEffectLogData : String :=
@@ -888,6 +946,7 @@ def ziskCreateCodeEffectLogPrologue : String :=
   codeStateAddressSetInsertFunction ++ "\n" ++
   codeStateAddressSetFlagFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+  findCodeEffectByHashFunction ++ "\n" ++
   ".Lccel_done:"
 
 def ziskCreateCodeEffectLogDataSection : String :=
