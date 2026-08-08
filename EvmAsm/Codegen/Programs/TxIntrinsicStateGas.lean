@@ -160,7 +160,18 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_deleg_code:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
   ".L77as_normal_nonce:\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_absent; mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx; beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
+  -- CURRENT nonce: TX map, then BLOCK map, then header pre-state. Spec has one
+  -- live tx_state (validate_authorization reads authority.nonce after prior
+  -- txs' inclusion bumps). Our dual map splits that; the miss arm must not
+  -- stop at TX-then-header and skip BLOCK, or a prior-tx inclusion bump is
+  -- invisible and a reused-nonce auth falsely accepts (GH #11542 24517:
+  -- authorization_reusing_nonce — FA masked by auth-phase OOG / receipts_root).
+  "  li t0, 2; beq a0, t0, .L77as_absent\n" ++
+  "  mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx\n" ++
+  "  beqz a0, .L77as_try_block; ld s1, 56(sp); li s2, 1; j .L77as_header\n" ++
+  ".L77as_try_block:\n" ++
+  "  mv a0, s0; addi a1, sp, 56; li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
+  "  beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
   ".L77as_header:\n" ++
   -- Header load remains raw: the map accessor recorded the execution read.
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
@@ -177,12 +188,13 @@ def eip7702AuthorityAsOfFunction : String :=
   ".L77as_live_empty:\n" ++
   "  li a2, 0\n" ++
   ".L77as_live:\n" ++
-  -- Prefer map nonce (s1) when account_writes_latest_nonce_tx found a CURRENT
-  -- row (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
+  -- Prefer map nonce (s1) when TX or BLOCK latest_nonce found a CURRENT row
+  -- (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
   -- auth_current misses that row, so the normal_nonce path stashes the map
   -- nonce in s1. Loading teer_pre_acct here would wipe it with the header
   -- nonce and reject self-sponsored AUTH whose signed nonce is post-inclusion
-  -- (GH #11744: 352 regular shortfall on call_to_precompile_in_pointer_context).
+  -- (GH #11744), or accept a prior-tx-consumed nonce on miss→header (GH #11542
+  -- 24517) when BLOCK held the live nonce but was not consulted.
   "  bnez s2, .L77as_live_map; la t0, teer_pre_acct; ld s1, 0(t0)\n" ++
   ".L77as_live_map:\n" ++
   "  mv a1, s1; li a0, 1; j .L77as_ret\n" ++
@@ -326,6 +338,16 @@ def eip7702AuthStatePrepareFunction : String :=
   ".L77prep_recipient_cmp:\n" ++
   "  li t3, 20; beq t2, t3, .L77prep_record; add t3, t0, t2; lbu t4, 0(t3); add t3, t1, t2; lbu t3, 0(t3); bne t4, t3, .L77prep_charge_regular; addi t2, t2, 1; j .L77prep_recipient_cmp\n" ++
   ".L77prep_charge_regular:\n" ++
+  -- Spec charges ACCOUNT_WRITE via charge_gas inside the set_delegation loop
+  -- (eoa_delegation.py), so OOG aborts before later auths run validate /
+  -- get_account. Deferring the debit to top_frame_regular_gas is fine for the
+  -- actual subtract, but the live a4 budget must still gate here — otherwise
+  -- an exact-intrinsic type-4 tx processes the rest of the list, asof-touches
+  -- authorities the spec never reaches, and BAL grows empty shells (GH #11542
+  -- 24498 multiple_signers_2: +27 b2ef). Aggregate a4=-1 keeps the old path.
+  "  ld t0, 136(sp); li t1, -1; beq t0, t1, .L77prep_charge_regular_acc\n" ++
+  "  la t2, runtime_tx_top_frame_regular_gas; ld t3, 0(t2); li t4, 8000; add t3, t3, t4; bltu t0, t3, .L77prep_auth_charge_oog\n" ++
+  ".L77prep_charge_regular_acc:\n" ++
   "  la t0, runtime_tx_auth_regular_refund; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0); la t0, runtime_tx_top_frame_regular_gas; ld t1, 0(t0); li t2, 8000; add t1, t1, t2; sd t1, 0(t0)\n" ++
   ".L77prep_record:\n" ++
   -- Build the stable delegation designator before publishing the account-write
@@ -437,9 +459,10 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   -- the guest, just as `process_message` applies `set_delegation` before
   -- `prepare_dispatch` (interpreter.py:356-365).  Pass live regular gas in a4
   -- (fork.py gas split before set_delegation) so per-auth NEW_ACCOUNT/AUTH_BASE
-  -- can ExceptionalHalt mid-list. a4=-1 aggregate mode skipped that OOG and
-  -- recorded every recovered authority into account_reads (code-60 type4 empty
-  -- shells; 01767 +243). ACCOUNT_WRITE stays deferred to top_frame_regular_gas.
+  -- and ACCOUNT_WRITE can ExceptionalHalt mid-list. a4=-1 aggregate mode
+  -- skipped that OOG and recorded every recovered authority into account_reads
+  -- (code-60 type4 empty shells; 01767 +243). Debit of ACCOUNT_WRITE still
+  -- stages into top_frame_regular_gas; live a4 only gates the mid-list OOG.
   "  la a0, bv_mtx_ctx; jal ra, simple_transfer_intrinsic_gas\n" ++
   "  bnez a0, .Lbvtgip_restore\n" ++
   "  mv t2, a1\n" ++
@@ -495,7 +518,7 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   ".Lbvtgip_auth_oog:\n" ++
   "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
-  "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3)\n" ++
+  "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3); la t3, teer_success_count; sd zero, 0(t3)\n" ++
   "  li a0, 0; j .Lbvtgip_ret\n" ++
   ".Lbvtgip_auth_ok:\n" ++
   "  ld t0, 48(sp); li t1, 4; bne t0, t1, .Lbvtgip_ret\n" ++

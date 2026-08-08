@@ -28,12 +28,10 @@ import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
 import EvmAsm.Codegen.Programs.BalAccountChangeDescriptor
 import EvmAsm.Codegen.Programs.BalAccountChangeValue
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
-import EvmAsm.Codegen.Programs.BalAccountNonstorageConsistent
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
 import EvmAsm.Codegen.Programs.BalAccountPath
 import EvmAsm.Codegen.Programs.BalAccountPostFields
 import EvmAsm.Codegen.Programs.BalAccountRecordArray
-import EvmAsm.Codegen.Programs.BalAllAccountsNonstorageCovers
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.Blake2f
@@ -330,9 +328,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
-  (GuestAddrs.bal_account_nonstorage_consistent, balAccountNonstorageConsistent_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
-  (GuestAddrs.bal_all_accounts_nonstorage_covers, balAllAccountsNonstorageCovers_prog),
   (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
@@ -484,6 +480,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 334
+#guard guestImageEntries.length = 332
 
 end EvmAsm.Codegen
