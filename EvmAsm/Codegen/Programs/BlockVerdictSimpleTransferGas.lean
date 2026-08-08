@@ -81,7 +81,7 @@ def topLevelValueRecipientStateGasAsm (tag ctxLabel : String) : String :=
   "  ld t6, 88(t5); bnez t6, .L" ++ tag ++ "_recipient_map_alive\n" ++
   "  j .L" ++ tag ++ "_recipient_code_tx_next\n" ++
   ".L" ++ tag ++ "_recipient_code_blk_init:\n" ++
-  "  la t1, account_writes_count; ld t2, 0(t1); li t3, 0xa28a0000; li t4, 0\n" ++
+  "  la t1, account_writes_count; ld t2, 0(t1); li t3, 0xbdd80000; li t4, 0\n" ++
   ".L" ++ tag ++ "_recipient_code_blk:\n" ++
   "  bgeu t4, t2, .L" ++ tag ++ "_recipient_map_miss\n" ++
   "  slli t5, t4, 7; add t5, t3, t5; mv a0, t5; mv a1, t0; li a2, 20\n" ++

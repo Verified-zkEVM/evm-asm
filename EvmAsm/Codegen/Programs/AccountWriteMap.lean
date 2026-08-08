@@ -106,10 +106,33 @@ import EvmAsm.Stateless.MemoryLayout
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
-/-- Block-lifetime entries. Amsterdam permits at most 9523 minimum-cost plain
-    value transfers in a 200M-gas block; distinct senders and recipients plus
-    coinbase require 19047 keys. Round to a 2.5 MiB arena. -/
-def blockAccountWritesCapacity : Nat := 20480
+/-- Block-lifetime entries: DISTINCT accounts written anywhere in the block.
+
+    ⛔ The superseded derivation said "Amsterdam permits at most 9523
+    minimum-cost plain value transfers in a 200M-gas block; distinct senders and
+    recipients plus coinbase require 19047 keys". Its arithmetic was internally
+    consistent -- 200M/21,000 = 9,523 and 2x9,523+1 = 19,047 -- which is exactly
+    why it read as derived. **Both inputs were wrong** (GH #11770):
+
+    * There is no 21,000 intrinsic in Amsterdam. EIP-2780 decomposed it
+      (`transactions.py:690-703`): `TX_BASE` 12,000 + `COLD_ACCOUNT_ACCESS`
+      3,000, plus `TRANSFER_LOG_COST` 1,756 and `TX_VALUE_COST` 4,244 only when
+      `value > 0`, and 0 recipient cost for a self-transfer. 21,000 is one
+      transaction shape, not a constant.
+    * Transfers are not the producer set. `account_writes_incorporate_tx`
+      (below) copies EVERY transaction-map row into this map at each transaction
+      boundary, so the block key set is the UNION over transactions of the tx
+      maps -- every account-write publication site feeds it, not just
+      transaction-level transfers.
+
+    Derived: 200M IS the right divisor here (block lifetime). The cheapest way
+    to add a distinct key is a cold `CALL` into a code-bearing account
+    (`COLD_ACCOUNT_ACCESS` = 3000) whose body is `PUSH0 PUSH0 SSTORE` (104),
+    plus call setup (~17) ~= 3,121 gas. A 200M block needs >= 12 transactions to
+    spend it (each capped at `TX_MAX_GAS_LIMIT`), costing 12 x 12,000 in
+    intrinsics: (200,000,000 - 144,000) / 3,121 = **64,035** distinct keys.
+    Rounded up to the next power of two, 8.0 MiB. -/
+def blockAccountWritesCapacity : Nat := 65536
 
 /-- CALL-tree-only distinct-key bound. A value-bearing internal CALL to a cold
     target costs at least `COLD_ACCOUNT_ACCESS = 3000 + CALL_VALUE = 10300`;
@@ -144,7 +167,7 @@ def accountWriteHasState : Nat := 8
 
     ## `execFlags@+96` — what this structure's flag word means (GH #11706)
 
-    Structure: `account_writes` rows, base `0xa28a0000` (block map) and
+    Structure: `account_writes` rows, base `0xbdd80000` (block map) and
     `tx_account_writes`, base `0xa2b20000` (tx map). **Stride 128.** Flag word at
     `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
@@ -289,7 +312,7 @@ def accountWritesLatestBalanceFunction : String :=
   ".Lawlb_tx_key:\n" ++
   "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
   ".Lawlb_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawlb_block_loop:\n" ++
   "  bgeu t3, t1, .Lawlb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlb_block_cmp:\n" ++
@@ -317,7 +340,7 @@ def accountWritesLatestBalanceFunction : String :=
 def accountWritesLatestBalanceBlockFunction : String :=
   "account_writes_latest_balance_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawlbb_loop:\n" ++
   "  bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlbb_cmp:\n" ++
@@ -342,7 +365,7 @@ def accountWritesLatestBalanceBlockFunction : String :=
 def accountWritesLatestNonceBlockFunction : String :=
   "account_writes_latest_nonce_block:\n" ++
   "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawlnb_loop:\n" ++
   "  bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
   ".Lawlnb_cmp:\n" ++
@@ -409,7 +432,7 @@ def accountWritesAuthCurrentFunction : String :=
   ".Lawa_tx_key:\n" ++
   "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_tx_next; andi t1, t0, 8; beqz t1, .Lawa_tx_next; andi t1, t0, 16; beqz t1, .Lawa_tx_next; j .Lawa_hit\n" ++
   ".Lawa_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawa_block_loop:\n" ++
   "  bgeu t3, t1, .Lawa_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawa_block_cmp:\n" ++
@@ -434,7 +457,7 @@ def accountWritesAuthCurrentFunction : String :=
 def accountWritesAuthBlockFunction : String :=
   "account_writes_auth_block:\n" ++
   "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawab_loop:\n" ++
   "  bgeu t3, t1, .Lawab_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawab_cmp:\n" ++
@@ -497,7 +520,7 @@ def accountWritesLookupCurrentFunction : String :=
   ".Lawlc_tx_key:\n" ++
   "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
   ".Lawlc_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawlc_block_loop:\n" ++
   "  bgeu t3, t1, .Lawlc_absent; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlc_block_cmp:\n" ++
@@ -535,7 +558,7 @@ def accountWritesTombstoneBalanceZeroFunction : String :=
   "  mv s1, t5\n" ++
   "  j .Lawtbz_block_init\n" ++
   ".Lawtbz_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawtbz_block_loop:\n" ++
   "  bgeu t3, t1, .Lawtbz_state_select; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawtbz_block_cmp:\n" ++
@@ -629,14 +652,14 @@ def accountWritesBlockUpsertFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0xa28a0000\n" ++                                      -- ACCOUNT_WRITES_AREA
+  "  li t3, 0xbdd80000\n" ++                                      -- ACCOUNT_WRITES_AREA
   "  li t4, 0\n" ++
   ".Lawb_scan:\n" ++
   "  bgeu t4, t1, .Lawb_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; mv t3, a0\n" ++
   ".Lawb_cmp:\n" ++
   "  beqz t6, .Lawb_store; lbu t1, 0(t2); lbu a1, 0(t3); bne t1, a1, .Lawb_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawb_cmp\n" ++
   ".Lawb_next:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t3, 0xa28a0000; addi t4, t4, 1; j .Lawb_scan\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t3, 0xbdd80000; addi t4, t4, 1; j .Lawb_scan\n" ++
   ".Lawb_append:\n" ++
   "  li t2, " ++ toString blockAccountWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lawb_overflow\n" ++
@@ -825,7 +848,7 @@ def accountWritesIsAbsentFunction : String :=
   ".Lawis_tx_hit:\n" ++
   "  ld t0, 112(t4); andi t0, t0, 8; beqz t0, .Lawis_no; ld t0, 72(t4); beqz t0, .Lawis_yes; j .Lawis_no\n" ++
   ".Lawis_block:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lawis_blk_scan:\n" ++
   "  bgeu t3, t1, .Lawis_no; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0\n" ++
   ".Lawis_blk_cmp:\n" ++
@@ -887,7 +910,7 @@ def accountWritesEmitBuilderTxFunction : String :=
   "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
   -- Find this address in the block-cumulative map.  A hit may still lack an
   -- individual field, in which case that component keeps the pre-state base.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0; li s5, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0; li s5, 0\n" ++
   ".Laweb_scan:\n" ++
   "  bgeu t3, t1, .Laweb_header; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s4\n" ++
   ".Laweb_cmp:\n" ++
@@ -1041,7 +1064,7 @@ def accountResolvePreStateFunction : String :=
   "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
   -- First source: block-cumulative account_writes. It is the pre-tx
   -- baseline for the current transaction, not the immutable parent account.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Larp_block_scan:\n" ++
   "  bgeu t3, t1, .Larp_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
   ".Larp_block_cmp:\n" ++
@@ -1170,7 +1193,7 @@ def accountResolveExecutionStateFunction : String :=
   "  andi t0, s8, 8; beqz t0, .Lare_block_scan\n" ++
   "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
   ".Lare_block_scan:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xa28a0000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
   ".Lare_block_loop:\n" ++
   "  bgeu t3, t1, .Lare_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
   ".Lare_block_cmp:\n" ++
@@ -1385,26 +1408,49 @@ def accountWriteMapFunctions : String :=
     line parses the continuation as a new command, and the guard silently covers
     only the first line -- which is the same vacuous-pass failure one level down. -/
 
--- The three arenas are laid end to end and must not overlap.
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + 0x280000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
-#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
--- ...and all three fit below `.data` at 0xa3000000.
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x200000 <= 0xa3000000
--- The block-level arena starts where the storage-write undo journal ends
--- (0xa23a0000 + 5 MiB), so the new regions are contiguous with the existing ones
--- rather than leaving an unaccounted hole in working RAM.
-#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat + 0x500000 == EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+-- GH #11770 RELOCATION. The block map and the undo journal moved OUT of the
+-- scheme-A anchor block into the gap above `.bss`, because they had to grow and
+-- the space adjacent to them was 0.88 MiB. These four guards previously asserted
+-- the OLD adjacency chain (storage-undo -> block map -> tx map -> undo, all
+-- below `.data`); they are rewritten, not deleted, because they are the only
+-- thing that would catch a careless move.
+--
+-- ⚠️ Worth knowing for the next relocation: these guards express adjacency as
+-- BASE + SIZE arithmetic, not as a literal block-top address. Grepping for the
+-- old block top (0xa2f20000) found nothing and suggested no assumption spanned
+-- the block. It did -- here.
+
+-- The two relocated arenas remain laid end to end, and the journal ends exactly
+-- at `.sszscratch`'s base: abutting is the convention here (the scheme-A block
+-- is one contiguous span) and is safe because the capacity guards fire BEFORE
+-- any store.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + 0x800000 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x1400000 == EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+-- Both sit above `.bss` and its trailing `.state_gas_diag`, i.e. inside the gap.
+#guard 0xa3110000 < EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+-- The transaction map did NOT move and still fits below `.data` at 0xa3000000.
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 <= 0xa3000000
+-- The vacated 4.5 MiB below `.data` is a DELIBERATE hole, not an oversight:
+-- 2.5 MiB where the block map was and 2 MiB where the journal was. Pinned so a
+-- later reader does not "restore contiguity" by moving something into it.
+#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat + 0x500000 + 0x280000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 
 -- Capacity x stride must equal the reserved arena exactly: an arena larger than
 -- its reservation would run into the next region with nothing objecting.
 #guard txAccountWritesCapacity * 128 == 0x200000
-#guard blockAccountWritesCapacity * 128 == 0x280000
--- Transaction capacity retains physical parity with the storage map; block
--- capacity follows the independent distinct-account bound below.
+#guard blockAccountWritesCapacity * 128 == 0x800000
+#guard accountWritesUndoCapacity * 128 == 0x1400000
+-- Transaction capacity retains physical parity with the storage map.
 #guard txAccountWritesCapacity == storageWritesCapacity
 #guard accountWritesCallKeyBound == 15038
 #guard accountWritesCallKeyBound <= txAccountWritesCapacity
-#guard 19047 <= blockAccountWritesCapacity
+-- GH #11770 derived bounds: distinct accounts per block, and write EVENTS per
+-- transaction. The old `19047 <= blockAccountWritesCapacity` is retired with the
+-- derivation that produced it (see `blockAccountWritesCapacity` above).
+#guard 64035 <= blockAccountWritesCapacity
+#guard 161204 <= accountWritesUndoCapacity
+-- The tx map is bounded by DISTINCT accounts and stays at 16384 -- the split.
+#guard 5371 <= txAccountWritesCapacity
 
 -- Every routine must actually be emitted. This slice is inert, so nothing calls
 -- them yet and a missing one would NOT be a link error -- these guards are the
