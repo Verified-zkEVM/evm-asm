@@ -6,34 +6,57 @@
 # scripts/codegen-eest-stateless-check.sh, and report how the reference
 # output compares to each fixture's recorded `statelessOutputBytes`.
 #
-# Why this exists alongside the ziskemu harness:
-#   SpecRef runs in-process (a `lake exe`, no ELF / ziskemu / step budget), so
-#   it is a fast, environment-free way to tie the Lean port's
-#   deserialization / SSZ-codec / NPR-root hashing / header /
-#   chain-config / witness-assembly path to the canonical conformance
-#   fixtures. Fixture selection (tag, --all/--skip/--limit/--filter,
-#   --random/--seed/--reverse) is identical to the ziskemu harness so the two
+# Why this exists alongside the guest harness (ziskemu/spike):
+#   SpecRef runs in-process (a `lake exe`, no ELF / emulator / step budget), so
+#   it is a fast, environment-free way to tie the Lean port's full path —
+#   deserialization / SSZ-codec / NPR-root hashing / header / chain-config /
+#   witness-assembly / execution — to the canonical conformance fixtures.
+#   Fixture selection (tag, --all/--skip/--limit/--filter,
+#   --random/--seed/--reverse) is identical to the guest harness so the two
 #   report on the same rows.
 #
-# The execution seam:
-#   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to
-#   `executeAlwaysOk` -- a placeholder that accepts every payload. The Python
-#   `run_stateless_guest` at tests-$(cat scripts/eest-fixture-tag.txt) runs the REAL EVM. Therefore:
+# The execution seam (post-s1d19.5):
+#   SpecRef's `run_stateless_guest` takes an `ExecutionSeam` defaulting to the
+#   full ported `elExecute` (`PrecompilesTable.lean`). The placeholder
+#   `executeAlwaysOk` still exists for unit tests but is NOT the harness
+#   default. The Python `run_stateless_guest` at the pinned fixture tag
+#   (`scripts/eest-fixture-tag.txt`) runs the same EVM surface. ALL THREE
+#   output regions are therefore expected to match:
 #
 #     * root  (bytes 0:32,  new_payload_request_root)  -- pre-execution hashing;
 #              SpecRef MUST match on every fixture.            [gateable]
-#     * tail  (bytes 33:69, chain_config echo)         -- pure echo;
-#              SpecRef MUST match on every fixture.            [gateable]
-#     * succ  (byte 32,     successful_validation)     -- SpecRef always reports
-#              true here; it DIVERGES on every fixture whose real EVM execution
-#              failed (succ=0). This is the expected execution-seam gap, NOT a
-#              SpecRef defect, and is reported separately rather than folded
-#              into fail / the --min-* gates.
-#     * full  (all 69 bytes match)                     -- informational only.
+#     * succ  (byte 32,     successful_validation)     -- real execution verdict;
+#              un-allowlisted divergence is FAIL (rc=1).       [gateable]
+#     * tail  (bytes 33:N,  chain_config echo)         -- pure echo of the
+#              fixture chain config; N is the SSZ-encoded length.
+#              On the current pin (v0.6.x) ChainConfig dropped fork /
+#              blob-schedule fields, so a normal success result is **69
+#              bytes** (tail 33:69; 138 hex chars). Pre-v0.6 layouts were
+#              105 bytes; do not revive that figure from older docs.
+#                                                                  [gateable]
+#     * full  (all N bytes match)                      -- root + succ + tail.
 #
-#   A per-case line shows which regions matched, e.g. "[root/----/tail]" means
-#   root + tail matched but the succ bit diverged. "[----/----/----]" means the
-#   pre-execution path itself disagreed with the fixture (a real SpecRef bug).
+#   Variable-length deserialize-failure sentinels are compared byte-for-byte
+#   (PASS(malformed) / FAIL[malformed]), not by the three-region split.
+#
+#   A per-case line shows which regions matched. Any root/tail miss means the
+#   pre-execution path disagreed with the fixture (a real SpecRef bug). A
+#   succ-only miss is FAIL[succ] unless the fixture is listed in
+#   `scripts/eest-succ-allow.txt` (fixture-vs-pinned-spec burndown; goal is
+#   an empty file). Allowlisted succ misses print PASS(allow).
+#
+# Per-case artefacts under the run directory:
+#   <label>.specref-result.tsv  -- TWO fields: `OK\t<hex>` or `ERROR\t<reason>`
+#     (GH #11746 / PR #11747: NOT `<label>.result.tsv`, which is the guest
+#     harness filename. Default schemas are identical in shape, so a name
+#     collision would be a silent wrong verdict — distinct names close it.)
+#   <label>.output / <label>.log -- raw SpecRef bytes and lake-exe log
+#
+# Run-dir ownership (GH #11748 / PR #11749):
+#   `scripts/lib/eest-run-dir.sh` claims the directory with an `.eest-run-dir`
+#   marker naming this harness. Recreates a dir this harness owns (documented
+#   behaviour); refuses to delete a dir owned by another harness, a live peer
+#   pid, or an unmarked non-empty tree. Shared with the guest harness.
 #
 # Usage:
 #   scripts/eest-specref-check.sh [options]
@@ -57,11 +80,13 @@
 # Environment:
 #   EEST_FIXTURES_DIR   fixtures root (default gen-out/eest-fixtures/<tag>/fixtures/fixtures)
 #   EEST_FIXTURE_TAG    default fixture tag
-#   EEST_RUN_DIR        explicit run directory
+#   EEST_RUN_DIR        explicit run directory (ownership-guarded; see above)
 #
 # Exit:
-#   0 -- ran to completion, and all --min-{root,tail} thresholds met
-#   1 -- build/convert failure, no fixtures, or a --min-{root,tail} regression
+#   0 -- ran to completion; --min-{root,tail,succ} met; no un-allowlisted
+#        succ FAIL; and (when no --min-* set) no pre-execution FAIL/ERROR
+#   1 -- build/convert failure, no fixtures, a --min-* regression, an
+#        un-allowlisted succ FAIL, or a pre-execution disagreement
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -285,15 +310,15 @@ case_identity() {
 }
 
 # --- run + classify ---------------------------------------------------------
-# A normal 69-byte SszStatelessValidationResult ($(cat scripts/eest-fixture-tag.txt): the
+# A normal 69-byte SszStatelessValidationResult on the current pin (v0.6.x:
 # ChainConfig lost its fork and blob-schedule fields) decomposes into three
-# regions:
+# regions. Pre-v0.6 was 105 bytes — do not hardcode that figure from old docs.
 #   root  [0:32]   (hex chars 0..64)   = new_payload_request_root
-#   succ  [32]     (hex chars 64..66)  = successful_validation
-#   tail  [33:69]  (hex chars 66..138) = u32 offset + 32-byte chain_config
+#   succ  [32]     (hex chars 64..66)  = successful_validation (real elExecute)
+#   tail  [33:69]  (hex chars 66..138) = u32 offset + chain_config echo
 # Results whose ForkActivation optionals differ from the common
 # timestamp-only shape encode to other lengths. Compare those byte-for-byte.
-# See the file header for why `succ` diverges (placeholder execution seam).
+# Un-allowlisted succ divergence is a FAIL (seam is real; see file header).
 total=0 err=0 full=0 succ=0 root=0 tail=0 succdiv=0 succfail=0 malformed=0
 
 SUCC_ALLOW_FILE="$REPO_ROOT/scripts/eest-succ-allow.txt"
@@ -325,13 +350,10 @@ succ_allowlisted() {
 # SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
 # all: a silent wrong verdict.  Distinct filenames make that impossible instead.
 #
-# ⚠️ Reachability, measured rather than assumed: BOTH harnesses run an
-# UNCONDITIONAL `rm -rf "$RUN_DIR"` at startup, including when the directory came
-# from --run-dir or EEST_RUN_DIR.  So two SEQUENTIAL runs against one directory
-# cannot mis-read each other -- the second deletes the first's outputs outright.
-# The mis-read is reachable only when the two run CONCURRENTLY against one
-# directory.  That `rm -rf` race is a separate and larger hazard, NOT addressed
-# here.
+# Run-dir ownership (GH #11748 / PR #11749): both harnesses now go through
+# `eest_prepare_run_dir` rather than an unconditional `rm -rf`. That closes the
+# sequential clobber of a foreign directory; concurrent same-dir runs by two
+# harnesses are still refused by the marker (other-harness / live-pid cases).
 run_worker() {
   local line="$1"
   local label input expected_hex succ_bit input_len gas_limit relpath case_id
@@ -454,9 +476,8 @@ classify_case() {
     fi
   fi
 
-  # Reporting: a case is a real failure only when the pre-execution path
-  # itself disagrees (root or tail mismatch). A succ-only divergence is the
-  # known execution-seam gap and is reported separately at the end.
+  # Reporting: root/tail mismatch => pre-execution FAIL. succ-only miss =>
+  # FAIL[succ] unless allowlisted (seam is real elExecute; not a placeholder gap).
   if [[ "$r" == "root" && "$t" == "tail" ]]; then
     if [[ "$s" == "succ" ]]; then
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
@@ -510,7 +531,7 @@ echo "  succ FAIL   : $succfail  (verdict disagreement -- a real SpecRef bug)"
 echo "  full match  : $full   (root + succ + tail -- the guest's exact output)"
 echo "  root match  : $root   (pre-execution NPR-root hashing)   [gateable]"
 echo "  tail match  : $tail   (chain-config echo)                [gateable]"
-echo "  succ match  : $succ   (only on fixtures whose real EVM execution succeeded)"
+echo "  succ match  : $succ   (successful_validation; counted only when root+tail also match)"
 echo "  succ diverg : $succdiv  (fixture-vs-pinned-spec, allowlisted in eest-succ-allow.txt)"
 echo "  malformed   : $malformed  (variable-length failed sentinel; exact-byte match)"
 echo "============================================================"
