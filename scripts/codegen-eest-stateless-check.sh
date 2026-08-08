@@ -1289,11 +1289,21 @@ if [[ "$REVERSE_ORDER" -eq 1 ]]; then
   selection="$selection, reverse"
 fi
 
+# GH #11308: the optional third argument is manifest column 8, which is the
+# `case_id` -- a SHA-256 over (fixture relpath, full test name, block index,
+# ORIGINAL stateless input bytes), written by scripts/eest-stateless-to-input.py.
+# It is a CASE IDENTITY, not a hash of the input file on disk: a file overwritten
+# after generation still matches its case_id (see #11301), so a case_id match
+# does NOT establish file integrity.  It is printed with an explicit `case_id=`
+# prefix because an unlabelled 64-hex string beside a path reads as a content
+# hash -- that misreading cost a spurious fixture-identity mismatch on #11362.
 case_identity() {
   local label="$1"
   local relpath="$2"
+  local case_id="${3:-}"
   local manifest_row="${manifestRowByLabel[$label]:-?}"
   local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  [[ -n "$case_id" ]] && id="$id case_id=$case_id"
   if [[ "$manifest_row" != "?" ]]; then
     id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
   fi
@@ -1305,8 +1315,18 @@ case_identity() {
 
 run_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
@@ -1463,8 +1483,18 @@ print_progress() {
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex oracle_hex exp r s t
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id result status actual_hex oracle_hex exp r s t
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
   fi
@@ -1476,7 +1506,7 @@ classify_case_result() {
     classifiedLabels["$label"]=1
     total=$((total + 1))
     err=$((err + 1))
-    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
   classifiedLabels["$label"]=1
@@ -1485,15 +1515,15 @@ classify_case_result() {
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
-    echo "  BUDGET(steps) $(case_identity "$label" "$relpath") (${actual_hex#steps:} steps)"
+    echo "  BUDGET(steps) $(case_identity "$label" "$relpath" "$case_id") (${actual_hex#steps:} steps)"
     return 0
   fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      exit) echo "  ERROR(exit)   $(case_identity "$label" "$relpath")" ;;
-      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${actual_hex#short:} hex chars)" ;;
-      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+      exit) echo "  ERROR(exit)   $(case_identity "$label" "$relpath" "$case_id")" ;;
+      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath" "$case_id") (${actual_hex#short:} hex chars)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath" "$case_id")" ;;
     esac
     return 0
   fi
@@ -1508,7 +1538,7 @@ classify_case_result() {
       elif [[ "$guest_verdict" == "00" && "$oracle_verdict" == "01" ]]; then
         guestFalseReject=$((guestFalseReject + 1)); oracle_class="guest-false-reject"
       fi
-      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath") (succ guest=$guest_verdict specref=$oracle_verdict)"
+      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath" "$case_id") (succ guest=$guest_verdict specref=$oracle_verdict)"
     fi
   fi
   exp="$expected_hex"
@@ -1520,7 +1550,7 @@ classify_case_result() {
 
   if [[ "$actual_hex" == "$exp" ]]; then
     full=$((full + 1))
-    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $(case_identity "$label" "$relpath")"
+    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $(case_identity "$label" "$relpath" "$case_id")"
   else
     fail=$((fail + 1))
     # root-only diff: succ + tail already match, ONLY the 32-byte root
@@ -1532,7 +1562,7 @@ classify_case_result() {
       dbg="$(verdict_debug_for_case "$label" "$input")"
       [[ -n "$dbg" ]] && dbg=" dbg=[$dbg]"
     fi
-    echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
+    echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath" "$case_id") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
   return 0
 }

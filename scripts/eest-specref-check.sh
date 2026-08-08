@@ -256,11 +256,19 @@ if [[ "$REVERSE_ORDER" -eq 1 ]]; then
   selection="$selection, reverse"
 fi
 
+# GH #11308: optional third argument is manifest column 8 = `case_id`, a SHA-256
+# over (fixture relpath, full test name, block index, ORIGINAL stateless input
+# bytes).  It is a CASE IDENTITY, not a hash of the on-disk input file -- an
+# overwritten file still matches its case_id (#11301) -- so it cannot establish
+# file integrity.  Printed with an explicit `case_id=` prefix so it cannot be
+# misread as a content hash (that misreading cost a false lead on #11362).
 case_identity() {
   local label="$1"
   local relpath="$2"
+  local case_id="${3:-}"
   local manifest_row="${manifestRowByLabel[$label]:-?}"
   local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  [[ -n "$case_id" ]] && id="$id case_id=$case_id"
   if [[ "$manifest_row" != "?" ]]; then
     id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
   fi
@@ -298,8 +306,18 @@ succ_allowlisted() {
 # manifest order. Result schema: "<STATUS>\t<actual_hex|reason>".
 run_worker() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.log"
   local result="$RUN_DIR/$label.result.tsv"
@@ -322,13 +340,23 @@ wait_for_one_worker() {
 
 classify_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local result="$RUN_DIR/$label.result.tsv"
   total=$((total + 1))
   if [[ ! -f "$result" ]]; then
     err=$((err + 1))
-    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
   local status actual_hex
@@ -336,8 +364,8 @@ classify_case() {
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath") (see $RUN_DIR/$label.log)" ;;
-      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+      spec) echo "  ERROR(spec)   $(case_identity "$label" "$relpath" "$case_id") (see $RUN_DIR/$label.log)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath" "$case_id")" ;;
     esac
     return 0
   fi
@@ -347,10 +375,10 @@ classify_case() {
       full=$((full + 1))
       malformed=$((malformed + 1))
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(malformed) $(case_identity "$label" "$relpath")"
+        echo "  PASS(malformed) $(case_identity "$label" "$relpath" "$case_id")"
       fi
     else
-      echo "  FAIL[malformed] $(case_identity "$label" "$relpath")"
+      echo "  FAIL[malformed] $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
       err=$((err + 1))
@@ -395,17 +423,17 @@ classify_case() {
   if [[ "$r" == "root" && "$t" == "tail" ]]; then
     if [[ "$s" == "succ" ]]; then
       if [[ "$QUIET_PASSES" -eq 0 ]]; then
-        echo "  PASS(full)  $(case_identity "$label" "$relpath")"
+        echo "  PASS(full)  $(case_identity "$label" "$relpath" "$case_id")"
       fi
     elif succ_allowlisted "$label"; then
-      echo "  PASS(allow) $(case_identity "$label" "$relpath") [root/succ(div:fixture-allowlisted)/tail]"
+      echo "  PASS(allow) $(case_identity "$label" "$relpath" "$case_id") [root/succ(div:fixture-allowlisted)/tail]"
     else
-      echo "  FAIL[succ]  $(case_identity "$label" "$relpath")"
+      echo "  FAIL[succ]  $(case_identity "$label" "$relpath" "$case_id")"
       echo "    expected: $expected_hex"
       echo "    actual:   $actual_hex"
     fi
   else
-    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath")"
+    echo "  FAIL[$r/$s/$t] $(case_identity "$label" "$relpath" "$case_id")"
     echo "    expected: $expected_hex"
     echo "    actual:   $actual_hex"
     err=$((err + 1))
