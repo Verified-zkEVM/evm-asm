@@ -1172,13 +1172,14 @@ def callDescendFallThrough
    -- lands in the child frame's logs: frame_return rolls it back on a child REVERT/exceptional
    -- halt and propagates it on success -- matching spec emit_transfer_log inside process_message.
    emitPendingXferLog "desc_" ++
-  -- Every successfully descended CALL-family kind reaches the existing
-  -- dispatcher resume sequence through the child entry. The entry is after all
-  -- root-only setup and begins with the dispatcher-resume sequence that
-  -- `dispatchContinueRet` previously entered after its return. CALLCODE
-  -- (mode 2) retains its separate pre-descent value-bearing balance gate.
+  -- Every successfully descended CALL-family kind reaches the common
+  -- `process_message` body entry after `call_frame_descend` has installed the
+  -- child frame's code, stack, memory, environment, and rollback state.
+  -- Root-only transaction preparation and the root global stack/memory
+  -- bootstrap remain before this seam. CALLCODE (mode 2) retains its separate
+  -- pre-descent value-bearing balance gate.
   (if mode == 0 || mode == 1 || mode == 2 || mode == 3 then
-    "  j .runtime_tx_child_message_entry"
+    s!"  j {runtimeMessageEntryLabel}"
    else
     dispatchContinueRet)
 
