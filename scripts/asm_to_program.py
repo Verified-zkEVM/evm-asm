@@ -274,6 +274,15 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # committed value in the same commit, so decreases cannot pass silently.
 EXPECTED_BARE_J_SITES = 174
 
+# Site-level ratchet for the local-B geometry guard.  The predicate is every
+# manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
+# BR_NAMED_THRESHOLD, paired in layout order with its checked-in Program
+# constructor.  This is the number of those sites still represented by a bare
+# BitVec-13 literal.  It is a debt figure, not a target: a source change may
+# only decrease it, and the corresponding constant update belongs in that same
+# change.
+EXPECTED_BARE_B_SITES = 882
+
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
     if abs(off) >= BR_NAMED_THRESHOLD:
@@ -1315,6 +1324,268 @@ def _local_long_jal_sites(asm):
             hits.append((cur,mn,off,target))
     return hits
 
+
+_LOCAL_B_MNEMONICS = frozenset({
+    'beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu',
+    'beqz', 'bnez', 'bltz', 'bgez', 'bgtz', 'blez',
+    'bgt', 'ble', 'bgtu', 'bleu',
+})
+_B_SOURCE_FORM_RE = re.compile(
+    r'\.(?:BEQ|BNE|BLT|BGE|BLTU|BGEU)\b[^\n]*')
+_B_BARE_IMM_RE = re.compile(r'\((-?\d+)\s*:\s*BitVec\s+13\)')
+_B_NAMED_IMM_RE = re.compile(
+    r'\bbrOff\s*\(\s*([^()]*)\s*\)\s*\(\s*([^()]*)\s*\)')
+_B_NAMED_EXPR_RE = re.compile(
+    r'^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\+\s*(-?\d+)\s*$')
+_PROGRAM_DEF_RE = re.compile(
+    r'(?m)^\s*(?:private\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)[^\n]*:\s*'
+    r'(?:Program|List\s+Instr)\s*:=')
+_TOP_DECL_RE = re.compile(
+    r'(?m)^\s*(?:private\s+)?(?:def|theorem|lemma|opaque|abbrev|instance|namespace|section|end)\b'
+    r'|^\s*#(?:guard|eval|check)\b')
+_PROGRAM_REF_RE = re.compile(
+    r'\b(?:[A-Za-z_][A-Za-z0-9_]*\.)*([A-Za-z_][A-Za-z0-9_]*_prog(?:_of)?)\b')
+
+
+def _local_long_b_sites(asm, threshold=None):
+    """Return every local B-type site at ``BR_NAMED_THRESHOLD`` or above.
+
+    The fixture is the geometry authority: labels and instruction addresses
+    are assigned by the same tokenizer and 4-byte layout used by the
+    converter.  Keeping this parser independent of the rendered Lean source
+    lets the check catch a stale named offset as well as a stale bare one.
+    """
+    items = tokenize(asm)
+    labels = {}
+    seq = []
+    addr = 0
+    for item in items:
+        if item[0] == 'label':
+            labels[item[1]] = addr
+            continue
+        _, mn, ops = item
+        seq.append((addr, mn, ops))
+        addr += insn_size(mn, ops)
+
+    hits = []
+    for cur, mn, ops in seq:
+        if mn not in _LOCAL_B_MNEMONICS:
+            continue
+        if not ops:
+            raise ConvError(f'{mn}: missing branch target')
+        target_token = ops[-1].strip()
+        if target_token.startswith('.+'):
+            off = int(target_token[2:])
+            target = cur + off
+        elif target_token.startswith('.-'):
+            off = -int(target_token[2:])
+            target = cur + off
+        elif target_token in labels:
+            target = labels[target_token]
+            off = target - cur
+        else:
+            raise ConvError(f'{mn}: unresolved local target {target_token!r}')
+        if off % 4 != 0 or target < 0 or target >= addr:
+            raise ConvError(
+                f'{mn}: target geometry is not an instruction address '
+                f'(pc={cur}, target={target}, off={off})')
+        cutoff = BR_NAMED_THRESHOLD if threshold is None else threshold
+        if abs(off) >= cutoff:
+            hits.append((cur, target, off, mn, target_token))
+    return hits
+
+
+_PROGRAM_DEFS_CACHE = None
+
+
+def _program_definitions():
+    """Index every source ``Program`` definition used by a manifest program.
+
+    Converted Codegen programs may concatenate verified RLP or helper programs
+    from ``EvmAsm/Rv64``.  Looking only in the manifest module would therefore
+    silently omit branches from the source-form check.  The index is built
+    once, and an ambiguous program name is rejected by the caller rather than
+    guessed.
+    """
+    global _PROGRAM_DEFS_CACHE
+    if _PROGRAM_DEFS_CACHE is not None:
+        return _PROGRAM_DEFS_CACHE
+    defs = {}
+    root = os.path.join(REPO, 'EvmAsm')
+    for dirpath, _dirs, filenames in os.walk(root):
+        for filename in filenames:
+            if not filename.endswith('.lean'):
+                continue
+            path = os.path.join(dirpath, filename)
+            text = open(path).read()
+            matches = list(_PROGRAM_DEF_RE.finditer(text))
+            for match in matches:
+                next_decl = _TOP_DECL_RE.search(text, match.end())
+                end = next_decl.start() if next_decl is not None else len(text)
+                name = match.group(1)
+                defs.setdefault(name, []).append((path, text[match.end():end]))
+    _PROGRAM_DEFS_CACHE = defs
+    return defs
+
+
+def _program_branch_forms(prog_name):
+    """Expand a Program expression to its source B-constructor lines.
+
+    Some manifest rows are intentionally composed from a wrapper plus a
+    verified RLP leaf, and the source-drift allow-list contains a few such
+    rows.  Recursively expanding ``*_prog`` references preserves the actual
+    append order, so those rows receive the same geometry check as a flat
+    generated block.  An absent or cyclic reference is a hard failure.
+    """
+    defs = _program_definitions()
+    stack = []
+
+    def expand(name):
+        if name in stack:
+            raise ConvError(f'cyclic Program reference: {" -> ".join(stack + [name])}')
+        choices = defs.get(name, [])
+        if len(choices) != 1:
+            if not choices:
+                raise ConvError(f'Program definition {name!r} not found')
+            raise ConvError(f'Program definition {name!r} is ambiguous')
+        _path, body = choices[0]
+        stack.append(name)
+        result = []
+        for line in body.splitlines():
+            if _B_SOURCE_FORM_RE.search(line):
+                result.append(line.strip())
+                continue
+            for ref in _PROGRAM_REF_RE.findall(line):
+                if ref != name:
+                    result.extend(expand(ref))
+        stack.pop()
+        return result
+
+    return expand(prog_name)
+
+
+def _parse_b_source_form(line):
+    """Parse a source B constructor as ``('bare', off)`` or named offsets.
+
+    Named forms must be simple ``base + Nat`` expressions on both sides.  A
+    composite expression is deliberately rejected: accepting it would turn
+    the geometry check back into a text-presence heuristic.
+    """
+    named = _B_NAMED_IMM_RE.search(line)
+    if named:
+        target_expr, pc_expr = named.groups()
+        target = _B_NAMED_EXPR_RE.fullmatch(target_expr)
+        pc = _B_NAMED_EXPR_RE.fullmatch(pc_expr)
+        if target is None or pc is None:
+            raise ConvError(f'unsupported brOff expression: {line}')
+        if target.group(1) != pc.group(1):
+            raise ConvError(f'brOff uses different PC bases: {line}')
+        return ('named', int(target.group(2)), int(pc.group(2)))
+    bare = _B_BARE_IMM_RE.search(line)
+    if bare:
+        return ('bare', int(bare.group(1)))
+    raise ConvError(f'unsupported B source form: {line}')
+
+
+_B_GEOMETRY_CACHE = {}
+
+
+def _check_b_geometry(path, fn, asm):
+    """Check source B forms against parsed fixture geometry.
+
+    Returns ``(long_count, named_count, bare_count)``.  Every local long B is
+    checked, including currently bare forms; the bare count is the ratchet
+    debt.  A missing fixture, unparseable Program composition, or source/fixture
+    instruction-count mismatch raises ``ConvError`` so the caller fails closed.
+    """
+    cache_key = (path, fn)
+    cached = _B_GEOMETRY_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    hits = _local_long_b_sites(asm)
+    if not hits:
+        _B_GEOMETRY_CACHE[cache_key] = (0, 0, 0)
+        return (0, 0, 0)
+
+    entry = tokenize(asm)[0][1]
+    prog = lean_camel(entry) + '_prog'
+    choices = _program_definitions().get(prog + '_of', [])
+    if len(choices) == 1:
+        source_forms = _program_branch_forms(prog + '_of')
+    else:
+        source_forms = _program_branch_forms(prog)
+
+    # The converter parser sees all local conditional B instructions, not just
+    # the long ones.  Pairing the complete sequence makes duplicate offsets
+    # harmless and detects a missing or extra source branch deterministically.
+    source_branch_count = len(source_forms)
+    all_hits = _all_local_b_sites(asm)
+    expected_branch_count = len(all_hits)
+    if source_branch_count != expected_branch_count:
+        raise ConvError(
+            f'{fn}: source has {source_branch_count} conditional B constructors, '
+            f'fixture has {expected_branch_count}')
+
+    long_by_pc = {cur: (target, off) for cur, target, off, _mn, _tok in hits}
+    named_count = 0
+    bare_count = 0
+    for hit, source_line in zip(all_hits, source_forms):
+        cur, _target, off, _mn, _tok = hit
+        parsed = _parse_b_source_form(source_line)
+        if cur not in long_by_pc:
+            continue
+        target, expected_off = long_by_pc[cur]
+        if parsed[0] == 'named':
+            _kind, target_off, pc_off = parsed
+            if target_off != target or pc_off != cur:
+                raise ConvError(
+                    f'{fn}: brOff geometry mismatch at pc {cur}: '
+                    f'expected target {target}, pc {cur}; '
+                    f'source has target {target_off}, pc {pc_off}')
+            named_count += 1
+        else:
+            _kind, bare_off = parsed
+            if bare_off != expected_off:
+                raise ConvError(
+                    f'{fn}: bare B geometry mismatch at pc {cur}: '
+                    f'fixture offset {expected_off}, source offset {bare_off}')
+            bare_count += 1
+    result = (len(hits), named_count, bare_count)
+    _B_GEOMETRY_CACHE[cache_key] = result
+    return result
+
+
+def _all_local_b_sites(asm):
+    """Return all local conditional B sites, including short branches."""
+    return _local_long_b_sites(asm, threshold=0)
+
+
+def count_bare_b_sites(man=None):
+    """Count source files, definitions, and sites carrying bare long local B."""
+    if man is None:
+        man = _load_manifest()
+    files = set()
+    defs = 0
+    sites = 0
+    errors = []
+    for fn, rel in man.items():
+        fixture = fixture_path(fn)
+        path = os.path.join(REPO, rel)
+        if not os.path.exists(fixture):
+            errors.append(f'{fn}: missing fixture {fixture}')
+            continue
+        try:
+            asm = open(fixture).read()
+            _long, _named, bare = _check_b_geometry(path, fn, asm)
+        except (ConvError, ValueError, IndexError) as exc:
+            errors.append(f'{fn}: B geometry check failed: {exc}')
+            continue
+        if bare:
+            files.add(rel)
+            defs += 1
+            sites += bare
+    return len(files), defs, sites, errors
+
 def count_bare_j_program_files(man=None):
     """Count manifest source files that still carry a bare long local J.
 
@@ -1419,6 +1690,14 @@ def check_file(path, funcs, rendered=None):
             entry=_toks[0][1]
         except Exception as e:
             problems.append(f"{fn}: tokenize failed: {e}"); continue
+        try:
+            _check_b_geometry(path, fn, asm)
+        except (ConvError, ValueError, IndexError) as e:
+            # This check is deliberately independent of the byte-identity
+            # gate: a stale bare literal can still assemble to today's bytes.
+            # Never let an unparseable/composite/blocked definition escape the
+            # geometry ratchet by treating it as zero sites.
+            problems.append(f"{fn}: B geometry check failed: {e}")
         try:
             entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)   # py_emit consistency pre-flight
         except ConvError as e:
@@ -1742,13 +2021,24 @@ def main():
                 f"bare local J site ratchet: expected exactly {EXPECTED_BARE_J_SITES} "
                 f"sites, found {bare_j_sites} ({bare_j_files} files / "
                 f"{bare_j_defs} defs); update the committed value with a stated reason")
+        bare_b_files, bare_b_defs, bare_b_sites, b_errors = count_bare_b_sites(man)
+        for error in b_errors:
+            allprob.append(error)
+        if not b_errors and bare_b_sites != EXPECTED_BARE_B_SITES:
+            allprob.append(
+                f"bare local B site ratchet: expected exactly {EXPECTED_BARE_B_SITES} "
+                f"sites, found {bare_b_sites} ({bare_b_files} files / "
+                f"{bare_b_defs} defs); update the committed value only with "
+                "the corresponding source migration")
         if allprob:
             print("DRIFT DETECTED:")
             for p in allprob: print("  "+p)
             sys.exit(1)
         print(f"check-all: CLEAN ({len(man)} converted defs across {len(byfile)} files; "
               f"bare local J report {bare_j_files} files / {bare_j_defs} defs; "
-              f"blocking site ratchet {bare_j_sites} sites)")
+              f"blocking J ratchet {bare_j_sites} sites; "
+              f"bare local B report {bare_b_files} files / {bare_b_defs} defs; "
+              f"blocking B ratchet {bare_b_sites} sites)")
         return
     if args.command in ('rewrite','check-file'):
         funcs=[f.strip() for f in args.funcs.split(',') if f.strip()]
