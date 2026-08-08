@@ -489,12 +489,22 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- CHILD env (switched by the descend). env+32 is LE; reverse to BE, u256_add_be the BE endowment
     -- (create_value_be, still valid — the initcode has not run yet), reverse back. create_creator_newbal
     -- is the BE scratch (free after the gate's creator-debit).
-    -- Save/restore x10/x12/x13 = dispatcher invariants (PC/stack/mem-base), NOT the a0-a2 write
-    -- set. RV ABI: a0=x10, a1=x11, a2=x12 — so setup clobbers x11 too, but x11 is dead across
-    -- this call (nothing reads it after restore; CREATE live set is x10/x12/x13 only). u256_add_be
-    -- itself does not touch x13; x13 is kept for the regional convention and callees that do.
-    -- (#11083: prior text claimed "a0-a2 alias x10/x12/x13", which is false and propagated the
-    -- mismatched CALL save set fixed in #11082.)
+    --
+    -- Save set around `u256_add_be` below is INTENTIONAL and is NOT meant to match the
+    -- helper's a0-a2 write set. This CREATE-tail region uses a regional convention:
+    -- preserve dispatcher invariants x10=PC, x12=stack-top, x13=mem-base across every
+    -- helper call (same pattern as L182/L258/L275 above). Those three are live; restore
+    -- them. RV ABI: a0=x10, a1=x11, a2=x12 — so the `la a0/a1/a2` setup also clobbers
+    -- x11. x11 is DEAD here (CREATE live set is only x10/x12/x13; nothing reads prior
+    -- x11 after restore; `create_frame_descend` already clobbered a0-a7). Do NOT "fix"
+    -- the save set to x10/x11/x12 to match the write set: that would drop x13 for no
+    -- gain, or add a dead x11 slot for hygiene-only churn (#11083). `u256_add_be` itself
+    -- touches x5-7,x10-12,x28-31 only (not x13); x13 stays in the save for the regional
+    -- convention and for callees that do clobber it. Prior text claimed "a0-a2 alias
+    -- x10/x12/x13" — false under RV ABI, and that false claim is what propagated the
+    -- mismatched CALL save set fixed in #11082. The mismatch that remains (save ≠ write
+    -- set) is deliberate invariant preservation, not an oversight.
+    --
     -- drj99.1 (initcode_calls_with_value bv_fail=44): FIRST capture the child's staged PRE-state
     -- balance (env+32 BEFORE the endowment credit, = block-pre balance: 0 for a fresh address) into
     -- nse_create_pre_bal (BE), so the created-account endowment-credit nonstorage record below carries
