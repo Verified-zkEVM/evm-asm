@@ -22,11 +22,9 @@
   transactions incorporate at `:1204`, and withdrawals (`wd_state`) at `:1226`.
 
   The guest keeps `TX_STORAGE_WRITES_AREA` for the current transaction and
-  `STORAGE_WRITES_AREA` for the cumulative block map. The persistent
-  `bv_system_storage_log` is only the modeled-system staging feed used while
-  constructing those authenticated writes; it is not a third state map. This
-  separates the two spec lifetimes without making staging pretend to be
-  `BlockState`.
+  `STORAGE_WRITES_AREA` for the cumulative block map. The retired storage-log
+  staging probes are not a third state map. This separates the two spec
+  lifetimes without introducing a container the spec does not have.
 
   Note that unifying the *container* must not unify the *timing*: the spec still
   applies system writes at block boundaries and user writes inside transactions.
@@ -43,8 +41,7 @@
 
   Formerly known as `addrHash`: `rowAddress` holds `env.ADDRESS`, not a hash.
 
-  96 B used of a 128 B stride (`bvStorageLogRowBytes`), shared with the exec logs
-  so that retiring them in S6 is a same-stride migration rather than a re-layout.
+    96 B used of a 128 B stride, matching the execution-log row layout.
   Base and stride are both 8-aligned, so every `ld`/`sd` below is 8-aligned as
   the RV64 operational semantics require.
 

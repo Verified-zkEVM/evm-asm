@@ -12,8 +12,8 @@
   call-frame overlay) physically coalesces five execution-dead Phase-H
   arenas into its front (`basr_values`, `basr_accounts`,
   `baap_storage_{desc,paths,values}`;
-  `RegionMap.dataUnionChildren`).  (`bv_system_storage_log` was un-unioned in
-  `4ch8f.73` — it is read post-dispatch, so a frame slot would clobber it.)
+  `RegionMap.dataUnionChildren`).  The retired storage-log probe arenas are not
+  part of this linked image.
   Until now the no-corruption argument was
   prose ("sequential, disjoint live windows",
   `docs/call-frame-memory-layout.md` §5).  This module replaces the prose
@@ -107,8 +107,7 @@ theorem pcFree_phaseHView (base : Word) : (phaseHView base).pcFree :=
 
 /-- Abbreviations for the audited segment sizes (`RegionMap.dataUnionChildren`):
     `S` = basr values/accounts stride, `D` = baap descriptors, `P` = one baap
-    path arena. (`bv_system_storage_log` was un-unioned in `4ch8f.73`, so it is
-    no longer one of the tiled children.) -/
+    path arena. -/
 private def S : Nat := RegionMap.basrArenaBytes
 private def D : Nat := bsrMaxBalItems * baapStorageDescBytes
 private def P : Nat := bsrMaxBalItems * bsrPathBytes
