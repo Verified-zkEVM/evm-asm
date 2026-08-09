@@ -239,6 +239,12 @@ def stackOverflowGuardAsm : String :=
 /-- Dispatch-site continuation label, emitted right after the `jalr`. -/
 def dispatchResumeLabel : String := ".Ldispatch_resume"
 
+/-- Common `process_message` body-entry seam.  The root path reaches this label
+    after transaction-only preparation and its global stack/memory bootstrap;
+    descended frames jump here after `call_frame_descend` has installed their
+    frame-local registers and rollback state. -/
+def runtimeMessageEntryLabel : String := ".runtime_tx_message_entry"
+
 /-- Handler exit that continues the loop: restore the dispatch
     continuation into `x1` and `ret`.  Byte-behavior-identical to the old
     `j .dispatch_loop`. -/
@@ -3054,13 +3060,19 @@ def emitRuntimeDispatcherCallableSetup : String :=
 
 
 /-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
-    runtime dispatcher and the callable wrapper. -/
+    runtime dispatcher and the callable wrapper.
+
+    The register and global stack/memory setup is root-only.  The label after
+    that setup is the common `process_message` body entry: nested frames enter
+    it directly with the frame-local `x10`/`x12`/`x13`/`x20`/`x21` installed by
+    `call_frame_descend`. -/
 def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
   "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
+  s!"{runtimeMessageEntryLabel}:\n" ++
   ".dispatch_loop:\n" ++
   emitDispatchLoopCodeSizeStopGuard depthAwareStop ++
   "  lbu x5, 0(x10)\n" ++
