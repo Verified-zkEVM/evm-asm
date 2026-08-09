@@ -44,12 +44,6 @@ def guestLayout : GuestLayout :=
     rlp_walk_init := GuestAddrs.rlp_walk_init
     rlp_walk_next := GuestAddrs.rlp_walk_next
     bal_account_has_state_change := GuestAddrs.bal_account_has_state_change
-    -- These addresses belong only to the retained standalone BAL probes; the
-    -- main guest no longer emits the retired modeled-system classifier.
-    bams_addr_ptr := 0
-    bams_addr_2935 := 0
-    bams_addr_4788 := 0
-    bal_account_is_modeled_system := 0
     bal_account_nonstorage_finals := GuestAddrs.bal_account_nonstorage_finals
     rlp_content_to_u256_be := GuestAddrs.rlp_content_to_u256_be
     rlp_content_to_u64 := GuestAddrs.rlp_content_to_u64 }
