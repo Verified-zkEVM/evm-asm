@@ -806,9 +806,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t4, bv_runtime_calldata_floor; sd zero, 0(t4)\n" ++
   "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
-  -- #11808: collision burns all regular; state meters from residual path.
+  -- #11871: AddressCollision (interpreter.py:131-140) burns all regular
+  -- (gas_left=0 / reg_left=0) and PRESERVES state_gas_left =
+  -- message.state_gas_reservoir. Residual after the flat TX_MAX charge is in
+  -- t5 / mtx_gas_left; publish that as state_left. Do NOT read
+  -- runtime_tx_state_reservoir_initial here - that cell is untrustworthy on
+  -- the collision path (never entered prepare that materializes it; dump on
+  -- input b595a373 showed 13222784 while residual was 103222784).
   "  la t3, bv_mtx_regular_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
-  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_state_gas_used; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
   "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t2; sd t5, 0(t3)\n" ++
@@ -835,6 +841,8 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- receipt with gas_left=0 and rejoin the shared postlude. Do NOT seed upfront
   -- here: finalize (halted) restores pending to the pre-auth checkpoint and
   -- would wipe a pre-finalize seed; effects_kept re-seeds after finalize.
+  -- Latent #11808 meter zeroing on state_left tracked as #11874 (do not fold
+  -- into the collision #11871 fix - r200 must attribute each arm).
   ".Lbv_mtx_auth_phase_oog:\n" ++
   "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
