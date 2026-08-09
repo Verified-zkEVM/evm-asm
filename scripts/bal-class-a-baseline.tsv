@@ -17,4 +17,3 @@
 .Lbv_after_tx_gate	store	bgv_u32le	no	la t2, bv_bal_start; sd a0, 0(t2)
 .Lbv_after_tx_gate	store	bgv_u64le	no	la t2, bv_bal_len; sd a1, 0(t2)
 .Lbv_ret	store	bal_gas_valid_from_builder	yes	la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)
-.Lv2_input_hash	la	bal_section_info	yes	mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info
