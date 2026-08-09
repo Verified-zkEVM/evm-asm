@@ -275,8 +275,9 @@ It should:
    [`zkevm-tests` branch of `execution-specs`](https://github.com/ethereum/execution-specs/tree/zkevm-tests)
    and updated regularly as that branch moves.
 2. For any input, specify a **set of allowed outputs** that a stateless guest
-   may produce — not a single output, since the guest is permitted latitude the
-   spec does not fix.
+   may produce — not necessarily a single output, since existing stateless
+   guests perform differently on non-canonical inputs (e.g. an MPT containing
+   more than 64 nibbles in a path).
 3. For every test case in
    [EEST](https://github.com/ethereum/execution-spec-tests), make that allowed
    set a **singleton**, coinciding with the output EEST expects.
@@ -288,6 +289,11 @@ Conditions 3 and 4 pull in opposite directions on purpose: 3 pins the spec to
 observed consensus behaviour where tests exist, while 4 keeps it honest on the
 inputs no test covers — which is where a stateless guest is most likely to be
 wrong.
+
+If you have such a specification, we are interested in creating another repo
+that imports your specification and `SpecRef`, and seeks to prove that
+`SpecRef`'s output is one of the allowed outputs according to your
+specification.
 
 If you are interested in producing such a specification, please open an issue.
 
