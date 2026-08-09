@@ -19,6 +19,22 @@ namespace EvmAsm.Codegen
     before the consensus checks. -/
 def blockVerdictReceiptsTail : String :=
   ".Lbv_after_gas_result_gate:\n" ++
+  -- #11839: post-body header.blob_gas_used check (fork.py:386-387). Spec order
+  -- after apply_body is gas_used → roots → blob_gas_used → requests_hash → BAL.
+  -- Exact gas and terminal state_root already ran; this site is the common join
+  -- for both the ExactGas fall-through and the incomplete-arena skip into
+  -- .Lbv_after_gas_result_gate. Formula: PER_BLOB (2^17) * blob_count, with
+  -- blob_count = bv_versioned_hashes_len / 32 after the pre-body matcher proved
+  -- NPR.versioned_hashes equals the type-3 tx hash concatenation (gas.py:555).
+  -- Price producer stays pre-body (bsg_blob_price_be body consumers).
+  "  la t2, bv_versioned_hashes_len; ld t0, 0(t2)\n" ++
+  "  andi t1, t0, 31; bnez t1, .Lbv_blob_gas_used_fail\n" ++
+  "  srli t0, t0, 5              # blob count\n" ++
+  "  slli t0, t0, 17             # * GAS_PER_BLOB / PER_BLOB (131072 = 2^17)\n" ++
+  "  la t2, bv_blob_gas_expected; sd t0, 0(t2)\n" ++
+  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 512; jal ra, bgv_u64le\n" ++
+  "  la t2, bv_blob_gas_observed; sd a0, 0(t2)\n" ++
+  "  la t2, bv_blob_gas_expected; ld t0, 0(t2); bne a0, t0, .Lbv_blob_gas_used_fail\n" ++
   -- CREATE code-deposit resolution is fail-closed.  A missing witness
   -- preimage is a valid-block witness shortfall (FR), so code 67 is kept
   -- distinct from genuine-invalid code 62; neither path can accept.

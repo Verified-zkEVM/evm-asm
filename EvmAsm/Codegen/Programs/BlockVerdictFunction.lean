@@ -163,24 +163,17 @@ def blockVerdictFunction : String :=
   "  la t2, bv_versioned_hashes_len; sd a2, 0(t2)\n" ++
   "  la t2, bv_npr_p; ld t0, 0(t2); add a1, t0, t3\n" ++
   "  la t2, bv_exec_p; ld a0, 0(t2)\n" ++
-  "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
-  "  bnez a0, .Lbv_versioned_hashes_fail\n" ++
-  "  # execution-specs apply_body checks header.blob_gas_used against the blob\n" ++
-  "  # gas consumed by type-3 txs. The previous gate proves NPR.versioned_hashes\n" ++
-  "  # equals the tx blob-hash concatenation, so total blob gas is derived from\n" ++
-  "  # that SSZ list length.\n" ++
-  "  la t2, bv_versioned_hashes_len; ld t0, 0(t2)\n" ++
-  "  andi t1, t0, 31; bnez t1, .Lbv_blob_gas_used_fail\n" ++
-  "  srli t0, t0, 5              # blob count\n" ++
-  "  slli t0, t0, 17             # * GAS_PER_BLOB (131072)\n" ++
-  "  la t2, bv_blob_gas_expected; sd t0, 0(t2)\n" ++
-  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 512; jal ra, bgv_u64le\n" ++
-  "  la t2, bv_blob_gas_observed; sd a0, 0(t2)\n" ++
-  "  la t2, bv_blob_gas_expected; ld t0, 0(t2); bne a0, t0, .Lbv_blob_gas_used_fail\n" ++
-  "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 520; jal ra, bgv_u64le\n" ++
-  "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256\n" ++
-  "  bnez a0, .Lbv_blob_gas_used_fail\n" ++
-  "  mv a0, s3\n" ++
+   "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
+   "  bnez a0, .Lbv_versioned_hashes_fail\n" ++
+   -- #11839: header.blob_gas_used comparison moved post-body (ReceiptsTail after
+   -- exact gas / roots) to match fork.py:386-387. KEEP the price producer here:
+   -- amsterdam_blob_gas_price_u256 writes bsg_blob_price_be consumed by the body
+   -- (MtxRuntime upfront blob fee, MtxTail B2.2 debit). Moving the producer with
+   -- the comparison would leave type-3 body fee accounting on a stale price.
+   "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 520; jal ra, bgv_u64le\n" ++
+   "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256\n" ++
+   "  bnez a0, .Lbv_blob_gas_used_fail\n" ++
+   "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
   "  bnez a0, .Lbv_public_keys_fail\n" ++
