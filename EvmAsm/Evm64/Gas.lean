@@ -223,6 +223,13 @@ def staticGasCost : EvmOpcode → Nat
   | SIGNEXTEND => 5
   | KECCAK256 => 30
   | ADDRESS => 2
+  /-
+    11864: This 700 entry is residue from the pre-Amsterdam monolithic charge.
+    Amsterdam charges BALANCE by warm/cold account access at
+    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/environment.py:70-75.
+    The literal is deliberately unchanged pending the maintainer decision on
+    whether this model should retain a static component of a dynamic charge.
+  -/
   | BALANCE => 700
   | ORIGIN => 2
   | CALLER => 2
@@ -260,6 +267,16 @@ def staticGasCost : EvmOpcode → Nat
   | CODESIZE => 2
   | CODECOPY => 3
   | GASPRICE => 2
+  /-
+    11864: These 700 entries are residues from the pre-Amsterdam monolithic
+    charge. Amsterdam charges EXTCODESIZE with account access plus a code-read
+    WARM_ACCESS at
+    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/environment.py:342-349,
+    EXTCODECOPY with code-read, copy-per-word and memory costs at :379-395,
+    and EXTCODEHASH by account access at :486-493. The literals remain unchanged pending the maintainer
+    decision on whether this model should retain a static component of a
+    dynamic charge.
+  -/
   | EXTCODESIZE => 700
   | EXTCODECOPY => 700
   | RETURNDATASIZE => 2
@@ -278,8 +295,27 @@ def staticGasCost : EvmOpcode → Nat
   | BLOBBASEFEE => 2
   | SLOTNUM => 2
   | LOG _ => 375
+  /-
+    11864: These 32000 entries are residues from the pre-Amsterdam monolithic
+    charge. Amsterdam CREATE is CREATE_ACCESS plus memory expansion and
+    init_code_cost at
+    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/system.py:187-194;
+    CREATE2 adds the init-code keccak term at :240-251 and :243-249. The literals remain unchanged
+    pending the maintainer decision on whether this model should retain a
+    static component of a dynamic charge.
+  -/
   | CREATE => 32000
   | CREATE2 => 32000
+  /-
+    11864: These 700 entries are residues from the pre-Amsterdam monolithic
+    charge. Amsterdam CALL uses access, value, memory, optional NEW_ACCOUNT
+    state gas and message-call gas at
+    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/system.py:419-477;
+    CALLCODE has its own path at :550-594, while DELEGATECALL and STATICCALL have distinct
+    no-value paths at :729-767 and :828-867. The literals remain unchanged
+    pending the maintainer decision on whether this model should retain a
+    static component of a dynamic charge.
+  -/
   | CALL => 700
   | CALLCODE => 700
   | DELEGATECALL => 700
@@ -469,14 +505,6 @@ theorem staticGasCost_ofCopyLikeKind (kind : CopyLikeKind) :
 
 theorem staticGasCost_LOG (kind : LogArgs.Kind) :
     staticGasCost (LOG kind) = 375 := rfl
-
-theorem staticGasCost_ofCallKind (kind : CallArgs.Kind) :
-    staticGasCost (ofCallKind kind) = 700 := by
-  cases kind <;> rfl
-
-theorem staticGasCost_ofCreateKind (kind : CreateKind) :
-    staticGasCost (ofCreateKind kind) = 32000 := by
-  cases kind <;> rfl
 
 end EvmOpcode
 
