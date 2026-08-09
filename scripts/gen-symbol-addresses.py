@@ -38,6 +38,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # every function entry + data arena base the .9.3 wave needs is a symbol here.
 DEFAULT_PROGS = ["stateless_guest"]
 OUT_TSV = os.path.join(REPO, "scripts", "asm-fixtures", "symbol-addresses.tsv")
+LAKE_CACHE_DIAGNOSTIC = os.path.join(
+    REPO, "scripts", "lib", "lake-cache-diagnostic.sh")
 
 # STABLE absolute bases, mirroring EvmAsm/Codegen/RegionMap.lean stableGuestBases.
 # (symbol -> address). Keep in sync with RegionMap.schemeAAnchors + section bases.
@@ -88,7 +90,8 @@ def which_readelf():
 def build_elf(prog, elf_dir):
     prefix = os.path.join(elf_dir, prog)
     subprocess.run(
-        ["lake", "exe", "codegen", "--program", prog, "--halt", "linux93", "-o", prefix],
+        [LAKE_CACHE_DIAGNOSTIC, "lake", "exe", "codegen", "--program", prog,
+         "--halt", "linux93", "-o", prefix],
         cwd=REPO, check=True)
     return prefix + ".elf"
 

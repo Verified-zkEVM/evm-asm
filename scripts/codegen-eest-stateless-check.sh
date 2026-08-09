@@ -813,18 +813,20 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
   build_targets=(codegen)
   [[ "$SPECREF_ORACLE" -eq 1 ]] && build_targets+=(specref-eest-check)
   echo "==> lake build ${build_targets[*]}"
-  lake build "${build_targets[@]}"
+  scripts/lib/lake-cache-diagnostic.sh lake build "${build_targets[@]}"
 
   if [[ -n "$BSR_WITNESS_CAP" || -n "$BSR_BAL_CAP" ]]; then
     cap_note=""
     [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
     [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
     echo "==> emit stateless_guest assembly (experimental $cap_note)"
-    lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX" --asm-only
+    scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+      --halt linux93 -o "$GUEST_PREFIX" --asm-only
     patch_bsr_caps_and_relink
   else
     echo "==> emit stateless_guest ELF"
-    lake exe codegen --program stateless_guest --halt linux93 -o "$GUEST_PREFIX"
+    scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+      --halt linux93 -o "$GUEST_PREFIX"
   fi
 else
   echo "==> skipping build (--no-build)"
@@ -1208,7 +1210,8 @@ ensure_verdict_debug_probe() {
     [[ -n "$BSR_WITNESS_CAP" ]] && cap_note="bsr_witness_cap=$BSR_WITNESS_CAP"
     [[ -n "$BSR_BAL_CAP" ]] && cap_note="${cap_note:+$cap_note, }bsr_bal_cap=$BSR_BAL_CAP"
     echo "==> emit verdict debug probe (experimental $cap_note)" >&2
-    lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" --asm-only >/dev/null
+    scripts/lib/lake-cache-diagnostic.sh lake exe codegen \
+      --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" --asm-only >/dev/null
     patch_bsr_caps_asm "$asm"
     as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
@@ -1219,7 +1222,8 @@ ensure_verdict_debug_probe() {
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2
-    lake exe codegen --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" >/dev/null
+    scripts/lib/lake-cache-diagnostic.sh lake exe codegen \
+      --program zisk_stateless_verdict_v2 --halt linux93 -o "$prefix" >/dev/null
   fi
 }
 

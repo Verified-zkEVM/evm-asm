@@ -76,7 +76,8 @@ ELF="$ELF_DIR/stateless_guest.elf"
 mkdir -p "$ELF_DIR"
 if [[ "${NO_BUILD:-0}" != "1" || ! -f "$ELF" ]]; then
   echo "==> emit stateless_guest ELF"
-  lake exe codegen --program stateless_guest --halt linux93 -o "$ELF_DIR/stateless_guest" >/dev/null
+  scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+    --halt linux93 -o "$ELF_DIR/stateless_guest" >/dev/null
 fi
 
 fail=0

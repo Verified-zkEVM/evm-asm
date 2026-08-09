@@ -101,7 +101,8 @@ fail=0
 for u in $UNITS; do
   rm -f "$OUT/$u.elf"
   log="$OUT/$u.log"
-  lake exe codegen --program "$u" --halt linux93 -o "$OUT/$u" >"$log" 2>&1
+  scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program "$u" \
+    --halt linux93 -o "$OUT/$u" >"$log"
 
   # The ELF's EXISTENCE is the check. codegen can exit 0 having written only the
   # .s/.o, which is the whole failure mode this script exists to catch -- so do not
