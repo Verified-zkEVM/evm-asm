@@ -1178,6 +1178,10 @@ def _collect_guest_addr_syms():
         # GH #11798: halt_kind cell moved off OUTPUT+32; dispatcherTxGasSettle_prog
         # (hand-maintained in Dispatch.lean) loads GuestAddrs.rdg_halt_kind.
         'rdg_halt_kind',
+        # GH #11808: settle stores folded regular/state left + used for independent regular arm.
+        'runtime_tx_settle_regular_gas_left',
+        'runtime_tx_settle_state_gas_left',
+        'runtime_tx_settle_state_gas_used',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
