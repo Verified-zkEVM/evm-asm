@@ -128,12 +128,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_wit_p:\n  .zero 8\n" ++
   "bsr_wl_v:\n  .zero 8\n" ++
   "bsr_ssz_p:\n  .zero 8\n" ++
-  "bsr_bal_start:\n  .zero 8\n" ++
-  "bsr_bal_len:\n  .zero 8\n" ++
+  -- #11838 M6: bsr_bal_start/len/exec_p/tx_off/pathp removed (0 .s refs after M4).
+  -- bsr_bal_count kept: v2 prologue dump +32 still reads it (always 0).
   "bsr_bal_count:\n  .zero 8\n" ++
-  "bsr_exec_p:\n  .zero 8\n" ++
-  "bsr_tx_off:\n  .zero 8\n" ++
-  "bsr_pathp:\n  .zero 8\n" ++
   -- Step 1 #10651 scratch: a synthetic AccountChanges item with the map
   -- address and empty BAL field lists.  It lets map-only addresses reuse the
   -- existing account-path/post-account machinery while Step 2 switches the
@@ -146,10 +143,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_tmplen:\n  .zero 8\n" ++
   "bsr_prev_desc:\n  .zero 8\n" ++
   "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
-  "bsr_bal_item_ptr:\n  .zero 8\n" ++
-  "bsr_bal_item_len:\n  .zero 8\n" ++
+  -- #11838 M6: bsr_bal_item_ptr/len + bsr_kbuf removed (0 .s refs).
   ".balign 32\n" ++
-  "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bsr_acct:\n  .zero 256\n" ++

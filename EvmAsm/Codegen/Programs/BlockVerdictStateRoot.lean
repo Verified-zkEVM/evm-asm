@@ -63,8 +63,8 @@ open EvmAsm.Rv64
     Spec (`fork.py`) has no pre-body BAL-presence test; the built BAL is hashed
     after `apply_body`. The old `bal_section_info` fill existed only to feed
     guest-invented `bv_fail 4` (`.Lbv_no_bal_for_tx`). Keep this prefix narrow:
-    stash root/wit/ssz pointers + witness-cap check. `bsr_bal_count` stays zero
-    here; #11836 / M4 dropped the post-exec supplied count/cap path too. -/
+    stash root/wit/ssz pointers + witness-cap check.
+    #11838 M6: dropped dead bsr_bal_count zero + bsr_exec_p write (no readers). -/
 def blockStateRootPreAccountsFunction : String :=
   "block_state_root_pre_accounts:\n" ++
   "  addi sp, sp, -16\n" ++
@@ -79,8 +79,6 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_storage_from_map; sd zero, 0(t0)\n" ++
   "  li t1, " ++ toString bsrMaxWitnessBytes ++ "; bgtu a2, t1, .Lbsr_pre_cons_cap\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_ssz_p; ld t1, 0(t0); addi t1, t1, 60; la t0, bsr_exec_p; sd t1, 0(t0)\n" ++
   ".Lbsr_pre_ok:\n" ++
   "  li a0, 0; j .Lbsr_pre_ret\n" ++
   ".Lbsr_pre_cons_cap:\n  li t0, 101; j .Lbsr_pre_cons_set\n" ++
@@ -317,11 +315,9 @@ def blockStateRootFunction : String :=
   ".Lbsr_oao_2935_done:\n" ++
   "  li s1, 0                     # change counter (map is sole authority)\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
-  -- #11836 M4: drop supplied BAL section_info + count/gas/cap gates (guest
-  -- invented; no fork.py counterpart at this point). Always wire witness
-  -- globals for later account_apply_storage (map path) — previously nested
-  -- under count≠0 and would skip when section_info left count zero.
+  -- #11836 M4: drop supplied BAL section_info + count/gas/cap gates.
+  -- #11838 M6: drop redundant bsr_bal_count zero (BSS 0; dump-only cell).
+  -- Always wire witness globals for later account_apply_storage (map path).
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
   "  # execution_map_state_changes is the SOLE root authority for user-tx account\n" ++

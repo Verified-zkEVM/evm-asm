@@ -404,7 +404,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
-  balSectionInfoFunction ++ "\n" ++
+  -- #11838 M6: bal_section_info unlinked (0 guest jals post-M1–M4; probe keeps it)
   -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
