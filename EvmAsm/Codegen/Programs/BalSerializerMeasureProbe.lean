@@ -216,7 +216,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   -- Slot 7, not 0: a BE-vs-LE dword compare matches only byte-symmetric values, so
   -- slot 0 passes under the very defect this case exists to catch.
   --
-  -- The container scan at 0xa1fa0000 runs BEFORE the miss path, and a hit skips
+  -- The block-container scan runs BEFORE the miss path, and a hit skips
   -- slot_at_header_state_root entirely -- so seeding a matching entry means no witness
   -- globals are needed. Its value must differ from 5 or the net-zero check emits
   -- nothing.
@@ -224,7 +224,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la t0, bal_builder_storage_change_count; sd zero, 0(t0)\n" ++
   "  la t0, storage_reads_count; sd zero, 0(t0)\n" ++
   -- tx row: addr and slot as LE stack words, the form the producer reverses
-  "  li t0, 0xa21a0000\n" ++
+  "  li t0, " ++ toString storageWritesTxBase ++ "\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++
@@ -233,7 +233,7 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  li t1, 5; sb t1, 64(t0)\n" ++
   "  la t0, tx_storage_writes_count; li t1, 1; sd t1, 0(t0)\n" ++
   -- container entry: same first 64 bytes, baseline value 9 (differs from 5)
-  "  li t0, 0xa1fa0000\n" ++
+  "  li t0, " ++ toString storageWritesBlockBase ++ "\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++

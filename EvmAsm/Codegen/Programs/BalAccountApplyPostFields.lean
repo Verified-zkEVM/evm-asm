@@ -398,8 +398,8 @@ def mapAccountApplyPostFieldsFunction : String :=
   "  la t0, baap_sc_index; sd zero, 0(t0); la t0, baap_sc_out_count; sd zero, 0(t0)\n" ++
   ".Lbaap_map_loop:\n" ++
   "  la t0, baap_sc_index; ld t0, 0(t0); la t1, baap_sc_count; ld t1, 0(t1); beq t0, t1, .Lbaap_map_apply\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
-  "  slli t2, t0, 7; li t3, 0xa1fa0000; add t2, t2, t3\n" ++
+  "  li t2, " ++ toString blockStorageWritesCapacity ++ "; bgeu t0, t2, .Lbaap_fail\n" ++
+  "  slli t2, t0, 7; li t3, " ++ toString storageWritesBlockBase ++ "; add t2, t2, t3\n" ++
   "  la t3, baap_map_addr; li t4, 0\n" ++
   ".Lbaap_map_addr_cmp:\n" ++
   "  li t5, 20; beq t4, t5, .Lbaap_map_row_hit\n" ++

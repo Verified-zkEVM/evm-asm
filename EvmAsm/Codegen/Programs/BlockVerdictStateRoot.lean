@@ -170,7 +170,7 @@ def executionMapStateChangesFunction : String :=
   ".Lem_account_process:\n" ++
   "  li s6, 2; li t0, 1; la t1, bsr_account_from_map; sd t0, 0(t1); la t1, bsr_account_row; sd s3, 0(t1); la t1, bsr_storage_from_map; sd t0, 0(t1); li a0, 2; jal ra, .Lem_emit_owner; j .Lem_process_address\n" ++
   ".Lem_storage_init:\n" ++
-  "  la t0, storage_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xa1fa0000; li s6, 1\n" ++
+  "  la t0, storage_writes_count; ld s9, 0(t0); li s4, 0; li s5, " ++ toString storageWritesBlockBase ++ "; li s6, 1\n" ++
   ".Lem_storage_loop:\n" ++
   "  bgeu s4, s9, .Lem_done\n" ++
   "  slli t0, s4, 7; add s3, s5, t0\n" ++
