@@ -496,6 +496,13 @@ def blockVerdictTxStateGasInlinePrepareFunction : String :=
   "  la t1, runtime_tx_state_gas_message_spilled; sd t0, 0(t1)\n" ++
   "  la t1, evm_state_gas_left; ld t0, 0(t1)\n" ++
   "  la t1, runtime_tx_state_gas_message_left; sd t0, 0(t1)\n" ++
+  -- #11874: pin prep_reservoir (post-split left) before auth/prepare can
+  -- deplete it. MTx auth-phase OOG publishes this into state_left + mtx_gas_left
+  -- after ExceptionalHalt refill (interpreter.py:366-378). The post-auth fold
+  -- below overwrites message_left with the depleted current, so this cell is
+  -- the only trustworthy prep residual on the MTx path (Dispatch.lean already
+  -- pins the same name on the callable split).
+  "  la t1, runtime_tx_state_reservoir_initial; sd t0, 0(t1)\n" ++
   "  li t0, 1; la t1, runtime_tx_state_gas_entry_valid; sd t0, 0(t1)\n" ++
   ".Lbvtgip_call_auth:\n" ++
   "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
