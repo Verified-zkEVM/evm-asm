@@ -114,7 +114,7 @@ theorem account_extract_nonce_tail_spec_within
         (Codegen.GuestAddrs.account_extract_nonce + 48)))).Disjoint
       (rlp_content_to_u64_code contentU64Base) :=
     CodeReq.Disjoint.singleton_ofProg
-      (CodeReq.ofProg_none_range_len contentU64Base rlp_content_to_u64_prog 22 _
+      (CodeReq.ofProg_none_range_len contentU64Base rlp_content_to_u64_prog 18 _
         rlp_content_to_u64_prog_length
         (fun k hk => by unfold extractNonceBase contentU64Base Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_content_to_u64; bv_omega))
   have hcallee_raw := account_rlp_content_to_u64_nonce_own_spec_within

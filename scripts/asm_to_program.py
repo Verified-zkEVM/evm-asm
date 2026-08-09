@@ -281,7 +281,7 @@ EXPECTED_BARE_J_SITES = 174
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 880
+EXPECTED_BARE_B_SITES = 872
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1178,6 +1178,10 @@ def _collect_guest_addr_syms():
         # GH #11798: halt_kind cell moved off OUTPUT+32; dispatcherTxGasSettle_prog
         # (hand-maintained in Dispatch.lean) loads GuestAddrs.rdg_halt_kind.
         'rdg_halt_kind',
+        # GH #11808: settle stores folded regular/state left + used for independent regular arm.
+        'runtime_tx_settle_regular_gas_left',
+        'runtime_tx_settle_state_gas_left',
+        'runtime_tx_settle_state_gas_used',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

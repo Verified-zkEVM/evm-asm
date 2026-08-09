@@ -11,7 +11,13 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-def teerSuccessfulAuthCapacity : Nat := 1060
+/-- Successful EIP-7702 authorizations are charged at least the Amsterdam
+    regular base cost of 7,816 gas each (`gas.py:141-147`).  The per-transaction
+    regular budget is `TX_MAX_GAS_LIMIT - TX_BASE = 16,765,216`
+    (`transactions.py:63`, `gas.py:131`), so this table must hold 2,144
+    entries.  Keeping this as a named protocol formula prevents the former
+    fixture-sized 1,060 cap from becoming a silent false reject. -/
+def teerSuccessfulAuthCapacity : Nat := 2144
 
 def repeatAsm : Nat -> String -> String
   | 0, _ => ""

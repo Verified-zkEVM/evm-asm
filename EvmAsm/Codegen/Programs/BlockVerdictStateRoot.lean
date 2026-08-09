@@ -28,7 +28,6 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
 import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
 import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
-import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
@@ -58,13 +57,14 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## block_state_root_pre_accounts -- pre-MTx account table only.
+/-! ## block_state_root_pre_accounts -- pre-MTx pointer stash only.
 
-    The upfront sender gas gate consumes the authenticated BAL account-record
-    table, but it must not consume the post-state storage map or run the
-    terminal state-root replay.  Keep this prefix deliberately narrow: the
-    full `block_state_root` below is called only after the user and system
-    write sets have reached their block-level maps. -/
+    #11833 / #11797 M1: no longer locates or counts the supplied BAL body.
+    Spec (`fork.py`) has no pre-body BAL-presence test; the built BAL is hashed
+    after `apply_body`. The old `bal_section_info` fill existed only to feed
+    guest-invented `bv_fail 4` (`.Lbv_no_bal_for_tx`). Keep this prefix narrow:
+    stash root/wit/ssz pointers + witness-cap check.
+    #11838 M6: dropped dead bsr_bal_count zero + bsr_exec_p write (no readers). -/
 def blockStateRootPreAccountsFunction : String :=
   "block_state_root_pre_accounts:\n" ++
   "  addi sp, sp, -16\n" ++
@@ -79,17 +79,9 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_storage_from_map; sd zero, 0(t0)\n" ++
   "  li t1, " ++ toString bsrMaxWitnessBytes ++ "; bgtu a2, t1, .Lbsr_pre_cons_cap\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_ssz_p; ld t1, 0(t0); addi t1, t1, 60; la t0, bsr_exec_p; sd t1, 0(t0)\n" ++
-  -- #11797 P0b: locate BAL + count only. Do not materialize basr_records /
-  -- basr_accounts from the supplied body — that fill fed only the vestigial
-  -- cursor walk (removed) and teer_records_ptr is write-only with no reader.
-  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
-  "  jal ra, bal_section_info; bnez a0, .Lbsr_pre_cons_section\n" ++
   ".Lbsr_pre_ok:\n" ++
   "  li a0, 0; j .Lbsr_pre_ret\n" ++
   ".Lbsr_pre_cons_cap:\n  li t0, 101; j .Lbsr_pre_cons_set\n" ++
-  ".Lbsr_pre_cons_section:\n  li t0, 102\n" ++
   ".Lbsr_pre_cons_set:\n" ++
   "  la t1, bsr_fail_code; sd t0, 0(t1); li a0, 1\n" ++
   ".Lbsr_pre_ret:\n" ++
@@ -296,7 +288,11 @@ def executionMapStateChangesFunction : String :=
 /-! ## block_state_root -- post-state root after system writes + withdrawals.
     a0 = pre-state root ptr   a1 = witness   a2 = witness_len
     a3 = wds descriptors   a4 = n_wds   a5 = out_root   a6 = SSZ_BASE
-    a0 (output) = 0 ok / 1 conservative (any miss / unsupported case). -/
+    a0 (output) = 0 ok / 1 conservative (any miss / unsupported case).
+
+    #11836 / #11797 M4: no longer locates or capacity-checks the supplied BAL
+    body here. Spec builds+hashes BAL after apply_body; map is sole root
+    authority. Witness globals for `account_apply_storage` are always set. -/
 def blockStateRootFunction : String :=
   "block_state_root:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -319,25 +315,11 @@ def blockStateRootFunction : String :=
   ".Lbsr_oao_2935_done:\n" ++
   "  li s1, 0                     # change counter (map is sole authority)\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
-  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
-  "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
-  -- #11797 P0/P0b: count + gas/cap checks only. Do NOT materialize basr_* from
-  -- the supplied BAL and do NOT cursor-walk body rows — both were vestigial
-  -- after #11326/#11431 (map is sole root authority; walk ended in unconditional
-  -- j next and seeded nothing). Hash of the supplied BAL remains on the
-  -- compliant header path. P1 (deferred builder BAL finals) is NOT in this change.
-  ".Lbsr_bal_replay:\n" ++
-  "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
-  "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
-  "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
-  -- Keep witness globals for later account_apply_storage (map path). Previously
-  -- these stores sat next to the removed BAL body walk; they are not vestigial.
+  -- #11836 M4: drop supplied BAL section_info + count/gas/cap gates.
+  -- #11838 M6: drop redundant bsr_bal_count zero (BSS 0; dump-only cell).
+  -- Always wire witness globals for later account_apply_storage (map path).
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  ".Lbsr_bal_done:\n" ++
   "  # execution_map_state_changes is the SOLE root authority for user-tx account\n" ++
   "  # leaves (plus true execution system/withdrawal effects). s1 is 0 here unless\n" ++
   "  # a prior path left residues.\n" ++
@@ -471,8 +453,8 @@ def blockStateRootFunction : String :=
   "  li t0, 101; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_sys4788:\n" ++
   "  li t0, 102; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
-  ".Lbsr_cons_bal_section:\n" ++
-  "  li t0, 110; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
+  -- #11836: `.Lbsr_cons_bal_section` / bsr_fail 110 retired with the supplied
+  -- BAL section_info gate.
   ".Lbsr_cons_change_cap:\n" ++
   "  li t0, 111; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_map:\n" ++
@@ -714,9 +696,8 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
   "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
-  -- The input path parses c1_bal_start/c1_bal_len before block_verdict. The
-  -- post-loop helper deliberately consumes those stable globals instead of
-  -- relying on the caller's clobbered s-registers.
+  -- #11835 / #11797 M3: c1_bal_* no longer filled at v2 entry (and M2 removed
+  -- the last deferred consumer). Builder deposit/exit use header+exec only.
   -- == WITHDRAWAL (EIP-7002): code_at -> system call -> copy body ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
@@ -792,25 +773,15 @@ def statelessVerdictV2Function : String :=
   "  j .Lc1_bd_same_block\n" ++
   ".Lc1_bd_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_bd_code_ok\n" ++
-  ".Lc1_bd_same_block:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  bnez a0, .Lc1_bd_code_ok\n" ++
-  -- The BAL's declared code final for the builder address is the remaining
-  -- same-block deployment signal (a deploy the guest's runtime did not replay,
-  -- e.g. an unsupported top-level creation): the code comparators validate the
-  -- BAL's code claims wherever execution is available, so a declared non-empty
-  -- final mirrors the spec's TransactionState read of the just-deployed code.
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Ldsr_fail\n" ++
-  ".Lc1_bd_code_ok:\n" ++
+   -- M2 (#11834 / #11797): same-block code is header + `exec_code_effect` only.
+   -- A supplied-BAL non-empty code final must not steer past InvalidBlock when
+   -- neither header nor same-block effect exposes live code (FA-ward #11806).
+   ".Lc1_bd_same_block:\n" ++
+   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
+   "  jal ra, find_code_effect_by_address\n" ++
+   "  beqz a0, .Ldsr_fail\n" ++
+   ".Lc1_bd_code_ok:\n" ++
+
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, builder_exit_contract_addr\n" ++
@@ -828,25 +799,13 @@ def statelessVerdictV2Function : String :=
   "  j .Lc1_be_same_block\n" ++
   ".Lc1_be_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_be_code_ok\n" ++
-  ".Lc1_be_same_block:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  bnez a0, .Lc1_be_code_ok\n" ++
-  -- The BAL's declared code final for the builder address is the remaining
-  -- same-block deployment signal (a deploy the guest's runtime did not replay,
-  -- e.g. an unsupported top-level creation): the code comparators validate the
-  -- BAL's code claims wherever execution is available, so a declared non-empty
-  -- final mirrors the spec's TransactionState read of the just-deployed code.
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Ldsr_fail\n" ++
-  ".Lc1_be_code_ok:\n" ++
+   -- M2 (#11834): same-block exit predeploy — header + exec_code_effect only.
+   ".Lc1_be_same_block:\n" ++
+   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
+   "  jal ra, find_code_effect_by_address\n" ++
+   "  beqz a0, .Ldsr_fail\n" ++
+   ".Lc1_be_code_ok:\n" ++
+
   -- EIP-8282: derive the builder deposit and builder exit request bodies through
   -- the same checked system-call path. Request-queue storage is resolved by the
   -- authenticated state path; empty return data is represented by a zero body
@@ -896,10 +855,10 @@ def statelessVerdictV2Function : String :=
   "  la t0, dbsr_saved_ra; ld ra, 0(t0); li a0, 1; ret\n" ++
   ".Lv2_input_hash:\n" ++
   -- The entry path reaches this label before block_verdict, so s0/s3/s4 still
-  -- describe the stable SSZ input.  The deferred helper is called later from
-  -- the post-user-loop sites and never returns through this path.
-  "  mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info\n" ++
-  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  -- describe the stable SSZ input. M3 (#11835): do not parse supplied BAL into
+  -- c1_bal_* here — no remaining guest consumer (M2 dropped deferred BAL
+  -- finals). Header `block_access_list_hash` still hashes the SSZ BAL body via
+  -- `block_access_list_hash` below; post-body rebuild compare is 60/61.
   "  addi t2, s0, 16; add t2, t2, s3; la t1, c1_er_input; sd t2, 0(t1)\n" ++
   "  bltu s4, s3, .Lv2_requests_hash_fail\n" ++
   "  sub t0, s4, s3; li t1, 16; bltu t0, t1, .Lv2_requests_hash_fail\n" ++

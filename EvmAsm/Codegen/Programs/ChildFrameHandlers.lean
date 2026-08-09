@@ -651,6 +651,15 @@ def callDescendFallThrough
     -- c83ty.2: a constructor-SELFDESTRUCTed same-tx account has no code-effect record, but it is
     -- still alive until transaction end; a later value CALL to it preserves the credited balance and
     -- must not pay a second NEW_ACCOUNT state-gas charge.
+    -- PHASE SPLIT: pinned Python authority is `vm/__init__.py:184,234`,
+    -- `vm/interpreter.py:135,151,349`, `vm/instructions/system.py:691-693`,
+    -- and `fork.py:1201-1202`.  Before the transaction boundary,
+    -- `evm_selfdestruct_destroyed_table` affects this same-tx NEW_ACCOUNT
+    -- decision only; it must not be treated as Present-None.  Lean mirror
+    -- (not authority): this scan preserves the alive/no-charge result, while
+    -- `account_writes_apply_deletes` materializes the deferred deletion later.
+    -- Collapsing the phases mischarges NEW_ACCOUNT (and can corrupt availability
+    -- or same-tx CREATE); skipping the boundary path exposes deleted state next tx.
     "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lcd_nacc_sdskip_done_" ++ tag ++ "\n" ++
     "  la t0, evm_selfdestruct_destroyed_count; ld t1, 0(t0); beqz t1, .Lcd_nacc_sdskip_done_" ++ tag ++ "\n" ++
     "  la t2, evm_selfdestruct_destroyed_table\n" ++

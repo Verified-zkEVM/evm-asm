@@ -5,19 +5,17 @@
   Correspondence row. Third of the four.
 
   THE GAP THIS CLOSES. `rlp_content_to_u256_be_spec_within`
-  (`ContentToU256Be.lean:1040`) states its four-way outcome entirely in *local*
+  (`ContentToU256Be.lean`) states its three-way outcome entirely in *local*
   vocabulary: the value is a right-aligned `copyN` into a 32-byte buffer (`:492`),
-  and the canonicality rule is the literal byte test `getByteAt srcBytes srcOff = 0`
-  (`Rv64/ByteOps.lean:261`). No `decode`, no `RLPItem`, no `fromBytesBE` appears in
-  the statement — so the RLP differential did not transfer, and a drift between that
-  byte test and the reference's leading-zero rule would have been invisible.
+  and the bounded-value rule is a length check. No `decode`, no `RLPItem`, no
+  `fromBytesBE` appears in the statement, so the RLP differential does not transfer
+  until this bridge supplies the model vocabulary.
 
   WHAT THE SHARED-MODEL SIDE IS. `EvmAsm.EL.RLP.decodeScalar` (`EL/RLP/Scalar.lean:26`)
-  is the model function whose docstring pins it to execution-specs
-  `_deserialize_to_uint`: decode one item, reject `data.headD 1 = 0` as non-canonical,
-  otherwise read `Nat.fromBytesBE`. That is exactly the rule the guest implements, and
-  `decodeScalar` bottoms out in `decodeFully`/`decode`, so a bridge to it inherits the
-  3757-record differential.
+  is the model function whose docstring pins it to execution-specs' scalar decode:
+  decode one item and read `Nat.fromBytesBE`. The bridge retains the model's
+  canonical-input hypothesis explicitly rather than attributing a rejected arm to
+  the lenient machine decoder.
 
   ⚠️ THE ONE ASYMMETRY, STATED RATHER THAN PAPERED OVER. `decodeScalar` is **untyped** —
   it returns an unbounded `Nat`. The guest is the **U256** instance and rejects
@@ -37,7 +35,8 @@
   * `ctu256_value_eq_decodeScalar` / `ctu256_reject_iff_decodeScalar_none` — the value
     and the rejection, both against `decodeScalar (encodeBytes content)`.
 
-  `ContentToU256Be.lean` is **untouched** — the bridge is the artefact, not a re-proof
+  `ContentToU256Be.lean` carries the machine decoder and its three-way outcome
+  contract; this file supplies the model vocabulary for the correspondence
   (`docs/agents/spec-correspondence.md` §4).
 -/
 
@@ -129,9 +128,10 @@ theorem getByteAt_eq_headD (srcBytes : List Byte) (srcOff len : Nat)
 
 /-! ## The two model-facing statements the row now rests on -/
 
-/-- ⭐ **Rejection agrees with the model.** For a nonempty content window inside the
-    buffer, the routine's status-3 condition holds exactly when `decodeScalar` rejects
-    the corresponding RLP item as non-canonical. -/
+/-- ⭐ **The model's canonicality lemma.** For a nonempty content window inside the
+    buffer, `decodeScalar` rejects the corresponding RLP item exactly on a leading
+    zero. This is a pure model fact; the machine bridge below assumes canonical input
+    rather than claiming a status-3 machine arm. -/
 theorem ctu256_reject_iff_decodeScalar_none (srcBytes : List Byte) (srcOff len : Nat)
     (hpos : 0 < len) (hs : srcOff + len ≤ srcBytes.length)
     (hlen8 : len < 256 ^ 8) :
@@ -203,8 +203,8 @@ end Pins
 
     Availability is not use (`docs/agents/spec-correspondence.md` §4): a bridge lemma
     that exists but is not consumed does not earn the `.bridged` grade. This restates
-    `rlp_content_to_u256_be_spec_within`'s two *interesting* arms — the non-canonical
-    rejection and the accepted value — in shared-model vocabulary. The proof is a
+    `rlp_content_to_u256_be_spec_within`'s accepted value arm in shared-model
+    vocabulary. The proof is a
     post-weakening over the untouched machine triple; no step count, footprint or
     precondition changes.
 
@@ -215,8 +215,8 @@ end Pins
 
 /-- ⭐ **`rlp_content_to_u256_be` against `EL.RLP.decodeScalar`, on the U256 domain.**
     Same triple, same bound; the outcome disjunction now reads:
-    `len = 0` → zero, `decodeScalar … = none` → status 3, otherwise status 0 with the
-    output buffer denoting exactly the value `decodeScalar` returns. -/
+    `len = 0` → zero, otherwise status 0 with the output buffer denoting exactly the
+    value `decodeScalar` returns under the explicit canonical-input hypothesis. -/
 theorem rlp_content_to_u256_be_scalar_spec_within
     (base srcBase outPtr raVal x5Old x6Old x7Old x28Old x29Old : Word)
     (srcBytes : List (BitVec 8)) (srcOff len : Nat)
@@ -225,7 +225,8 @@ theorem rlp_content_to_u256_be_scalar_spec_within
     (hslen : srcOff + len ≤ srcBytes.length)
     (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64) (hoover : outPtr.toNat + 32 ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
-    (hdvalid : ∀ k, k < 32 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    (hdvalid : ∀ k, k < 32 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hcanonical : len = 0 ∨ getByteAt srcBytes srcOff ≠ 0) :
     cpsTripleWithin (7 * len + 16) base (raVal &&& ~~~1) (rlp_content_to_u256_be_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) **
        (.x12 ↦ᵣ outPtr) ** (.x5 ↦ᵣ x5Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
@@ -238,9 +239,6 @@ theorem rlp_content_to_u256_be_scalar_spec_within
          (((.x10 ↦ᵣ (2 : Word)) ** memOwnU256 outPtr ** ⌜32 < len⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             ⌜len = 0⌝) h) ∨
-         (((.x10 ↦ᵣ (3 : Word)) ** memOwnU256 outPtr **
-            ⌜0 < len ∧
-              decodeScalar (encodeBytes ((srcBytes.drop srcOff).take len)) = none⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) **
             bytesRegion outPtr (copyN (List.replicate 32 (0 : BitVec 8)) srcBytes (32 - len) srcOff len) **
             ⌜0 < len ∧
@@ -256,22 +254,16 @@ theorem rlp_content_to_u256_be_scalar_spec_within
       x28Old x29Old srcBytes srcOff len hlen64 hsalign hoalign hslen hsover hoover
       hsvalid hdvalid)
   refine sepConj_mono_right (fun h' hbody => ?_) h hq
-  rcases hbody with h1 | h2 | h3 | h4
+  rcases hbody with h1 | h2 | h3
   · exact Or.inl h1
   · exact Or.inr (Or.inl h2)
-  · -- non-canonical: rewrite the guest byte test into `decodeScalar … = none`
-    refine Or.inr (Or.inr (Or.inl ?_))
+  · -- accepted: the output buffer denotes exactly the value the model returns
+    refine Or.inr (Or.inr ?_)
     refine sepConj_mono_right (fun h'' hb => ?_) h' h3
     obtain ⟨hpure, hrest⟩ := (sepConj_pure_right h'').1 hb
     refine (sepConj_pure_right h'').2 ⟨hpure, ?_⟩
-    exact ⟨hrest.1, (ctu256_reject_iff_decodeScalar_none srcBytes srcOff len hrest.1
-      hslen hlen8).1 hrest.2⟩
-  · -- accepted: the output buffer denotes exactly the value the model returns
-    refine Or.inr (Or.inr (Or.inr ?_))
-    refine sepConj_mono_right (fun h'' hb => ?_) h' h4
-    obtain ⟨hpure, hrest⟩ := (sepConj_pure_right h'').1 hb
-    refine (sepConj_pure_right h'').2 ⟨hpure, ?_⟩
-    exact ⟨hrest.1, ctu256_accept_decodeScalar srcBytes srcOff len hrest.1 hle32 hslen
-      hrest.2⟩
+    rcases hcanonical with hzero | hne
+    · exact False.elim (by omega)
+    · exact ⟨hrest, ctu256_accept_decodeScalar srcBytes srcOff len hrest hle32 hslen hne⟩
 
 end EvmAsm.Rv64.RLP

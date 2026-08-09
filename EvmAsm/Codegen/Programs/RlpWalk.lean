@@ -275,22 +275,19 @@ theorem rlpWalkNextCoreFunction_eq_verified_prog :
     `rlp_field_to_u64`, taking an explicit (ptr, len) instead of
     re-walking the list.
 
-    Emitted from the verified **canonical-strict** body
-    `EvmAsm.Rv64.RLP.rlp_content_to_u64_prog` (proven correct by the four-way
+    Emitted from the verified **lenient** body
+    `EvmAsm.Rv64.RLP.rlp_content_to_u64_prog` (proven correct by the three-way
     dispatch theorem `rlp_content_to_u64_spec_within`, see
-    `EvmAsm/Rv64/RLP/ContentToU64.lean`). Behavior difference from the prior
-    hand-written body that matters for callers: this version enforces RLP
-    scalar canonicality (execution-specs `_deserialize_to_uint`) and rejects a
-    nonzero-length content whose high byte is `0` with a dedicated status `3`
-    (`non-canonical`), where the old body silently accepted it.
+    `EvmAsm/Rv64/RLP/ContentToU64.lean`). Leading-zero scalar bytes are accepted,
+    matching the guest's `int.from_bytes` semantics; only over-width content
+    returns status `2`.
 
     Calling convention:
       a0 (input)  : content bytes ptr
       a1 (input)  : content byte length
       ra (input)  : return
       a0 (output) : u64 value (LE register form)
-      a1 (output) : status (0 ok / 2 too long (> 8 bytes) / 3 non-canonical
-                      (0 < len <= 8 and content[0] == 0))
+      a1 (output) : status (0 ok / 2 too long (> 8 bytes))
 
     Frameless leaf. -/
 def rlpContentToU64Function : String :=
@@ -306,7 +303,7 @@ theorem rlpContentToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 22
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -316,14 +313,13 @@ theorem rlpContentToU64Function_eq_verified_prog :
     `rlp_field_to_u256_be`, taking an explicit (ptr, len, out)
     instead of re-walking the list.
 
-    Emitted from the verified **canonical-strict** body
+    Emitted from the verified **lenient** body
     `EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog` (proven correct by the
-    four-way dispatch theorem `rlp_content_to_u256_be_spec_within`, see
+    three-way dispatch theorem `rlp_content_to_u256_be_spec_within`, see
     `EvmAsm/Rv64/RLP/ContentToU256Be.lean`). Behavior difference from the
-    prior hand-written body that matters for callers: this version enforces
-    RLP scalar canonicality (execution-specs `_deserialize_to_uint`) and
-    rejects a nonzero-length content whose high byte is `0` with a dedicated
-    status `3` (non-canonical), where the old body silently right-aligned it.
+    prior hand-written body that matters for callers: leading-zero scalar bytes
+    are accepted and right-aligned; only content wider than 32 bytes returns
+    status `2`.
 
     Calling convention:
       a0 (input)  : content bytes ptr
@@ -331,11 +327,10 @@ theorem rlpContentToU64Function_eq_verified_prog :
       a2 (input)  : 32-byte u256 BE output ptr (right-aligned)
       ra (input)  : return
       a0 (output) : status
-                      0 ok (canonical: len = 0, or len <= 32 and content[0] != 0)
+                      0 ok (len <= 32)
                       2 too long (len > 32)
-                      3 non-canonical (0 < len <= 32 and content[0] == 0)
 
-    The output is always zeroed first, so fail / too-long / non-canonical
+    The output is always zeroed first, so fail / too-long
     paths leave a zero u256. Frameless leaf. -/
 def rlpContentToU256BeFunction : String :=
   "rlp_content_to_u256_be:\n" ++
@@ -383,7 +378,7 @@ theorem rlpField0ToU64Function_eq_verified_prog :
 #guard EvmAsm.Rv64.RLP.rlp_field0_to_u64_prog.length = 15
 #guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 #guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 22
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! The four cursor-walk primitives concatenated as a single helper block.
 

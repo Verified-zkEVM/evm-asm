@@ -390,7 +390,6 @@ def statelessVerdictV2GuestClosure : String :=
   mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++
@@ -441,7 +440,7 @@ def statelessVerdictV2GuestClosure : String :=
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
-  balSectionInfoFunction ++ "\n" ++
+  -- #11838 M6: bal_section_info unlinked (0 guest jals post-M1–M4; probe keeps it)
   -- #11172: bal_gas_valid (RLP walker) unlinked; KEEP from_builder + bgv_* helpers
   balGasValidFromBuilderFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++

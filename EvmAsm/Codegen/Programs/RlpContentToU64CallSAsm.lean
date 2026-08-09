@@ -11,8 +11,7 @@ namespace RlpContentToU64CallSAsm
 
 abbrev B : Word := (GuestAddrs.rlp_content_to_u64 : Word)
 
-/-! Flat caller framing for the strict content-to-u64 leaf.  The four-way
-postcondition is copied from the unified Rv64 theorem unchanged. -/
+/-! Flat caller framing for the lenient content-to-u64 leaf. -/
 
 def flatPre
     (srcBase : Word) (srcOff len : Nat)
@@ -31,13 +30,11 @@ def flatPost
    (fun h =>
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
-     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
      (((.x10 ↦ᵣ (BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len)))) **
         (.x11 ↦ᵣ (0 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+        ⌜0 < len ∧ len ≤ 8⌝) h)))
 
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 22
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 theorem rlpContentToU64_call_spec_within
     (base srcBase raVal : Word) (t0Old x6Old t2Old t3Old : Word)
@@ -49,7 +46,7 @@ theorem rlpContentToU64_call_spec_within
     (hsover : srcBase.toNat + (srcOff + len) ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < len →
       isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true) :
-    cpsTripleWithin (7 * len + 11) base (raVal &&& ~~~1)
+    cpsTripleWithin (7 * len + 9) base (raVal &&& ~~~1)
       (rlp_content_to_u64_code base)
       ((.x1 ↦ᵣ raVal) ** flatPre srcBase srcOff len t0Old x6Old t2Old t3Old srcBytes ** A)
       ((.x1 ↦ᵣ raVal) ** flatPost srcBase srcOff len srcBytes ** A) := by

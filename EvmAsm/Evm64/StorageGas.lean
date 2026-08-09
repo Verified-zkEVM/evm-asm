@@ -15,10 +15,11 @@ inductive StorageAccessStatus where
   | warm
   deriving DecidableEq, Repr
 
-/-- Cold SLOAD/storage-key access cost from EIP-2929. -/
-def coldSloadCost : Nat := 2100
+/-- Current Amsterdam cold SLOAD/storage-key access cost
+    (`GasCosts.COLD_STORAGE_ACCESS`). -/
+def coldSloadCost : Nat := 3000
 
-/-- Warm storage read/access cost from EIP-2929. -/
+/-- Current Amsterdam warm storage read/access cost (`GasCosts.WARM_ACCESS`). -/
 def warmStorageReadCost : Nat := 100
 
 /-- Dynamic gas charged for the storage-key access itself. -/
@@ -117,13 +118,13 @@ theorem sstoreDynamicCost_cold (current new : EvmWord) :
   cases status <;> rfl
 
 theorem storageAccessCost_cold_eq :
-    storageAccessCost .cold = 2100 := rfl
+    storageAccessCost .cold = 3000 := rfl
 
 theorem storageAccessCost_warm_eq :
     storageAccessCost .warm = 100 := rfl
 
 theorem sloadDynamicCost_cold_eq :
-    sloadDynamicCost .cold = 2100 := rfl
+    sloadDynamicCost .cold = 3000 := rfl
 
 theorem sloadDynamicCost_warm_eq :
     sloadDynamicCost .warm = 100 := rfl

@@ -67,7 +67,7 @@ SEEDS = (
 # One-way debt ratchet: this is the number of currently baselined emitted
 # paths in the predicate above. It is a debt figure, not a target; it may only
 # decrease, and a retirement plus this constant's decrease must land together.
-EXPECTED_CLASS_A_DEBT = 9
+EXPECTED_CLASS_A_DEBT = 4
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
     r"\bjal\s+ra,\s*([A-Za-z0-9_.]+)"

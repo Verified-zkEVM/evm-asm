@@ -130,16 +130,16 @@ def bsrAccountSlotCap : Nat := bsrMaxBalItems
     512 KiB keeps a guard while accepting those blocks. -/
 def bsrMaxWitnessBytes : Nat := 524288
 
-/-- Every valid transaction consumes at least this intrinsic gas.  Together
-    with the explicit block gas limit this is the protocol-enforced upper bound
-    on transaction- and receipt-trie entries; it must not become a detached
-    literal when the supported block limit changes. -/
-def bvMtxIntrinsicGasFloor : Nat := 21000
+/-- The cheapest Amsterdam transaction pays `GasCosts.TX_BASE = 12,000`.
+    EIP-2780 deliberately decomposes the old 21,000 floor: recipient, value,
+    calldata and access-list costs are conditional, so this base is the only
+    unconditional divisor for the full block transaction-count bound. -/
+def bvMtxIntrinsicGasFloor : Nat := 12000
 
 /-- Full Amsterdam transaction capacity target derived from the supported block
-    gas limit and the 21,000-gas intrinsic floor. -/
+    gas limit and `GasCosts.TX_BASE` (gas.py:131). -/
 def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
-#guard bvMtxFullTxCap = 9523
+#guard bvMtxFullTxCap = 16666
 
 /-- Amsterdam `REGULAR_PER_AUTH_BASE_COST`: 101 calldata-floor bytes, one
     ecrecover precompile, one cold account access, and two warm accesses.  Every
@@ -147,11 +147,13 @@ def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
     a protocol-derived bound on all type-4 authorization records in a block. -/
 def bvEip7702AuthRegularGas : Nat := 7816
 
-/-- Ceiling on authorization tuples in any block under the supported gas limit.
-    This is a gas bound, not a fixture-derived admission cap. -/
+/-- Maximum authorization tuples in any block under the supported gas limit.
+    This is a gas bound, not a fixture-derived admission cap.  Use floor
+    division: a capacity may be conservative, but it must not claim one more
+    tuple than the gas limit can pay for. -/
 def bvEip7702AuthEntryCapacity : Nat :=
-  (bsrStateRootBlockGasLimit + bvEip7702AuthRegularGas - 1) / bvEip7702AuthRegularGas
-#guard bvEip7702AuthEntryCapacity = 25589
+  bsrStateRootBlockGasLimit / bvEip7702AuthRegularGas
+#guard bvEip7702AuthEntryCapacity = 25588
 
 /-- The ordered EIP-7702 authority simulation materializes the union of all
     transaction senders and recovered authorization authorities.  The additive
@@ -159,14 +161,14 @@ def bvEip7702AuthEntryCapacity : Nat :=
     block) but keeps the static table's fail-closed contract simple. -/
 def bvEip7702AuthorityEventCapacity : Nat :=
   bvMtxFullTxCap + bvEip7702AuthEntryCapacity
-#guard bvEip7702AuthorityEventCapacity = 35112
+#guard bvEip7702AuthorityEventCapacity = 42254
 
 /-- One authority-state row is a padded address, running nonce delta, and the
     current delegation-marker bit. -/
 def bvEip7702AuthorityRowBytes : Nat := 48
 def bvEip7702AuthorityTableBytes : Nat :=
   bvEip7702AuthorityEventCapacity * bvEip7702AuthorityRowBytes
-#guard bvEip7702AuthorityTableBytes = 1685376
+#guard bvEip7702AuthorityTableBytes = 2028192
 
 /-- Active multi-transaction execution-loop capacity. Every live per-transaction
     arena and aggregation table is statically sized to the protocol-derived
@@ -205,18 +207,24 @@ def bvMtxSystemSkipEntries : Nat := 0
     (`bvMtxSystemSkipEntries = 0`). Sized to the full 200M tx-count target so the
     post-loop BAL comparators do not inherit the active execution-loop cap. -/
 def bvMtxSkipListEntries : Nat := bvMtxFullTxCap * 2 + 1 + bvMtxSystemSkipEntries
+/-- Two 32-byte addresses per transaction plus the shared coinbase entry. -/
 def bvMtxSkipListBytes : Nat := bvMtxSkipListEntries * 32
 /-- Sender-balance aggregation shares the full sender table capacity so the
     B2 running-balance check does not inherit the active execution-loop cap. -/
 def bvMtxSenderBalanceEntries : Nat := bvMtxFullTxCap
+/-- One 64-byte sender-balance row for every transaction-capacity slot. -/
 def bvMtxSenderBalanceTableBytes : Nat := bvMtxSenderBalanceEntries * 64
+/-- One 32-byte created-recipient address slot for every transaction. -/
 def bvMtxCreatedRecipientBytes : Nat := bvMtxFullTxCap * 32
 /-- Sender-count aggregation is a post-loop, keyed-by-sender table. It is sized
     to the full tx-count target so the B1 final-nonce check does not inherit the
     active execution-loop cap. -/
 def bvMtxSenderCountEntries : Nat := bvMtxFullTxCap
+/-- One 40-byte sender-count row for every transaction-capacity slot. -/
 def bvMtxSenderCountTableBytes : Nat := bvMtxSenderCountEntries * 40
+/-- One 32-byte sort key per sender-count row. -/
 def bvMtxSenderCountSortBytes : Nat := bvMtxSenderCountEntries * 32
+/-- One 64-byte skip row per sender-count row. -/
 def bvMtxSenderCountSkipBytes : Nat := bvMtxSenderCountEntries * 64
 
 /-- Execution-specs runs each EIP-7002/EIP-7251 system transaction with
@@ -252,6 +260,7 @@ def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRo
     independent capacity slices tracked under `evm-asm-vv4hr.3`. -/
 def bvReceiptRecordCapacity : Nat := bvMtxFullTxCap
 def bvReceiptRecordBytes : Nat := 64
+/-- One 64-byte receipt record for every full-capacity transaction. -/
 def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
 
 /-- Current EEST resource target for Amsterdam/Prague/Osaka stateless blocks. -/
@@ -346,7 +355,9 @@ def bvBlockLogMetaBytes : Nat := bvBlockLogDescCapacity * 24
 def bvBlockLogDataBytes : Nat := bvBlockLogFullDataBytes
 def bvLogsRlpArenaBytes : Nat := 1048576
 def bvRecordBloomBytes : Nat := 256
+/-- One 256-byte receipt bloom for every full-capacity transaction. -/
 def bvRecordBloomsBytes : Nat := bvReceiptRecordCapacity * bvRecordBloomBytes
+/-- One 32-byte log descriptor for every full-capacity transaction. -/
 def bvRecordLogsDescBytes : Nat := bvReceiptRecordCapacity * 32
 def bvReceiptsRlpBytes : Nat := 1048576
 def bvReceiptEncodePayloadBytes : Nat := 1048576
@@ -357,13 +368,9 @@ def bvReceiptListPayloadBytes : Nat := 1048576
     blocks with >128 receipts (GH #11542 03361 tx_count=1020, 23017 tx_count=200)
     hit `.Lbrcl_root_fail` → validator status 1 → bv_fail=56 while state root matched.
 
-    Bound is `bvMtxFullTxCap` (shape: derived from block gas limit / intrinsic floor).
-    That floor is still the pre-Amsterdam phantom 21000 (`bvMtxIntrinsicGasFloor`);
-    EIP-2780 minimum is 12000, so true full-tx capacity is ~16666 not 9523. Correcting
-    the floor is a separate change (five+ consumers of `bvMtxFullTxCap`). This PR only
-    replaces the detached 128 with the existing derived constant. Pin rows 1020/200 sit
-    above 128 and below both 9523 and 16666 — they do not discriminate the two floors. -/
+    Bound is `bvMtxFullTxCap`, derived from the Amsterdam `TX_BASE` floor. -/
 def bvReceiptConsensusDescCapacity : Nat := bvMtxFullTxCap
+/-- One 16-byte consensus-list descriptor for every full-capacity receipt. -/
 def bvReceiptConsensusDescBytes : Nat := bvReceiptConsensusDescCapacity * 16
 
 /-- Amsterdam SSZ execution-request capacity:
@@ -425,13 +432,13 @@ def bmvFullLogWindowArenaBytes : Nat :=
 
 #guard bvMtxSenderBalanceEntries = bvMtxFullTxCap
 #guard bvMtxSenderBalanceTableBytes = bvMtxFullTxCap * 64
-#guard bvMtxCreatedRecipientBytes = 304736
-#guard bvMtxSkipListEntries = 19047
-#guard bvMtxSkipListBytes = 609504
-#guard bvMtxSenderCountEntries = 9523
-#guard bvMtxSenderCountTableBytes = 380920
-#guard bvMtxSenderCountSortBytes = 304736
-#guard bvMtxSenderCountSkipBytes = 609472
+#guard bvMtxCreatedRecipientBytes = 533312
+#guard bvMtxSkipListEntries = 33333
+#guard bvMtxSkipListBytes = 1066656
+#guard bvMtxSenderCountEntries = 16666
+#guard bvMtxSenderCountTableBytes = 666640
+#guard bvMtxSenderCountSortBytes = 533312
+#guard bvMtxSenderCountSkipBytes = 1066624
 #guard bvMtxActiveTxCap = bvMtxFullTxCap
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
@@ -439,17 +446,17 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvPersistentStorageLogCapacity = 16384
 #guard bvSystemStorageLogCapacity = 32768
 #guard bvSystemStorageLogBytes = 4194304
-#guard bvMtxFullTxCap = 9523
+#guard bvMtxFullTxCap = 16666
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
-#guard bvMtxU64ArenaBytes = 76184
-#guard bvMtxLogWindowBytes = 152368
+#guard bvMtxU64ArenaBytes = 133328
+#guard bvMtxLogWindowBytes = 266656
 #guard bmvFixtureTxCapacity = 16
-#guard bmvFullTxCapacity = 9523
+#guard bmvFullTxCapacity = 16666
 #guard bmvFixtureU64PerTxArenaBytes = 128
 #guard bmvFixtureLogWindowArenaBytes = 256
-#guard bmvFullU64PerTxArenaBytes = 76184
-#guard bmvFullLogWindowArenaBytes = 152368
-#guard bvReceiptRecordsBytes = 609472
+#guard bmvFullU64PerTxArenaBytes = 133328
+#guard bmvFullLogWindowArenaBytes = 266656
+#guard bvReceiptRecordsBytes = 1066624
 #guard bvResourceBlockGasLimit = 200000000
 #guard bsrStateRootBlockGasLimit = 200000000
 #guard bsrBalGasCost = 2000
@@ -471,12 +478,12 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvBlockLogMetaBytes = 12799992
 #guard bvBlockLogDataBytes = 25000000
 #guard bvLogsRlpArenaBytes = 1048576
-#guard bvRecordBloomsBytes = 2437888
-#guard bvRecordLogsDescBytes = 304736
+#guard bvRecordBloomsBytes = 4266496
+#guard bvRecordLogsDescBytes = 533312
 #guard bvReceiptsRlpBytes = 1048576
 #guard bvReceiptEncodePayloadBytes = 1048576
 #guard bvReceiptListPayloadBytes = 1048576
-#guard bvReceiptConsensusDescBytes = 152368
+#guard bvReceiptConsensusDescBytes = 266656
 #guard bvMaxDepositRequestBodyBytes = 1572864
 #guard bvMaxExecutionRequestSectionBytes = 1574324
 #guard bvDepositLogRecordBytes = 656

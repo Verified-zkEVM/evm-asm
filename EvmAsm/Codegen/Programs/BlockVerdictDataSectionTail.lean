@@ -306,6 +306,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- multi_tx_nth_context record reused per index.
   ".balign 8\n" ++
   "bv_mtx_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  -- #11808: per-tx settle meters for independent regular arm.
+  "bv_mtx_regular_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_mtx_state_gas_left:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_mtx_state_gas_used:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
+  "bv_mtx_state_reservoir_init:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   -- Nonzero only while the shared scalar direct-precompile kernel is
   -- publishing an MTx result into the indexed arena.
   "bv_mtx_precompile_lane:\n  .zero 8\n" ++
@@ -611,11 +616,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "teer_success_count:\n  .zero 8\n" ++
   "teer_sender_addr:\n  .zero 32\n" ++
-  "teer_success_table:\n  .zero 33920\n" ++
+  "teer_success_table:\n  .zero 68608\n" ++
   -- bmvmx.5.5.18 S1: the ordered EIP-7702 simulation owns one fixed union
   -- table for all transaction senders and recovered authorization authorities.
   -- Its capacity is the conservative sum of the supported 200M-gas ceilings:
-  -- 200M / 21,000 senders plus ceil(200M / 7,816) auth tuples.  Overflow is
+  -- 200M / 12,000 senders plus floor(200M / 7,816) auth tuples.  Overflow is
   -- therefore unreachable for a valid block and is fail-closed.
   ".balign 8\n" ++
   "bv_eip7702_authority_event_count:\n  .zero 8\n" ++

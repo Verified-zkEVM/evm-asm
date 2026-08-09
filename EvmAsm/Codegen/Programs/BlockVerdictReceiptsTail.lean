@@ -177,8 +177,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 2; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_state_fail:\n" ++
   "  li t0, 3; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_no_bal_for_tx:\n" ++
-  "  li t0, 4; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  -- #11833: `.Lbv_no_bal_for_tx` / bv_fail 4 retired (guest-invented pre-body
+  -- supplied-BAL presence gate; no fork.py counterpart).
   ".Lbv_zero_gas_used:\n" ++
   "  li t0, 5; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_notx_gas_used_fail:\n" ++   -- wsvlq: no-tx block with nonzero header.gas_used

@@ -19,11 +19,11 @@ namespace EvmAsm.Codegen.RlpFieldToU64SAsm
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 open EvmAsm.EL.RLP
 
-/-! ## Genuine strict semantics -/
+/-! ## Scalar semantics -/
 
-/-- Caller-visible K34 result. A malformed list, OOB index, or non-canonical
-    scalar reports status one; an otherwise canonical payload wider than eight
-    bytes reports status two; canonical scalars report their BE value. -/
+/-- Caller-visible K34 result. A malformed list or OOB index reports status one;
+    an oversized payload reports status two; empty and non-empty scalar payloads
+    report status zero with the decoded BE value. -/
 inductive Result (bytes : List (BitVec 8)) (base : Word)
     (listLen index : Nat) : Word → Word → Prop
   | listFailure (hfail : EvmAsm.Codegen.RlpListNthItemSAsm.Failure
@@ -34,12 +34,6 @@ inductive Result (bytes : List (BitVec 8)) (base : Word)
         bytes base listLen index offset len)
       (hlen : 8 < len.toNat) :
       Result bytes base listLen index 2 0
-  | noncanonical (offset len : Word)
-      (hok : EvmAsm.Codegen.RlpListNthItemSAsm.Success
-        bytes base listLen index offset len)
-      (hpos : 0 < len.toNat) (hfit : len.toNat ≤ 8)
-      (hzero : getByteAt bytes offset.toNat = 0) :
-      Result bytes base listLen index 1 0
   | empty (offset len : Word)
       (hok : EvmAsm.Codegen.RlpListNthItemSAsm.Success
         bytes base listLen index offset len)
@@ -48,8 +42,7 @@ inductive Result (bytes : List (BitVec 8)) (base : Word)
   | success (offset len : Word)
       (hok : EvmAsm.Codegen.RlpListNthItemSAsm.Success
         bytes base listLen index offset len)
-      (hpos : 0 < len.toNat) (hfit : len.toNat ≤ 8)
-      (hnz : getByteAt bytes offset.toNat ≠ 0) :
+      (hpos : 0 < len.toNat) (hfit : len.toNat ≤ 8) :
       Result bytes base listLen index 0
         (BitVec.ofNat 64
           (Nat.fromBytesBE ((bytes.drop offset.toNat).take len.toNat)))
@@ -1029,22 +1022,17 @@ def contentOutcome (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :
   fun h =>
     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
-    (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
     (((.x10 ↦ᵣ BitVec.ofNat 64
         (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
       (.x11 ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)
+      ⌜0 < len ∧ len ≤ 8⌝) h)
 
 inductive ScalarOutcome (bytes : List (BitVec 8)) (offset len : Nat) :
     Word → Word → Prop
   | tooLong (h : 8 < len) : ScalarOutcome bytes offset len 0 2
   | empty (h : len = 0) : ScalarOutcome bytes offset len 0 0
-  | noncanonical (hpos : 0 < len) (hfit : len ≤ 8)
-      (hzero : getByteAt bytes offset = 0) :
-      ScalarOutcome bytes offset len 0 3
   | success (hpos : 0 < len) (hfit : len ≤ 8)
-      (hnz : getByteAt bytes offset ≠ 0) :
+      :
       ScalarOutcome bytes offset len
         (BitVec.ofNat 64
           (Nat.fromBytesBE ((bytes.drop offset).take len))) 0
@@ -1056,7 +1044,7 @@ theorem contentOutcome_semantic (bytes : List (BitVec 8)) (offset len : Nat) : �
        ⌜ScalarOutcome bytes offset len value status⌝) h := by
   intro h hp
   unfold contentOutcome at hp
-  rcases hp with hp | hp | hp | hp
+  rcases hp with hp | hp | hp
   · extract_pure_deep hp
     obtain ⟨h_len, hstate⟩ := hp
     exact ⟨0, 2, (sepConj_pure_right h).2
@@ -1067,12 +1055,8 @@ theorem contentOutcome_semantic (bytes : List (BitVec 8)) (offset len : Nat) : �
       ⟨(by xperm_hyp hstate), .empty h_len⟩⟩
   · extract_pure_deep hp
     obtain ⟨h_sem, hstate⟩ := hp
-    exact ⟨0, 3, (sepConj_pure_right h).2
-      ⟨(by xperm_hyp hstate), .noncanonical h_sem.1 h_sem.2.1 h_sem.2.2⟩⟩
-  · extract_pure_deep hp
-    obtain ⟨h_sem, hstate⟩ := hp
     exact ⟨_, 0, (sepConj_pure_right h).2
-      ⟨(by xperm_hyp hstate), .success h_sem.1 h_sem.2.1 h_sem.2.2⟩⟩
+      ⟨(by xperm_hyp hstate), .success h_sem.1 h_sem.2⟩⟩
 
 
 def contentCallPost (srcBase : Word) (srcBytes : List (BitVec 8))
@@ -1086,7 +1070,7 @@ def contentRawPost (srcBase : Word) (srcBytes : List (BitVec 8))
   (.x1 ↦ᵣ (B + 84)) ** contentCallPost srcBase srcBytes srcOff len
 
 /-- Actual instruction-20 call, specialized to the selected Word offset/len
-    and the verified scalar callee's unified four-way post. -/
+    and the verified scalar callee's unified three-way post. -/
 theorem callContentExact
     (srcBase offset len vOld x6Old x7Old x28Old : Word)
     (srcBytes : List (BitVec 8))
@@ -1095,7 +1079,7 @@ theorem callContentExact
     (hsover : srcBase.toNat + (offset.toNat + len.toNat) ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < len.toNat →
       isValidByteAccess (srcBase + BitVec.ofNat 64 (offset.toNat + k)) = true) :
-    cpsTripleWithin (1 + (7 * len.toNat + 11)) (B + 80) (B + 84) code
+    cpsTripleWithin (1 + (7 * len.toNat + 9)) (B + 80) (B + 84) code
       ((.x1 ↦ᵣ vOld) **
        ((.x10 ↦ᵣ (srcBase + offset)) ** (.x11 ↦ᵣ len) **
         (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
@@ -1111,7 +1095,7 @@ theorem callContentExact
     show (BitVec.ofNat 64 len.toNat : Word) = len from by
       rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]] at hcallee0
   have hcallee1 := cpsTripleWithin_extend_code contentCode_mono hcallee0
-  have hcallee : cpsTripleWithin (7 * len.toNat + 11) C64B (B + 84) code
+  have hcallee : cpsTripleWithin (7 * len.toNat + 9) C64B (B + 84) code
       ((.x1 ↦ᵣ (B + 84)) **
        ((.x10 ↦ᵣ (srcBase + offset)) ** (.x11 ↦ᵣ len) **
         (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **
@@ -1136,7 +1120,7 @@ theorem callContentExact
       a i hi
   have hcall := callWithin_spec (B + 80) C64B vOld
     (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.rlp_field_to_u64 + 80))
-    (7 * len.toNat + 11) (by unfold B C64B; decide) hmem
+    (7 * len.toNat + 9) (by unfold B C64B; decide) hmem
     (by pcf) hcallee
   unfold contentRawPost
   exact hcall
@@ -1168,7 +1152,7 @@ theorem callContentFramedExact
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (7 * len.toNat + 11)) (B + 80) (B + 84) code
+    cpsTripleWithin (1 + (7 * len.toNat + 9)) (B + 80) (B + 84) code
       ((((.x1 ↦ᵣ vOld) **
         ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
          (.x5 ↦ᵣ lengthCell) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ x7Old) **

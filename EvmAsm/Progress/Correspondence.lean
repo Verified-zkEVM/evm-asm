@@ -224,19 +224,18 @@ def registry : List Entry := [
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
     reference := "_deserialize_to_uint at U64",
-    note := "canonical-strict (len>8 → status 2, leading zero → status 3); \
-matches U64 exactly, stricter on a Uint field — differential does not reach the typed layer" },
+    note := "len>8 → status 2; leading-zero encodings are accepted and decoded by \
+big-endian magnitude, matching U64 int.from_bytes semantics" },
   { family := "rlp", routine := "rlp_content_to_u256_be",
     spec := some "rlp_content_to_u256_be_scalar_spec_within",
     verdict := .agrees, basis := .bridged,
     reference := "_deserialize_to_uint at U256",
-    note := "was machineOnly — the machine triple states its outcome as a right-aligned \
-`copyN` plus the literal byte test `getByteAt srcBytes srcOff = 0`, mentioning no model \
-function. Bridged in #11341 (`Rv64/RLP/ContentToU256BeBridge.lean`) by \
-`ctu256_reject_iff_decodeScalar_none` (the byte test IS `decodeScalar`'s leading-zero \
-rule) and `ctu256_accept_decodeScalar` (the 32-byte buffer denotes exactly the value \
+    note := "the machine triple states its outcome as a right-aligned `copyN` and a \
+length bound. Bridged in #11341 (`Rv64/RLP/ContentToU256BeBridge.lean`) by \
+`ctu256_accept_decodeScalar` (the 32-byte buffer denotes exactly the value \
 `decodeScalar` returns, via `fromBytesBE_replicate_zero_append` — right-alignment is \
-value-preserving). The row names the consumer, which restates the triple's outcome \
+value-preserving). The bridge carries an explicit canonical-input hypothesis because \
+the machine decoder is lenient. The row names the consumer, which restates the triple's outcome \
 disjunction over `decodeScalar`. U256 FIELDS ONLY, and now precisely: the bridge is \
 scoped to `len ≤ 32`, so the status-2 arm is excluded — that arm is the U256 width \
 rejection and `decodeScalar` is untyped, so it is the one outcome the shared model does \
@@ -607,8 +606,9 @@ lenient. Only ONE of them does. \
 (a) CANONICALITY -- was a real port defect, NOW FIXED. `_deserialize_to_uint` rejects a \
 leading zero byte on every uint field, and the port's `getN = bytesBEtoNat` did not; \
 `_decode_header` now runs `numericFieldWidths` through `decodeItemScalar`, so the port is \
-faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The guest's \
-`Result.noncanonical` is discharged inside the bridge rather than assumed. \
+faithful ON THE NUMERIC FIELDS and this row's `portDefect` is retired. The scalar bridge \
+has no noncanonical machine outcome; model canonicality is an explicit input \
+hypothesis rather than an assumed machine rejection. \
 ⚠️ SCOPE OF THAT CLAIM: it covers the nine numeric fields, which is all this row's `number` \
 depends on. A SECOND, independent leniency survives on the FIXED-WIDTH BYTE fields -- \
 `_deserialize_to_bytes` builds the annotated type and `FixedBytes.__new__` raises when the \

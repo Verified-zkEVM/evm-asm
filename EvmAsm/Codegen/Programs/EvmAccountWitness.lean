@@ -220,6 +220,14 @@ private def extcodehashWitnessTail : HandlerTail :=
     -- and nonce, so the non-storage-effect scan above cannot distinguish it
     -- from a pre-state absence.  The per-transaction destroyed-address table
     -- carries the exact BE address and is rollback-scoped by frame_return.
+    -- PHASE SPLIT: the table is a same-transaction read/EXTCODEHASH marker,
+    -- not a Present-None post-state tombstone.  Pinned Python authority is
+    -- `vm/__init__.py:184,234`, `vm/interpreter.py:135,151,349`,
+    -- `vm/instructions/system.py:691-693`, and `fork.py:1201-1202`.
+    -- Lean mirror (not authority): this scan sets `eahsr_same_tx_empty_flag`
+    -- only; the transaction-boundary account-write path materializes deletion.
+    -- Collapsing the phases makes EXTCODEHASH/availability see deletion too
+    -- early and can leave the next transaction with the wrong state.
     -- On overflow, retain the conservative pre-state result.
     ".Lextcodehash_witness_state:\n" ++
     "  la t0, evm_selfdestruct_destroyed_overflow; ld t0, 0(t0); bnez t0, .Lextcodehash_sd_empty_done\n" ++

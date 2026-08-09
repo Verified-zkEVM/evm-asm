@@ -570,6 +570,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la a0, bv_mtx_i; ld a0, 0(a0); jal ra, dispatcher_capture_exec_state_gas\n  jal ra, dispatcher_capture_exec_state_gas_differential\n" ++
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; sd a1, 0(t3)\n" ++
+  -- #11808: capture settle meters (independent regular arm).
+  "  la t4, runtime_tx_settle_regular_gas_left; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_settle_state_gas_left; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_settle_state_gas_used; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_gas_used; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t0; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; sd a2, 0(t3)\n" ++
   -- nxio8: a3 = the settle-folded refund counter (0 when the tx erred), not a
   -- raw evm_refund_acc read.
@@ -797,6 +806,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t4, bv_runtime_calldata_floor; sd zero, 0(t4)\n" ++
   "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
+  -- #11808: collision burns all regular; state meters from residual path.
+  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_used; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t2; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_refund; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++
@@ -823,6 +838,12 @@ def blockVerdictMtxRuntimeLoop : String :=
   ".Lbv_mtx_auth_phase_oog:\n" ++
   "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  -- #11808: auth OOG burns regular; settle may not have run.
+  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_used; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t2; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_refund; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t0, runtime_tx_calldata_floor; ld t5, 0(t0); la t3, bv_mtx_calldata; add t3, t3, t2; sd t5, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t2; sd zero, 0(t3)\n" ++

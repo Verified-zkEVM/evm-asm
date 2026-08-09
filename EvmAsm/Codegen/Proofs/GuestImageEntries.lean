@@ -43,7 +43,6 @@ import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.BlockVerdictBalFindAccount
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
-import EvmAsm.Codegen.Programs.BlockVerdictModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.Bloom
@@ -263,7 +262,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.map_account_change_value, mapAccountChangeValue_prog),
   (GuestAddrs.bal_account_change_descriptor, balAccountChangeDescriptor_prog),
   (GuestAddrs.bal_account_record_array, balAccountRecordArray_prog),
-  (GuestAddrs.bsr_apply_modeled_system_post_fields, bsrApplyModeledSystemPostFields_prog),
   (GuestAddrs.bloom_add_value, bloomAddValue_prog),
   (GuestAddrs.log_bloom_add, logBloomAdd_prog),
   (GuestAddrs.logs_list_bloom_add, logsListBloomAdd_prog),
@@ -286,7 +284,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bgv_u64le, bgvU64le_prog),
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
-  (GuestAddrs.bal_section_info, balSectionInfo_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -480,6 +477,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 332
+#guard guestImageEntries.length = 330
 
 end EvmAsm.Codegen
