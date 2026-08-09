@@ -235,7 +235,7 @@ theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
     (fun h hq => by xperm_hyp hq) hchain
 
 
-/-- Exact four-way post exported by the nonce parser at slot 130. -/
+/-- Exact three-way post exported by the nonce parser at slot 130. -/
 @[irreducible] def nonceParserPost (aB : Word) (srcOff len : Nat)
     (acctBytes : List (BitVec 8)) : Assertion :=
   (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
@@ -246,15 +246,14 @@ theorem bansf_nonceCapture_rejectRoute_spec (st oldA0 : Word) (P : Assertion)
       ⌜8 < len⌝) h ∨
     (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
       ⌜len = 0⌝) h ∨
-    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝) h ∨
+
     (((.x10 : Reg) ↦ᵣ BitVec.ofNat 64
         (EL.RLP.Nat.fromBytesBE ((acctBytes.drop srcOff).take len))) **
       ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝) h)
+      ⌜0 < len ∧ len ≤ 8⌝) h)
 
 /-- Slots 128--130: form the value-content window and invoke the unified u64
-    parser.  The result is left in its exact four-way post for the two tails. -/
+    parser.  The result is left in its exact three-way post for the two tails. -/
 theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
     (vNext vLen vStatus v5 v6 v7 v28 vRa : Word)
     (acctBytes : List (BitVec 8)) (P : Assertion)
@@ -266,7 +265,7 @@ theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
     (htEnd : tEnd ≤ aLen) (hoffle : off ≤ tEnd)
     (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
       (aB + BitVec.ofNat 64 tEnd) vNext vLen) :
-    cpsTripleWithin (7 * vLen.toNat + 14) (B + 512) (B + 524) bansfCR
+    cpsTripleWithin (7 * vLen.toNat + 12) (B + 512) (B + 524) bansfCR
       (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ vStatus) **
        ((.x12 : Reg) ↦ᵣ vLen) **
        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
@@ -331,7 +330,7 @@ theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
        ((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes))
-  have hcall := bansf_callSite130_content_to_u64 (n := 7 * vLen.toNat + 11)
+  have hcall := bansf_callSite130_content_to_u64 (n := 7 * vLen.toNat + 9)
     vRa hPrest hcallee'
   have hcallF := cpsTripleWithin_frameR (((.x12 : Reg) ↦ᵣ vLen) ** P)
     (by pcf; exact hP) hcall
@@ -339,7 +338,7 @@ theorem bansf_nonceCapture_call_spec (aB : Word) (aLen tEnd off : Nat)
     (fun h hp => by xperm_hyp hp) hsetup hcallF
   rw [show B + 520 + 4 = B + 524 from by bv_omega] at hfull
   rw [nonceParserPost]
-  rw [show 7 * vLen.toNat + 14 = 1 + 1 + (1 + (7 * vLen.toNat + 11)) from by omega]
+  rw [show 7 * vLen.toNat + 12 = 1 + 1 + (1 + (7 * vLen.toNat + 9)) from by omega]
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hfull
 
 
@@ -408,58 +407,15 @@ theorem bansf_nonceCapture_empty_spec (aB oB vLen : Word) (len : Nat)
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) htF
 
-
-/-- The leading-zero noncanonical arm is routed to rejection. -/
-theorem bansf_nonceCapture_noncanonical_spec (aB oB vLen : Word)
-    (srcOff len : Nat) (acctBytes : List (BitVec 8))
-    (P : Assertion) (hP : P.pcFree) :
-    cpsTripleWithin 2 (B + 524) (B + 736) bansfCR
-      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
-          bytesRegion aB acctBytes) **
-        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝)) **
-       ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
-       ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
-      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
-       bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
-       ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
-       ((oB + 48) ↦ₘ (0 : Word)) ** P) := by
-  have hr := bansf_nonceCapture_rejectRoute_spec (3 : Word) (0 : Word)
-    (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-     ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
-     ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
-     ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
-    (by decide) (by pcf; exact hP)
-  exact cpsTripleWithin_weaken
-    (fun h hp => by
-      let R : Assertion :=
-        ((.x11 : Reg) ↦ᵣ (3 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-         ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
-         ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
-         ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
-      have hp2 : (R ** ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝) h := by
-        dsimp only [R]
-        xperm_hyp hp
-      exact ((sepConj_pure_right h).1 hp2).1)
-    (fun h hq => by xperm_hyp hq) hr
-
-
-/-- The canonical status-zero arm stores the decoded scalar and sets the flag.
-    The caller supplies the static length bound from its pre-call case split. -/
 theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
-    (srcOff len : Nat) (acctBytes : List (BitVec 8))
+    (len : Nat) (acctBytes : List (BitVec 8))
     (P : Assertion) (hP : P.pcFree) (hlen8 : len ≤ 8) :
     cpsTripleWithin 4 (B + 524) (B + 540) bansfCR
       (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
           bytesRegion aB acctBytes) **
         (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
+         ⌜0 < len ∧ len ≤ 8⌝)) **
        ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P)
       ((((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
@@ -473,7 +429,7 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
     (regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
      ((.x1 : Reg) ↦ᵣ (B + 524)) ** bytesRegion aB acctBytes **
      ((.x12 : Reg) ↦ᵣ vLen) **
-     ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝ ** P)
+     ⌜0 < len ∧ len ≤ 8⌝ ** P)
     (by pcf; exact hP) ht
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_) htF
   let R : Assertion :=
@@ -483,7 +439,7 @@ theorem bansf_nonceCapture_canonical_spec (aB oB vLen image : Word)
     bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
     ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (1 : Word)) **
     ((oB + 48) ↦ₘ image) ** P
-  have hq2 : (R ** ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝) h := by
+  have hq2 : (R ** ⌜0 < len ∧ len ≤ 8⌝) h := by
     dsimp only [R]
     xperm_hyp hq
   exact (sepConj_pure_right h).2 ⟨((sepConj_pure_right h).1 hq2).1, hlen8⟩
@@ -493,12 +449,6 @@ def nonceCaptureRejectPost (aB oB vLen : Word)
     (acctBytes : List (BitVec 8)) (P : Assertion) : Assertion :=
   fun h =>
     ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
-       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
-       bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
-       ((.x18 : Reg) ↦ᵣ oB) ** ((oB + 40) ↦ₘ (0 : Word)) **
-       ((oB + 48) ↦ₘ (0 : Word)) ** P) h) ∨
-    ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
        bytesRegion aB acctBytes ** ((.x12 : Reg) ↦ᵣ vLen) **
@@ -539,35 +489,23 @@ def nonceCaptureEmptyPre (aB oB vLen : Word) (len : Nat)
   ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
   ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
 
-def nonceCaptureNoncanonicalPre (aB oB vLen : Word) (srcOff len : Nat)
-    (acctBytes : List (BitVec 8)) (P : Assertion) : Assertion :=
-  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
-      bytesRegion aB acctBytes) **
-    (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff = 0⌝)) **
-  ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
-  ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
-
-def nonceCaptureCanonicalPre (aB oB vLen image : Word) (srcOff len : Nat)
+def nonceCaptureCanonicalPre (aB oB vLen image : Word) (len : Nat)
     (acctBytes : List (BitVec 8)) (P : Assertion) : Assertion :=
   ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
       bytesRegion aB acctBytes) **
     (((.x10 : Reg) ↦ᵣ image) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
-      ⌜0 < len ∧ len ≤ 8 ∧ getByteAt acctBytes srcOff ≠ 0⌝)) **
+      ⌜0 < len ∧ len ≤ 8⌝)) **
   ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
   ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P
-
-/-- Four parser arms merged to the common reject/found capture exits. -/
+/-- Three parser arms merged to the common reject/found capture exits. -/
 theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
-    (srcOff len : Nat) (acctBytes : List (BitVec 8))
+    (len : Nat) (acctBytes : List (BitVec 8))
     (P : Assertion) (hP : P.pcFree) (hlen8 : len ≤ 8) :
     cpsBranchWithin 4 (B + 524) bansfCR
       (fun h => nonceCaptureTooLongPre aB oB vLen len acctBytes P h ∨
         (nonceCaptureEmptyPre aB oB vLen len acctBytes P h ∨
-          (nonceCaptureNoncanonicalPre aB oB vLen srcOff len acctBytes P h ∨
-           nonceCaptureCanonicalPre aB oB vLen image srcOff len acctBytes P h)))
+          nonceCaptureCanonicalPre aB oB vLen image len acctBytes P h))
       (B + 736) (nonceCaptureRejectPost aB oB vLen acctBytes P)
       (B + 540) (nonceCaptureFoundPost aB oB vLen image len acctBytes P) := by
   have htl0 := bansf_nonceCapture_tooLong_spec aB oB vLen len acctBytes P hP
@@ -576,7 +514,7 @@ theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
     (Q_t' := nonceCaptureRejectPost aB oB vLen acctBytes P)
     (Q_f' := nonceCaptureFoundPost aB oB vLen image len acctBytes P)
     (fun _ hp => hp)
-    (fun _ hq => Or.inl hq) (fun _ hq => hq)
+    (fun _ hq => hq) (fun _ hq => hq)
     (cpsTripleWithin_as_cpsBranchWithin_left (B + 540)
       (nonceCaptureFoundPost aB oB vLen image len acctBytes P)
       (cpsTripleWithin_mono_nSteps (nSteps' := 4) (by omega) htl0))
@@ -590,20 +528,10 @@ theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
     (fun _ hq => Or.inl hq)
     (cpsTripleWithin_as_cpsBranchWithin_right (B + 736)
       (nonceCaptureRejectPost aB oB vLen acctBytes P) he0)
-  have hnc0 := bansf_nonceCapture_noncanonical_spec aB oB vLen srcOff len acctBytes P hP
-  have hnc := cpsBranchWithin_weaken
-    (P' := nonceCaptureNoncanonicalPre aB oB vLen srcOff len acctBytes P)
-    (Q_t' := nonceCaptureRejectPost aB oB vLen acctBytes P)
-    (Q_f' := nonceCaptureFoundPost aB oB vLen image len acctBytes P)
-    (fun _ hp => hp)
-    (fun _ hq => Or.inr hq) (fun _ hq => hq)
-    (cpsTripleWithin_as_cpsBranchWithin_left (B + 540)
-      (nonceCaptureFoundPost aB oB vLen image len acctBytes P)
-      (cpsTripleWithin_mono_nSteps (nSteps' := 4) (by omega) hnc0))
-  have hc0 := bansf_nonceCapture_canonical_spec aB oB vLen image srcOff len
+  have hc0 := bansf_nonceCapture_canonical_spec aB oB vLen image len
     acctBytes P hP hlen8
   have hc := cpsBranchWithin_weaken
-    (P' := nonceCaptureCanonicalPre aB oB vLen image srcOff len acctBytes P)
+    (P' := nonceCaptureCanonicalPre aB oB vLen image len acctBytes P)
     (Q_t' := nonceCaptureRejectPost aB oB vLen acctBytes P)
     (Q_f' := nonceCaptureFoundPost aB oB vLen image len acctBytes P)
     (fun _ hp => hp)
@@ -612,10 +540,10 @@ theorem bansf_nonceCapture_dispatch_spec (aB oB vLen image : Word)
     (cpsTripleWithin_as_cpsBranchWithin_right (B + 736)
       (nonceCaptureRejectPost aB oB vLen acctBytes P) hc0)
   exact cpsBranchWithin_pre_or htl
-    (cpsBranchWithin_pre_or he (cpsBranchWithin_pre_or hnc hc))
+    (cpsBranchWithin_pre_or he hc)
 
 
-/-- Distribute the station frame into the parser's four-way post for the
+/-- Distribute the station frame into the parser's three-way post for the
     nonce-capture dispatch theorem. -/
 theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
     (srcOff len : Nat) (acctBytes : List (BitVec 8)) (P : Assertion)
@@ -627,8 +555,7 @@ theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
        ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) ** P) h →
       (nonceCaptureTooLongPre aB oB vLen len acctBytes P h ∨
        (nonceCaptureEmptyPre aB oB vLen len acctBytes P h ∨
-        (nonceCaptureNoncanonicalPre aB oB vLen srcOff len acctBytes P h ∨
-         nonceCaptureCanonicalPre aB oB vLen image srcOff len acctBytes P h))) := by
+        nonceCaptureCanonicalPre aB oB vLen image len acctBytes P h)) := by
   intro h hp
   let F : Assertion :=
     ((.x12 : Reg) ↦ᵣ vLen) ** ((.x18 : Reg) ↦ᵣ oB) **
@@ -639,17 +566,14 @@ theorem nonceParserPost_to_dispatchPre (aB oB vLen image : Word)
   obtain ⟨g1, g2, hd, hu, hnp, hF⟩ := hp0
   unfold nonceParserPost at hnp
   obtain ⟨b1, b2, hdb, hub, hbase, harms⟩ := hnp
-  rcases harms with htl | he | hnc | hc
+  rcases harms with htl | he | hc
   · left
     unfold nonceCaptureTooLongPre
     exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, htl⟩, hF⟩
   · right; left
     unfold nonceCaptureEmptyPre
     exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, he⟩, hF⟩
-  · right; right; left
-    unfold nonceCaptureNoncanonicalPre
-    exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, hnc⟩, hF⟩
-  · right; right; right
+  · right; right
     unfold nonceCaptureCanonicalPre
     rw [himage]
     exact ⟨g1, g2, hd, hu, ⟨b1, b2, hdb, hub, hbase, hc⟩, hF⟩
@@ -766,7 +690,7 @@ theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
     (htEnd : tEnd ≤ aLen) (hoffle : off ≤ tEnd)
     (hdec : rlpItemDecode acctBytes off (aB + BitVec.ofNat 64 off)
       (aB + BitVec.ofNat 64 tEnd) vNext vLen) :
-    cpsBranchWithin (7 * vLen.toNat + 18) (B + 512) bansfCR
+    cpsBranchWithin (7 * vLen.toNat + 16) (B + 512) bansfCR
       (((.x10 : Reg) ↦ᵣ vNext) ** ((.x11 : Reg) ↦ᵣ vStatus) **
        ((.x12 : Reg) ↦ᵣ vLen) **
        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
@@ -788,7 +712,7 @@ theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
     have hfull := cpsTripleWithin_seq_same_cr hc ht
     have hfull' := cpsTripleWithin_weaken
       (Q' := nonceCaptureRejectPost aB oB vLen acctBytes P) (fun _ hp => hp)
-      (fun _ hq => Or.inl hq) hfull
+      (fun _ hq => hq) hfull
     exact cpsBranchWithin_mono_nSteps (by omega)
       (cpsTripleWithin_as_cpsBranchWithin_left (B + 540)
         (nonceCaptureFoundPost aB oB vLen
@@ -806,7 +730,7 @@ theorem bansf_nonceCapture_spec (aB oB : Word) (aLen tEnd off : Nat)
     have hd := bansf_nonceCapture_dispatch_spec aB oB vLen
       (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
         ((acctBytes.drop (vNext - vLen - aB).toNat).take vLen.toNat)))
-      (vNext - vLen - aB).toNat vLen.toNat acctBytes P hP hlen8
+      vLen.toNat acctBytes P hP hlen8
     have hfull := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
       (nonceParserPost_to_dispatchPre aB oB vLen
         (BitVec.ofNat 64 (EL.RLP.Nat.fromBytesBE
@@ -835,9 +759,8 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
       nonceStationRej aB newSp oB aLen acctBytes G F h := by
   intro h hq
   unfold nonceCaptureRejectPost at hq
-  rcases hq with hq | hq
-  · have hq2 :
-        ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
+  have hq2 :
+      ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (2 : Word)) **
           ((.x12 : Reg) ↦ᵣ vLen) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
           ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
           ((newSp + 48) ↦ₘ n4) **
@@ -851,8 +774,8 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
           regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
-      xperm_hyp hq
-    have hq3 := sepConj_mono
+    xperm_hyp hq
+  have hq3 := sepConj_mono
       (sepConj_mono (fun _ hx => hx)
        (sepConj_mono (regIs_implies_regOwn .x11)
         (sepConj_mono (regIs_implies_regOwn .x12)
@@ -860,37 +783,9 @@ theorem nonceCaptureReject_to_stationRej (aB newSp oB n4 vLen : Word)
           (sepConj_mono memIs_implies_memOwn
            (sepConj_mono memIs_implies_memOwn
             (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))
-      (fun _ x => x) h hq2
-    unfold nonceStationRej
-    xperm_hyp hq3
-  · have hq2 :
-        ((((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ (3 : Word)) **
-          ((.x12 : Reg) ↦ᵣ vLen) ** ((.x1 : Reg) ↦ᵣ (B + 524)) **
-          ((oB + 40) ↦ₘ (0 : Word)) ** ((oB + 48) ↦ₘ (0 : Word)) **
-          ((newSp + 48) ↦ₘ n4) **
-          ((newSp + 56) ↦ₘ (aB + BitVec.ofNat 64 aLen))) **
-         (G ** ((oB + 56) ↦ₘ (0 : Word)) ** ((oB + 64) ↦ₘ (0 : Word)) **
-          ((oB + 72) ↦ₘ (0 : Word)) **
-          memOwn (newSp + 64) ** memOwn (newSp + 72) **
-          ((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ aB) **
-          ((.x9 : Reg) ↦ᵣ BitVec.ofNat 64 aLen) **
-          ((.x18 : Reg) ↦ᵣ oB) **
-          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-          regOwn .x19 ** regOwn .x20 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion aB acctBytes ** F)) h := by
-      xperm_hyp hq
-    have hq3 := sepConj_mono
-      (sepConj_mono (fun _ hx => hx)
-       (sepConj_mono (regIs_implies_regOwn .x11)
-        (sepConj_mono (regIs_implies_regOwn .x12)
-         (sepConj_mono (regIs_implies_regOwn .x1)
-          (sepConj_mono memIs_implies_memOwn
-           (sepConj_mono memIs_implies_memOwn
-            (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))))))
-      (fun _ x => x) h hq2
-    unfold nonceStationRej
-    xperm_hyp hq3
-
+    (fun _ x => x) h hq2
+  unfold nonceStationRej
+  xperm_hyp hq3
 
 /-- Reframe either successful nonce-parser arm as the station found post. -/
 theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)

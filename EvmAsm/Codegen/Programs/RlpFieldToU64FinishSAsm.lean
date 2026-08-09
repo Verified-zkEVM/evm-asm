@@ -1,5 +1,6 @@
 /-
-  Final status dispatch and whole-routine composition for strict K34.
+  Final status dispatch and whole-routine composition for the lenient scalar
+  decoder (status 0 success or status 2 too-long).
 -/
 
 import EvmAsm.Codegen.Programs.RlpFieldToU64SAsm
@@ -322,76 +323,6 @@ theorem tooLongMachineTail
     exact CodeReq.union_mono_left a i hi) h012
 
 
-/-- Scalar status three (leading-zero rejection) maps to wrapper status one
-    (instructions 25--28). -/
-theorem noncanonicalMachineTail
-    (old5 old10 : Word) (F : Assertion) (hF : F.pcFree) :
-    cpsTripleWithin 4 (B + 100) (B + 128) code
-      ((.x5 ↦ᵣ old5) ** (.x11 ↦ᵣ (3 : Word)) **
-        (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F)
-      ((.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
-  have hl0 := li_spec_gen_within .x5 old5 (2 : Word) (B + 100) (by decide)
-  have hl := cpsTripleWithin_extend_code (cr' := wrapperCode)
-    (CodeReq.ofProg_mem_at B (B + 100) rlpFieldToU64_prog 25
-      (.LI .x5 (2 : Word)) (by bv_omega) (by rw [program_length]; decide)
-      rfl (by rw [program_length]; decide)) hl0
-  let R0 : Assertion :=
-    (.x11 ↦ᵣ (3 : Word)) ** (.x10 ↦ᵣ old10) **
-    (.x0 ↦ᵣ (0 : Word)) ** F
-  have hlF := cpsTripleWithin_frameR R0 (by unfold R0; pcf; exact hF) hl
-  have hb0 := beq_spec_gen_within .x11 .x5 (20 : BitVec 13)
-    (3 : Word) (2 : Word) (B + 104)
-  rw [show B + 104 + signExtend13 (20 : BitVec 13) = B + 124 from by decide,
-    show B + 104 + 4 = B + 108 from by bv_omega] at hb0
-  have hb := cpsBranchWithin_extend_code (cr' := wrapperCode)
-    (CodeReq.ofProg_mem_at B (B + 104) rlpFieldToU64_prog 26
-      (.BEQ .x11 .x5 (20 : BitVec 13)) (by bv_omega)
-      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hb0
-  let R1 : Assertion :=
-    (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) ** F
-  have hbF := cpsBranchWithin_frameR R1 (by unfold R1; pcf; exact hF) hb
-  have hbFall := cpsBranchWithin_ntakenPath hbF (fun h hp => by
-    extract_pure_deep hp
-    obtain ⟨h_eq, -⟩ := hp
-    have h_ne : (3 : Word) ≠ 2 := by decide
-    exact h_ne h_eq)
-  have hs0 := li_spec_gen_within .x10 old10 (1 : Word) (B + 108) (by decide)
-  have hs := cpsTripleWithin_extend_code (cr' := wrapperCode)
-    (CodeReq.ofProg_mem_at B (B + 108) rlpFieldToU64_prog 27
-      (.LI .x10 (1 : Word)) (by bv_omega) (by rw [program_length]; decide)
-      rfl (by rw [program_length]; decide)) hs0
-  let R2 : Assertion :=
-    (.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-    (.x0 ↦ᵣ (0 : Word)) ** F
-  have hsF := cpsTripleWithin_frameR R2 (by unfold R2; pcf; exact hF) hs
-  have hj0 := jal_x0_spec_gen_within (16 : BitVec 21) (B + 112)
-  rw [show B + 112 + signExtend21 (16 : BitVec 21) = B + 128 from by decide]
-    at hj0
-  have hj := cpsTripleWithin_extend_code (cr' := wrapperCode)
-    (CodeReq.ofProg_mem_at B (B + 112) rlpFieldToU64_prog 28
-      (.JAL .x0 (16 : BitVec 21)) (by bv_omega)
-      (by rw [program_length]; decide) rfl (by rw [program_length]; decide)) hj0
-  let R3 : Assertion :=
-    (.x5 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-    (.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F
-  have hjF0 := cpsTripleWithin_frameR R3 (by unfold R3; pcf; exact hF) hj
-  have hjF := cpsTripleWithin_weaken
-    (fun h hp => (sepConj_emp_left h).2 hp)
-    (fun h hp => (sepConj_emp_left h).1 hp) hjF0
-  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
-    hlF hbFall
-  have h012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
-    extract_pure_deep hp
-    obtain ⟨-, hp⟩ := hp
-    xperm_hyp hp) h01 hsF
-  have h0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
-    h012 hjF
-  exact cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
-    unfold code
-    exact CodeReq.union_mono_left a i hi) h0123
-
-
 theorem scalarOutcome_result
     {bytes : List (BitVec 8)} {listBase offset len value status : Word}
     {listLen index : Nat}
@@ -401,18 +332,14 @@ theorem scalarOutcome_result
     ∃ wrapperStatus,
       Result bytes listBase listLen index wrapperStatus value ∧
       ((status = 0 ∧ wrapperStatus = 0) ∨
-       (status = 2 ∧ wrapperStatus = 2) ∨
-       (status = 3 ∧ wrapperStatus = 1)) := by
+       (status = 2 ∧ wrapperStatus = 2)) := by
   cases h_out with
   | tooLong h_len =>
-      exact ⟨2, .tooLong offset len h_ok h_len, Or.inr (Or.inl ⟨rfl, rfl⟩)⟩
+      exact ⟨2, .tooLong offset len h_ok h_len, Or.inr ⟨rfl, rfl⟩⟩
   | empty h_len =>
       exact ⟨0, .empty offset len h_ok h_len, Or.inl ⟨rfl, rfl⟩⟩
-  | noncanonical h_pos h_fit h_zero =>
-      exact ⟨1, .noncanonical offset len h_ok h_pos h_fit h_zero,
-        Or.inr (Or.inr ⟨rfl, rfl⟩)⟩
-  | success h_pos h_fit h_nz =>
-      exact ⟨0, .success offset len h_ok h_pos h_fit h_nz, Or.inl ⟨rfl, rfl⟩⟩
+  | success h_pos h_fit =>
+      exact ⟨0, .success offset len h_ok h_pos h_fit, Or.inl ⟨rfl, rfl⟩⟩
 
 
 def stableRest
@@ -521,36 +448,6 @@ private theorem tooLongSemanticTail
   · exact h_result
 
 
-private theorem noncanonicalSemanticTail
-    (sp0 listBase offset len v12 x5 : Word)
-    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
-    (bytes : List (BitVec 8)) (listLen index : Nat)
-    (h_result : Result bytes listBase listLen index 1 0) :
-    cpsTripleWithin 4 (B + 100) (B + 128) code
-      (scalarCoreAt5 sp0 listBase offset len v12 x5 0 3 saved bytes **
-       (saved.s1 ↦ₘ (0 : Word)))
-      (joinedResult sp0 listBase saved bytes listLen index) := by
-  let F : Assertion :=
-    (.x9 ↦ᵣ saved.s1) ** (saved.s1 ↦ₘ (0 : Word)) **
-    stableRest (B + 84) sp0 listBase offset len v12 saved bytes
-  have ht := noncanonicalMachineTail x5 0 F (by
-    unfold F
-    exact pcFree_sepConj pcFree_regIs
-      (pcFree_sepConj pcFree_memIs
-        (pcFree_stableRest _ _ _ _ _ _ _ _)))
-  refine cpsTripleWithin_weaken (fun h hp => by
-      unfold scalarCoreAt5 contentCarry listOtherSaved at hp
-      unfold F stableRest
-      xperm_hyp hp) (fun h hp => ?_) ht
-  unfold joinedResult
-  refine ⟨offset, len, v12, B + 84, 2, 3, 1, 0, ?_⟩
-  apply (sepConj_pure_right h).2
-  constructor
-  · unfold F stableRest at hp
-    unfold joinCore stableRest
-    xperm_hyp hp
-  · exact h_result
-
 
 def scalarNo5
     (sp0 listBase offset len v12 value status : Word)
@@ -615,33 +512,6 @@ private theorem tooLongSemanticOwned
       unfold P scalarNo5
       xperm_hyp hp) (fun _ hp => hp) howned
 
-private theorem noncanonicalSemanticOwned
-    (sp0 listBase offset len v12 : Word)
-    (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
-    (bytes : List (BitVec 8)) (listLen index : Nat)
-    (h_result : Result bytes listBase listLen index 1 0) :
-    cpsTripleWithin 4 (B + 100) (B + 128) code
-      (scalarCore sp0 listBase offset len v12 0 3 saved bytes **
-       (saved.s1 ↦ₘ (0 : Word)))
-      (joinedResult sp0 listBase saved bytes listLen index) := by
-  let P := scalarNo5 sp0 listBase offset len v12 0 3 saved bytes
-  have hfixed : ∀ x5,
-      cpsTripleWithin 4 (B + 100) (B + 128) code
-        (P ** (.x5 ↦ᵣ x5))
-        (joinedResult sp0 listBase saved bytes listLen index) := by
-    intro x5
-    have ht := noncanonicalSemanticTail sp0 listBase offset len v12 x5 saved
-      bytes listLen index h_result
-    exact cpsTripleWithin_weaken (fun h hp => by
-      unfold P scalarNo5 at hp
-      unfold scalarCoreAt5
-      xperm_hyp hp) (fun _ hp => hp) ht
-  have howned := cpsTripleWithin_of_forall_regIs_to_regOwn hfixed
-  exact cpsTripleWithin_weaken (fun h hp => by
-      unfold scalarCore at hp
-      unfold P scalarNo5
-      xperm_hyp hp) (fun _ hp => hp) howned
-
 
 def fallReady
     (sp0 listBase : Word)
@@ -694,13 +564,12 @@ theorem fallSemanticTail
       offset len) (fun h_ok => ?_)
   cases h_out with
   | tooLong h_len => simp at h_eq
-  | noncanonical h_pos h_fit h_zero => simp at h_eq
   | empty h_len =>
       exact successSemanticOwned sp0 listBase offset len v12 0 saved bytes
         listLen index (.empty offset len h_ok h_len)
-  | success h_pos h_fit h_nz =>
+  | success h_pos h_fit =>
       exact successSemanticOwned sp0 listBase offset len v12 _ saved bytes
-        listLen index (.success offset len h_ok h_pos h_fit h_nz)
+        listLen index (.success offset len h_ok h_pos h_fit)
 
 
 theorem takenSemanticTail
@@ -730,14 +599,11 @@ theorem takenSemanticTail
       offset len) (fun h_ok => ?_)
   cases h_out with
   | empty h_len => simp at h_ne
-  | success h_pos h_fit h_nz => simp at h_ne
+  | success h_pos h_fit => simp at h_ne
   | tooLong h_len =>
       have ht := tooLongSemanticOwned sp0 listBase offset len v12 saved bytes
         listLen index (.tooLong offset len h_ok h_len)
       exact cpsTripleWithin_mono_nSteps (by omega) ht
-  | noncanonical h_pos h_fit h_zero =>
-      exact noncanonicalSemanticOwned sp0 listBase offset len v12 saved bytes
-        listLen index (.noncanonical offset len h_ok h_pos h_fit h_zero)
 
 
 theorem scalarTaken_framed_to_ready

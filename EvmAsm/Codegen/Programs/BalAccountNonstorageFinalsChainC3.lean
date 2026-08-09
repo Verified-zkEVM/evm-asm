@@ -8,15 +8,14 @@
     82  mv  a1, a2             (value content length)
     83  addi a2, s2, 8         (the out block's post_balance slot)
     84  jal rlp_content_to_u256_be
-    85  bnez a0 → reject       (too-long / non-canonical value)
+    85  bnez a0 → reject       (too-long value)
     86  li  t0, 1
     87  sd  t0, 0(s2)          (has_balance := 1)
 
-  The callee is dispatched from its four PUBLIC per-case sub-specs with the
-  case split done at the LEMMA level (the length and lead byte are
-  quantified parameters here), so the success exit carries the
-  `vLen.toNat ≤ 32` bound the `FinalsDerivation` balance image requires —
-  the packaged four-way dispatch post cannot supply it.
+  The callee is dispatched from its public per-case sub-specs with a
+  three-way scalar split (too long, empty, or successful bounded value), so
+  the success exit carries the `vLen.toNat ≤ 32` bound required by the
+  `FinalsDerivation` balance image.
 -/
 
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainC
@@ -60,7 +59,7 @@ def balCaptureRej (aB newSp oB : Word) (acctBytes : List (BitVec 8))
 
 /-- Slots 81–87: capture the balance value into the out block.  The value
     window `(vNext, vLen)` decodes at `off` inside the tuple window
-    `[·, tEnd]`; the length/canonicality cases are split here so each
+    `[·, tEnd]`; the length cases are split here so each
     per-case sub-spec applies with its exact hypotheses. -/
 theorem bansf_balCapture_spec (aB newSp oB : Word) (aLen tEnd off : Nat)
     (vNext vLen : Word) (acctBytes : List (BitVec 8))
@@ -459,21 +458,28 @@ theorem bansf_balCapture_spec (aB newSp oB : Word) (aLen tEnd off : Nat)
                 (sepConj_mono (regIs_implies_regOwn .x1) (fun _ x => x))))))) h hq4
     refine (sepConj_pure_right h).2 ⟨?_, by omega⟩
     xperm_hyp hq5
+  /-
   by_cases hcz : acctBytes[(vNext - vLen - aB).toNat]'hsoffb = (0 : BitVec 8)
-  · -- non-canonical value (leading zero byte): status 3 → reject
-    have hcs := rlp_content_to_u256_be_noncanonical_spec_within CB aB (oB + 8)
-      (B + 336 + 4) v5 v6 acctBytes ((vNext - vLen - aB).toNat) vLen.toNat
-      (by omega) (by omega) hsalign hsoffb (by omega) (hvalid _ hsoffb) hcz
+  · -- leading-zero value: the lenient scalar callee still succeeds
+    have hcs := rlp_content_to_u256_be_success_spec_within CB aB (oB + 8)
+      (B + 336 + 4) v5 v6 v7 v28 v29 acctBytes
+      ((vNext - vLen - aB).toNat) vLen.toNat
+      (by omega) (by omega) hsalign hoalign8 hsoffb (by omega)
+      (by omega) hoover8
+      (fun k hk => hvalid _ (by omega))
+      (fun k hk => hdval _ (by omega))
     rw [← hlenrep] at hcs
     have hcs' := cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hcs
       (P' := ((.x1 : Reg) ↦ᵣ (B + 336 + 4)) **
         (((.x10 : Reg) ↦ᵣ (aB + BitVec.ofNat 64 ((vNext - vLen - aB).toNat))) **
          ((.x11 : Reg) ↦ᵣ vLen) ** ((.x12 : Reg) ↦ᵣ (oB + 8)) **
-         ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+         ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+         ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
          bytesRegion aB acctBytes ** memOwnU256 (oB + 8)))
-    have hcall := bansf_callSite84_content_to_u256_be (n := 11) vRa (by pcf) hcs'
+    have hcall := bansf_callSite84_content_to_u256_be
+      (n := 7 * vLen.toNat + 16) vRa (by pcf) hcs'
     have hcallF := cpsTripleWithin_frameR
       (((.x7 : Reg) ↦ᵣ v7) **
        ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
@@ -497,14 +503,14 @@ theorem bansf_balCapture_spec (aB newSp oB : Word) (aLen tEnd off : Nat)
         have hp3 := sepConj_mono hmemU (fun _ x => x) h hp2
         xperm_hyp hp3)
       hsetup hcallF
-    have hroute := hrejRoute (3 : Word) (by decide)
+    have hroute := hrejRoute (0 : Word) (by decide)
     rw [show B + 340 = B + 336 + 4 from by bv_omega] at hroute
     have hfull2 := cpsTripleWithin_seq_perm_same_cr
       (fun h hp => by
         have hp2 : ((((.x7 : Reg) ↦ᵣ v7) ** ((.x28 : Reg) ↦ᵣ v28) **
             ((.x29 : Reg) ↦ᵣ v29) **
             ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31)) **
-           (((.x10 : Reg) ↦ᵣ (3 : Word)) ** ((.x11 : Reg) ↦ᵣ vLen) **
+           (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ vLen) **
             ((.x12 : Reg) ↦ᵣ (oB + 8)) **
             regOwn .x5 ** regOwn .x6 **
             ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (B + 336 + 4)) **
@@ -526,11 +532,12 @@ theorem bansf_balCapture_spec (aB newSp oB : Word) (aLen tEnd off : Nat)
         (cpsTripleWithin_as_cpsBranchWithin_left (B + 352)
           (balCaptureOk aB newSp oB ((vNext - vLen - aB).toNat) vLen.toNat acctBytes F)
           hfull2))
-  · -- canonical non-empty value: right-aligned copy, success
+  -/
+  · -- non-empty value: right-aligned copy, success
     have hcs := rlp_content_to_u256_be_success_spec_within CB aB (oB + 8)
       (B + 336 + 4) v5 v6 v7 v28 v29 acctBytes ((vNext - vLen - aB).toNat) vLen.toNat
-      (by omega) (by omega) hsalign hoalign8 hsoffb hcz
-      (by omega) (by omega) hoover8
+      (by omega) (by omega) hsalign hoalign8 hsoffb (by omega)
+      (by omega) hoover8
       (fun k hk => hvalid _ (by omega))
       (fun k hk => hdval _ (by omega))
     rw [← hlenrep] at hcs

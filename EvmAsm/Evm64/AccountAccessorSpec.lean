@@ -49,7 +49,7 @@
   6. **`rlp_content_to_u64` over the nonce window**
      (`account_rlp_content_to_u64_nonce_spec_within`): the content decode
      deterministically succeeds with `a0 = nonce` (EIP-2681 refutes too-long,
-     minimal-BE refutes non-canonical; `len = 0` is the canonical zero).
+     the bounded-value success arm; `len = 0` is the zero case).
 
   7. **`rlp_content_to_u256_be` over the balance window**
      (`account_rlp_content_to_u256_be_balance_spec_within`): the content decode
@@ -830,11 +830,10 @@ theorem account_balance_copyN_eq (a : Account) (hnonce : a.nonce < 2 ^ 256) :
 
 /-- **`rlp_content_to_u64` over field 0's content window decodes the nonce.**
     From the content pointer/length the accessor derives after the field-0
-    `rlp_walk_next` (`ptr = a0 - a2`, `len = a2`), the strict content decoder
+    `rlp_walk_next` (`ptr = a0 - a2`, `len = a2`), the content decoder
     deterministically succeeds with `a0 = nonce` (as a u64), `a1 = 0` — the
-    too-long arm is refuted by EIP-2681 (`nonce < 2^64` ⇒ `len ≤ 8`), the
-    non-canonical arm by `Nat.toBytesBE`'s minimality, and the `len = 0` arm
-    yields the canonical zero.
+    too-long arm is refuted by EIP-2681 (`nonce < 2^64` ⇒ `len ≤ 8`), and the
+    `len = 0` arm yields zero.
 
     `t1`/`x6` takes an arbitrary incoming value `x6Old` (the callee's own
     `MV x6 x10` overwrites it), so this is directly consumable by
@@ -847,7 +846,7 @@ theorem account_rlp_content_to_u64_nonce_spec_within
     (hover : listBase.toNat + (encodeAccount a).length < 2 ^ 64)
     (hvalid : ∀ k, k < (encodeAccount a).length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (7 * (Nat.toBytesBE a.nonce).length + 11) base (raVal &&& ~~~1)
+    cpsTripleWithin (7 * (Nat.toBytesBE a.nonce).length + 9) base (raVal &&& ~~~1)
       (rlp_content_to_u64_code base)
       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64
           ((2 + (encodeBytes (Nat.toBytesBE a.nonce)).length)
@@ -877,7 +876,7 @@ theorem account_rlp_content_to_u64_nonce_spec_within
     (fun k hk => hvalid (cOff + k) (by omega))
   refine cpsTripleWithin_weaken (fun h hp => hp) (fun h hp => ?_) ht
   refine sepConj_mono_right (fun h' hbody => ?_) h hp
-  rcases hbody with h1 | h2 | h3 | h4
+  rcases hbody with h1 | h2 | h3
   · -- too-long (`8 < len`): refuted by EIP-2681
     obtain ⟨_, hb', _, _, _, hin⟩ := h1
     exact absurd ((sepConj_pure_right hb').1 hin).2 (by omega)
@@ -892,29 +891,8 @@ theorem account_rlp_content_to_u64_nonce_spec_within
       omega
     have he : (0 : Word) = BitVec.ofNat 64 a.nonce := by rw [hn0]; decide
     exact ⟨ha, hb', hdisj, hunion, he ▸ hx10, ((sepConj_pure_right hb').1 hin).1⟩
-  · -- non-canonical (`content[0] = 0`): refuted by `toBytesBE`'s minimality
-    obtain ⟨_, hb', _, _, _, hin⟩ := h3
-    obtain ⟨hlen0, _, hbyte⟩ := ((sepConj_pure_right hb').1 hin).2
-    have hpos : 0 < a.nonce := by
-      by_contra h0
-      have hz : a.nonce = 0 := by omega
-      have hnil : Nat.toBytesBE a.nonce = [] := by rw [hz]; exact Nat.toBytesBE_zero
-      rw [hcLen, hnil] at hlen0
-      simp at hlen0
-    obtain ⟨b, tl, hb, hbne⟩ := Nat.toBytesBE_eq_cons_of_pos a.nonce hpos
-    have hwin := account_nonce_content_window a hn256
-    rw [← hcLen, ← hcOff] at hwin
-    have hclt : cOff < (encodeAccount a).length := by omega
-    have hgb : getByteAt (encodeAccount a) cOff = (encodeAccount a)[cOff]'hclt := by
-      simp [getByteAt, hclt]
-    rw [List.drop_eq_getElem_cons hclt] at hwin
-    have hcl' : cLen = tl.length + 1 := by rw [hcLen, hb]; simp
-    rw [hcl', List.take_succ_cons, hb] at hwin
-    injection hwin with hhead _
-    rw [hgb, hhead] at hbyte
-    exact absurd hbyte hbne
   · -- success: the window decodes to the nonce
-    obtain ⟨ha, hb', hdisj, hunion, hx10, hin⟩ := h4
+    obtain ⟨ha, hb', hdisj, hunion, hx10, hin⟩ := h3
     have hval : BitVec.ofNat 64
         (Nat.fromBytesBE (((encodeAccount a).drop cOff).take cLen))
         = BitVec.ofNat 64 a.nonce := by
@@ -927,11 +905,11 @@ theorem account_rlp_content_to_u64_nonce_spec_within
 
 /-- **`rlp_content_to_u256_be` over field 1's content window produces the
     32-byte BE balance.** From the content pointer/length the accessor derives
-    after the field-1 `rlp_walk_next`, the strict content decoder
-    deterministically succeeds with status `a0 = 0` and the output cell holding
-    exactly `word256Bytes32 a.balance` — the too-long arm is refuted by
-    `balance < 2^256` (`len ≤ 32`), the non-canonical arm by `Nat.toBytesBE`'s
-    minimality, and both the `len = 0` and copy arms produce the fixed-width BE
+    after the field-1 `rlp_walk_next`, the content decoder deterministically
+    succeeds with status `a0 = 0` and the output cell holding exactly
+    `word256Bytes32 a.balance` — the too-long arm is refuted by
+    `balance < 2^256` (`len ≤ 32`), and both the `len = 0` and copy arms produce
+    the fixed-width BE
     form (`account_balance_copyN_eq`). Unlike the u64 decoder, this spec has no
     pinned scratch register, so it is directly consumable by the accessor's
     call composition. -/
@@ -978,7 +956,7 @@ theorem account_rlp_content_to_u256_be_balance_spec_within
     hoover (fun k hk => hvalid (cOff + k) (by omega)) hdvalid
   refine cpsTripleWithin_weaken (fun h hp => hp) (fun h hp => ?_) ht
   refine sepConj_mono_right (fun h' hbody => ?_) h hp
-  rcases hbody with h1 | h2 | h3 | h4
+  rcases hbody with h1 | h2 | h3
   · -- too-long (`32 < len`): refuted since the balance is a u256
     obtain ⟨_, hb', _, _, _, hin⟩ := h1
     exact absurd ((sepConj_pure_right hb').1 hin).2 (by omega)
@@ -994,30 +972,8 @@ theorem account_rlp_content_to_u256_be_balance_spec_within
     have he : List.replicate 32 (0 : BitVec 8) = word256Bytes32 a.balance := by
       simp only [word256Bytes32, hz, toBytesBEFixed_zero]
     exact ⟨ha, hb', hdisj, hunion, hx10, he ▸ ((sepConj_pure_right hb').1 hin).1⟩
-  · -- non-canonical (`content[0] = 0`): refuted by `toBytesBE`'s minimality
-    obtain ⟨_, hb', _, _, _, hin⟩ := h3
-    obtain ⟨hlen0, hbyte⟩ := ((sepConj_pure_right hb').1 hin).2
-    have hpos : 0 < a.balance.toNat := by
-      by_contra h0
-      have hz : a.balance.toNat = 0 := by omega
-      have hnil : Nat.toBytesBE a.balance.toNat = [] := by
-        rw [hz]; exact Nat.toBytesBE_zero
-      rw [hcLen, hnil] at hlen0
-      simp at hlen0
-    obtain ⟨b, tl, hb, hbne⟩ := Nat.toBytesBE_eq_cons_of_pos a.balance.toNat hpos
-    have hwin := account_balance_content_window a hnonce
-    rw [← hcLen, ← hcOff] at hwin
-    have hclt : cOff < (encodeAccount a).length := by omega
-    have hgb : getByteAt (encodeAccount a) cOff = (encodeAccount a)[cOff]'hclt := by
-      simp [getByteAt, hclt]
-    rw [List.drop_eq_getElem_cons hclt] at hwin
-    have hcl' : cLen = tl.length + 1 := by rw [hcLen, hb]; simp
-    rw [hcl', List.take_succ_cons, hb] at hwin
-    injection hwin with hhead _
-    rw [hgb, hhead] at hbyte
-    exact absurd hbyte hbne
   · -- success: the right-aligned copy is `word256Bytes32 a.balance`
-    obtain ⟨ha, hb', hdisj, hunion, hx10, hin⟩ := h4
+    obtain ⟨ha, hb', hdisj, hunion, hx10, hin⟩ := h3
     have he : copyN (List.replicate 32 (0 : BitVec 8)) (encodeAccount a) (32 - cLen) cOff cLen
         = word256Bytes32 a.balance := by
       have hc := account_balance_copyN_eq a hnonce

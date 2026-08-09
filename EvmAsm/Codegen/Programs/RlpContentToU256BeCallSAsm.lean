@@ -9,10 +9,7 @@ namespace RlpContentToU256BeCallSAsm
 
 abbrev B : Word := (GuestAddrs.rlp_content_to_u256_be : Word)
 
-/-! Flat caller-facing framing for the already-proven strict content leaf.
-The semantic disjunction is copied unchanged from the Rv64 theorem; only the
-link register and ambient assertion are made explicit for `callWithin_spec`.
--/
+/-! Flat caller-facing framing for the lenient content leaf. -/
 
 def flatPre
     (srcBase outPtr : Word) (len : Nat) (srcOff : Nat)
@@ -34,12 +31,10 @@ def flatPost
      (((.x10 ↦ᵣ (2 : Word)) ** memOwnU256 outPtr ** ⌜32 < len⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         ⌜len = 0⌝) h) ∨
-     (((.x10 ↦ᵣ (3 : Word)) ** memOwnU256 outPtr **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) **
         bytesRegion outPtr
           (copyN (List.replicate 32 (0 : BitVec 8)) srcBytes (32 - len) srcOff len) **
-        ⌜0 < len ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+        ⌜0 < len⌝) h)))
 
 #guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
