@@ -745,6 +745,16 @@ def accountWritesApplyDeletesFunction : String :=
   "  addi s3, s3, 1; j .Lawd_tx_loop\n" ++
   ".Lawd_hit:\n" ++
   "  mv a5, s3; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawd_overflow\n" ++
+  -- PHASE SPLIT (pinned Python authority, not inferred from this Lean mirror):
+  -- before transaction finalization, `evm_selfdestruct_destroyed_table` is a
+  -- same-transaction marker only: it feeds same-tx read/EXTCODEHASH,
+  -- CREATE/CREATE2 collision, and NEW_ACCOUNT semantics.  It must not be
+  -- collapsed into a Present-None post-state tombstone here.  The pinned
+  -- authority is `vm/__init__.py:184,234`, `vm/interpreter.py:135,151,349`,
+  -- `vm/instructions/system.py:691-693`, and `fork.py:1201-1202`.
+  -- Lean mirror (not authority): this routine is the transaction-boundary
+  -- materializer; every deferred delete must cross this path before it can
+  -- become Present-None in `account_writes`.
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
@@ -766,6 +776,10 @@ def accountWritesApplyDeletesFunction : String :=
   "  ld t1, 48(sp); sd t1, 32(t0); ld t1, 56(sp); sd t1, 40(t0)\n" ++
   "  ld t1, 64(sp); sd t1, 48(t0); ld t1, 72(sp); sd t1, 56(t0)\n" ++
   "  j .Lawd_keep_present\n" ++
+  -- A pre-finalization table hit must not take this Present-None branch: doing
+  -- so makes EXTCODEHASH/availability observe deletion too early, can admit a
+  -- same-tx CREATE collision, or mischarge NEW_ACCOUNT.  Conversely, skipping
+  -- this boundary materialization leaves deleted state visible to the next tx.
   ".Lawd_present_none:\n" ++
   "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0\n" ++
   "  sd zero, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
@@ -832,8 +846,13 @@ def accountWritesCommitPendingFunction : String :=
     not 0).  That mid-tx flag is still `evm_selfdestruct_destroyed_table`; it
     is **not** the same fact as Present-None (0 after finalize).  Table stays
     until mid-tx empty-code is carried by Present Account without a side list.
-    ANSWER: tombstone read is genuine for Present-None; same-tx EMPTY_CODE_HASH
-    is a different obligation — table not yet redundant.
+    Pinned Python authority (not inferred from this Lean mirror) is
+    `vm/__init__.py:184,234`, `vm/interpreter.py:135,151,349`,
+    `vm/instructions/system.py:691-693`, and `fork.py:1201-1202`.
+    Lean mirror (not authority): this read is valid only after the boundary
+    materialization above.  Collapsing the phases makes EXTCODEHASH/availability
+    observe deletion too early, can admit a same-tx CREATE collision, or mischarge
+    NEW_ACCOUNT; skipping the boundary path leaves deleted state visible next tx.
 
     a0 = address ptr (20 B BE).  Clobbers t0-t6 and a1/a2. -/
 def accountWritesIsAbsentFunction : String :=

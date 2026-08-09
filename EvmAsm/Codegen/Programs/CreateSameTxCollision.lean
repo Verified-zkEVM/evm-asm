@@ -14,7 +14,16 @@ namespace EvmAsm.Codegen
     EIP-6780 same-transaction SELFDESTRUCTs need one extra live-state check:
     a contract queued in `evm_selfdestruct_destroyed_table` is still unavailable
     for another CREATE/CREATE2 during the transaction, even if the latest
-    non-storage effect has post nonce zero. -/
+    non-storage effect has post nonce zero.
+
+    PHASE SPLIT: pinned Python authority is `vm/__init__.py:184,234`,
+    `vm/interpreter.py:135,151,349`, `vm/instructions/system.py:691-693`,
+    and `fork.py:1201-1202`.  Before transaction finalization the table is
+    collision-only for this same-tx decision; it is not a Present-None row.
+    Lean mirror (not authority): this scan supplies that collision guard.
+    Collapsing the phases admits a same-tx CREATE collision; skipping the
+    transaction-boundary account-write path instead leaves deleted state visible
+    in the next transaction. -/
 def createSameTxCollisionScanAsm (hasSalt : Bool) : String :=
   "  la t0, exec_nonstorage_effect_count\n" ++
   "  ld t1, 0(t0)\n" ++
