@@ -307,7 +307,9 @@ def ziskBalSerializerMeasurePrologue : String :=
   balSerializerMeasureOuterFunction ++
   balSerializerEmitOuterFunction ++
   balSerializerRebuildHashFunction ++
-  balCanonicalSortFunction ++
+  -- `"\n"` load-bearing: emitProgramR leaves no trailing newline after final jalr
+  -- (GH #10754 / BalCanonicalSort aggregate class).
+  balCanonicalSortFunction ++ "\n" ++
   balSerializerMeasureAccountFunction ++
   balSerializerMeasureReadsFunction ++
   balSerializerMeasureBalanceFunction ++
