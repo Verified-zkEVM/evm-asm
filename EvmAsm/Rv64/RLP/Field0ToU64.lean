@@ -19,8 +19,7 @@
   ### Outputs
   * `a0` (`x10`) — decoded `u64` value on success; `0` on every failure path.
   * `a1` (`x11`) — status: `0` ok · `1` parse/list/item failure while locating
-    field 0 · `2` scalar too long (`rlp_content_to_u64` status 2) · `3` scalar
-    non-canonical (`rlp_content_to_u64` status 3).
+    field 0 · `2` scalar too long (`rlp_content_to_u64` status 2).
 
   Scratch `t0..t6` (`x5,x6,x7,x28..x31`) and `a3`/`x13` (used to save the
   caller's `ra` across the three nested calls) are clobbered; `ra` preserved.
@@ -65,8 +64,8 @@
   **Remaining work** (tracked as a bead, see PR body): lift the `rlp_walk_init`
   and `rlp_walk_next` call compositions (idx 1 and idx 3) the same way, and
   combine all three call compositions plus the two failure branches into one
-  unified `rlp_field0_to_u64_spec_within` top theorem with a four-way
-  disjunctive postcondition (success / status 1 / 2 / 3), per the
+  unified `rlp_field0_to_u64_spec_within` top theorem with a three-way
+  disjunctive postcondition (success / status 1 / 2), per the
   `AGENTS.md` spec-design convention.
 -/
 
@@ -772,7 +771,7 @@ theorem rlp_field0_to_u64_walk_next_call_spec_within
 
 /-! ## Unified content-decoder return path. -/
 
-/-- Resources and four-way scalar outcome that survive the wrapper's final
+/-- Resources and three-way scalar outcome that survive the wrapper's final
 `ra` restore and `ret`. -/
 def rlpField0ContentRest (srcBase contentLen t4Old t5Old t6Old : Word)
     (srcBytes : List (BitVec 8)) (srcOff len : Nat) : Assertion :=
@@ -783,12 +782,10 @@ def rlpField0ContentRest (srcBase contentLen t4Old t5Old t6Old : Word)
    (fun h =>
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
-     (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
      (((.x10 ↦ᵣ BitVec.ofNat 64
           (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
         (.x11 ↦ᵣ (0 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝) h)))
+        ⌜0 < len ∧ len ≤ 8⌝) h)))
 
 theorem rlpField0ContentRest_pcFree
     (srcBase contentLen t4Old t5Old t6Old : Word)
@@ -800,21 +797,18 @@ theorem rlpField0ContentRest_pcFree
   apply pcFree_sepConj
   · pcFree
   intro h hp
-  rcases hp with hp | hp | hp | hp
+  rcases hp with hp | hp | hp
   · exact (by pcFree :
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝).pcFree) h hp
   · exact (by pcFree :
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝).pcFree) h hp
   · exact (by pcFree :
-      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff = 0⌝).pcFree) h hp
-  · exact (by pcFree :
       ((.x10 ↦ᵣ BitVec.ofNat 64 (Nat.fromBytesBE ((srcBytes.drop srcOff).take len))) **
         (.x11 ↦ᵣ (0 : Word)) **
-        ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes srcOff ≠ 0⌝).pcFree) h hp
+        ⌜0 < len ∧ len ≤ 8⌝).pcFree) h hp
 
 /-- Starting at the content call, cover all scalar outcomes (success, empty,
-too long, and non-canonical), then restore the caller's `ra` and return. -/
+too long), then restore the caller's `ra` and return. -/
 theorem rlp_field0_to_u64_content_call_spec_within
     (base srcBase savedRa x1Val t0Old x6Old t2Old t3Old t4Old t5Old t6Old : Word)
     (srcBytes : List (BitVec 8)) (contentLen : Word) (srcOff len : Nat)
@@ -825,7 +819,7 @@ theorem rlp_field0_to_u64_content_call_spec_within
     (hsvalid : ∀ k, k < len →
       isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + k)) = true)
     (hcontentLen : contentLen = BitVec.ofNat 64 len) :
-    cpsTripleWithin (7 * len + 14) (base + 32) (savedRa &&& ~~~(1 : Word))
+    cpsTripleWithin (7 * len + 12) (base + 32) (savedRa &&& ~~~(1 : Word))
       (rlp_field0_to_u64_full_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ contentLen) **
        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
@@ -850,7 +844,7 @@ theorem rlp_field0_to_u64_content_call_spec_within
   let Q : Assertion :=
     ((.x1 ↦ᵣ (base + 36)) ** (.x13 ↦ᵣ savedRa) **
       rlpField0ContentRest srcBase (BitVec.ofNat 64 len) t4Old t5Old t6Old srcBytes srcOff len)
-  have hcallee : cpsTripleWithin (7 * len + 11) (base + (1536 : Word))
+  have hcallee : cpsTripleWithin (7 * len + 9) (base + (1536 : Word))
       ((base + 32 + 4) &&& ~~~(1 : Word))
       (rlp_content_to_u64_code (base + (1536 : Word)))
       ((.x1 ↦ᵣ (base + 32 + 4)) ** Prest) Q :=
@@ -860,7 +854,7 @@ theorem rlp_field0_to_u64_content_call_spec_within
         dsimp [Q, rlpField0ContentRest] at hp ⊢
         xperm_hyp hp) hcallee1
   have hcall := rlp_field0_to_u64_call_content base x1Val hbase0 (by pcFree) hcallee
-  have hcall' : cpsTripleWithin (1 + (7 * len + 11)) (base + 32) (base + 36)
+  have hcall' : cpsTripleWithin (1 + (7 * len + 9)) (base + 32) (base + 36)
       (rlp_field0_to_u64_full_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) **

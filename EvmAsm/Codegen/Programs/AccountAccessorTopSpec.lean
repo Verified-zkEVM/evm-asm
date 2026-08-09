@@ -136,7 +136,7 @@ private theorem aen_wn_disjoint :
 
 private theorem aen_cu64_disjoint :
     accountExtractNonceCode.Disjoint (rlp_content_to_u64_code contentU64Base) :=
-  CodeReq.ofProg_disjoint_range_len _ _ 23 _ _ 22
+  CodeReq.ofProg_disjoint_range_len _ _ 23 _ _ 18
     accountExtractNonce_prog_length rlp_content_to_u64_prog_length
     (fun k1 k2 hk1 hk2 => by unfold extractNonceBase contentU64Base Codegen.GuestAddrs.account_extract_nonce Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
@@ -166,13 +166,13 @@ private theorem wi_wn_disjoint :
 
 private theorem wi_cu64_disjoint :
     (rlp_walk_init_code walkInitBase).Disjoint (rlp_content_to_u64_code contentU64Base) :=
-  CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 22
+  CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 18
     rlp_walk_init_prog_length rlp_content_to_u64_prog_length
     (fun k1 k2 hk1 hk2 => by unfold walkInitBase contentU64Base Codegen.GuestAddrs.rlp_walk_init Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
 private theorem wn_cu64_disjoint :
     (rlp_walk_next_code walkNextBase).Disjoint (rlp_content_to_u64_code contentU64Base) :=
-  CodeReq.ofProg_disjoint_range_len _ _ 103 _ _ 22
+  CodeReq.ofProg_disjoint_range_len _ _ 103 _ _ 18
     rlp_walk_next_prog_length rlp_content_to_u64_prog_length
     (fun k1 k2 hk1 hk2 => by unfold walkNextBase contentU64Base Codegen.GuestAddrs.rlp_walk_next Codegen.GuestAddrs.rlp_content_to_u64; bv_omega)
 
@@ -366,7 +366,7 @@ theorem account_rlp_content_to_u64_nonce_own_spec_within
     (hover : listBase.toNat + (encodeAccount a).length < 2 ^ 64)
     (hvalid : ∀ k, k < (encodeAccount a).length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (7 * (Nat.toBytesBE a.nonce).length + 11) base (raVal &&& ~~~1)
+    cpsTripleWithin (7 * (Nat.toBytesBE a.nonce).length + 9) base (raVal &&& ~~~1)
       (rlp_content_to_u64_code base)
       (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64
           ((2 + (encodeBytes (Nat.toBytesBE a.nonce)).length)
