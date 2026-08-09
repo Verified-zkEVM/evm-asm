@@ -25,7 +25,6 @@ balAccountAccessOutcomeDescriptorsFunction	EvmAsm/Codegen/Programs/BalAccountAcc
 balAccountChangeDescriptorFunction	EvmAsm/Codegen/Programs/BalAccountChangeDescriptor.lean
 balAccountCodeConsistentFunction	EvmAsm/Codegen/Programs/BalAccountCodeConsistent.lean
 balAccountHasStateChangeFunction	EvmAsm/Codegen/Programs/BalAccountHasStateChange.lean
-balAccountIsModeledSystemFunction	EvmAsm/Codegen/Programs/BalModeledSystem.lean
 balAccountNonstorageFinalsFunction	EvmAsm/Codegen/Programs/BalAccountNonstorageFinals.lean
 balAccountPathFunction	EvmAsm/Codegen/Programs/BalAccountPath.lean
 balAccountPostFieldsFunction	EvmAsm/Codegen/Programs/BalAccountPostFields.lean
@@ -140,7 +139,6 @@ bn254PointZero64Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254PtCopyFunction	EvmAsm/Codegen/Programs/Bn254Pairing.lean
 bn254ScalarMulFunction	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254ValidateG1Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
-bsrApplyModeledSystemPostFieldsFunction	EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
