@@ -263,13 +263,13 @@ def teerCapacity : Nat := teerSuccessfulAuthCapacity
 /-- Extent as capacity × stride. -/
 def teerTableBytes : Nat := teerCapacity * teerEntryBytes
 
-/-- **`capacity * stride = extent`, EXACT** — 1060 × 32 = 33920. -/
-theorem teerTableBytes_eq : teerTableBytes = 33920 := by decide
+/-- **`capacity * stride = extent`, EXACT** — 2144 × 32 = 68608. -/
+theorem teerTableBytes_eq : teerTableBytes = 68608 := by decide
 
-theorem teerCapacity_eq : teerCapacity = 1060 := by decide
+theorem teerCapacity_eq : teerCapacity = 2144 := by decide
 
 /-! **Model ≡ emitted image.** ⚠️ `teerTableBytes_eq` alone does *not* pin the
-    model to the guest: the data section emits a **hardcoded** `.zero 33920`
+    model to the guest: the data section emits a **hardcoded** `.zero 68608`
     rather than interpolating `teerSuccessfulAuthCapacity`, so the derived
     extent and the emitted literal are two independent numbers that could
     drift apart silently. This guard is what ties them, in the repo's

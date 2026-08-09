@@ -611,11 +611,11 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   ".balign 8\n" ++
   "teer_success_count:\n  .zero 8\n" ++
   "teer_sender_addr:\n  .zero 32\n" ++
-  "teer_success_table:\n  .zero 33920\n" ++
+  "teer_success_table:\n  .zero 68608\n" ++
   -- bmvmx.5.5.18 S1: the ordered EIP-7702 simulation owns one fixed union
   -- table for all transaction senders and recovered authorization authorities.
   -- Its capacity is the conservative sum of the supported 200M-gas ceilings:
-  -- 200M / 21,000 senders plus ceil(200M / 7,816) auth tuples.  Overflow is
+  -- 200M / 12,000 senders plus floor(200M / 7,816) auth tuples.  Overflow is
   -- therefore unreachable for a valid block and is fail-closed.
   ".balign 8\n" ++
   "bv_eip7702_authority_event_count:\n  .zero 8\n" ++
