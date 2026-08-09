@@ -786,25 +786,15 @@ def statelessVerdictV2Function : String :=
   "  j .Lc1_bd_same_block\n" ++
   ".Lc1_bd_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_bd_code_ok\n" ++
-  ".Lc1_bd_same_block:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  bnez a0, .Lc1_bd_code_ok\n" ++
-  -- The BAL's declared code final for the builder address is the remaining
-  -- same-block deployment signal (a deploy the guest's runtime did not replay,
-  -- e.g. an unsupported top-level creation): the code comparators validate the
-  -- BAL's code claims wherever execution is available, so a declared non-empty
-  -- final mirrors the spec's TransactionState read of the just-deployed code.
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, builder_deposit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Ldsr_fail\n" ++
-  ".Lc1_bd_code_ok:\n" ++
+   -- M2 (#11834 / #11797): same-block code is header + `exec_code_effect` only.
+   -- A supplied-BAL non-empty code final must not steer past InvalidBlock when
+   -- neither header nor same-block effect exposes live code (FA-ward #11806).
+   ".Lc1_bd_same_block:\n" ++
+   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
+   "  jal ra, find_code_effect_by_address\n" ++
+   "  beqz a0, .Ldsr_fail\n" ++
+   ".Lc1_bd_code_ok:\n" ++
+
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, builder_exit_contract_addr\n" ++
@@ -822,25 +812,13 @@ def statelessVerdictV2Function : String :=
   "  j .Lc1_be_same_block\n" ++
   ".Lc1_be_check_len:\n" ++
   "  la t0, cahsr_code_length; ld t0, 0(t0); bnez t0, .Lc1_be_code_ok\n" ++
-  ".Lc1_be_same_block:\n" ++
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
-  "  jal ra, find_code_effect_by_address\n" ++
-  "  bnez a0, .Lc1_be_code_ok\n" ++
-  -- The BAL's declared code final for the builder address is the remaining
-  -- same-block deployment signal (a deploy the guest's runtime did not replay,
-  -- e.g. an unsupported top-level creation): the code comparators validate the
-  -- BAL's code claims wherever execution is available, so a declared non-empty
-  -- final mirrors the spec's TransactionState read of the just-deployed code.
-  "  la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)\n" ++
-  "  la a2, builder_exit_contract_addr; la a3, c1_bal_acct_ptr; la a4, c1_bal_acct_len\n" ++
-  "  jal ra, bal_find_account_by_address\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, c1_bal_acct_ptr; ld a0, 0(t0); la t0, c1_bal_acct_len; ld a1, 0(t0); la a2, bacc_finals\n" ++
-  "  jal ra, bal_account_nonstorage_finals\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 56(t0); beqz t1, .Ldsr_fail\n" ++
-  "  la t0, bacc_finals; ld t1, 72(t0); beqz t1, .Ldsr_fail\n" ++
-  ".Lc1_be_code_ok:\n" ++
+   -- M2 (#11834): same-block exit predeploy — header + exec_code_effect only.
+   ".Lc1_be_same_block:\n" ++
+   "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
+   "  jal ra, find_code_effect_by_address\n" ++
+   "  beqz a0, .Ldsr_fail\n" ++
+   ".Lc1_be_code_ok:\n" ++
+
   -- EIP-8282: derive the builder deposit and builder exit request bodies through
   -- the same checked system-call path. Request-queue storage is resolved by the
   -- authenticated state path; empty return data is represented by a zero body
