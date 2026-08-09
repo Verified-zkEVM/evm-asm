@@ -295,8 +295,6 @@ that imports your specification and `SpecRef`, and seeks to prove that
 `SpecRef`'s output is one of the allowed outputs according to your
 specification.
 
-If you are interested in producing such a specification, please open an issue.
-
 ### Stateless-guest scaffold (currently **unproved**)
 
 `EvmAsm/Codegen/Programs.lean` (and the submodules under
