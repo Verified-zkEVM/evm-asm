@@ -57,36 +57,43 @@ report_checks() {
 }
 
 start codegen codegen_checks
-start guestaddrs-starts scripts/check-guestaddrs-starts.sh
-start asm-to-program scripts/check-asm-to-program.sh
+start guestaddrs-starts run_step scripts/check-guestaddrs-starts.sh
+start asm-to-program run_step scripts/check-asm-to-program.sh
 start reports report_checks
-start axioms scripts/check-axioms.sh
-start arithmetic-fuzz scripts/fuzz-arith-diff.sh
+start axioms run_step scripts/check-axioms.sh
+start arithmetic-fuzz run_step scripts/fuzz-arith-diff.sh
 
 status=0
 for i in "${!pids[@]}"; do
   name="${names[$i]}"
   lane_status=PASS
+  child_failed=0
   if ! wait "${pids[$i]}"; then
-    lane_status=FAIL
+    child_failed=1
     status=1
   fi
 
   log="$work/$name.log"
   steps="$(grep -c '^CHECK_BUILD_PARALLEL_STEP ' "$log" || true)"
-  skips="$(grep -Eic '(^|[^[:alpha:]])(skip|skipping)([^[:alpha:]]|$)' "$log" || true)"
+  # These are the deliberate, machine-readable skip lines emitted by the
+  # current child gates. Do not grep for the word "skip" anywhere: region-map
+  # also has prose about skipped sub-checks, and an unrelated filename or
+  # informational sentence must not turn a passing lane into a false failure.
+  skips="$(grep -Eic '^check-build-units-link: SKIP|^check-(guarded-handler-bytes|asm-to-program): .*skipping \(install to enable\)|^[[:space:]]+SKIP emitted-reality|^[[:space:]]+skip Class-A BAL ratchet' "$log" || true)"
   expected="${expected_steps[$name]}"
 
-  if [[ "$lane_status" == PASS && "$skips" -gt 0 ]]; then
+  if [[ "$steps" -ne "$expected" ]]; then
+    # set -e can stop a lane before its later children start. Report that loss
+    # of coverage explicitly even when the child that stopped it failed.
+    lane_status=INCOMPLETE
+    status=1
+  elif [[ "$child_failed" -eq 1 ]]; then
+    lane_status=FAIL
+  elif [[ "$skips" -gt 0 ]]; then
     # A child gate may intentionally return zero after deciding it cannot run.
     # That is not evidence for a green aggregate: make the third state visible
     # and fail the wrapper so CI cannot mistake it for a completed lane.
     lane_status=SKIP
-    status=1
-  elif [[ "$lane_status" == PASS && "$steps" -ne "$expected" ]]; then
-    # set -e can stop a lane before its later children start. Report that loss
-    # of coverage explicitly even when a future child changes its exit policy.
-    lane_status=INCOMPLETE
     status=1
   fi
 
