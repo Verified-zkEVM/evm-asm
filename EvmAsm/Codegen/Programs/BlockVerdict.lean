@@ -217,7 +217,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   "  la t1, bv_b1_sender_count; ld t2, 0(t1); sd t2, 832(t0)\n" ++
   "  li t2, " ++ toString bvMtxSenderBalanceEntries ++ "; sd t2, 840(t0)\n" ++
   "  la t1, bv_b2_count; ld t2, 0(t1); sd t2, 848(t0)\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "; sd t2, 856(t0)\n" ++
+  "  li t2, " ++ toString blockStorageWritesCapacity ++ "; sd t2, 856(t0)\n" ++
   "  la t1, storage_writes_count; ld t2, 0(t1); sd t2, 864(t0)\n" ++
   "  li t2, 0; sd t2, 872(t0)  # retired nonce-seen debug counter\n" ++
   "  li t2, 16; sd t2, 880(t0)\n" ++

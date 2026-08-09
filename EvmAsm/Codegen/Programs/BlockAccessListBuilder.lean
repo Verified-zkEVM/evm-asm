@@ -603,14 +603,14 @@ def balEmitStorageChangesFunction : String :=
   "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
   "  sd s7, 64(sp); sd s8, 72(sp); sd a0, 80(sp)\n" ++          -- 80(sp) = BAI
   "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx row count
-  "  li s2, 0xa21a0000\n" ++                                    -- s2 = tx rows
+  "  li s2, " ++ toString storageWritesTxBase ++ "\n" ++        -- s2 = tx rows
   "  li s3, 0\n" ++                                             -- s3 = i
   ".Lbesc_loop:\n" ++
   "  bgeu s3, s1, .Lbesc_done\n" ++
   "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &txrow[i]
   -- ---- baseline: scan the BLOCK container for (addr, slot) ----
   "  la t0, storage_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0xa1fa0000; li t4, 0\n" ++
+  "  li t3, " ++ toString storageWritesBlockBase ++ "; li t4, 0\n" ++
   "  li s5, 0\n" ++                                             -- s5 = &baseline or 0
   ".Lbesc_scan:\n" ++
   "  bgeu t4, t1, .Lbesc_miss\n" ++

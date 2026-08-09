@@ -1374,15 +1374,16 @@ def accountWriteMapFunctions : String :=
 -- The vacated 4.5 MiB below `.data` is a DELIBERATE hole, not an oversight:
 -- 2.5 MiB where the block map was and 2 MiB where the journal was. Pinned so a
 -- later reader does not "restore contiguity" by moving something into it.
-#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat + 0x500000 + 0x280000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 
 -- Capacity x stride must equal the reserved arena exactly: an arena larger than
 -- its reservation would run into the next region with nothing objecting.
 #guard txAccountWritesCapacity * 128 == 0x200000
 #guard blockAccountWritesCapacity * 128 == 0x800000
 #guard accountWritesUndoCapacity * 128 == 0x1400000
--- Transaction capacity retains physical parity with the storage map.
-#guard txAccountWritesCapacity == storageWritesCapacity
+-- The transaction account map remains a separate 16384-row container; its
+-- capacity is not coupled to the smaller transaction storage map.
+#guard txAccountWritesCapacity == 16384
 #guard accountWritesCallKeyBound == 15038
 #guard accountWritesCallKeyBound <= txAccountWritesCapacity
 -- GH #11770 derived bounds: distinct accounts per block, and write EVENTS per

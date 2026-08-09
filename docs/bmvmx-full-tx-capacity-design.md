@@ -30,10 +30,13 @@ The current `main` implementation has several independent ceilings:
   keys / skip-list entries. That is acceptable for fixture-sized tests, but not
   for the full gas-limit target.
 - The active block-level `storage_writes` map uses the canonical
-  `STORAGE_WRITES_AREA` with `storageWritesCapacity = 16384` 128-byte rows.
-  `write_sets_incorporate_tx` upserts cumulative `(recipient, slotKey)` state;
-  duplicate writes update the existing entry in place. The per-tx
-  `TX_STORAGE_WRITES_AREA` plus undo journal remains the rollback container.
+  `STORAGE_WRITES_AREA` with `blockStorageWritesCapacity = 66666` 128-byte
+  rows (`200M / 3000`). The per-tx `TX_STORAGE_WRITES_AREA` has its independent
+  `txStorageWritesCapacity = 5588` row bound
+  (`(16777216 - 12000) / 3000`); the undo journal is independently gas-derived
+  at 167652 records. `write_sets_incorporate_tx` upserts cumulative
+  `(recipient, slotKey)` state; duplicate writes update the existing entry in
+  place.
 - Receipt/log validation has separate windows and byte arenas. Per-tx receipt
   records, record bloom storage, and record log descriptors derive from
   `bvMtxFullTxCap = 9523`; block-log descriptors, log data bytes, log-list RLP,
@@ -81,12 +84,13 @@ enough to make a blind static allocation a maintainable interface.
 
 ## Canonical storage-map classification
 
-The canonical block map is exact up to `storageWritesCapacity = 16384` unique
-`(recipient, slotKey)` rows. It is populated by `write_sets_incorporate_tx` and
-read by `storagePrestateResolveAsm` and BAL storage-change emission through
-`storage_writes_block_latest_value`. The former cross-transaction duplicate
-table was separately populated and consumed, so it is removed rather than kept
-as a cache with an equality invariant.
+The canonical block map is exact up to `blockStorageWritesCapacity = 66666`
+unique `(recipient, slotKey)` rows. Its transaction counterpart is capped at
+`txStorageWritesCapacity = 5588` distinct cold slots. The block map is populated
+by `write_sets_incorporate_tx` and read by `storagePrestateResolveAsm` and BAL
+storage-change emission through `storage_writes_block_latest_value`. The former
+cross-transaction duplicate table was separately populated and consumed, so it
+is removed rather than kept as a cache with an equality invariant.
 
 ## Implementation Beads
 

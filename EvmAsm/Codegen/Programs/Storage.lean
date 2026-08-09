@@ -70,6 +70,7 @@ import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Evm64.Transient.StoreProgram
 import EvmAsm.Evm64.Transient.LoadProgram
 
@@ -220,8 +221,8 @@ def sstoreValueTransitionGasAsm : String :=
     (`+64`).  On a miss it returns `x18 = 0`. -/
 def storageTxMapFindAsm (p : String) (out : String) : String :=
   "  la x14, tx_storage_writes_count; ld x15, 0(x14)\n" ++
-  "  li x16, 16384; bgtu x15, x16, .exit_outofgas\n" ++
-  "  li x14, 0xa21a0000; li x16, 0\n" ++
+  "  li x16, " ++ toString txStorageWritesCapacity ++ "; bgtu x15, x16, .exit_outofgas\n" ++
+  "  li x14, " ++ toString storageWritesTxBase ++ "; li x16, 0\n" ++
   ".L" ++ p ++ "_txmap_scan:\n" ++
   "  bgeu x16, x15, .L" ++ p ++ "_txmap_miss\n" ++
   "  slli x17, x16, 7; add x17, x14, x17\n" ++
@@ -345,7 +346,7 @@ def storagePrestateResolveAsm (p : String) (out : String) : String :=
   "  la x14, sstore_committed_hit; sd zero, 0(x14)\n" ++
   "  la x14, storage_writes_count; ld a3, 0(x14); beqz a3, .L" ++ p ++ "_committed_done\n" ++
   "  mv a0, x20; la a1, " ++ out ++ "; addi a1, a1, 32\n" ++
-  "  li a2, 0xa1fa0000; li a4, 16384; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
+  "  li a2, " ++ toString storageWritesBlockBase ++ "; li a4, " ++ toString blockStorageWritesCapacity ++ "; la a5, sstore_committed_current; la a6, dtrc_recipkey; la a7, dtrc_slotkey_le\n" ++
   -- ⚠️ Pre-existing and deliberately PRESERVED: this leaves for `.exit_outofgas`
   -- with `sp` still 40 bytes low. Harmless because that exit terminates the
   -- frame, and kept verbatim so the extraction is byte-identical at the SSTORE
@@ -564,7 +565,7 @@ def storageHandlers : List OpcodeHandlerSpec :=
         -- The recorder performs the authoritative upsert/capacity check; this
         -- fast guard rejects malformed counts before gas/refund work.
         "  la x14, tx_storage_writes_count; ld x15, 0(x14)\n" ++
-        "  li x14, 16384\n" ++
+        "  li x14, " ++ toString txStorageWritesCapacity ++ "\n" ++
         "  bgtu x15, x14, .exit_outofgas\n" ++
         sstoreValueTransitionGasAsm ++
         -- bmvmx.1.6.3: accumulate this SSTORE's EIP-3529 refund delta into evm_refund_acc

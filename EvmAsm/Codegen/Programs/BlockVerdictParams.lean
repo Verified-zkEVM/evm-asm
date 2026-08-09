@@ -9,6 +9,8 @@
 
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+import EvmAsm.Codegen.RegionMapLinkPins
+import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen
 
@@ -135,6 +137,35 @@ def bsrMaxWitnessBytes : Nat := 524288
     calldata and access-list costs are conditional, so this base is the only
     unconditional divisor for the full block transaction-count bound. -/
 def bvMtxIntrinsicGasFloor : Nat := 12000
+
+/-- Amsterdam's `COLD_STORAGE_ACCESS` gas cost (execution-specs
+    `amsterdam/vm/gas.py:68-74`).  The block-lifetime storage-write map can
+    hold at most one distinct cold slot per 3,000 gas at the supported
+    200,000,000-gas block limit, so its capacity is the floor of that quotient.
+    Warm repeats stay in the transaction map and do not consume new block rows.
+-/
+def coldStorageAccessGas : Nat := 3000
+
+/-- Block-lifetime storage-map rows: `200,000,000 / 3,000 = 66,666`.
+    This is the bound for `BlockState.storage_writes`, not the per-transaction
+    distinct-slot bound below. -/
+def blockStorageWritesCapacity : Nat := bsrStateRootBlockGasLimit / coldStorageAccessGas
+
+/-- Per-transaction storage-map rows: `(16,777,216 - 12,000) / 3,000 = 5,588`.
+    `TX_MAX_GAS_LIMIT` is pinned by execution-specs
+    `amsterdam/transactions.py:63`; subtracting `TX_BASE` leaves the regular
+    gas available for distinct cold storage accesses. -/
+def txStorageWritesCapacity : Nat := (16777216 - bvMtxIntrinsicGasFloor) / coldStorageAccessGas
+
+/-! The storage arenas are absolute-address Scheme-A regions.  The enlarged
+    block map keeps its low anchor, the smaller tx map moves after it, and the
+    independent undo journal follows the link-derived `.state_gas_diag` end. -/
+def storageWritesBlockBase : Nat := EvmAsm.Stateless.STORAGE_WRITES_AREA.toNat
+def storageWritesTxBase : Nat := EvmAsm.Stateless.TX_STORAGE_WRITES_AREA.toNat
+def storageWritesStateGasDiagEnd : Nat :=
+  0xa3110000 + RegionMapLinkPins.bssSizeBytes + RegionMapLinkPins.stateGasDiagSizeBytes
+def storageWritesUndoBase : Nat :=
+  ((storageWritesStateGasDiagEnd + 0xfff) / 0x1000) * 0x1000
 
 /-- Full Amsterdam transaction capacity target derived from the supported block
     gas limit and `GasCosts.TX_BASE` (gas.py:131). -/

@@ -100,9 +100,9 @@
   | `TX_STORAGE_READS_AREA`      | `0xa1da0000`     | 1 MiB       |
   | `TX_ACCOUNT_READS_AREA`      | `0xa1ea0000`     | 512 KiB     |
   | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
-  | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
-  | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 5 MiB       |
+  | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 8,533,248 B (66,666×128) |
+  | `TX_STORAGE_WRITES_AREA`     | `0xa27d0000`     | 715,264 B (5,588×128) |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xbc377000`     | 26,824,320 B (167,652×160) |
   | `ACCOUNT_WRITES_AREA`        | `0xbdd80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
   | `TX_ACCOUNT_WRITES_AREA`     | `0xa2b20000`     | 2 MiB       |
   | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe580000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
@@ -306,13 +306,15 @@ def TX_CODE_READS_AREA      : Word := 0xa1f20000
         +64 value    (32 B)   the `U256`
 
     96 B used of a 128 B stride, shared with the execution storage rows.
-    16384 entries = 2 MiB each, matching the read arenas' capacity so
-    a write container cannot overflow before its read counterpart does. -/
+    The block map is `200,000,000 / 3,000 = 66,666` rows and the transaction
+    map is `(16,777,216 - 12,000) / 3,000 = 5,588` rows.  The enlarged block
+    map keeps its low anchor, the tx map moves after it, and the independent
+    undo journal is relocated above `.state_gas_diag`. -/
 
 /-- Block-level `storage_writes` — filled only by `write_sets_incorporate_tx`. -/
 def STORAGE_WRITES_AREA     : Word := 0xa1fa0000
 /-- Per-transaction `storage_writes` — the target of `storage_write_record`. -/
-def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
+def TX_STORAGE_WRITES_AREA  : Word := 0xa27d0000
 
 /-! ### The write-map UNDO JOURNAL (r59nm S5a)
 
@@ -321,16 +323,15 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
     and rebinding the copy on failure (`restore_tx_state`, `:809-826`).
 
     **Forcing constraint:** no dynamic allocation, so a per-frame copy of a
-    fixed-capacity keyed map would cost capacity × call depth — 16384 × 1024
-    entries, four orders of magnitude beyond what can be reserved. The undo
-    journal is the bounded equivalent: same before-and-after states, same
-    lifetime, but sized by the number of writes rather than by the map.
+    fixed-capacity keyed map would cost capacity × call depth. The undo journal
+    is the bounded equivalent: same before-and-after states, same lifetime, but
+    sized by the number of rollback records rather than by the live map.
 
-    It needs no overflow path of its own. The SSTORE handler hard-caps the
-    persistent exec log at 16384 rows and exits on the 16385th
-    (`Storage.lean`: `li x14, 16384; bgeu x15, x14, .exit_outofgas`), so a
-    transaction physically cannot perform more writes than the journal can
-    hold — it inherits an already-enforced bound.
+    Its capacity is independent of either live-map capacity. Amsterdam permits
+    a changed hit to remain a journal-producing operation at the 100-gas warm
+    access price (`Stateless/SpecRef/Gas.lean:68`), so the conservative regular-
+    gas bound is `floor((16,777,216 - 12,000) / 100) = 167,652`. The helper
+    checks the cursor before its first store and fails closed at that bound.
 
     Entry layout (160 B stride; wasAbsent=2 journals a full 128 B map row):
 
@@ -352,21 +353,16 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
     undoes them — mirroring `frame_return`'s merge-on-success cursor
     discipline. -/
 
-/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 32768 × 160 B = 5 MiB.
+/-- Undo journal for `TX_STORAGE_WRITES_AREA` — 167652 × 160 B = 26,824,320 B.
 
     **Sizing (derived, not corpus-chosen):**
-    - SSTORE hard-caps the exec log at 16384 rows (`Storage.lean`), so a tx
-      performs at most `W ≤ 16384` storage writes. Each write pushes one undo
-      (`wasAbsent` 0 or 1).
-    - `destroy_storage` converts map keys to reads and drops them with a second
-      undo (`wasAbsent` 2). Max destroy-converted rows per tx is `D ≤ 16384`
-      (each drop removes a key that entered via some prior append; appends ≤ W;
-      re-append-after-destroy still costs an SSTORE against the same W bound).
-    - Shared journal therefore needs `W + D ≤ 32768` records. The pre-destroy
-      arena was 16384 × 64 B = 1 MiB under a 1:1 write:undo assumption; with
-      destroy_storage that assumption is false, so capacity is 2× the SSTORE
-      cap. Stride is 160 B so `wasAbsent = 2` journals the full 128 B map row
-      (not a bare count++): 32768 × 160 = 5 MiB.
+    - `TX_MAX_GAS_LIMIT = 16,777,216` and `TX_BASE = 12,000` are pinned by the
+      Amsterdam spec port.
+    - A warm changed hit costs 100 regular gas and still pushes one record;
+      therefore `floor((16,777,216 - 12,000) / 100) = 167,652` is a safe
+      gas-only upper bound for all producer paths, including destroy drops.
+    - Stride is 160 B so `wasAbsent = 2` journals the full 128 B map:
+      `167,652 × 160 = 26,824,320 B`.
 
     Layout:
 
@@ -375,7 +371,7 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa21a0000
         +16  (16 B pad — keeps payload at +32)
         +32  payload: prevValue (32 B) when wasAbsent=0;
              full map row (128 B) when wasAbsent=2 -/
-def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
+def STORAGE_WRITES_UNDO_AREA : Word := 0xbc377000
 
 /-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
 

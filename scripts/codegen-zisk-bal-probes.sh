@@ -129,7 +129,7 @@ EXPECTED_E2E_ACCOUNT_RLP = bytes.fromhex(
 # EXPECTED_E2E_DIGEST      = 24f0ad8bc447e2a80bdc208c22a07d3a444bfaa952874d78fe7050df2598370d
 #
 # Construction (verified against the emitted code, not inferred):
-#   1. tx rows at 0xa21a0000, count in `tx_storage_writes_count`; addr LE word at 0..31,
+#   1. tx rows at 0xa27d0000, count in `tx_storage_writes_count`; addr LE word at 0..31,
 #      slot LE word at 32..63.
 #   2. block container: one entry whose FIRST 64 BYTES equal the tx row's, and
 #      `storage_writes_count` = 1. The scan is eight dword compares over 0..63 and a hit

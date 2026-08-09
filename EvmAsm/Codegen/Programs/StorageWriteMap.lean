@@ -106,9 +106,10 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 
 namespace EvmAsm.Codegen
 
-/-- Entries per level. Matches the read arenas' 16384 so a write container
-    cannot overflow before its read counterpart does. -/
-def storageWritesCapacity : Nat := 16384
+/-! The live block map is bounded by the block-lifetime cold-slot gas budget;
+    the transaction map has its own smaller capacity.  They must not share a
+    name: the former is `200,000,000 / 3,000 = 66,666`, while the latter is
+    `(16,777,216 - 12,000) / 3,000 = 5,588`. -/
 
 /-- Undo journal capacity, derived from the regular-gas bound rather than from
     the map's slot-count capacity. `TX_MAX_GAS_LIMIT` is 16,777,216
@@ -121,8 +122,18 @@ def storageWritesCapacity : Nat := 16384
     emitted index arithmetic below. -/
 def storageWritesUndoCapacity : Nat := 167652
 
+#guard blockStorageWritesCapacity == 66666
+#guard txStorageWritesCapacity == 5588
 #guard storageWritesUndoCapacity == 167652
+#guard blockStorageWritesCapacity * 128 == 0x823500
+#guard txStorageWritesCapacity * 128 == 0xaea00
 #guard storageWritesUndoCapacity * 160 == 0x1994e80
+#guard storageWritesUndoBase % 0x1000 == 0
+#guard storageWritesStateGasDiagEnd <= storageWritesUndoBase
+#guard storageWritesUndoBase == EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat
+#guard storageWritesBlockBase + blockStorageWritesCapacity * 128 <= storageWritesTxBase
+#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard storageWritesUndoBase + storageWritesUndoCapacity * 160 <= EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
 /-! ## `storage_write_record`
 
@@ -200,7 +211,7 @@ def storageWriteRecordFunction : String :=
   -- 112-byte caller frame.
   "  sd a6, 88(sp); sd a0, 96(sp)\n" ++
   "  la t0, tx_storage_writes_count; ld t1, 0(t0)\n" ++          -- t1 = count
-  "  li t3, 0xa21a0000\n" ++                                     -- t3 = TX_STORAGE_WRITES_AREA
+  "  li t3, " ++ toString storageWritesTxBase ++ "\n" ++         -- t3 = TX_STORAGE_WRITES_AREA
   "  li t4, 0\n" ++                                              -- t4 = i
   ".Lswr_scan:\n" ++
   "  bgeu t4, t1, .Lswr_append\n" ++
@@ -235,7 +246,7 @@ def storageWriteRecordFunction : String :=
   ".Lswr_next:\n" ++
   "  addi t4, t4, 1; j .Lswr_scan\n" ++
   ".Lswr_append:\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
+  "  li t2, " ++ toString txStorageWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lswr_overflow\n" ++
   -- Journal the APPEND before making it: undo{entryIndex = t1, wasAbsent = 1}.
   -- wasAbsent is a field rather than a zero sentinel because zero is a
@@ -317,7 +328,7 @@ def writeSetsIncorporateTxFunction : String :=
   "  la t0, current_block_access_index; ld a0, 0(t0)\n" ++
   "  jal ra, bal_emit_storage_changes\n" ++
   "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx count
-  "  li s2, 0xa21a0000\n" ++                                     -- s2 = tx area
+  "  li s2, " ++ toString storageWritesTxBase ++ "\n" ++         -- s2 = tx area
   "  li s3, 0\n" ++                                              -- s3 = i
   ".Lwsi_loop:\n" ++
   "  bgeu s3, s1, .Lwsi_clear\n" ++
@@ -385,7 +396,7 @@ def storageWritesBlockUpsertFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0xa1fa0000\n" ++                                     -- t3 = STORAGE_WRITES_AREA
+  "  li t3, " ++ toString storageWritesBlockBase ++ "\n" ++      -- t3 = STORAGE_WRITES_AREA
   "  li t4, 0\n" ++
   ".Lswb_scan:\n" ++
   "  bgeu t4, t1, .Lswb_append\n" ++
@@ -402,7 +413,7 @@ def storageWritesBlockUpsertFunction : String :=
   ".Lswb_next:\n" ++
   "  addi t4, t4, 1; j .Lswb_scan\n" ++
   ".Lswb_append:\n" ++
-  "  li t2, " ++ toString storageWritesCapacity ++ "\n" ++
+  "  li t2, " ++ toString blockStorageWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lswb_overflow\n" ++
   "  slli t5, t1, 7; add t5, t3, t5\n" ++
   "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
@@ -477,7 +488,7 @@ def storageWritesUndoPushFunction : String :=
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, " ++ toString storageWritesUndoCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lswup_fail\n" ++          -- bounded journal: fail closed at the push
-  "  li t3, 0xa23a0000\n" ++                 -- STORAGE_WRITES_UNDO_AREA
+  "  li t3, " ++ toString storageWritesUndoBase ++ "\n" ++      -- STORAGE_WRITES_UNDO_AREA
   "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
   "  sd a3, 0(t4)\n" ++
   "  sd a4, 8(t4)\n" ++
@@ -539,8 +550,8 @@ def writeSetsRestoreFrameFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++   -- t1 = cursor
-  "  li t3, 0xa23a0000\n" ++                                -- STORAGE_WRITES_UNDO_AREA
-  "  li t6, 0xa21a0000\n" ++                                -- tx map area
+  "  li t3, " ++ toString storageWritesUndoBase ++ "\n" ++    -- STORAGE_WRITES_UNDO_AREA
+  "  li t6, " ++ toString storageWritesTxBase ++ "\n" ++       -- tx map area
   ".Lswrf_loop:\n" ++
   "  bleu t1, a0, .Lswrf_done\n" ++                         -- cursor <= mark -> finished
   "  addi t1, t1, -1\n" ++
@@ -612,7 +623,7 @@ def destroyStorageFunction : String :=
   "  sd s4, 40(sp); sd a0, 48(sp)\n" ++
   "  sd t0, 56(sp); sd t1, 64(sp); sd t2, 72(sp); sd t3, 80(sp); sd t4, 88(sp); sd t5, 96(sp); sd t6, 104(sp)\n" ++
   "  la t0, tx_storage_writes_count; ld s0, 0(t0)\n" ++
-  "  li s1, 0xa21a0000\n" ++
+  "  li s1, " ++ toString storageWritesTxBase ++ "\n" ++
   "  li s2, 0\n" ++
   ".Lds_loop:\n" ++
   "  bgeu s2, s0, .Lds_done\n" ++
