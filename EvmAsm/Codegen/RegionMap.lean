@@ -30,8 +30,7 @@
   overlay) coalesces five execution-dead Phase-H arenas into its front
   (`basr_values`, `basr_accounts`, `baap_storage_desc`,
   `baap_storage_paths`, and `baap_storage_values`).
-  (`bv_system_storage_log` was un-unioned in `4ch8f.73` — it is read
-  post-dispatch, so it now lives standalone, `syslog_disjoint_from_frameArena`.)
+  The retired storage-log probe arenas are not part of the linked guest image.
   This file *documents* those overlaps precisely (`aliasedPairs` + the per-pair
   `_overlap` theorems) and proves the five coalesced children are mutually
   disjoint. It does **not** prove they are safe to share — the verified
@@ -177,10 +176,9 @@ def allPairwiseDisjoint : List GuestRegion → Bool
 
     ⛔ **OVER-RESERVING IS NOT FREE HERE.** The old 76.8 MiB gas-derived reservation
     was unioned into `call_frame_arena`'s front and **physically zeroed** by per-tx
-    dispatch frames at depth ≥ 221 before the BAL validators read it — the `4ch8f.73`
-    clobber, whose un-unioning this file documents at the `bv_system_storage_log`
-    standalone-placement section below. ⇒ an unreachable gas bound is not merely
-    wasteful; it has already produced one real defect.
+    dispatch frames at depth ≥ 221 before the BAL validators read it — the historical
+    `4ch8f.73` clobber. ⇒ an unreachable gas bound is not merely wasteful; it has
+    already produced one real defect.
 
     The journal side is known to be reachable (fixture `00192` hits 32,768
     exactly); its sizing remains a separate concern from the retired log arena.
@@ -246,11 +244,11 @@ def schemeAAnchors : List GuestRegion :=
     -- level, not one per source: the spec has no system-specific write container --
     -- process_unchecked_system_transaction (fork.py:782) builds an ordinary
     -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
-    -- at :1226.  These are the authenticated state containers; the modeled-system
-    -- staging rows below are a separate transient feed, not another state map.
+    -- at :1226.  The retired storage-log probes are absent; these are the
+    -- authenticated state containers used by the live guest.
     { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x200000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_AREA; 2 MiB = 16384x128 "
-        ++ "(addrHash++slotKey++value, 96 B used of the shared bvStorageLogRowBytes stride); "
+        ++ "(addrHash++slotKey++value, 96 B used of a 128 B stride); "
         ++ "block level, filled only by write_sets_incorporate_tx" },
     { name := "tx_storage_writes_area", base := 0xa21a0000, size := 0x200000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; per-tx storage_writes, "
@@ -775,8 +773,7 @@ theorem schemeA_matches_layout :
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
-    ELF ground truth (`readelf -s`, this build; post-`4ch8f.73` — five children,
-    `bv_system_storage_log` un-unioned):
+    ELF ground truth (`readelf -s`, this build; five children):
     ```
     ad3dd5e0  call_frame_arena  == basr_values
     aec487e0  basr_accounts          (+  S)
@@ -842,9 +839,7 @@ structure UnionChild where
 /-- The five Phase-H arenas coalesced into the front of `call_frame_arena`,
     in layout order, as arena-relative offset/size pairs. Mirrors the emit in
     `BlockVerdictDataSection.lean` (the `basr_values`/`basr_accounts` pair, then
-    the three `baap_storage_*` arenas). `bv_system_storage_log` was removed from
-    the union in `4ch8f.73` (it is read post-dispatch, so a frame slot would
-    clobber it — it now lives standalone at `syslogBase`). -/
+    the three `baap_storage_*` arenas). -/
 def dataUnionChildren : List UnionChild :=
   [ { name := "basr_values",              off := 0,                                          size := basrArenaBytes },
     { name := "basr_accounts",            off := basrArenaBytes,                             size := basrArenaBytes },
@@ -885,41 +880,6 @@ theorem callFrameArena_within_data :
     bssRegion.base ≤ callFrameArenaBase
       ∧ callFrameArenaBase + frameArrayBytes ≤ bssRegion.base + bssRegion.size := by decide
 
-/-! ## `bv_system_storage_log` standalone placement (`4ch8f.73`).
-
-    The modeled-system startup rows remain a separate staging feed for the
-    authenticated storage map and BAL builder. Keeping that staging arena
-    outside `call_frame_arena` prevents frame slots from aliasing it during
-    dispatch, while the five execution-dead BAL replay children remain coalesced
-    inside the frame arena. -/
-
-/-- Standalone base of `bv_system_storage_log` in this build (post-`.73`).
-    LINK-LAYOUT-DEPENDENT — class-A pin from `RegionMapLinkPins` (issue #11230 / #11282). -/
-abbrev syslogBase : Nat := RegionMapLinkPins.syslogBase
-
-/-- **The `.73` aliasing fix is closed (load-bearing).** The standalone
-    modeled-system staging region `[syslogBase, syslogBase + bvSystemStorageLogBytes)`
-    ends at or before `call_frame_arena`'s base and is entirely disjoint from the
-    frame array. -/
-theorem syslog_disjoint_from_frameArena :
-    syslogBase + bvSystemStorageLogBytes ≤ callFrameArenaBase := by decide
-
-/-- **No frame slot can clobber the modeled-system staging arena, for any call depth.** Frame slot `d`
-    occupies `[callFrameArenaBase + (d-1)*frameStride, + frameStride)`, which starts
-    at or after `callFrameArenaBase`; the syslog ends at or before it
-    (`syslog_disjoint_from_frameArena`). So every reachable dispatch frame
-    (`1 ≤ d`, in fact all `d`) starts above the entire staging extent. This is
-    the property that FAILED under the union placement and now holds by
-    construction, complementing `CallFrameLayout.frameArray_covers_all_depths`
-    (which keeps every slot inside the arena). -/
-theorem syslog_below_every_frame_slot (d : Nat) (_hd : 1 ≤ d) :
-    syslogBase + bvSystemStorageLogBytes
-      ≤ callFrameArenaBase + (d - 1) * frameStride := by
-  have h := syslog_disjoint_from_frameArena
-  have hmono : callFrameArenaBase ≤ callFrameArenaBase + (d - 1) * frameStride :=
-    Nat.le_add_right _ _
-  omega
-
 /-! ## Explicit overlap inventory (`aliasedPairs`).
 
     These are the ONLY intentionally-overlapping region pairs in the guest.
@@ -933,8 +893,7 @@ def aliasedPairs : List (String × String) :=
   dataUnionChildren.map (fun c => ("call_frame_arena", c.name))
 
 /-- Every aliased pair names `call_frame_arena` as the umbrella and a real
-    coalesced child; there are exactly five, matching `dataUnionChildren`
-    (`bv_system_storage_log` was un-unioned in `4ch8f.73`). -/
+    coalesced child; there are exactly five, matching `dataUnionChildren`. -/
 theorem aliasedPairs_shape :
     aliasedPairs = [ ("call_frame_arena", "basr_values"),
                      ("call_frame_arena", "basr_accounts"),

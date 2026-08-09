@@ -697,15 +697,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 8uld3.2.3.3.1 (C.1): scratch for execution-derived withdrawal+consolidation requests_hash.
   ".balign 8\n" ++
   "c1_saved_logcount:\n  .zero 8\n" ++
-  -- Modeled EIP-2935/EIP-4788 startup rows are staged here while the MTx setup
-  -- feeds the authenticated storage map and BAL builder.
-  "bv_system_storage_log_count:\n  .zero 8\n" ++
   -- Set only around the pre-user descriptor pass: reuse the row conversion
   -- without emitting a duplicate side-log/BAL event before terminal replay.
   "bv_system_storage_map_seed_only:\n  .zero 8\n" ++
-  -- Keep the modeled-system staging arena standalone from call_frame_arena.
-  ".balign 32\n" ++
-  "bv_system_storage_log:\n  .zero " ++ toString bvSystemStorageLogBytes ++ "\n" ++
   ".balign 8\n" ++
   "c1_wcode_ptr:\n  .zero 8\n" ++
   "c1_wcode_len:\n  .zero 8\n" ++

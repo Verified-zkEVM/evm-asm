@@ -65,9 +65,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   "call_frame_arena:\n" ++
   "basr_values:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
   "\nbasr_accounts:\n  .zero " ++ toString (bsrMaxStateChanges * bsrEncodedAccountBytes) ++
-  -- 4ch8f.73: bv_system_storage_log is NO LONGER unioned here (it is read
-  -- post-dispatch, so a frame slot would clobber it). The three baap_storage_*
-  -- arenas remain unioned (Phase-H, block_state_root-only, 32-aligned).
+  -- The retired storage-log probes are absent from the linked image. The three
+  -- baap_storage_* arenas remain unioned (Phase-H, block-state-root-only,
+  -- 32-aligned).
   "\nbaap_storage_desc:\n  .zero " ++ toString (bsrMaxBalItems * baapStorageDescBytes) ++
   "\nbaap_storage_paths:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++
   "\nbaap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++

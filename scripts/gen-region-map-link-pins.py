@@ -24,7 +24,6 @@ OUT = REPO / "EvmAsm" / "Codegen" / "RegionMapLinkPins.lean"
 SYMBOLS = {
     "callFrameArenaBase": "call_frame_arena",
     "evmMemoryPoolBase": "evm_memory_pool",
-    "syslogBase": "bv_system_storage_log",
 }
 
 
@@ -93,7 +92,7 @@ def render(elf: Path) -> str:
         "  `python3 scripts/gen-region-map-link-pins.py` regenerates this from the",
         "  linked stateless_guest ELF (issue #11230).",
         "",
-        "  Link-layout-dependent pins only (class A): section sizes and three",
+        "  Link-layout-dependent pins only (class A): section sizes and two",
         "  BSS bases, which move when the guest image moves. Class B stable",
         "  bases stay hand-typed in RegionMap.lean; `.state_gas_diag`'s base is",
         "  neither — RegionMap DERIVES it from `bssSizeBytes` (GH #11186).",
@@ -117,7 +116,6 @@ def render(elf: Path) -> str:
         "",
         f"abbrev callFrameArenaBase : Nat := {addrs['callFrameArenaBase']:#x}",
         f"abbrev evmMemoryPoolBase : Nat := {addrs['evmMemoryPoolBase']:#x}",
-        f"abbrev syslogBase : Nat := {addrs['syslogBase']:#x}",
         "",
         "end EvmAsm.Codegen.RegionMapLinkPins",
         "",
