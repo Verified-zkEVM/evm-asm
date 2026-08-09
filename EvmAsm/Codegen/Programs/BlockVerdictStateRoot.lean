@@ -64,7 +64,7 @@ open EvmAsm.Rv64
     after `apply_body`. The old `bal_section_info` fill existed only to feed
     guest-invented `bv_fail 4` (`.Lbv_no_bal_for_tx`). Keep this prefix narrow:
     stash root/wit/ssz pointers + witness-cap check. `bsr_bal_count` stays zero
-    here; `block_state_root` still runs its own `section_info` post-exec (M4). -/
+    here; #11836 / M4 dropped the post-exec supplied count/cap path too. -/
 def blockStateRootPreAccountsFunction : String :=
   "block_state_root_pre_accounts:\n" ++
   "  addi sp, sp, -16\n" ++
@@ -290,7 +290,11 @@ def executionMapStateChangesFunction : String :=
 /-! ## block_state_root -- post-state root after system writes + withdrawals.
     a0 = pre-state root ptr   a1 = witness   a2 = witness_len
     a3 = wds descriptors   a4 = n_wds   a5 = out_root   a6 = SSZ_BASE
-    a0 (output) = 0 ok / 1 conservative (any miss / unsupported case). -/
+    a0 (output) = 0 ok / 1 conservative (any miss / unsupported case).
+
+    #11836 / #11797 M4: no longer locates or capacity-checks the supplied BAL
+    body here. Spec builds+hashes BAL after apply_body; map is sole root
+    authority. Witness globals for `account_apply_storage` are always set. -/
 def blockStateRootFunction : String :=
   "block_state_root:\n" ++
   "  addi sp, sp, -64\n" ++
@@ -314,24 +318,12 @@ def blockStateRootFunction : String :=
   "  li s1, 0                     # change counter (map is sole authority)\n" ++
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
-  "  la t0, bsr_ssz_p; ld t0, 0(t0); addi t0, t0, 60; la t1, bsr_exec_p; sd t0, 0(t1)\n" ++
-  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
-  "  jal ra, bal_section_info; bnez a0, .Lbsr_cons_bal_section\n" ++
-  -- #11797 P0/P0b: count + gas/cap checks only. Do NOT materialize basr_* from
-  -- the supplied BAL and do NOT cursor-walk body rows — both were vestigial
-  -- after #11326/#11431 (map is sole root authority; walk ended in unconditional
-  -- j next and seeded nothing). Hash of the supplied BAL remains on the
-  -- compliant header path. P1 (deferred builder BAL finals) is NOT in this change.
-  ".Lbsr_bal_replay:\n" ++
-  "  la t0, bsr_bal_count; ld t6, 0(t0); beqz t6, .Lbsr_bal_done\n" ++
-  "  la t0, bsr_exec_p; ld a0, 0(t0); addi a0, a0, 412; jal ra, bgv_u64le\n" ++
-  "  li t0, " ++ toString bsrBalGasCost ++ "; divu t1, a0, t0\n" ++
-  "  la t2, bsr_bal_count; ld t6, 0(t2); bgtu t6, t1, .Lbsr_cons_change_cap; add t0, s1, t6; li t1, " ++ toString bsrMaxStateChanges ++ "; bgtu t0, t1, .Lbsr_cons_change_cap\n" ++
-  -- Keep witness globals for later account_apply_storage (map path). Previously
-  -- these stores sat next to the removed BAL body walk; they are not vestigial.
+  -- #11836 M4: drop supplied BAL section_info + count/gas/cap gates (guest
+  -- invented; no fork.py counterpart at this point). Always wire witness
+  -- globals for later account_apply_storage (map path) — previously nested
+  -- under count≠0 and would skip when section_info left count zero.
   "  la t0, bsr_wit_p; ld t1, 0(t0); la t0, aps_witness_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsr_wl_v;  ld t1, 0(t0); la t0, aps_witness_len; sd t1, 0(t0)\n" ++
-  ".Lbsr_bal_done:\n" ++
   "  # execution_map_state_changes is the SOLE root authority for user-tx account\n" ++
   "  # leaves (plus true execution system/withdrawal effects). s1 is 0 here unless\n" ++
   "  # a prior path left residues.\n" ++
@@ -465,8 +457,8 @@ def blockStateRootFunction : String :=
   "  li t0, 101; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_sys4788:\n" ++
   "  li t0, 102; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
-  ".Lbsr_cons_bal_section:\n" ++
-  "  li t0, 110; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
+  -- #11836: `.Lbsr_cons_bal_section` / bsr_fail 110 retired with the supplied
+  -- BAL section_info gate.
   ".Lbsr_cons_change_cap:\n" ++
   "  li t0, 111; la t1, bsr_fail_code; sd t0, 0(t1); j .Lbsr_cons\n" ++
   ".Lbsr_cons_map:\n" ++
