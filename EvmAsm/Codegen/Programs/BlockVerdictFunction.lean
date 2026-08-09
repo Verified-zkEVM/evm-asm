@@ -142,7 +142,9 @@ def blockVerdictFunction : String :=
   "  la t0, bv_bloom_eq_out; ld t0, 0(t0); beqz t0, .Lbv_notx_bloom_fail\n" ++
   "  j .Lbv_after_tx_gate\n" ++
   blockVerdictEmptyTransactionCheckAsm ++
-  "  la t5, bsr_bal_count; ld t5, 0(t5); beqz t5, .Lbv_no_bal_for_tx  # tx blocks need BAL replay\n" ++
+  -- #11833 / #11797 M1: retired guest-invented bv_fail 4 (`.Lbv_no_bal_for_tx`).
+  -- Spec has no pre-body supplied-BAL presence test; sender gas path never used
+  -- `bsr_bal_*`. Empty/malformed BAL dies later (hash / other post-body).
   "  # Any included transaction must consume nonzero gas. This catches rejected\n" ++
   "  # tx payloads whose state/BAL roots otherwise match the conservative replay.\n" ++
   "  la t5, bv_exec_p; ld t4, 0(t5); addi a0, t4, 420; jal ra, bgv_u64le   # gas_used\n" ++
