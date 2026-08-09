@@ -8,7 +8,7 @@ REPO_ROOT="$(pwd)"
 RUN_DIR="${RUN_DIR:-gen-out/bmvmx-full-capacity-probes}"
 EEST_FIXTURES_DIR="${EEST_FIXTURES_DIR:-gen-out/eest-fixtures}"
 EXPECTED_EEST_TX_COUNT="${EXPECTED_EEST_TX_COUNT:-1021}"
-SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 1024 1025 9523}"
+SYNTHETIC_TX_COUNTS="${SYNTHETIC_TX_COUNTS:-1021 1024 1025 16666}"
 # A 1025-transaction body is the regression boundary for the former
 # fixture-era active-loop cap.  It is below the protocol-derived full cap, so
 # it must classify as active-loop admissible, not merely as decodable.

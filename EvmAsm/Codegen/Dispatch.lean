@@ -1889,6 +1889,18 @@ def dispatcherTxGasSettle_prog : Program :=
     .ADD .x5 .x5 .x29,
     .JAL .x0 (8 : BitVec 21),
     .LI .x5 (0 : Word),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_settle_regular_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 184)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_settle_regular_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 184)),
+    .SD .x28 .x5 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_settle_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 196)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_settle_state_gas_left (GuestAddrs.dispatcher_tx_gas_settle + 196)),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 208)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 208)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_settle_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 220)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_settle_state_gas_used (GuestAddrs.dispatcher_tx_gas_settle + 220)),
+    .SD .x28 .x29 (0 : BitVec 12),
     .ADD .x10 .x5 .x7,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -1902,7 +1914,11 @@ def dispatcherTxGasSettle_relocs : RelocTable :=
     (10, .la .x28 "evm_refund_acc"),
     (21, .la .x30 "evm_state_gas_used"),
     (24, .la .x31 "evm_state_gas_spilled"),
-    (30, .la .x30 "evm_state_gas_left") ]
+    (30, .la .x30 "evm_state_gas_left"),
+    (46, .la .x28 "runtime_tx_settle_regular_gas_left"),
+    (49, .la .x28 "runtime_tx_settle_state_gas_left"),
+    (52, .la .x28 "evm_state_gas_used"),
+    (55, .la .x28 "runtime_tx_settle_state_gas_used") ]
 
 def dispatcherTxGasSettleFunction : String :=
   "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs
@@ -1916,7 +1932,7 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 48
+#guard dispatcherTxGasSettle_prog.length = 60
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through
@@ -2950,6 +2966,10 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   "  la x11, evm_state_gas_left\n" ++
   "  sd x9, 0(x11)\n" ++
   ".runtime_tx_gas_no_reservoir:\n" ++
+  -- #11808: pin post-split reservoir for independent regular_consumed =
+  -- tx.gas - reg_left - reservoir_init (0 when no reservoir).
+  "  la x11, evm_state_gas_left; ld x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_reservoir_initial; sd x9, 0(x11)\n" ++
   -- EIP-8037 differential invariant: the message baseline must be captured
   -- after the callable per-dispatch pool reset above *and* after this
   -- transaction's reservoir split, but before the depth-zero preparation
@@ -2961,7 +2981,7 @@ def emitRuntimeDispatcherSetupWithInputAsm (inputAsm : String) : String :=
   -- runtime_tx_auth_state_used and re-snapshots the reservoir; do not insert a
   -- pool reset between either snapshot and the charges it is intended to
   -- measure.
-  "  la x11, evm_state_gas_left; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_left; sd x9, 0(x11)\n" ++
+  "  la x11, runtime_tx_state_gas_message_left; sd x9, 0(x11)\n" ++
   "  la x11, evm_state_gas_spilled; ld x9, 0(x11); la x11, runtime_tx_state_gas_message_spilled; sd x9, 0(x11)\n" ++
   -- `interpreter.py:356` runs this preparation region only at depth zero.
   -- Cut C will route child frames through this entry; until then every live
@@ -3619,6 +3639,15 @@ def emitRuntimeDispatcherDataSectionCore
   "runtime_tx_intrinsic_data_ptr:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_intrinsic_data_len:\n" ++
+  "  .zero 8\n" ++
+  -- #11808: settle writes folded regular/state left + state_used; split writes reservoir_init.
+  "runtime_tx_settle_regular_gas_left:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_settle_state_gas_left:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_settle_state_gas_used:\n" ++
+  "  .zero 8\n" ++
+  "runtime_tx_state_reservoir_initial:\n" ++
   "  .zero 8\n" ++
   "runtime_tx_intrinsic_regular:\n" ++
   "  .zero 8\n" ++

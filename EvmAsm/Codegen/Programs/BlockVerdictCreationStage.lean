@@ -736,6 +736,15 @@ def blockVerdictCreationRuntimeFunction : String :=
   "  la t4, bv_creation_output_index; ld t1, 0(t4)\n" ++
   "  slli t0, t1, 3\n" ++
   "  la t3, bv_mtx_gas_left; add t3, t3, t0; la t4, bv_runtime_gas_left; ld t5, 0(t4); sd t5, 0(t3)\n" ++
+  -- #11808: creation publish retains settle meters.
+  "  la t4, runtime_tx_settle_regular_gas_left; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_settle_state_gas_left; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_settle_state_gas_used; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_gas_used; add t3, t3, t0; sd t5, 0(t3)\n" ++
+  "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t0; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_refund; add t3, t3, t0; la t4, bv_runtime_refund_counter; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_calldata; add t3, t3, t0; la t4, bv_runtime_calldata_floor; ld t5, 0(t4); sd t5, 0(t3)\n" ++
   "  la t3, bv_tx_status_arr; add t3, t3, t0; snez t5, s3; sd t5, 0(t3)\n" ++

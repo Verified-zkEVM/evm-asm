@@ -11,22 +11,19 @@ namespace EvmAsm.Codegen
     `block_verdict_eip8037_tx_state_gas_net_array` call ahead of the EIP-7778
     gate (BlockVerdictFunction, evm-asm-0w05f.17.2). -/
 def blockVerdictExactGasCheck : String :=
-  -- xbi56.2: exact EIP-8037 block gas_used equality for rows whose runtime
-  -- arena was prepared. State gas is the v0.6 identity intrinsic + executed
-  -- (fork.py:1174), already materialized into bvgr_tx_total_state_gas.
-  -- Derive Amsterdam's block-regular dimension from the exact pre-refund
-  -- combined gas and the state-gas dimension (v0.6, fork.py:1176-1181):
-  --   tx_regular_gas = max(before_refund - tx_state_gas, calldata_floor)
-  -- `before_refund` is `tx.gas - gas_left - state_gas_left`, so it includes
-  -- regular gas plus state gas. v0.6.0 makes the EIP-7623/7976 calldata
-  -- floor bind the block-regular dimension too (state gas subtracted
-  -- FIRST, so the floor is not discounted by state spending); it was
-  -- receipt-only at v0.5.0.
+  -- xbi56.2 / #11808: exact EIP-8037 block gas_used equality.
+  -- Independent regular arm from settle meters (fork.py:1176-1181 shape):
+  --   before_refund ≃ tx.gas - reg_left - state_left
+  --   tx_state_gas  ≃ intrinsic + exec_used   (exec from settle state_used;
+  --                     spill-from-regular is inside exec_used when res_init=0)
+  --   regular_consumed = tx.gas - reg_left - state_left - state_used - intrinsic
+  --                    = before_refund - (intrinsic + exec_used)
+  -- Does NOT subtract free `bvgr_tx_total_state_gas`. Floor on regular arm
+  -- (fork.py:1176-1181); fee/receipt total floor stays in
+  -- `tx_gas_result_increments` (fork.py:1155-1159).
   --
   -- ⚠️ `header.gas_used` IS A **MAX** OVER TWO INDEPENDENT DIMENSIONS, NOT A SUM,
-  -- AND NOT THE RECEIPT'S `cumulative_gas_used`. This contradicts pre-8037
-  -- intuition and it has already misled two readers, so it is stated here rather
-  -- than left to be re-derived. At `execution-specs` @ `e5a8caf1b`:
+  -- AND NOT THE RECEIPT'S `cumulative_gas_used`. At `execution-specs` @ `e5a8caf1b`:
   --
   --   fork.py:1181   block_output.block_gas_used       += tx_regular_gas
   --   fork.py:1182   block_output.block_state_gas_used += max(0, tx_state_gas)
@@ -34,25 +31,23 @@ def blockVerdictExactGasCheck : String :=
   --   fork.py:370-375
   --       block_gas_used = max(block_output.block_gas_used,
   --                            block_output.block_state_gas_used)
-  --       if block_gas_used != block.header.gas_used: raise InvalidBlock
   --
-  -- ⇒ THREE accumulators, not one. The header is validated against the **max** of
-  -- the regular and state dimensions; the receipt carries the **full** per-tx
-  -- `tx_gas_used` (regular + state). So on a SINGLE-TRANSACTION block the receipt
-  -- cumulative can legitimately EXCEED `header.gas_used` — e.g. `scenarios`
-  -- `program_GASPRICE-debug __b18`: header 97920, state total 97920, regular
-  -- 83799, receipt cumulative 181719. All four are CORRECT and consistent.
-  --
-  -- Do not "fix" a receipt cumulative that differs from `header.gas_used`; a
-  -- defect was nearly filed on exactly that reading. The loop below plus
-  -- `eip8037_block_gas_used` implement the max, which is why that row's
-  -- `bv_exact_block_status` is 0 while its receipts root still mismatches.
+  -- ⇒ THREE accumulators. Receipt cumulative can exceed header.gas_used.
   "  la t0, bvgr_arena_tx_count; ld t0, 0(t0); li t1, 0\n" ++
   ".Lbv_regular_eip8037_loop:\n" ++
   "  beq t1, t0, .Lbv_regular_eip8037_done\n" ++
   "  slli t5, t1, 3\n" ++
-  "  la t6, bvgr_before_refund; add t6, t6, t5; ld a0, 0(t6)\n" ++
-  "  la t6, bvgr_tx_total_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  la t6, bvgr_tx_gas_limits; add t6, t6, t5; ld a0, 0(t6)\n" ++
+  "  la t6, bv_mtx_regular_gas_left; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
+  "  sub a0, a0, a1\n" ++
+  "  la t6, bv_mtx_state_gas_left; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
+  "  sub a0, a0, a1\n" ++
+  "  la t6, bv_mtx_state_gas_used; add t6, t6, t5; ld a1, 0(t6)\n" ++
+  "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
+  "  sub a0, a0, a1\n" ++
+  "  la t6, bvgr_tx_state_gas; add t6, t6, t5; ld a1, 0(t6)\n" ++
   "  bltu a0, a1, .Lbv_block_state_gas_fail\n" ++
   "  sub a0, a0, a1\n" ++
   "  la t6, bvgr_calldata_floor; add t6, t6, t5; ld a1, 0(t6)\n" ++

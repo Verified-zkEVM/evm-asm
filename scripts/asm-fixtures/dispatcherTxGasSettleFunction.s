@@ -42,5 +42,13 @@ dispatcher_tx_gas_settle:
 .Lsettle_zero:
   li x5, 0
 .Lsettle_finish:
+  la x28, runtime_tx_settle_regular_gas_left
+  sd x5, 0(x28)
+  la x28, runtime_tx_settle_state_gas_left
+  sd x7, 0(x28)
+  la x28, evm_state_gas_used
+  ld x29, 0(x28)
+  la x28, runtime_tx_settle_state_gas_used
+  sd x29, 0(x28)
   add x10, x5, x7
   jalr x0, 0(x1)
