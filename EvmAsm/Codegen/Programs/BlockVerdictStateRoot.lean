@@ -708,9 +708,8 @@ def statelessVerdictV2Function : String :=
   "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
   "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
   "  la t0, evm_env; ld t1, 448(t0); la t2, c1_saved_logcount; sd t1, 0(t2)\n" ++
-  -- The input path parses c1_bal_start/c1_bal_len before block_verdict. The
-  -- post-loop helper deliberately consumes those stable globals instead of
-  -- relying on the caller's clobbered s-registers.
+  -- #11835 / #11797 M3: c1_bal_* no longer filled at v2 entry (and M2 removed
+  -- the last deferred consumer). Builder deposit/exit use header+exec only.
   -- == WITHDRAWAL (EIP-7002): code_at -> system call -> copy body ==
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
@@ -868,10 +867,10 @@ def statelessVerdictV2Function : String :=
   "  la t0, dbsr_saved_ra; ld ra, 0(t0); li a0, 1; ret\n" ++
   ".Lv2_input_hash:\n" ++
   -- The entry path reaches this label before block_verdict, so s0/s3/s4 still
-  -- describe the stable SSZ input.  The deferred helper is called later from
-  -- the post-user-loop sites and never returns through this path.
-  "  mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info\n" ++
-  "  bnez a0, .Lv2_requests_hash_fail\n" ++
+  -- describe the stable SSZ input. M3 (#11835): do not parse supplied BAL into
+  -- c1_bal_* here — no remaining guest consumer (M2 dropped deferred BAL
+  -- finals). Header `block_access_list_hash` still hashes the SSZ BAL body via
+  -- `block_access_list_hash` below; post-body rebuild compare is 60/61.
   "  addi t2, s0, 16; add t2, t2, s3; la t1, c1_er_input; sd t2, 0(t1)\n" ++
   "  bltu s4, s3, .Lv2_requests_hash_fail\n" ++
   "  sub t0, s4, s3; li t1, 16; bltu t0, t1, .Lv2_requests_hash_fail\n" ++
