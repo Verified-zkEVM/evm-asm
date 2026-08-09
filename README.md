@@ -259,6 +259,38 @@ followed by `~/.zisk/bin/ziskup --nokey -y` to skip the proving-key
 download (we only need the emulator). Codegen also has an `--asm-only`
 mode for CI hosts without the cross toolchain.
 
+### Wanted: an external Lean specification of the stateless guest
+
+evm-asm currently uses an **internal, untrusted** Lean specification of the
+stateless guest, under
+[`EvmAsm/Stateless/SpecRef/`](EvmAsm/Stateless/SpecRef). Because it is our own
+port, using it to justify spec alignment is circular — it can drift from
+upstream, and a defect in the port would be invisible to any proof that cites
+it.
+
+**We are looking for an external Lean specification of the stateless guest.**
+It should:
+
+1. Specify the **Amsterdam** stateless guest, tracking the
+   [`zkevm-tests` branch of `execution-specs`](https://github.com/ethereum/execution-specs/tree/zkevm-tests)
+   and updated regularly as that branch moves.
+2. For any input, specify a **set of allowed outputs** that a stateless guest
+   may produce — not a single output, since the guest is permitted latitude the
+   spec does not fix.
+3. For every test case in
+   [EEST](https://github.com/ethereum/execution-spec-tests), make that allowed
+   set a **singleton**, coinciding with the output EEST expects.
+4. For **any** byte string as input, make the allowed set contain the output of
+   `run_stateless_guest` as implemented in
+   [`execution-specs`](https://github.com/ethereum/execution-specs).
+
+Conditions 3 and 4 pull in opposite directions on purpose: 3 pins the spec to
+observed consensus behaviour where tests exist, while 4 keeps it honest on the
+inputs no test covers — which is where a stateless guest is most likely to be
+wrong.
+
+If you are interested in producing such a specification, please open an issue.
+
 ### Stateless-guest scaffold (currently **unproved**)
 
 `EvmAsm/Codegen/Programs.lean` (and the submodules under
