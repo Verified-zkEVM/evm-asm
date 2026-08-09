@@ -838,19 +838,27 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  j .Lbv_mtx_effects_kept\n" ++
   -- EIP-7702 set_delegation ExceptionalHalt (per-auth state-gas OOG). Prepare
   -- already rolled pending/effects and left halted=1 + a0=0. Publish a failed
-  -- receipt with gas_left=0 and rejoin the shared postlude. Do NOT seed upfront
-  -- here: finalize (halted) restores pending to the pre-auth checkpoint and
-  -- would wipe a pre-finalize seed; effects_kept re-seeds after finalize.
-  -- Latent #11808 meter zeroing on state_left tracked as #11874 (do not fold
-  -- into the collision #11871 fix - r200 must attribute each arm).
+  -- receipt and rejoin the shared postlude. Do NOT seed upfront here: finalize
+  -- (halted) restores pending to the pre-auth checkpoint and would wipe a
+  -- pre-finalize seed; effects_kept re-seeds after finalize.
+  --
+  -- #11874 / interpreter.py:366-378 + refill_frame_state_gas:
+  --   restore prep_snapshot; message.state_gas_reservoir = prep_reservoir;
+  --   refill; regular_gas_used += gas_left; gas_left = 0; auth_state_gas_used=0.
+  -- So reg_left=0 and state_used=0 stay, but state_left MUST be prep_reservoir
+  -- (pinned at .Lbvtgip_baseline into runtime_tx_state_reservoir_initial).
+  -- mtx_gas_left is the COMBINED leftover fed to tx_gas_result_increments
+  -- (a1 = gas_left + state_gas_left on success paths); after refill that is
+  -- exactly prep_reservoir — deliberately NOT zero (zeroing over-burns the
+  -- receipt/fee to full tx.gas). Distinct residual source from #11871 collision
+  -- (ctx+40 - TX_MAX in t5); do not fold the arms.
   ".Lbv_mtx_auth_phase_oog:\n" ++
   "  la t4, bv_mtx_i; ld t1, 0(t4); slli t2, t1, 3\n" ++
-  "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
-  -- #11808: auth OOG burns regular; settle may not have run.
-  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
-  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
-  "  la t3, bv_mtx_state_gas_used; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t4, runtime_tx_state_reservoir_initial; ld t5, 0(t4)\n" ++
+  "  la t3, bv_mtx_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_regular_gas_left; add t3, t3, t2; sd zero, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_left; add t3, t3, t2; sd t5, 0(t3)\n" ++
+  "  la t3, bv_mtx_state_gas_used; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t3, bv_mtx_state_reservoir_init; add t3, t3, t2; sd t5, 0(t3)\n" ++
   "  la t3, bv_mtx_refund; add t3, t3, t2; sd zero, 0(t3)\n" ++
   "  la t0, runtime_tx_calldata_floor; ld t5, 0(t0); la t3, bv_mtx_calldata; add t3, t3, t2; sd t5, 0(t3)\n" ++
