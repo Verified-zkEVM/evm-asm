@@ -40,6 +40,12 @@ open EvmAsm.Rv64
     guest-linked offset — drift is covered by `balGasValidFunction_eq_prog`. -/
 def balGasValidPc : Nat := 0x80000000
 
+/-- Probe-only entry PC for `bal_section_info` (#11838 M6). Unlinked from
+    `stateless_guest` (0 guest jals post-M1–M4); concrete `jalOff` in
+    `balSectionInfo_prog` uses this placeholder. Emission stays symbolic via
+    `balSectionInfo_relocs`. -/
+def balSectionInfoPc : Nat := 0x80000000
+
 /-! ## bal_gas_valid
     a0 = BAL RLP ptr   a1 = BAL RLP length   a2 = block_gas_limit
     a0 (output) = 0 (valid) / 1 (gas-limit exceeded) / 2 (parse error).
@@ -355,25 +361,25 @@ def balSectionInfo_prog : Program :=
     .ADDI .x9 .x8 (16 : BitVec 12),
     .ADDI .x18 .x8 (60 : BitVec 12),
     .ADDI .x10 .x18 (528 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.bal_section_info + 60)),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (balSectionInfoPc + 60)),
     .ADD .x5 .x18 .x10,
     .SD .x19 .x5 (0 : BitVec 12),
     .ADDI .x10 .x9 (4 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.bal_section_info + 76)),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (balSectionInfoPc + 76)),
     .ADD .x6 .x9 .x10,
     .LD .x5 .x19 (0 : BitVec 12),
     .SUB .x6 .x6 .x5,
     .SD .x20 .x6 (0 : BitVec 12),
     .MV .x10 .x5,
     .MV .x11 .x6,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_section_info + 104)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (balSectionInfoPc + 104)),
     .BNE .x12 .x0 (64 : BitVec 13),
     .MV .x9 .x10,
     .MV .x18 .x11,
     .LI .x8 (0 : Word),
     .MV .x10 .x9,
     .MV .x11 .x18,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_section_info + 132)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (balSectionInfoPc + 132)),
     .LI .x5 (2 : Word),
     .BEQ .x11 .x5 (20 : BitVec 13),
     .BNE .x11 .x0 (28 : BitVec 13),

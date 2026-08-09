@@ -284,7 +284,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bgv_u64le, bgvU64le_prog),
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
-  (GuestAddrs.bal_section_info, balSectionInfo_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -478,6 +477,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 331
+#guard guestImageEntries.length = 330
 
 end EvmAsm.Codegen
