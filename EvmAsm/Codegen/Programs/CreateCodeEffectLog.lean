@@ -404,8 +404,22 @@ def accountStateRecordCodeFunction : String :=
   ".Lasrc_addr:\n" ++
   "  li t2, 20; beq t1, t2, .Lasrc_code; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Lasrc_addr\n" ++
   ".Lasrc_code:\n" ++
-  -- bit 4 says code is known (distinct from bit 2 meaning nonempty code), so
-  -- a balance-only snapshot never masks authenticated pre-block code.
+  -- AccountState `flags@+88` (GH #11706). VALUES, never indices — the seed below
+  -- is literal 27 = 16 + 8 + 2 + 1, and `ori t1, t1, 4` raises it to 31:
+  --   VALUE 16 = code is KNOWN, so a balance-only snapshot never masks
+  --              authenticated pre-block code (always set by this writer);
+  --   VALUE  4 = code is NONEMPTY (added only when the length `s2` is nonzero).
+  -- The distinction is code-known versus code-nonempty; an earlier wording gave
+  -- these as "bit 4" and "bit 2", which are the INDICES of 16 and 4 — read as
+  -- values that sentence self-contradicts, because 27 already contains value 2
+  -- yet is the zero-length-code seed.
+  --
+  -- ⛔ These constants belong to `flags@+88` in THIS structure and must not be
+  -- carried into `account_writes`' `execFlags@+96` (stride 128, base 0xbdd80000 /
+  -- 0xa2b20000): 27 and 31 both contain VALUE 8, which at +96 is the
+  -- created-this-tx bit read by `account_writes_created_contains` (.Lawc_key:
+  -- `ld t1, 96(t5); andi t1, t1, 8`). See `accountWriteHasExecFlags` in
+  -- `AccountWriteMap.lean` for the +96 value table.
   "  sd s1, 72(t0); sd s2, 80(t0); li t1, 27; beqz s2, .Lasrc_flags; ori t1, t1, 4\n" ++
   ".Lasrc_flags:\n" ++
   "  sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_pending; la a2, account_state_pending_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_append_pending; beqz a0, .Lasrc_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
@@ -530,7 +544,7 @@ def codeStateFinalBalanceNonzeroFunction : String :=
     consumer must gate status-2 through balance (and nonce where relevant)
     before trusting this helper — see ChildFrameHandlers nacc/ibnacc,
     Selfdestruct beneficiary surcharge, and ChildFrameCreateTail
-    (balance_at_header_state_root + nonce). -/
+    (balance_live_else_header_state_root + nonce). -/
 def codeStateStatusIsLiveAsm (statusReg : String) : String :=
   "  addi t0, " ++ statusReg ++ ", -1\n" ++
   "  sltiu " ++ statusReg ++ ", t0, 2\n"
@@ -811,6 +825,64 @@ theorem findCodeEffectByAddressFunction_eq_prog :
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
 #guard findCodeEffectByAddress_prog.length = 24
+
+/-! ## find_code_effect_by_hash
+
+    Spec `code_writes` is `Dict[Hash32, Bytes]` (state_tracker get_code): a hit
+    on **hash**, not address, returns without recording a code_read. CREATE of
+    code C then CALL to a different pre-state account with the same bytecode
+    (eip8025 `witness_codes_create_same_hash_then_read`) must not demand C in
+    witness.codes — GH #11542 bv11 / 02274.
+
+    Calling convention:
+      a0 = code-effect log base
+      a1 = entry count
+      a2 = 32-byte code-hash ptr
+    Returns a0 = matching record ptr or 0.
+    Walks variable-stride entries; keccak256(code@+48, code_len@+40) vs a2. -/
+def findCodeEffectByHashFunction : String :=
+  "find_code_effect_by_hash:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
+  "  sd s3, 32(sp)\n" ++
+  "  mv s0, a0                   # cursor\n" ++
+  "  mv s1, a1                   # remaining\n" ++
+  "  mv s2, a2                   # want hash ptr\n" ++
+  ".Lfceh_loop:\n" ++
+  "  beqz s1, .Lfceh_miss\n" ++
+  "  ld a1, 40(s0)               # code_len\n" ++
+  "  addi a0, s0, 48             # code bytes\n" ++
+  "  addi a2, sp, 48             # 32-byte out on stack\n" ++
+  "  jal ra, zkvm_keccak256\n" ++
+  "  li t0, 0\n" ++
+  ".Lfceh_cmp:\n" ++
+  "  li t1, 32\n" ++
+  "  beq t0, t1, .Lfceh_hit\n" ++
+  "  add t2, sp, t0\n" ++
+  "  lbu t2, 48(t2)\n" ++
+  "  add t3, s2, t0\n" ++
+  "  lbu t3, 0(t3)\n" ++
+  "  bne t2, t3, .Lfceh_next\n" ++
+  "  addi t0, t0, 1\n" ++
+  "  j .Lfceh_cmp\n" ++
+  ".Lfceh_next:\n" ++
+  "  ld t0, 40(s0)\n" ++
+  "  addi t0, t0, 55\n" ++
+  "  andi t0, t0, -8\n" ++
+  "  add s0, s0, t0\n" ++
+  "  addi s1, s1, -1\n" ++
+  "  j .Lfceh_loop\n" ++
+  ".Lfceh_hit:\n" ++
+  "  mv a0, s0\n" ++
+  "  j .Lfceh_ret\n" ++
+  ".Lfceh_miss:\n" ++
+  "  li a0, 0\n" ++
+  ".Lfceh_ret:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
+  "  ld s3, 32(sp)\n" ++
+  "  addi sp, sp, 80\n" ++
+  "  ret\n"
+
 /-- Data region for the code-effect log (linked wherever CREATE deposit runs;
     included in this probe and, in step .8b-2, the runtime dispatcher data). -/
 def createCodeEffectLogData : String :=
@@ -874,6 +946,7 @@ def ziskCreateCodeEffectLogPrologue : String :=
   codeStateAddressSetInsertFunction ++ "\n" ++
   codeStateAddressSetFlagFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
+  findCodeEffectByHashFunction ++ "\n" ++
   ".Lccel_done:"
 
 def ziskCreateCodeEffectLogDataSection : String :=

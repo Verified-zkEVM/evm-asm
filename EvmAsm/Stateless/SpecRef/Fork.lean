@@ -24,11 +24,38 @@
   The Python mutates `block_env.state` (the block tracker) and
   `block_output` in place; here `apply_body` threads them through
   `EvmM` (the machine's tracker parent is the block state) and returns
-  the `BlockOutput`.  Receipts in the trie are stored ENCODED (the
-  Python stores `Bytes | Receipt`; a legacy receipt object RLP-encodes
-  to the same bytes at `root(trie)` time, so storing the encoding is
-  observationally equal — `decode_receipt` in `parse_deposit_requests`
-  is bypassed by keeping decoded receipts alongside).
+  the `BlockOutput`.
+
+  `parse_deposit_requests` in the pinned spec walks `receipt_keys`, loads
+  each receipt from the trie, and calls `decode_receipt` before scanning its
+  logs (`requests.py:291-300`, `blocks.py:416-435`).  This port scans
+  `decodedReceiptLogs` instead.  That is not an observational-equality claim
+  over arbitrary `BlockOutput` values: the carrying invariant on every
+  reachable `apply_body` result is the one-to-one, in-order post-decode log
+  projection
+
+    `decodedReceiptLogs[i] = logs(receipt_i)` and
+    `receiptsTrie[receiptKeys[i]] = encode_receipt(tx_i, receipt_i)`.
+
+  The pinned Python authority at
+  `execution-specs@e5a8caf1b8055e4d805c7fb169edfa710914b7da`,
+  `fork.py:913-915`, supplies fresh sequential transaction indices, and its
+  `process_transaction` update at `fork.py:1185-1197` appends the receipt key
+  and stores the receipt produced by that same `make_receipt` call.  The Lean
+  mirror's corresponding side-channel append is `Fork.lean:452-456`; these
+  are deliberately labeled separately so the Python lines, not the port,
+  are the authority for the equivalence.  `dictSet` preserves insertion order
+  for new keys.  Thus the direct scan is the spec's decode-then-scan on
+  reachable states.  If a second writer is ever added, this invariant must
+  be re-established: the equivalence breaks as soon as either side can drift.
+
+  Do not mechanically route the Lean trie bytes through `decode_receipt`:
+  Python typed receipts have valid `01`--`04` envelopes, while Python legacy
+  receipts remain `Receipt` objects and take `decode_receipt`'s identity
+  branch.  This port stores encoded legacy bytes for trie-root computation
+  but keeps their decoded logs in the side channel; feeding those bytes to a
+  typed-envelope decoder would reject valid legacy receipts and manufacture
+  a false reject.
 -/
 
 import EvmAsm.Stateless.SpecRef.Interpreter

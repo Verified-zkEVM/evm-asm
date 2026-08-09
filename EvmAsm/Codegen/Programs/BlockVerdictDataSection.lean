@@ -12,7 +12,6 @@ import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.LogRecordsRlp
 import EvmAsm.Codegen.Programs.TxPubkey
@@ -27,8 +26,10 @@ namespace EvmAsm.Codegen
 
 /-! The post-merge owner set has one entry per account-map row or storage-map
     row, plus the two modeled-system owners seeded outside both maps.  Its
-    capacity is therefore the conservative three-term bound: 20,480 account
-    rows + 16,384 storage rows + 2 system owners = 36,866.  Keep this tied to
+    capacity is therefore the conservative three-term bound: 65,536 account
+    rows + 16,384 storage rows + 2 system owners = 81,922.  It tracks
+    `blockAccountWritesCapacity`, so GH #11770's raise (20,480 -> 65,536) flows
+    through here and costs a further 1.375 MiB at the 32-byte stride.  Keep this tied to
     the authenticated map caps rather than to the 64-entry runtime
     access-account scratch table.
 
@@ -40,7 +41,7 @@ namespace EvmAsm.Codegen
 def bsrMapOwnerCapacity : Nat :=
   blockAccountWritesCapacity + storageWritesCapacity + bsrModeledSystemChanges
 
-#guard bsrMapOwnerCapacity = 36866
+#guard bsrMapOwnerCapacity = 81922
 
 def ziskStatelessVerdictV2DataSection : String :=
   -- .62.2.5: secp256k1 recovery scratch/constants for the ECRECOVER backend
@@ -121,24 +122,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xff, 0x83, 0x45, 0xe6, 0x92, 0xc0, 0xf8, 0x6e\n" ++
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21\n" ++
-  ".balign 32\n" ++
-  "swd_2935_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_2935_val:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_val:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_root_slot:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "swd_4788_root_val:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "swd_2935_vlen:\n  .zero 8\n" ++
-  "swd_4788_vlen:\n  .zero 8\n" ++
-  "swd_4788_root_vlen:\n  .zero 8\n" ++
   "bv_eip4788_current_fast_seen:\n  .zero 8\n" ++
-  "swd_ts_be8:\n  .zero 8\n" ++
   ".balign 8\n" ++
   "bsr_root_p:\n  .zero 8\n" ++
   "bsr_wit_p:\n  .zero 8\n" ++
@@ -164,7 +148,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "bsr_prev_acct:\n  .zero 8\n" ++ ziskBalAccountHasStateChangeDataSection ++
   "bsr_bal_item_ptr:\n  .zero 8\n" ++
   "bsr_bal_item_len:\n  .zero 8\n" ++
-  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 32\n" ++
   "bsr_kbuf:\n  .zero 32\n" ++
   "bsr_delta:\n  .zero 32\n" ++
@@ -234,14 +217,6 @@ def ziskStatelessVerdictV2DataSection : String :=
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02\n" ++
   ".balign 8\n" ++
-  -- v0.6.0: begin-of-block system-call code gates (process_unchecked_system_
-  -- transaction runs the CONTRACT's code; an absent/codeless history or
-  -- beacon-roots contract writes nothing).
-  "bsr_sys_has_2935:\n  .zero 8\n" ++
-  "bsr_sys_has_4788:\n  .zero 8\n" ++
-  "bsr_sys_acct:\n  .zero 104\n" ++
-  "bsr_sys_slot_2935:\n  .zero 8\n" ++
-  "bsr_sys_slot_4788:\n  .zero 8\n" ++
   "bgv_count:\n  .zero 8\n" ++
   "bgv_off:\n  .zero 8\n" ++
   "bgv_size:\n  .zero 8\n" ++
@@ -842,6 +817,9 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- `runtime_dispatcher_call`, because that buffer is rewritten by
   -- `call_frame_descend`/`create_frame_descend` and so cannot survive the constructor.
   "bvcr_created_pre_bal:\n  .zero 32\n" ++
+  -- Live top-level CREATE balance, pre-balance plus endowment, kept separate
+  -- from both the authenticated pre value and the transfer descriptor.
+  "bvcr_created_live_bal_be:\n  .zero 32\n" ++
   ".balign 8\n" ++
   "bv_creation_ctx_ptr:\n  .zero 8\n" ++
   -- Output routing for the generalized top-level creation runner.  Mode 0 is

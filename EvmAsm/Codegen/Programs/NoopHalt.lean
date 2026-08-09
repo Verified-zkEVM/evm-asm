@@ -62,8 +62,9 @@ private def createFailedStateGasRefundAsm (site : String) : String :=
 
 /-- RETURN/REVERT output tail. Both read `offset_low` / `size_low` from the
     stack, keep the legacy `OUTPUT_ADDR[0..32]` return-data prefix and
-    `halt_kind` at `OUTPUT_ADDR+32`, and expose a wider diagnostic return-data
-    surface at `OUTPUT_ADDR+64/+72/+248`.
+    `halt_kind` at `rdg_halt_kind` (#11798; never OUTPUT+32 during the claim
+    window), and expose a wider diagnostic return-data surface at
+    `OUTPUT_ADDR+64/+72/+248`.
 
     `sparseWindows` (guest only, evm-asm-0w05f.13): a depth-1+ CALL frame
     whose returndata window extends past the dense arena materializes it via
@@ -388,7 +389,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
         -- own exception/settle arm.  The stage used to learn this by running the validator
         -- itself; with that removed it has to be told.  ⛔ The channel is
         -- `top_level_creation_returndata_status`, NOT output byte 32: the halt tail below writes
-        -- `li x17, kind` / `sd x17, 32(x16)` at its end, so any halt-kind stamp set here would be
+        -- `emitHaltKindStore kind` at its end, so any halt-kind stamp set here would be
         -- overwritten before the stage could read it.  ⛔ NOR can it be
         -- `top_level_creation_returndata_status`: `.Lrr_createcap_*` also runs AFTER the halt
         -- label and writes that cell unconditionally — 1 when the return fits the capture buffer,
@@ -602,8 +603,7 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
   "  addi x22, x22, -1\n" ++
   "  j 7b\n" ++
   "8:\n" ++
-  s!"  li x17, {kind}\n" ++
-  "  sd x17, 32(x16)\n" ++
+  emitHaltKindStore (toString kind) ++
   rollbackAsm ++
   -- 4ch8f.10.3: depth-0 RETURN/REVERT halt via flag+ret (routes to .exit_no_epilogue).
   dispatchHaltRet 2

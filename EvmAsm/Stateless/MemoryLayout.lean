@@ -103,9 +103,9 @@
   | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 2 MiB       |
   | `TX_STORAGE_WRITES_AREA`     | `0xa21a0000`     | 2 MiB       |
   | `STORAGE_WRITES_UNDO_AREA`   | `0xa23a0000`     | 5 MiB       |
-  | `ACCOUNT_WRITES_AREA`        | `0xa28a0000`     | 2.5 MiB     |
+  | `ACCOUNT_WRITES_AREA`        | `0xbdd80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
   | `TX_ACCOUNT_WRITES_AREA`     | `0xa2b20000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xa2d20000`     | 2 MiB (16384×128 provisioned; 4294 needed; 3.8× headroom) |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe580000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
 
   (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
   1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
@@ -193,9 +193,9 @@ def EVM_VALUE_STACK         : Word := 0xa0a70000
     `call_frame_arena` (64 KiB window per slot,
     `Codegen/CallFrameLayout.lean`; dispatcher-era global `evm_memory`
     lives in `.data`). The `evmMemoryIs` assertion
-    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized; only its
-    `..._evmMemoryArea` convenience corollary targets this anchor and is
-    therefore a port-contract statement, not an emitted-guest one. -/
+    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized and carries
+    no fixed anchor; callers instantiate `base`/`capacity` from the
+    frame's actual placement (issue #10526). -/
 def EVM_MEMORY_AREA         : Word := 0xa0b70000
 /-- ASPIRATIONAL — emitted reality: keccak inputs are staged in `.data`
     scratch (`wlh_scratch_hash`, `mset_db_hash`, …) and via the ZisK
@@ -411,33 +411,45 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xa23a0000
     state from an account whose balance, nonce and code hash are all zero. -/
 
 /-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
-    20480 × 128 B = 2.5 MiB, covering the 19047 distinct block-account bound.
-    Base follows `STORAGE_WRITES_UNDO_AREA` (5 MiB) at `0xa23a0000 + 0x500000`. -/
-def ACCOUNT_WRITES_AREA      : Word := 0xa28a0000
+    65536 × 128 B = 8 MiB, covering the **64035** distinct-account bound derived
+    in GH #11770 against the 200M block limit.
+
+    ⚠️ The old note said the base "follows `STORAGE_WRITES_UNDO_AREA` at
+    `0xa23a0000 + 0x500000`". That is no longer true and was prose describing how
+    a literal had once been chosen, not computed code. This arena and its undo
+    journal were RELOCATED into the free gap above `.bss` because they had to
+    grow and the space adjacent to them in the scheme-A block was 0.88 MiB. The
+    4.5 MiB they vacated is a deliberate hole — see the structural `#guard`s in
+    `AccountWriteMap.lean`. -/
+def ACCOUNT_WRITES_AREA      : Word := 0xbdd80000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
 def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
-/-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 16384 × 128 B = 2 MiB
-    provisioned. The current workload derivation needs only 4294 rows on the
-    densest known path: with the per-transaction regular-gas ceiling of
-    16,777,216 and the minimum set-code intrinsic base of 12,000,
-    `2 × floor((16,777,216 - 12,000) / 7,816) = 4,288` EIP-7702 MTx
-    authorization pushes, plus six fixed boundary records (sender inclusion,
-    upfront debit, refund, coinbase credit, and both sides of a self value
-    transfer). The 200M block-gas limit is not the applicable bound because
-    this counter resets at transaction incorporation. The 16384-row physical
-    reservation is intentionally retained, giving 12090 rows and about 3.8×
-    headroom rather than shrinking the mapped region.
+/-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 163840 × 128 B = 20 MiB,
+    covering the **161204** account-write-EVENT bound derived in GH #11770.
 
-    The producer census is closed over the current direct account-write
-    publication sites: `BlockVerdictMtxRuntime.lean` sender inclusion,
-    `TxIntrinsicStateGas.lean` EIP-7702 nonce/code effects,
-    `NonstorageEffectLog.lean` generic nonstorage effects (including value
-    transfer, sender upfront/refund, and coinbase), and
-    `CreateCodeEffectLog.lean` CREATE/code effects. It is not a formal proof over
-    future indirect dispatcher routes, so the extra headroom is deliberate. The
-    existing `account_writes_undo_push` guard checks the count before the first
-    store, returns failure, and latches the transaction/block overflow flags;
-    callers reject that status. Same frame-rollback rationale as storage undo
+    ⛔ The superseded note said "16384 × 128 B = 2 MiB provisioned; 4294 needed;
+    3.8× headroom", from `2 × floor((16,777,216 - 12,000) / 7,816) = 4,288`
+    EIP-7702 authorization pushes plus six boundary records, and claimed its
+    producer census was "closed over the current direct account-write
+    publication sites", listing four. That arithmetic was right and the census
+    was NOT closed: the emitted `stateless_guest.s` has EIGHT
+    `jal ra, account_write_record` sites, and the omitted one —
+    `account_write_touch_current`, called unconditionally from `Storage.lean:664`
+    on EVERY `SSTORE` — is the only one with a per-opcode rate. At a warm no-op
+    `SSTORE`'s 104 gas it is 75× cheaper per event than the authorization route,
+    giving 16,765,216 / 104 = 161,204 events reachable in one transaction. Rows
+    18635, 18637 and 20992 (`return50000`, `return50000_2`,
+    `static_return50000_2`) each perform ~50,022 events and were false-rejected
+    at 16384.
+
+    ⚠️ The count is EVENTS, not distinct accounts: `account_write_record` pushes
+    an undo entry on the overwrite arm as well as the append arm, so this is a
+    strictly larger quantity than `txAccountWritesCapacity`, which is why the two
+    are no longer one constant. The 200M block-gas limit remains the wrong
+    divisor here — this counter resets at transaction incorporation, so the
+    per-transaction ceiling applies. The `account_writes_undo_push` guard checks
+    the count before the first store, returns failure, and latches the
+    transaction/block overflow flags; callers reject that status. Same frame-rollback rationale as storage undo
     (dict copy unaffordable at capacity × call depth). Entry layout (128 B):
 
         +0   entryIndex   (8 B)   index into the tx-level map this write touched
@@ -447,7 +459,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xa2d20000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe580000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 

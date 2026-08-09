@@ -218,38 +218,44 @@ side). If a future audit surfaces one, file a P1 bead per standing project polic
 
 ## EEST conformance harness
 
-`scripts/eest-specref-check.sh` ties SpecRef to the *same* EEST `zkevm@v0.5.0`
-conformance fixtures exercised by `scripts/codegen-eest-stateless-check.sh`,
-so regressions in the port's SSZ codec / NPR-root hashing / header /
-chain-config / witness-assembly path surface without spinning up ziskemu.
+`scripts/eest-specref-check.sh` ties SpecRef to the *same* EEST conformance
+fixtures (pinned tag in `scripts/eest-fixture-tag.txt`) exercised by
+`scripts/codegen-eest-stateless-check.sh`, so regressions in the port's SSZ
+codec / NPR-root hashing / header / chain-config / witness-assembly /
+execution path surface without spinning up an emulator.
 
 - **Driver**: `lake exe specref-eest-check <input_file> <output_file>`
   (`MainSpecRefEestCheck.lean` → `EvmAsm.Tests.SpecRefEestCheck`). It reads a
   ziskemu-framed input, strips the host transport (inverse of
   `pack_ziskemu_input`), runs `SpecRef.run_stateless_guest` (default seam:
-  the full `elExecute`, `s1d19.5`), and writes the 105-byte
-  `StatelessValidationResult`.
+  the full `elExecute`, `s1d19.5`), and writes the SSZ-encoded
+  `StatelessValidationResult` (69 bytes on the current v0.6.x pin; see below).
   It lives under `EvmAsm/Tests/` (the unverified escape-hatch layer); no proof
   imports it.
-- **Fixture selection** is identical to the ziskemu harness
+- **Fixture selection** is identical to the guest harness
   (`--all/--skip/--limit/--filter/--random/--seed/--reverse/--tag`), reusing
   `scripts/eest-stateless-to-input.py`, so the two report on the same rows.
+- **Artefacts**: per-case `<label>.specref-result.tsv` (not `.result.tsv` —
+  that name belongs to the guest harness; GH #11746). Run directories are
+  ownership-guarded via `scripts/lib/eest-run-dir.sh` (GH #11748).
 
 ### The three-region verdict
 
-The 105-byte `SszStatelessValidationResult` decomposes into three
-independently-checkable regions.  Since `s1d19.5` the execution seam is the
-full ported `elExecute` (`PrecompilesTable.lean`), so ALL THREE regions are
-expected to match:
+The `SszStatelessValidationResult` decomposes into three independently-checkable
+regions. Since `s1d19.5` the execution seam is the full ported `elExecute`
+(`PrecompilesTable.lean`), so ALL THREE regions are expected to match. On the
+current pin (v0.6.x) ChainConfig dropped fork/blob-schedule fields, so a normal
+success result is **69 bytes** (pre-v0.6 layouts were 105 — older prose that
+still says 105 is describing that earlier shape):
 
 | region | bytes | meaning | gateable? |
 |---|---|---|---|
 | `root` | 0:32 | `new_payload_request_root` (pre-execution hashing) | yes — `--min-root` |
 | `succ` | 32 | `successful_validation` | yes — `--min-succ`; un-allowlisted divergence fails the run |
-| `tail` | 33:105 | u32 offset + 68-byte chain-config echo | yes — `--min-tail` |
-| `full` | all 105 | exact guest output | informational |
+| `tail` | 33:69 | u32 offset + chain-config echo | yes — `--min-tail` |
+| `full` | all 69 | exact SpecRef output | root+succ+tail |
 
-A per-case line shows which regions matched; `[----/----/----]` means the
+A per-case line shows which regions matched; any root/tail miss means the
 pre-execution path itself disagreed with the fixture — a real SpecRef bug worth
 a P1 bead.  A succ divergence is a FAILURE unless the fixture is listed in
 `scripts/eest-succ-allow.txt` (fixture-vs-pinned-spec inconsistencies with

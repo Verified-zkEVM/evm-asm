@@ -134,9 +134,9 @@ theorem bnfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
     (hoal : outPtr.toNat % 8 = 0) (hoov : outPtr.toNat + 32 < 2 ^ 64)
     (hovalid : ∀ k, k < 32 → isValidMemAddr (outPtr + BitVec.ofNat 64 k) = true)
     (harval : ∀ j, j < 232 → isValidMemAddr (arenaB + BitVec.ofNat 64 j) = true)
-    (hdA : aPtr.toNat + 32 ≤ (0xa3000ee0 : Nat) ∨ (0xa3000f00 : Nat) ≤ aPtr.toNat)
-    (hdB : bPtr.toNat + 32 ≤ (0xa3000f00 : Nat) ∨ (0xa3000f20 : Nat) ≤ bPtr.toNat)
-    (hdO : (0xa3000f40 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xa3000f20 : Nat))
+    (hdA : aPtr.toNat + 32 ≤ (0xa3000e80 : Nat) ∨ (0xa3000ea0 : Nat) ≤ aPtr.toNat)
+    (hdB : bPtr.toNat + 32 ≤ (0xa3000ea0 : Nat) ∨ (0xa3000ec0 : Nat) ≤ bPtr.toNat)
+    (hdO : (0xa3000ee0 : Nat) ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ (0xa3000ec0 : Nat))
     (hpa : wsDword ws 0xC0 = arenaB + BitVec.ofNat 64 0)
     (hpb : wsDword ws 0xC8 = arenaB + BitVec.ofNat 64 0x20)
     (hpc : wsDword ws 0xD0 = arenaB + BitVec.ofNat 64 0x60)
@@ -424,8 +424,8 @@ theorem bnfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
                 apply BitVec.eq_of_toNat_eq
                 rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat,
                   BitVec.toNat_ofNat,
-                  show ((GuestAddrs.bnf_le_b : Word)).toNat = 0xa3000f00 from by decide,
-                  show (arenaB).toNat = 0xa3000ee0 from by decide]
+                  show ((GuestAddrs.bnf_le_b : Word)).toNat = 0xa3000ea0 from by decide,
+                  show (arenaB).toNat = 0xa3000e80 from by decide]
                 omega]
               exact harval (0x20 + k) (by omega))
           (by
@@ -433,7 +433,7 @@ theorem bnfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
             rwa [hblen] at h)
           (by decide)
           (by
-            have hdst : ((GuestAddrs.bnf_le_b : Word)).toNat = 0xa3000f00 := by decide
+            have hdst : ((GuestAddrs.bnf_le_b : Word)).toNat = 0xa3000ea0 := by decide
             rcases hdB with h | h
             · left
               rw [hdst]
@@ -577,7 +577,7 @@ theorem bnfMulModP_spec (sp0 aPtr bPtr outPtr ret v8 v9 : Word)
         rwa [halen] at h)
       (by decide)
       (by
-        have hdst : ((GuestAddrs.bnf_le_a : Word)).toNat = 0xa3000ee0 := by decide
+        have hdst : ((GuestAddrs.bnf_le_a : Word)).toNat = 0xa3000e80 := by decide
         rcases hdA with h | h
         · left
           rw [hdst]

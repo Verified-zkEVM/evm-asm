@@ -26,14 +26,12 @@ balAccountChangeDescriptorFunction	EvmAsm/Codegen/Programs/BalAccountChangeDescr
 balAccountCodeConsistentFunction	EvmAsm/Codegen/Programs/BalAccountCodeConsistent.lean
 balAccountHasStateChangeFunction	EvmAsm/Codegen/Programs/BalAccountHasStateChange.lean
 balAccountIsModeledSystemFunction	EvmAsm/Codegen/Programs/BalModeledSystem.lean
-balAccountNonstorageConsistentFunction	EvmAsm/Codegen/Programs/BalAccountNonstorageConsistent.lean
 balAccountNonstorageFinalsFunction	EvmAsm/Codegen/Programs/BalAccountNonstorageFinals.lean
 balAccountPathFunction	EvmAsm/Codegen/Programs/BalAccountPath.lean
 balAccountPostFieldsFunction	EvmAsm/Codegen/Programs/BalAccountPostFields.lean
 balAccountRecordArrayFunction	EvmAsm/Codegen/Programs/BalAccountRecordArray.lean
 balAllAccountsCodeConsistentFunction	EvmAsm/Codegen/Programs/BalAllAccountsCode.lean
 balAllAccountsCodeCoversFunction	EvmAsm/Codegen/Programs/BalAllAccountsCodeCovers.lean
-balAllAccountsNonstorageCoversFunction	EvmAsm/Codegen/Programs/BalAllAccountsNonstorageCovers.lean
 balCanonicalSortFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balCanonicalSortSelftestFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balFindAccountByAddressFunction	EvmAsm/Codegen/Programs/BlockVerdictBalFindAccount.lean
@@ -143,8 +141,6 @@ bn254PtCopyFunction	EvmAsm/Codegen/Programs/Bn254Pairing.lean
 bn254ScalarMulFunction	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bn254ValidateG1Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 bsrApplyModeledSystemPostFieldsFunction	EvmAsm/Codegen/Programs/BlockVerdictModeledSystem.lean
-bsrBeaconChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
-bsrSysChangeFunction	EvmAsm/Codegen/Programs/BlockVerdictSysChange.lean
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
@@ -178,7 +174,9 @@ eip8037ReservoirSplitFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
+erhHashOneFunction	EvmAsm/Codegen/Programs/RequestsHash.lean
 execLogLatestValueFunction	EvmAsm/Codegen/Programs/ExecLogLatestValue.lean
+executionRequestsHashFunction	EvmAsm/Codegen/Programs/RequestsHash.lean
 expGasFunction	EvmAsm/Codegen/Programs/DynamicOpcodeGas.lean
 extcodecopyAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmOpcodesExtcodecopy.lean
 extcodehashAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmOpcodes.lean
@@ -329,13 +327,8 @@ sszWithdrawalToRlpFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 statelessVerdictFromSszFunction	EvmAsm/Codegen/Programs/StatelessVerdict.lean
 step2VerdictFunction	EvmAsm/Codegen/Programs/Step2Verdict.lean
 storageRootSingleSlotFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
-swdMinimalCopyFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdReadU64leFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdWriteBe32U64Function	EvmAsm/Codegen/Programs/SystemWrites.lean
-swdWriteBe8Function	EvmAsm/Codegen/Programs/SystemWrites.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
-systemWriteDescriptorsFunction	EvmAsm/Codegen/Programs/SystemWrites.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
 txEffectiveGasPricingFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txEip1559DecodeFunction	EvmAsm/Codegen/Programs/TxDecode1559.lean

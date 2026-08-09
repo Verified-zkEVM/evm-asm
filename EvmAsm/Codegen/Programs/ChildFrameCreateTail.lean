@@ -111,7 +111,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- `get_account(tx_state, sender).balance < endowment` against the LIVE mutable tx state
     -- (amsterdam vm/instructions/system.py:108-119), and the endowment DEBIT below
     -- (.Lcr_deb_done, lines ~256-276) already debits the LIVE balance env+32 (.selfBalance).
-    -- The previous gate compared the witness pre-state balance (balance_at_header_state_root)
+    -- The previous gate compared the witness pre-state balance (balance_live_else_header_state_root)
     -- against the endowment, which falsely bailed when the creator is funded THIS tx (e.g. the
     -- tx.to recipient does CREATE(value): witness balance = 0 but live balance = pre + tx.value).
     -- That false bail skipped the entire CREATE descend, so a failing initcode (OOG / invalid
@@ -168,21 +168,26 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  ld x18, 0(x18)\n" ++
     "  li x19, -1\n" ++
     "  beq x18, x19, 7f\n" ++
-    -- bmvmx.5.5.10: cross-tx CREATE-nonce threading (sequential mtx lane).
-    -- create_creator_nonce_table resets PER TX (.61.8a) and the witness seed
-    -- above reads the PRE-state nonce, so a contract that CREATEs in tx i and
-    -- again in tx j would re-derive with the stale pre-state nonce. The
-    -- non-storage effect log records every creator bump (drj99.1 5a) and
-    -- created-account record (post_nonce=1) and persists across txs
-    -- (truncated only for FAILED txs, whose nonce bumps revert). Consult it:
-    -- hit -> override the seed with the latest post_nonce; miss -> witness
-    -- seed (today's behavior). Same case analysis as the SELFBALANCE live
-    -- overlay (DispatchTx:769-789). Must run BEFORE create_creator_nonce_use
-    -- (it reads create_nonce for the seed-and-bump on table miss).
+    -- Creator-nonce seed for address derivation must mirror
+    -- `get_account(tx_env.state, creator).nonce` (execution-specs amsterdam
+    -- system.py:198-202 at e5a8caf1b). Spec has one live tx_state; our dual
+    -- map splits it as TX (same-tx writers, e.g. EIP-7702 AUTH) then BLOCK
+    -- (prior txs in the block). TX shadows BLOCK — not BLOCK-then-TX —
+    -- because a same-tx AUTH nonce bump lives only in the TX map and would
+    -- be invisible under block-only overlay (#11542 SOURCE: 01991/24631/24632
+    -- CREATE address = keccak(rlp(auth, 0)) vs spec keccak(rlp(auth, 1))).
+    -- create_creator_nonce_table still handles same-tx multi-CREATE after
+    -- this seed; this overlay only supplies the first-CREATE baseline.
+    -- Must run BEFORE create_creator_nonce_use (seed-and-bump on table miss).
     "  sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
     "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
-    "  li a2, 21; jal ra, account_writes_latest_nonce_tx\n" ++
+    "  li a2, 22; jal ra, account_writes_latest_nonce_tx\n" ++
     "  mv t0, a0\n" ++
+    "  bnez t0, 12f\n" ++
+    "  la a0, create_sender_be; la a1, create_nonce_latest\n" ++
+    "  li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
+    "  mv t0, a0\n" ++
+    "12:\n" ++
     "  ld x10, 0(sp); ld x12, 8(sp); ld x13, 16(sp)\n" ++
     "  beqz t0, 13f\n" ++
     "  la x19, create_nonce_latest; ld x18, 0(x19)\n" ++
@@ -304,9 +309,10 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- to_other receipt cumulativeGasUsed over-counted by exactly 2500 -> bv_fail=53). The warm
     -- table is a single global (evm_access_account_table, capacity 100000, reset only at tx setup),
     -- so the seed persists across create_frame_descend into the parent's subsequent CALL.
-    -- runtime_access_account_seed inserts WITHOUT charging gas and ignores duplicates; it clobbers
-    -- the a-regs that alias x10/x12/x13, so save/restore them. create_address_be is the canonical
-    -- 20-byte BE address (a0 expects exactly that).
+    -- runtime_access_account_seed inserts WITHOUT charging gas and ignores duplicates; it
+    -- clobbers a0-a3 (x10-x13). Save/restore the dispatcher invariants x10/x12/x13 (PC/stack/
+    -- mem-base); x11 is dead here. create_address_be is the canonical 20-byte BE address
+    -- (a0 expects exactly that).
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  la a0, create_address_be\n" ++
     "  la a1, " ++ runtimeAccessAccountTableLabel ++ "\n" ++
@@ -363,8 +369,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- child failure. Emit the nonce-only effect in the parent before descent
     -- so the all-accounts non-storage check sees every attempt. The same
     -- pre-balance scratch is used for zero- and nonzero-endowment records;
-    -- equal balance operands make the record's mask balance-only.
-    "  ld t3, 584(x20)\n  beqz t3, .Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
+    -- equal balance operands make the record's mask nonce-only.
     "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n" ++
     ".Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_creator_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -373,7 +378,6 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n" ++
     "  jal ra, record_nonstorage_effect\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    ".Lcr_creator_nonce_effect_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     createStageInitcodeFrameCallAsm (if hasSalt then 1 else 0) ++
     -- .61.8.3.5.3 (.5c): execute the staged init code in a REAL child frame via the full
     -- dispatch loop (create_frame_descend, .5a, reusing call_frame_descend), REPLACING the
@@ -405,12 +409,12 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  la t0, create_target_alive_current_tx\n  sd x0, 0(t0)\n" ++
     "  ld t3, 584(x20)\n  beqz t3, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
     -- spec is_account_alive(target) on mutable tx_state (state_tracker.py):
-    -- LIVE balance via balance_at_header_state_root (live-first, #11019), not
+    -- LIVE balance via balance_live_else_header_state_root (live-first, #11019), not
     -- pure header. Code/nonce holders already took the collision branch; plus
     -- the shared current account-write tiers for prior same-tx creation.
     "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
     "  ld a0, 576(x20)\n  ld a1, 584(x20)\n  la a2, create_address_be\n  ld a3, 592(x20)\n  ld a4, 600(x20)\n  la a5, cr_alive_bal\n" ++
-    "  jal ra, balance_at_header_state_root\n" ++
+    "  jal ra, balance_live_else_header_state_root\n" ++
     "  mv t2, a0\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     "  bnez t2, .Lcr_alive_known_" ++ (if hasSalt then "f5" else "f0") ++ "\n" ++
@@ -424,7 +428,7 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- pin is_account_alive (state_tracker.py:445-463) + NEW_ACCOUNT
     -- (system.py:110-112). EMPTY = nonce0 AND balance0 AND code empty.
     -- BALANCE PREMISE (instruction-level, FINDING 3): immediately above,
-    -- `jal balance_at_header_state_root` writes `cr_alive_bal`; then
+    -- `jal balance_live_else_header_state_root` writes `cr_alive_bal`; then
     -- `ld t1,0(t0); ld t2,8; or; ld 16; or; ld 24; or; bnez t1, .Lcr_alive_set`
     -- so any nonzero limb sets alive and never reaches this status/nonce arm.
     -- Only balance==0 continues here. Status 2 ⇒ code empty by resolver.
@@ -484,7 +488,23 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     -- address was pre-funded), so add the endowment on top = the EVM "new account balance". x20 = the
     -- CHILD env (switched by the descend). env+32 is LE; reverse to BE, u256_add_be the BE endowment
     -- (create_value_be, still valid — the initcode has not run yet), reverse back. create_creator_newbal
-    -- is the BE scratch (free after the gate's creator-debit). a0-a2 alias x10/x12/x13 -> save/restore.
+    -- is the BE scratch (free after the gate's creator-debit).
+    --
+    -- Save set around `u256_add_be` below is INTENTIONAL and is NOT meant to match the
+    -- helper's a0-a2 write set. This CREATE-tail region uses a regional convention:
+    -- preserve dispatcher invariants x10=PC, x12=stack-top, x13=mem-base across every
+    -- helper call (same pattern as L182/L258/L275 above). Those three are live; restore
+    -- them. RV ABI: a0=x10, a1=x11, a2=x12 — so the `la a0/a1/a2` setup also clobbers
+    -- x11. x11 is DEAD here (CREATE live set is only x10/x12/x13; nothing reads prior
+    -- x11 after restore; `create_frame_descend` already clobbered a0-a7). Do NOT "fix"
+    -- the save set to x10/x11/x12 to match the write set: that would drop x13 for no
+    -- gain, or add a dead x11 slot for hygiene-only churn (#11083). `u256_add_be` itself
+    -- touches x5-7,x10-12,x28-31 only (not x13); x13 stays in the save for the regional
+    -- convention and for callees that do clobber it. Prior text claimed "a0-a2 alias
+    -- x10/x12/x13" — false under RV ABI, and that false claim is what propagated the
+    -- mismatched CALL save set fixed in #11082. The mismatch that remains (save ≠ write
+    -- set) is deliberate invariant preservation, not an oversight.
+    --
     -- drj99.1 (initcode_calls_with_value bv_fail=44): FIRST capture the child's staged PRE-state
     -- balance (env+32 BEFORE the endowment credit, = block-pre balance: 0 for a fresh address) into
     -- nse_create_pre_bal (BE), so the created-account endowment-credit nonstorage record below carries
@@ -589,9 +609,9 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
     "  li a3, " ++ toString runtimeAccessAccountCapacity ++ "\n" ++
     "  jal ra, runtime_access_account_seed\n" ++
     "  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
-    "  ld t3, 584(x20)\n  beqz t3, .Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ "\n  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, nse_create_pre_bal\n  addi t1, x20, 63\n  li t2, 32\n.Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
     "  lbu t3, 0(t1)\n  sb t3, 0(t0)\n  addi t1, t1, -1\n  addi t0, t0, 1\n  addi t2, t2, -1\n  bnez t2, .Lcr_collision_nonce_bal_" ++ (if hasSalt then "f5" else "f0") ++ "\n  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
-    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n.Lcr_collision_nonce_done_" ++ (if hasSalt then "f5" else "f0") ++ ":\n" ++
+    "  la t0, create_nonce\n  ld a3, 0(t0)\n  addi a4, a3, 1\n  la a0, create_sender_be\n  la a1, nse_create_pre_bal\n  la a2, nse_create_pre_bal\n  jal ra, record_nonstorage_effect\n  ld x10, 0(sp)\n  ld x12, 8(sp)\n  ld x13, 16(sp)\n  addi sp, sp, 32\n" ++
     -- v0.6.0 (C11): an EIP-684 collision target holds code or a nonce, so
     -- is_account_alive is true and generic_create charges NO NEW_ACCOUNT
     -- state gas -- the burned child allowance is a plain 63/64 of the

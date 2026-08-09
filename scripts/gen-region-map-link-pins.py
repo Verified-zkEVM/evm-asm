@@ -10,6 +10,7 @@ Link-layout-dependent only (class A). Class B stable bases stay hand-typed in Re
 from __future__ import annotations
 
 import argparse
+import difflib
 import os
 import re
 import subprocess
@@ -37,15 +38,24 @@ def _find_tool(*names: str) -> str:
     sys.exit(f"missing required tool (tried {', '.join(names)})")
 
 
-def readelf_sections(elf: Path) -> dict[str, int]:
-    """Section sizes via the same wide-format parse as check-region-map.sh."""
+# Sections this generator reads.  `.state_gas_diag`'s SIZE is pinned; its BASE
+# deliberately is NOT.  The linker places that section immediately after `.bss`,
+# so RegionMap DERIVES the base as `0xa3110000 + bssSizeBytes` and the two can
+# never disagree -- pinning it independently let it contradict its own premise
+# (GH #11186).  Emitted unconditionally by
+# `dispatcherExecStateGasDifferentialData` (DispatcherExecStateGas.lean:158).
+SECTIONS = (".text", ".data", ".bss", ".state_gas_diag")
+
+
+def readelf_sections(elf: Path) -> dict[str, tuple[int, int]]:
+    """Section (addr, size) via the same wide-format parse as check-region-map.sh."""
     # Probe all three spellings, matching gen-symbol-addresses.py:82. Homebrew's
     # riscv64-elf-binutils installs `riscv64-elf-readelf`; omitting it made this
     # generator unusable on macOS while its sibling worked (#11043's class).
     readelf = _find_tool("readelf", "riscv64-unknown-elf-readelf",
                          "riscv64-elf-readelf")
     out = subprocess.check_output([readelf, "-SW", str(elf)], text=True)
-    sizes: dict[str, int] = {}
+    sizes: dict[str, tuple[int, int]] = {}
     for line in out.splitlines():
         m = re.search(
             r"\]\s+(\S+)\s+\S+\s+([0-9a-f]+)\s+[0-9a-f]+\s+([0-9a-f]+)", line
@@ -53,9 +63,9 @@ def readelf_sections(elf: Path) -> dict[str, int]:
         if not m:
             continue
         name = m.group(1)
-        if name in (".text", ".data", ".bss"):
-            sizes[name] = int(m.group(3), 16)
-    for req in (".text", ".data", ".bss"):
+        if name in SECTIONS:
+            sizes[name] = (int(m.group(2), 16), int(m.group(3), 16))
+    for req in SECTIONS:
         if req not in sizes:
             sys.exit(f"section {req} not found in {elf}")
     return sizes
@@ -83,9 +93,10 @@ def render(elf: Path) -> str:
         "  `python3 scripts/gen-region-map-link-pins.py` regenerates this from the",
         "  linked stateless_guest ELF (issue #11230).",
         "",
-        "  Link-layout-dependent pins only (class A): section sizes + three BSS",
-        "  bases that move when the guest image moves. Class B stable bases stay",
-        "  hand-typed in RegionMap.lean.",
+        "  Link-layout-dependent pins only (class A): section sizes and three",
+        "  BSS bases, which move when the guest image moves. Class B stable",
+        "  bases stay hand-typed in RegionMap.lean; `.state_gas_diag`'s base is",
+        "  neither — RegionMap DERIVES it from `bssSizeBytes` (GH #11186).",
         "",
         f"  Regenerated from: {rel}",
         "  Guard contract (check-region-map.sh): pins are this file (regen-time",
@@ -97,9 +108,12 @@ def render(elf: Path) -> str:
         "namespace EvmAsm.Codegen.RegionMapLinkPins",
         "",
         # abbrev so decide/omega/simp reduce through without hand-unfold (GuestImage).
-        f"abbrev textSizeBytes : Nat := {sec['.text']:#x}",
-        f"abbrev dataSizeBytes : Nat := {sec['.data']:#x}",
-        f"abbrev bssSizeBytes : Nat := {sec['.bss']:#x}",
+        f"abbrev textSizeBytes : Nat := {sec['.text'][1]:#x}",
+        f"abbrev dataSizeBytes : Nat := {sec['.data'][1]:#x}",
+        f"abbrev bssSizeBytes : Nat := {sec['.bss'][1]:#x}",
+        "",
+        # SIZE only -- the BASE is derived in RegionMap (see SECTIONS above).
+        f"abbrev stateGasDiagSizeBytes : Nat := {sec['.state_gas_diag'][1]:#x}",
         "",
         f"abbrev callFrameArenaBase : Nat := {addrs['callFrameArenaBase']:#x}",
         f"abbrev evmMemoryPoolBase : Nat := {addrs['evmMemoryPoolBase']:#x}",
@@ -109,6 +123,42 @@ def render(elf: Path) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _without_provenance_path(text: str) -> str:
+    """Normalize only the generated file's non-semantic source-path comment."""
+    return re.sub(
+        r"(?m)^  Regenerated from: .*$",
+        "  Regenerated from: <path>",
+        text,
+    )
+
+
+def _report_drift(cur: str, body: str) -> None:
+    """Explain a stale generated file instead of emitting an opaque DRIFT."""
+    if _without_provenance_path(cur) == _without_provenance_path(body):
+        print(
+            "DRIFT cause: only the Regenerated-from provenance path differs; "
+            "pin values are unchanged",
+            file=sys.stderr,
+        )
+
+    diff = list(
+        difflib.unified_diff(
+            cur.splitlines(),
+            body.splitlines(),
+            fromfile="committed",
+            tofile="generated",
+            lineterm="",
+        )
+    )
+    if diff:
+        limit = 40
+        print("DRIFT differing lines (committed vs generated):", file=sys.stderr)
+        for line in diff[:limit]:
+            print(line, file=sys.stderr)
+        if len(diff) > limit:
+            print(f"... ({len(diff) - limit} more diff lines)", file=sys.stderr)
 
 
 def main() -> int:
@@ -127,6 +177,7 @@ def main() -> int:
                 f"`python3 scripts/gen-region-map-link-pins.py`",
                 file=sys.stderr,
             )
+            _report_drift(cur, body)
             return 1
         print(f"check-region-map-link-pins: CLEAN ({OUT.relative_to(REPO)})")
         return 0

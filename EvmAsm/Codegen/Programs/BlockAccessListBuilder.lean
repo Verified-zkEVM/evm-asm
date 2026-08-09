@@ -33,6 +33,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.BalCapacities
 
 namespace EvmAsm.Codegen
 
@@ -42,7 +43,10 @@ namespace EvmAsm.Codegen
     than local to this table.
 
     ANY ROW ARRAY THAT WILL BE SORTED MUST HAVE AN 8-ALIGNED STRIDE. `bal_canonical_sort`
-    swaps rows with `ld`/`sd` (`BalCanonicalSort.lean:254`), and per AGENTS.md:211 the
+    swaps rows with `ld`/`sd` (`scripts/asm-fixtures/balCanonicalSortFunction.s:65-67`,
+    the `.Lbalsort_swap` loop — this cited `BalCanonicalSort.lean:254` until #10817,
+    which had drifted to a range-frame load; the fixture is the stable citation),
+    and per AGENTS.md:211 the
     verified RV64 semantics give `LD`/`SD` NO SEMANTICS unless the address is a multiple
     of 8 -- `isValidDwordAccess` is `isValidMemAddr && isAligned8`. This is not a platform
     quirk to be worked around: a proof that reaches a misaligned access cannot close. 24
@@ -73,7 +77,7 @@ def balBuilderNonceRowBytes : Nat := 40
 /-- `{address[20], pad[4], u64 BAI, code-effect reference/meta[32]}`. -/
 def balBuilderCodeRowBytes : Nat := 64
 
-/-- Separate resource bounds. They are intentionally not added as if one block
+/-! Separate resource bounds. They are intentionally not added as if one block
     could maximize every list simultaneously. The enumeration behind the
     persistent 16,882,112-byte reservation (row strides: account 24,
     storage-change 96, balance 64, nonce 40, code 64) is, per field:
@@ -103,12 +107,6 @@ def balBuilderCodeRowBytes : Nat := 64
     revisited when a new producer route is understood. The reservation is
     therefore a joint upper bound with material slack, not a sum of
     independent maxima. -/
-def balBuilderAccountCapacity : Nat := 140000
-def balBuilderStorageChangeCapacity : Nat := 47522
-def balBuilderBalanceCapacity : Nat := 105000
-def balBuilderNonceCapacity : Nat := 35000
-def balBuilderCodeCapacity : Nat := 13125
-
 /-! ## The serializer's length table
 
     RLP requires a list's payload length BEFORE its header can be written, so a walk
@@ -755,6 +753,13 @@ def blockAccessListBuilderFunctions : String :=
 -- entirely and no probe could see it, because a one-element list is sorted by definition
 -- and every case had one element at every inner level.
 #guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn "li a5,").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderStorageChangeCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderStorageReadsCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderBalanceCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderNonceCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderCodeCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderAccountCapacity)).length == 2
 -- Every stride 8-ALIGNED: 96, 64, 64, 40, 64, 24.
 #guard (balSerializerRebuildHashFunction.splitOn "li a2, 96;").length == 2
 #guard (balSerializerRebuildHashFunction.splitOn "li a2, 40;").length == 2
@@ -810,8 +815,8 @@ def blockAccessListBuilderFunctions : String :=
       system            0, the value before any transaction sets it
 
     The guest realizes all three channels:
-    * system rows pass `0` as an explicit argument to
-      `bal_builder_record_storage_change` (`BlockVerdictSystemStorageCapture.lean:213`);
+    * live begin/end system-call paths pass `0` as an explicit argument to
+      `bal_builder_record_storage_change`;
     * user-transaction rows read `current_block_access_index`, which the MTx entry
       paths set to `bv_mtx_i + 1` (`BlockVerdictMtxRuntime.lean:519,547,909`); and
     * post-execution rows use the same global after it is set to `bv_tx_count + 1`

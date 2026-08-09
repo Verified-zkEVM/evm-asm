@@ -123,7 +123,7 @@ theorem adFailArm (sp0 spW : Word) (saved : Saved) (listBase : Word)
     (bytes oldRoot oldCode : List (BitVec 8)) (listLen : Nat)
     (hspW : spW = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
-    cpsTripleWithin (1 + 9) (AB + 504) saved.ra fullCode
+    cpsTripleWithin (1 + 9) (AB + 552) saved.ra fullCode
       (((((.x2 : Reg) ↦ᵣ spW) ** regsOwnAt listNthFrame ** savedFrame spW saved) **
         ((⌜DecodeFailure bytes listBase listLen⌝ : Assertion) ** adFoldConstants **
          adFailLeftover spW saved.s2 saved.s3 saved.s4 saved.s5 listBase bytes)) **

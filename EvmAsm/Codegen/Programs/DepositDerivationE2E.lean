@@ -106,7 +106,7 @@ def ziskDepositDerivationE2EPrologue : String :=
   extractDepositDataFunction ++ "\n" ++
   requestsHashVerifyFunction ++ "\n" ++
   assembleExecutionRequestsFunction ++ "\n" ++
-  executionRequestsHashFunction ++ "\n" ++
+  executionRequestsHashFunctions ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   zkvmSha256Function ++ "\n" ++
   ".Ldde_done:"

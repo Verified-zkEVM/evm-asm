@@ -15,7 +15,7 @@
     [39] JAL  x0, -24       -- back to AB+132
 
   This is exactly the merged `AccountIsEip161EmptyLoop.aieNonceLoop`
-  accumulate-scan (`beAccFrom`), re-derived here at the account-decode guest
+  accumulate-scan (`beAccum`), re-derived here at the account-decode guest
   offsets with the content tie the byte-identical `AccountDecodeSpec.beAccum`.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
@@ -94,7 +94,7 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
     (hover : accBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ j, j < bytes.length →
       isValidByteAccess (accBase + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin 6 (AB + 136) (AB + 132) fullCode
+    cpsTripleWithin 6 (AB + 160) (AB + 156) fullCode
       (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
        ((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
@@ -108,10 +108,10 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
        bytesRegion accBase bytes) := by
   -- [34] SLLI x7, x7, 8
   have h34 := slli_spec_gen_same_within .x7 (beAccum bytes o0 i) (8 : BitVec 6)
-    (AB + 136) (by decide)
-  rw [show (AB + 136 : Word) + 4 = AB + 140 from by bv_omega] at h34
+    (AB + 160) (by decide)
+  rw [show (AB + 160 : Word) + 4 = AB + 164 from by bv_omega] at h34
   have e34 := cpsTripleWithin_extend_code
-    (adMemF 34, (AB + 136), (.SLLI .x7 .x7 (8 : BitVec 6))) h34
+    (adMemF 40, (AB + 160), (.SLLI .x7 .x7 (8 : BitVec 6))) h34
   have f34 := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
      ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
@@ -119,11 +119,11 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
      bytesRegion accBase bytes)
     (by pcFreeR) e34
   -- [35] LBU x29 ← bytes[o0+i]
-  have h35 := bytesRegion_lbu_within .x29 .x28 accBase v29 (AB + 140) bytes (o0 + i)
+  have h35 := bytesRegion_lbu_within .x29 .x28 accBase v29 (AB + 164) bytes (o0 + i)
     (by decide) halign hlt (by omega) (hvalid (o0 + i) hlt)
-  rw [show (AB + 140 : Word) + 4 = AB + 144 from by bv_omega] at h35
+  rw [show (AB + 164 : Word) + 4 = AB + 168 from by bv_omega] at h35
   have e35 := cpsTripleWithin_extend_code
-    (adMemF 35, (AB + 140), (.LBU .x29 .x28 (0 : BitVec 12))) h35
+    (adMemF 41, (AB + 164), (.LBU .x29 .x28 (0 : BitVec 12))) h35
   have f35 := cpsTripleWithin_frameR
     (((.x7 : Reg) ↦ᵣ ((beAccum bytes o0 i) <<< (8 : BitVec 6).toNat)) **
      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
@@ -131,11 +131,11 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
   -- [36] OR x7, x7, x29
   have h36 := or_spec_gen_rd_eq_rs1_within .x7 .x29
     ((beAccum bytes o0 i) <<< (8 : BitVec 6).toNat) ((bytes[o0 + i]'hlt).zeroExtend 64)
-    (AB + 144) (by decide)
+    (AB + 168) (by decide)
   rw [ad_x7_or_step bytes o0 i hlt,
-      show (AB + 144 : Word) + 4 = AB + 148 from by bv_omega] at h36
+      show (AB + 168 : Word) + 4 = AB + 172 from by bv_omega] at h36
   have e36 := cpsTripleWithin_extend_code
-    (adMemF 36, (AB + 144), (.OR .x7 .x7 .x29)) h36
+    (adMemF 42, (AB + 168), (.OR .x7 .x7 .x29)) h36
   have f36 := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
      ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
@@ -143,12 +143,12 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
     (by pcFreeR) e36
   -- [37] ADDI x28, x28, 1
   have h37 := addi_spec_gen_same_within .x28 (accBase + BitVec.ofNat 64 (o0 + i))
-    (1 : BitVec 12) (AB + 148) (by decide)
+    (1 : BitVec 12) (AB + 172) (by decide)
   rw [adn_advance accBase (o0 + i),
       show o0 + i + 1 = o0 + (i + 1) from by omega,
-      show (AB + 148 : Word) + 4 = AB + 152 from by bv_omega] at h37
+      show (AB + 172 : Word) + 4 = AB + 176 from by bv_omega] at h37
   have e37 := cpsTripleWithin_extend_code
-    (adMemF 37, (AB + 148), (.ADDI .x28 .x28 (1 : BitVec 12))) h37
+    (adMemF 43, (AB + 172), (.ADDI .x28 .x28 (1 : BitVec 12))) h37
   have f37 := cpsTripleWithin_frameR
     (((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (k + 1)) **
@@ -157,10 +157,10 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
     (by pcFreeR) e37
   -- [38] ADDI x6, x6, -1
   have h38 := addi_spec_gen_same_within .x6 (BitVec.ofNat 64 (k + 1)) (-1 : BitVec 12)
-    (AB + 152) (by decide)
-  rw [adn_succ_dec k, show (AB + 152 : Word) + 4 = AB + 156 from by bv_omega] at h38
+    (AB + 176) (by decide)
+  rw [adn_succ_dec k, show (AB + 176 : Word) + 4 = AB + 180 from by bv_omega] at h38
   have e38 := cpsTripleWithin_extend_code
-    (adMemF 38, (AB + 152), (.ADDI .x6 .x6 (-1 : BitVec 12))) h38
+    (adMemF 44, (AB + 176), (.ADDI .x6 .x6 (-1 : BitVec 12))) h38
   have f38 := cpsTripleWithin_frameR
     (((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
      ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + (i + 1)))) **
@@ -168,11 +168,11 @@ private theorem adNonceBody (accBase : Word) (bytes : List (BitVec 8))
      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion accBase bytes)
     (by pcFreeR) e38
   -- [39] JAL x0, -24  → AB+132
-  have h39 := jal_x0_spec_gen_within (-24 : BitVec 21) (AB + 156)
-  rw [show AB + 156 + signExtend21 (-24 : BitVec 21) = AB + 132 from by
+  have h39 := jal_x0_spec_gen_within (-24 : BitVec 21) (AB + 180)
+  rw [show AB + 180 + signExtend21 (-24 : BitVec 21) = AB + 156 from by
       rw [show signExtend21 (-24 : BitVec 21) = (-24 : Word) from by decide]; bv_omega] at h39
   have e39 := cpsTripleWithin_extend_code
-    (adMemF 39, (AB + 156), (.JAL .x0 (-24 : BitVec 21))) h39
+    (adMemF 45, (AB + 180), (.JAL .x0 (-24 : BitVec 21))) h39
   have f39 := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 k) **
      ((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + 1)) **
@@ -203,7 +203,7 @@ theorem adNonceLoop (accBase : Word) (bytes : List (BitVec 8))
     (hover : accBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ j, j < bytes.length →
       isValidByteAccess (accBase + BitVec.ofNat 64 j) = true) :
-    cpsTripleWithin (7 * n + 1) (AB + 132) (AB + 160) fullCode
+    cpsTripleWithin (7 * n + 1) (AB + 156) (AB + 184) fullCode
       (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
        ((.x7 : Reg) ↦ᵣ beAccum bytes o0 i) **
        ((.x28 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 (o0 + i))) **
@@ -213,16 +213,16 @@ theorem adNonceLoop (accBase : Word) (bytes : List (BitVec 8))
        ((.x7 : Reg) ↦ᵣ beAccum bytes o0 (i + n)) **
        regOwn .x28 ** regOwn .x29 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        bytesRegion accBase bytes) := by
-  have hbeq : (AB + 132 : Word) + signExtend13 (28 : BitVec 13) = AB + 160 := by
+  have hbeq : (AB + 156 : Word) + signExtend13 (28 : BitVec 13) = AB + 184 := by
     rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega
   induction n generalizing i v29 with
   | zero =>
     -- x6 = 0 : BEQ taken → AB+160
     have hb := beq_spec_gen_within .x6 .x0 (28 : BitVec 13) (BitVec.ofNat 64 0)
-      (0 : Word) (AB + 132)
+      (0 : Word) (AB + 156)
     rw [hbeq] at hb
     have hbe := cpsBranchWithin_extend_code
-      (adMemF 33, (AB + 132), (.BEQ .x6 .x0 (28 : BitVec 13))) hb
+      (adMemF 39, (AB + 156), (.BEQ .x6 .x0 (28 : BitVec 13))) hb
     have htaken := cpsBranchWithin_takenStripPure2 hbe (fun hp hQf => by
       obtain ⟨_, _, _, _, _, hQ⟩ := hQf
       exact ((sepConj_pure_right _).1 hQ).2 (by decide))
@@ -249,10 +249,10 @@ theorem adNonceLoop (accBase : Word) (bytes : List (BitVec 8))
   | succ k ih =>
     -- x6 = k+1 ≠ 0 : BEQ not-taken → AB+136, then body, then IH
     have hb := beq_spec_gen_within .x6 .x0 (28 : BitVec 13) (BitVec.ofNat 64 (k + 1))
-      (0 : Word) (AB + 132)
+      (0 : Word) (AB + 156)
     rw [hbeq] at hb
     have hbe := cpsBranchWithin_extend_code
-      (adMemF 33, (AB + 132), (.BEQ .x6 .x0 (28 : BitVec 13))) hb
+      (adMemF 39, (AB + 156), (.BEQ .x6 .x0 (28 : BitVec 13))) hb
     have hnt := cpsBranchWithin_ntakenStripPure2 hbe (fun hp hQt => by
       obtain ⟨_, _, _, _, _, hQ⟩ := hQt
       exact adn_succ_ne_zero k (by omega) ((sepConj_pure_right _).1 hQ).2)

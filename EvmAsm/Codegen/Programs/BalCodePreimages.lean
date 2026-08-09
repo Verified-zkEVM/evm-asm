@@ -26,8 +26,12 @@ def accountStateDelegationCodeResolveFunction : String :=
   "# Resolve an EIP-7702 delegation marker from the AccountState overlay.\n" ++
   "# a0 = 20-byte authority address, a1/a2 = witness state ptr/len,\n" ++
   "# a3 = access mode (0 free/seed, 1 charge cold+WARM, 2 probe), a4 = codes base.\n" ++
-  "# Return 0 for a resolved delegated code target, 1 for no current marker,\n" ++
-  "# and 2 for empty/deleted or precompile targets.\n" ++
+  "# Return 0 for a resolved delegated code target, 1 when the account-write\n" ++
+  "# tiers have no current code fact (caller may fall back to pre-state),\n" ++
+  "# 2 for empty/deleted or precompile targets of a live marker, and 3 when a\n" ++
+  "# current write proves the authority is NOT a live delegation (clear or\n" ++
+  "# non-marker code). Status 3 must NOT fall back to a stale pre-state marker\n" ++
+  "# (#11542 cluster A / delegation_clearing over-charge).\n" ++
   "account_state_delegation_code_resolve:\n" ++
   "  addi sp, sp, -128\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
@@ -35,11 +39,19 @@ def accountStateDelegationCodeResolveFunction : String :=
   "  mv s0, a0; mv s1, a1; mv s2, a2; mv s10, a3\n" ++
   "  jal ra, account_writes_lookup_current\n" ++
   "  mv s5, a0; mv s6, a1; mv s7, a2\n" ++
-  "  li t0, 1; bne s5, t0, .Lasd_no\n" ++
-  "  li t0, 23; bne s7, t0, .Lasd_no\n" ++
-  "  lbu t0, 0(s6); li t1, 0xef; bne t0, t1, .Lasd_no\n" ++
-  "  lbu t0, 1(s6); li t1, 1; bne t0, t1, .Lasd_no\n" ++
-  "  lbu t0, 2(s6); bnez t0, .Lasd_no\n" ++
+  -- lookup_current: 0 absent, 1 code present, 2 empty, 3 deleted.
+  -- Empty/deleted are live tx-state facts (e.g. EIP-7702 clear to b\"\"): they
+  -- must not collapse into status 1, or callers fall back to a pre-state
+  -- designator and over-charge COLD_ACCOUNT_ACCESS after set_delegation.
+  "  li t0, 1; beq s5, t0, .Lasd_have_code\n" ++
+  "  li t0, 2; beq s5, t0, .Lasd_not_delegated\n" ++
+  "  li t0, 3; beq s5, t0, .Lasd_not_delegated\n" ++
+  "  j .Lasd_no\n" ++
+  ".Lasd_have_code:\n" ++
+  "  li t0, 23; bne s7, t0, .Lasd_not_delegated\n" ++
+  "  lbu t0, 0(s6); li t1, 0xef; bne t0, t1, .Lasd_not_delegated\n" ++
+  "  lbu t0, 1(s6); li t1, 1; bne t0, t1, .Lasd_not_delegated\n" ++
+  "  lbu t0, 2(s6); bnez t0, .Lasd_not_delegated\n" ++
   "  la t0, bsbd_deleg_target; addi t1, s6, 3; li t2, 20\n" ++
   ".Lasd_copy_target:\n" ++
   "  beqz t2, .Lasd_target_copied\n" ++
@@ -85,6 +97,8 @@ def accountStateDelegationCodeResolveFunction : String :=
   "  li a0, 0; j .Lasd_ret\n" ++
   ".Lasd_empty:\n" ++
   "  li a0, 2; j .Lasd_ret\n" ++
+  ".Lasd_not_delegated:\n" ++
+  "  li a0, 3; j .Lasd_ret\n" ++
   ".Lasd_no:\n" ++
   "  li a0, 1\n" ++
   ".Lasd_ret:\n" ++

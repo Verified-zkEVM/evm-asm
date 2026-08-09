@@ -203,6 +203,13 @@ BSR_BAL_CAP="${EEST_BSR_BAL_CAP:-}"
 MIN_SUCC=""
 MIN_FULL=""
 MIN_ROOT=""
+# GH #11737: a fixture failure must make the RUN fail.  Until this existed the
+# script exited 0 with any number of failing rows unless an opt-in --min-*
+# threshold happened to be passed, so `harness && echo ok` printed ok on a run
+# with 116 of 648 rows failing.  That is the dangerous direction: a tool that
+# errors loudly gets fixed, one that reports success gets trusted.  Callers that
+# genuinely want the summary regardless of the outcome must say so explicitly.
+EXIT_ZERO_ON_FAILURES="${EEST_EXIT_ZERO_ON_FAILURES:-0}"
 DEFAULT_TAG="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt 2>/dev/null || true)"
 DEFAULT_TAG="${DEFAULT_TAG:-$(cat scripts/eest-fixture-tag.txt)}"
 TAG="${EEST_FIXTURE_TAG:-$DEFAULT_TAG}"
@@ -248,6 +255,9 @@ Usage:
 
 Options:
   --all                    run every stateless block (slow); default: smoke subset
+  --exit-zero-on-failures  exit 0 even when rows FAIL or ERROR (GH #11737). Default is
+                           to exit non-zero, so a failing run cannot read as green.
+                           Use only when the summary is wanted regardless of outcome.
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
@@ -307,6 +317,7 @@ require_arg() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
+    --exit-zero-on-failures) EXIT_ZERO_ON_FAILURES=1; shift ;;
     --all) ALL=1; shift ;;
     --backend) require_arg "$1" "${2:-}"; BACKEND="$2"; shift 2 ;;
     --skip) require_arg "$1" "${2:-}"; SKIP="$2"; shift 2 ;;
@@ -727,8 +738,14 @@ elif [[ -n "${EEST_RUN_DIR:-}" ]]; then
 else
   RUN_DIR="$REPO_ROOT/gen-out/eest-run/run-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 fi
-rm -rf "$RUN_DIR"
-mkdir -p "$RUN_DIR"
+# GH #11748: this used to be an unconditional `rm -rf "$RUN_DIR"`, which would
+# destroy a user-supplied directory and could delete a concurrent run's inputs
+# mid-flight. The guard recreates a directory this harness owns (the documented
+# behaviour) and refuses to delete anything else.
+source "$REPO_ROOT/scripts/lib/eest-run-dir.sh"
+if ! eest_prepare_run_dir "$RUN_DIR" "codegen-eest-stateless-check.sh"; then
+  exit 1
+fi
 GUEST_PREFIX="$RUN_DIR/stateless_guest"
 RESOLVED_GUEST_ELF="$GUEST_PREFIX.elf"
 
@@ -862,6 +879,18 @@ run_guest_elf() {
 format_verdict_debug() {
   local out="$1"
   local raw
+  # GH #11738: THESE OFFSETS DESCRIBE THE DIAGNOSTIC BUILD'S OUTPUT, NOT THE
+  # PRODUCTION GUEST'S.  The two layouts are different and neither is self-
+  # describing:
+  #   diagnostic : 21 u64 words from +0 -- verdict@+0, bv_fail@+8, ...,
+  #                tx_state0@+104, tx_state1@+112, then two 32-byte roots at
+  #                +168 (sv_recomputed) and +200 (payload state root).
+  #   production : bytes 0:32 are the new_payload_request_root, byte 32 is
+  #                successful_validation, and the rest is the SSZ tail.
+  # Decoding a PRODUCTION .out at the offsets below yields plausible garbage with
+  # no error -- a keccak digest read as `verdict` produced 1841024047515375962
+  # while investigating #11306.  The guard below refuses that rather than
+  # returning numbers that look like measurements.
   local -a labels=(
     verdict
     bv_fail
@@ -890,6 +919,14 @@ format_verdict_debug() {
 
   raw="$(od -An -v -tu8 -N 168 "$out" 2>/dev/null | xargs || true)"
   read -r -a words <<< "$raw"
+  # Shape gate (GH #11738).  In the diagnostic layout word[0] is the verdict BIT,
+  # so it is 0 or 1.  In a production artefact word[0] is the first 8 bytes of a
+  # keccak digest, which exceeds 1 with probability 1 - 2^-63.  Refuse loudly
+  # instead of emitting a decode of the wrong shape.
+  if [[ -n "${words[0]:-}" && "${words[0]}" =~ ^[0-9]+$ && "${words[0]}" -gt 1 ]]; then
+    echo "dbg=[UNDECODABLE: word0=${words[0]} is not a verdict bit (0|1) -- this looks like a PRODUCTION output, whose bytes 0:32 are the new_payload_request_root and byte 32 successful_validation. format_verdict_debug decodes the DIAGNOSTIC build only; see GH #11738]"
+    return 0
+  fi
   for i in "${!labels[@]}"; do
     value="${words[$i]:-?}"
     dbg="${dbg:+$dbg }${labels[$i]}=$value"
@@ -1258,11 +1295,21 @@ if [[ "$REVERSE_ORDER" -eq 1 ]]; then
   selection="$selection, reverse"
 fi
 
+# GH #11308: the optional third argument is manifest column 8, which is the
+# `case_id` -- a SHA-256 over (fixture relpath, full test name, block index,
+# ORIGINAL stateless input bytes), written by scripts/eest-stateless-to-input.py.
+# It is a CASE IDENTITY, not a hash of the input file on disk: a file overwritten
+# after generation still matches its case_id (see #11301), so a case_id match
+# does NOT establish file integrity.  It is printed with an explicit `case_id=`
+# prefix because an unlabelled 64-hex string beside a path reads as a content
+# hash -- that misreading cost a spurious fixture-identity mismatch on #11362.
 case_identity() {
   local label="$1"
   local relpath="$2"
+  local case_id="${3:-}"
   local manifest_row="${manifestRowByLabel[$label]:-?}"
   local id="$relpath (label=$label manifest_row=$manifest_row/$selectedCount"
+  [[ -n "$case_id" ]] && id="$id case_id=$case_id"
   if [[ "$manifest_row" != "?" ]]; then
     id="$id rerun_skip=$((SKIP + manifest_row - 1)) rerun_limit=1"
   fi
@@ -1274,8 +1321,18 @@ case_identity() {
 
 run_case() {
   local line="$1"
-  local label input expected_hex succ_bit input_len gas_limit relpath
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   local out="$RUN_DIR/$label.output"
   local log="$RUN_DIR/$label.emu.log"
   local result="$RUN_DIR/$label.result.tsv"
@@ -1384,10 +1441,11 @@ wait_for_one_worker() {
 }
 
 # --- classify ---------------------------------------------------------------
-# Most successful Amsterdam SszStatelessValidationResult values are 105 bytes,
-# but execution-specs' deserialize-failure sentinel is 73 bytes. Compare the
-# exact fixture-provided length; the region counters below still classify the
-# common 105-byte layout where present.
+# Most successful Amsterdam SszStatelessValidationResult values are 69 bytes on
+# the current v0.6.x pin (ChainConfig dropped fork/blob-schedule; pre-v0.6 was
+# 105). Deserialize-failure sentinels use other lengths. Compare the exact
+# fixture-provided length; region counters classify root/succ when present and
+# treat the remainder as tail.
 #   root [0:32]   = new_payload_request_root  (hex chars 0..64)
 #   succ [32]     = successful_validation     (hex chars 64..66)
 #   tail [33:]    = remaining expected SSZ tail (hex 66..)
@@ -1432,8 +1490,18 @@ print_progress() {
 classify_case_result() {
   local line="$1"
   local require_result="${2:-0}"
-  local label input expected_hex succ_bit input_len gas_limit relpath result status actual_hex oracle_hex exp r s t
-  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath <<< "$line"
+  local label input expected_hex succ_bit input_len gas_limit relpath case_id result status actual_hex oracle_hex exp r s t
+  # Manifest is 8 columns (GH #11308): label input_file expected_hex succ_bit
+  # input_len block_gas_limit fixture_relpath case_id.  ALL EIGHT must be named --
+  # with seven names the last variable absorbed the remainder, so relpath silently
+  # carried "<path>\t<case_id>" and every report printed a bare 64-hex string next
+  # to the path that reads as a content hash.  case_id is a CASE IDENTITY over the
+  # ORIGINAL input bytes, not a hash of the file on disk.
+  # The trailing _rest sink is load-bearing: bash `read` gives the LAST name every
+  # remaining field, so without it a future column 9 would corrupt case_id exactly
+  # as column 8 corrupted relpath.  _rest is never read.  (Python readers here use
+  # positional fields[:7] slices and are already column-count tolerant.)
+  IFS=$'\t' read -r label input expected_hex succ_bit input_len gas_limit relpath case_id _rest <<< "$line"
   if [[ -n "${classifiedLabels[$label]+x}" ]]; then
     return 0
   fi
@@ -1445,24 +1513,53 @@ classify_case_result() {
     classifiedLabels["$label"]=1
     total=$((total + 1))
     err=$((err + 1))
-    echo "  ERROR(missing) $(case_identity "$label" "$relpath")"
+    echo "  ERROR(missing) $(case_identity "$label" "$relpath" "$case_id")"
     return 0
   fi
   classifiedLabels["$label"]=1
   total=$((total + 1))
-  IFS=$'\t' read -r status actual_hex oracle_hex < "$result"
+  # Result schema: TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>")
+  # on every write except the --specref-oracle path, which appends a third
+  # (oracle_hex).  Reading with three names is therefore correct: oracle_hex is
+  # empty whenever the oracle is off.
+  #
+  # ⛔ Why a distinct NAME rather than a field-count check: in the DEFAULT
+  # configuration the two schemas are IDENTICAL.  Every codegen-eest-stateless-check
+  # write is TWO fields ("OK\t<hex>", "BUDGET\tsteps:N", "ERROR\t<reason>") except
+  # the single --specref-oracle path, which writes three.  A collided file is
+  # therefore indistinguishable in shape from a legitimate one, in BOTH directions,
+  # so no arity or content check can detect it -- and the guest harness reading a
+  # SpecRef row would consume SpecRef's output AS THE GUEST'S with no anomaly at
+  # all: a silent wrong verdict.  Distinct filenames make that impossible instead.
+  #
+  # ⚠️ Reachability, measured rather than assumed: BOTH harnesses run an
+  # UNCONDITIONAL `rm -rf "$RUN_DIR"` at startup, including when the directory came
+  # from --run-dir or EEST_RUN_DIR.  So two SEQUENTIAL runs against one directory
+  # cannot mis-read each other -- the second deletes the first's outputs outright.
+  # The mis-read is reachable only when the two run CONCURRENTLY against one
+  # directory.  That `rm -rf` race is a separate and larger hazard, NOT addressed
+  # here.
+  #
+  # The _extra sink below catches only a file with MORE fields than this schema,
+  # i.e. a future intra-harness schema drift -- the GH #11308 class recurring.
+  IFS=$'\t' read -r status actual_hex oracle_hex _extra < "$result"
+  if [[ -n "$_extra" ]]; then
+    err=$((err + 1))
+    echo "  ERROR(schema)  $(case_identity "$label" "$relpath" "$case_id") (expected 3 fields in $result, found more: is another harness writing this directory?)"
+    return 0
+  fi
   if [[ "$status" == "BUDGET" ]]; then
     # Step-budget exhaustion: counted separately, NOT a correctness failure.
     budget=$((budget + 1))
-    echo "  BUDGET(steps) $(case_identity "$label" "$relpath") (${actual_hex#steps:} steps)"
+    echo "  BUDGET(steps) $(case_identity "$label" "$relpath" "$case_id") (${actual_hex#steps:} steps)"
     return 0
   fi
   if [[ "$status" != "OK" ]]; then
     err=$((err + 1))
     case "$actual_hex" in
-      exit) echo "  ERROR(exit)   $(case_identity "$label" "$relpath")" ;;
-      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath") (${actual_hex#short:} hex chars)" ;;
-      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath")" ;;
+      exit) echo "  ERROR(exit)   $(case_identity "$label" "$relpath" "$case_id")" ;;
+      short:*) echo "  ERROR(short)  $(case_identity "$label" "$relpath" "$case_id") (${actual_hex#short:} hex chars)" ;;
+      *) echo "  ERROR($actual_hex) $(case_identity "$label" "$relpath" "$case_id")" ;;
     esac
     return 0
   fi
@@ -1477,7 +1574,7 @@ classify_case_result() {
       elif [[ "$guest_verdict" == "00" && "$oracle_verdict" == "01" ]]; then
         guestFalseReject=$((guestFalseReject + 1)); oracle_class="guest-false-reject"
       fi
-      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath") (succ guest=$guest_verdict specref=$oracle_verdict)"
+      echo "  ORACLE-DIFF[$oracle_class] $(case_identity "$label" "$relpath" "$case_id") (succ guest=$guest_verdict specref=$oracle_verdict)"
     fi
   fi
   exp="$expected_hex"
@@ -1489,7 +1586,7 @@ classify_case_result() {
 
   if [[ "$actual_hex" == "$exp" ]]; then
     full=$((full + 1))
-    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $(case_identity "$label" "$relpath")"
+    [[ "$QUIET_PASSES" -eq 1 ]] || echo "  PASS(full)        $(case_identity "$label" "$relpath" "$case_id")"
   else
     fail=$((fail + 1))
     # root-only diff: succ + tail already match, ONLY the 32-byte root
@@ -1501,7 +1598,7 @@ classify_case_result() {
       dbg="$(verdict_debug_for_case "$label" "$input")"
       [[ -n "$dbg" ]] && dbg=" dbg=[$dbg]"
     fi
-    echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
+    echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath" "$case_id") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
   return 0
 }
@@ -1700,5 +1797,19 @@ if [[ -n "$MIN_FULL" && "$full" -lt "$MIN_FULL" ]]; then
 fi
 if [[ -n "$MIN_ROOT" && "$root" -lt "$MIN_ROOT" ]]; then
   echo "==> REGRESSION: root match $root < --min-root $MIN_ROOT" >&2; rc=1
+fi
+# GH #11737: fixture failures and infrastructure errors now fail the run.  Both
+# counts are reported because they mean different things: `fail` is a guest/
+# fixture mismatch, `err` is the harness or emulator not completing a row.
+# `budget` is deliberately NOT included -- the summary already labels it "NOT a
+# correctness failure".
+if [[ "$fail" -gt 0 || "$err" -gt 0 ]]; then
+  if [[ "$EXIT_ZERO_ON_FAILURES" -eq 1 ]]; then
+    echo "==> $fail fixture failure(s) and $err error(s); exiting 0 because --exit-zero-on-failures was given" >&2
+  else
+    echo "==> FAILURES: fail=$fail errored=$err of selected=$selectedCount (ran=$ran, full match=$full)" >&2
+    echo "    read the summary block above for the verdict; pass --exit-zero-on-failures only if you need the summary regardless of outcome" >&2
+    rc=1
+  fi
 fi
 exit $rc

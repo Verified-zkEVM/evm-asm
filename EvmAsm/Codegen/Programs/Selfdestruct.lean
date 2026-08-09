@@ -30,7 +30,7 @@ def selfdestructNewAccountSurchargeAsm : String :=
   "  ld a3, 592(x20)\n" ++
   "  ld a4, 600(x20)\n" ++
   "  la a5, bal_output_scratch\n" ++
-  "  jal ra, balance_at_header_state_root\n" ++
+  "  jal ra, balance_live_else_header_state_root\n" ++
   "  mv t6, a0\n" ++
   "  ld x10, 0(sp)\n" ++
   "  ld x12, 8(sp)\n" ++
@@ -642,9 +642,9 @@ def selfdestructEip7708LogRuntimeAsm : String :=
   ".L_selfdestruct_eip7708_done:\n"
 
 /--
-ednoc / i3djw.3: record the SELFDESTRUCT beneficiary's non-storage balance effect so the
-all-accounts non-storage FORWARD check (`bal_all_accounts_nonstorage_consistent`, bv_fail=44)
-reproduces the BAL's declared beneficiary balance change.
+ednoc / i3djw.3: record the SELFDESTRUCT beneficiary's non-storage balance effect in the
+execution-derived log. The retired all-accounts non-storage FORWARD check (bv_fail=44)
+consumed this record; live runtime state paths still need the producer.
 
 Hooks off `evm_selfdestruct_staged` (NOT `sdai_transfer_status==0`) so it also covers a NEW
 beneficiary, whose account lookup fails (`sdai_status=4`) and skips the runtime transfer staging
@@ -652,7 +652,7 @@ beneficiary, whose account lookup fails (`sdai_status=4`) and skips the runtime 
 (`sdai_origin_rlp`, BE, valid for status 0 or 4); beneficiary pre = its balance if it existed
 (`sdai_status==0`) else 0; post = pre + transferred; nonce unchanged (0/0). Zero transfer or
 self-destruct-to-self records nothing (the balance-0 self-destruct rows that pass via
-conservative-accept stay unaffected). The all-accounts wrapper skips {sender,recipient,coinbase};
+conservative-accept stay unaffected). The historical all-accounts wrapper skipped {sender,recipient,coinbase};
 `record_nonstorage_effect`/`account_extract_balance`/`u256_add_be` are dispatcher-linked. Saves/
 restores the dispatcher's x10/x12 around each helper call (mirrors the eip7708 fragment). -/
 def selfdestructBeneficiaryNonstorageAsm : String :=

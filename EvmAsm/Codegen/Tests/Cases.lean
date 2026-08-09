@@ -139,23 +139,9 @@ structure OpcodeTestCase where
       Reset to 0 by REVERT. Test TSTORE commits / REVERT
       clears via this. Empty string = don't assert. -/
   expectedTransientLogLength : String := ""
-  /-- Optional expected post-state slot data at
-      `OUTPUT_ADDR + 56` (M25). Hex string of arbitrary
-      length; runner reads `len/2` bytes from `OUTPUT[56]`
-      and compares. Layout:
-        - bytes 56..64: u64 LE `numModifiedPersistentSlots` (≤ 3)
-        - bytes 64..(64 + N*64): N × (slotKey:32, current:32)
-      Slots appear in **reverse write order** (most-recently-
-      modified first). Bytes are in EVM-stack byte order
-      (4 LE u64 limbs, low limb first) — same convention as
-      M22's `--storage` packer and the existing storage-test
-      `expectedOutHex` values. Empty string = don't assert. -/
-  expectedPostStorage : String := ""
   /-- Optional expected receipt event-log count at
       `OUTPUT_ADDR + 56` (M26). 16 hex chars = 8-byte LE u64.
-      This shares the storage post-state diagnostic window; tests
-      should assert one surface or the other. Empty string = don't
-      assert. -/
+      Empty string = don't assert. -/
   expectedEventLogCount : String := ""
   /-- Optional expected prefix of the first event-log descriptor at
       `OUTPUT_ADDR + 64` (M26). Hex string of arbitrary length;
@@ -2466,15 +2452,22 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex   := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind := "0600000000000000"
       gasLimit         := "2611" }
-    -- ## M22 real storage (SLOAD / SSTORE via pre-loaded slot table)
-    -- The dispatcher prologue copies the input file's storage segment
-    -- into a writable `evm_slot_table` (16 KiB, 256 slots × 64 B) and
-    -- records the count in `env.slotTableCountOff = 448`. SLOAD /
-    -- SSTORE inline-asm bodies scan the table linearly:
-    --   1. round_trip      — SSTORE then SLOAD with empty preload.
-    --   2. preloaded_match — SLOAD against a preloaded key.
-    --   3. preloaded_no_match — SLOAD against an absent key → 0.
-    --   4. overwrites_preload — SSTORE replaces a preloaded value.
+    -- ## M22 real storage (SLOAD / SSTORE), preload segment RETIRED
+    -- The dispatcher prologue VALIDATES AND SKIPS the input file's storage
+    -- segment: it consumes the rows only to reach the trailers behind them,
+    -- and materializes nothing (`Dispatch.lean:2567-2570`, `:2743` — "not
+    -- copied or re-tagged: no persistent log remains"). The canonical
+    -- transaction map and the authenticated state path are authoritative,
+    -- so honouring an input-supplied preload would be an UNAUTHENTICATED
+    -- pre-state channel. The former `evm_slot_table` arena no longer exists
+    -- anywhere in the tree, and the live slot count is recorded at
+    -- `648(x20)` — env+448 is now the retired persistent-log counter, which
+    -- `Dispatch.lean:1148` hard-zeroes. GH #11710.
+    --
+    -- Consequence for the cases below: a `storage :=` preload changes NOTHING
+    -- observable. Both SLOAD cases read zero, and a preloaded key does not
+    -- make an SSTORE origin non-zero. The two cases that carry a preload and
+    -- still assert a difference are guards on that retirement.
   , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP
     -- SSTORE pops key=0x00 (top) then value=0x42; appends slot.
     -- SLOAD pops key=0x00; reads value=0x42 back.
@@ -2482,11 +2475,15 @@ def opcodeTestCases : List OpcodeTestCase :=
       bytecode       := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
       expectedOutHex := "4200000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0x00; SLOAD; STOP with preload [(0x00, 0xdead)].
-    -- 0xdead in limb 0 LE = ad de 00 00 00 00 00 00.
+    -- The key MATCHES the preload row, and the answer is still ZERO: the row
+    -- is validated and skipped, never materialized. This case is the guard on
+    -- that contract — it is the only SLOAD case whose expectation moves if
+    -- anyone restores materialization. It previously expected `adde…`, which
+    -- contradicted the parser and could not have passed (GH #11710).
     { name           := "sload_preloaded_match"
       bytecode       := "0x60, 0x00, 0x54, 0x00"
       storage        := "(0x00, 0xdead)"
-      expectedOutHex := "adde000000000000000000000000000000000000000000000000000000000000" }
+      expectedOutHex := "0000000000000000000000000000000000000000000000000000000000000000" }
   , -- PUSH1 0xff; SLOAD; STOP with preload [(0x00, 0xdead)].
     -- key 0xff doesn't match preloaded 0x00 → SLOAD pushes zero.
     { name           := "sload_preloaded_no_match"
@@ -2544,15 +2541,20 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
       expectedPersistentLogLength := "0100000000000000"
       gasLimit                    := "3006" }
-  , -- Clean nonzero -> nonzero update with a preloaded original costs
-    -- 3000 cold access + 10000 STORAGE_WRITE (no state gas: the
-    -- original is non-zero).
-    { name                        := "sstore_preloaded_nonzero_update_gas_exact"
+  , -- A preloaded key does NOT give the write a non-zero original: the row is
+    -- skipped, so this is a zero-origin creation and costs the same as
+    -- `sstore_cold_gas_exact` above — 6 (PUSH2 3 + PUSH1 3) + 13000 (3000 cold
+    -- access + 10000 STORAGE_WRITE) + 97920 (64 × 1530 EIP-8037 state gas,
+    -- spilled into regular gas) = 110926, appending ONE entry like its
+    -- preload-free sibling. Renamed from `sstore_preloaded_nonzero_update_gas_exact`,
+    -- whose name and 13006 limit both assumed materialization: under the real
+    -- contract that limit is a hard OOG, not a value diff (GH #11710).
+    { name                        := "sstore_preloaded_key_zero_origin_gas_exact"
       bytecode                    := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x00"
       storage                     := "(0x00, 0xdead)"
       expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      gasLimit                    := "13006" }
+      expectedPersistentLogLength := "0100000000000000"
+      gasLimit                    := "110926" }
   , -- The second SSTORE to the same key is warm and dirty: first write costs
     -- 3 + 3 + 13000 + 97920 (zero-origin creation), second 3 + 3 + 100, STOP 0.
     { name                        := "sstore_repeat_same_key_warm_gas_exact"
@@ -2561,8 +2563,10 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedPersistentLogLength := "0200000000000000"
       gasLimit                    := "111032" }
   , -- PUSH2 0xbeef; PUSH1 0x00; SSTORE; PUSH1 0x00; SLOAD; STOP with
-    -- preload [(0x00, 0xdead)]. SSTORE finds a matching key and
-    -- appends a new current-value entry. SLOAD reads back 0xbeef.
+    -- preload [(0x00, 0xdead)]. The preload row is skipped, so SSTORE writes
+    -- 0xbeef over an absent (zero) original and SLOAD reads back its OWN
+    -- write. The expectation is therefore the same under either contract —
+    -- this case does not discriminate the retirement (GH #11710).
     -- 0xbeef in limb 0 LE = ef be 00 00 00 00 00 00.
     { name           := "sstore_overwrites_preload"
       bytecode       := "0x61, 0xbe, 0xef, 0x60, 0x00, 0x55, 0x60, 0x00, 0x54, 0x00"
@@ -2718,54 +2722,6 @@ def opcodeTestCases : List OpcodeTestCase :=
       expectedOutHex             := "4200000000000000000000000000000000000000000000000000000000000000"
       expectedHaltKind           := "0000000000000000"
       expectedTransientLogLength := "0100000000000000" }
-    -- ## M25 post-state slot serializer (modified slots at OUTPUT+56)
-    -- The dispatcher epilogue walks the persistent log from end,
-    -- dedups against already-emitted slotKeys, and writes
-    --   OUTPUT[56..64] = numModifiedPersistentSlots (u64 LE, ≤ 3)
-    --   OUTPUT[64..]   = N × (slotKey:32, current:32)
-    -- in **reverse write order** (most-recently-modified first).
-    -- Bytes are in EVM-stack byte order (4 LE u64 limbs).
-  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; STOP.
-    -- Empty preload. After SSTORE: 1 entry (key=0, value=0x42).
-    -- Stack empty after SSTORE → result = 32 zeros (from .zero
-    -- evm_stack region). Confirms basic post-state emission.
-    { name                        := "sstore_post_state_single_slot"
-      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0100000000000000"
-      expectedPostStorage         := "010000000000000000000000000000000000000000000000000000000000000000000000000000004200000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x42; PUSH1 0x00; SSTORE; PUSH1 0x00; PUSH1 0x00; REVERT.
-    -- SSTORE appends (length 0→1). REVERT rolls back length → 0.
-    -- The dedup loop sees empty log and exits early, writing only
-    -- the count cell = 0. **Proves rollback also clears the slot
-    -- data surface.**
-    { name                        := "sstore_revert_post_state_empty"
-      bytecode                    := "0x60, 0x42, 0x60, 0x00, 0x55, 0x60, 0x00, 0x60, 0x00, 0xfd"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0200000000000000"
-      expectedPersistentLogLength := "0000000000000000"
-      expectedPostStorage         := "0000000000000000" }
-  , -- PUSH1 0x11; PUSH1 0x01; SSTORE; PUSH1 0x22; PUSH1 0x02; SSTORE; STOP.
-    -- Two unique slots. Dedup walks from end so entry[0] in OUTPUT
-    -- = (key=0x02, value=0x22); entry[1] = (key=0x01, value=0x11).
-    -- **Asserts the reverse-write-order convention.**
-    { name                        := "sstore_two_slots_post_state"
-      bytecode                    := "0x60, 0x11, 0x60, 0x01, 0x55, 0x60, 0x22, 0x60, 0x02, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      expectedPostStorage         := "02000000000000000200000000000000000000000000000000000000000000000000000000000000220000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000001100000000000000000000000000000000000000000000000000000000000000" }
-  , -- PUSH1 0x11; PUSH1 0x00; SSTORE; PUSH1 0x22; PUSH1 0x00; SSTORE; STOP.
-    -- Same key twice. Log holds 2 raw entries; dedup picks the
-    -- most-recent (key=0, current=0x22). Output count = 1.
-    -- **Proves dedup keeps the latest value per key.**
-    { name                        := "sstore_dup_keeps_latest"
-      bytecode                    := "0x60, 0x11, 0x60, 0x00, 0x55, 0x60, 0x22, 0x60, 0x00, 0x55, 0x00"
-      expectedOutHex              := "0000000000000000000000000000000000000000000000000000000000000000"
-      expectedHaltKind            := "0000000000000000"
-      expectedPersistentLogLength := "0200000000000000"
-      expectedPostStorage         := "010000000000000000000000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000" }
   ]
 
 /-- Find a test case by name. -/

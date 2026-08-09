@@ -28,8 +28,33 @@ def readLength (bs : List Byte) (n : Nat) : Option (Nat × List Byte) := do
 /-! ## Decoding
 
 Both `decodeAux` and `decodeItems` structurally recurse on `nDepth`.
-Each item decode consumes 2 units of nDepth (one in `decodeAux`, one in
-`decodeItems`), so we use `2 * bs.length` as the initial nDepth. -/
+Each nested item decode consumes 2 units of `nDepth` (one in `decodeAux`, one
+in `decodeItems`), so we use `2 * bs.length` as the initial `nDepth`.
+
+`2 * bs.length` is a termination measure for Lean, not an RLP depth policy.
+The reference `ethereum-rlp` decoder has no corresponding input-derived fuel:
+on sufficiently deep nesting CPython raises `RecursionError` (at roughly its
+recursion limit), which is not a `DecodingError` and is not converted into an
+`InvalidBlock` result.  The reference therefore becomes undefined/crashes on
+that path, while this port returns `none`; that divergence is deliberate and
+one-directional: we reject where the reference is undefined, and never accept
+an input that the reference rejects.
+
+The zero-fuel arm is unreachable from the top-level `decode` wrapper by
+construction, rather than being an omitted behavioural case.  The order in
+`decodeItems` is load-bearing: it matches `bs` before `nDepth`, so an empty
+remainder returns `some ([], [])` without testing fuel, and only a nonempty
+remainder can reach the zero case.  Every recursive item consumes at least one
+byte and two fuel units, while the wrapper starts with two units per input
+byte.  Thus `decodeAux 0` can only be reached by an out-of-contract direct call,
+not by an input handed to `decode`.  This is the same distinction recorded by
+the MPT fuel precedents: `IncrementalMpt`'s `decodeFuel` over-approximates an
+acyclic walk (`decodeFuel` docstring), and `IncrementalMptWrite` explicitly
+classifies reachable exhaustion as rejection while documenting unreachable
+encoding exhaustion.  RLP is the third such fuelled decoder and its exhaustion
+branch is theoretical, not a guest input case.  The guest's separate 1024
+active-list depth cap and status-7 rejection are the reachable bound described
+in #11776; this model fuel is not that cap. -/
 
 mutual
 /-- Decode one RLP item from the byte stream. -/

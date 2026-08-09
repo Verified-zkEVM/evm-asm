@@ -68,7 +68,7 @@ def bytecodeIsSelfContainedFunction : String :=
   --   recent-blockhash table reconstructed from the witness headers + staged); SELFDESTRUCT(0xff)
   --   (ee21v, selfdestructTailAsm: beneficiary access gas + new-account surcharge + balance
   --   transfer + EIP-7708 log); and BALANCE(0x31) (yisv8 .spine: live balance read from the
-  --   non-storage effect log -- nonstorage_effect_latest_balance in balance_at_header_state_root,
+  --   non-storage effect log -- nonstorage_effect_latest_balance in balance_live_else_header_state_root,
   --   falling back to the pre-state witness when no value transfer touched the account).
   -- (The BALANCE 0x31 reject is REMOVED here; 0xff was removed by ee21v.)
   -- PREVRANDAO (0x44) ACTIVATED (ha909): stage_runtime_payload_code now copies the execution

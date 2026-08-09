@@ -89,7 +89,7 @@ Arena-relative (layout-invariant). From `RegionMap.dataUnionChildren`:
 | **Lifetime** | block-root / BAAP apply phase; not a per-tx journal |
 | **Disjointness** | **union child** of `call_frame_arena` — aliases frame slots by phase; aliases sibling baap_* by offset partition only |
 | **Init (slot 9)** | cursor set to base at apply entry (**self-discharged**); values content overwritten as encoded; do not require pre-zero of full 6.4 MiB for correctness of encoding |
-| **UNCLEAN / FINDING `#11222`** | same symbol name emitted at **three sizes in three units**: guest **6_400_000**; `BalAccountApplyPostFields.lean` probe **3_840_000**; `BalAccountDescriptorArray.lean` **32_768**. A predicate `extent = 100000×64` is true in `stateless_guest` and **false** in the other two. **Do not land a predicate without naming the build unit.** Closing `#11222` (overload vs dead) is required before a single global claim |
+| **UNIT-LOCAL EXTENT `#11222`** | same symbol name is emitted by three units: guest and `BalAccountApplyPostFields.lean` probe both use **`bsrMaxBalItems × bsrPathBytes` = 6_400_000**; `BalAccountDescriptorArray.lean` remains **32_768**. A predicate `extent = 100000×64` is true in the guest and BAAP probe and **false** in the descriptor probe. **Do not land a predicate without naming the build unit.** Closing `#11222` (overload vs dead) is required before a single global claim |
 
 ---
 

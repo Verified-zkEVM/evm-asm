@@ -12,14 +12,12 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.StorageWrite
 import EvmAsm.Codegen.Programs.StorageWriteMap
-import EvmAsm.Codegen.Programs.SystemWrites
 import EvmAsm.Codegen.Programs.AccountApplyStorage
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BlockVerdictGasGate
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
@@ -62,7 +60,6 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
-import EvmAsm.Codegen.Programs.BlockVerdictSysChange
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BlockVerdictDataSection
@@ -352,7 +349,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockAccessListHashCoreFunction ++ "\n" ++
   blockAccessListHashFunction ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
-  executionRequestsHashFunction ++ "\n" ++
+  executionRequestsHashFunctions ++ "\n" ++
   step2VerdictFunction ++ "\n" ++
   headerExtractStateRootFunction ++ "\n" ++
   ephU32leFunction ++ "\n" ++
@@ -369,11 +366,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   accountSetStorageRootFunction ++ "\n" ++
   accountApplyStorageSlotFunction ++ "\n" ++
   accountApplyStorageSlotAccFunction ++ "\n" ++
-  swdReadU64leFunction ++ "\n" ++
-  swdWriteBe32U64Function ++ "\n" ++
-  swdWriteBe8Function ++ "\n" ++
-  swdMinimalCopyFunction ++ "\n" ++
-  systemWriteDescriptorsFunction ++ "\n" ++
   accountSetUintFieldFunction ++ "\n" ++
   accountIsEip161EmptyFunction ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
@@ -384,12 +376,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
-  bsrSysChangeFunction ++ "\n" ++
-  bsrBeaconChangeFunction ++ "\n" ++
   bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
-  appendModeledSystemStorageTupleRowsFunction ++ "\n" ++
-  recordModeledEip4788StorageReadsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++

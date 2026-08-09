@@ -204,7 +204,7 @@ def ziskBalAllAccountsCodeConsistentPrologue : String :=
 def ziskBalAllAccountsCodeConsistentDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
-  ziskBalAccountCodeConsistentDataSection  -- bacc_finals + c2nsf_* + rfu scratch
+  ziskBalAccountCodeConsistentDataSection  -- bacc_finals + finals helper scratch
 
 def ziskBalAllAccountsCodeConsistentProbeUnit : BuildUnit := {
   body        := NOP
