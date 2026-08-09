@@ -94,8 +94,8 @@
   rollback-relevant writes instead: value-unchanged hits do not need an undo
   record because restoring their prior value is an identity. The journal's
   live-row map cap is 16384, but changed writes can still be repeated while the
-  live map count stays flat. The 32768-entry cap therefore remains a fail-closed
-  safety bound for records that are actually pushed.
+  live map count stays flat. The gas-derived 167652-entry cap therefore remains
+  a fail-closed safety bound for records that are actually pushed.
 
   This is the *reasoned-to-be-the-same* form rather than the *looking-the-same*
   form, which is why the constraint is named rather than assumed.
@@ -110,16 +110,19 @@ namespace EvmAsm.Codegen
     cannot overflow before its read counterpart does. -/
 def storageWritesCapacity : Nat := 16384
 
-/-- Undo journal capacity. SSTORE caps live map rows at `storageWritesCapacity`
-    (W); changed hits and appends push one undo, while value-unchanged hits are
-    identity updates and push none. `destroy_storage` pushes a second undo per
-    converted row (D ≤ W), so the shared journal's conservative bound remains
-    W + D ≤ 2W records.
-    See `STORAGE_WRITES_UNDO_AREA` sizing note. -/
-def storageWritesUndoCapacity : Nat := 2 * storageWritesCapacity
+/-- Undo journal capacity, derived from the regular-gas bound rather than from
+    the map's slot-count capacity. `TX_MAX_GAS_LIMIT` is 16,777,216
+    (`Stateless/SpecRef/Transactions.lean:517-518`) and `TX_BASE` is 12,000
+    (`Stateless/SpecRef/Gas.lean:90`); subtracting the base and dividing by the
+    100-gas warm-access repeat (`Stateless/SpecRef/Gas.lean:68`) gives
+    `floor((16,777,216 - 12,000) / 100) = 167,652` records. A tighter
+    one-slot construction gives 167,523 before loop overhead, so this bound is
+    safe rather than tight. The 160-byte record stride is derived from the
+    emitted index arithmetic below. -/
+def storageWritesUndoCapacity : Nat := 167652
 
-#guard storageWritesUndoCapacity == 32768
-#guard storageWritesUndoCapacity * 160 == 0x500000
+#guard storageWritesUndoCapacity == 167652
+#guard storageWritesUndoCapacity * 160 == 0x1994e80
 
 /-! ## `storage_write_record`
 

@@ -5,6 +5,7 @@
 -/
 
 import EvmAsm.Evm64.EvmWord
+import EvmAsm.Evm64.GasCost
 
 namespace EvmAsm.Evm64
 namespace StorageGas
@@ -34,8 +35,16 @@ def sloadDynamicCost (status : StorageAccessStatus) : Nat :=
 /-- Warm SSTORE no-op cost: writing the same value charges a warm storage read. -/
 def sstoreNoopCost : Nat := warmStorageReadCost
 
-/-- Warm SSTORE cost when a zero slot is set to a nonzero value. -/
-def sstoreSetCost : Nat := 20000
+/-- Warm SSTORE cost when a zero slot is set to a nonzero value.
+
+The regular component is `GasCosts.STORAGE_WRITE` from
+`execution-specs/src/ethereum/forks/amsterdam/vm/gas.py:73-75`; the state
+component is `StateGasCosts.STORAGE_SET` from
+`execution-specs/src/ethereum/forks/amsterdam/vm/gas.py:40-46`, namely 64
+state bytes at 1,530 gas per byte. -/
+def sstoreSetCost : GasCost :=
+  { regular := 10000
+    state := 64 * 1530 }
 
 /-- Warm SSTORE cost when a nonzero slot is written to a different value. -/
 def sstoreResetCost : Nat := 10000
@@ -50,7 +59,7 @@ def sstoreWriteCost (current new : EvmWord) : Nat :=
   if new = current then
     sstoreNoopCost
   else if current = 0 then
-    sstoreSetCost
+    sstoreSetCost.regular
   else
     sstoreResetCost
 
@@ -85,7 +94,7 @@ theorem sstoreWriteCost_noop (current : EvmWord) :
   simp [sstoreWriteCost]
 
 theorem sstoreWriteCost_set {new : EvmWord} (h_new : new ≠ 0) :
-    sstoreWriteCost 0 new = sstoreSetCost := by
+    sstoreWriteCost 0 new = sstoreSetCost.regular := by
   unfold sstoreWriteCost
   split
   · contradiction
@@ -132,8 +141,9 @@ theorem sloadDynamicCost_warm_eq :
 theorem sstoreNoopCost_eq :
     sstoreNoopCost = 100 := rfl
 
-theorem sstoreSetCost_eq :
-    sstoreSetCost = 20000 := rfl
+theorem sstoreSetCost_components :
+    sstoreSetCost.regular = 10000 ∧ sstoreSetCost.state = 97920 := by
+  constructor <;> rfl
 
 theorem sstoreResetCost_eq :
     sstoreResetCost = 10000 := rfl
