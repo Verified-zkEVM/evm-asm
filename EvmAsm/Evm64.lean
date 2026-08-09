@@ -607,6 +607,7 @@ import EvmAsm.Evm64.TerminatingArgs
 import EvmAsm.Evm64.TerminatingArgsStackDecode
 
 -- Static gas schedule (#117)
+import EvmAsm.Evm64.GasCost
 import EvmAsm.Evm64.Gas
 import EvmAsm.Evm64.Env.Gas
 import EvmAsm.Evm64.StorageGas
