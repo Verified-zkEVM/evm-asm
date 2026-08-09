@@ -32,6 +32,11 @@ import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCK_HELPER = os.path.join(REPO, "scripts", "lib", "worktree-build-lock.sh")
+
+if os.environ.get("EVMASM_BUILD_LOCK_HELD") != "1":
+    os.execv(LOCK_HELPER, [LOCK_HELPER, sys.executable, __file__, *sys.argv[1:]])
+
 # stateless_guest is the single fully-linked guest ELF. The runtime dispatcher
 # and the ~873 *Function routines are spliced INTO it (they are NOT independently
 # linkable: `runtime_dispatcher` alone has undefined cross-unit references), so

@@ -8,6 +8,11 @@
 # project (the render runs the real Lean elaborator).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-guarded-handler-bytes: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"

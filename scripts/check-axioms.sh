@@ -70,6 +70,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 PROGRESS_LEAN="EvmAsm/Progress.lean"
 ROUTINES_LEAN="EvmAsm/Progress/Routines.lean"
 CORRESPOND_LEAN="EvmAsm/Progress/Correspondence.lean"

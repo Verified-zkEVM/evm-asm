@@ -38,6 +38,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 CORPUS="tests/fuzz-corpus/arith/corpus.jsonl"
 SPECS_DIR="execution-specs"
 ORACLE="$(pwd)/scripts/fuzz_arith_oracle.py"
