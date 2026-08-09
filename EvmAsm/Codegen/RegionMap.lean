@@ -246,13 +246,13 @@ def schemeAAnchors : List GuestRegion :=
     -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
     -- at :1226.  The retired storage-log probes are absent; these are the
     -- authenticated state containers used by the live guest.
-    { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout STORAGE_WRITES_AREA; 2 MiB = 16384x128 "
-        ++ "(addrHash++slotKey++value, 96 B used of a 128 B stride); "
-        ++ "block level, filled only by write_sets_incorporate_tx" },
-    { name := "tx_storage_writes_area", base := 0xa21a0000, size := 0x200000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; per-tx storage_writes, "
-        ++ "target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
+    { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x823500, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_AREA; 66,666x128 = 8,533,248 B "
+        ++ "(addrHash++slotKey++value, 96 B used of a 128 B stride); block level, "
+        ++ "filled only by write_sets_incorporate_tx" },
+    { name := "tx_storage_writes_area", base := 0xa27d0000, size := 0xaea00, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; 5,588x128 = 715,264 B; "
+        ++ "per-tx storage_writes, target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
     -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
     -- (state_tracker.py:800-806) under the no-dynamic-allocation constraint --
     -- a per-frame copy would cost capacity x call depth.
@@ -266,11 +266,11 @@ def schemeAAnchors : List GuestRegion :=
     -- Do not describe the cap as unreachable: value-unchanged SSTORE paths can
     -- journal without advancing the persistent execution-log cursor, so the
     -- capacity question is distinct from the fail-closed soundness fix.
-    { name := "storage_writes_undo_area", base := 0xa23a0000, size := 0x500000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 5 MiB = 32768x160 "
+    { name := "storage_writes_undo_area", base := EvmAsm.Codegen.storageWritesUndoBase, size := 0x1994e80, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_WRITES_UNDO_AREA; 167,652x160 = 26,824,320 B "
         ++ "(entryIndex, wasAbsent, prevValue|fullRow); reverse-replayed by write_sets_restore_frame; "
         ++ "160 B stride journals full 128 B row for destroy_storage wasAbsent=2. "
-        ++ "overflow is fail-closed: storage_writes_undo_push latches both tx/block flags and returns failure before any journal store; "
+        ++ "relocated above .state_gas_diag; overflow is fail-closed: storage_writes_undo_push latches both tx/block flags and returns failure before any journal store; "
         ++ "Row audit: 16 B of the 160 (offsets 16..31) are never written and never read; "
         ++ "kind 0/1 need 40 B (32 B value + packed index/kind, 8-aligned), only kind 2 "
         ++ "needs the 128 B payload and it is bounded by distinct written slots, so "
