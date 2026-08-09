@@ -13,7 +13,6 @@ import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.BalAccountHasStateChange
 import EvmAsm.Codegen.Programs.BalAccountPath
-import EvmAsm.Codegen.Programs.BalModeledSystem
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 
@@ -255,7 +254,6 @@ def ziskBalAccountRecordArrayPrologue : String :=
   msetMemcpyFunction ++ "\n" ++
   mptWalkFunction ++ "\n" ++
   balAccountHasStateChangeFunction ++ "\n" ++
-  balAccountIsModeledSystemFunction ++ "\n" ++
   balAccountPathFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
   ".Lbara_pdone:"
@@ -263,7 +261,6 @@ def ziskBalAccountRecordArrayPrologue : String :=
 def ziskBalAccountRecordArrayDataSection : String :=
   ziskMptWalkDataSection ++ "\n" ++
   ziskBalAccountHasStateChangeDataSection ++ "\n" ++
-  ziskBalAccountIsModeledSystemDataSection ++
   ".balign 8\n" ++
   "bara_item_off:\n  .zero 8\n" ++
   "bara_item_len:\n  .zero 8\n" ++

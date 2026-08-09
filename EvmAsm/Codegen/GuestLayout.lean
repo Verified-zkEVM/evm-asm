@@ -67,11 +67,6 @@ structure GuestLayout where
   rlp_walk_next : Nat
   -- BalAccountHasStateChange own entry for jal PC.
   bal_account_has_state_change : Nat
-  -- BalModeledSystem probe-only constants + own entry.
-  bams_addr_ptr : Nat
-  bams_addr_2935 : Nat
-  bams_addr_4788 : Nat
-  bal_account_is_modeled_system : Nat
   -- BalAccountNonstorageFinals (own entry + RLP content helpers).
   bal_account_nonstorage_finals : Nat
   rlp_content_to_u256_be : Nat
@@ -101,10 +96,6 @@ def GuestLayout.zero : GuestLayout :=
     rlp_walk_init := 0
     rlp_walk_next := 0
     bal_account_has_state_change := 0
-    bams_addr_ptr := 0
-    bams_addr_2935 := 0
-    bams_addr_4788 := 0
-    bal_account_is_modeled_system := 0
     bal_account_nonstorage_finals := 0
     rlp_content_to_u256_be := 0
     rlp_content_to_u64 := 0 }

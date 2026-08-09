@@ -390,7 +390,6 @@ def statelessVerdictV2GuestClosure : String :=
   mapAccountChangeValueFunction ++ "\n" ++
   balAccountChangeDescriptorFunction ++ "\n" ++
   balAccountRecordArrayFunction ++ "\n" ++
-  bsrApplyModeledSystemPostFieldsFunction ++ "\n" ++
   mptBoundedBuilderFrontEndFunction ++ "\n" ++
   blockStateRootPreAccountsFunction ++ "\n" ++
   executionMapStateChangesFunction ++ "\n" ++
