@@ -57,13 +57,14 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-/-! ## block_state_root_pre_accounts -- pre-MTx account table only.
+/-! ## block_state_root_pre_accounts -- pre-MTx pointer stash only.
 
-    The upfront sender gas gate consumes the authenticated BAL account-record
-    table, but it must not consume the post-state storage map or run the
-    terminal state-root replay.  Keep this prefix deliberately narrow: the
-    full `block_state_root` below is called only after the user and system
-    write sets have reached their block-level maps. -/
+    #11833 / #11797 M1: no longer locates or counts the supplied BAL body.
+    Spec (`fork.py`) has no pre-body BAL-presence test; the built BAL is hashed
+    after `apply_body`. The old `bal_section_info` fill existed only to feed
+    guest-invented `bv_fail 4` (`.Lbv_no_bal_for_tx`). Keep this prefix narrow:
+    stash root/wit/ssz pointers + witness-cap check. `bsr_bal_count` stays zero
+    here; `block_state_root` still runs its own `section_info` post-exec (M4). -/
 def blockStateRootPreAccountsFunction : String :=
   "block_state_root_pre_accounts:\n" ++
   "  addi sp, sp, -16\n" ++
@@ -80,15 +81,9 @@ def blockStateRootPreAccountsFunction : String :=
   "  la t0, bsr_changed_account_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_bal_count; sd zero, 0(t0)\n" ++
   "  la t0, bsr_ssz_p; ld t1, 0(t0); addi t1, t1, 60; la t0, bsr_exec_p; sd t1, 0(t0)\n" ++
-  -- #11797 P0b: locate BAL + count only. Do not materialize basr_records /
-  -- basr_accounts from the supplied body — that fill fed only the vestigial
-  -- cursor walk (removed) and teer_records_ptr is write-only with no reader.
-  "  la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count\n" ++
-  "  jal ra, bal_section_info; bnez a0, .Lbsr_pre_cons_section\n" ++
   ".Lbsr_pre_ok:\n" ++
   "  li a0, 0; j .Lbsr_pre_ret\n" ++
   ".Lbsr_pre_cons_cap:\n  li t0, 101; j .Lbsr_pre_cons_set\n" ++
-  ".Lbsr_pre_cons_section:\n  li t0, 102\n" ++
   ".Lbsr_pre_cons_set:\n" ++
   "  la t1, bsr_fail_code; sd t0, 0(t1); li a0, 1\n" ++
   ".Lbsr_pre_ret:\n" ++

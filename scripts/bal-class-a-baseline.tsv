@@ -20,4 +20,3 @@
 .Lc1_bd_same_block	load	bal_find_account_by_address	yes	la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)
 .Lc1_be_same_block	load	bal_find_account_by_address	yes	la t0, c1_bal_start; ld a0, 0(t0); la t0, c1_bal_len; ld a1, 0(t0)
 .Lv2_input_hash	la	bal_section_info	yes	mv a0, s0; la a1, c1_bal_start; la a2, c1_bal_len; la a3, c1_bal_count; jal ra, bal_section_info
-block_state_root_pre_accounts	load	bal_section_info	yes	la t0, bsr_ssz_p; ld a0, 0(t0); la a1, bsr_bal_start; la a2, bsr_bal_len; la a3, bsr_bal_count
