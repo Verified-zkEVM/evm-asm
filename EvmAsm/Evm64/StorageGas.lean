@@ -38,7 +38,7 @@ def sstoreNoopCost : Nat := warmStorageReadCost
 def sstoreSetCost : Nat := 20000
 
 /-- Warm SSTORE cost when a nonzero slot is written to a different value. -/
-def sstoreResetCost : Nat := 5000
+def sstoreResetCost : Nat := 10000
 
 /-- EIP-2929 cold-key surcharge for SSTORE. Warm keys have no surcharge. -/
 def sstoreColdSurcharge : StorageAccessStatus → Nat
@@ -136,7 +136,7 @@ theorem sstoreSetCost_eq :
     sstoreSetCost = 20000 := rfl
 
 theorem sstoreResetCost_eq :
-    sstoreResetCost = 5000 := rfl
+    sstoreResetCost = 10000 := rfl
 
 end StorageGas
 end EvmAsm.Evm64

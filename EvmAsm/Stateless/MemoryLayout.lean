@@ -293,12 +293,10 @@ def TX_CODE_READS_AREA      : Word := 0xa1f20000
     in the spec: `process_unchecked_system_transaction` (`fork.py:782`) builds an
     ordinary `TransactionState(parent=block_env.state)` and incorporates at
     `:858`, regular transactions incorporate at `:1204`, and withdrawals at
-    `:1226` — three sources, one container. The guest's split into
-    `bv_system_storage_log` and `bv_user_storage_log` therefore mirrors nothing,
-    and these two areas replace both as a single keyed map fed by all three
-    paths. The *timing* of the feeds still differs (system writes at block
-    boundaries, user writes inside transactions); unifying the container must not
-    unify the timing.
+    `:1226` — three sources, one container. The retired storage-log probes had
+    no production writer or reader; the live guest uses the keyed map below.
+    The *timing* of the feeds still differs (system writes at block boundaries,
+    user writes inside transactions) and must not be unified.
 
     Entry layout — the spec's nested key collapsed to one flat key pair, since
     RISC-V has no dynamic allocation and therefore no nested dict:
@@ -307,9 +305,8 @@ def TX_CODE_READS_AREA      : Word := 0xa1f20000
         +32 slotKey  (32 B)   the inner `Bytes32` key
         +64 value    (32 B)   the `U256`
 
-    96 B used of a 128 B stride (`bvStorageLogRowBytes`), shared with the exec
-    logs so that retiring them is a same-stride migration rather than a
-    re-layout. 16384 entries = 2 MiB each, matching the read arenas' capacity so
+    96 B used of a 128 B stride, shared with the execution storage rows.
+    16384 entries = 2 MiB each, matching the read arenas' capacity so
     a write container cannot overflow before its read counterpart does. -/
 
 /-- Block-level `storage_writes` — filled only by `write_sets_incorporate_tx`. -/

@@ -143,9 +143,9 @@ def frameArrayBytes : Nat := frameSlotCount * frameStride
     `basr_values`/`basr_accounts` pair and the three `baap_storage_*` arrays
     into the front of `call_frame_arena`. The current frame array is
     `1025 * 0x19000 = 104,960,000 B` (about 100.1 MiB), larger than the
-    coalesced child prefix (about 61.6 MiB), with a trailing pad. The
-    `bv_system_storage_log` is deliberately standalone as the modeled-system
-    staging feed; `evm_memory_pool` follows the frame arena.
+    coalesced child prefix (about 61.6 MiB), with a trailing pad. The retired
+    storage-log probe arenas are not part of the linked guest image;
+    `evm_memory_pool` follows the frame arena.
 
     The historical 1G layout used a 244 MiB basr union and a 228 MiB frame
     stride. Those values remain useful in the design history but are not live
@@ -208,10 +208,8 @@ theorem frameArray_unions_basr_pair :
     `call_frame_arena` (`[0,S)`, `[S,2S)`, then baap at `[2S, …)`) with a
     non-negative trailing pad to `frameArrayBytes`. All five are Phase-H
     (state-root recompute) scratch, dead during the Phase-D dispatch window when
-    the frame array is live. `bv_system_storage_log` is NO LONGER among them: it
-    is a separate modeled-system staging arena, so `4ch8f.73` moved it to its own
-    standalone `.data` region, provably disjoint from every frame slot
-    (`RegionMap.syslog_disjoint_from_frameArena`). Replaces the former
+    the frame array is live. The retired storage-log probe arenas are not among
+    them. Replaces the former
     `frameArray_unions_basr_and_syslog` / `frameArray_unions_basr_syslog_baap`. -/
 theorem frameArray_unions_basr_baap :
     2 * (bsrMaxStateChanges * bsrEncodedAccountBytes)

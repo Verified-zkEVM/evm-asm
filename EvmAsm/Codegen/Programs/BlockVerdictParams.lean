@@ -236,24 +236,6 @@ def bvSystemRequestCallCount : Nat := 2
 
 def bvSystemStorageMinSstoreGas : Nat := 100
 
-/-- **Legacy storage-row capacity** — retained as the row-count parameter for
-    modeled-system staging buffers. It no longer sizes an emitted runtime
-    persistent log: the old `0xa0630000` arena, its seed writers, and its
-    consumers have been retired. The value remains paired with the legacy
-    Evm64 Option-A assertions and the independent system-capture arena. -/
-def bvPersistentStorageLogCapacity : Nat := 16384
-
-/-- **Capacity for modeled-system staging rows.** The MTx preamble appends the
-    explicit EIP-2935/EIP-4788 startup descriptors into a bounded side arena
-    while also feeding the authenticated storage map and BAL builder. -/
-def bvSystemStorageLogCapacity : Nat := 2 * bvPersistentStorageLogCapacity
-
-/-- Byte stride of one modeled-system staging row. Layout: `addrHash@0`,
-    `slotKey@32`, `original@64`, `current@96`. -/
-def bvStorageLogRowBytes : Nat := 128
-
-def bvSystemStorageLogBytes : Nat := bvSystemStorageLogCapacity * bvStorageLogRowBytes
-
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam
     200M intrinsic-floor transaction count target; log/RLP byte arenas remain
@@ -443,9 +425,6 @@ def bmvFullLogWindowArenaBytes : Nat :=
 #guard bvSystemTransactionGas = 30000000
 #guard bvSystemRequestCallCount = 2
 #guard bvSystemStorageMinSstoreGas = 100
-#guard bvPersistentStorageLogCapacity = 16384
-#guard bvSystemStorageLogCapacity = 32768
-#guard bvSystemStorageLogBytes = 4194304
 #guard bvMtxFullTxCap = 16666
 #guard bvMtxArenaTxCap = bvMtxActiveTxCap
 #guard bvMtxU64ArenaBytes = 133328

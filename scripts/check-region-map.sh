@@ -19,7 +19,7 @@
 #       is fully inside .bss, and its extent == frameArrayBytes.
 #
 #   LINK-LAYOUT (hard fail, repaired by convergent regen): section sizes + three
-#     BSS bases (call_frame_arena / evm_memory_pool / bv_system_storage_log) are
+#     BSS bases (call_frame_arena / evm_memory_pool) are
 #     link-dependent. They live in GENERATED `RegionMapLinkPins.lean`
 #     (`scripts/gen-region-map-link-pins.py`); RegionMap re-exports them; GuestImage
 #     unfolds them (no hand hex). Guard contract (#11230):
@@ -176,7 +176,6 @@ check_link_pin() {
 }
 check_link_pin "RegionMapLinkPins.callFrameArenaBase" callFrameArenaBase call_frame_arena
 check_link_pin "RegionMapLinkPins.evmMemoryPoolBase" evmMemoryPoolBase evm_memory_pool
-check_link_pin "RegionMapLinkPins.syslogBase" syslogBase bv_system_storage_log
 
 # The union inventory is a closed set for this emitted guest. Checking only
 # the three symbols used by the relative arithmetic would let a phantom map
@@ -225,20 +224,19 @@ else
   fail=1
 fi
 python3 - "$(symaddr call_frame_arena)" "$(symaddr basr_values)" "$(symaddr basr_accounts)" \
-  "$(symaddr bv_system_storage_log)" "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
+  "$(symaddr baap_storage_desc)" "$(symaddr baap_storage_paths)" \
   "$(symaddr baap_storage_values)" \
   "0x$BSS_BASE" "0x$BSS_SIZE" "$(symaddr evm_memory_pool)" "$(symaddr evm_memory_pool_end)" \
   "$(symaddr evm_memory)" <<'PY' || fail=1
 import sys
-(cfa, bval, bacc, syslog, desc, paths, vals, bbase, bsize, pool, pend, emem) = [int(x,16) for x in sys.argv[1:]]
+(cfa, bval, bacc, desc, paths, vals, bbase, bsize, pool, pend, emem) = [int(x,16) for x in sys.argv[1:]]
 # RegionMap constants (kept in sync with BlockVerdictParams.lean).
 S = 100018*256          # bsrMaxStateChanges*bsrEncodedAccountBytes
-syslogL = 32768*128     # bvSystemStorageLogBytes (4ch8f.73: 2*16384 rows, standalone)
 descB = 100000*40       # bsrMaxBalItems*baapStorageDescBytes
 pathB = 100000*64       # bsrMaxBalItems*bsrPathBytes
 frameArrayBytes = 1025*0x19000  # frameSlotCount * CallFrameLayout.frameStride (keep in sync)
-# 4ch8f.73: bv_system_storage_log is NO LONGER unioned into call_frame_arena; the
-# five remaining children are basr pair + three baap_storage_* (baap at offset 2S).
+# The five remaining children are the basr pair plus three baap_storage_*
+# arenas (baap at offset 2S); the retired storage-log probes are absent.
 exp = {
  "call_frame_arena == basr_values": (cfa, bval),
  "basr_accounts off": (bacc-cfa, S),
@@ -255,12 +253,6 @@ for k,(a,b) in exp.items():
 within = bbase <= cfa and cfa+frameArrayBytes <= bbase+bsize
 print(f"  {'OK  ' if within else 'DRIFT'} call_frame_arena within .bss")
 bad |= (not within)
-# 4ch8f.73 clobber-closed: standalone bv_system_storage_log must NOT overlap the
-# frame arena (else deep dispatch frames would zero it before the BAL validators
-# read it). It is emitted below the arena, so syslog end <= arena base.
-sys_ok = syslog + syslogL <= cfa
-print(f"  {'OK  ' if sys_ok else 'DRIFT'} bv_system_storage_log disjoint from call_frame_arena")
-bad |= (not sys_ok)
 pool_ok = pool == cfa + frameArrayBytes and pend - pool == 0x6000000 and pend <= bbase + bsize
 print(f"  {'OK  ' if pool_ok else 'DRIFT'} evm_memory_pool adjacent, 96 MiB, and within .bss")
 bad |= (not pool_ok)
@@ -308,8 +300,7 @@ else
   LEAN_BSS=$(pin_hex bssSizeBytes)
   LEAN_CFA=$(pin_hex callFrameArenaBase)
   LEAN_POOL=$(pin_hex evmMemoryPoolBase)
-  LEAN_SYSLOG=$(pin_hex syslogBase)
-  if [[ -z "$LEAN_TEXT" || -z "$LEAN_DATA" || -z "$LEAN_BSS" || -z "$LEAN_CFA" || -z "$LEAN_POOL" || -z "$LEAN_SYSLOG" ]]; then
+  if [[ -z "$LEAN_TEXT" || -z "$LEAN_DATA" || -z "$LEAN_BSS" || -z "$LEAN_CFA" || -z "$LEAN_POOL" ]]; then
     note "DRIFT $PINS missing one or more class-A defs"
     fail=1
   else
@@ -322,12 +313,10 @@ else
       nm_addr() { nm "$ELF" | awk -v s="$1" '$NF==s && !f {print $1; f=1}'; }
       ELF_CFA=$(nm_addr call_frame_arena)
       ELF_POOL=$(nm_addr evm_memory_pool)
-      ELF_SYSLOG=$(nm_addr bv_system_storage_log)
       check "RegionMapLinkPins.callFrameArenaBase" "$(printf '%x' $LEAN_CFA)" "$(printf '%x' 0x$ELF_CFA)"
       check "RegionMapLinkPins.evmMemoryPoolBase" "$(printf '%x' $LEAN_POOL)" "$(printf '%x' 0x$ELF_POOL)"
-      check "RegionMapLinkPins.syslogBase" "$(printf '%x' $LEAN_SYSLOG)" "$(printf '%x' 0x$ELF_SYSLOG)"
     else
-      note "DRIFT nm missing — cannot check callFrameArenaBase/evmMemoryPoolBase/syslogBase"
+      note "DRIFT nm missing — cannot check callFrameArenaBase/evmMemoryPoolBase"
       fail=1
     fi
   fi
@@ -351,7 +340,7 @@ else
     note "DRIFT missing $RM"
     fail=1
   else
-    for name in textSizeBytes dataSizeBytes bssSizeBytes callFrameArenaBase evmMemoryPoolBase syslogBase; do
+    for name in textSizeBytes dataSizeBytes bssSizeBytes callFrameArenaBase evmMemoryPoolBase; do
       if ! grep -qE "^abbrev ${name} : Nat := RegionMapLinkPins\\.${name}\$" "$RM"; then
         note "DRIFT RegionMap.${name} is not \`abbrev := RegionMapLinkPins.${name}\` — do not hand-repin RegionMap class-A; regenerate LinkPins only (docs/regenerating-generated-files.md)"
         fail=1
@@ -361,7 +350,7 @@ else
       note "DRIFT RegionMap.lean missing import EvmAsm.Codegen.RegionMapLinkPins"
       fail=1
     fi
-    if grep -qE '^def (textSizeBytes|dataSizeBytes|bssSizeBytes|callFrameArenaBase|evmMemoryPoolBase|syslogBase) : Nat := 0x' "$RM"; then
+    if grep -qE '^def (textSizeBytes|dataSizeBytes|bssSizeBytes|callFrameArenaBase|evmMemoryPoolBase) : Nat := 0x' "$RM"; then
       note "DRIFT RegionMap.lean has hand def hex for a class-A pin — two-modules-one-fact regression"
       fail=1
     fi

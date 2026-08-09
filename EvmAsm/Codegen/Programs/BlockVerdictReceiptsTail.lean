@@ -263,8 +263,6 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 36; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_dispatch_runtime_status_fail:\n" ++  -- #11119: bv_dispatch_runtime_status ≠ 0 at receipts-accept
   "  li t0, 64; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
-  ".Lbv_bal_allaccounts_fail:\n" ++        -- bmvmx.1.6.4.3: a non-recipient BAL account's storage != execution
-  "  li t0, 37; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11539 bv_fail 40 split: live MTx sender-block causes only (40,68-72).
