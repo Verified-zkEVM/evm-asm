@@ -80,6 +80,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
@@ -148,11 +150,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.decode_injective
 
+#print axioms EvmAsm.EL.RLP.decode_span_longBytes
+
+#print axioms EvmAsm.EL.RLP.decode_span_longList
+
 #print axioms EvmAsm.EL.RLP.encode_decode
 
 #print axioms EvmAsm.EL.RLP.encode_decode_mutual
 
 #print axioms EvmAsm.EL.RLP.encode_injective
+
+#print axioms EvmAsm.EL.RLP.readLength_length
+
+#print axioms EvmAsm.EL.RLP.readLength_takeBytes
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 
@@ -296,7 +306,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.evm_mstore8_stack_spec_within
 
-#print axioms EvmAsm.Evm64.evm_mstore_stack_spec_within
+#print axioms EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 
 #print axioms EvmAsm.Evm64.evm_mul_stack_spec_within
 
@@ -337,6 +347,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Evm64.indexOfSection_matchesSection
 
 #print axioms EvmAsm.Evm64.mptNodeKindSpec_rlp
+
+#print axioms EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
 
 #print axioms EvmAsm.Evm64.nodeDbIs_snoc
 
