@@ -83,6 +83,11 @@ import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
+-- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
+-- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
+-- those that have to be imported for the witness abbrevs to force.
+import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 
 namespace EvmAsm.Progress
 
@@ -250,6 +255,39 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#11351) -- a missing row was never evidence of a missing proof. Its step "
         ++ "bound inherits the callee's loose `7 * (2^64 - 1)` tail factor; tracked at "
         ++ "the origin as #11461"),
+  -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
+  -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
+  -- rowed" -- the #11637 row-existence class, where proven work counts toward
+  -- nothing. #11351's note applies verbatim: a missing row was never evidence of
+  -- a missing proof. Registering them here drains those two allowlist entries.
+  --
+  -- Graded `.proven`, not `.conditional`: every hypothesis is resource/ABI --
+  -- `hspC` (frame base), `hret` (ret alignment), `hnWord` (definitional),
+  -- `hN : lengths.length < 2 ^ 64`, and the six `hAll*` per-header alignment /
+  -- length / slack / non-overflow / `isValidByteAccess` facts. Per this module's
+  -- header those are the ABI, not a gap. There is NO input-domain gate: the
+  -- three-way post is total over the header list.
+  routine "chain_validate_consecutive_numbers" .proven
+      (some "chain_validate_consecutive_numbers_spec_within")
+      (notes := "93-instruction cross-header accessor: validates RLP field 8 (`number`) is "
+        ++ "CONSECUTIVE across adjacent headers (`num[i] = num[i-1] + 1` in `BitVec 64`; the "
+        ++ "guest's `ADDI x29 x29 1` then `BNE x29 x28`). Three-way post over the TRUE count: "
+        ++ "all-consecutive (`a0 = 0`, `*validPtr = 1`), first-violation (`a0 = 0`, "
+        ++ "`*validPtr = 0`, `*firstBad = k`), first parse-failure (`a0 = status ≠ 0`, "
+        ++ "`*firstBad = k`) -- each header's number genuinely decoded via K34's `Result`, "
+        ++ "`prev` threaded through `cvcn_iter_prev`. ⚠️ ONE stated `BitVec`-vs-`Nat` "
+        ++ "divergence from the execution spec's `header.number = parent.number + 1`: the "
+        ++ "wraparound at `num[i-1] = 2^64-1`, which has no u64-decodable successor and so is "
+        ++ "unreachable. Step bound inherits the K34 callee's `7 * (2^64 - 1)` tail factor "
+        ++ "(#11461). No `Correspondence` row yet -- that needs a `_of_decode` bridge to "
+        ++ "`SpecRef`, which does not exist for this family (see #11575)"),
+  routine "chain_validate_increasing_timestamps" .proven
+      (some "chain_validate_increasing_timestamps_spec_within")
+      (notes := "cross-header accessor with the SAME frame, hypothesis set and three-way "
+        ++ "post shape as `chain_validate_consecutive_numbers` above, over the timestamp "
+        ++ "field instead of `number` (`Ts` scratch cell in place of `Num`) and a strict "
+        ++ "increase instead of a `+1` step. Step bound inherits the same K34 "
+        ++ "`7 * (2^64 - 1)` factor (#11461). No `Correspondence` row yet, same reason"),
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
@@ -356,9 +394,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 33 := by decide
+theorem routineCount_eq : routineCount = 35 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 24 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 26 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -373,7 +411,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 23 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 25 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -479,6 +517,13 @@ private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+-- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
+-- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
+-- loop-close files reopen the spec namespace rather than declaring their own.
+private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
+private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
 -- Correspondence row #11351 names this; it is Codegen-side, and Correspondence
 -- deliberately does not import Codegen, so the witness abbrev lives here.
 private noncomputable abbrev _header_number_of_decode_witness :=

@@ -689,6 +689,36 @@ private noncomputable abbrev _decodeAux_mono_fuel_witness :=
   @EvmAsm.EL.RLP.decodeAux_mono_fuel
 private noncomputable abbrev _decodeItems_mono_fuel_witness :=
   @EvmAsm.EL.RLP.decodeItems_mono_fuel
+-- #11678: the RLP encode→decode round-trip was proven and `sorry`-free but
+-- reached NO gate — `decode_encode` appeared nowhere under `Progress/`, so a
+-- later edit could have introduced a `sorryAx` or a TCB-expanding tactic into it
+-- or its dependency chain with nothing to object. `Nat.fromBytesBE_eq_zero_iff`
+-- above was the only `EL.RLP` witness. Referencing a theorem does not gate it;
+-- the abbrev is what does (PLAN.md, #11671), which is why the residual survived
+-- #11661's sweep. No registry row is claimed here: a row asserts a tier, and
+-- these are pure-spec lemmas about the EL model with no RV64 routine behind
+-- them — same footing as the reference-side inversions witnessed just above.
+private noncomputable abbrev _rlp_decode_encode_witness :=
+  @EvmAsm.EL.RLP.decode_encode
+-- The fuel-parametric general form `decode_encode` specialises. Witnessed
+-- separately so a regression localises to the induction rather than only
+-- surfacing at the specialisation.
+private noncomputable abbrev _rlp_decode_encode_mutual_witness :=
+  @EvmAsm.EL.RLP.decode_encode_mutual
+-- The `decodeFully` lift. Deliberately `decodeFully_encode` and NOT
+-- `decodeFully_encode_of_decode_encode`, which #11678 named: that one *takes*
+-- `decode (encode item) = some (item, [])` as a hypothesis, so witnessing it
+-- alone certifies a re-wrapping whose interesting premise is supplied by the
+-- caller. `decodeFully_encode` is the composition with that premise discharged
+-- from the length bound, so it is the form whose axioms are worth auditing.
+private noncomputable abbrev _rlp_decodeFully_encode_witness :=
+  @EvmAsm.EL.RLP.decodeFully_encode
+-- Injectivity of `encode` over decoder-supported items: distinct items never
+-- share an encoding. Same dependency chain as the round-trip, and the
+-- soundness-relevant direction — a collision here would be a canonical-form
+-- confusion, the shape #11523's non-canonical leaves live in.
+private noncomputable abbrev _rlp_encode_injective_witness :=
+  @EvmAsm.EL.RLP.encode_injective
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the

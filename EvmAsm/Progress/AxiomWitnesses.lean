@@ -52,6 +52,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
+#print axioms EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
+
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
@@ -104,9 +108,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
-#print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
+#print axioms EvmAsm.EL.RLP.decodeFully_encode
 
-#print axioms EvmAsm.EL.RLP.decodeItems_mono_fuel
+#print axioms EvmAsm.EL.RLP.decode_encode
+
+#print axioms EvmAsm.EL.RLP.decode_encode_mutual
+
+#print axioms EvmAsm.EL.RLP.encode_injective
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 

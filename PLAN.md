@@ -219,12 +219,42 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
   is name-based, so it can UNDER-report a gap but never invent one: a floor on the
   backlog, not a census.
+  - **Burn-down (2026-08-10, #11575): 95 → 93.** `chain_validate_consecutive_numbers`
+    and `chain_validate_increasing_timestamps` registered `.proven` in
+    `Routines.lean` (routine registry 33 → 35 rows, 24 → 26 proven, 23 → 25 distinct
+    symbols; 145 → 147 axiom witnesses). ⭐ The lesson is about the *issue*, not the
+    gate: #11575 was filed as "fork `header_extract_number`'s pattern to its 8
+    mechanical siblings", but **all 8 forks already existed, sorry-free** — 2 were
+    rowed and 6 were sitting in this allowlist. The remaining work was never proving,
+    it was registration. #11351's note generalises: *a missing row was never evidence
+    of a missing proof*, so read the allowlist before believing an issue that says a
+    triple is absent. ⚠️ The other 4 (`blob_gas_used_multiple`,
+    `blob_gas_used_under_max`, `extra_data_length`, `gas_used_under_limit`) stay
+    allowlisted as **tier B** — structured SAsm specs needing `Fn.retSpecFlat` before
+    a `.proven` row is honest. Do not bulk-register them to shorten the file.
+    Correspondence rows for all 6 are separate work again: they need a `_of_decode`
+    bridge to `SpecRef`, which this family does not have.
 - **Witness ≠ row** (GH #11348, #11516): a Correspondence/Routines row naming a
   theorem does NOT put that theorem in the axiom gate — the `private noncomputable
   abbrev _<name>_witness := @…` is what does. They are separate obligations: the
   witness is always warranted for a named theorem; the row claims a *tier* and only
   if earned. Codegen-side specs are witnessed in `Routines.lean` (which imports those
   modules), never in `Correspondence.lean` (kept light on purpose).
+  - **Pure-spec lemmas are outside #11637's reach** (GH #11678). That gate closed row
+    *existence* for **routine-level** specs — a linked routine with a spec theorem and
+    no row fails the build. A lemma with no routine behind it has no symbol in the
+    image, so it is invisible to that gate *and* to the row-contents gates, which
+    quantify over rows that exist. `EL.RLP.decode_encode` sat in exactly that hole:
+    proven, `sorry`-free, and reaching no gate at all, with `decode_encode` appearing
+    nowhere under `Progress/`. Now witnessed, along with `decode_encode_mutual` (the
+    fuel-parametric general form), `decodeFully_encode` and `encode_injective` — all
+    four `[propext, Classical.choice, Quot.sound]`. No row: these are model-level
+    lemmas with no RV64 routine, same footing as the reference-side inversions
+    (`decode_account_from_leaf_inv`, `beq_EMPTY_ACCOUNT`) witnessed beside them.
+    ⚠️ Witness the **discharged** form, not a hypothesis-taking wrapper:
+    `decodeFully_encode_of_decode_encode` *assumes* the round-trip, so witnessing it
+    alone audits a re-wrapping whose one interesting premise the caller supplies —
+    the same near-vacuity trap as #10688's bundled existentials.
 
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
@@ -812,6 +842,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     one-token edit. **Follow-up (deferred to Phase 4 / R-B1 scorecard):** wire
     `progress-velocity.sh --check` as a *PR-time* gate (the post-merge workflow
     can't block a merge); it is advisory-only today.
+    - **Blocker-staleness audit + two new gates (2026-08-10, #11803).** The
+      matrix had grown 10 obligations and its blocker lists had decayed in three
+      distinct ways: obligation 5 named eight opcodes that had ALL reached
+      `.proven` (MOD/SDIV/SMOD/ADDMOD/MULMOD/EXP/CALLDATACOPY/PUSH2..32);
+      obligation 4 cited "codegen M5 not shipped" against M0–M10 done; and
+      obligation 10 carried three CLOSED issues (#11346, #11347, #11422). The
+      existing `blocker_opcodes_in_registry` could not see any of it — it checks
+      a blocker *name* resolves, and all of those names resolved fine. Added:
+      (i) `no_proven_opcode_blockers`, a `by decide` cross-check that no
+      `.opcode` blocker names an already-`.proven` entry (kernel-gated, so class
+      1 cannot recur); (ii) `scripts/check-obligation-blockers.sh`, an advisory
+      scan of PROGRESS.md's rendered *Blocked by* column for blockers citing
+      closed issues (class 3 — needs `gh`, so it cannot be a kernel gate);
+      (iii) an `auditedAt` field (date + commit) rendered as a matrix column, for
+      class 2, which is free-text prose and mechanically undetectable. Rows
+      1/3/4/5/7/10 re-audited; obligation 7 moved `.notStarted → .blocked`
+      (MPT work has three axiom-gated lemmas behind it, so "not started"
+      understated it), making the counts `doneCount_eq = 2` /
+      `blockedCount_eq = 8` / `notStartedCount_eq = 0`.
   - **Phase 3 (this work) — DIV-class defense (differential / fuzz testing):**
     closes the *codegen* blind spot (the kernel proves the in-Lean semantics,
     not the RISC-V lowering / ziskemu — the home of the v4 DIV bug).

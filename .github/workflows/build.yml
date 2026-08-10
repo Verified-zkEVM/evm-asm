@@ -140,6 +140,15 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: scripts/check-statement-tamper.sh --base "origin/${{ github.base_ref }}"
 
+      # Advisory only (#11803): flags obligation-matrix blockers citing a CLOSED
+      # issue. Needs network + `gh`, and skips cleanly when either is absent, so
+      # it can never fail a run on infrastructure grounds.
+      - name: Obligation-blocker staleness scan (advisory)
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/check-obligation-blockers.sh
+
       # Only push to main / merge_group / workflow_dispatch save the cache, so
       # PR runs cannot churn the quota and evict the main-branch cache.
       - name: Save lake cache

@@ -382,6 +382,7 @@ blocking only after thresholds calibrate, never prematurely):
 |------|-----------------|
 | `check-statement-tamper.sh` | weakened theorem statements / verifier-config edits (advisory in `build.yml`; blocks only with `--strict`, which CI does not pass) |
 | **`check-naming.sh`** | camelCase proof hypotheses newly added in a PR (prefer `h_snake_case`; the PR #1497 regression class) |
+| **`check-obligation-blockers.sh`** | obligation-matrix blockers citing a **closed** issue (#11803's class 3). Reads PROGRESS.md's rendered *Blocked by* column; advisory because it needs network + `gh` and skips cleanly without them. Its kernel-side siblings in `Progress/Obligations.lean` are `blocker_opcodes_in_registry` (blocker names a real registry entry) and `no_proven_opcode_blockers` (blocker does not name an already-`.proven` opcode) |
 | **`check-opcode-structure.sh`** (checklist part) | new *complex* opcode dirs missing template essentials (FullPath, `@[irreducible]` Post, `Offsets.lean`) |
 | **`churn-report.sh`** | top-churn files + short-lived churn (AI copy-paste sprawl) |
 | **`jscpd`** (`scripts/jscpd.json`) | duplication % reported weekly (advisory); `check-duplication.sh --gate` *would* fail on new sprawl past the calibrated budget once promoted, `codegen-*.sh` excluded (Rule of Three) |
