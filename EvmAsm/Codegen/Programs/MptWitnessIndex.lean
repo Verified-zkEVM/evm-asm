@@ -268,8 +268,13 @@ def witnessIndexFunctions : String :=
   "wlh_linear_iterations:\n  .zero 8\n" ++
   "wlh_linear_last_section_len:\n  .zero 8\n" ++
   "wlh_linear_max_section_len:\n  .zero 8\n" ++
+  ".popsection\n" ++
+  -- The index arena is runtime-built scratch, not initialized data.  Keep the
+  -- metadata above in `.data`, but place the six-MiB record arena in NOBITS so
+  -- it does not occupy the linked image's PROGBITS payload.
+  ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
   "widx_records:\n  .zero " ++ toString mptWitnessIndexArenaBytes ++ "\n" ++
-  ".popsection"
+  ".section .text"
 
 end EvmAsm.Codegen

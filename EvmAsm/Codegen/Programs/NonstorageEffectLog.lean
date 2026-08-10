@@ -16,7 +16,9 @@
   account (CREATE-created accounts, CALL value-transfer callees, SELFDESTRUCT
   beneficiaries). The call sites that append (CREATE deposit, CALL value-transfer
   .61.6.8) use this log for runtime state threading; this slice is the log + producer
-  + a known-answer probe. {sender, recipient, coinbase} are not recorded here.
+  + a known-answer probe. {sender, recipient} are not recorded here; the coinbase
+  fee credit IS recorded, by blockVerdictMtxCoinbaseFeeEffect
+  (EvmAsm/Codegen/Programs/BlockVerdictMtxCoinbase.lean).
 -/
 
 import EvmAsm.Rv64.Program
@@ -39,19 +41,21 @@ open EvmAsm.Rv64
 
     Worst-case bound: a nonzero value-CALL appends TWO raw records, the caller debit and the callee
     credit (ChildFrameHandlers .61.6.8), while its cheapest regular-gas charge is an existing warm
-    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus the raw-record upper bound
-    from the 200M block regular-gas limit is
-      2 * floor(200_000_000 / 10400) = 38_460.
-    CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect; withdrawals are
-    separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
-    separate block budget and cannot reduce this bound. 38,460 is therefore the
-    exact full raw-stream bound. The overflow flag remains a fail-closed runtime
-    guard, rather than a verdict assumption.
+    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus execution contributes
+      2 * floor(200_000_000 / 10400) = 38_460
+    raw records. CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect.
+    `block_verdict_withdrawal_nonstorage_effects` appends withdrawals to this SAME raw log, and
+    withdrawals are bounded separately to 16 records, so the full stream bound is
+      38_460 + 16 = 38_476.
+    This uses the regular-gas budget only: EIP-7928 state gas is a separate block budget and cannot
+    reduce the execution bound. The withdrawal contributor is named here because "separately
+    bounded" is true of its count, but false of the storage it shares. The overflow flag remains a
+    fail-closed runtime guard, rather than a verdict assumption.
 
     Cost: live consumers iterate over the recorded `count`, never `cap`, so a larger cap is
     pure reserved BSS. The exec_nonstorage_effect_log and shared radix-sort buffers are sized
     from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 38460
+def nonstorageEffectLogCap : Nat := 38476
 
 /-- The resolver in AccountWriteMap emits the same AccountState capacity as
     CreateCodeEffectLog. Keep the cross-module fact kernel-checked so a future

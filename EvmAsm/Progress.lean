@@ -107,6 +107,8 @@ import EvmAsm.Evm64.ReturnData.CopySpec
 import EvmAsm.EL.RLP.FuelMono
 -- #11896: the canonicality direction of the RLP round trip.
 import EvmAsm.EL.RLP.EncodeDecode
+-- #10780 item 3: the long-form span lemmas, the read side's missing `SpanForm` arms.
+import EvmAsm.EL.RLP.LongSpan
 
 namespace EvmAsm.Progress
 
@@ -339,8 +341,10 @@ def registry : List OpcodeEntry := [
   entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
       ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
        "trailing guard band supplies the pair-read tail"),
-  entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
-      "aligned spec proven; unaligned _public variants in progress",
+  entry "MSTORE" .proven (some "evm_mstore_stack_spec_within_region")
+      ("region-backed spec covers every byte offset with an explicit guard; " ++
+       "the HandlerSpecs/MemoryFrameSpec lift chain still consumes the raw " ++
+       "eight-cell theorem and is tracked separately"),
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
   entry "SLOAD" .execSpec none
       "The legacy append-only persistent-log proof was retired; persistent storage now follows the spec-shaped storage-write path.",
@@ -634,7 +638,10 @@ private noncomputable abbrev _selfdestruct_witness :=
   @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
-private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
+-- #10190: the registry's .proven grade rests on the region-backed theorem,
+-- which covers every offset residue.  The two existing lift consumers retain
+-- the raw eight-cell theorem until their adapter/interface migration lands.
+private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 private noncomputable abbrev _mstore8_witness    := @EvmAsm.Evm64.evm_mstore8_stack_spec_within
 private noncomputable abbrev _msize_witness      := @EvmAsm.Evm64.evm_msize_stack_spec_within
 private noncomputable abbrev _push0_witness      := @EvmAsm.Evm64.evm_push0_stack_spec_within
@@ -737,6 +744,17 @@ private noncomputable abbrev _rlp_encode_decode_mutual_witness :=
   @EvmAsm.EL.RLP.encode_decode_mutual
 private noncomputable abbrev _rlp_decode_injective_witness :=
   @EvmAsm.EL.RLP.decode_injective
+-- #10780 item 3: the long-form spans excluded by `SpanForm`, plus the two `readLength`
+-- inversions they rest on. Witnessed because the machine half will consume them as its
+-- specification, and a specification outside the axiom gate is the #11637 failure mode.
+private noncomputable abbrev _rlp_decode_span_longBytes_witness :=
+  @EvmAsm.EL.RLP.decode_span_longBytes
+private noncomputable abbrev _rlp_decode_span_longList_witness :=
+  @EvmAsm.EL.RLP.decode_span_longList
+private noncomputable abbrev _rlp_readLength_length_witness :=
+  @EvmAsm.EL.RLP.readLength_length
+private noncomputable abbrev _rlp_readLength_takeBytes_witness :=
+  @EvmAsm.EL.RLP.readLength_takeBytes
 -- #10190 (PR #11910). Flagged there: `check-axioms.sh` only inspects proofs witnessed
 -- here, so these two were NOT covered by CI's axiom gate despite being the load-bearing
 -- content of the MSTORE `evmMemoryIs` migration. `bytesRegion_dword_pair_at_setBytes` is
@@ -746,6 +764,16 @@ private noncomputable abbrev _rlp_decode_injective_witness :=
 -- precondition whose unsatisfiability is #11913.
 private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
   @EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+-- #10190 (bridge cut): the complete one-limb byte-store conversion is
+-- witnessed separately from the topmost MSTORE re-point.  It is uniform in
+-- every residue `start < 8`; no registry row is changed here.
+private noncomputable abbrev _mstore_limb_store_bridge_witness :=
+  @EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
+-- #10190 (topmost region cut): the complete region-backed wrapper is
+-- witnessed additively; the existing raw stack theorem and registry row stay
+-- untouched until the topmost consumer is re-pointed in a later step.
+private noncomputable abbrev _mstore_stack_region_witness :=
+  @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
   @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=

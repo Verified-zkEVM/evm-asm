@@ -17,10 +17,11 @@ declare -A expected_steps=(
   [codegen]=6
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 4 since the `check-registry-coverage.py --self-test` step was added ahead of
-  # its real run. ⚠️ This count is asserted exactly: adding a `run_step` to a lane
-  # without bumping it here reports the lane INCOMPLETE and fails the wrapper.
-  [reports]=4
+  # 5 since the `check-guest-image-coverage.sh` step was added after
+  # check-drift.sh (the count grew 4 → 5). ⚠️ This count is asserted exactly:
+  # adding a `run_step` to a lane without bumping it here reports the lane
+  # INCOMPLETE and fails the wrapper.
+  [reports]=5
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -60,6 +61,11 @@ codegen_checks() {
 report_checks() {
   run_step scripts/check-progress.sh
   run_step scripts/check-drift.sh
+  # Same defect one file over: the guest-image coverage md embeds generator
+  # numbers but was hand-maintained, so it drifted invisibly (24.19% vs live
+  # 23.65%). The doc is now fully generated; this is the regenerate-and-
+  # compare guard. Pure Python over committed fixtures, instant.
+  run_step scripts/check-guest-image-coverage.sh
   # #11637: row EXISTENCE, which nothing gated before -- every other registry
   # invariant quantifies over rows that are already there, so a linked, proven
   # routine with no row at all tripped nothing. Pure source scan, instant.

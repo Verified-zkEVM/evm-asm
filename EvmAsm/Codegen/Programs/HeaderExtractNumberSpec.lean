@@ -389,15 +389,9 @@ theorem header_extract_number_spec_within
       { ra := B + 48, s0 := listBase, s1 := outputPtr, s2 := s2, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (8 + 2)) + 6)) + 9)
-    -- ⚠️ The `7 * (2 ^ 64 - 1)` factor is INHERITED verbatim from the callee, not
-    -- chosen here, and it is loose: it comes from the range of a 64-bit counter
-    -- rather than from the data, so this triple does NOT establish that the tail
-    -- loop is bounded by its input. Origin `Field0ToU64Top.lean:215` (the
-    -- `rlp_content_to_u64` scalar loop), via `RlpFieldToU64FinishSAsm.lean:843,965`
-    -- and `RlpFieldToU64FlatSAsm.lean:74-75`. No wrapper can tighten it; tracked
-    -- at the origin as issue #11461. Anyone composing against this theorem
-    -- inherits the looseness.
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    -- The tail bound follows the caller-owned input byte region, as in the
+    -- callee's data-derived `rlpFieldToU64_flat_spec_within` bound.
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34) + 3) H raIn fullCode
       (hdrPre sp0 raIn oldRaSlot spH newSp listBase listLenW outputPtr old13

@@ -423,6 +423,24 @@ differential, so there is no `diff` result to inherit. FULL DOMAIN: the only sid
 conditions are ABI (region wf, non-overlap, non-overflow), and `len <= srcBytes.length` \
 is the ABI contract, not an input-domain gate" },
 
+  -- #11799 dep / leaf-routine-targets row 4: walker dispatch machine triple.
+  { family := "mpt", routine := "mpt_node_kind",
+    spec := some "mpt_node_kind_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "node-shape dispatch of _decode_witness_node \
+(SpecRef/IncrementalMpt.lean:182) — 17-item branch vs 2-item leaf/extension",
+    note := "WHOLE-ROUTINE cpsTripleWithin at `GuestAddrs.mpt_node_kind` (#11799 dep). \
+Post is operational `MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path \
+with HP nibble), matching the guest's arity-exact control flow after #11347. WHY \
+`.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has no executable \
+differential, and the top triple is stated over the operational result rather than \
+over SpecRef `kindTag` — callers that want `kindTag` under WF use the pure bridge \
+`mptNodeKindGuest_eq_kindTag` (MptNodeKindSpec). The pure `MptAssertions.mptNodeKindSpec` \
+is LOOSER (2 < len → branch) and STALE vs the arity-17 guest; it is NOT the machine \
+post. FULL DOMAIN: no input-domain gate (ABI hyps only — region wf, alignment, stack \
+free for nth frame). coverRef `mpt_node_kind_precondition_reachable` (branch/ext/leaf/fail). \
+Witnessed in Progress/Routines.lean. Walk body (`mpt_walk`) still open under #11799" },
+
   -- #11516: account-leaf decode, the pairing that issue says must be stated.
   { family := "account", routine := "account_decode",
     spec := some "account_decode_spec_within",
@@ -437,12 +455,18 @@ fixture failed for an unrelated reason. An unstated pairing is how a predicate d
 the reference indefinitely. WHY `domainRestricted` AND NOT `agrees`: fields 2/3 were closed \
 by #11483/#11484 (zero-length storage_root/code_hash now fold to EMPTY_TRIE_ROOT / \
 EMPTY_CODE_HASH, matching the reference's `if decoded[2] else EMPTY_TRIE_ROOT`), but \
-`Decoded` still carries l0 <= 8 and l1 <= 32 LENGTH limits on nonce/balance where the \
-reference imposes no length constraint at all -- it just runs `int.from_bytes`. So a \
-zero-prefixed or over-width nonce/balance is accepted by the reference and outside what we \
-prove. That is #11523, still open, and this row is the thing that keeps the gap visible \
-instead of assumed. It is a COVERAGE GAP, not an ABI precondition: the guest may well handle \
-those inputs; we have not proved it. ⚠️ NOT a portDefect: #11516 checked \
+`Decoded` still carries the guest's significant-length checks `≤ 8` for nonce and `≤ 32` \
+for balance. These are load-bearing emitted branches, not ABI facts: `State.lean:97-98` \
+branches on `bltu 8, sigLen` to the decode failure, and `State.lean:130-131` does the \
+same for `bltu 32, sigLen`; `AccountDecodeDispatch.lean:318-330` ties those branches to \
+`nonceValueOk`/`balanceValueOk`. The reference at `SpecRef/WitnessState.lean:121-122` \
+just runs `bytesBEtoNat` and imposes neither cap, so a field with nine significant nonce \
+bytes or 33 significant balance bytes is accepted there and rejected by the guest. That \
+semantic mismatch cannot be removed by a proof-only change: `.agrees` requires changing \
+the guest checks or narrowing the reference domain. #11523 remains the open semantic gap, \
+and this row keeps it visible. `AccountRecord.WF` (`AccountAssertions.lean:92-94`) repeats \
+the bounds for modelled valid records, but is not an ABI precondition on arbitrary leaf \
+bytes and cannot erase the decoder-domain mismatch. ⚠️ NOT a portDefect: #11516 checked \
 `decode_account_from_leaf` field-for-field against witness_state.py:112-118 and found them \
 identical, including the malformed case -- SpecRef modelled the folds correctly all along, so \
 the outlier was our own predicate. Standing hazard from that issue, repeated here because it \
@@ -803,15 +827,15 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 31 := by decide
+theorem registry_size : registry.length = 32 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
 theorem header_rows : countFamily "header" = 4 := by decide
-/-- #11344. No differential for this family -- see the row's note. -/
-theorem mpt_rows : countFamily "mpt" = 1 := by decide
+/-- #11344 + #11799 dep (`mpt_node_kind`). No differential for this family. -/
+theorem mpt_rows : countFamily "mpt" = 2 := by decide
 /-- #11516. One row; the pairing that issue says must be stated. -/
 theorem account_rows : countFamily "account" = 1 := by decide
 /-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
@@ -839,7 +863,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 18 ∧ countVerdict .domainRestricted = 9 ∧
+    countVerdict .agrees = 19 ∧ countVerdict .domainRestricted = 9 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -853,7 +877,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
