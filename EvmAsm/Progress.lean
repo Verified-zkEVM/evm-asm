@@ -341,8 +341,10 @@ def registry : List OpcodeEntry := [
   entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
       ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
        "trailing guard band supplies the pair-read tail"),
-  entry "MSTORE" .proven (some "evm_mstore_stack_spec_within")
-      "aligned spec proven; unaligned _public variants in progress",
+  entry "MSTORE" .proven (some "evm_mstore_stack_spec_within_region")
+      ("region-backed spec covers every byte offset with an explicit guard; " ++
+       "the HandlerSpecs/MemoryFrameSpec lift chain still consumes the raw " ++
+       "eight-cell theorem and is tracked separately"),
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
   entry "SLOAD" .execSpec none
       "The legacy append-only persistent-log proof was retired; persistent storage now follows the spec-shaped storage-write path.",
@@ -636,7 +638,10 @@ private noncomputable abbrev _selfdestruct_witness :=
   @EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 private noncomputable abbrev _pop_witness        := @EvmAsm.Evm64.evm_pop_stack_spec_within
 private noncomputable abbrev _mload_witness      := @EvmAsm.Evm64.evm_mload_stack_spec_within
-private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within
+-- #10190: the registry's .proven grade rests on the region-backed theorem,
+-- which covers every offset residue.  The two existing lift consumers retain
+-- the raw eight-cell theorem until their adapter/interface migration lands.
+private noncomputable abbrev _mstore_witness     := @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 private noncomputable abbrev _mstore8_witness    := @EvmAsm.Evm64.evm_mstore8_stack_spec_within
 private noncomputable abbrev _msize_witness      := @EvmAsm.Evm64.evm_msize_stack_spec_within
 private noncomputable abbrev _push0_witness      := @EvmAsm.Evm64.evm_push0_stack_spec_within
