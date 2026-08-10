@@ -61,7 +61,7 @@ if [[ -z "$log_file" ]]; then
   # exit code if it happened, since a failed build may produce spurious
   # or missing warning output.
   set +e
-  lake build 2>&1 | tee "$log_file"
+  scripts/lib/lake-cache-diagnostic.sh lake build 2>&1 | tee "$log_file"
   build_status=${PIPESTATUS[0]}
   set -e
   if (( build_status != 0 )); then

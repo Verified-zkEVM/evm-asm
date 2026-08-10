@@ -207,7 +207,7 @@ echo "==> SpecRef EEST conformance check (reference model, no ziskemu, jobs=$JOB
 # --- build the Lean exe -----------------------------------------------------
 if [[ "$NO_BUILD" -eq 0 ]]; then
   echo "==> lake build specref-eest-check"
-  lake build specref-eest-check
+  scripts/lib/lake-cache-diagnostic.sh lake build specref-eest-check
 else
   echo "==> skipping build (--no-build)"
 fi

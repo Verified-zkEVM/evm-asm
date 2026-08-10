@@ -20,6 +20,7 @@ if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
 fi
 if [[ ! -f gen-out/regionmap/stateless_guest.elf ]]; then
   echo "==> gen-out/regionmap/stateless_guest.elf missing; emitting"
-  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/regionmap/stateless_guest
+  scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+    --halt linux93 -o gen-out/regionmap/stateless_guest
 fi
 exec python3 scripts/check_guarded_handler_bytes.py
