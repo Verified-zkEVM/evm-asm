@@ -166,6 +166,207 @@ theorem rlpToMutableNode_rlp (n : MptNode) (hwf : n.WF) :
         mapM_rlpChildSlot cs hcl]
     rfl
 
+/-! ## Pure hop (obligation #10 / #11799)
+
+One step of `mpt_walk` replaces the current node ref by the **Resolve**
+of a taken child hash (not a cursor advance inside the parent RLP). SpecRef
+`trieLookupAux` takes the same step once the hashed placeholder has been
+substituted by the resolved child `MutableNode`. The three lemmas below
+are the pure content of that hop; the machine triple re-establishes
+`mptNodeIs` on the replacement bytes and advances the path suffix.
+
+**Domain gate (named, not silent):** `MptNode` v1 / `alpha_node` admit
+hash-or-empty children only. Inlined sub-32-byte children (`mpt_branch_child`
+status 2 / guest path that adds the child offset into the parent buffer)
+are **excluded by this gate**, not merely unhandled — a future reader must
+not treat them as a hole inside the proven domain. `n.WF` already enforces
+extension child length = 32 and branch slots empty-or-32.
+
+Resolve on the pure side is `nodeDbLookupSpec` (coherent with
+`build_node_db` by `nodeDbLookupSpec_eq_build_node_db`); the decoded child
+is `alpha_node child` via `rlpToMutableNode_rlp`. -/
+
+open Stateless.SpecRef (trieLookupAux keccak256 keyToNibbles)
+
+/-- Spec hop through an extension whose child is already a deep
+    `MutableNode` (prefix matches). Definitional unfolding of
+    `trieLookupAux` — the shape the guest hop re-establishes after
+    Resolve substitutes the hashed placeholder. -/
+theorem trieLookupAux_extension_hop
+    (f : Nat) (seg : List (BitVec 8)) (child : MutableNode)
+    (nibbles : List (BitVec 8)) (pos : Nat)
+    (h_prefix : (nibbles.drop pos).take seg.length = seg) :
+    trieLookupAux (f + 1) (some (.extension seg child)) nibbles pos =
+      trieLookupAux f (some child) nibbles (pos + seg.length) := by
+  simp [trieLookupAux, h_prefix]
+
+/-- Spec hop through a branch whose chosen child slot is already a deep
+    `MutableNode` (path still has a residual nibble). -/
+theorem trieLookupAux_branch_hop
+    (f : Nat) (children : List (Option MutableNode)) (value : List (BitVec 8))
+    (nibbles : List (BitVec 8)) (pos : Nat) (child : MutableNode)
+    (h_more : pos < nibbles.length)
+    (h_slot : children.getD (nibbles.getD pos 0).toNat none = some child) :
+    trieLookupAux (f + 1) (some (.branch children value)) nibbles pos =
+      trieLookupAux f (some child) nibbles (pos + 1) := by
+  have hle : ¬ nibbles.length ≤ pos := Nat.not_le_of_gt h_more
+  -- `simp` unfolds `getD` on both sides; rewrite the slot first.
+  simp only [trieLookupAux, hle, ite_false]
+  -- Goal: trieLookupAux f (children.getD idx none) ... = trieLookupAux f (some child) ...
+  simpa using congrArg (fun c => trieLookupAux f c nibbles (pos + 1)) h_slot
+
+/-- Shallow abstraction of a well-formed extension is the SpecRef
+    extension with a `.hashed` placeholder for the child. -/
+theorem alpha_node_extension (p c : List (BitVec 8)) :
+    alpha_node (.extension p c) = .extension p (.hashed c) := rfl
+
+/-- Shallow abstraction of a well-formed branch maps empty slots to
+    `none` and 32-byte hash slots to `some (.hashed _)`. -/
+theorem alpha_node_branch (cs : List (List (BitVec 8))) (v : List (BitVec 8)) :
+    alpha_node (.branch cs v) =
+      .branch (cs.map fun c => if c = [] then none else some (.hashed c)) v := rfl
+
+/-- **Extension hop (pure).** Guest is at well-formed extension `n`, path
+    prefix matches, Resolve answers with well-formed child `child`. Spec
+    hop after substituting `alpha_node child` for the `.hashed` placeholder
+    equals one `trieLookupAux` step onto that child; decode of the resolved
+    RLP is exactly `alpha_node child`.
+
+    Material facts discharged here: path suffix advances by `path.length`;
+    Resolve coherence (`nodeDbLookupSpec`); shallow alpha of parent; alpha
+    of child. The machine triple additionally re-establishes `mptNodeIs`
+    on the replacement bytes (node-ref REPLACEMENT, not cursor advance). -/
+theorem mpt_walk_hop_extension
+    (path childHash : List (BitVec 8)) (child : MptNode)
+    (nodes : List (List (BitVec 8)))
+    (nibbles : List (BitVec 8)) (pos f : Nat)
+    (_hwf_ext : (MptNode.extension path childHash).WF)
+    (hwf_child : child.WF)
+    (_hlookup : nodeDbLookupSpec nodes childHash = some child.rlp)
+    (h_prefix : (nibbles.drop pos).take path.length = path) :
+    alpha_node (.extension path childHash) =
+        .extension path (.hashed childHash) ∧
+      rlpToMutableNode child.rlp = some (alpha_node child) ∧
+      trieLookupAux (f + 1)
+          (some (.extension path (alpha_node child))) nibbles pos =
+        trieLookupAux f (some (alpha_node child))
+          nibbles (pos + path.length) := by
+  refine ⟨rfl, rlpToMutableNode_rlp child hwf_child, ?_⟩
+  exact trieLookupAux_extension_hop f path (alpha_node child) nibbles pos h_prefix
+
+/-- **Branch hop (pure).** Guest is at well-formed branch `n`, residual
+    path nibble selects a **32-byte hash** slot (empty and inlined sub-32
+    slots are outside this theorem — empty is a terminal miss handled
+    separately; inlined is excluded by the domain gate). Resolve answers
+    with well-formed child `child`. Spec hop after substituting
+    `alpha_node child` at that slot equals one `trieLookupAux` step. -/
+theorem mpt_walk_hop_branch
+    (cs : List (List (BitVec 8))) (value childHash : List (BitVec 8))
+    (child : MptNode) (nodes : List (List (BitVec 8)))
+    (nibbles : List (BitVec 8)) (pos f : Nat)
+    (hwf_br : (MptNode.branch cs value).WF)
+    (hwf_child : child.WF)
+    (h_more : pos < nibbles.length)
+    (h_idx_bound : (nibbles.getD pos 0).toNat < cs.length)
+    (h_slot : cs.getD (nibbles.getD pos 0).toNat [] = childHash)
+    (h_hash : childHash.length = 32)
+    (_hlookup : nodeDbLookupSpec nodes childHash = some child.rlp) :
+    let idx := (nibbles.getD pos 0).toNat
+    let children := cs.map fun c =>
+      if c = [] then none else some (MutableNode.hashed c)
+    let children' := children.set idx (some (alpha_node child))
+    rlpToMutableNode child.rlp = some (alpha_node child) ∧
+      children.getD idx none = some (.hashed childHash) ∧
+      trieLookupAux (f + 1) (some (.branch children' value)) nibbles pos =
+        trieLookupAux f (some (alpha_node child)) nibbles (pos + 1) := by
+  intro idx children children'
+  have hdec := rlpToMutableNode_rlp child hwf_child
+  have hne : childHash ≠ [] := by
+    intro heq; rw [heq] at h_hash; cases h_hash
+  have hget : children.getD idx none = some (.hashed childHash) := by
+    have hlt : idx < cs.length := h_idx_bound
+    -- map getD via getElem
+    have hidx : cs[idx] = childHash := by
+      have : cs.getD idx [] = childHash := h_slot
+      rwa [List.getElem_eq_getD (fallback := ([] : List (BitVec 8)))]
+    simp only [children, List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem hlt, Option.map_some, Option.getD_some, hidx,
+      if_neg hne]
+  have hset : children'.getD idx none = some (alpha_node child) := by
+    have hlt : idx < children.length := by
+      simpa [children, List.length_map] using h_idx_bound
+    simp only [children', List.getD_eq_getElem?_getD]
+    rw [List.getElem?_set_self hlt]
+    rfl
+  let _ := hwf_br
+  refine ⟨hdec, hget, ?_⟩
+  exact trieLookupAux_branch_hop f children' value nibbles pos (alpha_node child)
+    h_more hset
+
+/-- Resolve miss is out of the hop: `nodeDbLookupSpec` returning `none`
+    means the guest fails the walk (no replacement node). Recorded so the
+    machine triple's fail arm has a pure counterpart. -/
+theorem mpt_walk_hop_resolve_miss
+    (childHash : List (BitVec 8)) (nodes : List (List (BitVec 8)))
+    (hmiss : nodeDbLookupSpec nodes childHash = none) :
+    ¬ ∃ (child : MptNode), nodeDbLookupSpec nodes childHash = some child.rlp := by
+  intro ⟨_, h⟩
+  rw [hmiss] at h
+  cases h
+
+/-! ### coverRef — two-node hop (anti-vacuity)
+
+A 1-node leaf trie satisfies the gate but never **hops**. The cover
+instance below is an extension whose child is a 32-byte hash Resolve'd
+from a one-entry node DB to a leaf — so the hop lemmas' Resolve+prefix
+hypotheses are inhabited and the walk takes a real extension step. -/
+
+/-- Concrete two-node cover: extension `[0x0A] → leaf [0x0B]↦[0x99]`. -/
+def mptWalkHopCoverLeaf : MptNode := .leaf [0x0B] [0x99]
+
+def mptWalkHopCoverLeafHash : List (BitVec 8) :=
+  keccak256 mptWalkHopCoverLeaf.rlp
+
+def mptWalkHopCoverExt : MptNode :=
+  .extension [0x0A] mptWalkHopCoverLeafHash
+
+def mptWalkHopCoverNodes : List (List (BitVec 8)) :=
+  [mptWalkHopCoverLeaf.rlp]
+
+theorem mptWalkHopCoverLeaf_wf : mptWalkHopCoverLeaf.WF := by
+  refine ⟨fun n hn => ?_, by decide, by decide⟩
+  fin_cases hn; decide
+
+theorem mptWalkHopCoverExt_wf : mptWalkHopCoverExt.WF := by
+  refine ⟨fun n hn => ?_, by decide, ?_⟩
+  · fin_cases hn; decide
+  · simpa [mptWalkHopCoverExt, mptWalkHopCoverLeafHash] using
+      Stateless.SpecRef.keccak256_length mptWalkHopCoverLeaf.rlp
+
+/-- Resolve on the cover instance returns the leaf RLP. -/
+theorem mptWalkHopCover_lookup :
+    nodeDbLookupSpec mptWalkHopCoverNodes mptWalkHopCoverLeafHash =
+      some mptWalkHopCoverLeaf.rlp := by
+  simp [nodeDbLookupSpec, mptWalkHopCoverNodes, mptWalkHopCoverLeafHash]
+
+/-- **coverRef** for the hop domain: a two-node extension→leaf instance
+    inhabiting every hypothesis of `mpt_walk_hop_extension`, including a
+    real hop (path length 1, Resolve hit). A 1-node leaf alone would
+    satisfy WF without exercising the hop. -/
+theorem mpt_walk_hop_precondition_reachable :
+    ∃ (path childHash : List (BitVec 8)) (child : MptNode)
+      (nodes : List (List (BitVec 8))) (nibbles : List (BitVec 8))
+      (pos : Nat),
+      (MptNode.extension path childHash).WF ∧
+      child.WF ∧
+      nodeDbLookupSpec nodes childHash = some child.rlp ∧
+      (nibbles.drop pos).take path.length = path ∧
+      0 < path.length :=
+  ⟨[0x0A], mptWalkHopCoverLeafHash, mptWalkHopCoverLeaf,
+    mptWalkHopCoverNodes, [0x0A, 0x0B], 0,
+    mptWalkHopCoverExt_wf, mptWalkHopCoverLeaf_wf,
+    mptWalkHopCover_lookup, rfl, Nat.zero_lt_one⟩
+
 /-! ## Executable cross-checks (anti-vacuity)
 
 The same concrete vectors `MptAssertions` exercises `mptNodeKindSpec`
@@ -205,6 +406,21 @@ on, decoded all the way to the `MutableNode`, plus an end-to-end
    | .ok (some [0x99]) => true | _ => false)
   && (match Stateless.SpecRef.trieLookup (rlpToMutableNode leaf.rlp) [0xAC] with
       | .ok none => true | _ => false)
+
+-- Two-node hop cover: Resolve hits, extension prefix matches, and
+-- trieLookupAux after substituting the resolved leaf returns the value.
+-- This is the anti-vacuity check that a 1-node leaf cannot provide.
+#guard
+  let leaf := mptWalkHopCoverLeaf
+  let h := mptWalkHopCoverLeafHash
+  let nodes := mptWalkHopCoverNodes
+  let nibbles : List (BitVec 8) := [0x0A, 0x0B]
+  nodeDbLookupSpec nodes h == some leaf.rlp
+  && (match trieLookupAux 3 (some (.extension [0x0A] (alpha_node leaf)))
+        nibbles 0 with
+      | .ok (some [0x99]) => true | _ => false)
+  && (match trieLookupAux 3 (some (alpha_node leaf)) nibbles 1 with
+      | .ok (some [0x99]) => true | _ => false)
 
 -- The round-trip theorem is non-vacuous: a concrete WF witness.
 example : (MptNode.leaf [1, 2, 3] [0xaa]).WF := by

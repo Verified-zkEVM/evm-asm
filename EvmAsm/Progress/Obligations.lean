@@ -249,9 +249,10 @@ downstream (state tracker, verdict) consumes what this spine produces, and \
 bv_fail=1 (terminal state-root, 447 of 582 rows in #11542) is where its \
 divergences surface unlocalized -- stated triples along the spine turn those \
 investigations from re-derivation into citation. Spine: input deserialize (done) \
--> node/code DB build -> trie walk -> mpt_node_kind -> nibble path \
-(bytes_to_nibbles done, compact_to_nibbles open) -> account_decode -> EIP-161 \
-classification. Summit is SpecRef/WitnessReads.lean's get_account_optional" },
+-> node/code DB build -> trie walk (#11799 open) -> mpt_node_kind machine \
+`.proven` (#11799 dep landed) -> nibble path (bytes_to_nibbles done, \
+compact_to_nibbles closed #11422) -> account_decode -> EIP-161 classification. \
+Summit is SpecRef/WitnessReads.lean's get_account_optional" },
 ]
 
 /-! ## Counts (kernel-checked) -/
