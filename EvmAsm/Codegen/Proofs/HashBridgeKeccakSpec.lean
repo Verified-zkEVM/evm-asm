@@ -189,6 +189,169 @@ theorem signedCountdownLoop_spec
     exact cpsTripleWithin_weaken
       (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s2
 
+/-- **Reload-header countdown** for loops whose back edge lands on a
+    stride-reload `LI lim, step` rather than on the `BLT` itself.
+
+    Geometry (one iteration):
+    ```
+      hdr:     LI lim, step          -- re-establish stride (body may clobber lim)
+      hdr+4:   BLT ctr, lim, exit    -- guard
+      hdr+8:   <body ... JAL hdr>    -- body returns to hdr; lim NOT preserved
+    ```
+    `hbody` runs from `hdr+8` back to `hdr`.  Body **post** keeps only `ctr` and
+    `inv` — lim is allowed to be clobbered (as in `zkvm_keccak256`, where CSRS
+    owns x29=lim and the next LI reloads 136).  Exit target is measured from the
+    `BLT` at `hdr+4`.
+
+    Why this exists alongside `signedCountdownLoop_spec`: the emitted
+    `zkvm_keccak256` outer absorb loop has JAL target = LI (e.g. guest
+    `0x8000368c`) while BLT sits four bytes later (`0x80003690`).  The BLT-header
+    lemma requires the body to return to `hdr=BLT` and therefore **cannot be
+    discharged for that loop**.  Do not modify the BLT-header lemma. -/
+theorem signedCountdownLoop_reload_spec
+    (cr : CodeReq) (hdr exitAddr : Word) (ctr lim : Reg) (exitOff : BitVec 13)
+    (bodyStep step N rem : Nat) (inv : Nat → Assertion)
+    (_hctr_ne : ctr ≠ .x0) (_hctr_lim_ne : ctr ≠ lim) (hlim_ne : lim ≠ .x0)
+    (hrem : rem < step) (hstepbound : step < 2 ^ 63)
+    (hNbound : step * N + rem < 2 ^ 63)
+    (hexit : (hdr + 4) + signExtend13 exitOff = exitAddr)
+    (hpcFree : ∀ n, (inv n).pcFree)
+    (hliMem : ∀ a i,
+      CodeReq.singleton hdr (.LI lim (BitVec.ofNat 64 step)) a = some i →
+        cr a = some i)
+    (hguardMem : ∀ a i,
+      CodeReq.singleton (hdr + 4) (.BLT ctr lim exitOff) a = some i →
+        cr a = some i)
+    (hbody : ∀ n, n < N →
+      cpsTripleWithin bodyStep (hdr + 8) hdr cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 (step * (n + 1) + rem))
+          ** (lim ↦ᵣ BitVec.ofNat 64 step) ** inv (n + 1))
+        -- body may clobber lim; post only requires ownership for the next LI
+        ((ctr ↦ᵣ BitVec.ofNat 64 (step * n + rem))
+          ** (regOwn lim) ** inv n)) :
+    cpsTripleWithin (N * (bodyStep + 2) + 2) hdr exitAddr cr
+      ((ctr ↦ᵣ BitVec.ofNat 64 (step * N + rem)) ** (regOwn lim) ** inv N)
+      ((ctr ↦ᵣ BitVec.ofNat 64 rem)
+        ** (lim ↦ᵣ BitVec.ofNat 64 step) ** inv 0) := by
+  have hpc_blt_fall : (hdr + 4 : Word) + 4 = hdr + 8 := by
+    rw [BitVec.add_assoc, show ((4 : Word) + 4) = (8 : Word) from by decide]
+  have hLI_own (F : Assertion) (hF : F.pcFree) :
+      cpsTripleWithin 1 hdr (hdr + 4) cr
+        ((regOwn lim) ** F) ((lim ↦ᵣ BitVec.ofNat 64 step) ** F) := by
+    have hsingle : ∀ vOld,
+        cpsTripleWithin 1 hdr (hdr + 4) cr
+          (lim ↦ᵣ vOld) (lim ↦ᵣ BitVec.ofNat 64 step) := fun vOld =>
+      cpsTripleWithin_extend_code hliMem
+        (li_spec_gen_within lim vOld (BitVec.ofNat 64 step) hdr hlim_ne)
+    have hown : cpsTripleWithin 1 hdr (hdr + 4) cr
+        (regOwn lim) (lim ↦ᵣ BitVec.ofNat 64 step) :=
+      cpsTripleWithin_of_forall_regIs_to_regOwn_single hsingle
+    exact cpsTripleWithin_frameR F hF hown
+  suffices h : ∀ n, n ≤ N →
+      cpsTripleWithin (n * (bodyStep + 2) + 2) hdr exitAddr cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 (step * n + rem)) ** (regOwn lim) ** inv n)
+        ((ctr ↦ᵣ BitVec.ofNat 64 rem)
+          ** (lim ↦ᵣ BitVec.ofNat 64 step) ** inv 0) from
+    h N (Nat.le_refl N)
+  intro n
+  induction n with
+  | zero =>
+    intro _
+    have cLI := hLI_own ((ctr ↦ᵣ BitVec.ofNat 64 rem) ** inv 0)
+      (pcFree_sepConj (by pcFree) (hpcFree 0))
+    have hblt := blt_spec_gen_within ctr lim exitOff
+      (BitVec.ofNat 64 rem) (BitVec.ofNat 64 step) (hdr + 4)
+    rw [hexit] at hblt
+    have hbr := cpsBranchWithin_extend_code hguardMem
+      (cpsBranchWithin_frameR (inv 0) (hpcFree 0) hblt)
+    have hlt := (word_ofNat_slt_iff (by omega) hstepbound).2 hrem
+    have htaken := cpsBranchWithin_takenPath hbr
+      (fun _h hQf => by
+        obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQf
+        exact ((sepConj_pure_right _).1 h_pure).2 hlt)
+    have htakenW : cpsTripleWithin 1 (hdr + 4) exitAddr cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 rem) **
+          (lim ↦ᵣ BitVec.ofNat 64 step) ** inv 0)
+        ((ctr ↦ᵣ BitVec.ofNat 64 rem) **
+          (lim ↦ᵣ BitVec.ofNat 64 step) ** inv 0) := by
+      refine cpsTripleWithin_weaken
+        (fun h hp => by xperm_hyp hp)
+        (fun h hq => by
+          have hq1 := sepConj_mono_left
+            (sepConj_mono_right
+              (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
+          xperm_hyp hq1) htaken
+    have s := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by xperm_hyp hp) cLI htakenW
+    simp only [Nat.zero_mul, Nat.mul_zero, Nat.zero_add] at s ⊢
+    exact cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp) (fun h hq => by xperm_hyp hq) s
+  | succ k ih =>
+    intro hk
+    have hkN : k < N := Nat.lt_of_succ_le hk
+    have hkn_le : k + 1 ≤ N := Nat.succ_le_iff.mp hk
+    have hcurr : step * (k + 1) + rem < 2 ^ 63 := by
+      have hmono : step * (k + 1) ≤ step * N := Nat.mul_le_mul_left step hkn_le
+      omega
+    have hge : step ≤ step * (k + 1) + rem := by
+      have hmul : step ≤ step * (k + 1) := by rw [Nat.mul_succ]; omega
+      omega
+    have cLI := hLI_own
+      ((ctr ↦ᵣ BitVec.ofNat 64 (step * (k + 1) + rem)) ** inv (k + 1))
+      (pcFree_sepConj (by pcFree) (hpcFree (k + 1)))
+    have hblt := blt_spec_gen_within ctr lim exitOff
+      (BitVec.ofNat 64 (step * (k + 1) + rem))
+      (BitVec.ofNat 64 step) (hdr + 4)
+    rw [hexit] at hblt
+    have hbr := cpsBranchWithin_extend_code hguardMem
+      (cpsBranchWithin_frameR (inv (k + 1)) (hpcFree (k + 1)) hblt)
+    have hnlt : ¬BitVec.slt
+        (BitVec.ofNat 64 (step * (k + 1) + rem))
+        (BitVec.ofNat 64 step) := by
+      intro hlt'
+      exact (Nat.not_lt_of_ge hge)
+        ((word_ofNat_slt_iff hcurr hstepbound).1 hlt')
+    have hguard0 := cpsBranchWithin_ntakenPath hbr
+      (fun _h hQt => by
+        obtain ⟨_, _, _, _, ⟨_, _, _, _, _, h_pure⟩, _⟩ := hQt
+        exact hnlt ((sepConj_pure_right _).1 h_pure).2)
+    have hguardW : cpsTripleWithin 1 (hdr + 4) (hdr + 8) cr
+        ((ctr ↦ᵣ BitVec.ofNat 64 (step * (k + 1) + rem)) **
+          (lim ↦ᵣ BitVec.ofNat 64 step) ** inv (k + 1))
+        ((ctr ↦ᵣ BitVec.ofNat 64 (step * (k + 1) + rem)) **
+          (lim ↦ᵣ BitVec.ofNat 64 step) ** inv (k + 1)) := by
+      have h0 : cpsTripleWithin 1 (hdr + 4) (hdr + 8) cr
+          (((ctr ↦ᵣ BitVec.ofNat 64 (step * (k + 1) + rem)) **
+              lim ↦ᵣ BitVec.ofNat 64 step) ** inv (k + 1))
+          ((((ctr ↦ᵣ BitVec.ofNat 64 (step * (k + 1) + rem)) **
+                (lim ↦ᵣ BitVec.ofNat 64 step) **
+                  ⌜¬(BitVec.ofNat 64 (step * (k + 1) + rem)).slt
+                    (BitVec.ofNat 64 step) = true⌝) **
+            inv (k + 1))) := by
+        convert hguard0 using 1
+        exact hpc_blt_fall.symm
+      refine cpsTripleWithin_weaken
+        (fun h hp => by xperm_hyp hp)
+        (fun h hq => by
+          have hq1 := sepConj_mono_left
+            (sepConj_mono_right
+              (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
+          xperm_hyp hq1) h0
+    have hbodyk := hbody k hkN
+    have ihk := ih (Nat.le_of_lt hkN)
+    have s1 := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by xperm_hyp hp) cLI hguardW
+    have s2 := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by xperm_hyp hp) s1 hbodyk
+    have s3 := cpsTripleWithin_seq_perm_same_cr
+      (fun h hp => by xperm_hyp hp) s2 ihk
+    have hstep' : (k + 1) * (bodyStep + 2) + 2
+        = 1 + 1 + bodyStep + (k * (bodyStep + 2) + 2) := by
+      rw [Nat.add_mul, Nat.one_mul]; omega
+    rw [hstep']
+    exact cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) s3
+
 /- The two inner loops use the existing register-agnostic countdown abstraction;
    these wrappers make their fixed emitted counts explicit without changing the
    flat program.  The caller supplies the per-iteration body triple and the
