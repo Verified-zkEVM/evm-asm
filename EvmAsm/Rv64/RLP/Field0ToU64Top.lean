@@ -212,7 +212,7 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (hoff : itemOff ≤ endOff) :
-    cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+    cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
@@ -231,7 +231,7 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
   let final := rlpField0Result srcBase (srcBase + BitVec.ofNat 64 endOff)
     savedRa srcBytes
   have hsuccessFamily : ∀ next len,
-      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (⌜rlpItemDecode srcBytes itemOff (srcBase + BitVec.ofNat 64 itemOff)
             (srcBase + BitVec.ofNat 64 endOff) next len⌝ **
@@ -242,14 +242,16 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
     have hs := rlp_field0_to_u64_decode_success_exact_spec_within
       base srcBase savedRa next len v5 v6 v7 v28 v29 v30 v31 srcBytes
       itemOff endOff hbase0 hsalign hslack hover hvalid hoff hdecode
-    refine cpsTripleWithin_mono_nSteps (by have := len.isLt; omega)
+    have hspan := rlpItemDecode_field0_content_span hdecode hoff (by omega)
+    have hlen : len.toNat ≤ srcBytes.length := by omega
+    refine cpsTripleWithin_mono_nSteps (by omega)
       (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
         (fun h hp => ?_) hs)
     exact Or.inl ⟨itemOff, next, len, v29, v30, v31, by
       xperm_hyp hp⟩
   have hsuccess0 := cpsTripleWithin_exists_pre_gen (fun next =>
     cpsTripleWithin_exists_pre_gen (fun len => hsuccessFamily next len))
-  have hsuccess : cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+  have hsuccess : cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (common ** rlpWalkNextOk (srcBase + BitVec.ofNat 64 itemOff)
         (srcBase + BitVec.ofNat 64 endOff) srcBytes itemOff) final :=
@@ -277,7 +279,7 @@ theorem rlp_field0_to_u64_next_outcome_exact_spec_within
               (sepConj_mono (regIs_implies_regOwn .x30)
                 (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x))))))) h hp
   have hfailure (status : Word) (hstatus : status ≠ 0) :
-      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (common ** ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
           (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ (0 : Word)))) final := by
@@ -360,7 +362,7 @@ theorem rlp_field0_to_u64_next_outcome_spec_within
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (hoff : itemOff ≤ endOff) :
-    cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+    cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (rlpField0NextCommon base srcBase savedRa srcBytes **
        rlpField0NextOutcome srcBase (srcBase + BitVec.ofNat 64 endOff)
@@ -373,7 +375,7 @@ theorem rlp_field0_to_u64_next_outcome_spec_within
     rlpField0NextOutcome srcBase (srcBase + BitVec.ofNat 64 endOff)
       srcBytes itemOff
   have hs : ∀ v5 v6 v7 v28 v29 v30 v31,
-      cpsTripleWithin (7 * (2 ^ 64 - 1) + 18) (base + 16)
+      cpsTripleWithin (7 * srcBytes.length + 18) (base + 16)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
@@ -408,7 +410,7 @@ theorem rlp_field0_to_u64_after_init_success_spec_within
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (hoff : itemOff ≤ endOff) :
-    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+    cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 itemOff)) **
        (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 endOff)) **
@@ -441,7 +443,7 @@ theorem rlp_field0_to_u64_after_init_success_owned_spec_within
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
     (hoff : itemOff ≤ endOff) :
-    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+    cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
@@ -458,7 +460,7 @@ theorem rlp_field0_to_u64_after_init_success_owned_spec_within
     (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 endOff)) **
     (.x12 ↦ᵣ (0 : Word)) ** (.x13 ↦ᵣ savedRa)
   have hs : ∀ v5 v6 v7 v28 v29 v30 v31,
-      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
@@ -671,7 +673,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
     (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+    cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
       (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (rlpField0InitCommon base srcBase savedRa srcBytes **
        rlpField0InitOutcome srcBase srcBytes listLen hoff)
@@ -682,7 +684,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
     savedRa srcBytes
   have hfailure (status cursor endPtr : Word) (guard : Prop)
       (hstatus : status ≠ 0) :
-      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (common ** ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) **
           (.x12 ↦ᵣ status) ** ⌜guard⌝)) final := by
@@ -709,7 +711,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
     srcBase + (((srcBytes[0]'hoff).zeroExtend 64 - (0xc0 : Word)) +
       signExtend12 (1 : BitVec 12)) = srcBase + BitVec.ofNat 64 listLen
   have hshort0 : shortGuard →
-      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (common ** ((.x10 ↦ᵣ (srcBase + signExtend12 (1 : BitVec 12))) **
           (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
@@ -729,7 +731,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
       rw [show signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 1 from by decide] at hp
       simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
       (fun _ hp => hp) hs
-  have hshort : cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18))
+  have hshort : cpsTripleWithin (89 + (7 * srcBytes.length + 18))
       (base + 8) (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (common ** ((.x10 ↦ᵣ (srcBase + signExtend12 (1 : BitVec 12))) **
         (.x11 ↦ᵣ (srcBase + BitVec.ofNat 64 listLen)) **
@@ -818,7 +820,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
         ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) =
       srcBase + BitVec.ofNat 64 listLen
   have hlong0 : longGuard →
-      cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18)) (base + 8)
+      cpsTripleWithin (89 + (7 * srcBytes.length + 18)) (base + 8)
         (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
         (common ** ((.x10 ↦ᵣ (srcBase +
           (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
@@ -857,7 +859,7 @@ theorem rlp_field0_to_u64_init_outcome_spec_within
       rw [hcur] at hp
       xperm_hyp hp)
       (fun _ hp => hp) hs
-  have hlong : cpsTripleWithin (89 + (7 * (2 ^ 64 - 1) + 18))
+  have hlong : cpsTripleWithin (89 + (7 * srcBytes.length + 18))
       (base + 8) (savedRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       (common ** ((.x10 ↦ᵣ (srcBase +
         (((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
@@ -909,7 +911,7 @@ theorem rlp_field0_to_u64_spec_within
     (hover : srcBase.toNat + srcBytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < srcBytes.length →
       isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (82 + (89 + (7 * (2 ^ 64 - 1) + 18)))) base
+    cpsTripleWithin (1 + (82 + (89 + (7 * srcBytes.length + 18)))) base
       (callerRa &&& ~~~1) (rlp_field0_to_u64_full_code base)
       ((.x1 ↦ᵣ callerRa) ** (.x10 ↦ᵣ srcBase) **
        (.x11 ↦ᵣ BitVec.ofNat 64 listLen) ** (.x12 ↦ᵣ indexW) **
