@@ -462,6 +462,39 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   itself in `witnessLookupSpec_slice_eq_get_code`), plus the
   `witnessIndexIs_snoc`/`codeDbIs_snoc` step lemmas (#11573; the heapsort
   permutation fact and the routine triples stay open). The concrete↔abstract refinement
+  tie (`Evm64/WitnessAssertions.lean`).
+  - **Spec-shaped write maps** (2026-08-10, #11571):
+    `accountWritesMapIs` / `txAccountWritesMapIs` / `storageWritesMapIs` in
+    `Stateless/State/WriteMapAssertions.lean`, over `AccountWriteRow` (stride
+    **128**, `addr_BE20@0 balance@32 nonce@64 optionalState@72 codePtr@80
+    codeLen@88 execFlags@96 validMask@112`) and `StorageWriteRow` (stride 128,
+    `rowAddress@0 slotKey@32 value@64 baseline@96`). Scalars use `↦ₘ` because the
+    guest reads them with `ld`/`sd`; every offset is 8-aligned so `memIs`'s
+    alignment holds by construction. Unlocked by #11655's Lane-1 close: the
+    attribution cluster is shape-final, and #11654 (SLOAD's spec deleted the day
+    its container retired) is why a predicate goes in *before* the triples.
+    ⚠️ **Three design facts worth not re-deriving:**
+    (i) these must be **core-side**, so `Codegen/RegionPredicates.lean`'s
+    `teerEntriesFrom` is *mirrored, not imported* — `check-layering` L1 makes
+    Codegen a pure sink and the consumers are core bridges against
+    `SpecRef/StateTracker`; `Stateless/Crypto/FieldAssertions.lean` is the
+    precedent for the same call;
+    (ii) **a row list is not a map** — `execFlags@96` value 2 is a *live* flag and
+    the arena is append-with-scan, so duplicate addresses across a dead/live pair
+    are reachable. Hence `liveAccountRows` + `AccountWriteRowsMap`, with `Nodup`
+    over *live* rows only; a predicate demanding `Nodup` over all rows would
+    reject real states (kernel-checked both ways in the file's non-vacuity
+    section, including that negative control);
+    (iii) ⭐ **SpecRef's storage side is NESTED** (`List (Address × List (Bytes32 ×
+    U256))`, mirroring `Dict[Address, Dict[...]]`) while the guest's rows are
+    **flat** per `(address, slot)`. #11571's proposed signature is the flat one,
+    which is right — so the correspondence is a **group-by**, not a rename.
+    `groupByAddress` + `storageRowsAbstract` are that hook (3 flat rows over 2
+    contracts → 2 buckets, `decide`-checked).
+    Uniqueness is stated as a PRECONDITION, not proved: it is a property of the
+    upsert *writer*, whose triple does not exist yet (#11571 non-goals). Undo
+    journals excluded — #11572.
+    The concrete↔abstract refinement
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE
