@@ -493,6 +493,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     contracts → 2 buckets, `decide`-checked).
     Uniqueness was stated as a PRECONDITION, not proved: it is a property of the
     upsert *writer*. Undo journals excluded — #11572.
+    ⭐ **`storageRowsAbstract` is now discharged** (2026-08-10, #11921 row 2):
+    `storageRowsAbstract_holds`, via `groupByAddress_keys_nodup` and
+    `groupByAddress_total`. The old note claimed discharging it "wants the upsert
+    routine's uniqueness fact" — false. Both halves are invariants of
+    `groupByAddress` itself (the fold appends a key only where `any` says it is
+    absent; its other branch rewrites values keeping `p.1`), so **no hypothesis is
+    needed at all**. Consequence for the correspondence proof: the flat→nested
+    abstraction composes with a mid-upsert state that has not re-established the map
+    property. Uniqueness is still needed for the nested result to be a faithful
+    dictionary — a claim about values, not about the grouping.
   - **The account-write writer model** (2026-08-10, #11921 row 1):
     `Stateless/State/AccountWriteUpsert.lean` models `account_write_record`'s
     scan-then-append upsert and **discharges that precondition** —
