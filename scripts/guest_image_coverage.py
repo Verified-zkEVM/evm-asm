@@ -14,12 +14,19 @@ Usage:
   python3 scripts/guest_image_coverage.py            # human summary
   python3 scripts/guest_image_coverage.py --gaps     # gap list only (tsv)
   python3 scripts/guest_image_coverage.py --md       # markdown tables
+  python3 scripts/guest_image_coverage.py --write-doc
+      # regenerate docs/4ch8f-guest-image-coverage.md from
+      # scripts/asm-fixtures/guest-image-coverage-template.md + live numbers
+  python3 scripts/guest_image_coverage.py --check-doc
+      # CI drift guard: exit 1 if the committed doc differs from --write-doc
+      # output (wired via scripts/check-guest-image-coverage.sh)
   python3 scripts/guest_image_coverage.py --check-declared-starts
       # #11280: GuestAddrs declared start vs TSV actual for each converted
       # linked entry; exit 1 on DECLARED_START_MISMATCH / DECLARED_EXTENT_OVERRUN
 """
 
 import argparse
+import difflib
 import os
 import re
 import sys
@@ -32,6 +39,9 @@ TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
 MANIFEST = os.path.join(ROOT, "scripts/asm-fixtures/MANIFEST.tsv")
 REGIONMAP = os.path.join(ROOT, "EvmAsm/Codegen/RegionMap.lean")
 GUEST_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestAddrs.lean")
+DOC = os.path.join(ROOT, "docs/4ch8f-guest-image-coverage.md")
+TEMPLATE = os.path.join(
+    ROOT, "scripts/asm-fixtures/guest-image-coverage-template.md")
 
 TEXT_BASE = 0x80000000
 _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
@@ -296,10 +306,55 @@ def check_declared_starts(syms, text_end, converted) -> int:
     return 0
 
 
+def render_doc(syms, text_end, converted, gaps, covered_bytes, gap_bytes,
+               n_conv, n_unconv):
+    """Render docs/4ch8f-guest-image-coverage.md from the template.
+
+    The template holds prose and @@SLOT@@s only — every figure comes from
+    the live inputs here, so there is exactly one hand-maintained copy of
+    the prose and zero hand-maintained copies of any number."""
+    text_size = text_end - TEXT_BASE
+    sym_names = {name for _, name in syms}
+    not_linked = sum(1 for e in converted if e not in sym_names)
+    subst = {
+        "TEXT_BASE": f"{TEXT_BASE:08x}",
+        "TEXT_END": f"{text_end:08x}",
+        "TEXT_SIZE": str(text_size),
+        "TEXT_SIZE_HEX": f"{text_size:x}",
+        "N_SYMS": str(len(syms)),
+        "N_CONV": str(n_conv),
+        "N_UNCONV": str(n_unconv),
+        "COVERED_BYTES": str(covered_bytes),
+        "COVERED_PCT": f"{100 * covered_bytes / text_size:.2f}",
+        "GAP_BYTES": str(gap_bytes),
+        "GAP_PCT": f"{100 * gap_bytes / text_size:.2f}",
+        "N_GAPS": str(len(gaps)),
+        "NOT_LINKED": str(not_linked),
+        "MANIFEST_TOTAL": str(len(converted)),
+        "GAP_TABLE_ROWS": "\n".join(
+            f"| `0x{s:08x}` | `0x{e:08x}` | {e - s} | `{sym}` | {kind} |"
+            for s, e, sym, kind in gaps),
+    }
+    doc = open(TEMPLATE).read()
+    for key, val in subst.items():
+        doc = doc.replace(f"@@{key}@@", val)
+    leftover = sorted(set(re.findall(r"@@[A-Z_]+@@", doc)))
+    if leftover:
+        sys.exit(f"template slots left unfilled: {leftover} — "
+                 "template/generator drift, refusing to emit")
+    return doc
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gaps", action="store_true", help="tsv gap list only")
     ap.add_argument("--md", action="store_true", help="markdown output")
+    ap.add_argument("--write-doc", action="store_true",
+                    help=f"regenerate {os.path.relpath(DOC, ROOT)} from "
+                         f"{os.path.relpath(TEMPLATE, ROOT)} + live numbers")
+    ap.add_argument("--check-doc", action="store_true",
+                    help="exit 1 if the committed coverage doc differs from "
+                         "--write-doc output (CI drift guard)")
     ap.add_argument("--emit-lean", action="store_true",
                     help=f"regenerate {ENTRIES_LEAN}")
     ap.add_argument("--check-declared-starts", action="store_true",
@@ -362,7 +417,28 @@ def main():
     n_conv = sum(1 for r in rows if r[3] in ("CONVERTED", "OVERRUN"))
     n_unconv = sum(1 for r in rows if r[3] == "UNCONVERTED")
 
-    if args.md:
+    if args.write_doc or args.check_doc:
+        doc = render_doc(syms, text_end, converted, gaps, covered_bytes,
+                         gap_bytes, n_conv, n_unconv)
+        if args.write_doc:
+            with open(DOC, "w") as f:
+                f.write(doc)
+            print(f"wrote {os.path.relpath(DOC, ROOT)}")
+        else:
+            if not os.path.isfile(DOC):
+                sys.exit(f"{os.path.relpath(DOC, ROOT)} missing; regenerate:\n\n"
+                         "    python3 scripts/guest_image_coverage.py --write-doc\n")
+            current = open(DOC).read()
+            if current != doc:
+                sys.stdout.writelines(difflib.unified_diff(
+                    current.splitlines(keepends=True),
+                    doc.splitlines(keepends=True),
+                    fromfile="committed", tofile="regenerated"))
+                sys.exit(f"\n{os.path.relpath(DOC, ROOT)} is out of date "
+                         "relative to the live generator. Regenerate:\n\n"
+                         "    python3 scripts/guest_image_coverage.py --write-doc\n")
+            print(f"{os.path.relpath(DOC, ROOT)}: CLEAN")
+    elif args.md:
         print(f"`.text` = [0x{TEXT_BASE:08x}, 0x{text_end:08x}), "
               f"{text_size} bytes (`RegionMap.textSizeBytes = 0x{text_size:x}`)\n")
         print(f"- symbols in `.text`: {len(syms)} "

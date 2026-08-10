@@ -764,6 +764,11 @@ private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
 -- every residue `start < 8`; no registry row is changed here.
 private noncomputable abbrev _mstore_limb_store_bridge_witness :=
   @EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
+-- #10190 (topmost region cut): the complete region-backed wrapper is
+-- witnessed additively; the existing raw stack theorem and registry row stay
+-- untouched until the topmost consumer is re-pointed in a later step.
+private noncomputable abbrev _mstore_stack_region_witness :=
+  @EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
   @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=

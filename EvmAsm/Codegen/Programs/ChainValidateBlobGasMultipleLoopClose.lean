@@ -34,12 +34,13 @@ local macro "pcfx" : tactic =>
 /-- Step budget for the loop with `r = N − i` iterations remaining: each full
     iteration is `cvbgmIter`'s cost, the exhausted guard + all-valid exit is
     `11`. -/
-def cvbgmLoopSteps : Nat → Nat
+def cvbgmLoopSteps (bytesLen : Nat) : Nat → Nat
   | 0 => 11
-  | r + 1 => (1 + (13 + 1 + nCall)) + (27 + cvbgmLoopSteps r)
+  | r + 1 => (1 + (13 + 1 + nCall bytesLen)) + (27 + cvbgmLoopSteps bytesLen r)
 
-theorem cvbgmLoopSteps_succ (r : Nat) :
-    cvbgmLoopSteps (r + 1) = (1 + (13 + 1 + nCall)) + (27 + cvbgmLoopSteps r) := rfl
+theorem cvbgmLoopSteps_succ (bytesLen r : Nat) :
+    cvbgmLoopSteps bytesLen (r + 1) =
+      (1 + (13 + 1 + nCall bytesLen)) + (27 + cvbgmLoopSteps bytesLen r) := rfl
 
 set_option maxRecDepth 8000 in
 /-- The guard/loop from `D+68` entering iteration `i` (`i ≤ N`), with all
@@ -63,7 +64,7 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     ∀ (f i : Nat), lengths.length - i ≤ f → i ≤ lengths.length →
       (∀ j, j < i → hdrMultiple hdrBase bigBytes lengths j) →
-      cpsTripleWithin (cvbgmLoopSteps (lengths.length - i)) (D + 68) raIn fullCode
+      cpsTripleWithin (cvbgmLoopSteps bigBytes.length (lengths.length - i)) (D + 68) raIn fullCode
         (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths i)
         (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -75,7 +76,7 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     unfold savedFrame; rw [hraSaved]
   -- All-valid exit reached at the guard when `i = N`.
   have base : (∀ j, j < lengths.length → hdrMultiple hdrBase bigBytes lengths j) →
-      cpsTripleWithin (cvbgmLoopSteps 0) (D + 68) raIn fullCode
+      cpsTripleWithin (cvbgmLoopSteps bigBytes.length 0) (D + 68) raIn fullCode
         (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths lengths.length)
         (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -83,7 +84,7 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     intro hpre
     refine cpsTripleWithin_weaken (fun h hp => by unfold LoopInv scratchRegs at hp; xperm_hyp hp)
       (fun _ hq => hq)
-      (show cpsTripleWithin (cvbgmLoopSteps 0) (D + 68) raIn fullCode
+      (show cpsTripleWithin (cvbgmLoopSteps bigBytes.length 0) (D + 68) raIn fullCode
         ((((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
             (.x18 ↦ᵣ hdrBaseAt hdrBase lengths lengths.length) ** (.x19 ↦ᵣ validPtr) **
             (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 lengths.length) **
@@ -99,7 +100,7 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
           firstBadPtr csaved bigBytes lengths) from ?_)
     refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun o10 => ?_)
     refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-      (show cpsTripleWithin (cvbgmLoopSteps 0) (D + 68) raIn fullCode
+      (show cpsTripleWithin (cvbgmLoopSteps bigBytes.length 0) (D + 68) raIn fullCode
         (((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
             (.x18 ↦ᵣ hdrBaseAt hdrBase lengths lengths.length) ** (.x19 ↦ᵣ validPtr) **
             (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 lengths.length) **
@@ -172,11 +173,15 @@ theorem cvbgmLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     · subst hi; rw [Nat.sub_self]; exact base hpre
     · rw [show lengths.length - i = (lengths.length - (i + 1)) + 1 from by omega,
         cvbgmLoopSteps_succ]
-      exact cvbgmIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
-        (cvbgmLoopSteps (lengths.length - (i + 1))) hi hN hspC hraSaved hret
+      have hiter := cvbgmIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
+        (cvbgmLoopSteps bigBytes.length (lengths.length - (i + 1))) hi hN hspC hraSaved hret
         (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllSlack i hi) (hAllOver i hi)
         (hAllValid i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
+      have hdrop : (bigBytes.drop (hdrOff lengths i)).length ≤ bigBytes.length := by
+        rw [List.length_drop]
+        omega
+      refine cpsTripleWithin_mono_nSteps (by unfold nCall; omega) hiter
 
 
 set_option maxRecDepth 8000 in
@@ -207,7 +212,7 @@ theorem chain_validate_blob_gas_used_multiple_spec_within
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (17 + cvbgmLoopSteps lengths.length) D raIn fullCode
+    cpsTripleWithin (17 + cvbgmLoopSteps bigBytes.length lengths.length) D raIn fullCode
       (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) **
           (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
           (.x10 ↦ᵣ nWord) ** (.x11 ↦ᵣ lenBase) ** (.x12 ↦ᵣ hdrBase) **

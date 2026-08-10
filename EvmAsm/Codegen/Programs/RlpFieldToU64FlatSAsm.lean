@@ -72,7 +72,7 @@ theorem rlpFieldToU64_flat_spec_within
       { ra := B + 48, s0 := listBase, s1 := outputPtr, s2 := s2, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     cpsTripleWithin ((7 + 4 + callSteps) + ((1 + tailSteps) + 5)) B outer.ra code
       ((.x1 ↦ᵣ outer.ra) **
        flatPre spOuter newSp listBase listLenW indexW outputPtr oldOut oldOffset

@@ -513,7 +513,7 @@ theorem wdField0Call
       { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 32) (WB + 52) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -593,7 +593,7 @@ theorem wdField1Call
       { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 56) (WB + 76) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -670,7 +670,7 @@ theorem wdField3Call
       { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 180) (WB + 200) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
