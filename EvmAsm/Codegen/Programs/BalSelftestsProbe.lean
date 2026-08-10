@@ -72,14 +72,22 @@ def ziskBalSelftestsPrologue : String :=
   keccakIncrementalFunctions ++
   zkvmKeccak256Function ++ "\n" ++
   balRlpEncodeFunctions ++
+  -- GH #10754: production aggregate deliberately omits the self-test (R3 guest
+  -- unlink). The probe must splice it back in or `jal ra, bal_rlp_encode_selftest`
+  -- is an undefined reference and the behaviour gate never runs.
+  balRlpEncodeSelftestFunction ++
   -- Only the sorter and its self-test. ⚠️ GH #11054: this comment used to explain
   -- the exclusion by saying the full `balCanonicalSortFunctions` aggregate "also
   -- carries the storage- and account-write sorters, which reference
   -- `storage_writes_count`". Those two routines were measured unreachable and
   -- DELETED, so the aggregate is now this same one routine plus the selftest and
   -- there is nothing left to exclude -- the explicit list is now just explicitness.
-  balCanonicalSortFunction ++
-  balCanonicalSortSelftestFunction ++
+  --
+  -- `"\n"` separators are load-bearing: `emitProgramR` leaves no trailing newline
+  -- after the final `jalr`, so bare concat glues `.globl` onto the ret line and
+  -- the unit fails to assemble (same class as BalCanonicalSort.lean aggregate).
+  balCanonicalSortFunction ++ "\n" ++
+  balCanonicalSortSelftestFunction ++ "\n" ++
   ".Lbslf_done:"
 
 def ziskBalSelftestsDataSection : String :=
@@ -124,5 +132,18 @@ def ziskBalSelftestsProbeUnit : BuildUnit := {
 -- Sentinel seeding: a fault before the stores must not read back as two passes.
 #guard (ziskBalSelftestsPrologue.splitOn "li t0, 0xdead; sd t0, 0(s0); sd t0, 8(s0)").length == 2
 #guard (ziskBalSelftestsPrologue.splitOn "sd a0, 8(s0)").length == 2
+
+-- Self-test bodies must be present (not merely called). Omitting either leaves a
+-- clean link against a missing definition only if the symbol is never referenced;
+-- with the jals above, omit = undefined reference. GH #10754.
+#guard (ziskBalSelftestsPrologue.splitOn "bal_rlp_encode_selftest:").length == 2
+#guard (ziskBalSelftestsPrologue.splitOn "bal_canonical_sort_selftest:").length == 2
+#guard (ziskBalSelftestsPrologue.splitOn ".globl bal_rlp_encode_selftest").length == 2
+#guard (ziskBalSelftestsPrologue.splitOn ".globl bal_canonical_sort_selftest").length == 2
+
+-- No glued ret/.globl (assemble-time defect class from emitProgramR concat).
+#guard (ziskBalSelftestsPrologue.splitOn "(x1)  .globl").length == 1
+#guard (ziskBalSelftestsPrologue.splitOn "(x1).globl").length == 1
+#guard (ziskBalSelftestsPrologue.splitOn "(x1).Lbslf_done").length == 1
 
 end EvmAsm.Codegen
