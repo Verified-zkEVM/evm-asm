@@ -100,6 +100,7 @@ import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
+import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 
 namespace EvmAsm.Progress
 
@@ -545,7 +546,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "reference read the same 32 bytes and the restatement is total. ⚠️ It is "
         ++ "the `x`-BOUND CLAUSE of `bytes_to_g1`, not its verdict: that function "
         ++ "also bounds `y` and tests the curve equation, neither of which this "
-        ++ "routine looks at")
+        ++ "routine looks at"),
+
+  -- #11925 last-of-six: `tx_type_dispatch` re-derived as `.proven` FROM THE
+  -- MERGED text of #11929 (not the pre-merge read). #11929 appended the
+  -- legacy upper-bound guard (0xff guard; routine 45 -> 48 instructions):
+  -- `0xff` moved OUT of the legacy arm into its own FAILURE disjunct. The
+  -- post remains TOTAL over the byte: empty, byte at or above 0xc0 and not
+  -- 0xff -> legacy; byte equals 0xff -> ff-fail; byte under 0xc0 in 1..4 ->
+  -- typed; otherwise -> unknown-fail. A failure disjunct inside a total post
+  -- is still a total post. No input-domain precondition on `txBytes` (only
+  -- ABI: ra-alignment, 8-aligned base, size bound, byte-access validity).
+  routine "tx_type_dispatch" .proven (some "txTypeDispatch_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.tx_type_dispatch` over "
+        ++ "the emitted `txTypeDispatch_prog` (48 instrs after #11929's appended "
+        ++ "0xff guard). Classifies via `teerTxTypeDispatch`: empty -> fail "
+        ++ "(1,0,0); 0xc0..0xfe -> legacy (0,0,0); 0xff -> fail (1,0,0); 1..4 -> "
+        ++ "typed (0,N,1); otherwise -> fail (1,0,0). Step budget "
+        ++ "`nTxTypeDispatchSteps` = 256; five BGEU witnesses (shared, four "
+        ++ "non-taken Typed, unknown) all carry immediate 168 = "
+        ++ "`brOff (GuestAddrs.tx_type_dispatch+180) (GuestAddrs.tx_type_dispatch+12)`, "
+        ++ "matching the emitted guard target at D+180")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -557,9 +578,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 47 := by decide
+theorem routineCount_eq : routineCount = 48 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 35 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -574,7 +595,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 35 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 36 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -789,5 +810,9 @@ private noncomputable abbrev _bnf_lt_p_routine_witness :=
   @EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 private noncomputable abbrev _bnf_lt_p_specref_routine_witness :=
   @EvmAsm.Codegen.bnfLtP_spec_specref
+-- #11925 last-of-six: the whole-routine triple lives in the `TxTypeDispatchTop`
+-- module, in the `…TxTypeDispatchSpec` namespace.
+private noncomputable abbrev _tx_type_dispatch_routine_witness :=
+  @EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
 end EvmAsm.Progress
