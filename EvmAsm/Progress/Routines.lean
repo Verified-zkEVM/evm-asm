@@ -557,10 +557,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 45 := by decide
+theorem routineCount_eq : routineCount = 47 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 11 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
