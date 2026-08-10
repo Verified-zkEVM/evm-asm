@@ -16,7 +16,9 @@
   account (CREATE-created accounts, CALL value-transfer callees, SELFDESTRUCT
   beneficiaries). The call sites that append (CREATE deposit, CALL value-transfer
   .61.6.8) use this log for runtime state threading; this slice is the log + producer
-  + a known-answer probe. {sender, recipient, coinbase} are not recorded here.
+  + a known-answer probe. {sender, recipient} are not recorded here; the coinbase
+  fee credit IS recorded, by blockVerdictMtxCoinbaseFeeEffect
+  (EvmAsm/Codegen/Programs/BlockVerdictMtxCoinbase.lean).
 -/
 
 import EvmAsm.Rv64.Program
