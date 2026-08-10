@@ -225,6 +225,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   witness is always warranted for a named theorem; the row claims a *tier* and only
   if earned. Codegen-side specs are witnessed in `Routines.lean` (which imports those
   modules), never in `Correspondence.lean` (kept light on purpose).
+  - **Pure-spec lemmas are outside #11637's reach** (GH #11678). That gate closed row
+    *existence* for **routine-level** specs — a linked routine with a spec theorem and
+    no row fails the build. A lemma with no routine behind it has no symbol in the
+    image, so it is invisible to that gate *and* to the row-contents gates, which
+    quantify over rows that exist. `EL.RLP.decode_encode` sat in exactly that hole:
+    proven, `sorry`-free, and reaching no gate at all, with `decode_encode` appearing
+    nowhere under `Progress/`. Now witnessed, along with `decode_encode_mutual` (the
+    fuel-parametric general form), `decodeFully_encode` and `encode_injective` — all
+    four `[propext, Classical.choice, Quot.sound]`. No row: these are model-level
+    lemmas with no RV64 routine, same footing as the reference-side inversions
+    (`decode_account_from_leaf_inv`, `beq_EMPTY_ACCOUNT`) witnessed beside them.
+    ⚠️ Witness the **discharged** form, not a hypothesis-taking wrapper:
+    `decodeFully_encode_of_decode_encode` *assumes* the round-trip, so witnessing it
+    alone audits a re-wrapping whose one interesting premise the caller supplies —
+    the same near-vacuity trap as #10688's bundled existentials.
 
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
