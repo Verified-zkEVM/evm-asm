@@ -55,7 +55,7 @@
       +0  address  (20 B big-endian, zero-padded to 32)
       +32 codeHash (32 B)
 
-  64 B stride over `CODE_READS_AREA` (`0xa1f20000`, 8192 entries). All comparisons
+  64 B stride over `CODE_READS_AREA` (`0xa24b49c0`, 8192 entries). All comparisons
   and copies here are **byte-wise** (`lbu`/`sb`): the hash and address pointers come
   from SSZ/witness structures with no guaranteed 8-alignment, and the verified RV64
   semantics require `ld`/`sd` to be 8-aligned.
@@ -93,7 +93,7 @@ def codeReadRecordFunction : String :=
   "  la t0, tx_code_reads_count; ld t1, 0(t0)\n" ++
   "  li t2, 8192\n" ++
   "  bgeu t1, t2, .Lcrr_overflow\n" ++
-  "  li t2, 0xa1f20000\n" ++
+  "  li t2, 0xa24b49c0\n" ++
   "  li t3, 0\n" ++                                          -- i
   ".Lcrr_scan:\n" ++
   "  bgeu t3, t1, .Lcrr_append\n" ++

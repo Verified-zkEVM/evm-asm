@@ -8,13 +8,13 @@
   that previously had no shared, machine-checked layout statement:
 
   * **Scheme A** — the working-RAM anchors in `EvmAsm/Stateless/MemoryLayout.lean`
-    (`0xa0020000..0xa3000000`), the layout the *verified stateless port* under
+    (`0xa0020000..0xa0b00000`), the layout the *verified stateless port* under
     `EvmAsm/Stateless/` addresses. Historically these anchors had *no* fit or
     disjointness lemma and their sizes were only implicit in the gaps between
     successive anchors. Here every anchor gets an explicit extent (the gap to the
     next anchor) and a per-region evidence note.
-  * **Scheme B** — the linked `.data` at `0xa3000000` (`-Tdata=`), the
-    zero-initialized `.bss` at `0xa4000000`, plus `.text`
+  * **Scheme B** — the linked `.data` at `0xa0b00000` (`-Tdata=`), the
+    zero-initialized `.bss` at `0xa0b70000`, plus `.text`
     (`-Ttext=0x80000000`) and the `.sszscratch` NOBITS region
     (`--section-start=.sszscratch=0xbf980000`). Sizes here are the ELF ground
     truth (`readelf -S`), cross-checked by `scripts/check-region-map.sh`.
@@ -184,7 +184,7 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     exactly); its sizing remains a separate concern from the retired log arena.
 -/
 
-/-- The working-RAM anchor sub-regions, `0xa0020000..0xa1fa0000` (the upper six are
+/-- The working-RAM anchor sub-regions, `0xa0020000..0xa25349c0` (the upper six are
     the GH #10619 read containers: three block-level, three per-transaction). Aspirational —
     see the section note; `schemeAAnchors_pairwise_disjoint` proves they are
     internally consistent, but they are NOT part of `guestRegionMap`. -/
@@ -205,52 +205,32 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
     { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout EVM_VALUE_STACK; 1 MiB slab" },
-    { name := "evm_memory_area",        base := 0xa0b70000, size := 0x1000000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout EVM_MEMORY_AREA; 16 MiB slab" },
-    { name := "keccak_scratch",         base := 0xa1b70000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout KECCAK_SCRATCH; 64 KiB slab" },
-    { name := "ecrecover_scratch",      base := 0xa1b80000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ECRECOVER_SCRATCH; 64 KiB slab" },
-    { name := "sha256_scratch",         base := 0xa1b90000, size := 0x10000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout SHA256_SCRATCH; 64 KiB slab" },
-    -- GH #10619: the spec's THREE read sets, each with the BLOCK-long lifetime
-    -- `restore_tx_state` gives them by restoring only the write structures
-    -- (state_tracker.py:809-826; the TransactionState docstring at :90-93 calls
-    -- them "shared references that survive rollback").  Separate regions rather
-    -- than one merged set because the spec has three and looking-the-same is the
-    -- point; separate from `state_tracker_area` because rollback truncates that
-    -- one and must not reach these.
-    { name := "storage_reads_area",     base := 0xa1ba0000, size := 0x100000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout STORAGE_READS_AREA; 1 MiB = 16384x64 (addrHash++slotKey), "
-        ++ "matching the write log's 16384 rows so reads cannot overflow first" },
-    { name := "account_reads_area",     base := 0xa1ca0000, size := 0x80000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_READS_AREA; 512 KiB = 16384x32 (addrHash)" },
-    { name := "code_reads_area",        base := 0xa1d20000, size := 0x80000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout CODE_READS_AREA; 512 KiB = 8192x64 (addrHash++codeHash); "
+    -- GH #11186: EVM_MEMORY_AREA / KECCAK_SCRATCH / ECRECOVER_SCRATCH /
+    -- SHA256_SCRATCH removed from scheme-A — reclaimed into linked `.bss`
+    -- (base 0xa0b70000) and the raised block-read pack. Production substitutes
+    -- are `.bss` symbols `evm_memory`, `evm_memory_pool`, `call_frame_arena`.
+    -- GH #10619 + #11186: THREE block-level read sets at cold bound 66,666.
+    { name := "storage_reads_area",     base := 0xa1908780, size := 0x411a80,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout STORAGE_READS_AREA; 66,666x64 = 4,266,624 B (addrHash++slotKey); "
+        ++ "cold bound 200M/3000 (GH #11186)" },
+    { name := "account_reads_area",     base := 0xa1d1a200, size := 0x208d40,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_READS_AREA; 66,666x32 = 2,133,312 B (addrHash)" },
+    { name := "code_reads_area",        base := 0xa1f22f40, size := 0x411a80,  mode := .rw, zone := .ram,
+      evidence := "MemoryLayout CODE_READS_AREA; 66,666x64 = 4,266,624 B (addrHash++codeHash); "
         ++ "consumer is the execution witness (stateless_host_exec_witness.py:182), NOT the BAL" },
-    -- GH #10619 review gate 3: the TRANSACTION level of the same three sets.  The
-    -- spec has two levels (TransactionState's fresh sets, merged up at
-    -- state_tracker.py:858-861 and CLEARED at :879-881), and a block-level-only
-    -- mirror has nowhere to express fork.py:745-752 -- a throwaway TransactionState
-    -- whose reads are deliberately NOT promoted.
-    { name := "tx_storage_reads_area",  base := 0xa1da0000, size := 0x100000,  mode := .rw, zone := .ram,
+    -- GH #10619 review gate 3: TRANSACTION level (tx caps stay 16384/16384/8192).
+    { name := "tx_storage_reads_area",  base := 0xa23349c0, size := 0x100000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_STORAGE_READS_AREA; per-tx storage_reads, merged up and cleared" },
-    { name := "tx_account_reads_area",  base := 0xa1ea0000, size := 0x80000,   mode := .rw, zone := .ram,
+    { name := "tx_account_reads_area",  base := 0xa24349c0, size := 0x80000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_READS_AREA; per-tx account_reads" },
-    { name := "tx_code_reads_area",     base := 0xa1f20000, size := 0x80000,   mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads" },
-    -- r59nm S2: the WRITE side of the same two levels.  BlockState.storage_writes
-    -- (state_tracker.py:74) and TransactionState.storage_writes (:101).  ONE map per
-    -- level, not one per source: the spec has no system-specific write container --
-    -- process_unchecked_system_transaction (fork.py:782) builds an ordinary
-    -- TransactionState and incorporates at :858, regular txs at :1204, withdrawals
-    -- at :1226.  The retired storage-log probes are absent; these are the
-    -- authenticated state containers used by the live guest.
-    { name := "storage_writes_area",    base := 0xa1fa0000, size := 0x823500, mode := .rw, zone := .ram,
+    { name := "tx_code_reads_area",     base := 0xa24b49c0, size := 0x80000,   mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_CODE_READS_AREA; per-tx code_reads 8192x64 (cold bound 5588; GH #11186 D3)" },
+    -- r59nm S2: WRITE side (block/tx storage maps already at derived targets).
+    { name := "storage_writes_area",    base := 0xa25349c0, size := 0x823500, mode := .rw, zone := .ram,
       evidence := "MemoryLayout STORAGE_WRITES_AREA; 66,666x128 = 8,533,248 B "
         ++ "(addrHash++slotKey++value, 96 B used of a 128 B stride); block level, "
         ++ "filled only by write_sets_incorporate_tx" },
-    { name := "tx_storage_writes_area", base := 0xa27d0000, size := 0xaea00, mode := .rw, zone := .ram,
+    { name := "tx_storage_writes_area", base := 0xa2d57ec0, size := 0xaea00, mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_STORAGE_WRITES_AREA; 5,588x128 = 715,264 B; "
         ++ "per-tx storage_writes, target of storage_write_record (mirrors set_storage, state_tracker.py:489)" },
     -- r59nm S5a: undo journal standing in for take_snapshot's dict copy
@@ -286,27 +266,15 @@ def schemeAAnchors : List GuestRegion :=
     -- (19047), the tx map by what one transaction can touch -- so sizing them
     -- together would either waste 2.5 MiB or cap the block level too low.
     -- Bases shifted +0x180000 when storage undo grew 64->160 B/entry (#10645 review).
-    { name := "account_writes_area",    base := 0xbdd80000, size := 0x800000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 8 MiB = 65536x128 "
-        ++ "(addr++nonce++present++balance++codeHash, 128 B stride); block level, "
-        ++ "filled only by account_writes_incorporate_tx; 65536 covers the 64035 "
-        ++ "distinct-account bound derived against 200M in GH #11770; RELOCATED out "
-        ++ "of the scheme-A block into the gap above .bss because it had to grow" },
-    { name := "tx_account_writes_area", base := 0xa2b20000, size := 0x200000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
-        ++ "account_writes, target of account_write_record (mirrors the spec's "
-        ++ "nonstorage setters, state_tracker.py:102)" },
-    -- Same rationale as storage_writes_undo_area: the spec rolls a frame back by
-    -- copying the dict (state_tracker.py:800-806), unaffordable at capacity x call
-    -- depth, so the bounded equivalent is a reverse-replayed journal.
-    { name := "account_writes_undo_area", base := 0xbe580000, size := 0x1400000, mode := .rw, zone := .ram,
+    { name := "account_writes_area",    base := 0xbdb80000, size := 0x800000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 8 MiB = 65536x128; high pack GH #11186 "
+        ++ "(AW→AU→TX_AW→SSZ); 65536 covers the 64035 distinct-account bound (#11770)" },
+    { name := "account_writes_undo_area", base := 0xbe380000, size := 0x1400000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 20 MiB = 163840x128; covers the "
-        ++ "161204 account-write-EVENT bound derived in GH #11770 (cheapest event is a warm "
-        ++ "no-op SSTORE at 104 gas via Storage.lean:664, against the per-tx regular cap "
-        ++ "16765216); EVENTS not distinct accounts -- the overwrite arm pushes too; "
-        ++ "fail-closed bgeu-before-store and overflow latch; abuts .sszscratch; "
-        ++ "(entryIndex, wasAbsent, prevNonce, prevPresent, prevBalance, prevCodeHash); "
-        ++ "reverse-replayed by account_writes_restore_frame" } ]
+        ++ "161204 account-write-EVENT bound derived in GH #11770; high pack between AW and TX_AW" },
+    { name := "tx_account_writes_area", base := 0xbf780000, size := 0x200000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
+        ++ "account_writes; high pack abuts .sszscratch (GH #11186)" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 
@@ -532,9 +500,9 @@ abbrev dataSizeBytes : Nat := RegionMapLinkPins.dataSizeBytes
     ⚠️ That last step is `0x2000` and **not** the slab's own `1025 * 8 = 0x2008` growth:
     the eight-byte remainder is absorbed by the `.balign 32` that already followed the
     slab. Derived from the emitted addresses, not from arithmetic —
-    `body_state_snapshot_by_depth` stays at `0xbb3a5688` while its successor
-    `b1sc_sort_a` moves `0xbb3bf700 -> 0xbb3c1700`, because the slab's end goes
-    `0xbb3bf6f0 -> 0xbb3c16f8` and both round up to the same 32-byte boundary, cutting
+    `body_state_snapshot_by_depth` stays at `0xbb09c688` while its successor
+    `b1sc_sort_a` moves `0xbb0b6700 -> 0xbb0b8700`, because the slab's end goes
+    `0xbb0b66f0 -> 0xbb0b86f8` and both round up to the same 32-byte boundary, cutting
     the padding from 16 bytes to 8. **Do not predict this pin by subtraction**; a
     removal absorbs in the same direction (#10986, #10988). -/
 abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
@@ -562,7 +530,7 @@ abbrev bssSizeBytes : Nat := RegionMapLinkPins.bssSizeBytes
     derivation against the linked ELF (`.state_gas_diag base == .bss end`),
     which is also the only thing that can catch the one way it could break:
     padding, if a future `.bss` size were not 8-aligned. -/
-abbrev stateGasDiagBase : Nat := 0xa3110000 + bssSizeBytes
+abbrev stateGasDiagBase : Nat := 0xa0b70000 + bssSizeBytes
 
 /-- ELF-measured `.state_gas_diag` size. -/
 abbrev stateGasDiagSizeBytes : Nat := RegionMapLinkPins.stateGasDiagSizeBytes
@@ -590,21 +558,21 @@ def textRegion : GuestRegion :=
     -- value with no tripwire is the exposure, whether or not it currently agrees.
     evidence := "ELF -Ttext=0x80000000; size link-dependent (drift guard)" }
 
-/-- `.data` section (`-Tdata=0xa3000000`). Contains the initialized static and
+/-- `.data` section (`-Tdata=0xa0b00000`). Contains the initialized static and
     verdict data; the call-frame union itself is in `.bss`. -/
 def dataRegion : GuestRegion :=
-  { name := ".data", base := 0xa3000000, size := dataSizeBytes, mode := .rw, zone := .ram,
-    evidence := "ELF -Tdata=0xa3000000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
+  { name := ".data", base := 0xa0b00000, size := dataSizeBytes, mode := .rw, zone := .ram,
+    evidence := "ELF -Tdata=0xa0b00000; 0x" ++ natToHex dataSizeBytes ++ "-byte PROGBITS extent" }
 
-/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa3110000`). The
-    base moved down from `0xa4000000` into the `.data` slack (`.data` uses
+/-- `.bss` zero-initialized arena (`--section-start=.bss=0xa0b70000`). The
+    base moved down from `0xa0b70000` into the `.data` slack (`.data` uses
     only 21,360 B of its 16 MiB reservation) to make room for the GH #10836
     BAL-arena resize; the `.data`/`.bss` sum budget proved at
     `CallFrameLayout.lean` (`≤ sszScratchBase - dataBase = 0x1c980000`) is
     unchanged since neither endpoint moves. -/
 def bssRegion : GuestRegion :=
-  { name := ".bss", base := 0xa3110000, size := bssSizeBytes, mode := .nobits, zone := .ram,
-    evidence := "ELF --section-start=.bss=0xa3110000; 0x" ++ natToHex bssSizeBytes ++ "-byte NOBITS extent" }
+  { name := ".bss", base := 0xa0b70000, size := bssSizeBytes, mode := .nobits, zone := .ram,
+    evidence := "ELF --section-start=.bss=0xa0b70000; 0x" ++ natToHex bssSizeBytes ++ "-byte NOBITS extent" }
 
 /-- `.state_gas_diag` NOBITS per-transaction state-gas differential outputs
     (`DispatcherExecStateGas.lean:158`, emitted unconditionally). GH #11186:
@@ -669,8 +637,8 @@ def stateTrackerLiveRegion : GuestRegion :=
     `.9.3` frame against. It is GENUINELY pairwise disjoint with NO exception
     list: `zisk_system`→OUTPUT→`guest_stack` tile `[0xa0000000, 0xa0050000)`
     contiguously; `transient_storage_log` ends `0xa0a30000` well below `.data`
-    (`0xa3000000`); `.data` ends `0xa3005370`, `.bss` ends `0xbc139560` where
-    `.state_gas_diag` begins, and that ends `0xbc171230`, all below
+    (`0xa0b00000`); `.data` ends `0xa0b05310`, `.bss` ends `0xbbefb8a0` where
+    `.state_gas_diag` begins, and that ends `0xbbe68230`, all below
     `.sszscratch`; INPUT and `.text` sit in their own zones.
     ⚠️ The `.bss` end quoted here is a **current fact read off the image**, not a
     constant: it is `bssRegion.base + bssSizeBytes` and moves with every `.bss`
@@ -748,28 +716,21 @@ theorem schemeA_matches_layout :
         (EvmAsm.Stateless.STATE_TRACKER_AREA).toNat,
         (EvmAsm.Stateless.EVM_FRAME_STACK).toNat,
         (EvmAsm.Stateless.EVM_VALUE_STACK).toNat,
-        (EvmAsm.Stateless.EVM_MEMORY_AREA).toNat,
-        (EvmAsm.Stateless.KECCAK_SCRATCH).toNat,
-        (EvmAsm.Stateless.ECRECOVER_SCRATCH).toNat,
-        (EvmAsm.Stateless.SHA256_SCRATCH).toNat,
-        -- GH #10619: the spec's three read sets (state_tracker.py:67-77, :96-104).
+        -- GH #11186: EVM_MEMORY/KECCAK/ECRECOVER/SHA256 scratches reclaimed.
+        -- GH #10619 + #11186: three read sets at cold bound 66,666.
         (EvmAsm.Stateless.STORAGE_READS_AREA).toNat,
         (EvmAsm.Stateless.ACCOUNT_READS_AREA).toNat,
         (EvmAsm.Stateless.CODE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_ACCOUNT_READS_AREA).toNat,
         (EvmAsm.Stateless.TX_CODE_READS_AREA).toNat,
-        -- r59nm: the write side of the same two levels (state_tracker.py:74 block,
-        -- :101 transaction) plus S5a's undo journal.
         (EvmAsm.Stateless.STORAGE_WRITES_AREA).toNat,
         (EvmAsm.Stateless.TX_STORAGE_WRITES_AREA).toNat,
         (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat,
-        -- #10695: the nonstorage write side of the same two levels
-        -- (account_writes, state_tracker.py:70 block, :97 transaction) plus its
-        -- undo journal.
+        -- High pack AW → AU → TX_AW → SSZ (GH #11186).
         (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat,
-        (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat ] := by decide
+        (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat,
+        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat ] := by decide
 
 /-! ## Within-`.bss` aliasing inventory (the `call_frame_arena` union).
 
@@ -947,6 +908,8 @@ def stableGuestBases : List (String × Nat) :=
 --            Lost in a merge resolution of #10679 and restored here; the
 --            constants and the guest's use of the addresses were never removed,
 --            so three in-use regions had no disjointness or fit proof.
-theorem stableGuestBases_length : stableGuestBases.length = 31 := by decide
+-- 31 -> 27: GH #11186 reclaimed EVM_MEMORY + three crypto scratches into .bss
+--            (four scheme-A anchors removed; section bases still 8).
+theorem stableGuestBases_length : stableGuestBases.length = 27 := by decide
 
 end EvmAsm.Codegen.RegionMap

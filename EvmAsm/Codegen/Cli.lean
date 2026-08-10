@@ -95,13 +95,13 @@ def emitAndLink (unit : BuildUnit) (opts : Options) : IO UInt32 := do
     return 0
   try
     -- Per-unit `.bss` start (GH #10836): the shipped guest keeps the
-    -- `0xa3110000` base its arenas were sized around; every other unit
+    -- `0xa0b70000` base its arenas were sized around; every other unit
     -- (probes, test cases) links with a probe base that clears the largest
     -- measured probe `.data` (12.03 MiB for `zisk_stateless_verdict_v2`)
     -- plus ~1 MiB of margin. Different ELFs share no memory-layout
     -- invariant: cross-unit references resolve by symbol name at link time.
     let bssStart :=
-      if opts.target == "stateless_guest" then "0xa3110000" else "0xa3d10000"
+      if opts.target == "stateless_guest" then "0xa0b70000" else "0xa3d10000"
     let (objPath, elfPath) ← assembleAndLink asmPath bssStart
     IO.println s!"wrote {objPath}"
     IO.println s!"wrote {elfPath}"

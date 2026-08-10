@@ -65,7 +65,7 @@ def accountWritesCommitPendingFunction : String :=
     a0 = address ptr (20 B BE).  Clobbers t0-t6 and a1/a2. -/
 def accountWritesIsAbsentFunction : String :=
   "account_writes_is_absent:\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawis_tx_scan:\n" ++
   "  bgeu t3, t1, .Lawis_block; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0\n" ++
   ".Lawis_tx_cmp:\n" ++
@@ -75,7 +75,7 @@ def accountWritesIsAbsentFunction : String :=
   ".Lawis_tx_hit:\n" ++
   "  ld t0, 112(t4); andi t0, t0, 8; beqz t0, .Lawis_no; ld t0, 72(t4); beqz t0, .Lawis_yes; j .Lawis_no\n" ++
   ".Lawis_block:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawis_blk_scan:\n" ++
   "  bgeu t3, t1, .Lawis_no; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0\n" ++
   ".Lawis_blk_cmp:\n" ++

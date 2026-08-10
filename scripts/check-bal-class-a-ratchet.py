@@ -28,7 +28,7 @@ Operates on the EMITTED stateless_guest.s only — not Lean source strings.
 Blind spots (CANNOT see) — documented for reviewers:
   * Lean comments/docstrings/source that never reach .s
   * Computed jalr targets not recovered as symbols
-  * Non-BAL absolute arenas (0xa2b20000 account maps, etc.) unless added to the
+  * Non-BAL absolute arenas (0xbf780000 account maps, etc.) unless added to the
     family predicate
   * Host/IO outside guest .text
   * Intentional untaint (li reg,0 after load) stops tracking that reg
