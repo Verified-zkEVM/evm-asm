@@ -247,8 +247,9 @@ SPIKE_SRC=/path/to/riscv-isa-sim scripts/spike/build.sh
 ```
 
 ## The guest's runtime contract (see ../../../.claude/plans for full map)
-- Memory: header `0x7ffff000`, `.text 0x80000000`, `.data 0xa3000000`,
-  `.sszscratch 0xbf800000`, input `0x40000000`, output `0xa0010000`.
+- Memory: header `0x7ffff000`, `.text 0x80000000`, `.data`/`.bss` from ELF
+  program headers (currently `-Tdata=0xa0b00000`, bss `0xa0b70000`; GH #11186),
+  `.sszscratch 0xbf980000`, input `0x40000000`, output `0xa0010000` (runner ABI).
 - 2 ecalls: `read_input` (t0=0xF2: write inputBufBase=0x40000000 → [a0], len → [a1]),
   halt (a7=93). Input file layout at 0x40000000: 8-byte zero meta + 8-byte LE len + blob.
 - 17 custom accelerator CSRs (all decoded). MVP needs 0x800/0x802/0x805; the rest

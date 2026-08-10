@@ -14,7 +14,7 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=5
+  [codegen]=6
   [guestaddrs-starts]=1
   [asm-to-program]=1
   [reports]=3
@@ -49,6 +49,9 @@ codegen_checks() {
   # missing invariant (declared anchor => has a region entry). Pure grep, instant.
   run_step scripts/check-memorylayout-region-coverage.sh
   run_step scripts/check-guarded-handler-bytes.sh
+  # GH #11186: retired layout literals must not reappear after a relocate.
+  # Pure rg, no toolchain. Declared step so an unwired guard cannot green-pass.
+  run_step scripts/check-layout-residual-literals.sh
 }
 
 report_checks() {
