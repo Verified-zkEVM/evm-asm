@@ -17,57 +17,17 @@
   engine-API input, but it is the opposite side of the seam; this file keeps
   the raw execution-derived body opaque, as the reference does.
 
-  ## Residual machine premise
-
-  `stageSystemCallPost` is deliberately a parameter type, not an axiom and not
-  a definition claiming what the dispatcher does.  A future `stage_system_call`
-  triple must instantiate it with the relation between the four ABI inputs and
-  the returned body/status.  The two framing triples below are parametric in
-  that post: the framing fact itself is independent of the callee, while the
-  post is what a future machine composition will consume.  Status/body are
-  output facts, not input-domain gates.
+  The pure framing lemmas below intentionally carry no `stage_system_call`
+  premise: the list identity is unconditional and does not establish any
+  machine fact about the tail-called dispatcher.  The missing machine contract
+  remains a separate registered obligation in `Progress.Obligations`.
 -/
 
-import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Stateless.SpecRef.SeamShell
 
 namespace EvmAsm.Codegen.SystemCallRequestBridge
 
 open EvmAsm.Stateless.SpecRef
-
-/-! ## The opaque stage-call boundary -/
-
-/-- The four values handed to `stage_system_call` by each derive shim.
-
-    These are ABI coordinates, not a claim that the callee reads them in a
-    particular way.  The machine triple for the callee is the missing premise.
-    `outputBuffer` is included because the callee's returned `Bytes` is the
-    projection of its captured return-data window at that address. -/
-structure StageSystemCallInput where
-  predeployCode : Nat
-  codeLength : Nat
-  executionPayload : Nat
-  outputBuffer : Nat
-  deriving DecidableEq, Repr
-
-/-- The observable result surfaced by the shared staging seam.
-
-    `status = 0` is the successful checked-system-call arm; nonzero status is
-    rejected by the EIP-7002/EIP-7251 callers.  No theorem here identifies the
-    bytes or status with the execution: that is exactly the residual callee
-    contract recorded in `Progress.Obligations`. -/
-structure StageSystemCallOutput where
-  returnData : Bytes
-  status : Nat
-  deriving DecidableEq, Repr
-
-/-- Named residual premise for the unproven `stage_system_call` machine seam.
-
-    Keeping this as a function-valued relation makes the dependency visible at
-    every bridge use without introducing an `axiom` or silently treating the
-    raw `String` emitter as verified. -/
-abbrev StageSystemCallPost :=
-  StageSystemCallInput → StageSystemCallOutput → Prop
 
 /-! ## Pure request framing -/
 
@@ -100,9 +60,8 @@ def deriveConsolidationRequestOutput (requests : List Bytes)
 /-! ## The two framing triples
 
     These are deliberately parallel.  Their only difference is the request
-    type byte; neither carries an input-domain restriction.  `h_stage` is a
-    dependency on the future machine seam, not a precondition selecting an
-    execution outcome. -/
+    type byte; neither carries a staging premise or an input-domain
+    restriction. -/
 
 /-- Pure request-derive triple for `derive_withdrawal_requests`.
 
@@ -111,18 +70,17 @@ def deriveConsolidationRequestOutput (requests : List Bytes)
     path, and contributes no blob for an empty return-data list.  This proves
     framing only; it does not prove `stage_system_call` or the predeploy. -/
 theorem deriveWithdrawalRequests_request_derive_triple
-    (stagePost : StageSystemCallPost) :
-    ∀ (input : StageSystemCallInput) (output : StageSystemCallOutput)
+    :
+    ∀ (status : Nat) (returnData : Bytes)
       (requests : List Bytes),
-      stagePost input output →
-      (output.status = 0 ∧
-        deriveWithdrawalRequestOutput requests output.returnData =
+      (status = 0 ∧
+        deriveWithdrawalRequestOutput requests returnData =
           requests ++
-            (if output.returnData.length > 0 then
-              [withdrawalRequestType :: output.returnData] else [])) ∨
-        output.status ≠ 0 := by
-  intro input output requests h_stage
-  by_cases h_status : output.status = 0
+            (if returnData.length > 0 then
+              [withdrawalRequestType :: returnData] else [])) ∨
+        status ≠ 0 := by
+  intro status returnData requests
+  by_cases h_status : status = 0
   · left
     refine ⟨h_status, ?_⟩
     simp [deriveWithdrawalRequestOutput, appendDerivedRequest]
@@ -133,18 +91,17 @@ theorem deriveWithdrawalRequests_request_derive_triple
     This has the same hypotheses and post shape as the withdrawal triple.  The
     equality of shapes is intentional: only the EIP-7251 type byte changes. -/
 theorem deriveConsolidationRequests_request_derive_triple
-    (stagePost : StageSystemCallPost) :
-    ∀ (input : StageSystemCallInput) (output : StageSystemCallOutput)
+    :
+    ∀ (status : Nat) (returnData : Bytes)
       (requests : List Bytes),
-      stagePost input output →
-      (output.status = 0 ∧
-        deriveConsolidationRequestOutput requests output.returnData =
+      (status = 0 ∧
+        deriveConsolidationRequestOutput requests returnData =
           requests ++
-            (if output.returnData.length > 0 then
-              [consolidationRequestType :: output.returnData] else [])) ∨
-        output.status ≠ 0 := by
-  intro input output requests h_stage
-  by_cases h_status : output.status = 0
+            (if returnData.length > 0 then
+              [consolidationRequestType :: returnData] else [])) ∨
+        status ≠ 0 := by
+  intro status returnData requests
+  by_cases h_status : status = 0
   · left
     refine ⟨h_status, ?_⟩
     simp [deriveConsolidationRequestOutput, appendDerivedRequest]
