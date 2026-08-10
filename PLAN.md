@@ -435,7 +435,12 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   recipe"); `mptNodeIs`/`nodeDbIs` with the
   `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
-  tie (`Evm64/WitnessAssertions.lean`). The concrete↔abstract refinement
+  tie (`Evm64/WitnessAssertions.lean`) — now both sides of that pairing, keys
+  (`indexOfSection_hashes_eq_build_code_db`) *and* values
+  (`witnessLookupSpec_slice_eq_build_code_db`, and against `SpecRef.get_code`
+  itself in `witnessLookupSpec_slice_eq_get_code`), plus the
+  `witnessIndexIs_snoc`/`codeDbIs_snoc` step lemmas (#11573; the heapsort
+  permutation fact and the routine triples stay open). The concrete↔abstract refinement
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE

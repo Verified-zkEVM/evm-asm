@@ -73,24 +73,52 @@
   ## Faithfulness ties in this module
 
   * `witnessLookupSpec_correct` — a hit returns a slice whose keccak IS
-    the queried hash (code-as-resource keyed by code hash).
-  * `indexOfSection_hashes_eq_build_code_db` — the index the builder
-    computes carries exactly the hashes of the spec-reference
+    the queried hash (code-as-resource keyed by code hash);
+    `codeDbIs_lookup_correct` is the same guarantee read straight off the
+    composed resource, since `codeDbIs` is what carries the hash-binding
+    (see the decision note at `codeDbIs`).
+  * `indexOfSection_hashes_eq_build_code_db` — the KEY side: the index the
+    builder computes carries exactly the hashes of the spec-reference
     `build_code_db` (the `witness_state.py` port).
+  * `witnessLookupSpec_slice_eq_build_code_db` — the VALUE side:
+    materializing the resolved `(offset, len)` view yields exactly the
+    bytes `build_code_db` stores under that key.
+  * `witnessLookupSpec_slice_eq_get_code` — the same equation against
+    `SpecRef.get_code` itself, for every hash but `EMPTY_CODE_HASH`
+    (whose spec-side short-circuit bypasses the DB — stated as a
+    hypothesis, because a guest routine must reproduce it separately).
+  * `witnessIndexIs_snoc` / `codeDbIs_snoc` — the append-one-record step
+    lemmas (the `nodeDbIs_snoc` analogue) a build-loop proof frames on.
   * `#guard`s running the whole pipeline on a concrete two-code section
     (also cross-checked against the spec-level SSZ serializer).
   * An `LBU` example consuming `witnessSectionIs` through the proven
     `bytesRegion_lbu_within` triple (the byte-read primitive the
     linear-scan keccak loop is built from).
 
-  `witness_lookup_by_hash` / `witness_codes_lookup_by_hash` have no
-  functional `cpsTripleWithin` specs yet (they are raw asm strings with
-  whole-guest byte-identity pins); this module fixes the vocabulary
-  those specs will be stated in.
+  Issue #11573 asked for a `codeDbIs` "mirroring `nodeDbIs`" over
+  `code_db_buckets = 0xa0530000`. That anchor is the dead scheme-A one
+  described above; the predicates here are over the `wcidx_*` reality
+  instead, which is why `codeDbIs` pairs a *section view* with a *sorted
+  hash index* rather than cloning `nodeDbIs`'s bump-arena record log.
+
+  ## Remaining
+
+  * `witness_lookup_by_hash` / `witness_codes_lookup_by_hash` /
+    `witness_codes_index_build` have no functional `cpsTripleWithin`
+    specs yet (they are raw asm strings with whole-guest byte-identity
+    pins), so the `_snoc` lemmas have no consumer yet; this module fixes
+    the vocabulary those specs will be stated in.
+  * The guest heapsorts the arena and binary-searches it, so relating a
+    real run to `indexOfSection` needs the sort's permutation fact, plus
+    the duplicate-code-hash argument (`build_code_db` lookup takes the
+    first match, a binary search takes some match; the keccak tie pins
+    the body up to hash collision, so the divergence is benign — but it
+    must be *said*, not discovered in a proof).
 -/
 
 import EvmAsm.Evm64.StateAssertions
 import EvmAsm.Stateless.SpecRef.WitnessState
+import EvmAsm.Stateless.SpecRef.WitnessReads
 import EvmAsm.Stateless.SpecRef.SszCodec
 
 namespace EvmAsm.Evm64
@@ -228,13 +256,31 @@ instance (r : WitnessIndexRecord) (section_ : List (BitVec 8)) :
 
 end WitnessIndexRecord
 
+/-- `witnessIndexRecordIs base r` — ownership of ONE 48-byte arena slot
+    at `base` holding `r`'s bytes, with `r`'s field-width
+    well-formedness. This is the unit `witness_index_build` writes
+    (`MptWitnessIndex.lean:175-176`) and the unit the binary search /
+    linear scan probes. -/
+def witnessIndexRecordIs (base : Word) (r : WitnessIndexRecord) : Assertion :=
+  fun ps => r.WF ∧ bytesRegion base r.bytes ps
+
+theorem witnessIndexRecordIs_wf {base : Word} {r : WitnessIndexRecord}
+    {ps : PartialState} (h : witnessIndexRecordIs base r ps) : r.WF := h.1
+
+theorem pcFree_witnessIndexRecordIs {base : Word} {r : WitnessIndexRecord} :
+    (witnessIndexRecordIs base r).pcFree :=
+  fun ps h => bytesRegion_pcFree _ _ ps h.2
+
+instance (base : Word) (r : WitnessIndexRecord) :
+    Assertion.PCFree (witnessIndexRecordIs base r) := ⟨pcFree_witnessIndexRecordIs⟩
+
 /-- `witnessIndexIs base records` — the 48-byte-stride record arena
     (`widx_records` / `wcidx_records`; link-layout-dependent base). -/
 def witnessIndexIs (base : Word) (records : List WitnessIndexRecord) : Assertion :=
   match records with
   | [] => empAssertion
   | r :: rest =>
-      (fun ps => r.WF ∧ bytesRegion base r.bytes ps) **
+      witnessIndexRecordIs base r **
       witnessIndexIs (base + BitVec.ofNat 64 WITNESS_INDEX_RECORD_BYTES) rest
 
 theorem witnessIndexIs_nil {base : Word} : witnessIndexIs base [] = empAssertion := rfl
@@ -242,15 +288,14 @@ theorem witnessIndexIs_nil {base : Word} : witnessIndexIs base [] = empAssertion
 theorem witnessIndexIs_cons {base : Word} {r : WitnessIndexRecord}
     {rest : List WitnessIndexRecord} :
     witnessIndexIs base (r :: rest) =
-      ((fun ps => r.WF ∧ bytesRegion base r.bytes ps) **
+      (witnessIndexRecordIs base r **
        witnessIndexIs (base + BitVec.ofNat 64 WITNESS_INDEX_RECORD_BYTES) rest) := rfl
 
 theorem pcFree_witnessIndexIs {base : Word} {records : List WitnessIndexRecord} :
     (witnessIndexIs base records).pcFree := by
   induction records generalizing base with
   | nil => exact pcFree_emp
-  | cons r rest ih =>
-    exact pcFree_sepConj (fun ps h => bytesRegion_pcFree _ _ ps h.2) ih
+  | cons _ _ ih => exact pcFree_sepConj pcFree_witnessIndexRecordIs ih
 
 instance (base : Word) (records : List WitnessIndexRecord) :
     Assertion.PCFree (witnessIndexIs base records) := ⟨pcFree_witnessIndexIs⟩
@@ -284,9 +329,8 @@ theorem witnessIndexIs_split_at (base : Word) (records : List WitnessIndexRecord
     (i : Nat) (hi : i < records.length) :
     witnessIndexIs base records =
       (witnessIndexIs base (records.take i) **
-       (fun ps => (records[i]'hi).WF ∧
-          bytesRegion (base + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES * i))
-            (records[i]'hi).bytes ps) **
+       witnessIndexRecordIs
+         (base + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES * i)) (records[i]'hi) **
        witnessIndexIs
          (base + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES * (i + 1)))
          (records.drop (i + 1))) := by
@@ -301,6 +345,21 @@ theorem witnessIndexIs_split_at (base : Word) (records : List WitnessIndexRecord
   rw [add_ofNat_add_ofNat,
       show WITNESS_INDEX_RECORD_BYTES * i + WITNESS_INDEX_RECORD_BYTES =
         WITNESS_INDEX_RECORD_BYTES * (i + 1) from by rw [Nat.mul_add, Nat.mul_one]]
+
+/-- **The `witness_index_build` insert shape** — the `witnessIndexIs`
+    analogue of `nodeDbIs_snoc` (`MptAssertions.lean:777`): appending one
+    record places it exactly at `base + 48 * count`, the address the
+    builder computes from `wcidx_count`, leaving the earlier records
+    untouched. This is the step lemma a build-loop proof frames on. -/
+theorem witnessIndexIs_snoc {base : Word} {records : List WitnessIndexRecord}
+    {r : WitnessIndexRecord} :
+    witnessIndexIs base (records ++ [r]) =
+      (witnessIndexIs base records **
+       witnessIndexRecordIs
+         (base + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES * records.length)) r) := by
+  rw [witnessIndexIs_append]
+  congr 1
+  rw [witnessIndexIs_cons, witnessIndexIs_nil, sepConj_emp_right']
 
 /-- Sortedness by the full 32-byte hash, exactly the arena order the
     heapsort establishes: `widx_cmp32` compares bytewise big-endian,
@@ -368,6 +427,84 @@ instance (idxBase sectionPtr : Word) (sectionBytes : List (BitVec 8))
     Assertion.PCFree (codeDbIs idxBase sectionPtr sectionBytes records) :=
   ⟨pcFree_codeDbIs⟩
 
+/-! ### What the code-DB resource carries — and what a triple need not
+
+Issue #11573 item 2 asks whether the hash-binding
+(`key = keccak256 payload`) belongs in the predicate or in the routine
+triple. **Decision recorded here: in the predicate.** `codeDbIs` carries
+`∀ r ∈ records, r.matchesSection sectionBytes`, so every consumer reads
+back `keccak256 (the returned slice) = the queried key` from the
+resource alone (`codeDbIs_lookup_correct`, stated with the lookup model
+below) and no routine triple has to re-establish it;
+`indexOfSection_matchesSection` is what discharges the conjunct at build
+time, from the validated offsets table alone. Binding it in the triple
+instead would push a keccak obligation onto every `get_code`-shaped
+caller — exactly the surface #11410 / #11504 want cheap. -/
+
+theorem codeDbIs_length_le {idxBase sectionPtr : Word}
+    {sectionBytes : List (BitVec 8)} {records : List WitnessIndexRecord}
+    {ps : PartialState}
+    (h : codeDbIs idxBase sectionPtr sectionBytes records ps) :
+    records.length ≤ WITNESS_INDEX_CAPACITY := h.1
+
+theorem codeDbIs_sorted {idxBase sectionPtr : Word}
+    {sectionBytes : List (BitVec 8)} {records : List WitnessIndexRecord}
+    {ps : PartialState}
+    (h : codeDbIs idxBase sectionPtr sectionBytes records ps) :
+    witnessIndexSorted records := h.2.1
+
+theorem codeDbIs_matchesSection {idxBase sectionPtr : Word}
+    {sectionBytes : List (BitVec 8)} {records : List WitnessIndexRecord}
+    {ps : PartialState}
+    (h : codeDbIs idxBase sectionPtr sectionBytes records ps) :
+    ∀ r ∈ records, r.matchesSection sectionBytes := h.2.2.1
+
+theorem codeDbIs_spatial {idxBase sectionPtr : Word}
+    {sectionBytes : List (BitVec 8)} {records : List WitnessIndexRecord}
+    {ps : PartialState}
+    (h : codeDbIs idxBase sectionPtr sectionBytes records ps) :
+    (witnessSectionIs sectionPtr sectionBytes ** witnessIndexIs idxBase records) ps :=
+  h.2.2.2
+
+/-- **The code-DB insert shape** — `codeDbIs`'s `_snoc`, the structural
+    lemma a `witness_codes_index_build` loop proof steps with. The
+    spatial part grows exactly as `witnessIndexIs_snoc` says (the new
+    record lands at `idxBase + 48 * count`; the section and the earlier
+    records are framed untouched); the pure part is split so a caller
+    discharges only what is genuinely new — the capacity bound,
+    sortedness of the EXTENDED list (which the guest establishes by
+    heapsorting the whole arena, not by the insert), and
+    `matchesSection` for the new record alone. -/
+theorem codeDbIs_snoc {idxBase sectionPtr : Word} {sectionBytes : List (BitVec 8)}
+    {records : List WitnessIndexRecord} {r : WitnessIndexRecord} :
+    codeDbIs idxBase sectionPtr sectionBytes (records ++ [r]) =
+      (fun ps =>
+        (records.length + 1 ≤ WITNESS_INDEX_CAPACITY ∧
+         witnessIndexSorted (records ++ [r]) ∧
+         r.matchesSection sectionBytes ∧
+         (∀ r' ∈ records, r'.matchesSection sectionBytes)) ∧
+        (witnessSectionIs sectionPtr sectionBytes **
+         witnessIndexIs idxBase records **
+         witnessIndexRecordIs
+           (idxBase + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES * records.length))
+           r) ps) := by
+  funext ps
+  unfold codeDbIs
+  rw [witnessIndexIs_snoc]
+  apply propext
+  constructor
+  · rintro ⟨hcap, hsort, hmatch, hsep⟩
+    exact ⟨⟨by simpa using hcap, hsort,
+      hmatch r (List.mem_append_right _ (List.mem_singleton_self r)),
+      fun r' hr' => hmatch r' (List.mem_append_left _ hr')⟩, hsep⟩
+  · rintro ⟨⟨hcap, hsort, hnew, hold⟩, hsep⟩
+    refine ⟨by simpa using hcap, hsort, ?_, hsep⟩
+    intro r' hr'
+    rcases List.mem_append.mp hr' with h' | h'
+    · exact hold r' h'
+    · rw [List.mem_singleton.mp h']
+      exact hnew
+
 /-! ## The lookup model and its guarantees -/
 
 /-- Semantic model of `witness_codes_lookup_by_hash` /
@@ -402,6 +539,22 @@ theorem witnessLookupSpec_correct {records : List WitnessIndexRecord}
     obtain ⟨hbound, hkec⟩ := hmatch
     subst hoff hlen
     exact ⟨hbound, by rw [← hkec, hhash]⟩
+
+/-- **Lookup through `codeDbIs` is keccak-pinned** — the composed form of
+    `witnessLookupSpec_correct`, consuming the resource's own
+    `matchesSection` conjunct so a caller supplies nothing but the
+    resource. This is issue #11573 item 2's "a hash present in the model
+    resolves to its preimage bytes", stated at the resource level; see
+    the decision note above `codeDbIs_length_le` for why the binding
+    lives in the predicate rather than in a routine triple. -/
+theorem codeDbIs_lookup_correct {idxBase sectionPtr : Word}
+    {sectionBytes h : List (BitVec 8)} {records : List WitnessIndexRecord}
+    {off len : Nat} {ps : PartialState}
+    (hdb : codeDbIs idxBase sectionPtr sectionBytes records ps)
+    (hf : witnessLookupSpec records h = some (off, len)) :
+    off + len ≤ sectionBytes.length ∧
+    Stateless.SpecRef.keccak256 ((sectionBytes.drop off).take len) = h :=
+  witnessLookupSpec_correct (codeDbIs_matchesSection hdb) hf
 
 /-- The index content the builder computes for a section: one record
     per element, hash = keccak of the element, slice = the element's
@@ -448,6 +601,97 @@ theorem indexOfSection_matchesSection (bs : List (BitVec 8))
   · show _ = Stateless.SpecRef.keccak256 ((bs.drop _).take _)
     rfl
 
+/-! ### The value side of the pairing
+
+`indexOfSection_hashes_eq_build_code_db` above is the KEY side of the
+`codeDbIs ↔ build_code_db` pairing. What follows is the VALUE side — the
+gap flagged as "Missing (sketch)" in
+`docs/4ch8f-slstate-specref-correspondence.md` §2 — and then its
+`get_code` corollary. -/
+
+/-- `find?`-by-key commutes with a change of record representation: two
+    lists built from the same source list by `f₁` / `f₂` have equal keyed
+    lookups when read back through `v₁` / `v₂`, as soon as the two
+    representations agree on the key and on the abstracted value. This is
+    what identifies the guest's `(offset, len)` index records with
+    `build_code_db`'s `(hash, bytes)` pairs without either side's `find?`
+    being unfolded twice. -/
+private theorem find?_map_eq_of_key_val {α β γ σ ρ : Type} [BEq σ]
+    (l : List α) (h : σ) (f₁ : α → β) (f₂ : α → γ)
+    (key₁ : β → σ) (key₂ : γ → σ) (v₁ : β → ρ) (v₂ : γ → ρ)
+    (hkey : ∀ a, key₁ (f₁ a) = key₂ (f₂ a))
+    (hval : ∀ a, v₁ (f₁ a) = v₂ (f₂ a)) :
+    ((l.map f₁).find? (fun x => key₁ x == h)).map v₁ =
+      ((l.map f₂).find? (fun x => key₂ x == h)).map v₂ := by
+  induction l with
+  | nil => rfl
+  | cons a rest ih =>
+    rw [List.map_cons, List.map_cons, List.find?_cons, List.find?_cons, hkey a]
+    cases hb : key₂ (f₂ a) == h
+    · simpa [hb] using ih
+    · simp [hval a]
+
+/-- **The value-side code-DB equation.** Resolving a hash through the
+    index the guest actually searches, and materializing the returned
+    `(offset, len)` view, yields exactly the bytes `build_code_db` maps
+    that hash to. The offset/len-to-element identification is
+    definitional: `sszElement bs i` IS `(bs.drop off_i).take len_i`.
+
+    Stated with `List.find?` on both sides rather than `List.lookup`
+    because `find?` is literally `get_code`'s dict lookup
+    (`SpecRef/WitnessReads.lean:136`), and because it makes the
+    duplicate-key behaviour explicit: on a malicious witness carrying the
+    same code hash twice, both sides take the FIRST match. (The guest
+    SORTS the arena and binary-searches it, so consuming this against a
+    real run additionally needs the heapsort permutation fact — see the
+    module header's "Remaining" note.) -/
+theorem witnessLookupSpec_slice_eq_build_code_db (bs h : List (BitVec 8)) :
+    (witnessLookupSpec (indexOfSection bs) h).map
+        (fun sl => (bs.drop sl.1).take sl.2) =
+      ((Stateless.SpecRef.build_code_db (sszSectionElements bs)).find?
+        (fun p => p.1 == h)).map (·.2) := by
+  unfold witnessLookupSpec indexOfSection Stateless.SpecRef.build_code_db
+    sszSectionElements
+  rw [Option.map_map, List.map_map]
+  exact find?_map_eq_of_key_val (List.range (sszSectionCount bs)) h
+    (fun i => ({ hash := Stateless.SpecRef.keccak256 (sszElement bs i)
+                 offset := sszSectionOffset bs i
+                 len := sszSectionEnd bs i - sszSectionOffset bs i } : WitnessIndexRecord))
+    (fun i => (Stateless.SpecRef.keccak256 (sszElement bs i), sszElement bs i))
+    (fun r => r.hash) (fun p => p.1)
+    (fun r => (bs.drop r.offset).take r.len) (fun p => p.2)
+    (fun _ => rfl) (fun _ => rfl)
+
+/-- **The guest's code lookup IS SpecRef `get_code`** on the code DB the
+    verifier builds (`build_code_db witness.codes`,
+    `SpecRef/Stateless.lean:494`) — for every hash other than
+    `EMPTY_CODE_HASH`.
+
+    That carve-out is a real asymmetry, not a proof artifact: `get_code`
+    short-circuits `keccak256 b""` to `b""` WITHOUT consulting the DB
+    (`WitnessReads.lean:133`), so on a witness whose codes section does
+    not itself carry the empty code, the spec answers `some []` where the
+    index answers a miss. A `get_code`-shaped guest routine must
+    reproduce that short-circuit ahead of its lookup; this theorem
+    specifies everything after it. -/
+theorem witnessLookupSpec_slice_eq_get_code (bs h : List (BitVec 8))
+    (nodeDb : List (Stateless.SpecRef.Hash32 × Stateless.SpecRef.Bytes))
+    (stateRoot : Stateless.SpecRef.Root)
+    (hne : h ≠ Stateless.SpecRef.EMPTY_CODE_HASH) :
+    (witnessLookupSpec (indexOfSection bs) h).map
+        (fun sl => (bs.drop sl.1).take sl.2) =
+      (Stateless.SpecRef.get_code
+        { nodeDb := nodeDb, stateRoot := stateRoot,
+          codeDb := Stateless.SpecRef.build_code_db (sszSectionElements bs) }
+        h).toOption := by
+  rw [witnessLookupSpec_slice_eq_build_code_db]
+  unfold Stateless.SpecRef.get_code
+  rw [if_neg (by simpa using hne)]
+  cases hf : (Stateless.SpecRef.build_code_db (sszSectionElements bs)).find?
+      (fun p => p.1 == h) with
+  | none => rfl
+  | some p => rfl
+
 /-! ## Concrete pipeline cross-checks
 
 A two-code section, built by hand in the exact SSZ `List[ByteList]`
@@ -473,6 +717,15 @@ private def testSection : List (BitVec 8) :=
 #guard witnessLookupSpec (indexOfSection testSection)
     (Stateless.SpecRef.keccak256 [0x60, 0x01]) = some (10, 2)
 #guard decide (∀ r ∈ indexOfSection testSection, r.matchesSection testSection)
+
+-- The value side, executably: the resolved view materializes the code
+-- bytes, and agrees with what `build_code_db` stores under the same key.
+#guard (witnessLookupSpec (indexOfSection testSection)
+    (Stateless.SpecRef.keccak256 [0x60, 0x01])).map
+    (fun sl => (testSection.drop sl.1).take sl.2) = some [0x60, 0x01]
+#guard ((Stateless.SpecRef.build_code_db (sszSectionElements testSection)).find?
+    (fun p => p.1 == Stateless.SpecRef.keccak256 [0x60, 0x00])).map (·.2)
+  = some [0x60, 0x00]
 
 /-! ## Machine-level tie-in
 
