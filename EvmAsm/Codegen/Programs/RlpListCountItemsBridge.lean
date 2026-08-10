@@ -440,4 +440,103 @@ theorem rlpItemDecodeBridgesFrom_of_parts {bytes : List (BitVec 8)}
   · obtain ⟨inner, hdec⟩ := hlists off next len b hget hlt hitem
     exact ⟨.list inner, hdec⟩
 
+/-! ## The additive strict relation (GH #11898, route 2 without touching 52 modules)
+
+    #11795's residual is that `rlpItemDecode`'s two LIST arms require header canonicality
+    plus a **span fit** and say nothing about the payload, while `decodeAux` additionally
+    runs `decodeItems` and fails unless the payload is consumed exactly. So the machine
+    relation is **weaker than the model on list interiors**, and no fuel work fixes that
+    (#11711 closed the fuel half; this is the other one).
+
+    #11898 enumerated the cost of the obvious repair: `rlpItemDecode` has **52 consuming
+    modules**, and editing it in place risks the two determinism proofs
+    (`RlpWalkDeterminism`, `WalkItemDeterminism`) where the relation being span-only may
+    be load-bearing. @pirapira and I both read **route 2** — record what
+    `rlp_walk_next_core` actually verifies, since after #11776 the routine does more than
+    the relation admits — as the honest option, and a relation *weaker than the code* is
+    the shape that lets a false-accept hide.
+
+    ⭐ This is route 2 done **additively**, which is what makes it cheap: a new
+    `rlpItemDecodeStrict` that conjoins the missing payload fact, an implication back to
+    `rlpItemDecode` so **no existing consumer changes**, and the bridge discharge. The 52
+    modules keep the weak relation; only the bridge consumes the strict one.
+
+    ⚠️ What this does NOT do, and cannot: prove `rlp_walk_next` *satisfies* the strict
+    relation. That is a routine-side obligation needing the walker's triple, and it is
+    named below as `RlpWalkNextStrict` so the residual is one statement about the routine
+    rather than a false claim about the model. That relocation is the whole point — before
+    it, the gap looked like a model-side impossibility. -/
+
+/-- `rlpItemDecode`, plus the fact its list arms omit: on a LIST prefix the payload
+    actually decodes at budget `floor`, consuming exactly the item's span.
+
+    Additive by construction — the first conjunct is the existing relation verbatim, so
+    `rlpItemDecodeStrict_imp` below is immediate and every current consumer is unaffected. -/
+def rlpItemDecodeStrict (bytes : List (BitVec 8)) (off : Nat)
+    (cursor endPtr next len : Word) (nextOff floor : Nat) : Prop :=
+  rlpItemDecode bytes off cursor endPtr next len
+    ∧ (∀ b : BitVec 8, bytes[off]? = some b →
+        ¬ BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true →
+        ∃ inner : List RLPItem,
+          decodeAux floor (bytes.drop off) = some (.list inner, bytes.drop nextOff))
+
+/-- The strict relation implies the weak one, so **nothing that consumes
+    `rlpItemDecode` needs to change**. This is the whole argument for the additive shape
+    over an in-place edit of a relation with 52 consumers. -/
+theorem rlpItemDecodeStrict_imp {bytes : List (BitVec 8)} {off : Nat}
+    {cursor endPtr next len : Word} {nextOff floor : Nat}
+    (h : rlpItemDecodeStrict bytes off cursor endPtr next len nextOff floor) :
+    rlpItemDecode bytes off cursor endPtr next len := h.1
+
+/-- ⭐ **The strict relation discharges the residual.** If every item the machine accepts
+    satisfies the strict form, `RlpListInteriorsDecode` holds — so
+    `rlpItemDecodeBridgesFrom_of_parts` closes and the per-item bridge is complete.
+
+    That this is near-immediate is the POINT, not a weakness: it relocates the obligation
+    from "prove something false about the model" to "prove the routine establishes what it
+    already checks", which is the difference between a blocked issue and a scheduled one. -/
+theorem rlpListInteriorsDecode_of_strict {bytes : List (BitVec 8)} {base endPtr : Word}
+    {floor : Nat}
+    (hstrict : ∀ (off : Nat) (next len : Word),
+      rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
+      rlpItemDecodeStrict bytes off (base + BitVec.ofNat 64 off) endPtr next len
+        (next - base).toNat floor) :
+    RlpListInteriorsDecode bytes base endPtr floor := by
+  intro off next len b hget hlist hitem
+  obtain ⟨_, hpay⟩ := hstrict off next len hitem
+  exact hpay b hget hlist
+
+/-- **The residual, as one statement about the ROUTINE.** `rlp_walk_next` accepts an item
+    only when the strict relation holds — i.e. the relation stops understating the guest.
+
+    After #11776 this should be true: `rlp_walk_next_core` recursively validates list
+    payloads, requiring exact cursor-to-end exhaustion and rejecting malformed, truncated,
+    non-canonical, nested-malformed and trailing interiors with status 7. The relation
+    simply never recorded it.
+
+    Stated as a `Prop` over the walker's accept predicate rather than proved: discharging
+    it is the walker's triple, which is out of scope here. Naming it means #11795's
+    residual is a routine obligation with a known discharge route, not a model-side
+    impossibility. -/
+def RlpWalkNextStrict (bytes : List (BitVec 8)) (base endPtr : Word) (floor : Nat) : Prop :=
+  ∀ (off : Nat) (next len : Word),
+    rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
+    rlpItemDecodeStrict bytes off (base + BitVec.ofNat 64 off) endPtr next len
+      (next - base).toNat floor
+
+/-- Composing the two: the routine-side obligation yields the full per-item bridge, given
+    the byte-string half that is already proven. This is the end-to-end shape #11795 asks
+    for, with every remaining hypothesis about the ROUTINE rather than the model. -/
+theorem rlpItemDecodeBridgesFrom_of_walkNextStrict {bytes : List (BitVec 8)}
+    {base endPtr : Word} {floor : Nat}
+    (hbytes : ∀ (off : Nat) (next len : Word) (b : BitVec 8),
+      bytes[off]? = some b →
+      BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true →
+      rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
+      ∃ item : RLPItem,
+        decodeAux floor (bytes.drop off) = some (item, bytes.drop (next - base).toNat))
+    (hstrict : RlpWalkNextStrict bytes base endPtr floor) :
+    RlpItemDecodeBridgesFrom bytes base endPtr floor :=
+  rlpItemDecodeBridgesFrom_of_parts hbytes (rlpListInteriorsDecode_of_strict hstrict)
+
 end EvmAsm.Codegen.RlpListCountItemsBridge
