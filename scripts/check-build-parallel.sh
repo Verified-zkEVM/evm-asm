@@ -17,7 +17,10 @@ declare -A expected_steps=(
   [codegen]=5
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  [reports]=3
+  # 4 since the `check-registry-coverage.py --self-test` step was added ahead of
+  # its real run. ⚠️ This count is asserted exactly: adding a `run_step` to a lane
+  # without bumping it here reports the lane INCOMPLETE and fails the wrapper.
+  [reports]=4
   [axioms]=1
   [arithmetic-fuzz]=1
 )
