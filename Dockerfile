@@ -41,7 +41,7 @@ RUN mkdir -p /license-report \
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG EEST_TAG=zkevm@v0.4.0
+ARG EEST_TAG=tests-zkevm@v0.6.2
 ARG GIT_COMMIT=unknown
 ARG GIT_REF=unknown
 ARG BUILD_DATE=unknown
@@ -101,8 +101,15 @@ RUN curl -sSf \
 RUN lake exe codegen --program stateless_guest --halt linux93 \
     -o gen-out/stateless_guest
 
-# Fetch and bake in EEST fixtures (~221 MB, no gh CLI needed; uses curl fallback)
-RUN bash scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
+# Fetch and bake in EEST fixtures (~221 MB, no gh CLI needed; uses curl fallback).
+# Keep the ARG so the resolved value remains visible in the image label, but
+# reject drift from the repository's canonical fixture-tag source.
+RUN canonical_tag="$(tr -d '[:space:]' < scripts/eest-fixture-tag.txt)" \
+    && if [ "${EEST_TAG}" != "${canonical_tag}" ]; then \
+         echo "EEST_TAG=${EEST_TAG} disagrees with scripts/eest-fixture-tag.txt=${canonical_tag}" >&2; \
+         exit 1; \
+       fi \
+    && bash scripts/eest-fetch-fixtures.sh "${EEST_TAG}"
 
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/Verified-zkEVM/evm-asm"
