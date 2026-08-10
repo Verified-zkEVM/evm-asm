@@ -108,7 +108,7 @@ jobs:
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check correspondence-check
+        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep
 
       # Replays the committed oracle corpora against their Lean models — the
       # evidence behind the verdicts in docs/*-spec-correspondence.md and the
@@ -133,6 +133,16 @@ jobs:
       # stays ordered because the byte-tie consumes the region-map ELF.
       - name: Post-build verification gates
         run: scripts/check-build-parallel.sh
+
+      # Whole-library kernel-truth backstop — the "broader sweep of all of
+      # EvmAsm/" noted as future work in scripts/check-axioms.sh, which remains
+      # authoritative for the witnessed-surface policy. Report-only during the
+      # initial soak; flip to enforcing by dropping the trailing `|| echo ...`
+      # once the baseline has survived a few PRs.
+      - name: Axiom sweep (whole-library, report-only)
+        run: |
+          lake exe axiomsweep --check || \
+            echo "::warning::axiomsweep found new axiom/sorry taint (report-only during soak)"
 
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.
