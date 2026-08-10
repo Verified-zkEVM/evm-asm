@@ -76,10 +76,11 @@
   against a reference encoder at `src_len ≥ 56` is this domain restriction, not
   a defect in whatever is under test.
 
-  ## Machine coverage as of this commit — every instruction, in blocks
+  ## Machine coverage — every instruction, in blocks; the composition is a sibling
 
-  All 35 instructions are covered by a block theorem.  What is missing is the
-  *composition* of those blocks, not any block:
+  All 35 instructions are covered by a block theorem, and the composition over
+  them **has since landed** in `RlpEncodeUintBeComposeSAsm.lean` (see "Status" at
+  the end of this section).  The blocks:
 
     * §1, §1b — the pure layer;  §2 — the guest layout
     * §8 — the prologue [0]-[1] (`reubPrologue`), establishing `reubInv … 0`
@@ -96,22 +97,30 @@
     * §7 — the header write [21]-[25] (`reubHeaderWrite`) and the return tail
       [33]-[34] (`reubRetTail`)
 
-  **NOT proven — the one remaining gap is the composition:**
+  ### Status: the composition landed in a sibling module
 
-  There is **no whole-routine triple in this file**.  Chaining §8 → §4 → (§3 |
-  §5 | §7) into one triple for `reubBase → ra &&& ~~~1`, and with it the tie
-  from the written region to `reubOut`, is where `reubOut_short_form`,
-  `reubZeros_sub_length` and the `≤ 55` domain note below finally do their work.
+  No whole-routine triple lives in *this file*, deliberately — it is at the hard
+  1500-line cap, so the composition went to a sibling as planned (precedent:
+  `WithdrawalDecodeClose` → `Close2..5`).
 
-  The composition is what makes `≤ 55` load-bearing; **no block lemma here needs
-  it** (see `truncate_header_byte`, deliberately unconditional).  It goes in a
-  sibling module — this file is at ~1472 of the hard 1500-line cap, which will
-  not hold a composition over twelve block theorems plus its framing.  The
-  precedent is `WithdrawalDecodeClose` → `Close2..5`.
+  ⇒ The whole-routine triples are in **`RlpEncodeUintBeComposeSAsm.lean`**:
+  `reub_spec_within`, `reub_spec_within_of_length_le`, `reub_spec_encode_within`,
+  all three registered in `Progress/Routines.lean` as `.conditional` on `≤ 55`.
+  Chaining §8 → §4 → (§3 | §5 | §7) for `reubBase → ra &&& ~~~1` is where
+  `reubOut_short_form` and `reubZeros_sub_length` do their work; **no block lemma
+  here needs `≤ 55`** (see `truncate_header_byte`, deliberately unconditional).
+  Block coverage in this file is therefore not itself the claim that
+  `rlp_encode_uint_be` computes RLP — that claim is the sibling's, and it is gated.
 
-  So: every instruction has a proof, and the routine as a whole still has none.
-  Block coverage is not the same claim as `rlp_encode_uint_be` computing RLP, and
-  nothing here should be read as the latter.
+  ⚠️ **`.conditional` is the honest ceiling for this routine as emitted, not a
+  proof shortfall.**  Instructions [21]-[23] are `LI x28, 128; ADD x28, x28, x31;
+  SB x12, x28, 0` — header `0x80 + n` **unconditionally**, with no
+  `0xb7 + lenlen` path in the 35 instructions.  No proof upgrades this to
+  `.proven`; above 55 bytes it emits a short header for a long payload, which is
+  an emitted-code question.  (Contrast `rlp_encode_list_prefix`, which *does*
+  implement its long form — lenlen 1..8, header `0xf7 + lenlen` — so there the
+  long-form arm is real proof work.)  Recorded because "conditional" invites an
+  upgrade attempt that cannot succeed here.
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
