@@ -580,7 +580,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- buffer above.  Any unavailable/invalid/OOG deposit takes this helper's
   -- existing conservative failure edge rather than using an unverified code
   -- hash or silently omitting the state-gas charge.
-  "  li t0, 0xa0010000; ld t1, 32(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
+  -- #11798 moved canonical halt_kind to rdg_halt_kind; OUTPUT+32 is no longer
+  -- the halt cell.  Reading OUTPUT+32 here skipped create_deposit_failed_flag
+  -- on every post-11815 CREATE (22 FR, bv_fail=1 terminal root cmp).
+  "  la t0, rdg_halt_kind; ld t1, 0(t0); li t2, 1; bne t1, t2, .Lbvcr_deposit_done\n" ++
   -- GH #10938: the SURVIVOR now deposits at depth 0 (`NoopHalt.returnRevertTail`), so this
   -- stage no longer validates, charges or records — it only SETTLES.  Status 1 means the
   -- survivor saw a depth-0 creation RETURN, so fall through to `.Lbvcr_deposit_done`.  Every
@@ -625,7 +628,9 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- `restore_tx_state` restores writes but preserves reads.
   "  jal ra, dispatcher_restore_body_state\n" ++
   ".Lbvcr_deposit_exception_settle:\n" ++
-  "  li t0, 0xa0010000; li t1, 6; sd t1, 32(t0)\n" ++
+  -- ExceptionalHalt for deposit fail (#11798: rdg_halt_kind, not OUTPUT+32).
+  -- dispatcher_tx_gas_settle reads rdg_halt_kind for the tx success bit.
+  "  la t0, rdg_halt_kind; li t1, 6; sd t1, 0(t0)\n" ++
   ".Lbvcr_deposit_done:\n" ++
   "  jal ra, dispatcher_tx_gas_settle\n" ++
   "  la t4, bv_creation_ctx_ptr; ld s0, 0(t4)  # dispatcher clobbers caller s-registers\n" ++
