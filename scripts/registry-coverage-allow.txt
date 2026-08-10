@@ -26,8 +26,7 @@
 #   structured-only spec as a flat triple is exactly the invisible overclaim this
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 
-# --- TIER A: flat triple at the guest address; registrable now (14) ---
-account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
+# --- TIER A: flat triple at the guest address; registrable now (13) ---
 blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 blsg_le_to_be	tier A — flat triple `blsgLeToBeFn_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G1LeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
 bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
