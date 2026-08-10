@@ -22,8 +22,10 @@ def blockVerdictMtxValidationTail : String :=
   --   skip[2i]   = sender_i    = address_from_pubkey(public_keys[i]+1)
   --   skip[2i+1] = effective recipient_i = the dispatch-settled target
   --                 (raw recipient for CALL/EOA, derived CREATE address for creation)
-  --   skip[2N]   = coinbase     = fee_recipient (bv_exec_p+32)
-  -- count = 2N+1. 32-byte-strided, address in the first 20 bytes. The build loop's
+  -- count = 2N. #10791: the former skip[2N] coinbase entry was write-only (no
+  -- comparator reads it; the coinbase fee credit is recorded in the nonstorage
+  -- effect log by blockVerdictMtxCoinbaseFeeEffect), so the copy is removed.
+  -- 32-byte-strided, address in the first 20 bytes. The build loop's
   -- cursor lives in bv_mtx_skip_idx (memory) so it survives the jal calls; s0/s3
   -- are callee-saved and preserved across them.
   "  la t0, bv_mtx_skip_idx; sd zero, 0(t0)\n" ++
@@ -39,11 +41,9 @@ def blockVerdictMtxValidationTail : String :=
   ".Lbv_skl_rcopy:\n  li t4, 20; beq t3, t4, .Lbv_skl_rcopy_d\n  add t4, t2, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_rcopy\n.Lbv_skl_rcopy_d:\n" ++
   "  la t0, bv_mtx_skip_idx; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0); j .Lbv_skl_loop\n" ++
   ".Lbv_skl_done:\n" ++
-  "  la t2, bv_tx_count; ld t2, 0(t2); slli t5, t2, 6; la t6, bv_mtx_skip_list; add t6, t6, t5\n" ++  -- t6 = &skip[2N] (offset N*64)
-  "  la t1, bv_exec_p; ld t1, 0(t1); addi t1, t1, 32; li t3, 0\n" ++    -- src = fee_recipient (exec_p+32)
-  ".Lbv_skl_cb:\n  li t4, 20; beq t3, t4, .Lbv_skl_cb_d\n  add t4, t1, t3; lbu a0, 0(t4); add t4, t6, t3; sb a0, 0(t4); addi t3, t3, 1; j .Lbv_skl_cb\n.Lbv_skl_cb_d:\n" ++
-  -- #10684/#11210/#11218: NO system copy. count = 2N+1 only (senders+recipients+coinbase).
-  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; addi t3, t3, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++
+  -- #10684/#11210/#11218: NO system copy. #10791: coinbase copy removed (write-only).
+  -- count = 2N only (senders+recipients).
+  "  la t2, bv_tx_count; ld t2, 0(t2); slli t3, t2, 1; la t0, bv_mtx_skip_count; sd t3, 0(t0)\n" ++
   -- #11183 ORDER-1: RETIRED B1 BAL final-nonce field compare (.Lbv_b1_loop Class-A).
   -- Spec pin e5a8caf1b fork.py:390 — only hash of BUILT BAL vs header. Spec has no
   -- supplied body and no field compare; guest field-compare is FR under collision
