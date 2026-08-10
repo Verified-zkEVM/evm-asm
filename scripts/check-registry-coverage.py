@@ -55,8 +55,18 @@ ROUTINES = REPO / "EvmAsm" / "Progress" / "Routines.lean"
 CORRESPOND = REPO / "EvmAsm" / "Progress" / "Correspondence.lean"
 ALLOW = REPO / "scripts" / "registry-coverage-allow.txt"
 
-SPEC_SUFFIXES = ("Fn_spec", "Flat_spec", "_spec_within", "_spec")
-SPEC_RE = re.compile(r"^\s*theorem\s+(\w*(?:Fn_spec|Flat_spec|_spec_within|_spec))\b", re.M)
+# `_fnspec` is listed FIRST and is not redundant with `_spec`: in `…_fnspec` the
+# substring "spec" is preceded by "n", not "_", so `_spec` cannot match it. Before
+# it was added, the three `_fnspec` header byte-field extractors
+# (`header_extract_state_root`, `_receipts_root`, `_withdrawals_root`) were LINKED,
+# carried whole-routine `cpsTripleWithin`s, and were in neither registry nor the
+# allowlist — and this gate scanned straight past them, reporting nothing. That is
+# the #11042 silent-skip class the gate exists to prevent, reappearing through a
+# naming convention the pattern did not cover. A census that cannot see a
+# convention is indistinguishable from one that finds nothing wrong.
+SPEC_SUFFIXES = ("_fnspec", "Fn_spec", "Flat_spec", "_spec_within", "_spec")
+SPEC_RE = re.compile(
+    r"^\s*theorem\s+(\w*(?:_fnspec|Fn_spec|Flat_spec|_spec_within|_spec))\b", re.M)
 
 
 def camel_to_snake(s: str) -> str:
@@ -170,5 +180,59 @@ def main() -> int:
     return 0
 
 
+def self_test() -> int:
+    """Assert `SPEC_RE` recognises every spec-theorem naming convention in the tree.
+
+    A census that cannot see a convention reports nothing wrong, which is
+    indistinguishable from finding nothing wrong. `_fnspec` was exactly that: three
+    linked, spec-bearing header extractors were invisible to this gate, so it passed
+    while covering none of them. This test plants one synthetic name per convention
+    and fails if the pattern stops matching it — the regression control for that.
+    """
+    must_match = [
+        ("theorem header_extract_state_root_fnspec", "header_extract_state_root_fnspec"),
+        ("theorem reb_spec_within", "reb_spec_within"),
+        ("theorem bgvU32leFlat_spec", "bgvU32leFlat_spec"),
+        ("theorem bahU32leFn_spec", "bahU32leFn_spec"),
+        ("theorem rlpListNthItem_spec", "rlpListNthItem_spec"),
+    ]
+    failures: list[str] = []
+    for src, want in must_match:
+        got = SPEC_RE.findall(src)
+        if want not in got:
+            failures.append(f"SPEC_RE missed {want!r} (matched {got!r})")
+
+    # Suffix stripping must recover the guest symbol, or the theorem is attributed
+    # to the wrong routine (or to none) even once the pattern matches.
+    for thm, want_sym in [("header_extract_state_root_fnspec", "header_extract_state_root"),
+                          ("reb_spec_within", "reb"),
+                          ("bgvU32leFlat_spec", "bgv_u32le")]:
+        base = thm
+        for suf in SPEC_SUFFIXES:
+            if base.endswith(suf):
+                base = base[: -len(suf)]
+                break
+        if camel_to_snake(base) != want_sym:
+            failures.append(
+                f"suffix strip of {thm!r} gave {camel_to_snake(base)!r}, want {want_sym!r}")
+
+    # A name that merely CONTAINS "spec" must not match, or the census inflates.
+    for src in ["theorem inspection_helper", "theorem specialised_thing"]:
+        if SPEC_RE.findall(src):
+            failures.append(f"SPEC_RE over-matched on {src!r}")
+
+    if failures:
+        print("check-registry-coverage --self-test: FAIL", file=sys.stderr)
+        for f in failures:
+            print(f"    {f}", file=sys.stderr)
+        return 1
+    print(f"check-registry-coverage --self-test: OK — {len(must_match)} naming "
+          "convention(s) recognised, suffix stripping recovers the symbol, "
+          "no over-match.")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())
     sys.exit(main())
