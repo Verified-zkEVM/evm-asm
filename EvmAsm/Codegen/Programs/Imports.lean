@@ -107,6 +107,7 @@ import EvmAsm.Codegen.Programs.RlpItemSpanMachine
 import EvmAsm.Codegen.Programs.RlpItemSpanLoop
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.MptSpliceSlotSpec
+import EvmAsm.Codegen.Programs.MptWalkSpec
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocks
