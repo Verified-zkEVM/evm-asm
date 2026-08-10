@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Proofs.DoWhileDemo
 import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
 import EvmAsm.Codegen.Proofs.GuestImage
 import EvmAsm.Codegen.Proofs.GuestImageEntries
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
