@@ -79,7 +79,7 @@ def txTypeDispatch_prog : Program :=
   [ .BEQ .x11 .x0 (164 : BitVec 13),
     .LBU .x5 .x10 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BGEU .x5 .x6 (168 : BitVec 13),
+    .BGEU .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 180) (GuestAddrs.tx_type_dispatch + 12)),
     .LI .x6 (1 : Word),
     .BEQ .x5 .x6 (48 : BitVec 13),
     .LI .x6 (2 : Word),

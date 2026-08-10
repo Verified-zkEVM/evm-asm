@@ -113,6 +113,9 @@ private theorem D172 : D + 172 = D + BitVec.ofNat 64 (4 * 43) := by
 private theorem D176 : D + 176 = D + BitVec.ofNat 64 (4 * 44) := by
   simp only [D, GuestAddrs.tx_type_dispatch]; decide
 
+private abbrev guardBgeu : BitVec 13 :=
+  brOff (GuestAddrs.tx_type_dispatch + 180) (GuestAddrs.tx_type_dispatch + 12)
+
 /-- Pure: first byte is a success-path typed-tx prefix. -/
 def isValidTypeByte (b : BitVec 8) : Prop :=
   (b.toNat ≥ 0xc0 ∧ b.toNat < 255) ∨ b.toNat = 1 ∨ b.toNat = 2 ∨
@@ -286,13 +289,16 @@ private theorem D64 : D + 64 = D + BitVec.ofNat 64 (4 * 16) := by
 
 abbrev GuardLi : Word := D + 180
 
+private abbrev guardBr : BitVec 13 :=
+  brOff (GuestAddrs.tx_type_dispatch + 164) (GuestAddrs.tx_type_dispatch + 184)
+
 private theorem GuardLi_eq : GuardLi = D + BitVec.ofNat 64 (4 * 45) := by
   simp only [GuardLi, D, GuestAddrs.tx_type_dispatch]; decide
 private theorem D184 : D + 184 = D + BitVec.ofNat 64 (4 * 46) := by
   simp only [D, GuestAddrs.tx_type_dispatch]; decide
 private theorem D188 : D + 188 = D + BitVec.ofNat 64 (4 * 47) := by
   simp only [D, GuestAddrs.tx_type_dispatch]; decide
-private theorem GuardToFail : (D + 184) + signExtend13 (-20 : BitVec 13) = FailLi := by
+private theorem GuardToFail : (D + 184) + signExtend13 guardBr = FailLi := by
   simp only [FailLi, D, GuestAddrs.tx_type_dispatch]; decide
 private theorem GuardToLegacy : (D + 188) + signExtend21 (-136 : BitVec 21) = LegacyLi := by
   simp only [LegacyLi, D, GuestAddrs.tx_type_dispatch]; decide
@@ -331,9 +337,9 @@ theorem typeLegacyGuard_spec
     (by pcf) hliE
   have hbr := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 184) typeProg 46
-      (.BEQ .x5 .x6 (-20 : BitVec 13)) D184
+      (.BEQ .x5 .x6 guardBr) D184
       (by rw [type_length]; decide) rfl type_bound)
-    (beq_spec_gen_within .x5 .x6 (-20 : BitVec 13)
+    (beq_spec_gen_within .x5 .x6 guardBr
       (b.zeroExtend 64 : Word) (255 : Word) (D + 184))
   have hnt := cpsBranchWithin_ntakenStripPure2 hbr (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
@@ -400,9 +406,9 @@ theorem typeFfGuard_spec
     (by pcf) hliE
   have hbr := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 184) typeProg 46
-      (.BEQ .x5 .x6 (-20 : BitVec 13)) D184
+      (.BEQ .x5 .x6 guardBr) D184
       (by rw [type_length]; decide) rfl type_bound)
-    (beq_spec_gen_within .x5 .x6 (-20 : BitVec 13)
+    (beq_spec_gen_within .x5 .x6 guardBr
       ((0xff : BitVec 8).zeroExtend 64 : Word) (255 : Word) (D + 184))
   have heq : ((0xff : BitVec 8).zeroExtend 64 : Word) = (255 : Word) := by decide
   have htk := cpsBranchWithin_takenStripPure2 hbr (fun _ hq => by
@@ -620,11 +626,11 @@ theorem txTypeDispatch_legacy_spec_within
   -- [3] BGEU x5,x6 +168 TAKEN → appended legacy upper-bound guard
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (168 : BitVec 13))
+      (.BGEU .x5 .x6 guardBgeu)
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 guardBgeu
       (b.zeroExtend 64) (192 : Word) (D + 12))
-  have hpc3 : (D + 12) + signExtend13 (168 : BitVec 13) = GuardLi := by
+  have hpc3 : (D + 12) + signExtend13 guardBgeu = GuardLi := by
     simp only [GuardLi, D, GuestAddrs.tx_type_dispatch]; decide
   rw [hpc3] at hbr3
   have htk3 := cpsBranchWithin_takenStripPure2 hbr3 (fun _ hq => by
@@ -745,11 +751,11 @@ theorem txTypeDispatch_ff_fail_spec_within
     (by pcf) hliE
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (168 : BitVec 13)) D12
+      (.BGEU .x5 .x6 guardBgeu) D12
       (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 guardBgeu
       ((0xff : BitVec 8).zeroExtend 64) (192 : Word) (D + 12))
-  have hpc3 : (D + 12) + signExtend13 (168 : BitVec 13) = GuardLi := by
+  have hpc3 : (D + 12) + signExtend13 guardBgeu = GuardLi := by
     simp only [GuardLi, D, GuestAddrs.tx_type_dispatch]; decide
   rw [hpc3] at hbr3
   have htk3 := cpsBranchWithin_takenStripPure2 hbr3 (fun _ hq => by
