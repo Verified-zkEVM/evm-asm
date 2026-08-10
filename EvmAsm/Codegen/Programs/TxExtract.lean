@@ -55,7 +55,7 @@ private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
     Read the first byte of an RLP/typed-tx-encoded transaction
     and return the type code + inner-RLP offset:
 
-      byte 0 ≥ 0xc0     → legacy (type=0, inner_offset=0)
+      byte 0 in 0xc0..0xfe → legacy (type=0, inner_offset=0)
       byte 0 == 0x01    → EIP-2930 access list (type=1, inner_offset=1)
       byte 0 == 0x02    → EIP-1559 dynamic fee  (type=2, inner_offset=1)
       byte 0 == 0x03    → EIP-4844 blob         (type=3, inner_offset=1)
@@ -79,7 +79,7 @@ def txTypeDispatch_prog : Program :=
   [ .BEQ .x11 .x0 (164 : BitVec 13),
     .LBU .x5 .x10 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BGEU .x5 .x6 (40 : BitVec 13),
+    .BGEU .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 180) (GuestAddrs.tx_type_dispatch + 12)),
     .LI .x6 (1 : Word),
     .BEQ .x5 .x6 (48 : BitVec 13),
     .LI .x6 (2 : Word),
@@ -120,7 +120,10 @@ def txTypeDispatch_prog : Program :=
     .SD .x12 .x0 (0 : BitVec 12),
     .SD .x13 .x0 (0 : BitVec 12),
     .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x6 (255 : Word),
+    .BEQ .x5 .x6 (-20 : BitVec 13),
+    .JAL .x0 (-136 : BitVec 21) ]
 
 def txTypeDispatchFunction : String :=
   "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog
@@ -133,7 +136,7 @@ theorem txTypeDispatchFunction_eq_prog :
     txTypeDispatchFunction = "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog := rfl
 
 #guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
-#guard txTypeDispatch_prog.length = 45
+#guard txTypeDispatch_prog.length = 48
 /-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
 def ziskTxTypeDispatchPrologue : String :=
   "  li sp, 0xa0050000\n" ++
