@@ -62,6 +62,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
+-- #10780 item 3: the 2-length-byte long form, in a sibling module because
+-- RlpSpliceHelperSpec is at the 1500-line cap.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
@@ -444,6 +447,34 @@ def routineRegistry : List RoutineEntry := [
         ++ "same boundary as `rlp_item_size`")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
         ++ "`0xC0 + len` and sets the cell flag to 1"),
+  -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
+  -- but never registered, so it was outside the axiom gate and the registry
+  -- undercounted the routine's coverage — the short row's own gate text already
+  -- describes the cut as `lenlen ≥ 2`, which only makes sense if lenlen = 1 is
+  -- done. Same situation as the #11291 note below: the triple existed, the row
+  -- did not. Registering existing work; no new proof.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long1_pinned_spec_within")
+      (gate := "`56 ≤ len.toNat < 256` — the 1-length-byte long form. Together "
+        ++ "with the short row this covers `len < 256`; `lenlen ≥ 2` (the "
+        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3")
+      (notes := "per-form (\"long1\") pinned triple; writes header bytes "
+        ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
+        ++ "byte and minimal by construction here, so no leading-zero side "
+        ++ "condition is needed at this width"),
+  -- #10780 item 3: the first arm where the length-byte loop runs MORE THAN ONCE, and
+  -- the first where canonical form is a real obligation rather than vacuous.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long2_pinned_spec_within")
+      (gate := "`256 ≤ len.toNat < 65536` — the 2-length-byte long form. With the "
+        ++ "short and long1 rows this covers `len < 65536`; `lenlen ≥ 3` remains "
+        ++ "the cut")
+      (notes := "per-form (\"long2\") pinned triple; writes `[0xF9, len >>> 8, len]` "
+        ++ "and sets the cell flag to 3. The length-byte loop runs TWICE here, so "
+        ++ "the step bound is 32 rather than long1's 22. ⭐ Canonical form is "
+        ++ "discharged separately by `long2_first_length_byte_ne_zero`: the high "
+        ++ "byte is nonzero, so the length-of-length carries no leading zero — "
+        ++ "vacuous at long1, real from here on"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -526,10 +557,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 45 := by decide
+theorem routineCount_eq : routineCount = 47 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 11 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -728,6 +759,15 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
   @EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+-- #10780: the long1 arm, proven since the short arm landed but never registered.
+private noncomputable abbrev _rlp_encode_list_prefix_long1_routine_witness :=
+  @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_long1_pinned_spec_within
+-- #10780 item 3: the long2 arm, plus its canonical-form lemma (the no-leading-zero
+-- property in the length-of-length, which is what makes the header valid RLP).
+private noncomputable abbrev _rlp_encode_list_prefix_long2_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long2_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
