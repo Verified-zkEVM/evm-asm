@@ -37,7 +37,7 @@ theorem dispatchAndRestore
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
     (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
     (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     cpsTripleWithin ((1 + tailSteps) + 5) (B + 48) outer.ra code
       ((((.x1 ↦ᵣ (B + 48)) **
         listCallResult newSp listBase offsetCell lengthCell oldOffset oldLen saved
@@ -195,7 +195,7 @@ theorem rlpFieldToU64_spec_within
       { ra := B + 48, s0 := listBase, s1 := outputPtr, s2 := s2, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     cpsTripleWithin ((7 + 4 + callSteps) + ((1 + tailSteps) + 5))
       B outer.ra code
       ((.x2 ↦ᵣ spOuter) ** regsAt frame (savedVals outer) **

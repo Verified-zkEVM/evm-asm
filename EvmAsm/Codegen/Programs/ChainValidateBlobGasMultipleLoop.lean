@@ -208,9 +208,9 @@ theorem lengths_getElem_bang {lengths : List Nat} {i : Nat} (hi : i < lengths.le
 
 /-- K34's whole-routine step count for field index 17 (matching the flat
     spec's `((7 + 4 + callSteps) + ((1 + tailSteps) + 5))` with `index = 17`). -/
-abbrev nCall : Nat :=
+def nCall (bytesLen : Nat) : Nat :=
   (7 + 4 + (1 + ((12 + ((85 + 93 * (17 + 2)) + 6)) + 9)))
-    + ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5)
+    + ((1 + ((7 + (1 + (7 * bytesLen + 11))) + 5)) + 5)
 
 set_option maxRecDepth 8000 in
 theorem cvbgmCall (hbi lenBase spC iW : Word) (Li : Nat)
@@ -221,7 +221,7 @@ theorem cvbgmCall (hbi lenBase spC iW : Word) (Li : Nat)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (13 + 1 + nCall) (D + 72) (D + 128) fullCode
+    cpsTripleWithin (13 + 1 + nCall bytes.length) (D + 72) (D + 128) fullCode
       ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
         (.x13 ↦ᵣ o13) ** (.x28 ↦ᵣ o28) **
@@ -297,7 +297,7 @@ theorem cvbgmCall (hbi lenBase spC iW : Word) (Li : Nat)
     hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with `x5`/`x28` shown owned.
-  have hcallee : cpsTripleWithin nCall EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA fullCode
+  have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA fullCode
       (regOwn .x5 ** regOwn .x28 **
         ((.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
           (.x18 ↦ᵣ hbi) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ iW) **
@@ -353,7 +353,7 @@ theorem cvbgmCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (13 + 1 + nCall) (D + 72) (D + 128) fullCode
+    cpsTripleWithin (13 + 1 + nCall bytes.length) (D + 72) (D + 128) fullCode
       ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
           memOwn IterPtr ** memOwn IterI **
           ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
@@ -375,7 +375,7 @@ theorem cvbgmCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
         ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
   refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v1 => ?_)
   refine cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => h)
-    (show cpsTripleWithin (13 + 1 + nCall) (D + 72) (D + 128) fullCode
+    (show cpsTripleWithin (13 + 1 + nCall bytes.length) (D + 72) (D + 128) fullCode
       ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
           memOwn IterPtr ** memOwn IterI **
           ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
@@ -420,7 +420,7 @@ theorem cvbgmIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (13 + 1 + nCall)) (D + 68) (D + 128) fullCode
+    cpsTripleWithin (1 + (13 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) (D + 68) (D + 128) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
         (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
         (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ BitVec.ofNat 64 i) ** savedFrame spC csaved **
@@ -1180,7 +1180,7 @@ theorem cvbgmIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
           firstBadPtr csaved bigBytes lengths (i + 1))
         (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths)) :
-    cpsTripleWithin ((1 + (13 + 1 + nCall)) + (27 + nTail)) (D + 68) raIn fullCode
+    cpsTripleWithin ((1 + (13 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) + (27 + nTail)) (D + 68) raIn fullCode
       (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths i)
       (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -1208,19 +1208,19 @@ theorem cvbgmIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
       EvmAsm.Evm64.bytesRegion_split hdrBase bigBytes (hdrOff lengths i) halign hlen,
       ← hHB, ← hLi] at hp
     rw [hEBody]; xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (27 + nTail)) (D + 68) raIn fullCode
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) + (27 + nTail)) (D + 68) raIn fullCode
       (((EBody ** memOwn Field) ** memOwn RfuOff) ** memOwn RfuLen)
       (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)
   refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldLen => ?_)
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (27 + nTail)) (D + 68) raIn fullCode
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) + (27 + nTail)) (D + 68) raIn fullCode
       (((EBody ** (RfuLen ↦ₘ oldLen)) ** memOwn Field) ** memOwn RfuOff)
       (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)
   refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff => ?_)
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-    (show cpsTripleWithin ((1 + (13 + 1 + nCall)) + (27 + nTail)) (D + 68) raIn fullCode
+    (show cpsTripleWithin ((1 + (13 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) + (27 + nTail)) (D + 68) raIn fullCode
       (((EBody ** (RfuLen ↦ₘ oldLen)) ** (RfuOff ↦ₘ oldOff)) ** memOwn Field)
       (cvbgmPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr csaved bigBytes lengths) from ?_)

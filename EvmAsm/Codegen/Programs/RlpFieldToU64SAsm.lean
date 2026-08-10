@@ -1217,12 +1217,11 @@ theorem callContentOwned
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+    cpsTripleWithin (1 + (7 * bytes.length + 11))
       (B + 80) (B + 84) code
       (contentReadyRa sp0 listBase vOld saved bytes listLen index)
       (contentDone sp0 listBase saved bytes listLen index) := by
-  -- The displayed bound is normalized per selected `len` below; monotonicity
-  -- to a caller-wide bound is supplied by the whole-routine theorem.
+  -- The selected content span is bounded by the caller-owned byte region.
   unfold contentReadyRa
   refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
     (fun offset => ?_)
@@ -1275,7 +1274,7 @@ theorem callContentOwned
           have hc0 := callContentFramedExact sp0 listBase offset len vOld x6Old
             x7Old x28Old v12 saved bytes listLen index h_ok hsalign hslack hover
             hvalid
-          have hc : cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+          have hc : cpsTripleWithin (1 + (7 * bytes.length + 11))
               (B + 80) (B + 84) code
               ((((.x1 ↦ᵣ vOld) **
                 ((.x10 ↦ᵣ (listBase + offset)) ** (.x11 ↦ᵣ len) **
@@ -1289,7 +1288,7 @@ theorem callContentOwned
                 contentCarry sp0 listBase offset len v12 saved) **
                ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen
                  index offset len⌝) := cpsTripleWithin_mono_nSteps (by
-            have := len.isLt
+            have hb := success_content_bounds h_ok hslack hover
             omega) hc0
           refine cpsTripleWithin_weaken (fun h hp => by
               unfold P28 at hp
@@ -1319,7 +1318,7 @@ theorem callContent
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+    cpsTripleWithin (1 + (7 * bytes.length + 11))
       (B + 80) (B + 84) code
       ((.x1 ↦ᵣ vOld) ** contentReady sp0 listBase saved bytes listLen index)
       (contentDone sp0 listBase saved bytes listLen index) := by
