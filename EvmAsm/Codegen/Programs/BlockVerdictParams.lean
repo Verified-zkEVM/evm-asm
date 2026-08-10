@@ -10,6 +10,7 @@
 import EvmAsm.Codegen.Programs.EvmAccessGas
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 import EvmAsm.Codegen.RegionMapLinkPins
+import EvmAsm.Stateless.Constants
 import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen
@@ -277,7 +278,8 @@ def bvReceiptRecordBytes : Nat := 64
 def bvReceiptRecordsBytes : Nat := bvReceiptRecordCapacity * bvReceiptRecordBytes
 
 /-- Current EEST resource target for Amsterdam/Prague/Osaka stateless blocks. -/
-def bvResourceBlockGasLimit : Nat := 200000000
+def bvResourceBlockGasLimit : Nat :=
+  EvmAsm.Stateless.Constants.resourceBlockGasLimit
 
 /-- EVM LOG base gas. A zero-topic, zero-data LOG0 is the cheapest way to
     increase the number of execution-derived receipt log descriptors. -/

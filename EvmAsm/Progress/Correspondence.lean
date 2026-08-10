@@ -455,12 +455,18 @@ fixture failed for an unrelated reason. An unstated pairing is how a predicate d
 the reference indefinitely. WHY `domainRestricted` AND NOT `agrees`: fields 2/3 were closed \
 by #11483/#11484 (zero-length storage_root/code_hash now fold to EMPTY_TRIE_ROOT / \
 EMPTY_CODE_HASH, matching the reference's `if decoded[2] else EMPTY_TRIE_ROOT`), but \
-`Decoded` still carries l0 <= 8 and l1 <= 32 LENGTH limits on nonce/balance where the \
-reference imposes no length constraint at all -- it just runs `int.from_bytes`. So a \
-zero-prefixed or over-width nonce/balance is accepted by the reference and outside what we \
-prove. That is #11523, still open, and this row is the thing that keeps the gap visible \
-instead of assumed. It is a COVERAGE GAP, not an ABI precondition: the guest may well handle \
-those inputs; we have not proved it. ⚠️ NOT a portDefect: #11516 checked \
+`Decoded` still carries the guest's significant-length checks `≤ 8` for nonce and `≤ 32` \
+for balance. These are load-bearing emitted branches, not ABI facts: `State.lean:97-98` \
+branches on `bltu 8, sigLen` to the decode failure, and `State.lean:130-131` does the \
+same for `bltu 32, sigLen`; `AccountDecodeDispatch.lean:318-330` ties those branches to \
+`nonceValueOk`/`balanceValueOk`. The reference at `SpecRef/WitnessState.lean:121-122` \
+just runs `bytesBEtoNat` and imposes neither cap, so a field with nine significant nonce \
+bytes or 33 significant balance bytes is accepted there and rejected by the guest. That \
+semantic mismatch cannot be removed by a proof-only change: `.agrees` requires changing \
+the guest checks or narrowing the reference domain. #11523 remains the open semantic gap, \
+and this row keeps it visible. `AccountRecord.WF` (`AccountAssertions.lean:92-94`) repeats \
+the bounds for modelled valid records, but is not an ABI precondition on arbitrary leaf \
+bytes and cannot erase the decoder-domain mismatch. ⚠️ NOT a portDefect: #11516 checked \
 `decode_account_from_leaf` field-for-field against witness_state.py:112-118 and found them \
 identical, including the malformed case -- SpecRef modelled the folds correctly all along, so \
 the outlier was our own predicate. Standing hazard from that issue, repeated here because it \

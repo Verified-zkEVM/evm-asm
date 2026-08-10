@@ -30,6 +30,18 @@
 
 namespace EvmAsm.Stateless.Constants
 
+/-! ## Resource-envelope constants
+
+    The stateless guest's finite arenas are derived for this declared
+    block-gas envelope.  It is a precondition of the top-level soundness
+    statement, not a consensus rule and not a runtime rejection gate. -/
+
+/-- The declared block-gas limit covered by the finite-resource theorem.
+    Inputs declaring a larger limit remain outside that theorem's promise. -/
+def resourceBlockGasLimit : Nat := 200000000
+
+#guard resourceBlockGasLimit = 200000000
+
 /-- Hex string of `keccak256(b"")`. Same value also doubles as
     `EMPTY_CODE_HASH` (accounts without contract code reference
     this hash; per EIP-161 these accounts get deleted from the
