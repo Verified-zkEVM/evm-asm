@@ -129,15 +129,24 @@ def obligations : List Obligation := [
       [.infra "`rlp_item_span` has no machine triple (#11577)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
-       .infra "nested-list decode bridges blocked on `DecodeChain` \
-fuel-insensitivity (#11711; residual #11795)"],
-    auditedAt := some "2026-08-10 @372162cc2",
-    note := "pure-Lean RLP ✅; the RV64 decoder registry is 33 rows / 24 proven / \
+       .infra "nested-list decode bridges: `rlpItemDecode`'s list arms check a \
+span fit and say nothing about the payload, while `decodeAux` rejects a malformed \
+interior — a strength mismatch, tracked at #11795 with the relation-side decision \
+scoped at #11898"],
+    auditedAt := some "2026-08-10 @04de93895",
+    note := "pure-Lean RLP ✅; the RV64 decoder registry is 35 rows / 26 proven / \
 9 conditional / 0 partly (`Progress/Routines.lean`). Re-audited 2026-08-10 \
 (#11803): the previous blocker text (\"RV64 RLP decoder phases 1–3 (in \
 progress)\") named a phase range PLAN.md:5230 states as 1–6 and cited no \
-locatable gap; the three blockers above are the gaps the registries actually \
-record. The witness-side decode leaves are tracked on obligation 10, not here" },
+locatable gap; the blockers above are the gaps the registries actually \
+record. The witness-side decode leaves are tracked on obligation 10, not here. \
+⭐ Re-audited AGAIN the same day, because `check-obligation-blockers.sh` — added \
+by that very audit — flagged this row within hours: the third blocker cited \
+#11711, which #11894 closed. Dropping it revealed that the fuel requirement was \
+only ONE of two obstructions, so the blocker now names the surviving one (the \
+span-vs-payload strength mismatch) instead of the closed one. That is the gate \
+doing exactly its job on its own author's work, which is the best available \
+evidence it is not decorative" },
   { id := 4, name := "EVM interpreter loop on the decoded block",
     status := .blocked,
     blockedBy :=
