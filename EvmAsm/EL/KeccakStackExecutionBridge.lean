@@ -18,6 +18,12 @@ abbrev AcceleratorOutput := KeccakResultBridge.AcceleratorOutput
 abbrev KeccakRequest := KeccakEcallBridge.KeccakRequest
 abbrev KeccakResult := KeccakEcallBridge.KeccakResult
 
+/-- An opaque Keccak result function.  The handler proof must not unfold a
+    particular permutation implementation: its semantic boundary is a
+    32-byte digest for the byte slice supplied to the accelerator. -/
+abbrev AbstractHash :=
+  List EvmAsm.EL.RLP.Byte → KeccakResultBridge.HashBytes
+
 /-- KECCAK accelerator model used by the pure execution bridge. -/
 abbrev Accelerator := AcceleratorInput -> AcceleratorOutput
 
@@ -50,6 +56,36 @@ def runKeccakStack? (accelerator : Accelerator)
         (KeccakEcallBridge.requestFromInput input)
       some (KeccakEcallBridge.stackWordFromResult result :: rest)
   | _ => none
+
+/-- Turn an opaque hash function into the accelerator-shaped result expected by
+    the stack bridge.  `stackWordFromAcceleratorHash` is intentional here: the
+    emitted handler reverses the accelerator's standard digest bytes before
+    the dispatcher observes the little-endian-limb EVM stack word. -/
+def abstractAccelerator (keccak256 : AbstractHash) : Accelerator :=
+  fun input => { hash := keccak256 input.bytes }
+
+def abstractHashStackWord (keccak256 : AbstractHash) (msg : List EvmAsm.EL.RLP.Byte) : EvmWord :=
+  KeccakResultBridge.stackWordFromAcceleratorHash (keccak256 msg)
+
+/--
+Top-level KECCAK256 stack specification.  For a stack beginning with
+`offset, size`, the handler reads exactly `size` bytes from memory beginning at
+`offset`, hashes that slice, converts the standard digest-byte convention to
+the EVM word convention, and replaces the two arguments with that one word.
+
+The hash is an opaque parameter.  Memory bounds and alignment belong to the
+machine handler's ABI/resource contract; the pure stack bridge deliberately
+does not introduce a smaller input-domain cap.
+ -/
+theorem evm_keccak256_stack_spec
+    (keccak256 : AbstractHash) (memory : MemoryReader)
+    (offset size : EvmWord) (rest : List EvmWord) :
+    runKeccakStack? (abstractAccelerator keccak256) memory
+        (offset :: size :: rest) =
+      some
+        (abstractHashStackWord keccak256
+          (KeccakInputBridge.memoryReadBytes memory offset.toNat size.toNat) :: rest) := by
+  rfl
 
 theorem requestFromStack?_some
     (memory : MemoryReader) (offset size : EvmWord) (rest : List EvmWord) :
