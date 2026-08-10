@@ -10,7 +10,7 @@
   ##  (`STATE_TRACKER_AREA`, a legacy M24 port-contract anchor), NO         ##
   ##  emitted guest instruction references any anchor below; the guest's    ##
   ##  real EVM memory / value stack / node & code tables live in `.data`    ##
-  ##  (`-Tdata=0xa3000000`) and in place in the INPUT blob. Worse, the      ##
+  ##  (`-Tdata=0xa0b00000`) and in place in the INPUT blob. Worse, the      ##
   ##  live RV64 call stack (`_start`: `li sp, 0xa0050000`, grows down)      ##
   ##  OCCUPIES `[0xa0020000, 0xa0050000)` — i.e. `SSZ_INPUT_DECODED` and    ##
   ##  the bottom of `EXECUTION_WITNESS_AREA` are stack memory in the        ##
@@ -52,12 +52,12 @@
                                [+ 8..16]  LE u64 length of first record
                                [+16..]    SSZ-encoded SszStatelessInput
   0x80000000 .. 0xa0000000   .text + .rodata + .bss (ELF `-Ttext=0x80000000`)
-  0xa3000000 .. 0xbf980000   .data (`-Tdata=0xa3000000`; static tables,
+  0xa0b00000 .. 0xbf980000   .data (`-Tdata=0xa0b00000`; static tables,
                              fixed data, and 1G-cap BSR/BAL arenas)
   0xa0010000 .. 0xa0020000   OUTPUT_ADDR (64 KiB, public output)
                                [+ 0..N]   SSZ-encoded
                                           SszStatelessValidationResult
-  0xa0020000 .. 0xa3000000   working RAM (decoded structures, DBs,
+  0xa0020000 .. 0xa0b00000   working RAM (decoded structures, DBs,
                              frames) -- the Stateless guest claims this
                              lower tail of ziskemu's RAM region.
   0xbf980000 .. 0xc0000000   .sszscratch NOBITS merkleization scratch
@@ -72,13 +72,18 @@
   the verified `isValidMemAddr` predicate as of issue #5164 -- see
   `EvmAsm/Rv64/Basic.lean` for the disjunctive definition.
 
-  ## Working-RAM sub-regions (0xa0020000 .. 0xa3000000)
+  ## Working-RAM sub-regions (0xa0020000 .. 0xa0b00000)
 
   Each anchor is the start of a region whose size is sized at codegen
   time. Sizes will be tightened as modules land; for now we reserve
   generous slabs so successive PRs do not have to reflow addresses.
-  Total reserved through `SHA256_SCRATCH` end is ~28 MiB; ziskemu's
-  RAM region carries ~512 MiB of headroom past `0xa0020000`.
+  Linked `.bss` now owns `0xa0b70000` (logs head + lead pad + main body;
+  GH #11186). Former aspirational slabs `EVM_MEMORY_AREA` (16 MiB at that
+  base) and `KECCAK`/`ECRECOVER`/`SHA256_SCRATCH` (which collided with the
+  raised block-read pack) are **not** declared as `Word` anchors — a
+  RegionMap entry would assert fit/disjointness for VAs nothing uses.
+  Production substitutes: `evm_memory` / `evm_memory_pool` /
+  `call_frame_arena` and per-routine `.bss` crypto scratch symbols.
 
   | Anchor                       | Address          | Size budget |
   |------------------------------|------------------|-------------|
@@ -90,25 +95,22 @@
   | `STATE_TRACKER_AREA`         | `0xa0630000`     | 4 MiB legacy |
   | `EVM_FRAME_STACK`            | `0xa0a30000`     | 256 KiB     |
   | `EVM_VALUE_STACK`            | `0xa0a70000`     | 1 MiB       |
-  | `EVM_MEMORY_AREA`            | `0xa0b70000`     | 16 MiB      |
-  | `KECCAK_SCRATCH`             | `0xa1b70000`     | 64 KiB      |
-  | `ECRECOVER_SCRATCH`          | `0xa1b80000`     | 64 KiB      |
-  | `SHA256_SCRATCH`             | `0xa1b90000`     | 64 KiB      |
-  | `STORAGE_READS_AREA`         | `0xa1ba0000`     | 1 MiB       |
-  | `ACCOUNT_READS_AREA`         | `0xa1ca0000`     | 512 KiB     |
-  | `CODE_READS_AREA`            | `0xa1d20000`     | 512 KiB     |
-  | `TX_STORAGE_READS_AREA`      | `0xa1da0000`     | 1 MiB       |
-  | `TX_ACCOUNT_READS_AREA`      | `0xa1ea0000`     | 512 KiB     |
-  | `TX_CODE_READS_AREA`         | `0xa1f20000`     | 512 KiB     |
-  | `STORAGE_WRITES_AREA`        | `0xa1fa0000`     | 8,533,248 B (66,666×128) |
-  | `TX_STORAGE_WRITES_AREA`     | `0xa27d0000`     | 715,264 B (5,588×128) |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xbc377000`     | 26,824,320 B (167,652×160) |
-  | `ACCOUNT_WRITES_AREA`        | `0xbdd80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
-  | `TX_ACCOUNT_WRITES_AREA`     | `0xa2b20000`     | 2 MiB       |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe580000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
+  | `STORAGE_READS_AREA`         | `0xa1908780`     | 4,266,624 B (66,666×64) |
+  | `ACCOUNT_READS_AREA`         | `0xa1d1a200`     | 2,133,312 B (66,666×32) |
+  | `CODE_READS_AREA`            | `0xa1f22f40`     | 4,266,624 B (66,666×64) |
+  | `TX_STORAGE_READS_AREA`      | `0xa23349c0`     | 1 MiB (16,384×64) |
+  | `TX_ACCOUNT_READS_AREA`      | `0xa24349c0`     | 512 KiB (16,384×32) |
+  | `TX_CODE_READS_AREA`         | `0xa24b49c0`     | 512 KiB (8,192×64; cold bound 5,588) |
+  | `STORAGE_WRITES_AREA`        | `0xa25349c0`     | 8,533,248 B (66,666×128) |
+  | `TX_STORAGE_WRITES_AREA`     | `0xa2d57ec0`     | 715,264 B (5,588×128) |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xbbf5e000`     | 26,824,320 B (167,652×160) |
+  | `ACCOUNT_WRITES_AREA`        | `0xbdb80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe380000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
+  | `TX_ACCOUNT_WRITES_AREA`     | `0xbf780000`     | 2 MiB (high pack → SSZ) |
 
-  (`EVM_MEMORY_AREA` budget is per-frame nominal; with max call depth
-  1024 the precise per-frame slicing is tracked in `Stateless/VM/`.)
+  (GH #11186: logs raised into `.bss` head; block reads raised to cold bound;
+  high AW/AU/TX_AW pack top-down into SSZ. Production EVM memory is
+  `evm_memory` / `evm_memory_pool` / `call_frame_arena` in `.bss`.)
 
   ## Calling convention (non-leaf stateless code)
 
@@ -189,25 +191,6 @@ def EVM_FRAME_STACK         : Word := 0xa0a30000
     `call_frame_arena` (32 KiB window per slot,
     `Codegen/CallFrameLayout.lean`). -/
 def EVM_VALUE_STACK         : Word := 0xa0a70000
-/-- ASPIRATIONAL — emitted reality: EVM memory is per-frame inside
-    `call_frame_arena` (64 KiB window per slot,
-    `Codegen/CallFrameLayout.lean`; dispatcher-era global `evm_memory`
-    lives in `.data`). The `evmMemoryIs` assertion
-    (`EvmAsm/Evm64/StateAssertions.lean`) is base-parametrized and carries
-    no fixed anchor; callers instantiate `base`/`capacity` from the
-    frame's actual placement (issue #10526). -/
-def EVM_MEMORY_AREA         : Word := 0xa0b70000
-/-- ASPIRATIONAL — emitted reality: keccak inputs are staged in `.data`
-    scratch (`wlh_scratch_hash`, `mset_db_hash`, …) and via the ZisK
-    keccak ECALL. -/
-def KECCAK_SCRATCH          : Word := 0xa1b70000
-/-- ASPIRATIONAL — emitted reality: ecrecover staging is `.data` scratch
-    around the ZisK ECALL bridges. -/
-def ECRECOVER_SCRATCH       : Word := 0xa1b80000
-/-- ASPIRATIONAL — emitted reality: sha256 staging is `.data` scratch
-    around the ZisK ECALL bridges. -/
-def SHA256_SCRATCH          : Word := 0xa1b90000
-
 /-! ## Read containers — the spec's three read sets (GH #10619)
 
     `state_tracker.py` keeps reads and writes in **separate containers with
@@ -244,12 +227,13 @@ def SHA256_SCRATCH          : Word := 0xa1b90000
     read is `addrHash(32) ++ codeHash(32)`. Capacities match the write log's
     16384 rows so a read container cannot overflow before the write log does. -/
 
-/-- `storage_reads` — 16384 × 64 B (`addrHash ++ slotKey`). -/
-def STORAGE_READS_AREA      : Word := 0xa1ba0000
-/-- `account_reads` — 16384 × 32 B (`addrHash`). -/
-def ACCOUNT_READS_AREA      : Word := 0xa1ca0000
-/-- `code_reads` — 8192 × 64 B (`addrHash ++ codeHash`). -/
-def CODE_READS_AREA         : Word := 0xa1d20000
+/-- `storage_reads` — 66,666 × 64 B (`addrHash ++ slotKey`); cold bound
+    `200M/3000` (GH #11186). -/
+def STORAGE_READS_AREA      : Word := 0xa1908780
+/-- `account_reads` — 66,666 × 32 B (`addrHash`). -/
+def ACCOUNT_READS_AREA      : Word := 0xa1d1a200
+/-- `code_reads` — 66,666 × 64 B (`addrHash ++ codeHash`). -/
+def CODE_READS_AREA         : Word := 0xa1f22f40
 
 /-! ### The TRANSACTION level of the same three sets (GH #10619, review gate 3)
 
@@ -273,11 +257,11 @@ def CODE_READS_AREA         : Word := 0xa1d20000
 
 /-- Per-transaction `storage_reads` — merged up and cleared by
     `read_sets_incorporate_tx`. -/
-def TX_STORAGE_READS_AREA   : Word := 0xa1da0000
+def TX_STORAGE_READS_AREA   : Word := 0xa23349c0
 /-- Per-transaction `account_reads`. -/
-def TX_ACCOUNT_READS_AREA   : Word := 0xa1ea0000
+def TX_ACCOUNT_READS_AREA   : Word := 0xa24349c0
 /-- Per-transaction `code_reads`. -/
-def TX_CODE_READS_AREA      : Word := 0xa1f20000
+def TX_CODE_READS_AREA      : Word := 0xa24b49c0
 
 /-! ### `storage_writes` — the WRITE side of the same two levels (GH #10619, r59nm S2)
 
@@ -312,9 +296,9 @@ def TX_CODE_READS_AREA      : Word := 0xa1f20000
     undo journal is relocated above `.state_gas_diag`. -/
 
 /-- Block-level `storage_writes` — filled only by `write_sets_incorporate_tx`. -/
-def STORAGE_WRITES_AREA     : Word := 0xa1fa0000
+def STORAGE_WRITES_AREA     : Word := 0xa25349c0
 /-- Per-transaction `storage_writes` — the target of `storage_write_record`. -/
-def TX_STORAGE_WRITES_AREA  : Word := 0xa27d0000
+def TX_STORAGE_WRITES_AREA  : Word := 0xa2d57ec0
 
 /-! ### The write-map UNDO JOURNAL (r59nm S5a)
 
@@ -371,7 +355,7 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa27d0000
         +16  (16 B pad — keeps payload at +32)
         +32  payload: prevValue (32 B) when wasAbsent=0;
              full map row (128 B) when wasAbsent=2 -/
-def STORAGE_WRITES_UNDO_AREA : Word := 0xbc377000
+def STORAGE_WRITES_UNDO_AREA : Word := 0xbbf5e000
 
 /-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
 
@@ -414,9 +398,9 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xbc377000
     grow and the space adjacent to them in the scheme-A block was 0.88 MiB. The
     4.5 MiB they vacated is a deliberate hole — see the structural `#guard`s in
     `AccountWriteMap.lean`. -/
-def ACCOUNT_WRITES_AREA      : Word := 0xbdd80000
+def ACCOUNT_WRITES_AREA      : Word := 0xbdb80000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
-def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
+def TX_ACCOUNT_WRITES_AREA   : Word := 0xbf780000
 /-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 163840 × 128 B = 20 MiB,
     covering the **161204** account-write-EVENT bound derived in GH #11770.
 
@@ -452,7 +436,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xa2b20000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe580000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe380000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 

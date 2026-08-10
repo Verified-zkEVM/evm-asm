@@ -51,7 +51,7 @@ def blockVerdictReceiptsTail : String :=
   "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
   "  la t0, code_reads_overflow; ld t0, 0(t0); bnez t0, .Lbv_cpg_fail\n" ++
   "  la t0, code_reads_count; ld s0, 0(t0)\n" ++
-  "  li s1, 0xa1d20000\n" ++
+  "  li s1, 0xa1f22f40\n" ++
   ".Lbv_cpg_loop:\n" ++
   "  beqz s0, .Lbv_cpg_done\n" ++
   "  la a0, svf_codes_ptr; ld a0, 0(a0)\n" ++

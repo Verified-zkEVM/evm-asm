@@ -39,11 +39,11 @@ namespace EvmAsm.Codegen
 def bnpFp2InvPc : Nat := 0x80000000
 
 /-- Probe-only data placeholders (unlinked inv consumer; not in GuestAddrs). -/
-def bnpT0Placeholder : Nat := 0xa3000000
-def bnpT1Placeholder : Nat := 0xa3000000
-def bnpT2Placeholder : Nat := 0xa3000000
-def bnpPMinus1LePlaceholder : Nat := 0xa3000000
-def bnpPMinus2LePlaceholder : Nat := 0xa3000000
+def bnpT0Placeholder : Nat := 0xa0b00000
+def bnpT1Placeholder : Nat := 0xa0b00000
+def bnpT2Placeholder : Nat := 0xa0b00000
+def bnpPMinus1LePlaceholder : Nat := 0xa0b00000
+def bnpPMinus2LePlaceholder : Nat := 0xa0b00000
 
 open EvmAsm.Rv64
 

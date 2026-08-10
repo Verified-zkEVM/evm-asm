@@ -452,7 +452,7 @@ pin, never SpecRef alone -- citing our own Lean to justify spec alignment is cir
     reference := "logs_bloom's pointwise-OR decomposition \
 (SpecRef/BloomAlgebra.lean: bloomOr, logs_bloom_append)",
     note := "⭐ THE COUNTERPART HAD TO BE CONSTRUCTED, which is the whole content of \
-this row. The reference `logs_bloom` (Fork.lean:101) never ORs two blooms: it folds \
+this row. The reference `logs_bloom` (Fork.lean:128) never ORs two blooms: it folds \
 *bit-sets* into one accumulator via `add_to_bloom`'s three `List.set`s, over the \
 block's logs as one flat list. The guest instead materialises a bloom per receipt and \
 ORs them pairwise. So before #11348 there was no reference term for this routine's post \
@@ -546,7 +546,7 @@ reference genuinely differ in KIND rather than in bound (#11615)" },
   { family := "header", routine := "header_extract_logs_bloom",
     spec := some "header_logs_bloom_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:158, \
+    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:210, \
 stateless.py:244)",
     note := "#11575 row 1, the first fork of #11351's pattern -- and it lands CLEANER than \
 its representative, which is the point worth recording. \
@@ -597,7 +597,7 @@ assumed. ⚠️ CITATION KIND: the `FixedBytes` clause cites an EXTERNAL package
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:158, \
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:210, \
 stateless.py:244)",
     note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
 different reason than before and the reason is the whole content of this row. The previous note \
@@ -712,7 +712,7 @@ machine-checked rather than a local restatement. Regraded in #11341" },
   { family := "crypto", routine := "blsg_lt_p",
     spec := some "blsgLtP_spec_specref",
     verdict := .domainRestricted, basis := .ported,
-    reference := "Bls12.bytes_to_fq (SpecRef/PrecompilesBls.lean:78), a port of \
+    reference := "Bls12.bytes_to_fq (SpecRef/PrecompilesBls.lean:79), a port of \
 amsterdam/vm/precompiled_contracts/bls12_381/__init__.py:426-454",
     note := "WHY `domainRestricted` AND NOT `agrees`: the tie carries \
 `w.length = 64` and `∀ i < 16, w.getD i 0 = 0` — the EIP-2537 wire pad. That gate is \
@@ -756,7 +756,7 @@ differ. See #11574" },
     spec := some "bnfLtP_spec_specref",
     verdict := .agrees, basis := .ported,
     reference := "the `x >= field_modulus` guard of Bn128.bytes_to_g1 \
-(SpecRef/PrecompilesCurve.lean:83), a port of \
+(SpecRef/PrecompilesCurve.lean:85), a port of \
 amsterdam/vm/precompiled_contracts/alt_bn128.py:39-82",
     note := "⭐ NO wire-pad gate, unlike the BLS twin, and the asymmetry is real rather \
 than an oversight: `bytes_to_g1` reads `buffer_read(data, 0, 32)` directly against a guest \

@@ -42,7 +42,7 @@
       +0  addrHash (32 B)  the frame's env.ADDRESS, keyed exactly as the write log
       +32 slotKey  (32 B)  the EVM stack word
 
-  64 B stride over `STORAGE_READS_AREA` (`0xa1da0000`, 16384 entries). Base and
+  64 B stride over `TX_STORAGE_READS_AREA` (`0xa23349c0`, 16384 entries). Base and
   stride are both 8-aligned, so every `ld`/`sd` below is 8-aligned as the RV64
   operational semantics require.
   ## Two levels (GH #10619 review gate 3)
@@ -132,7 +132,7 @@ def storageReadRecordFunction : String :=
   "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Lsrr_overflow\n" ++
-  "  li t3, 0xa1da0000\n" ++                                 -- t3 = STORAGE_READS_AREA
+  "  li t3, 0xa23349c0\n" ++                                 -- t3 = STORAGE_READS_AREA
   "  li t4, 0\n" ++                                          -- t4 = i
   ".Lsrr_scan:\n" ++
   "  bgeu t4, t1, .Lsrr_append\n" ++
@@ -194,9 +194,9 @@ def storageReadRecordBlockFunction : String :=
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
   "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
   "  la t0, storage_reads_count; ld t1, 0(t0)\n" ++
-  "  li t2, 16384\n" ++
+  "  li t2, 66666\n" ++
   "  bgeu t1, t2, .Lsrrb_overflow\n" ++
-  "  li t3, 0xa1ba0000\n" ++
+  "  li t3, 0xa1908780\n" ++
   "  li t4, 0\n" ++
   ".Lsrrb_scan:\n" ++
   "  bgeu t4, t1, .Lsrrb_append\n" ++

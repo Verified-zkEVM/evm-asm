@@ -25,9 +25,10 @@
 
   ## Working RAM
 
-  Per-frame memory lives at `EVM_MEMORY_AREA` (16 MiB nominal,
-  sliced per frame; precise sizing in
-  `EvmAsm/Stateless/MemoryLayout.lean`).
+  Per-frame memory in the emitted guest is `evm_memory` /
+  `evm_memory_pool` / `call_frame_arena` in `.bss` (GH #11186). The
+  former aspirational `0xa0b70000` 16 MiB slab is reclaimed — not a
+  `MemoryLayout` anchor.
 
   ## PR-K12 status
 

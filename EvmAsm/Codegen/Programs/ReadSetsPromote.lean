@@ -132,18 +132,18 @@ def readSetsIncorporateTxFunction : String :=
   "read_sets_incorporate_tx:\n" ++
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   -- storage_reads: 64 B stride, 64 B compared (addrHash ++ slotKey), cap 16384
-  "  li a0, 0xa1da0000; la a1, tx_storage_reads_count; li a2, 0xa1ba0000\n" ++
+  "  li a0, 0xa23349c0; la a1, tx_storage_reads_count; li a2, 0xa1908780\n" ++
   "  la a3, storage_reads_count; li a4, 64; li a5, 64; li a6, " ++
   toString balBuilderStorageReadsCapacity ++ "\n" ++
   "  la a7, storage_reads_overflow; jal ra, read_sets_merge_one\n" ++
   -- account_reads: 32 B stride, 20 B compared (the address; bytes 20..31 are padding)
-  "  li a0, 0xa1ea0000; la a1, tx_account_reads_count; li a2, 0xa1ca0000\n" ++
-  "  la a3, account_reads_count; li a4, 32; li a5, 20; li a6, 16384\n" ++
+  "  li a0, 0xa24349c0; la a1, tx_account_reads_count; li a2, 0xa1d1a200\n" ++
+  "  la a3, account_reads_count; li a4, 32; li a5, 20; li a6, 66666\n" ++
   "  la a7, account_reads_overflow; jal ra, read_sets_merge_one\n" ++
   -- code_reads: 64 B stride; compare the 20-byte address AND the 32-byte hash, so
   -- compare the whole 64-byte slot (padding is zeroed on both sides)
-  "  li a0, 0xa1f20000; la a1, tx_code_reads_count; li a2, 0xa1d20000\n" ++
-  "  la a3, code_reads_count; li a4, 64; li a5, 64; li a6, 8192\n" ++
+  "  li a0, 0xa24b49c0; la a1, tx_code_reads_count; li a2, 0xa1f22f40\n" ++
+  "  la a3, code_reads_count; li a4, 64; li a5, 64; li a6, 66666\n" ++
   "  la a7, code_reads_overflow; jal ra, read_sets_merge_one\n" ++
   "  ld ra, 0(sp); addi sp, sp, 16\n" ++
   "  j read_sets_discard_tx\n" ++                        -- the CLEAR at :879-881

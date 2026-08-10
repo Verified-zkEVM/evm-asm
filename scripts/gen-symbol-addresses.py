@@ -52,8 +52,8 @@ STABLE_BASES = {
     "INPUT_ADDR":   0x40000000,
     "OUTPUT_ADDR":  0xa0010000,
     ".text":        0x80000000,
-    ".data":        0xa3000000,
-    ".bss":         0xa3110000,
+    ".data":        0xa0b00000,
+    ".bss":         0xa0b70000,
     ".sszscratch":  0xbf980000,
     "ssz_input_decoded":      0xa0020000,
     "execution_witness_area": 0xa0030000,
@@ -62,26 +62,25 @@ STABLE_BASES = {
     "state_tracker_area":     0xa0630000,
     "evm_frame_stack":        0xa0a30000,
     "evm_value_stack":        0xa0a70000,
-    "evm_memory_area":        0xa0b70000,
-    "keccak_scratch":         0xa1b70000,
-    "ecrecover_scratch":      0xa1b80000,
-    "sha256_scratch":         0xa1b90000,
+    # GH #11186: EVM_MEMORY_AREA / keccak/ecrecover/sha256 scratches reclaimed
+    # into .bss (section starts at 0xa0b70000). Production substitutes are
+    # .bss symbols evm_memory / evm_memory_pool / call_frame_arena.
     # GH #10619: the spec's three read sets, block-lifetime, untouched by
     # rollback (state_tracker.py:67-77 / :96-104; restore_tx_state :809-826
     # restores only the write structures).
-    "storage_reads_area":     0xa1ba0000,
-    "account_reads_area":     0xa1ca0000,
-    "code_reads_area":        0xa1d20000,
+    "storage_reads_area":     0xa1908780,
+    "account_reads_area":     0xa1d1a200,
+    "code_reads_area":        0xa1f22f40,
     # GH #10619 gate 3: the per-transaction level of the same three sets.
-    "tx_storage_reads_area":  0xa1da0000,
-    "tx_account_reads_area":  0xa1ea0000,
-    "tx_code_reads_area":     0xa1f20000,
-    "storage_writes_area":    0xa1fa0000,
-    "tx_storage_writes_area": 0xa27d0000,
-    "storage_writes_undo_area": 0xbc377000,
-    "account_writes_area":    0xa28a0000,
-    "tx_account_writes_area": 0xa2b20000,
-    "account_writes_undo_area": 0xa2d20000,
+    "tx_storage_reads_area":  0xa23349c0,
+    "tx_account_reads_area":  0xa24349c0,
+    "tx_code_reads_area":     0xa24b49c0,
+    "storage_writes_area":    0xa25349c0,
+    "tx_storage_writes_area": 0xa2d57ec0,
+    "storage_writes_undo_area": 0xbbf5e000,
+    "account_writes_area":    0xbdb80000,
+    "tx_account_writes_area": 0xbf780000,
+    "account_writes_undo_area": 0xbe380000,
 }
 
 
