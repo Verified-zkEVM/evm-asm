@@ -90,7 +90,12 @@ def build_elf(prog, elf_dir):
     subprocess.run(
         ["lake", "exe", "codegen", "--program", prog, "--halt", "linux93", "-o", prefix],
         cwd=REPO, check=True)
-    return prefix + ".elf"
+    elf = prefix + ".elf"
+    if not os.path.isfile(elf) or os.path.getsize(elf) == 0:
+        raise RuntimeError(
+            f"codegen exited successfully but did not produce a non-empty ELF: {elf}"
+        )
+    return elf
 
 
 def section_of(addr, headers):
