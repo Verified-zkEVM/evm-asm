@@ -77,8 +77,10 @@ mpt_extension_extract:
   sd x12, 0(x21)
   li x10, 0
   jal x0, .+16
+.Lmee_st2:
   li x10, 2
   jal x0, .+8
+.Lmee_st1:
   li x10, 1
   ld x1, 0(x2)
   ld x8, 8(x2)

@@ -88,6 +88,10 @@ import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 
 namespace EvmAsm.Progress
 
@@ -288,6 +292,66 @@ def routineRegistry : List RoutineEntry := [
         ++ "field instead of `number` (`Ts` scratch cell in place of `Num`) and a strict "
         ++ "increase instead of a `+1` step. Step bound inherits the same K34 "
         ++ "`7 * (2^64 - 1)` factor (#11461). No `Correspondence` row yet, same reason"),
+  -- Graded `.proven`, not `.conditional`: identical shape to the two twins above
+  -- (same frame, hypothesis set and three-way total post), just a `< limit` upper
+  -- bound on the `gas_used` field instead of a `+1`/strict-increase step. Both
+  -- twins were graded `.proven`; this triple is a DIRECT `cpsTripleWithin`,
+  -- structurally identical to `chain_validate_consecutive_numbers` (no
+  -- `Fn`/`Fn.retSpecFlat`), so grading it tier B on the allowlist would put two
+  -- structurally identical triples at different grades. Every hypothesis is
+  -- resource/ABI (`hspC` frame base, `hret` ret alignment, `hnWord` definitional,
+  -- `hN : lengths.length < 2 ^ 64`, and the six `hAll*` per-header facts); there
+  -- is NO input-domain gate, the post is total over the header list. Former allowlist
+  -- entry drained (#11575). No `Correspondence` row yet -- same missing
+  -- `_of_decode` bridge as the twins.
+  routine "chain_validate_gas_used_under_limit" .proven
+      (some "chain_validate_gas_used_under_limit_spec_within")
+      (notes := "cross-header accessor with the SAME frame, hypothesis set and three-way "
+        ++ "post shape as its `chain_validate_consecutive_numbers` / "
+        ++ "`chain_validate_increasing_timestamps` twins, over the `gas_used` field "
+        ++ "against a `< limit` upper bound (guest's `SLTU`-style comparison) instead of "
+        ++ "a `+1`/strict-increase step. Direct `cpsTripleWithin` form identical to the "
+        ++ "twins (drained the tier-B allowlist entry, which miscategorised it). Step "
+        ++ "bound inherits the same K34 `7 * (2^64 - 1)` factor (#11461). No "
+        ++ "`Correspondence` row yet, same reason"),
+
+  -- Graded `.proven`, not `.conditional`, for the same reason as
+  -- `chain_validate_gas_used_under_limit` above: direct `cpsTripleWithin` forms
+  -- structurally identical to the registered twins. Each of the three reads like
+  -- an input-domain gate (`value is a multiple of GAS_PER_BLOB`, `value under
+  -- MAX_BLOB_GAS_PER_BLOCK`, `extra_data length <= 32`) but in every case that
+  -- property is the OUTPUT the routine verifies, declared in the postcondition
+  -- (three-way: all-valid / first-violation / first parse-failure) — NOT a
+  -- hypothesis restricting the inputs. The hypothesis set is exactly the ABI-only
+  -- one (`hspC`, `hret`, `hnWord`, `hN`, six `hAll*`), same as the twins. All
+  -- three were grade tier-B on the allowlist as "needs Fn.retSpecFlat"; that is
+  -- false, there is no `Fn`/`Fn.retSpecFlat` in any of the three files, so the
+  -- allowlist entries are drained below (#11575).
+  routine "chain_validate_blob_gas_used_multiple" .proven
+      (some "chain_validate_blob_gas_used_multiple_spec_within")
+      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
+        ++ "post shape to the `chain_validate_*` twins, over field 17 (`blob_gas_used`), "
+        ++ "checking `value &&& (GAS_PER_BLOB - 1) = 0` (multiple of `GAS_PER_BLOB "
+        ++ "= 131072 = 2^17`). THAT multiple-of check is the post output, not an input "
+        ++ "gate. Step bound inherits the K34 `7 * (2^64 - 1)` factor (#11461). No "
+        ++ "`Correspondence` row yet, same missing `_of_decode` bridge"),
+  routine "chain_validate_blob_gas_used_under_max" .proven
+      (some "chain_validate_blob_gas_used_under_max_spec_within")
+      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
+        ++ "post shape to the `chain_validate_*` twins, over field 17 (`blob_gas_used`), "
+        ++ "checking `value <= MAX_BLOB_GAS_PER_BLOCK = 2752512`. THAT under-max check "
+        ++ "is the post output, not an input gate. Step bound inherits the K34 "
+        ++ "`7 * (2^64 - 1)` factor (#11461). No `Correspondence` row yet, same missing "
+        ++ "`_of_decode` bridge"),
+  routine "chain_validate_extra_data_length" .proven
+      (some "chain_validate_extra_data_length_spec_within")
+      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
+        ++ "post shape to the `chain_validate_*` twins, over field 12 (`extra_data`), "
+        ++ "checking the RLP content length <= 32. THAT length bound is the post "
+        ++ "output, not an input gate. Step bound inherits the K34 `7 * (2^64 - 1)` "
+        ++ "factor (#11461). No `Correspondence` row yet, same missing `_of_decode` "
+        ++ "bridge"),
+
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
@@ -394,9 +458,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 35 := by decide
+theorem routineCount_eq : routineCount = 39 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 26 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 30 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -411,7 +475,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 25 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 29 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -524,6 +588,14 @@ private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
   @EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
+private noncomputable abbrev _chain_validate_gas_used_under_limit_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
+private noncomputable abbrev _chain_validate_blob_gas_used_multiple_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
+private noncomputable abbrev _chain_validate_blob_gas_used_under_max_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
+private noncomputable abbrev _chain_validate_extra_data_length_routine_witness :=
+  @EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.chain_validate_extra_data_length_spec_within
 -- Correspondence row #11351 names this; it is Codegen-side, and Correspondence
 -- deliberately does not import Codegen, so the witness abbrev lives here.
 private noncomputable abbrev _header_number_of_decode_witness :=
