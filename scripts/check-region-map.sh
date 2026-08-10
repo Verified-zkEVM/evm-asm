@@ -38,6 +38,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 die_missing() {
   echo "check-region-map: missing required command: $1" >&2
   exit 2
@@ -76,7 +80,8 @@ ELF="$ELF_DIR/stateless_guest.elf"
 mkdir -p "$ELF_DIR"
 if [[ "${NO_BUILD:-0}" != "1" || ! -f "$ELF" ]]; then
   echo "==> emit stateless_guest ELF"
-  lake exe codegen --program stateless_guest --halt linux93 -o "$ELF_DIR/stateless_guest" >/dev/null
+  scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+    --halt linux93 -o "$ELF_DIR/stateless_guest" >/dev/null
 fi
 
 fail=0
@@ -378,10 +383,10 @@ fi
 echo "check-region-map: region map matches the linked ELF"
 
 # --- Class-A provided-BAL ratchet (#11183) ---
-# Fail on NEW supplied-BAL cursor edges or silent baseline shrink. See
-# scripts/check-bal-class-a-ratchet.py and scripts/bal-class-a-baseline.tsv.
-# The ratchet also requires scripts/bal-class-a-notes.md and counts its explicit
-# rationale bullets.
+# Fail on unexpected supplied-BAL edges or any body-read edge. See
+# scripts/check-bal-class-a-ratchet.py for the explicit BIND allowlist and body
+# predicate. The ratchet also requires scripts/bal-class-a-notes.md and counts
+# its explicit rationale bullets.
 if [[ -f "$ELF_DIR/stateless_guest.s" ]]; then
   python3 scripts/check-bal-class-a-ratchet.py --elf-dir "$ELF_DIR" --no-build \
     || { echo "check-region-map: Class-A BAL ratchet failed"; exit 1; }

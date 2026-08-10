@@ -8,6 +8,11 @@
 # project (the render runs the real Lean elaborator).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-guarded-handler-bytes: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
@@ -15,6 +20,7 @@ if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
 fi
 if [[ ! -f gen-out/regionmap/stateless_guest.elf ]]; then
   echo "==> gen-out/regionmap/stateless_guest.elf missing; emitting"
-  lake exe codegen --program stateless_guest --halt linux93 -o gen-out/regionmap/stateless_guest
+  scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+    --halt linux93 -o gen-out/regionmap/stateless_guest
 fi
 exec python3 scripts/check_guarded_handler_bytes.py

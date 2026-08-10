@@ -9,6 +9,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 OUT_PREFIX="${CODEGEN_STATELESS_LINK_OUT:-gen-out/stateless-link-check/stateless_guest}"
 NO_BUILD=0
 
@@ -49,11 +53,12 @@ mkdir -p "$(dirname "$OUT_PREFIX")"
 
 if [[ "$NO_BUILD" -eq 0 ]]; then
   echo "==> lake build codegen"
-  lake build codegen
+  scripts/lib/lake-cache-diagnostic.sh lake build codegen
 fi
 
 echo "==> emit and link stateless_guest ELF"
-lake exe codegen --program stateless_guest --halt linux93 -o "$OUT_PREFIX"
+scripts/lib/lake-cache-diagnostic.sh lake exe codegen --program stateless_guest \
+  --halt linux93 -o "$OUT_PREFIX"
 
 if [[ ! -s "${OUT_PREFIX}.elf" ]]; then
   echo "missing linked ELF: ${OUT_PREFIX}.elf" >&2

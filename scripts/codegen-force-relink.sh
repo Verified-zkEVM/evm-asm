@@ -4,6 +4,11 @@
 # content, while each probe ELF is emitted anew by `lake exe codegen`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 if [[ "${CODEGEN_RELINKED_SESSION:-}" == 1 ]]; then
   [[ -x .lake/build/bin/codegen ]] || {
     echo "codegen relink session has no executable" >&2
