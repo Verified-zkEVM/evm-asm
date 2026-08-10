@@ -236,7 +236,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.account_rlp_walk_next_field1_spec_within
 
+#print axioms EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+
 #print axioms EvmAsm.Evm64.evmMemoryIs_peel_window64
+
+#print axioms EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 
 #print axioms EvmAsm.Evm64.evm_add_stack_spec_within
 

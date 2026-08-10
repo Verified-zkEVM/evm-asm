@@ -53,6 +53,8 @@ import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
+-- #10190 / PR #11910: the `evmMemoryIs` bridge lemmas, so the axiom gate covers them.
+import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
@@ -734,6 +736,17 @@ private noncomputable abbrev _rlp_encode_decode_mutual_witness :=
   @EvmAsm.EL.RLP.encode_decode_mutual
 private noncomputable abbrev _rlp_decode_injective_witness :=
   @EvmAsm.EL.RLP.decode_injective
+-- #10190 (PR #11910). Flagged there: `check-axioms.sh` only inspects proofs witnessed
+-- here, so these two were NOT covered by CI's axiom gate despite being the load-bearing
+-- content of the MSTORE `evmMemoryIs` migration. `bytesRegion_dword_pair_at_setBytes` is
+-- the straddling generalisation of `Rv64.bytesRegion_dword_at_setBytes` (payload may span
+-- two dwords rather than one), and `evmMemoryIs_quarter_pair_setBytes` is the
+-- interface-level bridge #10190 asks for -- the shape that avoids the eight-disjoint-dword
+-- precondition whose unsatisfiability is #11913.
+private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
+  @EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the
