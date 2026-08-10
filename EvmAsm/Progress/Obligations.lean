@@ -228,14 +228,27 @@ resolve cache / witness section) vs SpecRef's single node source; divergence \
 stated in docs/4ch8f-slstate-specref-correspondence.md:164",
         .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
-        .infra "codeDbIs predicate for code_db_buckets (#11573)" ],
-    auditedAt := some "2026-08-10 @372162cc2",
+        .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
+`witness_codes_lookup_by_hash` — the code-DB *routines* (the predicate side is \
+done; see #11573 / PR #11902)" ],
+    auditedAt := some "2026-08-10 @04de93895",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
 2026-08-10 (#11803): three blockers dropped as CLOSED — #11346 \
 (account_is_eip161_empty), #11347 (mpt_node_kind) and #11422 \
 (compact_to_nibbles) — and the two former no-issue-number \"connective gap\" \
 blockers now cite the issues #11579 asked to be filed once their premises \
-closed: #11799 (trie walk) and #11800 (DB builders). A wrong witness read \
+closed: #11799 (trie walk) and #11800 (DB builders). ⚠️ CORRECTING MY OWN \
+BLOCKER from that same audit: it read \"codeDbIs predicate for code_db_buckets \
+(#11573)\", and both halves were wrong. `codeDbIs` has existed since \
+`73c8ea6a6` (2026-07-05, `Evm64/WitnessAssertions.lean`), a month before #11573 \
+was filed; and `code_db_buckets` is a DEAD scheme-A anchor whose only mention in \
+the tree is `Codegen/RegionMap.lean:198` — no emitted instruction references it, \
+so no predicate was ever going to be built over it. I took #11573's premise on \
+trust instead of checking the tree, which is the same class of error the #11803 \
+audit was fixing. The live gap is the code-DB *routines* \
+(`witness_codes_index_build` / `witness_codes_lookup_by_hash`, raw asm with \
+whole-guest byte-identity pins and no triple), which is what the blocker now \
+says. A wrong witness read \
 is the false-ACCEPT shape directly: #11508's four witness-missing accepts, \
 #11522's untouched-leaf bytes, #11523's non-canonical leaves. Everything \
 downstream (state tracker, verdict) consumes what this spine produces, and \
