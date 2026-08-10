@@ -219,6 +219,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
   is name-based, so it can UNDER-report a gap but never invent one: a floor on the
   backlog, not a census.
+  - **Burn-down (2026-08-10, #11575): 95 → 93.** `chain_validate_consecutive_numbers`
+    and `chain_validate_increasing_timestamps` registered `.proven` in
+    `Routines.lean` (routine registry 33 → 35 rows, 24 → 26 proven, 23 → 25 distinct
+    symbols; 145 → 147 axiom witnesses). ⭐ The lesson is about the *issue*, not the
+    gate: #11575 was filed as "fork `header_extract_number`'s pattern to its 8
+    mechanical siblings", but **all 8 forks already existed, sorry-free** — 2 were
+    rowed and 6 were sitting in this allowlist. The remaining work was never proving,
+    it was registration. #11351's note generalises: *a missing row was never evidence
+    of a missing proof*, so read the allowlist before believing an issue that says a
+    triple is absent. ⚠️ The other 4 (`blob_gas_used_multiple`,
+    `blob_gas_used_under_max`, `extra_data_length`, `gas_used_under_limit`) stay
+    allowlisted as **tier B** — structured SAsm specs needing `Fn.retSpecFlat` before
+    a `.proven` row is honest. Do not bulk-register them to shorten the file.
+    Correspondence rows for all 6 are separate work again: they need a `_of_decode`
+    bridge to `SpecRef`, which this family does not have.
 - **Witness ≠ row** (GH #11348, #11516): a Correspondence/Routines row naming a
   theorem does NOT put that theorem in the axiom gate — the `private noncomputable
   abbrev _<name>_witness := @…` is what does. They are separate obligations: the
@@ -1950,6 +1965,38 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 
 ### EL.3 RLP RISC-V Decoder (in progress)
 - **Files**: `EvmAsm/Rv64/RLP/`
+- **Fuel monotonicity unblocks the nested-list bridges** (2026-08-10, #11711).
+  `EvmAsm/EL/RLP/FuelMono.lean`: `decodeAux_mono_fuel` / `decodeItems_mono_fuel` —
+  extra budget never changes a *successful* decode, by one induction on the shared
+  budget (`decodeAux`/`decodeItems` are mutual and both step it down by exactly
+  one). `[propext, Quot.sound]` only.
+  ⭐ **Why it matters:** `WalkDecodeBridge`'s `DecodeChain` stated each link
+  fuel-*insensitively* (`∀ m, decodeAux (m+1) … = some …`), which is provable for
+  byte strings and **false** for a nested list. #11711's sketch proposed threading a
+  fuel budget through the links and warned "the fuel bookkeeping is the whole
+  difficulty". Monotonicity *removes* that bookkeeping instead of managing it: a
+  link need only be exhibited at ONE budget. Hence `DecodeChainFrom` carries a
+  single `floor` and its links are plain `decodeAux floor … = some …`, with the one
+  side condition `floor ≤ k + 1` (the composition's smallest per-link budget, at
+  the last item) replacing all per-link arithmetic.
+  `DecodeChain` is NOT weakened — it is recovered as the `floor = 1` instance
+  (`decodeChainFrom_of_decodeChain`), and `decodeItems_of_chain` is re-derived from
+  the new lemma to show nothing was traded away.
+  ⚠️ **Proof-mechanics trap worth remembering** (cost several iterations):
+  `cases h : e` generalises `e` in the **goal** only — a pre-existing hypothesis
+  keeps the unsubstituted term and needs an explicit `rw … at h`. Adding `⊢` to that
+  `rw` fails as a no-op and *looks* like a numeral-normalisation mismatch. The
+  asymmetry is load-bearing here: `cases` on the fuel-free `takeBytes`/`readLength`
+  hits the goal, while `cases hdi : decodeItems n payload` leaves the goal's
+  `decodeItems m' payload` intact — which is exactly the occurrence the IH rewrites.
+  Also: RLP `do`-blocks desugar to `Bind.bind`, so `Option.bind_some` alone does not
+  fire; `simp only [Option.bind_eq_bind, Option.bind_some]` is the working set (and
+  the `unusedSimpArgs` linter will flag `bind_eq_bind` wherever the term is already
+  `Option.bind`).
+  Remaining for #11341's fourth row / #11795: discharge the `decodeAux floor`
+  hypothesis for the guest's actual node bytes and regrade
+  `rlp_list_count_items` `.machineOnly → .bridged`. That is routine-side work; the
+  model-side blocker is closed.
 - Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ✅ all three variants landed
   - `rlp_phase1_step_spec` (per-step with pure ult fact),
     `rlp_phase1_step_spec_plain` (strips pure facts),
