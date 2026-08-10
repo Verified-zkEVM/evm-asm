@@ -387,6 +387,7 @@ blocking only after thresholds calibrate, never prematurely):
 | **`check-opcode-structure.sh`** (checklist part) | new *complex* opcode dirs missing template essentials (FullPath, `@[irreducible]` Post, `Offsets.lean`) |
 | **`churn-report.sh`** | top-churn files + short-lived churn (AI copy-paste sprawl) |
 | **`jscpd`** (`scripts/jscpd.json`) | duplication % reported weekly (advisory); `check-duplication.sh --gate` *would* fail on new sprawl past the calibrated budget once promoted, `codegen-*.sh` excluded (Rule of Three) |
+| **`lake exe axiomsweep --check`** | whole-library kernel-level axiom/`sorryAx` regressions against the committed baseline `scripts/axiom_baseline.json` — the "broader sweep of all of EvmAsm/" that `check-axioms.sh` notes as future work; covers every reportable declaration (private declarations included; compiler-generated auxiliaries are traversed, surfacing on their parents), not just the witnessed registry surface. Seeded green; promote by dropping the `\|\| echo` in `build.yml` after the soak |
 
 When you add a `.lean` file or a new convention, ask whether a fitness function
 should fence it — and whether it belongs in the blocking or advisory tier. Seed

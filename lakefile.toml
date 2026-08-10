@@ -56,3 +56,12 @@ supportInterpreter = true
 name = "specref-eest-check"
 root = "MainSpecRefEestCheck"
 supportInterpreter = true
+
+# Whole-library kernel-level axiom / sorry accounting; see scripts/AxiomSweep.lean.
+# Complements scripts/check-axioms.sh (which stays authoritative for the witnessed
+# progress-registry policy). Runtime-imports built oleans: run after `lake build`.
+[[lean_exe]]
+name = "axiomsweep"
+srcDir = "scripts"
+root = "AxiomSweep"
+supportInterpreter = true
