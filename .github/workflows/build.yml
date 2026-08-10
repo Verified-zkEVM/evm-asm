@@ -136,13 +136,20 @@ jobs:
 
       # Whole-library kernel-truth backstop — the "broader sweep of all of
       # EvmAsm/" noted as future work in scripts/check-axioms.sh, which remains
-      # authoritative for the witnessed-surface policy. Report-only during the
-      # initial soak; flip to enforcing by dropping the trailing `|| echo ...`
-      # once the baseline has survived a few PRs.
+      # authoritative for the witnessed-surface policy. Taint findings are
+      # report-only during the initial soak (advisory tier; promote by failing
+      # on exit 1 too); infrastructure failures (exit != 1) always fail so the
+      # soak cannot silently rot.
       - name: Axiom sweep (whole-library, report-only)
         run: |
-          lake exe axiomsweep --check || \
+          status=0
+          lake exe axiomsweep --check || status=$?
+          if [ "$status" -eq 1 ]; then
             echo "::warning::axiomsweep found new axiom/sorry taint (report-only during soak)"
+          elif [ "$status" -ne 0 ]; then
+            echo "::error::axiomsweep infrastructure failure (exit $status) — not a taint verdict"
+            exit "$status"
+          fi
 
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.
