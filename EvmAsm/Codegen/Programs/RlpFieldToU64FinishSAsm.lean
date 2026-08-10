@@ -706,7 +706,7 @@ theorem callContentWithOutput
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
+    cpsTripleWithin (1 + (7 * bytes.length + 11))
       (B + 80) (B + 84) code
       (((.x1 ↦ᵣ vOld) ** contentReady sp0 listBase saved bytes listLen index) **
        (saved.s1 ↦ₘ (0 : Word)))
@@ -730,7 +730,7 @@ theorem selectedToJoin
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin
-      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      ((7 + (1 + (7 * bytes.length + 11))) + 5)
       (B + 52) (B + 128) code
       (((.x1 ↦ᵣ (B + 48)) **
         listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index) **
@@ -780,7 +780,7 @@ theorem selectedToAllJoin
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin
-      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      ((7 + (1 + (7 * bytes.length + 11))) + 5)
       (B + 52) (B + 128) code
       (((.x1 ↦ᵣ (B + 48)) **
         listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index) **
@@ -828,7 +828,7 @@ theorem listDispatchToJoin
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
-    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
     cpsTripleWithin (1 + tailSteps) (B + 48) (B + 128) code
       (((.x1 ↦ᵣ (B + 48)) **
         listCallResult sp0 listBase offsetCell lengthCell oldOffset oldLen saved
@@ -842,7 +842,7 @@ theorem listDispatchToJoin
   have hs0' := selectedToAllJoin sp0 listBase oldOffset oldLen saved bytes
     listLen index hs0 hsalign hslack hover hvalid
   have hs : cpsTripleWithin
-      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      ((7 + (1 + (7 * bytes.length + 11))) + 5)
       (B + 52) (B + 128) code
       (listSelected sp0 listBase offsetCell lengthCell saved bytes listLen index **
        ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))))
@@ -853,7 +853,7 @@ theorem listDispatchToJoin
   have hf0 := failureToAllJoin sp0 listBase oldOffset oldLen saved bytes
     listLen index
   have hf : cpsTripleWithin
-      ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)
+      ((7 + (1 + (7 * bytes.length + 11))) + 5)
       (B + 116) (B + 128) code
       (listFailed sp0 listBase offsetCell lengthCell oldOffset oldLen saved bytes
         listLen index **
