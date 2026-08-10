@@ -79,12 +79,43 @@ def unpackZiskemuInput (packed : Bytes) : Except String Bytes := do
 -- `specref-eest-check <input_file> <output_file>`
 --   exit 0 + writes the 69-byte result to <output_file> on success.
 --   exit 2 + stderr message on malformed framing.
+-- `specref-eest-check --gas-dims <input_file>`
+--   exit 0 + one JSON object on stdout with regular/state/oracle_succ.
+--   Dims are BlockOutput.apply_body fields (oracle max inputs), not a
+--   recomputation. exit 3 if apply_body path fails before dims exist.
 
 def usage : String :=
-  "usage: specref-eest-check <input_file> <output_file>"
+  "usage: specref-eest-check <input_file> <output_file>\n" ++
+  "       specref-eest-check --gas-dims <input_file>"
+
+private def emitGasDimsJson (d : StatelessGasDims) : String :=
+  let maxDim := max d.regular d.state
+  "{" ++
+  s!"\"regular\":{d.regular}," ++
+  s!"\"state\":{d.state}," ++
+  s!"\"max\":{maxDim}," ++
+  s!"\"oracle_succ\":{(if d.oracleSucc then "true" else "false")}," ++
+  "\"source\":\"BlockOutput.apply_body_fields\"," ++
+  "\"note\":\"same accumulators execute_block_interior max-compares; not a side recomputation\"" ++
+  "}"
 
 def main (args : List String) : IO UInt32 := do
   match args with
+  | ["--gas-dims", inputFile] =>
+    let packedBytes ← IO.FS.readBinFile ⟨inputFile⟩
+    let packed := bytesOfByteArray packedBytes
+    match unpackZiskemuInput packed with
+    | .error msg =>
+      IO.eprintln s!"specref-eest-check: framing error ({inputFile}): {msg}"
+      return 2
+    | .ok blob =>
+      match diagnose_stateless_gas_dims_bytes blob with
+      | .error msg =>
+        IO.eprintln s!"specref-eest-check: gas-dims failed ({inputFile}): {msg}"
+        return 3
+      | .ok d =>
+        IO.println (emitGasDimsJson d)
+        return 0
   | [inputFile, outputFile] =>
     let packedBytes ← IO.FS.readBinFile ⟨inputFile⟩
     let packed := bytesOfByteArray packedBytes

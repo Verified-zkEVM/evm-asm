@@ -113,10 +113,9 @@ def execute_block_interior (pre : PrecompileMap) (ws : WitnessPreState)
   if computed_bal_hash ≠ block.header.blockAccessListHash then
     throw (.invalidBlock "Invalid block access list hash")
 
-/-- The full seam: `execute_new_payload_request` (pre-checks +
-    `_payload_block`) and the complete `execute_block`.  This IS
-    `elExecute` once a complete `PrecompileMap` is supplied. -/
-def elExecuteWith (pre : PrecompileMap) : ExecutionSeam := fun input => do
+/-- Shared `execute_new_payload_request` pre-checks + `_payload_block` used by
+    both the production seam and the gas-dimension diagnostic. -/
+private def elPrepareBlock (input : ExecutionSeamInput) : Except SpecError Block := do
   let npr := input.newPayloadRequest
   let payload := npr.executionPayload
   if payload.transactions.any (·.isEmpty) then
@@ -132,7 +131,55 @@ def elExecuteWith (pre : PrecompileMap) : ExecutionSeam := fun input => do
     throw (.invalidBlock "Transaction public key count mismatch")
   validate_header input.chainContext.parentHeader block.header
   if !block.ommers.isEmpty then throw (.invalidBlock "ommers not empty")
+  pure block
+
+/-- The full seam: `execute_new_payload_request` (pre-checks +
+    `_payload_block`) and the complete `execute_block`.  This IS
+    `elExecute` once a complete `PrecompileMap` is supplied. -/
+def elExecuteWith (pre : PrecompileMap) : ExecutionSeam := fun input => do
+  let block ← elPrepareBlock input
   execute_block_interior pre input.preState input.chainContext block
+    input.transactionPublicKeys
+
+/-- Diagnostic: return `BlockOutput.blockGasUsed` × `blockStateGasUsed` from the
+    same `apply_body` call `execute_block_interior` uses for the EIP-8037
+    `max` comparison (`ElExecute.lean` gas-used check). These are the oracle's
+    accumulator fields, not a side recomputation of gas arithmetic.
+
+    Stops after `apply_body` (skips post-body root/bloom checks) so the
+    export stays cheap; the gas fields are fully accumulated before those
+    checks. Tooling-only — not part of the production seam result. -/
+def apply_body_block_gas_dims (pre : PrecompileMap) (ws : WitnessPreState)
+    (chainContext : ChainContext) (block : Block)
+    (transaction_public_keys : List Bytes) : Except SpecError (Uint × Uint) := do
+  let blockEnv : BlockEnvironment :=
+    { chainId := chainContext.chainId
+      blockGasLimit := block.header.gasLimit
+      blockHashes := chainContext.blockHashes
+      coinbase := block.header.coinbase
+      number := block.header.number
+      baseFeePerGas := block.header.baseFeePerGas
+      time := block.header.timestamp
+      prevRandao := block.header.prevRandao
+      excessBlobGas := block.header.excessBlobGas
+      parentBeaconBlockRoot := block.header.parentBeaconBlockRoot
+      slotNumber := block.header.slotNumber
+      transactionPublicKeys := some transaction_public_keys }
+  let machine₀ : Machine :=
+    { evm := dummyEvm blockEnv
+      txState := { parent := { preState := ws } } }
+  let result := (apply_body pre blockEnv block.transactions block.withdrawals).run
+    |>.run machine₀
+  match ← result with
+  | (.error _, _) => throw (.executionRejected "unhandled EVM error in apply_body")
+  | (.ok (out, _), _) => pure (out.blockGasUsed, out.blockStateGasUsed)
+
+/-- Full-seam diagnostic wrapper: same pre-checks as `elExecuteWith`, then
+    `apply_body_block_gas_dims`. -/
+def elDiagnoseGasDimsWith (pre : PrecompileMap) (input : ExecutionSeamInput) :
+    Except SpecError (Uint × Uint) := do
+  let block ← elPrepareBlock input
+  apply_body_block_gas_dims pre input.preState input.chainContext block
     input.transactionPublicKeys
 
 end EvmAsm.Stateless.SpecRef

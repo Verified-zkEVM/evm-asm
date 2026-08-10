@@ -61,6 +61,17 @@ def run_stateless_guest (input_bytes : Bytes)
   | .ok stateless_input =>
       serialize_stateless_output (verify_stateless_new_payload stateless_input execute)
 
+/-- Bytes entry for `diagnose_stateless_gas_dims` (tooling / #11808). -/
+def diagnose_stateless_gas_dims_bytes (input_bytes : Bytes)
+    (pre : PrecompileMap := specRefPrecompilesFull) :
+    Except String StatelessGasDims :=
+  match deserialize_stateless_input input_bytes with
+  | .error e => .error s!"deserialize_stateless_input: {repr e}"
+  | .ok si =>
+      match diagnose_stateless_gas_dims si pre with
+      | .ok d => .ok d
+      | .error e => .error s!"diagnose_stateless_gas_dims: {repr e}"
+
 /-! ## Sanity checks -/
 
 private def z (n : Nat) : Bytes := List.replicate n (0 : Byte)
