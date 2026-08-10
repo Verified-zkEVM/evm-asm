@@ -38,6 +38,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 
+#print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
+
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
@@ -78,6 +80,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
@@ -109,6 +113,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
+#print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 
 #print axioms EvmAsm.Codegen.blsgLtP_spec_specref
 
