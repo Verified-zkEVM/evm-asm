@@ -2,11 +2,14 @@
   EvmAsm.Evm64.Gas
 
   Static gas-cost table for the opcode families currently modeled under
-  `EvmAsm.Evm64` (GH #117 slice 1).
+  `EvmAsm.Evm64` (GH #117 slice 1; #11864 residue purge).
 
-  The table records Shanghai static/base costs. Dynamic add-ons (EXP byte
-  cost, memory expansion, storage cold/warm access, logging data/topic
-  costs, etc.) intentionally live outside this first slice.
+  Entries are Amsterdam static/base costs where one exists. Opcodes whose
+  Amsterdam charge is purely dynamic (account/storage access, create-access,
+  message-call gas, memory expansion, etc.) are `0` — there is no static
+  constant to name. Dynamic add-ons intentionally live outside this table.
+  ISTANBUL-era 700 and Cancun-era 32000 CREATE residues were removed under
+  #11864; see per-arm notes for fork ages and execution-specs pins.
 -/
 
 import EvmAsm.Evm64.LogArgs
@@ -208,8 +211,10 @@ def byte? : EvmOpcode → Option Nat
   | SWAPN => some 0xe7
   | EXCHANGE => some 0xe8
 
-/-- Shanghai static/base gas cost. Costs that also have dynamic components
-    return only the fixed part charged before the dynamic add-on. -/
+/-- Static/base gas cost for opcodes that still have one under Amsterdam.
+    Opcodes whose Amsterdam charge is purely dynamic (access / memory /
+    message-call / create-access terms) record `0` here — there is no
+    Amsterdam static constant to name. Dynamic add-ons live outside this table. -/
 def staticGasCost : EvmOpcode → Nat
   | STOP => 0
   | ADD => 3
@@ -224,13 +229,13 @@ def staticGasCost : EvmOpcode → Nat
   | KECCAK256 => 30
   | ADDRESS => 2
   /-
-    11864: This 700 entry is residue from the pre-Amsterdam monolithic charge.
-    Amsterdam charges BALANCE by warm/cold account access at
-    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/environment.py:70-75.
-    The literal is deliberately unchanged pending the maintainer decision on
-    whether this model should retain a static component of a dynamic charge.
+    11864: No Amsterdam static. Charge is warm/cold account access only
+    (environment.py:70-75). The former 700 was ISTANBUL-era
+    (istanbul/vm/gas.py OPCODE_BALANCE / environment.py:69) and was already
+    replaced by warm-cold access in Berlin; four forks stale. Removed — not
+    replaced by a warm floor — because Amsterdam defines no static component.
   -/
-  | BALANCE => 700
+  | BALANCE => 0
   | ORIGIN => 2
   | CALLER => 2
   | CALLVALUE => 2
@@ -268,20 +273,18 @@ def staticGasCost : EvmOpcode → Nat
   | CODECOPY => 3
   | GASPRICE => 2
   /-
-    11864: These 700 entries are residues from the pre-Amsterdam monolithic
-    charge. Amsterdam charges EXTCODESIZE with account access plus a code-read
-    WARM_ACCESS at
-    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/environment.py:342-349,
-    EXTCODECOPY with code-read, copy-per-word and memory costs at :379-395,
-    and EXTCODEHASH by account access at :486-493. The literals remain unchanged pending the maintainer
-    decision on whether this model should retain a static component of a
-    dynamic charge.
+    11864: No Amsterdam static for the EXTCODE trio. EXTCODESIZE =
+    account access + code-read WARM_ACCESS (environment.py:342-349);
+    EXTCODECOPY adds copy-per-word + memory (:379-395); EXTCODEHASH is
+    account access (:486-493). Former 700s were ISTANBUL-era
+    (istanbul/vm/gas.py:159-161, environment.py:337/375/468) and already
+    obsolete from Berlin. Removed — no static component under Amsterdam.
   -/
-  | EXTCODESIZE => 700
-  | EXTCODECOPY => 700
+  | EXTCODESIZE => 0
+  | EXTCODECOPY => 0
   | RETURNDATASIZE => 2
   | RETURNDATACOPY => 3
-  | EXTCODEHASH => 700
+  | EXTCODEHASH => 0
   | BLOCKHASH => 20
   | COINBASE => 2
   | TIMESTAMP => 2
@@ -296,30 +299,27 @@ def staticGasCost : EvmOpcode → Nat
   | SLOTNUM => 2
   | LOG _ => 375
   /-
-    11864: These 32000 entries are residues from the pre-Amsterdam monolithic
-    charge. Amsterdam CREATE is CREATE_ACCESS plus memory expansion and
-    init_code_cost at
-    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/system.py:187-194;
-    CREATE2 adds the init-code keccak term at :240-251 and :243-249. The literals remain unchanged
-    pending the maintainer decision on whether this model should retain a
-    static component of a dynamic charge.
+    11864: No Amsterdam static CREATE base. Amsterdam CREATE is
+    CREATE_ACCESS + memory + init_code_cost (system.py:187-194); CREATE2
+    adds the init-code keccak term (:240-251, :243-249). The former 32000
+    is Cancun-real (cancun/vm/gas.py:90,166) and a dead TX_CREATE-shaped
+    definition under Amsterdam (amsterdam/vm/gas.py:132, unreferenced by
+    any amsterdam instruction path). Removed — not a static component.
   -/
-  | CREATE => 32000
-  | CREATE2 => 32000
+  | CREATE => 0
+  | CREATE2 => 0
   /-
-    11864: These 700 entries are residues from the pre-Amsterdam monolithic
-    charge. Amsterdam CALL uses access, value, memory, optional NEW_ACCOUNT
-    state gas and message-call gas at
-    execution-specs/src/ethereum/forks/amsterdam/vm/instructions/system.py:419-477;
-    CALLCODE has its own path at :550-594, while DELEGATECALL and STATICCALL have distinct
-    no-value paths at :729-767 and :828-867. The literals remain unchanged
-    pending the maintainer decision on whether this model should retain a
-    static component of a dynamic charge.
+    11864: No Amsterdam static for the call family. CALL =
+    access + value + memory + optional NEW_ACCOUNT state gas + message-call
+    gas (system.py:419-477); CALLCODE :550-594; DELEGATECALL :729-767;
+    STATICCALL :828-867 — no OPCODE_CALL_BASE. Former 700s were
+    ISTANBUL-era (istanbul/vm/gas.py:116, system.py:365/437/575/636) and
+    already obsolete from Berlin. Removed — no static component.
   -/
-  | CALL => 700
-  | CALLCODE => 700
-  | DELEGATECALL => 700
-  | STATICCALL => 700
+  | CALL => 0
+  | CALLCODE => 0
+  | DELEGATECALL => 0
+  | STATICCALL => 0
   | RETURN => 0
   | REVERT => 0
   | SELFDESTRUCT => 5000

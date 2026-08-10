@@ -104,6 +104,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
+#print axioms EvmAsm.EL.RLP.decodeFully_encode
+
+#print axioms EvmAsm.EL.RLP.decode_encode
+
+#print axioms EvmAsm.EL.RLP.decode_encode_mutual
+
+#print axioms EvmAsm.EL.RLP.encode_injective
+
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 
 #print axioms EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
