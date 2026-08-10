@@ -268,7 +268,8 @@ def createUnsupportedTail (netPopBytes : Nat) (hasSalt : Bool) : String :=
      -- iff nonce≠0 OR code_hash≠EMPTY OR has_storage — never balance alone.
      -- Status 1 (has code) is always a collision. Status 2 (empty-code exists)
      -- is NOT a hard collision: an EIP-6780 tombstone is status 2 with nonce
-     -- cleared by account_state_commit_pending, and must remain deployable.
+     -- cleared at the account-writes commit boundary (account_writes_apply_deletes),
+     -- and must remain deployable.
      -- Nonce/storage occupancy is covered by the header has_code_or_nonce path
      -- plus createSameTxCollisionScanAsm. Matches top-level
      -- BlockVerdictMtxRuntime creation (status-1 only).
