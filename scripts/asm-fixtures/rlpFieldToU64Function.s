@@ -24,6 +24,7 @@ rlp_field_to_u64:
   beq x11, x5, .+20
   li x10, 1
   jal x0, .+16
+.Lrfu_st1b:
   li x10, 1
   jal x0, .+8
   li x10, 2
