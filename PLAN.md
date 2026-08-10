@@ -1916,6 +1916,38 @@ prerequisites provide the pure spec and RISC-V infrastructure for that.
 
 ### EL.3 RLP RISC-V Decoder (in progress)
 - **Files**: `EvmAsm/Rv64/RLP/`
+- **Fuel monotonicity unblocks the nested-list bridges** (2026-08-10, #11711).
+  `EvmAsm/EL/RLP/FuelMono.lean`: `decodeAux_mono_fuel` / `decodeItems_mono_fuel` —
+  extra budget never changes a *successful* decode, by one induction on the shared
+  budget (`decodeAux`/`decodeItems` are mutual and both step it down by exactly
+  one). `[propext, Quot.sound]` only.
+  ⭐ **Why it matters:** `WalkDecodeBridge`'s `DecodeChain` stated each link
+  fuel-*insensitively* (`∀ m, decodeAux (m+1) … = some …`), which is provable for
+  byte strings and **false** for a nested list. #11711's sketch proposed threading a
+  fuel budget through the links and warned "the fuel bookkeeping is the whole
+  difficulty". Monotonicity *removes* that bookkeeping instead of managing it: a
+  link need only be exhibited at ONE budget. Hence `DecodeChainFrom` carries a
+  single `floor` and its links are plain `decodeAux floor … = some …`, with the one
+  side condition `floor ≤ k + 1` (the composition's smallest per-link budget, at
+  the last item) replacing all per-link arithmetic.
+  `DecodeChain` is NOT weakened — it is recovered as the `floor = 1` instance
+  (`decodeChainFrom_of_decodeChain`), and `decodeItems_of_chain` is re-derived from
+  the new lemma to show nothing was traded away.
+  ⚠️ **Proof-mechanics trap worth remembering** (cost several iterations):
+  `cases h : e` generalises `e` in the **goal** only — a pre-existing hypothesis
+  keeps the unsubstituted term and needs an explicit `rw … at h`. Adding `⊢` to that
+  `rw` fails as a no-op and *looks* like a numeral-normalisation mismatch. The
+  asymmetry is load-bearing here: `cases` on the fuel-free `takeBytes`/`readLength`
+  hits the goal, while `cases hdi : decodeItems n payload` leaves the goal's
+  `decodeItems m' payload` intact — which is exactly the occurrence the IH rewrites.
+  Also: RLP `do`-blocks desugar to `Bind.bind`, so `Option.bind_some` alone does not
+  fire; `simp only [Option.bind_eq_bind, Option.bind_some]` is the working set (and
+  the `unusedSimpArgs` linter will flag `bind_eq_bind` wherever the term is already
+  `Option.bind`).
+  Remaining for #11341's fourth row / #11795: discharge the `decodeAux floor`
+  hypothesis for the guest's actual node bytes and regrade
+  `rlp_list_count_items` `.machineOnly → .bridged`. That is routine-side work; the
+  model-side blocker is closed.
 - Phase 1: Prefix classifier (cascade BLTUs, 5 exits) — ✅ all three variants landed
   - `rlp_phase1_step_spec` (per-step with pure ult fact),
     `rlp_phase1_step_spec_plain` (strips pure facts),

@@ -104,6 +104,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
+#print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
+
+#print axioms EvmAsm.EL.RLP.decodeItems_mono_fuel
+
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 
 #print axioms EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within

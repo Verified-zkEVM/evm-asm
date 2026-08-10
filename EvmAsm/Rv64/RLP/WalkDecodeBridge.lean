@@ -11,6 +11,8 @@ import EvmAsm.EL.RLP.ByteStringDecodeBridge
 import EvmAsm.EL.RLP.FullDecode
 import EvmAsm.EL.RLP.ListDecodeBridge
 import EvmAsm.EL.RLP.Properties
+-- #11711: fuel monotonicity, which is what makes `DecodeChainFrom` below possible.
+import EvmAsm.EL.RLP.FuelMono
 
 namespace EvmAsm.Rv64.RLP
 
@@ -464,6 +466,119 @@ example (bytes : List Byte) (off0 off1 off2 off3 off4 : Nat)
   have hc : DecodeChain bytes off0 [item0, item1, item2, item3] off4 :=
     ⟨off1, h0, off2, h1, off3, h2, off4, h3, rfl⟩
   have hgen := decodeItems_of_chain bytes [item0, item1, item2, item3] off0 off4 hc hend k
+  simpa using hgen
+
+/-! ## Fuel-sensitive chains (GH #11711)
+
+    `DecodeChain` above states each link as `∀ m, decodeAux (m + 1) … = some …`.
+    That is provable for byte-string items and **false** for a nested list, whose
+    decode recurses into `decodeItems nDepth`. #11711 records the consequence:
+    every nested-list bridge is blocked, and `rlp_list_count_items` cannot reach
+    `.bridged` — which is not an edge case, because #11675 put that routine on the
+    `mpt_node_kind` path, where an inline embedded branch child *is* a nested list.
+
+    ⭐ The fix is not to thread arithmetic through the links, which is what the
+    issue's sketch does and what its own warning calls "the whole difficulty".
+    `EL.RLP.decodeAux_mono_fuel` (fuel monotonicity: extra budget never changes a
+    successful decode) makes that bookkeeping unnecessary — a link need only be
+    exhibited at **one** budget, and every larger budget follows. So the
+    fuel-sensitive predicate below carries a single `floor` and its links are plain
+    `decodeAux floor … = some …` obligations, with no per-link fuel algebra at all.
+
+    `DecodeChain` is **not** weakened: #11711 is explicit that it is correct and
+    must not be relaxed into silently accepting lists. `DecodeChainFrom` is a new,
+    strictly more general predicate, and `DecodeChain` is recovered as its
+    `floor = 1` instance (`decodeChainFrom_of_decodeChain`). -/
+
+/-- A chain of decodes each witnessed at budget `floor`, starting at `off` and
+    ending exactly at `offEnd`.
+
+    Unlike `DecodeChain` this admits **nested-list** items: the link is a decode at
+    one concrete budget rather than a claim about all budgets, which for a list is
+    the difference between provable and false. -/
+def DecodeChainFrom (bytes : List Byte) (floor : Nat) : Nat → List RLPItem → Nat → Prop
+  | off, [], offEnd => off = offEnd
+  | off, item :: rest, offEnd =>
+      ∃ off', decodeAux floor (bytes.drop off) = some (item, bytes.drop off')
+        ∧ DecodeChainFrom bytes floor off' rest offEnd
+
+/-- `DecodeChain`'s links are `DecodeChainFrom`'s at `floor = 1`: instantiate the
+    universally quantified budget at `m := 0`. Gives the faithfulness direction —
+    everything the old predicate accepts, the new one accepts. -/
+theorem decodeChainFrom_of_decodeChain (bytes : List Byte) :
+    ∀ (items : List RLPItem) (off offEnd : Nat),
+      DecodeChain bytes off items offEnd → DecodeChainFrom bytes 1 off items offEnd := by
+  intro items
+  induction items with
+  | nil => intro off offEnd hc; exact hc
+  | cons item rest ih =>
+    intro off offEnd hc
+    obtain ⟨off', hitem, hrest⟩ := hc
+    exact ⟨off', hitem 0, ih off' offEnd hrest⟩
+
+/-- ⭐ **Arity-N `decodeItems` composition, fuel-sensitive.** The `DecodeChain`
+    analogue for `DecodeChainFrom`, and the theorem #11711 asks for.
+
+    The side condition `floor ≤ k + 1` is the honest cost of admitting lists, and
+    it is a *single* inequality rather than per-link bookkeeping: the composition
+    consumes link `i` at budget `k + (items.length - i)`, whose minimum over the
+    chain is `k + 1` at the last item, so one bound covers every link. Monotonicity
+    supplies each link at the budget the composition actually wants. -/
+theorem decodeItems_of_chainFrom (bytes : List Byte) (floor : Nat) :
+    ∀ (items : List RLPItem) (off offEnd : Nat),
+      DecodeChainFrom bytes floor off items offEnd → bytes.drop offEnd = [] →
+      ∀ k, floor ≤ k + 1 →
+        decodeItems (k + items.length + 1) (bytes.drop off) = some (items, []) := by
+  intro items
+  induction items with
+  | nil =>
+    intro off offEnd hc hend k _
+    subst hc
+    rw [hend]
+    rfl
+  | cons item rest ih =>
+    intro off offEnd hc hend k hfloor
+    obtain ⟨off', hitem, hrest⟩ := hc
+    -- The link is witnessed at `floor`; lift it to the budget this step consumes.
+    have hlift : decodeAux (k + rest.length + 1) (bytes.drop off)
+        = some (item, bytes.drop off') :=
+      EL.RLP.decodeAux_mono_fuel (by omega) hitem
+    have hne : bytes.drop off ≠ [] := by
+      intro hnil
+      rw [hnil, decodeAux_nil] at hlift
+      simp at hlift
+    have hIH := ih off' offEnd hrest hend k hfloor
+    have hcomp := decodeItems_cons_of_decodeAux bytes off off' item rest []
+      (k + rest.length) hne hlift hIH
+    have harith : k + (item :: rest).length + 1 = k + rest.length + 2 := by
+      simp [List.length_cons]
+      omega
+    rw [harith]
+    exact hcomp
+
+/-- **Non-vacuity, and no loss against `DecodeChain`.** The old arity-N
+    composition is an instance of the new one: a `DecodeChain` becomes a
+    `DecodeChainFrom` at `floor = 1`, whose side condition `1 ≤ k + 1` is free. So
+    `DecodeChainFrom` subsumes `decodeItems_of_chain` rather than trading one
+    restriction for another. -/
+example (bytes : List Byte) (items : List RLPItem) (off offEnd : Nat)
+    (hc : DecodeChain bytes off items offEnd) (hend : bytes.drop offEnd = []) (k : Nat) :
+    decodeItems (k + items.length + 1) (bytes.drop off) = some (items, []) :=
+  decodeItems_of_chainFrom bytes 1 items off offEnd
+    (decodeChainFrom_of_decodeChain bytes items off offEnd hc) hend k (by omega)
+
+/-- **The gain, stated: a nested list is now a legal link.** A single-item chain
+    whose item is a `.list` — the shape `DecodeChain` cannot express, because a
+    list's decode is fuel-sensitive — composes exactly like a byte-string link.
+    This is the statement `rlp_list_count_items`' bridge needs; discharging its
+    `decodeAux` hypothesis for the guest's actual node bytes is the routine-side
+    follow-on, not a model-side gap. -/
+example (bytes : List Byte) (off offEnd floor : Nat) (inner : List RLPItem)
+    (hitem : decodeAux floor (bytes.drop off) = some (.list inner, bytes.drop offEnd))
+    (hend : bytes.drop offEnd = []) (k : Nat) (hfloor : floor ≤ k + 1) :
+    decodeItems (k + 2) (bytes.drop off) = some ([.list inner], []) := by
+  have hc : DecodeChainFrom bytes floor off [.list inner] offEnd := ⟨offEnd, hitem, rfl⟩
+  have hgen := decodeItems_of_chainFrom bytes floor [.list inner] off offEnd hc hend k hfloor
   simpa using hgen
 
 end EvmAsm.Rv64.RLP

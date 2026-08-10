@@ -14,6 +14,7 @@ import EvmAsm.EL.RLP.PrefixDecode
 import EvmAsm.EL.RLP.Program
 import EvmAsm.EL.RLP.ProgramSpec
 import EvmAsm.EL.RLP.Properties
+import EvmAsm.EL.RLP.FuelMono
 import EvmAsm.EL.RLP.ReadLength
 import EvmAsm.EL.RLP.ReadLengthBridge
 import EvmAsm.EL.RLP.Scalar

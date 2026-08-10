@@ -96,6 +96,12 @@ import EvmAsm.Evm64.Transient.StoreSpec
 import EvmAsm.Evm64.Transient.LoadSpec
 import EvmAsm.Evm64.Mcopy.Spec
 import EvmAsm.Evm64.ReturnData.CopySpec
+-- #11711: only the EL RLP fuel-monotonicity witnesses at the bottom of this file
+-- need it. `EL.RLP` was already reachable transitively (that is how
+-- `Nat.fromBytesBE_eq_zero_iff` resolves), but `FuelMono` is a new leaf, so it
+-- takes a direct import. Core → core, and no Codegen, so the rebuild-cost note in
+-- `Progress/Routines.lean`'s header is unaffected.
+import EvmAsm.EL.RLP.FuelMono
 
 namespace EvmAsm.Progress
 
@@ -675,6 +681,14 @@ private noncomputable abbrev _account_rlp_length_witness :=
 -- `bytesBEtoNat` is lenient about non-canonical zeros exactly as the guest is.
 private noncomputable abbrev _fromBytesBE_eq_zero_iff_witness :=
   @EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
+-- #11711: RLP decoder fuel monotonicity — extra budget never changes a successful
+-- decode. Witnessed because it is the lemma the fuel-sensitive chain predicate
+-- (`Rv64/RLP/WalkDecodeBridge.lean`'s `DecodeChainFrom`) rests on, and an
+-- unwitnessed load-bearing lemma is the #11678 hole in miniature.
+private noncomputable abbrev _decodeAux_mono_fuel_witness :=
+  @EvmAsm.EL.RLP.decodeAux_mono_fuel
+private noncomputable abbrev _decodeItems_mono_fuel_witness :=
+  @EvmAsm.EL.RLP.decodeItems_mono_fuel
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the
