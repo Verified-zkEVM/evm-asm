@@ -52,12 +52,25 @@ private def dummyEvm (blockEnv : BlockEnvironment) : Evm :=
   { code := [], gasLeft := 0, stateGasLeft := 0, validJumpDestinations := [],
     message := msg, accessedAddresses := [], accessedStorageKeys := [] }
 
-/-- The `execute_block` interior below the pre-execution frame
-    (`fork.py`, function `execute_block`): `apply_body`, the diff
-    extraction, the post-state root, and the eight header checks. -/
-def execute_block_interior (pre : PrecompileMap) (ws : WitnessPreState)
+/-- Shared `BlockEnvironment` + `Machine` construction and `apply_body` run
+    (`fork.py` `execute_block` body prefix). **Single construction site** for
+    the production oracle (`execute_block_interior`) and the gas-dimension
+    diagnostic — a field added to `BlockEnvironment` cannot reach one without
+    the other.
+
+    Returns the `BlockOutput` and post-`apply_body` `Machine`. An `EvmError`
+    escaping `apply_body` is a Python exception escaping `execute_block` →
+    rejection.
+
+    Callers that only need gas dims re-run this same function and read
+    `blockGasUsed` / `blockStateGasUsed` from the returned `BlockOutput`
+    (SpecRef is deterministic; this is a second invocation, not a side
+    recomputation of gas arithmetic and not a plumb of the oracle's own
+    in-flight value). -/
+def apply_body_run (pre : PrecompileMap) (ws : WitnessPreState)
     (chainContext : ChainContext) (block : Block)
-    (transaction_public_keys : List Bytes) : Except SpecError Unit := do
+    (transaction_public_keys : List Bytes) :
+    Except SpecError (BlockOutput × Machine) := do
   let blockEnv : BlockEnvironment :=
     { chainId := chainContext.chainId
       blockGasLimit := block.header.gasLimit
@@ -76,12 +89,18 @@ def execute_block_interior (pre : PrecompileMap) (ws : WitnessPreState)
       txState := { parent := { preState := ws } } }
   let result := (apply_body pre blockEnv block.transactions block.withdrawals).run
     |>.run machine₀
+  match ← result with
+  | (.error _, _) => throw (.executionRejected "unhandled EVM error in apply_body")
+  | (.ok (out, _builder), machine) => pure (out, machine)
+
+/-- The `execute_block` interior below the pre-execution frame
+    (`fork.py`, function `execute_block`): shared `apply_body_run`, the diff
+    extraction, the post-state root, and the eight header checks. -/
+def execute_block_interior (pre : PrecompileMap) (ws : WitnessPreState)
+    (chainContext : ChainContext) (block : Block)
+    (transaction_public_keys : List Bytes) : Except SpecError Unit := do
   let (blockOutput, machine) ←
-    match ← result with
-    -- an EvmError escaping apply_body is a Python exception escaping
-    -- execute_block → rejection
-    | (.error _, _) => throw (.executionRejected "unhandled EVM error in apply_body")
-    | (.ok (out, _builder), machine) => pure (out, machine)
+    apply_body_run pre ws chainContext block transaction_public_keys
   let block_state := machine.txState.parent
   let diff := extract_block_diff block_state
   let cache₀ ← cacheFromReads ws block_state.preStateReads
@@ -141,10 +160,12 @@ def elExecuteWith (pre : PrecompileMap) : ExecutionSeam := fun input => do
   execute_block_interior pre input.preState input.chainContext block
     input.transactionPublicKeys
 
-/-- Diagnostic: return `BlockOutput.blockGasUsed` × `blockStateGasUsed` from the
-    same `apply_body` call `execute_block_interior` uses for the EIP-8037
-    `max` comparison (`ElExecute.lean` gas-used check). These are the oracle's
-    accumulator fields, not a side recomputation of gas arithmetic.
+/-- Diagnostic: re-run shared `apply_body_run` and read
+    `BlockOutput.blockGasUsed` × `blockStateGasUsed` — the same fields the
+    oracle feeds into `max(...) == header.gasUsed`. Same function, same
+    construction, second invocation (SpecRef is deterministic); not a plumb of
+    the oracle's own in-flight value and not a side recomputation of gas
+    arithmetic.
 
     Stops after `apply_body` (skips post-body root/bloom checks) so the
     export stays cheap; the gas fields are fully accumulated before those
@@ -152,27 +173,8 @@ def elExecuteWith (pre : PrecompileMap) : ExecutionSeam := fun input => do
 def apply_body_block_gas_dims (pre : PrecompileMap) (ws : WitnessPreState)
     (chainContext : ChainContext) (block : Block)
     (transaction_public_keys : List Bytes) : Except SpecError (Uint × Uint) := do
-  let blockEnv : BlockEnvironment :=
-    { chainId := chainContext.chainId
-      blockGasLimit := block.header.gasLimit
-      blockHashes := chainContext.blockHashes
-      coinbase := block.header.coinbase
-      number := block.header.number
-      baseFeePerGas := block.header.baseFeePerGas
-      time := block.header.timestamp
-      prevRandao := block.header.prevRandao
-      excessBlobGas := block.header.excessBlobGas
-      parentBeaconBlockRoot := block.header.parentBeaconBlockRoot
-      slotNumber := block.header.slotNumber
-      transactionPublicKeys := some transaction_public_keys }
-  let machine₀ : Machine :=
-    { evm := dummyEvm blockEnv
-      txState := { parent := { preState := ws } } }
-  let result := (apply_body pre blockEnv block.transactions block.withdrawals).run
-    |>.run machine₀
-  match ← result with
-  | (.error _, _) => throw (.executionRejected "unhandled EVM error in apply_body")
-  | (.ok (out, _), _) => pure (out.blockGasUsed, out.blockStateGasUsed)
+  let (out, _) ← apply_body_run pre ws chainContext block transaction_public_keys
+  pure (out.blockGasUsed, out.blockStateGasUsed)
 
 /-- Full-seam diagnostic wrapper: same pre-checks as `elExecuteWith`, then
     `apply_body_block_gas_dims`. -/

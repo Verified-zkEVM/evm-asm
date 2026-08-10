@@ -81,8 +81,9 @@ def unpackZiskemuInput (packed : Bytes) : Except String Bytes := do
 --   exit 2 + stderr message on malformed framing.
 -- `specref-eest-check --gas-dims <input_file>`
 --   exit 0 + one JSON object on stdout with regular/state/oracle_succ.
---   Dims are BlockOutput.apply_body fields (oracle max inputs), not a
---   recomputation. exit 3 if apply_body path fails before dims exist.
+--   Dims re-run shared apply_body_run and read BlockOutput fields (same
+--   fields the oracle max-compares; second invocation, not a plumb).
+--   exit 3 if apply_body path fails before dims exist.
 
 def usage : String :=
   "usage: specref-eest-check <input_file> <output_file>\n" ++
@@ -95,8 +96,8 @@ private def emitGasDimsJson (d : StatelessGasDims) : String :=
   s!"\"state\":{d.state}," ++
   s!"\"max\":{maxDim}," ++
   s!"\"oracle_succ\":{(if d.oracleSucc then "true" else "false")}," ++
-  "\"source\":\"BlockOutput.apply_body_fields\"," ++
-  "\"note\":\"same accumulators execute_block_interior max-compares; not a side recomputation\"" ++
+  "\"source\":\"BlockOutput.apply_body_run_fields\"," ++
+  "\"note\":\"re-runs shared apply_body_run; same fields oracle max-compares; second invocation not plumb\"" ++
   "}"
 
 def main (args : List String) : IO UInt32 := do

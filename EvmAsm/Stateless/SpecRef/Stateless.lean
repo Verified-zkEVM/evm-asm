@@ -506,14 +506,17 @@ def verify_stateless_new_payload (si : StatelessInput)
     successfulValidation := (match attempt with | .ok _ => true | .error _ => false)
     chainConfig := si.chainConfig }
 
-/-- Tooling diagnostic (#11808): export EIP-8037 block gas dimensions from the
-    same `BlockOutput` accumulators the oracle max-compares.
+/-- Tooling diagnostic (#11808): export EIP-8037 block gas dimensions by
+    re-running shared `apply_body_run` (same `BlockEnvironment`/`Machine`/
+    `apply_body` construction the oracle uses) and reading its
+    `BlockOutput` fields.
 
-    * `regular` = `BlockOutput.blockGasUsed` after `apply_body`
-    * `state`   = `BlockOutput.blockStateGasUsed` after `apply_body`
-    * These are the fields `execute_block_interior` feeds into
-      `max(regular, state) == header.gasUsed` — not a recomputation alongside
-      the oracle.
+    * `regular` = `BlockOutput.blockGasUsed` after that run
+    * `state`   = `BlockOutput.blockStateGasUsed` after that run
+    * Same fields `execute_block_interior` feeds into
+      `max(regular, state) == header.gasUsed`. Second invocation of the
+      shared prefix (SpecRef deterministic), not a plumb of the oracle's
+      own in-flight value and not a side recomputation of gas arithmetic.
     * `oracleSucc` is the production `verify_stateless_new_payload` bit
       (full seam including post-body checks). Dims can still be present when
       `oracleSucc = false` if `apply_body` finished and a later check failed. -/

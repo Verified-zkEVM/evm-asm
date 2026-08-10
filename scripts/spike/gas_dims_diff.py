@@ -7,8 +7,11 @@ Compares guest BSS per-tx arrays against SpecRef BlockOutput accumulators:
   guest state   = sum(bvgr_tx_total_state_gas[0..n))
   specref       = BlockOutput.blockGasUsed / blockStateGasUsed after apply_body
 
-NO guest edits. SPIKE_DUMP_RANGES peeks existing BSS; SpecRef --gas-dims reads
-the same apply_body fields the oracle max-compares (not a side recomputation).
+NO guest edits. SPIKE_DUMP_RANGES peeks existing BSS; SpecRef --gas-dims
+re-runs shared apply_body_run (same BlockEnvironment/Machine/apply_body
+construction as the oracle) and reads blockGasUsed/blockStateGasUsed —
+second invocation of the shared prefix, not a plumb of the oracle's own
+in-flight value and not a side recomputation of gas arithmetic.
 
 Limits (printed every run):
   - Agreement on summands does NOT certify eip8037_block_gas_used's max/compare
