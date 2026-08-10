@@ -55,6 +55,7 @@
 
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
+import EvmAsm.Codegen.Proofs.ExecuteSeamBridge
 import EvmAsm.Codegen.Proofs.CalldataLoadGuardedHandlerSpec
 import EvmAsm.Evm64.BlobHash.Spec
 
