@@ -529,7 +529,7 @@ def routineCountTier (t : ProofTier) : Nat :=
 theorem routineCount_eq : routineCount = 45 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 11 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
