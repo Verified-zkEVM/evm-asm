@@ -133,7 +133,6 @@ import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxRefund
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
-import EvmAsm.Codegen.Programs.BlockBody
 import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockValidate
 import EvmAsm.Codegen.Programs.Account
@@ -687,23 +686,15 @@ def lookupProgram : String → Option BuildUnit
   | "zisk_tx_eip4844_validate_blob_hashes" => some ziskTxEip4844ValidateBlobHashesProbeUnit
   | "zisk_ssz_tx_list_versioned_hashes_match" => some ziskSszTxListVersionedHashesMatchProbeUnit
   | "zisk_tx_calculate_total_blob_gas" => some ziskTxCalculateTotalBlobGasProbeUnit
-  | "zisk_block_body_blob_gas_total" => some ziskBlockBodyBlobGasTotalProbeUnit
-  | "zisk_block_validate_blob_gas_consistency" => some ziskBlockValidateBlobGasConsistencyProbeUnit
   | "zisk_tx_decode_dispatch"   => some ziskTxDecodeDispatchProbeUnit
   | "zisk_intrinsic_gas_legacy" => some ziskIntrinsicGasLegacyProbeUnit
   | "zisk_tx_validate_intrinsic_gas_legacy" => some ziskTxValidateIntrinsicGasLegacyProbeUnit
   | "zisk_validate_transaction_basic" => some ziskValidateTransactionBasicProbeUnit
   | "zisk_validate_transaction_full" => some ziskValidateTransactionFullProbeUnit
   | "zisk_withdrawal_decode"    => some ziskWithdrawalDecodeProbeUnit
-  | "zisk_block_body_decode"    => some ziskBlockBodyDecodeProbeUnit
-  | "zisk_block_validate_ommers_empty" => some ziskBlockValidateOmmersEmptyProbeUnit
   | "zisk_process_withdrawal"   => some ziskProcessWithdrawalProbeUnit
   | "zisk_process_withdrawals_block" => some ziskProcessWithdrawalsBlockProbeUnit
   | "zisk_withdrawals_sum_amounts" => some ziskWithdrawalsSumAmountsProbeUnit
-  | "zisk_block_withdrawals_total" => some ziskBlockWithdrawalsTotalProbeUnit
-  | "zisk_block_count_withdrawals" => some ziskBlockCountWithdrawalsProbeUnit
-  | "zisk_block_count_transactions" => some ziskBlockCountTransactionsProbeUnit
-  | "zisk_block_summary"        => some ziskBlockSummaryProbeUnit
   | "zisk_block_compute_tx_hashes" => some ziskBlockComputeTxHashesProbeUnit
   | "zisk_bloom_add_value" => some ziskBloomAddValueProbeUnit
   | "zisk_log_bloom_add" => some ziskLogBloomAddProbeUnit
