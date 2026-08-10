@@ -461,7 +461,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `balStorageChangeValuesFunction` | `EvmAsm/Codegen/Programs/BalStorageChangeValues.lean` | 152 | 3 reloc sym(s) |
 | `headerExtractBaseFeeU64BhFunction` | `EvmAsm/Codegen/Programs/BaseFeePerGasAtBlockHash.lean` | 8 | 1 reloc sym(s) |
 | `headerExtractBaseFeeU64Function` | `EvmAsm/Codegen/Programs/BaseFeePerGasAtBlockNumber.lean` | 8 | 1 reloc sym(s) |
-| `blockBodyDecodeFunction` | `EvmAsm/Codegen/Programs/Block.lean` | 38 | 1 reloc sym(s) |
 | `blockComputeTxHashesFunction` | `EvmAsm/Codegen/Programs/Block.lean` | 47 | 3 reloc sym(s) |
 | `balBuilderIncorporateTouchedAccountsFunction` | `EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean` | 24 | 2 reloc sym(s) |
 | `balEmitStorageChangesFunction` | `EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean` | 184 | 12 reloc sym(s) |
@@ -629,7 +628,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Function | File | Instrs | Note |
 |---|---|---:|---|
-| `blockValidateEmptyBlockFunction` | `EvmAsm/Codegen/Programs/BlockEmpty.lean` |  | secondary non-.L label 'beb_check_header_field_32B': multi-entry bundl |
 | `extractDepositDataFunction` | `EvmAsm/Codegen/Programs/ExtractDepositData.lean` |  | secondary non-.L label 'edd_be32_eq': multi-entry bundle, cross-functi |
 | `mptIndexedTrieRootOneLeafFunction` | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` |  | secondary non-.L label 'rlp_prefix_to_buffer': multi-entry bundle, cro |
 | `receiptRecordsFunction` | `EvmAsm/Codegen/Programs/ReceiptRecords.lean` |  | secondary non-.L label 'receipt_records_clear': multi-entry bundle, cr |
@@ -666,7 +664,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/BlobGasUsedAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/BlobGasUsedAtBlockNumber.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Block.lean` | 4 |
-| `EvmAsm/Codegen/Programs/BlockBody.lean` | 6 |
 | `EvmAsm/Codegen/Programs/BlockEmpty.lean` | 3 |
 | `EvmAsm/Codegen/Programs/BlockHashAtBlockNumber.lean` | 1 |
 | `EvmAsm/Codegen/Programs/BlockHashAtStateRoot.lean` | 1 |
@@ -800,7 +797,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/TxRoot.lean` | 3 |
 | `EvmAsm/Codegen/Programs/TxTotalBlobGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Withdrawal.lean` | 6 |
-| `EvmAsm/Codegen/Programs/WithdrawalBlockSummary.lean` | 2 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootAtBlockHash.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootAtBlockNumber.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersAccountAtIndex.lean` | 1 |

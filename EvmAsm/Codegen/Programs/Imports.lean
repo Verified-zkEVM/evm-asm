@@ -279,7 +279,6 @@ import EvmAsm.Codegen.Programs.RegistryReceipts
 import EvmAsm.Codegen.Programs.TxTotalBlobGas
 import EvmAsm.Codegen.Programs.HeaderChainPostMerge
 import EvmAsm.Codegen.Programs.BlockValidate1Tx
-import EvmAsm.Codegen.Programs.WithdrawalBlockSummary
 import EvmAsm.Codegen.Programs.HeaderSummaryStruct
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
@@ -304,7 +303,6 @@ import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.Bloom
 import EvmAsm.Codegen.Programs.Block
-import EvmAsm.Codegen.Programs.BlockBody
 import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockValidate
 import EvmAsm.Codegen.Programs.Account
