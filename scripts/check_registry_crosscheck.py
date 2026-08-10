@@ -36,8 +36,21 @@ nothing (the #11042 silent-skip lesson).
 `verdict :=` field counts as `.unproven`, it is not skipped.
 
 SELF-TEST (prove it can fire, per the issue): `--self-test` injects
-`rlp_item_span` — a real `.unproven` row today — into the witnessed set in
-memory and asserts the checker reports the violation.
+`bal_canonical_sort` — a real `.unproven` row today — into the witnessed set
+in memory and asserts the checker reports the violation.
+
+Canary history / selection (do not "just pick the next .unproven"):
+  * Was `rlp_item_span` until #11577 / PR #11936 lifted that row to
+    `.domainRestricted`. The plain run then still passed; only `--self-test`
+    failed — the fixture has to move with the achievement.
+  * Do NOT use `rlp_encode_u64` here. Routines.lean's kernel negative control
+    already points at that row; putting both controls on one symbol means a
+    single future PR proving it would break two gates at once.
+  * Prefer `bal_canonical_sort`: its Correspondence note records that a triple
+    IS statable today and the row stays `.unproven` because nobody has stated
+    one; the headline obligation is PERMUTATION (a sort that silently drops
+    rows is still sorted; e2e hash tests cannot see it). That is a predicate
+    gap nobody is about to close by accident.
 """
 
 import os
@@ -47,7 +60,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROUTINES = os.path.join(REPO, "EvmAsm", "Progress", "Routines.lean")
 CORRESPOND = os.path.join(REPO, "EvmAsm", "Progress", "Correspondence.lean")
-CANARY = "rlp_item_span"
+CANARY = "bal_canonical_sort"
 
 
 def witnessed_symbols(text: str) -> set[str]:
