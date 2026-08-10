@@ -9,6 +9,7 @@ import EvmAsm.EL.RLP.ListDecode
 import EvmAsm.EL.RLP.ListDecodeBridge
 import EvmAsm.EL.RLP.LongForm
 import EvmAsm.EL.RLP.LongFormDecodeBridge
+import EvmAsm.EL.RLP.LongSpan
 import EvmAsm.EL.RLP.Prefix
 import EvmAsm.EL.RLP.PrefixDecode
 import EvmAsm.EL.RLP.Program

@@ -6,8 +6,10 @@
 
   The headline Prop is `runStatelessGuestSound cr fuel fr execute`:
 
-    for every host-supplied input (≤ `MAX_INPUT_BYTES`), starting at the
-    guest ELF entry with the input framed at `INPUT_ADDR` and owning the
+    for every host-supplied input (≤ `MAX_INPUT_BYTES`) except one that
+    successfully decodes to an execution payload declaring a gas limit above
+    `Constants.resourceBlockGasLimit`,
+    starting at the guest ELF entry with the input framed at `INPUT_ADDR` and owning the
     work regions, the guest HALTS within `fuel` steps, and whatever the
     verifier then reads at `OUTPUT_ADDR` is a SOUND claim: if the
     `successful_validation` byte (OUTPUT[32]) is 1, then the input
@@ -44,6 +46,7 @@
 -/
 
 import EvmAsm.Stateless.Entry
+import EvmAsm.Stateless.Constants
 import EvmAsm.Stateless.SpecRef.Guest
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.MemRegion
@@ -120,6 +123,30 @@ def guestInputAssertion (input : Bytes) : Assertion :=
   bytesRegion (INPUT_ADDR + INPUT_LEN_OFFSET) (u64LEBytes input.length) **
   bytesRegion (INPUT_ADDR + INPUT_BODY_OFFSET) input
 
+/-! ## Resource-envelope precondition
+
+    The finite arenas used by the emitted guest are derived for the named
+    `resourceBlockGasLimit` envelope.  This is deliberately a statement
+    precondition rather than a guest rejection: inputs outside the envelope
+    may still be accepted by the implementation, but this theorem makes no
+    claim about them. -/
+
+/-- A decoded stateless input lies within the finite-resource theorem's
+    declared block-gas envelope.  The field is the execution payload's
+    declared `header.gas_limit`; it is not the gas actually consumed. -/
+def statelessInputWithinResourceEnvelope (si : StatelessInput) : Prop :=
+  si.newPayloadRequest.executionPayload.gasLimit ≤
+    Constants.resourceBlockGasLimit
+
+/-- The serialized-input form of the resource-envelope precondition.  The
+    universal implication is vacuously true for inputs that do not deserialize,
+    while excluding exactly successfully decoded inputs whose declared gas
+    limit exceeds the resource bound.  Thus soundness still constrains any
+    acceptance of malformed input. -/
+def inputWithinResourceEnvelope (input : Bytes) : Prop :=
+  ∀ si, deserialize_stateless_input input = .ok si →
+    statelessInputWithinResourceEnvelope si
+
 /-! ## Postcondition: the verifier-facing claim -/
 
 /-- The spec-side acceptance condition the guest's `valid = 1` claim must
@@ -176,10 +203,12 @@ structure GuestFraming where
 /-! ## The top-level Props -/
 
 /-- **The headline statement shape** (soundness + termination): for every
-    host input within the size bound, the guest — running from the ELF
-    entry with the input framed and `fr.scratch` owned — halts within
-    `fuel` steps in a state that splits into the sound 40-byte
-    observation window and `fr.residue`.
+    host input within the size bound **and** `inputWithinResourceEnvelope`,
+    the guest — running from the ELF entry with the input framed and
+    `fr.scratch` owned — halts within `fuel` steps in a state that splits into
+    the sound 40-byte observation window and `fr.residue`.  The resource
+    predicate is a promise boundary, not a runtime gate: above the named
+    200M envelope the guest may still accept, but this theorem says nothing.
 
     Bead `.64` proves this for the concrete `(cr, fuel, fr, execute)`
     quadruple: the guest-image `CodeReq` (bead .63), the gas-derived step
@@ -188,6 +217,7 @@ structure GuestFraming where
 def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
     (execute : ExecutionSeam) : Prop :=
   ∀ input : Bytes, input.length ≤ MAX_INPUT_BYTES →
+    inputWithinResourceEnvelope input →
     cpsHaltTripleWithin fuel GUEST_ENTRY cr
       (guestInputAssertion input ** fr.scratch)
       (guestOutputSound execute input ** fr.residue)

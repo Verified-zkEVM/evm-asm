@@ -80,6 +80,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
@@ -146,11 +148,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.decode_injective
 
+#print axioms EvmAsm.EL.RLP.decode_span_longBytes
+
+#print axioms EvmAsm.EL.RLP.decode_span_longList
+
 #print axioms EvmAsm.EL.RLP.encode_decode
 
 #print axioms EvmAsm.EL.RLP.encode_decode_mutual
 
 #print axioms EvmAsm.EL.RLP.encode_injective
+
+#print axioms EvmAsm.EL.RLP.readLength_length
+
+#print axioms EvmAsm.EL.RLP.readLength_takeBytes
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 

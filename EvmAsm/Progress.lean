@@ -107,6 +107,8 @@ import EvmAsm.Evm64.ReturnData.CopySpec
 import EvmAsm.EL.RLP.FuelMono
 -- #11896: the canonicality direction of the RLP round trip.
 import EvmAsm.EL.RLP.EncodeDecode
+-- #10780 item 3: the long-form span lemmas, the read side's missing `SpanForm` arms.
+import EvmAsm.EL.RLP.LongSpan
 
 namespace EvmAsm.Progress
 
@@ -737,6 +739,17 @@ private noncomputable abbrev _rlp_encode_decode_mutual_witness :=
   @EvmAsm.EL.RLP.encode_decode_mutual
 private noncomputable abbrev _rlp_decode_injective_witness :=
   @EvmAsm.EL.RLP.decode_injective
+-- #10780 item 3: the long-form spans excluded by `SpanForm`, plus the two `readLength`
+-- inversions they rest on. Witnessed because the machine half will consume them as its
+-- specification, and a specification outside the axiom gate is the #11637 failure mode.
+private noncomputable abbrev _rlp_decode_span_longBytes_witness :=
+  @EvmAsm.EL.RLP.decode_span_longBytes
+private noncomputable abbrev _rlp_decode_span_longList_witness :=
+  @EvmAsm.EL.RLP.decode_span_longList
+private noncomputable abbrev _rlp_readLength_length_witness :=
+  @EvmAsm.EL.RLP.readLength_length
+private noncomputable abbrev _rlp_readLength_takeBytes_witness :=
+  @EvmAsm.EL.RLP.readLength_takeBytes
 -- #10190 (PR #11910). Flagged there: `check-axioms.sh` only inspects proofs witnessed
 -- here, so these two were NOT covered by CI's axiom gate despite being the load-bearing
 -- content of the MSTORE `evmMemoryIs` migration. `bytesRegion_dword_pair_at_setBytes` is
