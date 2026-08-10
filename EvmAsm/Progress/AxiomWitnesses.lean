@@ -296,6 +296,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.evm_mstore_stack_spec_within
 
+#print axioms EvmAsm.Evm64.evm_mstore_stack_spec_within_region
+
 #print axioms EvmAsm.Evm64.evm_mul_stack_spec_within
 
 #print axioms EvmAsm.Evm64.evm_not_stack_spec_within
