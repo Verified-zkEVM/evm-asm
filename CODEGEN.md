@@ -2117,11 +2117,12 @@ with M25; neither artifact exists now.
    is not in the tree; the four M25 cases could not fail for
    a wrong slot list — cannot-fail-for-the-right-reason.
 
-ABI removal (#11556): drop `OpcodeTestCase.expectedPostStorage`,
-the TSV column, the four M25-only cases, and this historical
-"DONE" claim. **No guest-image / four-artefact regen** — the
-serializer was already gone from the linked image; only the
-test-tooling declaration remained.
+ABI removal (#11556): dropped `OpcodeTestCase.expectedPostStorage`,
+the TSV column, the four M25-only cases, and the historical
+"DONE" claim (landed in `036336d7c` / PR #11758). **No
+guest-image / four-artefact regen** — the serializer was already
+gone from the linked image; only the test-tooling declaration
+remained, and that is gone too.
 
 ### M27 — Real EXP (0x0a): graduate from no-op to verified body — **DONE (2026-06-02)**
 
