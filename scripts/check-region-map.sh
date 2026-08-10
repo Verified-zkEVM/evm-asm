@@ -38,6 +38,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 die_missing() {
   echo "check-region-map: missing required command: $1" >&2
   exit 2

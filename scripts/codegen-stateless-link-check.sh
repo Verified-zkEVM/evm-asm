@@ -9,6 +9,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 OUT_PREFIX="${CODEGEN_STATELESS_LINK_OUT:-gen-out/stateless-link-check/stateless_guest}"
 NO_BUILD=0
 

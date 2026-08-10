@@ -145,6 +145,10 @@ INVOCATION_CWD="$PWD"
 cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 
+if [[ "${EVMASM_BUILD_LOCK_HELD:-0}" != 1 ]]; then
+  exec scripts/lib/worktree-build-lock.sh "$0" "$@"
+fi
+
 # ziskemu startup accelerator (options-only; no zisk/ziskemu change required).
 # Every `ziskemu --elf` re-runs the full RISC-V->ZisK transpile of the ~447MB
 # stateless_guest ELF (~56.7M instructions); that ELF->ROM build dominates
