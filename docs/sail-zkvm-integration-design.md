@@ -50,7 +50,11 @@ The integration must be simultaneously:
 
 - **Verifiable** — everything is a kernel-checked theorem against the official
   Sail RISC-V model; the trusted base stays the 3 classical axioms (no
-  `native_decide`/`bv_decide`, per existing CI gates).
+  `native_decide`/`bv_decide`, per existing CI gates) plus — on the
+  `Rv64/SailEquiv/` correspondence surface only — the four uninterpreted
+  platform constants the vendored Sail model axiomatizes
+  (`Out/RiscvExtras.lean`); proofs off that surface carry none of them
+  (per-declaration accounting: `scripts/axiom_baseline.json`).
 - **Auditable / legible** — an Ethereum client dev (not a Lean expert) can
   check compliance with the *exact* zkVM RISC-V standard by reading a small
   number of artifacts: the target config, a coverage list, and a
