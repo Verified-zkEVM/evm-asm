@@ -61,6 +61,7 @@ import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
@@ -180,6 +181,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#10780 item 3)")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
+  -- #11577: whole-routine span under short-list outer + WalkedSpanForm on
+  -- every walked prefix. Lifts the leaf-routine-targets exclusion (verified
+  -- set includes .conditional). Callers inherit the SpanForm domain.
+  routine "rlp_item_span" .conditional (some "rlp_item_span_spec_within")
+      (gate := "short-list outer (`payloadLen items ≤ 55`) and "
+        ++ "`WalkedSpanForm items i` (SpanForm on every walked item 0..i, "
+        ++ "including the target). Long-list outer header and non-SpanForm "
+        ++ "walked items uncovered. coverRef "
+        ++ "`rlp_item_span_precondition_reachable`")
+      (notes := "stated at `rlpItemSpanBase = GuestAddrs.rlp_item_span`; "
+        ++ "callee size via offset-framed `rlp_item_size_offset_spec_within`"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -497,10 +509,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 43 := by decide
+theorem routineCount_eq : routineCount = 44 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -514,7 +526,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 33 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 34 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -546,12 +558,12 @@ def crossVerdictOk (witnessed : List String)
 theorem witnessed_not_unproven :
     crossVerdictOk routineSymbols Correspondence.registry = true := by decide
 
-/-- Negative control, kernel-checked on every build: `rlp_item_span` is a real
+/-- Negative control, kernel-checked on every build: `rlp_encode_u64` is a real
     `.unproven` Correspondence row today, so witnessing it here would make the
     check fire. A gate nobody has seen fail is indistinguishable from one that
-    cannot. -/
+    cannot. (Was `rlp_item_span` until #11577 lifted that row.) -/
 example :
-    crossVerdictOk ("rlp_item_span" :: routineSymbols) Correspondence.registry
+    crossVerdictOk ("rlp_encode_u64" :: routineSymbols) Correspondence.registry
       = false := by decide
 
 /-! ## Witness `abbrev`s
@@ -583,6 +595,8 @@ private noncomputable abbrev _reb_rlpItem_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+private noncomputable abbrev _rlp_item_span_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=

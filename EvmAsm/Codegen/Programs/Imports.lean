@@ -101,7 +101,11 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanSizeOffset
 import EvmAsm.Codegen.Programs.RlpItemSpanSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanMachine
+import EvmAsm.Codegen.Programs.RlpItemSpanLoop
+import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.MptSpliceSlotSpec
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecCommon
