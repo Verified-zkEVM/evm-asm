@@ -15,6 +15,8 @@
 
 import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen.MptNodeKindSpec
@@ -121,5 +123,60 @@ theorem mpt_node_kind_precondition_reachable :
     mptNodeKindGuest coverLeaf = 2 ∧
     mptNodeKindGuest [] = 3 := by
   decide
+
+/-! ## Strict operational result (machine post)
+
+    The guest classifies via `rlp_list_count_items` / `rlp_list_nth_item`
+    (strict walk), not `decodeFully`. The machine triple posts this relation;
+    under `MptNode.WF`, `mptNodeKindGuest_eq_kindTag` + a Success-of-encode
+    bridge (separate pure work) recovers `kindTag` for walk callers. -/
+
+/-- HP high-nibble → kind tag (1 ext / 2 leaf / 3 fail). -/
+def hpKind (b : BitVec 8) : Nat :=
+  let hn := b.toNat / 16
+  if hn < 2 then 1 else if hn < 4 then 2 else 3
+
+/-- Operational kind result matching guest control flow on strict Results. -/
+inductive MptNodeKindResult (bytes : List (BitVec 8)) (base : Word)
+    (listLen : Nat) (oldCount oldOff oldLen : Word) : Nat → Prop
+  /-- count failed → kind 3 -/
+  | countFail
+      (h : RlpListCountItemsSAsm.Result bytes base listLen (1 : Word) (0 : Word)) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen 3
+  /-- count = 17 → branch 0 -/
+  | branch
+      (h : RlpListCountItemsSAsm.Result bytes base listLen (0 : Word)
+        (BitVec.ofNat 64 17)) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen 0
+  /-- count success, not 17 and not 2 → kind 3 -/
+  | badArity (c : Nat) (hc : c < 2 ^ 64)
+      (h : RlpListCountItemsSAsm.Result bytes base listLen (0 : Word)
+        (BitVec.ofNat 64 c))
+      (hne17 : c ≠ 17) (hne2 : c ≠ 2) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen 3
+  /-- count = 2, nth failed → kind 3 -/
+  | nthFail
+      (hc : RlpListCountItemsSAsm.Result bytes base listLen (0 : Word)
+        (BitVec.ofNat 64 2))
+      (hn : RlpListNthItemSAsm.Result bytes base listLen 0 oldOff oldLen
+        (1 : Word) oldOff oldLen) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen 3
+  /-- count = 2, nth ok, path length 0 → kind 3 -/
+  | emptyPath (off : Word)
+      (hc : RlpListCountItemsSAsm.Result bytes base listLen (0 : Word)
+        (BitVec.ofNat 64 2))
+      (hn : RlpListNthItemSAsm.Result bytes base listLen 0 oldOff oldLen
+        (0 : Word) off (0 : Word)) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen 3
+  /-- count = 2, nth ok, path non-empty → HP classify -/
+  | path (off len : Word) (b : BitVec 8) (kind : Nat)
+      (hc : RlpListCountItemsSAsm.Result bytes base listLen (0 : Word)
+        (BitVec.ofNat 64 2))
+      (hn : RlpListNthItemSAsm.Result bytes base listLen 0 oldOff oldLen
+        (0 : Word) off len)
+      (hlen : 0 < len.toNat)
+      (hb : bytes[off.toNat]? = some b)
+      (hk : kind = hpKind b) :
+      MptNodeKindResult bytes base listLen oldCount oldOff oldLen kind
 
 end EvmAsm.Codegen.MptNodeKindSpec

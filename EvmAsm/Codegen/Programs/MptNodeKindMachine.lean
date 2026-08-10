@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.TwoExitLoop
 
 namespace EvmAsm.Codegen.MptNodeKindSpec
 
@@ -26,12 +27,13 @@ open EvmAsm.Codegen
 open EvmAsm.Codegen.RlpListCountItemsSAsm
 open EvmAsm.Codegen.RlpListNthItemSAsm
 
-private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.mpt_node_kind
-private abbrev CountB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_count_items
-private abbrev NthB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
-private abbrev MnkCount : Word := BitVec.ofNat 64 GuestAddrs.mnk_item_count
-private abbrev MnkPathOff : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_offset
-private abbrev MnkPathLen : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_length
+abbrev kindB : Word := BitVec.ofNat 64 GuestAddrs.mpt_node_kind
+abbrev CountB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_count_items
+abbrev NthB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+abbrev MnkCount : Word := BitVec.ofNat 64 GuestAddrs.mnk_item_count
+abbrev MnkPathOff : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_offset
+abbrev MnkPathLen : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_length
+private abbrev B : Word := kindB
 
 #guard mptNodeKind_prog.length = 53
 #guard GuestAddrs.mpt_node_kind = 0x80004790
@@ -86,5 +88,86 @@ theorem kind_abiFrame_byte_tie :
     abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) kindFrame kindBody =
       mptNodeKind_prog := by
   decide
+
+/-! ## Linked code image: kind body ∪ count_items ∪ nth_item -/
+
+private abbrev kindProg : List Instr := mptNodeKind_prog
+
+def wrapperCode : CodeReq := CodeReq.ofProg B kindProg
+
+/-- `wrapper ∪ (count ∪ nth)`. -/
+def fullCode : CodeReq :=
+  wrapperCode.union
+    (RlpListCountItemsSAsm.code.union RlpListNthItemSAsm.code)
+
+theorem program_length : kindProg.length = 53 := by decide
+
+set_option maxRecDepth 8000 in
+theorem wrapper_count_disjoint :
+    wrapperCode.Disjoint RlpListCountItemsSAsm.code := by
+  unfold wrapperCode RlpListCountItemsSAsm.code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [program_length, RlpListCountItemsSAsm.total_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem wrapper_nth_disjoint :
+    wrapperCode.Disjoint RlpListNthItemSAsm.code := by
+  unfold wrapperCode RlpListNthItemSAsm.code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [program_length, RlpListNthItemSAsm.total_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem count_nth_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint RlpListNthItemSAsm.code := by
+  unfold RlpListCountItemsSAsm.code RlpListNthItemSAsm.code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length, RlpListNthItemSAsm.total_length]; decide
+
+/-- Discharge one singleton membership into `fullCode` via the kind wrapper. -/
+theorem kindMem (A : Word) (k : Nat) (ins : Instr)
+    (hk : k < kindProg.length)
+    (hA : A = B + BitVec.ofNat 64 (4 * k))
+    (hins : kindProg[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i → fullCode a = some i := by
+  intro a i hs
+  unfold fullCode
+  exact CodeReq.union_mono_left a i
+    (CodeReq.ofProg_mem_at B A kindProg k ins hA hk hins
+      (by rw [program_length]; norm_num) a i hs)
+
+theorem countCalleeMem : ∀ a i,
+    RlpListCountItemsSAsm.code a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right wrapper_count_disjoint
+    (fun a i h => CodeReq.union_mono_left a i h) a i hi
+
+theorem nthCalleeMem : ∀ a i,
+    RlpListNthItemSAsm.code a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right wrapper_nth_disjoint
+    (fun a i h =>
+      CodeReq.mono_union_right count_nth_disjoint (fun _ _ h => h) a i h)
+    a i hi
+
+/-- Body PC pins (instruction index → absolute). -/
+def pc (n : Nat) : Word := kindB + BitVec.ofNat 64 (4 * n)
+
+theorem pc_succ (n : Nat) : pc n + 4 = pc (n + 1) := by
+  unfold pc; bv_omega
+
+theorem pc_eq_B (n : Nat) : pc n = B + BitVec.ofNat 64 (4 * n) := rfl
+
+/-- Fuel bound covering all arms: linear body + count(listLen) + nth(0). -/
+def kindFuel (listLen : Nat) : Nat :=
+  50 + (1 + (8 + (85 + (93 * (listLen + 1) + 3) + 7))) +
+    (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))
 
 end EvmAsm.Codegen.MptNodeKindSpec

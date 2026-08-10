@@ -87,6 +87,8 @@ import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
+-- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
+import EvmAsm.Codegen.Programs.MptNodeKindWrap
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
@@ -465,6 +467,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "function, not the routine's own accumulator. ABI hyps only (region wf, "
         ++ "non-overlap, non-overflow, aligned ra)"),
 
+  -- #11799 dep / leaf-routine-targets row 4: whole-routine machine triple for
+  -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
+  -- fail joins) with operational `MptNodeKindResult` post — no input-domain
+  -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
+  -- vs the arity-exact guest; do not rest the post on it. Callers that want
+  -- `kindTag` under WF use `mptNodeKindGuest_eq_kindTag`.
+  routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
+        ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
+        ++ "HP nibble classify for leaf/ext. Post is operational "
+        ++ "`MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path). "
+        ++ "coverRef `mpt_node_kind_precondition_reachable`. Callees already "
+        ++ "`.proven`; this is the first walker-dispatch machine triple"),
+
   -- #11574: the two field-bound scans. ⚠️ BOTH machine triples predate this
   -- registration by months and were simply never registered — a name search for
   -- the routines found nothing because the specs are in sibling `*SAsm` modules,
@@ -509,9 +525,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 44 := by decide
+theorem routineCount_eq : routineCount = 45 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 35 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -526,7 +542,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 34 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 35 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -716,6 +732,9 @@ private noncomputable abbrev _check_gas_limit_routine_witness :=
   @EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
   @EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
+-- #11799 dep: whole-routine mpt_node_kind machine triple.
+private noncomputable abbrev _mpt_node_kind_routine_witness :=
+  @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 -- #11574: the two field-bound scans. The MACHINE triples were unwitnessed by
