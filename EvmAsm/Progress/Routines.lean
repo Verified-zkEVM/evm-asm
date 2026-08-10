@@ -376,6 +376,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "same boundary as `rlp_item_size`")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
         ++ "`0xC0 + len` and sets the cell flag to 1"),
+  -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
+  -- but never registered, so it was outside the axiom gate and the registry
+  -- undercounted the routine's coverage — the short row's own gate text already
+  -- describes the cut as `lenlen ≥ 2`, which only makes sense if lenlen = 1 is
+  -- done. Same situation as the #11291 note below: the triple existed, the row
+  -- did not. Registering existing work; no new proof.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long1_pinned_spec_within")
+      (gate := "`56 ≤ len.toNat < 256` — the 1-length-byte long form. Together "
+        ++ "with the short row this covers `len < 256`; `lenlen ≥ 2` (the "
+        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3")
+      (notes := "per-form (\"long1\") pinned triple; writes header bytes "
+        ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
+        ++ "byte and minimal by construction here, so no leading-zero side "
+        ++ "condition is needed at this width"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -458,10 +473,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 39 := by decide
+theorem routineCount_eq : routineCount = 40 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 30 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -643,6 +658,9 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
   @EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+-- #10780: the long1 arm, proven since the short arm landed but never registered.
+private noncomputable abbrev _rlp_encode_list_prefix_long1_routine_witness :=
+  @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_long1_pinned_spec_within
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
