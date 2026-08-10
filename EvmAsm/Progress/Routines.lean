@@ -103,6 +103,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 
 namespace EvmAsm.Progress
 
@@ -582,7 +583,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "`nTxTypeDispatchSteps` = 256; five BGEU witnesses (shared, four "
         ++ "non-taken Typed, unknown) all carry immediate 168 = "
         ++ "`brOff (GuestAddrs.tx_type_dispatch+180) (GuestAddrs.tx_type_dispatch+12)`, "
-        ++ "matching the emitted guard target at D+180")
+        ++ "matching the emitted guard target at D+180"),
+  -- #11800 follow-on: whole-routine wrapper over #11960 loop framing.
+  -- Outer absorb uses signedCountdownLoop_reload_spec (hdr=LI at 0x8000368c);
+  -- BLT-header signedCountdownLoop_spec does NOT apply (JAL→LI ≠ BLT 0x80003690).
+  -- N/rem is length partition (len=136*N+rem, rem≤135), not an input-domain gate.
+  -- Post is operational keccakBodyDigest (guest pad+absorb+squeeze path); pure
+  -- SpecRef keccak256 bridge is residual, not absorbed here.
+  routine "zkvm_keccak256" .proven (some "zkvm_keccak256_spec_within")
+      (notes := "whole-routine no-ra frame triple at GuestAddrs.zkvm_keccak256 "
+        ++ "over zkvmKeccak256_prog (69 insn). Frame saves x8/x9/x18/x20 only "
+        ++ "(not ra); JALR x0,x1 ret. Outer absorb loop: LI-header reload "
+        ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
+        ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
+        ++ "Post: a0=0, output=keccakBodyDigest (operational). Resource/ABI "
+        ++ "preconditions only → .proven")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -594,9 +609,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 49 := by decide
+theorem routineCount_eq : routineCount = 50 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 36 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -611,7 +626,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 37 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 38 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -833,5 +848,8 @@ private noncomputable abbrev _bnf_lt_p_specref_routine_witness :=
 -- module, in the `…TxTypeDispatchSpec` namespace.
 private noncomputable abbrev _tx_type_dispatch_routine_witness :=
   @EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+-- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
+private noncomputable abbrev _zkvm_keccak256_routine_witness :=
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
 end EvmAsm.Progress
