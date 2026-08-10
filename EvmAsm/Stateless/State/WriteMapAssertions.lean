@@ -303,13 +303,21 @@ theorem storageWriteRowsFrom_cons (base : Word) (r : StorageWriteRow)
     well-formed — no duplicate keys under the container's insert discipline. This is
     the hook a `SpecRef/StateTracker` correspondence proof hangs from.
 
-    ⚠️ Stated as a **precondition-shaped predicate over the list**, not proved. The
+    ⚠️ Stated as a **precondition-shaped predicate over the list**, not proved here. The
     guest's arena is append-with-scan (`.Lawr_scan`), so uniqueness is a property of
-    the *writer*, and proving it belongs to the upsert routine's triple — which does
-    not exist yet (#11571's non-goals). Asserting it here without that triple would be
-    an unearned claim; naming it makes the obligation citable and keeps the shape
-    frozen. Same discipline as [[write-predicates-to-survive-movement]]: uniqueness is
-    a PRECONDITION, not a step. -/
+    the *writer*.
+
+    ⭐ **Update (#11921 row 1): the writer half is now a theorem.**
+    `State/AccountWriteUpsert.lean` models `account_write_record`'s upsert and proves
+    `accountWriteUpsert_rowsMap` — this predicate is preserved by the writer, from the
+    empty arena up. It cannot be cited *from* this module (that one imports this one),
+    which is why the clause stays a hypothesis in the definition; callers should discharge
+    it with that theorem rather than assume it.
+
+    Still open, and deliberately so: the model↔machine step, i.e. that the emitted
+    `.Lawr_scan`/`.Lawr_append`/`.Lawr_store` sequence implements the model. That needs an
+    SAsm transcription of the routine, which does not exist. Same discipline as
+    [[write-predicates-to-survive-movement]]. -/
 
 /-- The live rows of an account run, in order. Dead rows are present in memory and
     absent from the map. -/
