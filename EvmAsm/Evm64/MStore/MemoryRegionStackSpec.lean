@@ -255,6 +255,143 @@ theorem bytesRegion_dword_pair_at_setBytes (regionBase : Word)
         htake_first, hdrop_first, heqset', hcell, hcell', haddr, haddr',
         ← sepConj_assoc']
 
+/-! ## Byte-level MSTORE limb bridge
+
+The pair peel above is only consumable once the eight `SB`s of one limb have
+been folded back into the `setBytes` image.  Keep the conversion induction
+separate from the topmost spec: this theorem is uniform in every residue
+`start < 8`, and no Progress witness is re-pointed here.
+-/
+
+/-- Apply the first `k` byte stores of one MSTORE limb. -/
+def mstoreLimbStoreK (lo hi limb : Word) (start k : Nat) : Word × Word :=
+  match k with
+  | 0 => (lo, hi)
+  | k + 1 =>
+      let p := mstoreLimbStoreK lo hi limb start k
+      MStore.mstoreDwordPairReplaceByte p.1 p.2 start k
+        (extractByte limb (7 - k))
+
+/-- The first `k` bytes of one limb in emitted-store order. -/
+def mstoreLimbPayloadK (limb : Word) : Nat → List (BitVec 8)
+  | 0 => []
+  | k + 1 => mstoreLimbPayloadK limb k ++ [extractByte limb (7 - k)]
+
+theorem mstoreDwordPairReplaceByte_setBytes
+    (xs : List (BitVec 8)) (start i : Nat) (b : BitVec 8)
+    (hxs : 16 ≤ xs.length) (hstart : start < 8) (hi : start + i < 16) :
+    MStore.mstoreDwordPairReplaceByte
+        (packBytes (xs.take 8)) (packBytes ((xs.drop 8).take 8)) start i b =
+      (packBytes ((setBytes xs (start + i) [b]).take 8),
+       packBytes (((setBytes xs (start + i) [b]).drop 8).take 8)) := by
+  by_cases hlow : start + i < 8
+  · rw [MStore.mstoreDwordPairReplaceByte_low _ _ b hlow]
+    have htake := setBytes_take_of_le [b] xs (start + i) 8 (by simp; omega)
+    have hdrop := setBytes_drop_of_le [b] xs (start + i) 8 (by simp; omega)
+    rw [htake, hdrop]
+    simp only [setBytes_cons, setBytes_nil]
+    rw [packBytes_set _ _ _ (by omega) (by rw [List.length_take]; omega)]
+    congr 1
+    rw [show (start + i) % 8 = start + i by omega]
+  · have hhigh : 8 ≤ start + i := by omega
+    rw [MStore.mstoreDwordPairReplaceByte_high _ _ b hhigh]
+    have hdrop := setBytes_drop_of_ge [b] xs (start + i) 8 (by omega)
+    have htake := setBytes_take_of_ge [b] xs (start + i) 8 (by omega)
+    rw [htake, hdrop]
+    simp only [setBytes_cons, setBytes_nil]
+    rw [packBytes_set _ _ _ (by omega) (by
+      simp only [List.length_take, List.length_drop]
+      omega)]
+    congr 1
+    rw [show (start + i) % 8 = (start + i - 8) by omega]
+    rw [List.take_set]
+
+theorem mstore_setBytes_append (xs ys bs : List (BitVec 8)) (k : Nat) :
+    setBytes bs k (xs ++ ys) = setBytes (setBytes bs k xs) (k + xs.length) ys := by
+  induction xs generalizing bs k with
+  | nil => simp
+  | cons x xs ih =>
+      simp only [List.cons_append, setBytes_cons, List.length_cons]
+      rw [ih]
+      congr 1
+      omega
+
+theorem mstoreLimbPayloadK_length (limb : Word) (k : Nat) :
+    (mstoreLimbPayloadK limb k).length = k := by
+  induction k with
+  | zero => rfl
+  | succ k ih => simp [mstoreLimbPayloadK, ih]
+
+theorem mstoreLimbStoreK_eq_pack
+    (xs : List (BitVec 8)) (limb : Word) (start k : Nat)
+    (hxs : 16 ≤ xs.length) (hstart : start < 8) (hk : k ≤ 8) :
+    mstoreLimbStoreK (packBytes (xs.take 8))
+        (packBytes ((xs.drop 8).take 8)) limb start k =
+      (packBytes ((setBytes xs start (mstoreLimbPayloadK limb k)).take 8),
+       packBytes (((setBytes xs start (mstoreLimbPayloadK limb k)).drop 8).take 8)) := by
+  induction k generalizing xs with
+  | zero => rfl
+  | succ k ih =>
+      have hk8 : k < 8 := by omega
+      have ih' := ih (xs := xs) hxs (by omega)
+      simp only [mstoreLimbStoreK]
+      rw [ih']
+      have hstep := mstoreDwordPairReplaceByte_setBytes
+        (setBytes xs start (mstoreLimbPayloadK limb k)) start k
+        (extractByte limb (7 - k))
+        (by rw [length_setBytes]; exact hxs) hstart (by omega)
+      rw [hstep]
+      rw [show mstoreLimbPayloadK limb (k + 1) =
+        mstoreLimbPayloadK limb k ++ [extractByte limb (7 - k)] by rfl]
+      rw [mstore_setBytes_append (mstoreLimbPayloadK limb k)
+        [extractByte limb (7 - k)] xs start]
+      simp only [mstoreLimbPayloadK_length]
+
+theorem mstoreLimbPayloadK_eq_take (limb : Word) (k : Nat) (hk : k ≤ 8) :
+    mstoreLimbPayloadK limb k = (mstoreLimbBytesBE limb).take k := by
+  interval_cases k <;> simp [mstoreLimbPayloadK, mstoreLimbBytesBE]
+
+/-- The complete eight-byte limb store equals the two dwords selected from the
+    byte-level `setBytes` result, uniformly for every residue `start < 8`. -/
+theorem mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
+    (bs : List (BitVec 8)) (limb : Word) (q start : Nat)
+    (hstart : start < 8) (hq : 8 * q + 16 ≤ bs.length) :
+    MStore.mstoreDwordPairStoreLimb (dwordAt bs (8 * q))
+        (dwordAt bs (8 * q + 8)) limb start =
+      (dwordAt (setBytes bs (8 * q + start) (mstoreLimbBytesBE limb)) (8 * q),
+       dwordAt (setBytes bs (8 * q + start) (mstoreLimbBytesBE limb)) (8 * q + 8)) := by
+  let xs := bs.drop (8 * q)
+  have hxs : 16 ≤ xs.length := by
+    dsimp [xs]
+    rw [List.length_drop]
+    omega
+  have hpair := mstoreLimbStoreK_eq_pack xs limb start 8 hxs hstart (by omega)
+  have hdrop : (setBytes bs (8 * q + start) (mstoreLimbBytesBE limb)).drop (8 * q) =
+      setBytes xs start (mstoreLimbBytesBE limb) := by
+    dsimp [xs]
+    have h := setBytes_drop_of_ge (mstoreLimbBytesBE limb) bs
+      (8 * q + start) (8 * q) (by omega)
+    have hoff : 8 * q + start - 8 * q = start := by omega
+    rw [hoff] at h
+    exact h
+  rw [show dwordAt bs (8 * q) = packBytes (xs.take 8) by rfl,
+    show dwordAt bs (8 * q + 8) = packBytes ((xs.drop 8).take 8) by
+      dsimp [dwordAt, xs]
+      rw [List.drop_drop]]
+  rw [show MStore.mstoreDwordPairStoreLimb
+      (packBytes (xs.take 8)) (packBytes ((xs.drop 8).take 8)) limb start =
+      mstoreLimbStoreK (packBytes (xs.take 8))
+        (packBytes ((xs.drop 8).take 8)) limb start 8 by rfl]
+  rw [hpair, mstoreLimbPayloadK_eq_take limb 8 (by omega)]
+  have hp : (mstoreLimbBytesBE limb).take 8 = mstoreLimbBytesBE limb := by
+    simp [mstoreLimbBytesBE]
+  rw [hp]
+  dsimp [dwordAt]
+  rw [hdrop]
+  apply Prod.ext
+  · rfl
+  · rw [← List.drop_drop, hdrop]
+
 /-! ## The `evmMemoryIs`-level pair peel -/
 
 /-- **One MSTORE limb's dword pair, peeled out of `evmMemoryIs` in both

@@ -746,6 +746,11 @@ private noncomputable abbrev _rlp_decode_injective_witness :=
 -- precondition whose unsatisfiability is #11913.
 private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
   @EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+-- #10190 (bridge cut): the complete one-limb byte-store conversion is
+-- witnessed separately from the topmost MSTORE re-point.  It is uniform in
+-- every residue `start < 8`; no registry row is changed here.
+private noncomputable abbrev _mstore_limb_store_bridge_witness :=
+  @EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
 private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
   @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
