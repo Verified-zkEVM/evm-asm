@@ -290,23 +290,70 @@ theorem accountUndoFrom_cons (stride : Nat) (base : Word) (e : AccountUndoEntry)
       = (accountUndoEntryIs base e
           ** accountUndoFrom stride (base + BitVec.ofNat 64 stride) es) := rfl
 
-/-! ⚠️ **`snoc` is deliberately NOT proved here**, and the reason is worth recording so
-    the next attempt does not rediscover it.
+/-! ## `snoc` — the push-site direction
 
-    The natural statement indexes the appended entry at
-    `base + BitVec.ofNat 64 (stride * es.length)`, so the induction step needs
+    A push extends the journal at the BACK while the run recurses from the FRONT, so
+    `snoc` is not definitional (same shape as `DecodeChain.snoc`).
+
+    ⭐ **The arithmetic obstruction recorded here earlier is solvable, and the key is
+    `BitVec.ofNat_add_ofNat`.** The step needs
 
         (base + ofNat stride) + ofNat (stride * n) = base + ofNat (stride * (n + 1))
 
-    over `BitVec 64` with a **variable** `stride`. That is `ofNat`-of-a-product
-    arithmetic, which `bv_omega` does not see through (multiplication by a variable),
-    so it wants either a dedicated `ofNat` distribution lemma or a reformulation that
-    threads the advanced base instead of computing it.
+    over `BitVec 64` with a **variable** stride. `bv_omega` cannot see through
+    `ofNat`-of-a-product, which is what made this look blocked — but no bitvector
+    reasoning is needed at all: push the two `ofNat`s together with `ofNat_add_ofNat`,
+    then discharge `stride + stride * n = stride * (n + 1)` in `Nat` with `ring`. My
+    earlier note said this wanted "a dedicated `ofNat` distribution lemma"; that lemma is
+    in core, and looking for it beat working around it. -/
 
-    Not done because nothing consumes it yet: `snoc` is what a **push-site** triple
-    needs, and push/replay walker triples are explicitly outside #11572's scope. Doing
-    it now would be arithmetic scaffolding for an absent caller. The two `cons` lemmas
-    above are what the vocabulary itself requires. -/
+/-- The `ofNat`/stride step, isolated: advancing one stride then `n` strides equals
+    advancing `n + 1` strides. Separated because both `snoc` proofs need it and it is the
+    only arithmetic in either. -/
+theorem base_add_stride_succ (base : Word) (stride n : Nat) :
+    (base + BitVec.ofNat 64 stride) + BitVec.ofNat 64 (stride * n)
+      = base + BitVec.ofNat 64 (stride * (n + 1)) := by
+  rw [BitVec.add_assoc, BitVec.ofNat_add_ofNat]
+  congr 1
+  -- `stride + stride * n = stride * (n + 1)`. Deliberately NOT `ring`: this file does
+  -- not import `Mathlib.Tactic.Ring`, and `omega` cannot multiply two variables either.
+  rw [Nat.mul_succ, Nat.add_comm]
+
+/-- Appending one storage undo entry at the run's tail. -/
+theorem storageUndoFrom_snoc (stride : Nat) (e : StorageUndoEntry) :
+    ∀ (es : List StorageUndoEntry) (base : Word),
+      storageUndoFrom stride base (es ++ [e])
+        = (storageUndoFrom stride base es
+            ** storageUndoEntryIs (base + BitVec.ofNat 64 (stride * es.length)) e) := by
+  intro es
+  induction es with
+  | nil =>
+    intro base
+    simp only [List.nil_append, List.length_nil, Nat.mul_zero]
+    rw [storageUndoFrom_cons]
+    simp [storageUndoFrom, sepConj_emp_left', sepConj_emp_right']
+  | cons a as ih =>
+    intro base
+    rw [List.cons_append, storageUndoFrom_cons, storageUndoFrom_cons, ih,
+      ← sepConj_assoc', List.length_cons, ← base_add_stride_succ]
+
+/-- Appending one account undo entry at the run's tail. -/
+theorem accountUndoFrom_snoc (stride : Nat) (e : AccountUndoEntry) :
+    ∀ (es : List AccountUndoEntry) (base : Word),
+      accountUndoFrom stride base (es ++ [e])
+        = (accountUndoFrom stride base es
+            ** accountUndoEntryIs (base + BitVec.ofNat 64 (stride * es.length)) e) := by
+  intro es
+  induction es with
+  | nil =>
+    intro base
+    simp only [List.nil_append, List.length_nil, Nat.mul_zero]
+    rw [accountUndoFrom_cons]
+    simp [accountUndoFrom, sepConj_emp_left', sepConj_emp_right']
+  | cons a as ih =>
+    intro base
+    rw [List.cons_append, accountUndoFrom_cons, accountUndoFrom_cons, ih,
+      ← sepConj_assoc', List.length_cons, ← base_add_stride_succ]
 
 /-! ## The replay theorem, stated
 
