@@ -27,6 +27,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          # Required by actions/checkout when pull_request_target checks out a
+          # fork PR head (GH #10703). This workflow already refuses to execute
+          # PR-head scripts: progress-delta.sh is overwritten from the trusted
+          # base blob before run (see security note in the next step). Opt-in
+          # restores fork-PR summaries; it does not widen script execution.
+          allow-unsafe-pr-checkout: true
 
       - name: Compute deterministic progress delta
         id: progress_delta
