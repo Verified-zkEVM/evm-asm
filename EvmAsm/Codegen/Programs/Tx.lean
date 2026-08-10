@@ -127,7 +127,7 @@ def rlpFieldToU64Wrapper_prog : Program :=
     .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u64 + 36)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
       (GuestAddrs.rlp_field_to_u64 + 44)),
-    .BNE .x10 .x0 (68 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.rlp_field_to_u64 + 116) (GuestAddrs.rlp_field_to_u64 + 48)),
     .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 52)),
     .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u64 + 52)),
     .LD .x10 .x5 (0 : BitVec 12),
