@@ -71,6 +71,7 @@ import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
+import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
@@ -208,6 +209,22 @@ def routineRegistry : List RoutineEntry := [
       (some "account_rlp_content_to_u256_be_balance_spec_within")
       (notes := "writes the 32-byte balance; step bound "
         ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
+
+  -- #11925 continuation: `account_extract_nonce` is graded .conditional NOT
+  -- .proven (unlike its sibling balance accessor) because the grade is
+  -- INHERITED FROM ITS CALLEE, which is already registered .conditional above:
+  -- `rlp_content_to_u64` (Routines.lean:204) carries the identical
+  -- `a.nonce < 2 ^ 64` gate with the prose below, and the top-level triple
+  -- repeats that exact hypothesis. Two structurally identical gates cannot
+  -- carry different tiers. The satisfying instance is trivial: any `Account`
+  -- whose nonce fits a u64 cell.
+  routine "account_extract_nonce" .conditional
+      (some "account_extract_nonce_spec_within")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
+        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (notes := "grade inherited from its callee `rlp_content_to_u64`, which is "
+        ++ "`.conditional` at Routines.lean:204 with this exact gate; every "
+        ++ "dead code path carries a total post; step bound 139"),
 
   -- #11289: the RLP size / field / list routines whose specs `Correspondence`
   -- names but nothing witnessed. All whole-routine triples at their linked
@@ -458,10 +475,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 39 := by decide
+theorem routineCount_eq : routineCount = 40 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 30 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 9 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -475,7 +492,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 29 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 30 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -556,6 +573,8 @@ private noncomputable abbrev _rlp_walk_next_scalar_routine_witness :=
   @EvmAsm.Evm64.rlp_walk_next_scalar_spec_within
 private noncomputable abbrev _account_rlp_content_to_u64_nonce_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u64_nonce_spec_within
+private noncomputable abbrev _account_extract_nonce_routine_witness :=
+  @EvmAsm.Codegen.account_extract_nonce_spec_within
 private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u256_be_balance_spec_within
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.

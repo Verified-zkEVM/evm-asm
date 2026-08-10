@@ -26,9 +26,8 @@
 #   structured-only spec as a flat triple is exactly the invisible overclaim this
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 
-# --- TIER A: flat triple at the guest address; registrable now (19) ---
+# --- TIER A: flat triple at the guest address; registrable now (16) ---
 account_extract_balance	tier A — flat triple `account_extract_balance_spec_within` at GuestAddrs.account_extract_balance (EvmAsm/Codegen/Programs/AccountAccessorTopSpec.lean); registrable as .proven, not yet rowed (#11637)
-account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
 account_is_eip161_empty	tier A — flat triple `account_is_eip161_empty_spec_within` at GuestAddrs.account_is_eip161_empty (EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose6.lean); registrable as .proven, not yet rowed (#11637)
 blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 blsg_le_to_be	tier A — flat triple `blsgLeToBeFn_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G1LeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
@@ -45,7 +44,7 @@ secf_zero32	tier A — flat triple `secfZero32Fn_spec` at GuestAddrs.secf_zero32
 tx_type_dispatch	tier A — flat triple `txTypeDispatch_spec_within` at GuestAddrs.tx_type_dispatch (EvmAsm/Codegen/Programs/TxTypeDispatchTop.lean); registrable as .proven, not yet rowed (#11637)
 u256_sub_be	tier A — flat triple `u256SubBeFlat_spec` at GuestAddrs.u256_sub_be (EvmAsm/Codegen/Programs/Secp256k1FieldReduceOnceSAsmSupport.lean); registrable as .proven, not yet rowed (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (83) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (75) ---
 bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
