@@ -63,7 +63,7 @@
   as the existing execution-effect logs, then the post-body coinbase effect is
   recorded and the surviving transaction map is incorporated. The
   distinct-account capacity proof covers the block level;
-  raw `record_nonstorage_effect`'s 38460-row admission limit is not that proof.
+  raw `record_nonstorage_effect`'s 38476-row admission limit is not that proof.
 
   The builder walk is live. `account_writes_emit_builder_tx` realizes BAL
   changes before incorporation, using the spec's *pre-tx* baseline —
@@ -144,7 +144,7 @@ def blockAccountWritesCapacity : Nat := 65536
     It is NOT the block-level capacity proof: that map accumulates across
     transactions, and the plain-transfer sender+recipient route remains the
     named precondition for producer wiring. The consolidated route enumeration
-    lives in GH #10680; raw nonstorage rows (38460) are not distinct map keys. -/
+    lives in GH #10680; raw nonstorage rows (38476) are not distinct map keys. -/
 def accountWritesCallKeyBound : Nat := 1 + 200000000 / (3000 + 10300)
 
 /-- The AccountState scan capacity is defined in CreateCodeEffectLog.lean.
