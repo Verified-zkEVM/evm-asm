@@ -472,33 +472,67 @@ below is `elExecute` (`PrecompilesTable.lean`): the FULL ported
 
 /-! ## `verify_stateless_new_payload` (`stateless.py:321`) -/
 
+/-- Shared pre-state / chain-context setup for `verify_stateless_new_payload`
+    and the gas-dimension diagnostic. -/
+private def prepareSeamInput (si : StatelessInput) :
+    Except SpecError ExecutionSeamInput := do
+  let _ ← validate_chain_config si.chainConfig si.newPayloadRequest
+  let (decoded_headers, block_hashes) ← validate_headers si.witness.headers
+  let parent_header ← match decoded_headers.getLast? with
+    | some h => pure h
+    | none => throw (.executionRejected "no witness headers")
+  let chain_context : ChainContext :=
+    { chainId := si.chainConfig.chainId
+      blockHashes := block_hashes
+      parentHeader := parent_header }
+  let pre_state : WitnessPreState :=
+    { nodeDb := build_node_db si.witness.state
+      stateRoot := parent_header.stateRoot
+      codeDb := build_code_db si.witness.codes }
+  pure { newPayloadRequest := si.newPayloadRequest
+         preState := pre_state
+         chainContext := chain_context
+         transactionPublicKeys := si.publicKeys }
+
 /-- Statelessly validate the execution payload. Every exception the Python
     `try` would catch is folded into `successful_validation = false`. -/
 def verify_stateless_new_payload (si : StatelessInput)
     (execute : ExecutionSeam := elExecute) : StatelessValidationResult :=
   let new_payload_request_root := compute_new_payload_request_root si
-  let witness := si.witness
   let attempt : Except SpecError Unit := do
-    let _ ← validate_chain_config si.chainConfig si.newPayloadRequest
-    let (decoded_headers, block_hashes) ← validate_headers witness.headers
-    let parent_header ← match decoded_headers.getLast? with
-      | some h => pure h
-      | none => throw (.executionRejected "no witness headers")  -- decoded_headers[-1]
-    let chain_context : ChainContext :=
-      { chainId := si.chainConfig.chainId
-        blockHashes := block_hashes
-        parentHeader := parent_header }
-    let pre_state : WitnessPreState :=
-      { nodeDb := build_node_db witness.state
-        stateRoot := parent_header.stateRoot
-        codeDb := build_code_db witness.codes }
-    execute { newPayloadRequest := si.newPayloadRequest
-              preState := pre_state
-              chainContext := chain_context
-              transactionPublicKeys := si.publicKeys }
+    let input ← prepareSeamInput si
+    execute input
   { newPayloadRequestRoot := new_payload_request_root
     successfulValidation := (match attempt with | .ok _ => true | .error _ => false)
     chainConfig := si.chainConfig }
+
+/-- Tooling diagnostic (#11808): export EIP-8037 block gas dimensions by
+    re-running shared `apply_body_run` (same `BlockEnvironment`/`Machine`/
+    `apply_body` construction the oracle uses) and reading its
+    `BlockOutput` fields.
+
+    * `regular` = `BlockOutput.blockGasUsed` after that run
+    * `state`   = `BlockOutput.blockStateGasUsed` after that run
+    * Same fields `execute_block_interior` feeds into
+      `max(regular, state) == header.gasUsed`. Second invocation of the
+      shared prefix (SpecRef deterministic), not a plumb of the oracle's
+      own in-flight value and not a side recomputation of gas arithmetic.
+    * `oracleSucc` is the production `verify_stateless_new_payload` bit
+      (full seam including post-body checks). Dims can still be present when
+      `oracleSucc = false` if `apply_body` finished and a later check failed. -/
+structure StatelessGasDims where
+  regular : Nat
+  state : Nat
+  oracleSucc : Bool
+  deriving Repr
+
+def diagnose_stateless_gas_dims (si : StatelessInput)
+    (pre : PrecompileMap := specRefPrecompilesFull) :
+    Except SpecError StatelessGasDims := do
+  let input ← prepareSeamInput si
+  let (regular, state) ← elDiagnoseGasDimsWith pre input
+  let oracleSucc := (verify_stateless_new_payload si).successfulValidation
+  pure { regular := regular, state := state, oracleSucc := oracleSucc }
 
 /-! ## Sanity checks -/
 
