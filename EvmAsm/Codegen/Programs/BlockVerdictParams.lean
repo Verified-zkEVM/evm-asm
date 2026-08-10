@@ -25,14 +25,17 @@ def bsrBalGasCost : Nat := 2000
 
 /-- Current Amsterdam resource target.  Keep capacities as functions of this
     value: changing the supported block gas limit must resize every fixed
-    state-root builder arena rather than silently preserving a stale literal. -/
+    state-root builder arena rather than silently preserving a stale literal.
+    `block_verdict` enforces this value at entry via the #11957
+    `.Lbv_resource_gas_limit_fail` gate before any bounded producer runs. -/
 def bsrStateRootBlockGasLimit : Nat := 200000000
 
 /-- Static BAL/state replay arena capacity.  EIP-7928 enforces
     `bal_items <= block_gas_limit / BLOCK_ACCESS_LIST_ITEM`, so a 200M block
     has at most 100,000 BAL items.  The later bounded builder accepts only the
     normalized distinct final changes plus the explicitly bounded auxiliary
-    system/withdrawal changes below. -/
+    system/withdrawal changes below.  This derivation is an enforced contract
+    because the entry gas-limit gate rejects larger declared blocks first. -/
 def bsrMaxBalItems : Nat := bsrStateRootBlockGasLimit / bsrBalGasCost
 def bsrModeledSystemChanges : Nat := 2
 def bsrMaxWithdrawalChanges : Nat := 16
@@ -119,7 +122,8 @@ def bsrMaxAccessAccounts : Nat := runtimeAccessAccountOutcomeCapacity
     200M blocks is `bsrMaxBalItems` itself. Counts above this make the helpers
     write nothing and return the true count; callers bail conservatively
     (fhsxz.2.4.2.66.1.2 — the former 512 cap false-rejected queue-heavy
-    blocks far below 200M). -/
+    blocks far below 200M).  The supported 200M ceiling is enforced before
+    these helpers can write, by `block_verdict`'s #11957 entry gate. -/
 def bsrAccountSlotCap : Nat := bsrMaxBalItems
 
 /-- Conservative upper bound on `witness.state` byte length accepted by
@@ -148,7 +152,8 @@ def coldStorageAccessGas : Nat := 3000
 
 /-- Block-lifetime storage-map rows: `200,000,000 / 3,000 = 66,666`.
     This is the bound for `BlockState.storage_writes`, not the per-transaction
-    distinct-slot bound below. -/
+    distinct-slot bound below.  It is valid for the admitted block budget
+    because #11957 rejects a larger declared `gas_limit` before map writes. -/
 def blockStorageWritesCapacity : Nat := bsrStateRootBlockGasLimit / coldStorageAccessGas
 
 /-- Per-transaction storage-map rows: `(16,777,216 - 12,000) / 3,000 = 5,588`.
@@ -168,7 +173,8 @@ def storageWritesUndoBase : Nat :=
   ((storageWritesStateGasDiagEnd + 0xfff) / 0x1000) * 0x1000
 
 /-- Full Amsterdam transaction capacity target derived from the supported block
-    gas limit and `GasCosts.TX_BASE` (gas.py:131). -/
+    gas limit and `GasCosts.TX_BASE` (gas.py:131).  The block-level ceiling is
+    enforced at `block_verdict` entry by #11957 before this arena is touched. -/
 def bvMtxFullTxCap : Nat := bsrStateRootBlockGasLimit / bvMtxIntrinsicGasFloor
 #guard bvMtxFullTxCap = 16666
 
@@ -181,7 +187,8 @@ def bvEip7702AuthRegularGas : Nat := 7816
 /-- Maximum authorization tuples in any block under the supported gas limit.
     This is a gas bound, not a fixture-derived admission cap.  Use floor
     division: a capacity may be conservative, but it must not claim one more
-    tuple than the gas limit can pay for. -/
+    tuple than the gas limit can pay for.  The supported ceiling is explicit:
+    #11957 rejects larger declared limits before authorization staging. -/
 def bvEip7702AuthEntryCapacity : Nat :=
   bsrStateRootBlockGasLimit / bvEip7702AuthRegularGas
 #guard bvEip7702AuthEntryCapacity = 25588
@@ -204,7 +211,8 @@ def bvEip7702AuthorityTableBytes : Nat :=
 /-- Active multi-transaction execution-loop capacity. Every live per-transaction
     arena and aggregation table is statically sized to the protocol-derived
     `bvMtxFullTxCap`, so the loop must use the same bound rather than preserve a
-    fixture-era 1024-transaction false-reject gate. -/
+    fixture-era 1024-transaction false-reject gate.  This block-budget
+    derivation relies on the early #11957 gas-limit ceiling. -/
 def bvMtxActiveTxCap : Nat := bvMtxFullTxCap
 
 /-- An RLP transaction/receipt index below `bvMtxFullTxCap` has at most three
@@ -270,7 +278,8 @@ def bvSystemStorageMinSstoreGas : Nat := 100
 /-- Receipt/log arena capacities are deliberately separated by resource type.
     Receipt records are per transaction and therefore use the full Amsterdam
     200M intrinsic-floor transaction count target; log/RLP byte arenas remain
-    independent capacity slices tracked under `evm-asm-vv4hr.3`. -/
+    independent capacity slices tracked under `evm-asm-vv4hr.3`.  The
+    block-derived slice is admitted only after the #11957 200M gate. -/
 def bvReceiptRecordCapacity : Nat := bvMtxFullTxCap
 def bvReceiptRecordBytes : Nat := 64
 /-- One 64-byte receipt record for every full-capacity transaction. -/
@@ -289,7 +298,8 @@ def bvBlockLogDataByteGas : Nat := 8
 
 /-- Worst-case execution-derived log COUNT in a 200M block. Each LOG opcode
     costs at least `bvBlockLogMinGas` (the zero-topic, zero-data LOG0 base), so
-    the block holds at most `gas_limit / 375 = 533,333` log records. -/
+    the block holds at most `gas_limit / 375 = 533,333` log records.  The
+    #11957 entry gate makes the 200M premise explicit before log capture. -/
 def bvBlockLogFullDescTarget : Nat :=
   bvResourceBlockGasLimit / bvBlockLogMinGas
 
@@ -306,7 +316,8 @@ def bvBlockLogFullMetaBytes : Nat := bvBlockLogFullDescTarget * 16
 
 /-- Full copied-log-data byte target for the 200M resource work. It deliberately
     uses a simple upper bound (`gas_limit / LOGDATA_GAS`) so the implementation
-    target covers every execution-specs-valid mix of LOG base/topic/data gas. -/
+    target covers every execution-specs-valid mix of LOG base/topic/data gas.
+    This is sound only for blocks admitted by the #11957 200M ceiling. -/
 def bvBlockLogFullDataBytes : Nat :=
   bvResourceBlockGasLimit / bvBlockLogDataByteGas
 
@@ -336,7 +347,8 @@ def bvBlockLogFullDataBytes : Nat :=
     (`block_receipt_logs_materialize`, `materialize_log_records`,
     `parse_deposit_requests`) must walk the packed stride. The runtime
     dispatcher's `evm_event_logs` 256 B source format is unchanged. Closing this
-    keeps `bv_block_log_overflow` unreachable under 200M. If it is reached anyway,
+    keeps `bv_block_log_overflow` unreachable under the #11957-admitted 200M
+    envelope. If it is reached anyway,
     BlockVerdictReceiptsTail now fails visibly instead of accepting through a
     capacity skip, so class-D receipt enforcement and class-E deposit derivation do
     not normalize incomplete log materialization into success. -/

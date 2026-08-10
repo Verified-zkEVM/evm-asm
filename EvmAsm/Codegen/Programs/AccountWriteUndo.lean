@@ -21,7 +21,8 @@ namespace EvmAsm.Codegen
     account in it is a cold `CALL` into a code-bearing account
     (`COLD_ACCOUNT_ACCESS` = 3000) plus one `SSTORE` (104) plus call setup
     (~17) ~= 3,121 gas, so at most **5,371** distinct keys per transaction.
-    16384 is a 3.05x margin -- AMPLE, and deliberately not shrunk. -/
+    16384 is a 3.05x margin -- AMPLE, and deliberately not shrunk. The
+    #11957 block gas-limit gate does not replace this per-transaction bound. -/
 def txAccountWritesCapacity : Nat := 16384
 
 /-- Transaction-local **undo journal** capacity: account-write EVENTS, which is
@@ -48,7 +49,12 @@ def txAccountWritesCapacity : Nat := 16384
     The superseded justification derived 4,294 rows from EIP-7702
     authorizations at 7,816 regular gas. That arithmetic was right; its producer
     census was incomplete -- it omitted the SSTORE touch, which is 75x cheaper
-    per event and is what false-rejected rows 18635, 18637 and 20992. -/
+    per event and is what false-rejected rows 18635, 18637 and 20992.
+
+    The #11957 block gas-limit gate does **not** close this separate issue:
+    system calls carry their own 30M gas allowance outside the user block
+    budget, and their SSTORE events share this journal.  Its omitted system
+    contributor remains tracked by #11951. -/
 def accountWritesUndoCapacity : Nat := 163840
 
 /-! ## `account_writes_undo_push`

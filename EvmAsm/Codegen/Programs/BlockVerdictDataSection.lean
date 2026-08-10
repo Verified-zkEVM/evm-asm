@@ -37,7 +37,9 @@ namespace EvmAsm.Codegen
     modeled-system seed, `2` an account-map owner, and `3` a storage-map owner.
     An account-map hit on a modeled seed promotes that entry in place, so the
     union remains deduplicated while the map post can replace the earlier
-    modeled-system value. -/
+    modeled-system value. The block-derived map capacities are admitted only
+    after #11957's 200M gas-limit gate; system-call-specific contributors are
+    tracked separately where their arena is shared. -/
 def bsrMapOwnerCapacity : Nat :=
   blockAccountWritesCapacity + blockStorageWritesCapacity + bsrModeledSystemChanges
 

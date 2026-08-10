@@ -77,7 +77,8 @@ open EvmAsm.Rv64
     reservation.
 
     On overflow the producer sets `exec_code_effect_overflow`; block_verdict
-    consumes that flag as a rejection. -/
+    consumes that flag as a rejection. The block-level 200M premise is enforced
+    before this producer by #11957's early gas-limit gate. -/
 def execCodeEffectLogCap : Nat := 1048576
 
 /-! ## Legacy CodeState source helpers (not emitted)
@@ -110,7 +111,9 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
     38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
     cost, keeping its two-account writes below this cap.  Pending is reset at
     every transaction boundary, while durable stores one latest entry per
-    address for the block. -/
+    address for the block. The #11957 entry gate makes the 200M user-budget
+    premise explicit; additional system-call legs are not covered by that
+    gate and remain part of the separate #11951 capacity audit. -/
 def accountStateEntryBytes : Nat := 128
 def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity

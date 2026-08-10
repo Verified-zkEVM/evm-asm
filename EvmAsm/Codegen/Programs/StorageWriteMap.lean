@@ -109,7 +109,8 @@ namespace EvmAsm.Codegen
 /-! The live block map is bounded by the block-lifetime cold-slot gas budget;
     the transaction map has its own smaller capacity.  They must not share a
     name: the former is `200,000,000 / 3,000 = 66,666`, while the latter is
-    `(16,777,216 - 12,000) / 3,000 = 5,588`. -/
+    `(16,777,216 - 12,000) / 3,000 = 5,588`. The block-level premise is
+    enforced by #11957 before either map is populated. -/
 
 /-- Undo journal capacity, derived from the regular-gas bound rather than from
     the map's slot-count capacity. `TX_MAX_GAS_LIMIT` is 16,777,216
@@ -119,7 +120,9 @@ namespace EvmAsm.Codegen
     `floor((16,777,216 - 12,000) / 100) = 167,652` records. A tighter
     one-slot construction gives 167,523 before loop overhead, so this bound is
     safe rather than tight. The 160-byte record stride is derived from the
-    emitted index arithmetic below. -/
+    emitted index arithmetic below. This is a user-transaction bound only;
+    system-call contributors to a shared journal remain the separate #11951
+    issue and are not closed by #11957. -/
 def storageWritesUndoCapacity : Nat := 167652
 
 #guard blockStorageWritesCapacity == 66666

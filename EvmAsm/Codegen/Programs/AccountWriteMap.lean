@@ -132,7 +132,9 @@ open EvmAsm.Rv64
     plus call setup (~17) ~= 3,121 gas. A 200M block needs >= 12 transactions to
     spend it (each capped at `TX_MAX_GAS_LIMIT`), costing 12 x 12,000 in
     intrinsics: (200,000,000 - 144,000) / 3,121 = **64,035** distinct keys.
-    Rounded up to the next power of two, 8.0 MiB. -/
+    Rounded up to the next power of two, 8.0 MiB. The block-level 200M
+    premise is now explicit: #11957 rejects a larger declared `gas_limit`
+    before this map can be populated. -/
 def blockAccountWritesCapacity : Nat := 65536
 
 /-- CALL-tree-only distinct-key bound. A value-bearing internal CALL to a cold

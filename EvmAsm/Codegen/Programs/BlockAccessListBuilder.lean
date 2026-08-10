@@ -106,7 +106,9 @@ def balBuilderCodeRowBytes : Nat := 64
     The enumeration reflects the Amsterdam spec areas read to date and must be
     revisited when a new producer route is understood. The reservation is
     therefore a joint upper bound with material slack, not a sum of
-    independent maxima. -/
+    independent maxima. The user-budget component is admitted only after
+    #11957's explicit 200M block gas-limit gate; the six system legs are added
+    separately here rather than hidden behind that gate. -/
 /-! ## The serializer's length table
 
     RLP requires a list's payload length BEFORE its header can be written, so a walk

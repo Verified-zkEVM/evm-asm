@@ -34,6 +34,15 @@ def blockVerdictFunction : String :=
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  mv s0, a0                   # params\n" ++
   "  mv s3, a1                   # SSZ_BASE\n" ++
+  -- #11957: the fixed arenas below are derived for the project's 200M-gas
+  -- resource target.  Make that assumption an explicit promise before any
+  -- bounded header/state/BAL producer can write: a larger declared gas_limit
+  -- is rejected with its own diagnostic rather than reaching a deep overflow
+  -- sink after an out-of-envelope write.
+  "  addi t4, s3, 60; la t0, bv_exec_p; sd t4, 0(t0)\n" ++
+  "  addi a0, t4, 412; jal ra, bgv_u64le       # execution_payload.gas_limit\n" ++
+  "  li t0, " ++ toString bvResourceBlockGasLimit ++ "\n" ++
+  "  bgtu a0, t0, .Lbv_resource_gas_limit_fail\n" ++
   -- fhsxz.2.4.2.57.11.6.5: stash the parent (PRE-state) header RLP ptr/len so
   -- dispatch_tx_runtime_code's witness lookups use the PRE-state root (witness root),
   -- not sv_this_rlp (this block's POST-state header). 8(s0)/16(s0) is the parent header.

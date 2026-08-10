@@ -213,6 +213,12 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 12; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_rlp_limit_fail:\n" ++
   "  li t0, 13; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_resource_gas_limit_fail:\n" ++
+  -- #11957: the guest's fixed arenas are sized for the explicit 200M resource
+  -- target.  Keep this distinct from deep capacity overflow (58): a declared
+  -- gas_limit above the supported envelope is rejected before any bounded
+  -- producer runs, so the promise is explicit and diagnostically stable.
+  "  li t0, 73; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_eip8037_gas_fail:\n" ++
   -- This tail encodes only the documented eip8037_tx_gas_gate statuses 1..3
   -- as codes 8..10.  Two MTx creation-prefix callers currently arrive with
@@ -282,8 +288,9 @@ def blockVerdictReceiptsTail : String :=
   ".Lbv_sender_bal_fail:\n" ++             -- bmvmx.1.6.3: BAL sender post balance != execution-derived (pre - gas_charge - value)
   "  li t0, 39; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   -- #11539 bv_fail 40 split: live MTx sender-block causes only (40,68-72).
-  -- Codes 73-76 dropped: frozen S1 is deleted by #11536 (merge!); no forever-silent codes.
-  -- Until 11536 lands, frozen S1 jals still target .Lbv_sender_nonce_fail (40 catch-all).
+  -- Codes 74-76 dropped: frozen S1 is deleted by #11536 (merge!); 73 is the
+  -- explicit #11957 resource gas-limit ceiling, so no forever-silent codes.
+  -- #11536 landed the frozen-S1 split; its old jals no longer claim these values.
   -- Debug emitter (BlockVerdict.lean +8 bv_fail_code) unchanged — values only, not offsets.
   -- WHY ReceiptsTail: ALL .Lbv_*_fail sinks live here (shared epilogue); MtxRuntime only jals.
   ".Lbv_sender_nonce_fail:\n" ++           -- genuine tx.nonce != sender nonce (code 40 kept)

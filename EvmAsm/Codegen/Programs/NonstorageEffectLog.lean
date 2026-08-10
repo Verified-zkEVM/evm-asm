@@ -46,7 +46,10 @@ open EvmAsm.Rv64
     separately bounded to 16. This uses the regular-gas budget only: EIP-7928 state gas is a
     separate block budget and cannot reduce this bound. 38,460 is therefore the
     exact full raw-stream bound. The overflow flag remains a fail-closed runtime
-    guard, rather than a verdict assumption.
+    guard, rather than a verdict assumption. The #11957 entry gate makes the
+    200M user-budget premise explicit, but it does not cover the additional
+    30M system-call legs; that omitted contributor remains tracked separately
+    by #11951.
 
     Cost: live consumers iterate over the recorded `count`, never `cap`, so a larger cap is
     pure reserved BSS. The exec_nonstorage_effect_log and shared radix-sort buffers are sized
