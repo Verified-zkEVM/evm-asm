@@ -129,15 +129,24 @@ def obligations : List Obligation := [
       [.infra "`rlp_item_span` has no machine triple (#11577)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
-       .infra "nested-list decode bridges blocked on `DecodeChain` \
-fuel-insensitivity (#11711; residual #11795)"],
-    auditedAt := some "2026-08-10 @372162cc2",
-    note := "pure-Lean RLP ✅; the RV64 decoder registry is 33 rows / 24 proven / \
+       .infra "nested-list decode bridges: `rlpItemDecode`'s list arms check a \
+span fit and say nothing about the payload, while `decodeAux` rejects a malformed \
+interior — a strength mismatch, tracked at #11795 with the relation-side decision \
+scoped at #11898"],
+    auditedAt := some "2026-08-10 @04de93895",
+    note := "pure-Lean RLP ✅; the RV64 decoder registry is 35 rows / 26 proven / \
 9 conditional / 0 partly (`Progress/Routines.lean`). Re-audited 2026-08-10 \
 (#11803): the previous blocker text (\"RV64 RLP decoder phases 1–3 (in \
 progress)\") named a phase range PLAN.md:5230 states as 1–6 and cited no \
-locatable gap; the three blockers above are the gaps the registries actually \
-record. The witness-side decode leaves are tracked on obligation 10, not here" },
+locatable gap; the blockers above are the gaps the registries actually \
+record. The witness-side decode leaves are tracked on obligation 10, not here. \
+⭐ Re-audited AGAIN the same day, because `check-obligation-blockers.sh` — added \
+by that very audit — flagged this row within hours: the third blocker cited \
+#11711, which #11894 closed. Dropping it revealed that the fuel requirement was \
+only ONE of two obstructions, so the blocker now names the surviving one (the \
+span-vs-payload strength mismatch) instead of the closed one. That is the gate \
+doing exactly its job on its own author's work, which is the best available \
+evidence it is not decorative" },
   { id := 4, name := "EVM interpreter loop on the decoded block",
     status := .blocked,
     blockedBy :=
@@ -219,14 +228,27 @@ resolve cache / witness section) vs SpecRef's single node source; divergence \
 stated in docs/4ch8f-slstate-specref-correspondence.md:164",
         .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
-        .infra "codeDbIs predicate for code_db_buckets (#11573)" ],
-    auditedAt := some "2026-08-10 @372162cc2",
+        .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
+`witness_codes_lookup_by_hash` — the code-DB *routines* (the predicate side is \
+done; see #11573 / PR #11902)" ],
+    auditedAt := some "2026-08-10 @04de93895",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
 2026-08-10 (#11803): three blockers dropped as CLOSED — #11346 \
 (account_is_eip161_empty), #11347 (mpt_node_kind) and #11422 \
 (compact_to_nibbles) — and the two former no-issue-number \"connective gap\" \
 blockers now cite the issues #11579 asked to be filed once their premises \
-closed: #11799 (trie walk) and #11800 (DB builders). A wrong witness read \
+closed: #11799 (trie walk) and #11800 (DB builders). ⚠️ CORRECTING MY OWN \
+BLOCKER from that same audit: it read \"codeDbIs predicate for code_db_buckets \
+(#11573)\", and both halves were wrong. `codeDbIs` has existed since \
+`73c8ea6a6` (2026-07-05, `Evm64/WitnessAssertions.lean`), a month before #11573 \
+was filed; and `code_db_buckets` is a DEAD scheme-A anchor whose only mention in \
+the tree is `Codegen/RegionMap.lean:198` — no emitted instruction references it, \
+so no predicate was ever going to be built over it. I took #11573's premise on \
+trust instead of checking the tree, which is the same class of error the #11803 \
+audit was fixing. The live gap is the code-DB *routines* \
+(`witness_codes_index_build` / `witness_codes_lookup_by_hash`, raw asm with \
+whole-guest byte-identity pins and no triple), which is what the blocker now \
+says. A wrong witness read \
 is the false-ACCEPT shape directly: #11508's four witness-missing accepts, \
 #11522's untouched-leaf bytes, #11523's non-canonical leaves. Everything \
 downstream (state tracker, verdict) consumes what this spine produces, and \
