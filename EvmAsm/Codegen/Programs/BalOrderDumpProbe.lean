@@ -107,9 +107,9 @@ def ziskBalOrderDumpPrologue : String :=
   "  la t0, bal_builder_nonce_count; li t1, 2; sd t1, 0(t0)\n" ++
   -- TWO storage reads, seeded DESCENDING by slot. This is the only stream using the
   -- 0x2020 descriptor -- an LE slot key rather than a BE address -- so it is the one
-  -- ordering rule no other case covers. Rows at 0xa1ba0000, stride 64: address as an
+  -- ordering rule no other case covers. Rows at 0xa1908780, stride 64: address as an
   -- LE stack word (BE byte 0 lands at row byte 19), slot as an LE stack word at 32.
-  "  li t0, 0xa1ba0000\n" ++
+  "  li t0, 0xa1908780\n" ++
   "  sd zero, 0(t0);  sd zero, 8(t0);  sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++

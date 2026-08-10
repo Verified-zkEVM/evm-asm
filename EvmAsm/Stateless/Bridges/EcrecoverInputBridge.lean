@@ -16,8 +16,10 @@
 
   Total: 104 bytes (rounded to 104 = 13 * 8 doublewords).
 
-  Lives in `ECRECOVER_SCRATCH` per
-  `EvmAsm/Stateless/MemoryLayout.lean` (64 KiB region).
+  Buffer placement is caller-chosen (scaffold). The former
+  `ECRECOVER_SCRATCH` MemoryLayout VA was reclaimed under GH #11186
+  (collided with the raised block-read pack); do not revive it as a
+  scheme-A region.
 
   ## PR-K12 status
 

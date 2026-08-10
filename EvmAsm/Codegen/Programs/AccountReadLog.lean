@@ -41,7 +41,7 @@
 
       +0  address (20 B, big-endian) zero-padded to 32 B
 
-  32 B stride over `ACCOUNT_READS_AREA` (`0xa1ea0000`, 16384 entries). The key is
+  32 B stride over `ACCOUNT_READS_AREA` (`0xa24349c0`, 16384 entries). The key is
   20 bytes because that is what the guest's own `account_state_find` compares
   (`li t4, 20`, byte-wise); the dedup loop below mirrors that shape deliberately.
   Bytes 20..31 are **explicitly zeroed** rather than left as whatever the slab
@@ -90,7 +90,7 @@ def accountReadRecordFunction : String :=
   "  la t0, tx_account_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
   "  li t2, 16384\n" ++
   "  bgeu t1, t2, .Larr_overflow\n" ++
-  "  li t2, 0xa1ea0000\n" ++                                 -- t2 = ACCOUNT_READS_AREA
+  "  li t2, 0xa24349c0\n" ++                                 -- t2 = ACCOUNT_READS_AREA
   "  li t3, 0\n" ++                                          -- t3 = i
   ".Larr_scan:\n" ++
   "  bgeu t3, t1, .Larr_append\n" ++

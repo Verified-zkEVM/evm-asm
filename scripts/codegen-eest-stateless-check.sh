@@ -807,9 +807,9 @@ patch_bsr_caps_and_relink() {
   as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
   ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
   "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
-  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-    --section-start=.bss=0xa4000000 \
-    --section-start=.sszscratch=0xbf800000 \
+  "$ld_tool" -Ttext=0x80000000 -Tdata=0xa0b00000 \
+    --section-start=.bss=0xa0b70000 \
+    --section-start=.sszscratch=0xbf980000 \
     -nostdlib --no-relax -o "$elf" "$obj"
 }
 
@@ -1220,9 +1220,9 @@ ensure_verdict_debug_probe() {
     as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
     ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
     "$as_tool" -march=rv64imac -mno-relax -o "$obj" "$asm"
-    "$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-      --section-start=.bss=0xa4000000 \
-      --section-start=.sszscratch=0xbf800000 \
+    "$ld_tool" -Ttext=0x80000000 -Tdata=0xa0b00000 \
+      --section-start=.bss=0xa0b70000 \
+      --section-start=.sszscratch=0xbf980000 \
       -nostdlib --no-relax -o "$VERDICT_DEBUG_ELF" "$obj"
   else
     echo "==> emit verdict debug probe" >&2
