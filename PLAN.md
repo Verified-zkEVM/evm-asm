@@ -491,9 +491,31 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     which is right — so the correspondence is a **group-by**, not a rename.
     `groupByAddress` + `storageRowsAbstract` are that hook (3 flat rows over 2
     contracts → 2 buckets, `decide`-checked).
-    Uniqueness is stated as a PRECONDITION, not proved: it is a property of the
-    upsert *writer*, whose triple does not exist yet (#11571 non-goals). Undo
-    journals excluded — #11572.
+    Uniqueness was stated as a PRECONDITION, not proved: it is a property of the
+    upsert *writer*. Undo journals excluded — #11572.
+    ⭐ **`storageRowsAbstract` is now discharged** (2026-08-10, #11921 row 2):
+    `storageRowsAbstract_holds`, via `groupByAddress_keys_nodup` and
+    `groupByAddress_total`. The old note claimed discharging it "wants the upsert
+    routine's uniqueness fact" — false. Both halves are invariants of
+    `groupByAddress` itself (the fold appends a key only where `any` says it is
+    absent; its other branch rewrites values keeping `p.1`), so **no hypothesis is
+    needed at all**. Consequence for the correspondence proof: the flat→nested
+    abstraction composes with a mid-upsert state that has not re-established the map
+    property. Uniqueness is still needed for the nested result to be a faithful
+    dictionary — a claim about values, not about the grouping.
+  - **The account-write writer model** (2026-08-10, #11921 row 1):
+    `Stateless/State/AccountWriteUpsert.lean` models `account_write_record`'s
+    scan-then-append upsert and **discharges that precondition** —
+    `accountWriteUpsert_rowsMap` proves `AccountWriteRowsMap` is preserved by the
+    writer, from the empty arena up, plus read-visibility on both branches and
+    `accountWriteUpsert_keys_dictSet` (the arena's key sequence *is* `SpecRef`'s
+    `dictSet`, below capacity). ⚠️ **Model-level only**: there is no SAsm
+    transcription of the routine, so the emitted-sequence↔model step is open and no
+    registry row or tier is claimed. Two divergences from `setAccount` are
+    `decide`-checked rather than glossed: the nonce is **max-reduced** (a lower
+    incoming nonce does not lower the row) and the mask gates every field, so an
+    `.agrees` claim needs nonce-monotonicity + full-mask hypotheses. The capacity arm
+    **drops** the write (`accountRowLookup_upsert_of_full`).
     The concrete↔abstract refinement
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining

@@ -38,6 +38,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 
+#print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
+
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
@@ -78,6 +80,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
@@ -96,6 +100,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+
 #print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
@@ -110,7 +116,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
-#print axioms EvmAsm.Codegen.account_extract_nonce_spec_within
+#print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 
 #print axioms EvmAsm.Codegen.blsgLtP_spec_specref
 
@@ -352,8 +358,20 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
 
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
+
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_nodup
+
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 
 #print axioms EvmAsm.Stateless.bytesBEtoNat_beBytes32
 
 #print axioms EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+
+#print axioms EvmAsm.Stateless.groupByAddress_keys_nodup
+
+#print axioms EvmAsm.Stateless.groupByAddress_total
+
+#print axioms EvmAsm.Stateless.storageRowsAbstract_holds

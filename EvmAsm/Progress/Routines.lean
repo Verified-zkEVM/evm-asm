@@ -61,6 +61,7 @@ import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
@@ -72,6 +73,9 @@ import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- whole-routine triple's module has to be imported explicitly for its witness.
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
+import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
+import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
+import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomSpec
 import EvmAsm.Codegen.Programs.AccountEip161LeniencyBridge
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
@@ -178,6 +182,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#10780 item 3)")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
+  -- #11577: whole-routine span under short-list outer + WalkedSpanForm on
+  -- every walked prefix. Lifts the leaf-routine-targets exclusion (verified
+  -- set includes .conditional). Callers inherit the SpanForm domain.
+  routine "rlp_item_span" .conditional (some "rlp_item_span_spec_within")
+      (gate := "short-list outer (`payloadLen items ≤ 55`) and "
+        ++ "`WalkedSpanForm items i` (SpanForm on every walked item 0..i, "
+        ++ "including the target). Long-list outer header and non-SpanForm "
+        ++ "walked items uncovered. coverRef "
+        ++ "`rlp_item_span_precondition_reachable`")
+      (notes := "stated at `rlpItemSpanBase = GuestAddrs.rlp_item_span`; "
+        ++ "callee size via offset-framed `rlp_item_size_offset_spec_within`"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -369,6 +384,42 @@ def routineRegistry : List RoutineEntry := [
         ++ "factor (#11461). No `Correspondence` row yet, same missing `_of_decode` "
         ++ "bridge"),
 
+  -- #11925 continuation: the first registrations out of scripts/proof-frontier.py's
+  -- present-but-unrowed bucket (the #11637 row-existence debt). All four are direct
+  -- whole-routine `cpsTripleWithin` triples found live by the frontier census; the
+  -- `hbound`-style hypotheses each carries are STATIC input well-formedness / slack
+  -- facts tied to the decode predicates, not runtime-outcome gates — the posts stay
+  -- total disjunctions that still state the failure branches. Graded `.proven`.
+  routine "account_decode" .proven (some "account_decode_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.account_decode`: decodes the "
+        ++ "RLP account record (balance/root/codeHash) to `a0 = 0` with a total "
+        ++ "whole-routine post `adWholePost`. Every hypothesis is ABI/resource "
+        ++ "(`hspW` frame base, `hret` ret alignment, `hlenW` definitional, and "
+        ++ "align/slack/over/valid for the input region plus the three output cells). "
+        ++ "No input-domain gate"),
+  routine "account_extract_balance" .proven (some "account_extract_balance_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.account_extract_balance`: writes "
+        ++ "`word256Bytes32 a.balance` and returns `a0 = 0`. Its callee "
+        ++ "`rlp_content_to_u256_be` is itself `.proven` (Routines.lean:207), and its "
+        ++ "only value-shaped hypothesis is `hnonce : a.nonce < 2 ^ 256` — the "
+        ++ "NATURAL `Word256` bound, not a restriction (identical to the u256 callee's "
+        ++ "own hypothesis). All other hyps are ABI/resource. No input-domain gate"),
+  routine "account_is_eip161_empty" .proven (some "account_is_eip161_empty_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.account_is_eip161_empty`: the post "
+        ++ "`aieOutcome` is a TOTAL 4-way disjunction on `(a0, outVal)` — "
+        ++ "`accountEip161Empty` verdict, non-empty verdict, and two error statuses. "
+        ++ "EIP-161 empty-ness is the OUTPUT the routine verifies, not a precondition. "
+        ++ "Hyps are ABI/resource plus a static slack hypothesis over the RLP decode "
+        ++ "predicate. No input-domain gate; axiom-clean confirmed via lean_verify"),
+  routine "receipt_extract_logs_bloom" .proven (some "receiptExtractLogsBloom_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.receipt_extract_logs_bloom`: the "
+        ++ "post `relbRetPost` is a TOTAL 3-way disjunction — success with the 256-byte "
+        ++ "bloom copied, success with a short/long payload left intact, and the RLP "
+        ++ "decode-failure arm. `hbound` is a static slack fact keyed on the input's "
+        ++ "`Success` decode predicate (so the COPY target is in range), not a runtime "
+        ++ "outcome gate — the failure branch is still stated. ABI/resource hyps only; "
+        ++ "calls RlpFieldToU64SAsm.code"),
+
   routine "rlp_list_encoded_size" .proven (some "rlpListEncodedSize_spec")
       (notes := "total: the result covers BOTH the `ult v 56` short branch and "
         ++ "the long branch, so it is not form-gated — the only hyp is `halignRet`"),
@@ -475,9 +526,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 40 := by decide
+theorem routineCount_eq : routineCount = 45 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 30 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 34 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -492,7 +543,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 30 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 35 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -524,12 +575,12 @@ def crossVerdictOk (witnessed : List String)
 theorem witnessed_not_unproven :
     crossVerdictOk routineSymbols Correspondence.registry = true := by decide
 
-/-- Negative control, kernel-checked on every build: `rlp_item_span` is a real
+/-- Negative control, kernel-checked on every build: `rlp_encode_u64` is a real
     `.unproven` Correspondence row today, so witnessing it here would make the
     check fire. A gate nobody has seen fail is indistinguishable from one that
-    cannot. -/
+    cannot. (Was `rlp_item_span` until #11577 lifted that row.) -/
 example :
-    crossVerdictOk ("rlp_item_span" :: routineSymbols) Correspondence.registry
+    crossVerdictOk ("rlp_encode_u64" :: routineSymbols) Correspondence.registry
       = false := by decide
 
 /-! ## Witness `abbrev`s
@@ -561,6 +612,8 @@ private noncomputable abbrev _reb_rlpItem_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+private noncomputable abbrev _rlp_item_span_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=
@@ -615,6 +668,19 @@ private noncomputable abbrev _chain_validate_blob_gas_used_under_max_routine_wit
   @EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
 private noncomputable abbrev _chain_validate_extra_data_length_routine_witness :=
   @EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.chain_validate_extra_data_length_spec_within
+-- #11925 continuation: whole-routine triples surfaced by scripts/proof-frontier.py.
+-- Namespace/molecule note (mirrors the twins): account_extract_balance_spec_within
+-- lives in the bare `EvmAsm.Codegen` NAMESPACE inside AccountAccessorTopSpec.lean;
+-- account_decode_spec_within is in `EvmAsm.Codegen.AccountDecodeSpec` inside
+-- AccountDecodeClose6.lean; the other two follow the `…Spec` namespace convention.
+private noncomputable abbrev _account_decode_routine_witness :=
+  @EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
+private noncomputable abbrev _account_extract_balance_routine_witness :=
+  @EvmAsm.Codegen.account_extract_balance_spec_within
+private noncomputable abbrev _account_is_eip161_empty_routine_witness :=
+  @EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
+private noncomputable abbrev _receipt_extract_logs_bloom_routine_witness :=
+  @EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 -- Correspondence row #11351 names this; it is Codegen-side, and Correspondence
 -- deliberately does not import Codegen, so the witness abbrev lives here.
 private noncomputable abbrev _header_number_of_decode_witness :=

@@ -45,6 +45,7 @@ import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
+import EvmAsm.Stateless.State.AccountWriteUpsert
 import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
@@ -749,6 +750,26 @@ private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
   @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+-- #11921 row 1: the `account_write_record` writer model turns `AccountWriteRowsMap`'s
+-- `Nodup` clause from a precondition into a theorem. Model-level (there is no SAsm
+-- transcription of the routine to attach a triple to), so no registry row is claimed —
+-- witnessed here so the invariant and the `dictSet` key correspondence are axiom-gated.
+-- #11921 row 2: the flat→nested storage abstraction, discharged. Witnessed
+-- because it is what a `StateTracker` storage correspondence consumes, and because the
+-- surprise (no hypothesis is needed) is exactly the kind of claim that should be
+-- axiom-checked rather than trusted from a docstring.
+private noncomputable abbrev _storageRowsAbstract_holds_witness :=
+  @EvmAsm.Stateless.storageRowsAbstract_holds
+private noncomputable abbrev _groupByAddress_keys_nodup_witness :=
+  @EvmAsm.Stateless.groupByAddress_keys_nodup
+private noncomputable abbrev _groupByAddress_total_witness :=
+  @EvmAsm.Stateless.groupByAddress_total
+private noncomputable abbrev _accountWriteUpsert_nodup_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_nodup
+private noncomputable abbrev _accountWriteUpsert_rowsMap_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+private noncomputable abbrev _accountWriteUpsert_keys_dictSet_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the
 -- pure `EMPTY_ACCOUNT` kernel, which is the guest routine's comparison point.
 private noncomputable abbrev _accountExistsAndIsEmpty_eq_kernel_witness :=
