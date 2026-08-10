@@ -1,4 +1,4 @@
-# Class-A baseline annotations
+# Class-A allowlist annotations
 
 <!-- annotation-count: 1 -->
 

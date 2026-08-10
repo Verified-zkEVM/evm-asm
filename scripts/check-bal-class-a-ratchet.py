@@ -3,20 +3,21 @@
 
 Enumerate emitted paths that touch the supplied-BAL cursor cells
 (`bv_bal_*`, `bsr_bal_*`, and `c1_bal_*`; and, when the linked addresses are
-known, li/imm of those addresses). Compare to a checked-in baseline:
+known, li/imm of those addresses).  The four legitimate pointer/length edges
+are an explicit allowlist; a separate body predicate is intentionally empty:
 
-  * NEW path not in baseline  → fail (regression: new Class-A read)
-  * BASELINE path disappeared → fail (force explicit baseline shrink on retirement)
+  * unexpected edge not in the allowlist → fail (regression: new Class-A edge)
+  * body edge or known body consumer → fail (regression: supplied-BAL body read)
 
 ENDPOINT (coord 11183 ruling): the guest must not read the provided BAL as an
 EXECUTION INPUT. BIND rows that only locate the payload slice so it can be
 hashed/serialized (fork.py:366/:390) are the legitimate finish line — NOT an
-unfinished zero. This ratchet tracks bv_bal_start/len REFERENCES and therefore
-CONFLATES BIND WITH CHECK; a remaining BIND row is not incomplete work. CHECK
-rows (field compare / parse-bail / body walk against supplied content) retire
-under the EQUIVALENCE argument: spec validates only hash of the BUILT list
-(fork.py:390) and has no supplied body — not under "hash covers it" (that needs
-collision-freedom, which the maintainer ruled out).
+unfinished zero. The allowlist preserves those rows while the empty body
+predicate rejects any new field/body path. CHECK rows (field compare /
+parse-bail / body walk against supplied content) retire under the EQUIVALENCE
+argument: spec validates only hash of the BUILT list (fork.py:390) and has no
+supplied body — not under "hash covers it" (that needs collision-freedom, which
+the maintainer ruled out).
 
 Per path, record whether a following direct jal's return status (a0) is tested.
 The same gate validates the merge-safe rationale sidecar and counts its explicit
@@ -27,7 +28,8 @@ Operates on the EMITTED stateless_guest.s only — not Lean source strings.
 Blind spots (CANNOT see) — documented for reviewers:
   * Lean comments/docstrings/source that never reach .s
   * Computed jalr targets not recovered as symbols
-  * Non-BAL absolute arenas (0xa2b20000 account maps, etc.) unless added to SEEDS
+  * Non-BAL absolute arenas (0xa2b20000 account maps, etc.) unless added to the
+    family predicate
   * Host/IO outside guest .text
   * Intentional untaint (li reg,0 after load) stops tracking that reg
   * The permitted hash sink bal_serializer_verify is CONDITIONAL on
@@ -35,9 +37,8 @@ Blind spots (CANNOT see) — documented for reviewers:
     not prove the flag is set, only records edges that touch the BAL cells.
 
 Usage:
-  scripts/check-bal-class-a-ratchet.py [--elf-dir DIR] [--write-baseline]
+  scripts/check-bal-class-a-ratchet.py [--elf-dir DIR]
   scripts/check-bal-class-a-ratchet.py --self-test
-  scripts/check-bal-class-a-ratchet.py --baseline PATH   # default scripts/bal-class-a-baseline.tsv
 """
 from __future__ import annotations
 
@@ -50,12 +51,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASELINE = ROOT / "scripts" / "bal-class-a-baseline.tsv"
 DEFAULT_NOTES = ROOT / "scripts" / "bal-class-a-notes.md"
 EXPECTED_ANNOTATION_COUNT = 1
-# Class-A predicate: every emitted reference to a supplied-BAL cursor. Keep the
-# predicate here, beside the baseline/debt check, so the next reader can
-# re-derive the census instead of trusting the TSV row count (#11796).
+# Known supplied-BAL cursor names.  The body predicate below intentionally
+# covers the whole family; these six names remain the stable edge census used
+# by the explicit BIND allowlist.
 SEEDS = (
     "bv_bal_start",
     "bv_bal_len",
@@ -64,10 +64,65 @@ SEEDS = (
     "c1_bal_start",
     "c1_bal_len",
 )
-# One-way debt ratchet: this is the number of currently baselined emitted
-# paths in the predicate above. It is a debt figure, not a target; it may only
-# decrease, and a retirement plus this constant's decrease must land together.
-EXPECTED_CLASS_A_DEBT = 4
+BAL_FAMILY = re.compile(r"\b(?:bv|bsr|c1)_bal_[A-Za-z0-9_]+\b")
+BODY_CALLS = frozenset(
+    {
+        "bal_section_info",
+        "bal_account_record_array",
+        "rlp_walk_init",
+        "rlp_walk_next",
+        "bal_find_account_by_address",
+        "bal_account_nonstorage_finals",
+    }
+)
+# These fields are output/diagnostic state, not supplied-BAL body fields.
+# Keeping them explicit prevents a future diagnostic addition from silently
+# turning into a false body-read failure.
+NON_BODY_SYMBOLS = frozenset({"bsr_bal_count"})
+NON_BODY_PREFIXES = ("bv_bal_shadow_",)
+
+# The four surviving edges are deliberately source-level facts, not a
+# regenerable TSV.  Each reason is kept beside its row so BIND and diagnostic
+# edges cannot be conflated by a future baseline refresh.
+ALLOWED_BIND_ROWS: dict[str, str] = {
+    "\t".join(
+        [
+            ".Lbv_after_tx_gate",
+            "load",
+            "bgv_u64le",
+            "no",
+            "la t2, bv_bal_start; ld t3, 0(t2); sub a1, a1, t3",
+        ]
+    ): "BIND: load bal_start to derive the SSZ BAL length",
+    "\t".join(
+        [
+            ".Lbv_after_tx_gate",
+            "store",
+            "bgv_u32le",
+            "no",
+            "la t2, bv_bal_start; sd a0, 0(t2)",
+        ]
+    ): "BIND: store the SSZ BAL start pointer",
+    "\t".join(
+        [
+            ".Lbv_after_tx_gate",
+            "store",
+            "bgv_u64le",
+            "no",
+            "la t2, bv_bal_len; sd a1, 0(t2)",
+        ]
+    ): "BIND: store the SSZ BAL length",
+    "\t".join(
+        [
+            ".Lbv_ret",
+            "store",
+            "bal_gas_valid_from_builder",
+            "yes",
+            "la t0, bv_bal_len; ld t1, 0(t0); la t0, bv_bal_shadow_supplied_len; sd t1, 0(t0)",
+        ]
+    ): "DIAGNOSTIC: copy supplied length into the epilogue report; not a verdict input",
+}
+ALLOWED_BIND_KEYS = frozenset(ALLOWED_BIND_ROWS)
 # Direct jal whose a0 is commonly status-tested after BAL helpers.
 STATUS_JAL = re.compile(
     r"\bjal\s+ra,\s*([A-Za-z0-9_.]+)"
@@ -189,6 +244,7 @@ def analyze(s_path: Path) -> list[dict[str, str]]:
                 "jal_or_sink": jal_target or "-",
                 "return_status_tested": ret_tested,
                 "insn": n,
+                "line": str(i),
             }
         )
 
@@ -209,66 +265,112 @@ def row_key(r: dict[str, str]) -> str:
     )
 
 
-HEADER = (
-    "# bal-class-a-baseline.tsv — emitted paths touching supplied-BAL cursors\n"
-    "# Predicate: bv_bal_*, bsr_bal_*, and c1_bal_* start/len cells\n"
-    "# Debt count constant: EXPECTED_CLASS_A_DEBT in check-bal-class-a-ratchet.py\n"
-    "# Columns: function  kind  jal_or_sink  return_status_tested  insn\n"
-    "# Maintained by scripts/check-bal-class-a-ratchet.py\n"
-    "# NEW path => fail; MISSING baselined path => fail (shrink baseline on purpose).\n"
-    "# return_status_tested=yes means a direct jal soon after is followed by a0/t*-status branch.\n"
-    "#\n"
-    "# ENDPOINT (#11183): remaining rows should be BIND (locate BAL slice for hash/\n"
-    "# serialize per fork.py:366/:390), NOT CHECKs against supplied body content.\n"
-    "# Ratchet conflates BIND with CHECK (tracks start/len refs). BIND residual is\n"
-    "# the finish line — not unfinished work. Retire CHECKs via EQUIVALENCE (spec\n"
-    "# only hashes the BUILT list at fork.py:390; no supplied body), never via\n"
-    "# \"hash covers it\" (needs collision-freedom; ruled out).\n"
-)
+def validate_bind_allowlist(rows: list[dict[str, str]]) -> tuple[list[str], list[str]]:
+    """Return unexpected and missing rows against the explicit BIND allowlist."""
+    current = {row_key(row) for row in rows}
+    return sorted(current - ALLOWED_BIND_KEYS), sorted(ALLOWED_BIND_KEYS - current)
 
 
-def write_baseline(path: Path, rows: list[dict[str, str]]) -> None:
-    body = "\n".join(row_key(r) for r in rows) + ("\n" if rows else "")
-    path.write_text(HEADER + body)
+def _is_definition(line: str) -> bool:
+    return bool(
+        re.match(
+            r"^(bv_bal_[A-Za-z0-9_]+|bsr_bal_[A-Za-z0-9_]+|"
+            r"c1_bal_[A-Za-z0-9_]+):\s*$",
+            line.strip(),
+        )
+    )
 
 
-def load_baseline(path: Path) -> set[str]:
-    keys: set[str] = set()
-    for line in path.read_text().splitlines():
-        if not line or line.startswith("#"):
+def _is_non_body_symbol(symbol: str) -> bool:
+    return symbol in NON_BODY_SYMBOLS or any(
+        symbol.startswith(prefix) for prefix in NON_BODY_PREFIXES
+    )
+
+
+def body_candidates(s_path: Path) -> list[str]:
+    """Find supplied-BAL body edges; an empty result is the intended state."""
+    lines = s_path.read_text(errors="replace").splitlines()
+    spans = parse_functions(lines)
+    fn_at = ["?"] * len(lines)
+    span_lines: dict[str, range] = {}
+    for name, start, end in spans:
+        span_lines[name] = range(start, end)
+        for i in range(start, end):
+            fn_at[i] = name
+
+    rows = analyze(s_path)
+    row_by_line = {int(row["line"]): row for row in rows}
+    found: set[str] = set()
+
+    for i, line in enumerate(lines):
+        if line.strip().startswith("#") or _is_definition(line):
             continue
-        keys.add(line.rstrip("\n"))
-    return keys
+        symbols = {
+            symbol
+            for symbol in BAL_FAMILY.findall(line)
+            if not _is_non_body_symbol(symbol)
+        }
+        if not symbols:
+            continue
+        row = row_by_line.get(i)
+        if row is not None and row_key(row) in ALLOWED_BIND_KEYS:
+            continue
+        found.add(
+            f"family-ref {fn_at[i]}:{i + 1}: "
+            f"{norm_insn(line)} ({', '.join(sorted(symbols))})"
+        )
 
+    # A body consumer may be called after a pointer has been copied into a
+    # register, so it need not share a line with a BAL symbol.  Require both
+    # facts in one function to avoid flagging generic RLP helpers unrelated to
+    # the supplied BAL.
+    for name, span in span_lines.items():
+        body_calls = sorted(
+            {
+                match.group(1)
+                for i in span
+                for match in [STATUS_JAL.search(lines[i])]
+                if match and match.group(1) in BODY_CALLS
+            }
+        )
+        if not body_calls:
+            continue
+        family_symbols = sorted(
+            {
+                symbol
+                for i in span
+                for symbol in BAL_FAMILY.findall(lines[i])
+                if not _is_definition(lines[i])
+            }
+        )
+        if family_symbols:
+            found.add(
+                f"body-call {name}: {', '.join(body_calls)} "
+                f"with {', '.join(family_symbols)}"
+            )
 
-def compare_rows(
-    rows: list[dict[str, str]], baseline: set[str]
-) -> tuple[list[str], list[str]]:
-    """Return new and disappeared paths for the Class-A set comparison."""
-    current = {row_key(r) for r in rows}
-    return sorted(current - baseline), sorted(baseline - current)
+    return sorted(found)
 
 
 def self_test() -> int:
-    """Prove a newly planted cursor read fails, then removal returns to OK."""
+    """Prove a planted body read fails, then removal returns to OK."""
     clean_asm = """\
 .text
-synthetic_bal_consumer:
-  la t0, bv_bal_start
-  ld a0, 0(t0)
+synthetic_clean:
   ret
-bv_bal_start:
-  .zero 8
 c1_bal_start:
   .zero 8
 """
-    planted_asm = clean_asm.replace(
-        "  ret\n",
-        "  la t1, c1_bal_start\n"
-        "  ld a1, 0(t1)\n"
-        "  ret\n",
-        1,
-    )
+    planted_asm = """\
+.text
+synthetic_body:
+  la t1, c1_bal_start
+  ld a1, 0(t1)
+  jal ra, bal_find_account_by_address
+  ret
+c1_bal_start:
+  .zero 8
+"""
 
     with tempfile.TemporaryDirectory(prefix="bal-class-a-self-test-") as td:
         root = Path(td)
@@ -277,41 +379,27 @@ c1_bal_start:
         clean_path.write_text(clean_asm)
         planted_path.write_text(planted_asm)
 
-        clean_rows = analyze(clean_path)
-        baseline = {row_key(row) for row in clean_rows}
-        planted_rows = analyze(planted_path)
-        new, missing = compare_rows(planted_rows, baseline)
-        if len(new) != 1 or missing:
+        clean_body = body_candidates(clean_path)
+        planted_body = body_candidates(planted_path)
+        if clean_body or not planted_body:
             print(
-                "check-bal-class-a-ratchet --self-test: FAIL — planted "
-                "c1_bal_start read did not create exactly one new path",
+                "check-bal-class-a-ratchet --self-test: FAIL — body "
+                "predicate did not distinguish the planted c1 read",
                 file=sys.stderr,
             )
             return 1
         print(
-            "check-bal-class-a-ratchet --self-test: planted synthetic "
-            "c1_bal_start read"
+            "check-bal-class-a-ratchet --self-test: planted synthetic c1 body read"
         )
         print(
-            "check-bal-class-a-ratchet: FAIL (expected; 1 new Class-A path)"
+            "check-bal-class-a-ratchet: FAIL (expected; body predicate fired)"
         )
-        print(f"  + {new[0]}")
-
-        new, missing = compare_rows(clean_rows, baseline)
-        if new or missing:
-            print(
-                "check-bal-class-a-ratchet --self-test: FAIL — removing the "
-                "synthetic read did not restore the baseline",
-                file=sys.stderr,
-            )
-            return 1
+        for candidate in planted_body:
+            print(f"  + {candidate}")
         print(
-            "check-bal-class-a-ratchet --self-test: synthetic read removed"
+            "check-bal-class-a-ratchet --self-test: synthetic body read removed"
         )
-        print(
-            f"check-bal-class-a-ratchet: OK (debt={len(clean_rows)} "
-            "synthetic baseline paths; no new Class-A edges)"
-        )
+        print("check-bal-class-a-ratchet: OK (body predicate empty)")
     return 0
 
 
@@ -431,17 +519,11 @@ def main() -> int:
         default=None,
         help="dir containing stateless_guest.s (skip rebuild if present)",
     )
-    ap.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     ap.add_argument(
         "--notes",
         type=Path,
         default=DEFAULT_NOTES,
         help="merge-safe annotation sidecar (default scripts/bal-class-a-notes.md)",
-    )
-    ap.add_argument(
-        "--write-baseline",
-        action="store_true",
-        help="write baseline from current guest and exit 0",
     )
     ap.add_argument(
         "--no-build",
@@ -451,7 +533,7 @@ def main() -> int:
     ap.add_argument(
         "--self-test",
         action="store_true",
-        help="plant a synthetic cursor read, prove FAIL, then remove it and prove OK",
+        help="plant a synthetic body read, prove FAIL, then remove it and prove OK",
     )
     args = ap.parse_args()
 
@@ -478,55 +560,34 @@ def main() -> int:
         return 1
 
     annotation_count = validate_annotation_notes(args.notes, rows)
+    unexpected, missing = validate_bind_allowlist(rows)
+    body = body_candidates(s_path)
 
-    if args.write_baseline:
-        write_baseline(args.baseline, rows)
-        print(
-            f"wrote {args.baseline} (debt={len(rows)} paths; "
-            f"{annotation_count} annotations) from {s_path}"
-        )
-        return 0
-
-    if not args.baseline.is_file():
-        print(f"missing baseline {args.baseline} — run with --write-baseline", file=sys.stderr)
-        return 2
-
-    base = load_baseline(args.baseline)
-    new, missing = compare_rows(rows, base)
-    debt_drift = len(rows) != EXPECTED_CLASS_A_DEBT
-
-    if debt_drift or new or missing:
+    if unexpected or missing or body:
         print("check-bal-class-a-ratchet: FAIL", file=sys.stderr)
-        if debt_drift:
+        if unexpected:
             print(
-                "\nClass-A debt ratchet drift: "
-                f"expected exactly {EXPECTED_CLASS_A_DEBT} paths, found {len(rows)}; "
-                "update the committed debt only with the corresponding source "
-                "retirement.",
+                f"\nUNEXPECTED supplied-BAL edges ({len(unexpected)}):",
                 file=sys.stderr,
             )
-        if new:
-            print(f"\nNEW paths not in baseline ({len(new)}):", file=sys.stderr)
-            for k in new:
-                print(f"  + {k}", file=sys.stderr)
+            for key in unexpected:
+                print(f"  + {key}", file=sys.stderr)
         if missing:
             print(
-                f"\nBASELINE paths disappeared ({len(missing)}) — shrink baseline deliberately:",
+                f"\nALLOWLIST edges disappeared ({len(missing)}):",
                 file=sys.stderr,
             )
-            for k in missing:
-                print(f"  - {k}", file=sys.stderr)
-        print(
-            "\nUpdate scripts/bal-class-a-baseline.tsv via:\n"
-            "  scripts/check-bal-class-a-ratchet.py --write-baseline\n"
-            "after reviewing each edge (Class-A retirement must shrink, not grow).",
-            file=sys.stderr,
-        )
+            for key in missing:
+                print(f"  - {key}", file=sys.stderr)
+        if body:
+            print(f"\nSUPPLIED-BAL BODY EDGES ({len(body)}):", file=sys.stderr)
+            for candidate in body:
+                print(f"  + {candidate}", file=sys.stderr)
         return 1
 
     print(
-        f"check-bal-class-a-ratchet: OK (debt={len(rows)} baselined paths; "
-        f"no new Class-A edges; no silent shrink; "
+        f"check-bal-class-a-ratchet: OK ({len(rows)} explicit BIND/diagnostic "
+        f"allowlist edges; body predicate empty; "
         f"{annotation_count} sidecar bullet annotations present)"
     )
     return 0
