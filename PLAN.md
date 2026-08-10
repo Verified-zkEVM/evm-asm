@@ -219,6 +219,27 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
   is name-based, so it can UNDER-report a gap but never invent one: a floor on the
   backlog, not a census.
+  - ⛔ **The gate had its own blind spot: `_fnspec` (2026-08-10).** `SPEC_RE` matched
+    `Fn_spec` / `Flat_spec` / `_spec_within` / `_spec`, and **`…_fnspec` matches none
+    of them** — in `_fnspec` the substring "spec" is preceded by `n`, not `_`, so
+    `_spec` cannot fire. Consequence: the three `_fnspec` header byte-field
+    extractors (`header_extract_state_root`, `_receipts_root`,
+    `_withdrawals_root`) were **linked** (`GuestAddrs.lean:513-515`), carried
+    whole-routine `cpsTripleWithin`s, and sat in **neither** registry **nor** the
+    allowlist — and this gate scanned straight past them and reported OK. That is
+    the #11042 silent-skip class *reappearing inside the gate built to prevent it*.
+    ⭐ The general lesson: **a census that cannot see a naming convention is
+    indistinguishable from one that finds nothing wrong.** Fixed by adding `_fnspec`
+    to `SPEC_SUFFIXES`/`SPEC_RE`; spec-bearing count 117 → 120, allowlist 93 → 96
+    (all three graded **tier B** — their triples are `CodeReq`-parameterised, not
+    flat at the guest address, and the withdrawals one additionally carries an
+    `hbound` hypothesis quantified over `rlpItemDecode`; grading them `.proven`
+    would be exactly the invisible overclaim the gate exists to stop).
+    Also added **`--self-test`** (wired ahead of the real run in
+    `check-build-parallel.sh`): it plants one synthetic name per convention, checks
+    suffix stripping recovers the guest symbol, and checks a name merely
+    *containing* "spec" does not over-match. Verified to fail on the planted
+    regression — reverting `_fnspec` support makes it report the exact two errors.
   - **Burn-down (2026-08-10, #11575): 95 → 93.** `chain_validate_consecutive_numbers`
     and `chain_validate_increasing_timestamps` registered `.proven` in
     `Routines.lean` (routine registry 33 → 35 rows, 24 → 26 proven, 23 → 25 distinct

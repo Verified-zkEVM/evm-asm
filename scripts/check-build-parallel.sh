@@ -57,6 +57,13 @@ report_checks() {
   # #11637: row EXISTENCE, which nothing gated before -- every other registry
   # invariant quantifies over rows that are already there, so a linked, proven
   # routine with no row at all tripped nothing. Pure source scan, instant.
+  #
+  # The self-test runs FIRST and is not ceremony: this gate's own pattern had a
+  # blind spot (`_fnspec`, three linked spec-bearing routines it scanned straight
+  # past), and a census that cannot see a convention passes while covering
+  # nothing. The self-test plants one name per convention so that failure mode is
+  # a build error rather than a clean report.
+  run_step scripts/check-registry-coverage.py --self-test
   run_step scripts/check-registry-coverage.py
 }
 
