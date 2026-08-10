@@ -62,6 +62,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
+-- #10780 item 3: the 2-length-byte long form, in a sibling module because
+-- RlpSpliceHelperSpec is at the 1500-line cap.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
@@ -72,6 +75,7 @@ import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
+import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
 import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomSpec
@@ -98,6 +102,7 @@ import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
+import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 
 namespace EvmAsm.Progress
 
@@ -225,6 +230,22 @@ def routineRegistry : List RoutineEntry := [
       (some "account_rlp_content_to_u256_be_balance_spec_within")
       (notes := "writes the 32-byte balance; step bound "
         ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
+
+  -- #11925 continuation: `account_extract_nonce` is graded .conditional NOT
+  -- .proven (unlike its sibling balance accessor) because the grade is
+  -- INHERITED FROM ITS CALLEE, which is already registered .conditional above:
+  -- `rlp_content_to_u64` (Routines.lean:204) carries the identical
+  -- `a.nonce < 2 ^ 64` gate with the prose below, and the top-level triple
+  -- repeats that exact hypothesis. Two structurally identical gates cannot
+  -- carry different tiers. The satisfying instance is trivial: any `Account`
+  -- whose nonce fits a u64 cell.
+  routine "account_extract_nonce" .conditional
+      (some "account_extract_nonce_spec_within")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
+        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (notes := "grade inherited from its callee `rlp_content_to_u64`, which is "
+        ++ "`.conditional` at Routines.lean:204 with this exact gate; every "
+        ++ "dead code path carries a total post; step bound 139"),
 
   -- #11289: the RLP size / field / list routines whose specs `Correspondence`
   -- names but nothing witnessed. All whole-routine triples at their linked
@@ -429,6 +450,34 @@ def routineRegistry : List RoutineEntry := [
         ++ "same boundary as `rlp_item_size`")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
         ++ "`0xC0 + len` and sets the cell flag to 1"),
+  -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
+  -- but never registered, so it was outside the axiom gate and the registry
+  -- undercounted the routine's coverage — the short row's own gate text already
+  -- describes the cut as `lenlen ≥ 2`, which only makes sense if lenlen = 1 is
+  -- done. Same situation as the #11291 note below: the triple existed, the row
+  -- did not. Registering existing work; no new proof.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long1_pinned_spec_within")
+      (gate := "`56 ≤ len.toNat < 256` — the 1-length-byte long form. Together "
+        ++ "with the short row this covers `len < 256`; `lenlen ≥ 2` (the "
+        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3")
+      (notes := "per-form (\"long1\") pinned triple; writes header bytes "
+        ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
+        ++ "byte and minimal by construction here, so no leading-zero side "
+        ++ "condition is needed at this width"),
+  -- #10780 item 3: the first arm where the length-byte loop runs MORE THAN ONCE, and
+  -- the first where canonical form is a real obligation rather than vacuous.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long2_pinned_spec_within")
+      (gate := "`256 ≤ len.toNat < 65536` — the 2-length-byte long form. With the "
+        ++ "short and long1 rows this covers `len < 65536`; `lenlen ≥ 3` remains "
+        ++ "the cut")
+      (notes := "per-form (\"long2\") pinned triple; writes `[0xF9, len >>> 8, len]` "
+        ++ "and sets the cell flag to 3. The length-byte loop runs TWICE here, so "
+        ++ "the step bound is 32 rather than long1's 22. ⭐ Canonical form is "
+        ++ "discharged separately by `long2_first_length_byte_ne_zero`: the high "
+        ++ "byte is nonzero, so the length-of-length carries no leading zero — "
+        ++ "vacuous at long1, real from here on"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -513,7 +562,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "reference read the same 32 bytes and the restatement is total. ⚠️ It is "
         ++ "the `x`-BOUND CLAUSE of `bytes_to_g1`, not its verdict: that function "
         ++ "also bounds `y` and tests the curve equation, neither of which this "
-        ++ "routine looks at")
+        ++ "routine looks at"),
+
+  -- #11925 last-of-six: `tx_type_dispatch` re-derived as `.proven` FROM THE
+  -- MERGED text of #11929 (not the pre-merge read). #11929 appended the
+  -- legacy upper-bound guard (0xff guard; routine 45 -> 48 instructions):
+  -- `0xff` moved OUT of the legacy arm into its own FAILURE disjunct. The
+  -- post remains TOTAL over the byte: empty, byte at or above 0xc0 and not
+  -- 0xff -> legacy; byte equals 0xff -> ff-fail; byte under 0xc0 in 1..4 ->
+  -- typed; otherwise -> unknown-fail. A failure disjunct inside a total post
+  -- is still a total post. No input-domain precondition on `txBytes` (only
+  -- ABI: ra-alignment, 8-aligned base, size bound, byte-access validity).
+  routine "tx_type_dispatch" .proven (some "txTypeDispatch_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.tx_type_dispatch` over "
+        ++ "the emitted `txTypeDispatch_prog` (48 instrs after #11929's appended "
+        ++ "0xff guard). Classifies via `teerTxTypeDispatch`: empty -> fail "
+        ++ "(1,0,0); 0xc0..0xfe -> legacy (0,0,0); 0xff -> fail (1,0,0); 1..4 -> "
+        ++ "typed (0,N,1); otherwise -> fail (1,0,0). Step budget "
+        ++ "`nTxTypeDispatchSteps` = 256; five BGEU witnesses (shared, four "
+        ++ "non-taken Typed, unknown) all carry immediate 168 = "
+        ++ "`brOff (GuestAddrs.tx_type_dispatch+180) (GuestAddrs.tx_type_dispatch+12)`, "
+        ++ "matching the emitted guard target at D+180")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -525,10 +594,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 45 := by decide
+theorem routineCount_eq : routineCount = 49 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 35 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 10 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -542,7 +611,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 35 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 37 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -625,6 +694,8 @@ private noncomputable abbrev _rlp_walk_next_scalar_routine_witness :=
   @EvmAsm.Evm64.rlp_walk_next_scalar_spec_within
 private noncomputable abbrev _account_rlp_content_to_u64_nonce_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u64_nonce_spec_within
+private noncomputable abbrev _account_extract_nonce_routine_witness :=
+  @EvmAsm.Codegen.account_extract_nonce_spec_within
 private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u256_be_balance_spec_within
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
@@ -725,6 +796,15 @@ private noncomputable abbrev _rlp_list_count_items_routine_witness :=
   @EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_short_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
+-- #10780: the long1 arm, proven since the short arm landed but never registered.
+private noncomputable abbrev _rlp_encode_list_prefix_long1_routine_witness :=
+  @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_long1_pinned_spec_within
+-- #10780 item 3: the long2 arm, plus its canonical-form lemma (the no-leading-zero
+-- property in the length-of-length, which is what makes the header valid RLP).
+private noncomputable abbrev _rlp_encode_list_prefix_long2_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long2_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
@@ -749,5 +829,9 @@ private noncomputable abbrev _bnf_lt_p_routine_witness :=
   @EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 private noncomputable abbrev _bnf_lt_p_specref_routine_witness :=
   @EvmAsm.Codegen.bnfLtP_spec_specref
+-- #11925 last-of-six: the whole-routine triple lives in the `TxTypeDispatchTop`
+-- module, in the `…TxTypeDispatchSpec` namespace.
+private noncomputable abbrev _tx_type_dispatch_routine_witness :=
+  @EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
 end EvmAsm.Progress

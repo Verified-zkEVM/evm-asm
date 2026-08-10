@@ -46,7 +46,7 @@ namespace EvmAsm.Codegen
 
     `account_state_created` and `account_state_delete` are `.set` aliases into the
     `nea_sort_a`/`nea_sort_b` radix scratch, which allocates
-    `2 * nonstorageEffectLogCap * 112 = 8,615,040` bytes.  The delete arena's offset is
+    `2 * nonstorageEffectLogCap * 112 = 8,618,624` bytes.  The delete arena's offset is
     `accountStateEntryBytes * accountStateEntryCapacity + accountStateCreatedCapacity * 32
     = 5,185,024`, leaving **3,430,016 bytes = 107,188 entries** of 32 bytes.  So this
     bound is conservative by a factor of roughly thirteen and is a *naming* fix rather

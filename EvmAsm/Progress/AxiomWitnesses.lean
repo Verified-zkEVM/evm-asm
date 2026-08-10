@@ -92,6 +92,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
+
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
@@ -112,13 +116,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_spec_within
 
+#print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_long1_pinned_spec_within
+
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
+
+#print axioms EvmAsm.Codegen.account_extract_nonce_spec_within
 
 #print axioms EvmAsm.Codegen.blsgLtP_spec_specref
 
@@ -371,3 +381,9 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.bytesBEtoNat_beBytes32
 
 #print axioms EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+
+#print axioms EvmAsm.Stateless.groupByAddress_keys_nodup
+
+#print axioms EvmAsm.Stateless.groupByAddress_total
+
+#print axioms EvmAsm.Stateless.storageRowsAbstract_holds
