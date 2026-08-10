@@ -436,9 +436,11 @@ eip8037_tx_gas_gate:
   jal x0, .+24
   li x10, 2
   jal x0, .+16
+.Leip8037_tgg_st3:
   li x10, 3
   jal x0, .+8
   # #11510 neutral fail/ok epilogue entry (full restore). Fail branches must target HERE.
+.Leip8037_tgg_ok:
   li x10, 0
   ld x1, 0(x2)
   ld x8, 8(x2)
