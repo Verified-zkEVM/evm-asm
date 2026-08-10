@@ -103,7 +103,7 @@
   | `TX_CODE_READS_AREA`         | `0xa24b49c0`     | 512 KiB (8,192×64; cold bound 5,588) |
   | `STORAGE_WRITES_AREA`        | `0xa25349c0`     | 8,533,248 B (66,666×128) |
   | `TX_STORAGE_WRITES_AREA`     | `0xa2d57ec0`     | 715,264 B (5,588×128) |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xbbf5e000`     | 26,824,320 B (167,652×160) |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xbbf5f000`     | 26,824,320 B (167,652×160) |
   | `ACCOUNT_WRITES_AREA`        | `0xbdb80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
   | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe380000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
   | `TX_ACCOUNT_WRITES_AREA`     | `0xbf780000`     | 2 MiB (high pack → SSZ) |
@@ -355,7 +355,7 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa2d57ec0
         +16  (16 B pad — keeps payload at +32)
         +32  payload: prevValue (32 B) when wasAbsent=0;
              full map row (128 B) when wasAbsent=2 -/
-def STORAGE_WRITES_UNDO_AREA : Word := 0xbbf5e000
+def STORAGE_WRITES_UNDO_AREA : Word := 0xbbf5f000
 
 /-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
 
