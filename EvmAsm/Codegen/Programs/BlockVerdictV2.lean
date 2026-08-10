@@ -265,6 +265,20 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     "pdr_out:\n  .zero 2048\n" ++
     "pdr_status:\n  .zero 8\n" ++
     "rhv_hash:\n  .zero 32\n" ++
+    -- GH #11186 / #10446 class: SharedGuest sets includeLogArenas=false because
+    -- production guest owns the five log symbols at .bss HEAD via prologueAsm.
+    -- This probe unit has its own .elf and mirrors h_LOG0..4 / h_CALL, so it must
+    -- close over those symbols or the link fails (undefined evm_event_logs etc.).
+    -- Full production sizes; no bss_lead_pad (probe does not pin scheme-A packing).
+    ".section .bss, \"aw\", @nobits\n" ++
+    ".balign 8\n" ++
+    "evm_event_logs:\n  .zero 11444992\n" ++
+    ".balign 8\n" ++
+    "evm_log_data:\n  .zero 2095652\n" ++
+    ".balign 32\n" ++
+    "evm_log_data_meta:\n  .zero 715312\n" ++
+    "evm_log_data_used:\n  .zero 8\n" ++
+    "evm_log_data_overflow:\n  .zero 8\n" ++
     emitRuntimeDispatcherDataSectionSharedGuest callFrameGuestRegistry
 }
 
