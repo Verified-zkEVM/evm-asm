@@ -91,20 +91,27 @@ private def blockerCell (o : Obligation) : String :=
   | _, bs    => String.intercalate ", " (bs.map Blocker.render)
 
 private def fmtObligationRow (o : Obligation) : String :=
-  s!"| {o.id} | {o.name} | {statusCell o.status} | {blockerCell o} |"
+  s!"| {o.id} | {o.name} | {statusCell o.status} | {blockerCell o} | {o.auditedAt.getD "—"} |"
 
 private def renderObligations : String :=
   let rows := String.intercalate "\n" (obligations.map fmtObligationRow)
   s!"## Guest-program obligations (kernel-checked)
 
-The nine obligations a complete L1 stateless block-validation guest program must
+The ten obligations a complete L1 stateless block-validation guest program must
 satisfy, each with the opcodes/infrastructure blocking it. This is the
 *direction* axis: opcode-tier counts cannot tell you which obligation is blocked
-by what. Source of truth, per-status counts, and the opcode cross-check live in
+by what. Source of truth, per-status counts, and the opcode cross-checks live in
 [`EvmAsm/Progress/Obligations.lean`](EvmAsm/Progress/Obligations.lean)
 (`doneCount_eq = {doneCount}`, `blockedCount_eq = {blockedCount}`,
-`notStartedCount_eq = {Obligations.notStartedCount}`, and `blocker_opcodes_in_registry`,
-which fails the build if any opcode blocker stops naming a real registry entry).
+`notStartedCount_eq = {Obligations.notStartedCount}`, plus two cross-checks that
+fail the build: `blocker_opcodes_in_registry` if an opcode blocker stops naming a
+real registry entry, and `no_proven_opcode_blockers` if one names an entry that
+has already reached `.proven`).
+
+**Reading the `Audited` column.** A blocker list is a claim about the present.
+The date + commit records when the row was last checked against the live
+registries; `—` means not since the field was introduced (#11803), so treat that
+row's blockers as unverified rather than current.
 
 | Status | Count |
 |---|---:|
@@ -112,8 +119,8 @@ which fails the build if any opcode blocker stops naming a real registry entry).
 | 🟡 blocked | {blockedCount} |
 | ✗ not started | {Obligations.notStartedCount} |
 
-| # | Obligation | Status | Blocked by |
-|---|---|---|---|
+| # | Obligation | Status | Blocked by | Audited |
+|---|---|---|---|---|
 {rows}
 "
 
