@@ -346,6 +346,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.mptNodeKindSpec_rlp
 
+#print axioms EvmAsm.Evm64.mstoreDwordPairStoreLimb_eq_dwordAt_setBytes
+
 #print axioms EvmAsm.Evm64.nodeDbIs_snoc
 
 #print axioms EvmAsm.Evm64.nodeDbLookupSpec_eq_build_node_db
