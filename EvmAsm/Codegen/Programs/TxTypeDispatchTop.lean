@@ -193,9 +193,9 @@ theorem txTypeDispatch_unknown_fail_spec_within
   -- [3] BGEU ntaken
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (40 : BitVec 13))
+      (.BGEU .x5 .x6 (168 : BitVec 13))
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (40 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
       (b.zeroExtend 64 : Word) (192 : Word) (D + 12))
   have hnt3 := cpsBranchWithin_ntakenStripPure2 hbr3 (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
@@ -409,9 +409,14 @@ def typeFlatPostOf (raIn txBase typePtr innerPtr : Word)
     regOwn .x11 ** regOwn .x12 ** regOwn .x13)
 
 private theorem teer_empty : teerTxTypeDispatch ([] : List (BitVec 8)) = (1, 0, 0) := rfl
-private theorem teer_legacy (b : BitVec 8) (rest : List (BitVec 8)) (h : 192 ≤ b.toNat) :
+private theorem teer_legacy (b : BitVec 8) (rest : List (BitVec 8))
+    (h : 192 ≤ b.toNat) (hlt : b.toNat < 255) :
     teerTxTypeDispatch (b :: rest) = (0, 0, 0) := by
-  simp only [teerTxTypeDispatch, h, ↓reduceIte]
+  simp only [teerTxTypeDispatch, h, hlt, and_self, ↓reduceIte]
+
+private theorem teer_ff (rest : List (BitVec 8)) :
+    teerTxTypeDispatch ((0xff : BitVec 8) :: rest) = (1, 0, 0) := by
+  simp [teerTxTypeDispatch]
 private theorem teer_type1 (rest : List (BitVec 8)) :
     teerTxTypeDispatch ((1 : BitVec 8) :: rest) = (0, 1, 1) := by
   simp only [teerTxTypeDispatch]; decide
@@ -431,7 +436,7 @@ private theorem teer_unknown (b : BitVec 8) (rest : List (BitVec 8))
     teerTxTypeDispatch (b :: rest) = (1, 0, 0) := by
   simp only [teerTxTypeDispatch]
   have hnot : ¬ (192 ≤ b.toNat) := Nat.not_le_of_gt hult
-  simp only [hnot, ↓reduceIte, hne1, hne2, hne3, hne4, ↓reduceIte]
+  simp only [hnot, false_and, ↓reduceIte, hne1, hne2, hne3, hne4, ↓reduceIte]
 
 private theorem arm_post_to_flat
     (raIn txBase typePtr innerPtr status typeW innerW v5 v6 txLen : Word)
@@ -510,19 +515,41 @@ theorem txTypeDispatch_spec_within
       | inl h => simp [h] at hlen_pos
       | inr h => exact h
     by_cases hleg : 192 ≤ b.toNat
-    · have h0 :=
-        txTypeDispatch_legacy_spec_within raIn txBase typePtr innerPtr
-          typeOld innerOld t0Old t1Old (b :: rest) b rest hret rfl hleg
-          halign hover hvalid
-      have h0' := cpsTripleWithin_mono_nSteps (nSteps := 8) (nSteps' := nTxTypeDispatchSteps)
-        (by simp only [nTxTypeDispatchSteps]; omega) h0
-      refine cpsTripleWithin_weaken (fun _ hp => by
-        simp only [typeFlatPre] at hp ⊢; xperm_hyp hp)
-        (arm_post_to_flat raIn txBase typePtr innerPtr 0 0 0
-          (b.zeroExtend 64) (192 : Word)
-          (BitVec.ofNat 64 (b :: rest).length) (b :: rest)
-          (by rw [teer_legacy b rest hleg]) (by rw [teer_legacy b rest hleg])
-          (by rw [teer_legacy b rest hleg])) h0'
+    · by_cases hff : b = (0xff : BitVec 8)
+      · subst hff
+        have h0 :=
+          txTypeDispatch_ff_fail_spec_within raIn txBase typePtr innerPtr
+            typeOld innerOld t0Old t1Old ((0xff : BitVec 8) :: rest) rest hret rfl
+            halign hover hvalid
+        have h0' := cpsTripleWithin_mono_nSteps (nSteps := 10) (nSteps' := nTxTypeDispatchSteps)
+          (by simp only [nTxTypeDispatchSteps]; omega) h0
+        refine cpsTripleWithin_weaken (fun _ hp => by
+          simp only [typeFlatPre] at hp ⊢; xperm_hyp hp)
+          (arm_post_to_flat raIn txBase typePtr innerPtr 1 0 0
+            (0xff : Word) (255 : Word)
+            (BitVec.ofNat 64 ((0xff : BitVec 8) :: rest).length)
+            ((0xff : BitVec 8) :: rest)
+            (by rw [teer_ff rest]) (by rw [teer_ff rest]) (by rw [teer_ff rest])) h0'
+      · have hlt : b.toNat < 255 := by
+          have hne : b.toNat ≠ 255 := by
+            intro hb
+            apply hff
+            apply BitVec.eq_of_toNat_eq
+            simpa using hb
+          omega
+        have h0 :=
+          txTypeDispatch_legacy_spec_within raIn txBase typePtr innerPtr
+            typeOld innerOld t0Old t1Old (b :: rest) b rest hret rfl hleg
+            hlt halign hover hvalid
+        have h0' := cpsTripleWithin_mono_nSteps (nSteps := 11) (nSteps' := nTxTypeDispatchSteps)
+          (by simp only [nTxTypeDispatchSteps]; omega) h0
+        refine cpsTripleWithin_weaken (fun _ hp => by
+          simp only [typeFlatPre] at hp ⊢; xperm_hyp hp)
+          (arm_post_to_flat raIn txBase typePtr innerPtr 0 0 0
+            (b.zeroExtend 64) (255 : Word)
+            (BitVec.ofNat 64 (b :: rest).length) (b :: rest)
+            (by rw [teer_legacy b rest hleg hlt]) (by rw [teer_legacy b rest hleg hlt])
+            (by rw [teer_legacy b rest hleg hlt])) h0'
     · have hult : b.toNat < 192 := Nat.lt_of_not_ge hleg
       by_cases h1 : b = (1 : BitVec 8)
       · subst h1

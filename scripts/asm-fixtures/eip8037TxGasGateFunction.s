@@ -113,6 +113,8 @@ eip8037_tx_gas_gate:
   la x6, bsg_auth_field
   sd x5, 0(x6)
   jal x0, .+300
+  # jump-over block head (dead fall-through); type-arm gas_field=3
+.Leip8037_tgg_gas3:
   li x5, 3
   la x6, bsg_gas_field
   sd x5, 0(x6)
@@ -132,6 +134,8 @@ eip8037_tx_gas_gate:
   la x6, bsg_auth_field
   sd x5, 0(x6)
   jal x0, .+200
+  # jump-over block head (dead fall-through); type-arm gas_field=4
+.Leip8037_tgg_gas4a:
   li x5, 4
   la x6, bsg_gas_field
   sd x5, 0(x6)
@@ -151,6 +155,8 @@ eip8037_tx_gas_gate:
   la x6, bsg_auth_field
   sd x5, 0(x6)
   jal x0, .+100
+  # jump-over block head (dead fall-through); type-arm gas_field=4
+.Leip8037_tgg_gas4b:
   li x5, 4
   la x6, bsg_gas_field
   sd x5, 0(x6)
@@ -240,6 +246,8 @@ eip8037_tx_gas_gate:
   la x13, bsg_access_slots
   jal x1, access_list_count
   bne x10, x0, .+968
+  # skip-optional continue: after access_list_count (or skipped)
+.Leip8037_tgg_after_access:
   la x5, bsg_auth_field
   ld x6, 0(x5)
   li x7, -1
@@ -259,6 +267,8 @@ eip8037_tx_gas_gate:
   la x12, bsg_auth_count
   jal x1, rlp_list_count_items
   bne x10, x0, .+868
+  # skip-optional continue: after auth list count (or skipped)
+.Leip8037_tgg_after_auth:
   la x5, bsg_tx_type
   ld x6, 0(x5)
   li x7, 3
@@ -307,6 +317,8 @@ eip8037_tx_gas_gate:
   la x13, bsg_blob_count
   jal x1, tx_eip4844_validate_blob_hashes
   bne x10, x0, .+624
+  # skip-optional continue: after blob validate (or skipped non-type3)
+.Leip8037_tgg_after_blob:
   la x5, bsg_tx_type
   ld x6, 0(x5)
   li x7, 4
@@ -352,6 +364,8 @@ eip8037_tx_gas_gate:
   addi x7, x7, -1
   jal x0, .-28
   li x31, 1
+  # multi-way merge after 20-byte to-address compare
+.Leip8037_tgg_after_to_cmp:
   li x30, 0
   la x5, bsg_value_len
   ld x6, 0(x5)
@@ -436,9 +450,11 @@ eip8037_tx_gas_gate:
   jal x0, .+24
   li x10, 2
   jal x0, .+16
+.Leip8037_tgg_st3:
   li x10, 3
   jal x0, .+8
   # #11510 neutral fail/ok epilogue entry (full restore). Fail branches must target HERE.
+.Leip8037_tgg_ok:
   li x10, 0
   ld x1, 0(x2)
   ld x8, 8(x2)

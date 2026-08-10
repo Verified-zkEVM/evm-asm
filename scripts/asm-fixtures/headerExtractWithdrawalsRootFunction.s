@@ -119,6 +119,7 @@ header_extract_withdrawals_root:
   bne x6, x0, .-20
   li x10, 0
   jal x0, .+16
+.Lhewr_st1:
   li x10, 1
   jal x0, .+8
   li x10, 2

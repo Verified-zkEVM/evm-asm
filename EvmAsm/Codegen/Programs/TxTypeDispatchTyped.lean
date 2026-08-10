@@ -161,9 +161,9 @@ theorem txTypeDispatch_type1_spec_within
   -- [3] BGEU ntaken (byte < 192)
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (40 : BitVec 13))
+      (.BGEU .x5 .x6 (168 : BitVec 13))
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (40 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
       ((1 : BitVec 8).zeroExtend 64) (192 : Word) (D + 12))
   have hnt3 := cpsBranchWithin_ntakenStripPure2 hbr3 (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
@@ -329,9 +329,9 @@ theorem txTypeDispatch_type2_spec_within
   -- [3] BGEU ntaken
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (40 : BitVec 13))
+      (.BGEU .x5 .x6 (168 : BitVec 13))
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (40 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
       ((2 : BitVec 8).zeroExtend 64) (192 : Word) (D + 12))
   have hnt3 := cpsBranchWithin_ntakenStripPure2 hbr3 (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
@@ -536,9 +536,9 @@ theorem txTypeDispatch_type3_spec_within
   -- [3] BGEU ntaken
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (40 : BitVec 13))
+      (.BGEU .x5 .x6 (168 : BitVec 13))
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (40 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
       ((3 : BitVec 8).zeroExtend 64) (192 : Word) (D + 12))
   have hnt3 := cpsBranchWithin_ntakenStripPure2 hbr3 (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
@@ -771,9 +771,9 @@ theorem txTypeDispatch_type4_spec_within
   -- [3] BGEU ntaken
   have hbr3 := cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at D (D + 12) typeProg 3
-      (.BGEU .x5 .x6 (40 : BitVec 13))
+      (.BGEU .x5 .x6 (168 : BitVec 13))
       D12 (by rw [type_length]; decide) rfl type_bound)
-    (bgeu_spec_gen_within .x5 .x6 (40 : BitVec 13)
+    (bgeu_spec_gen_within .x5 .x6 (168 : BitVec 13)
       ((4 : BitVec 8).zeroExtend 64) (192 : Word) (D + 12))
   have hnt3 := cpsBranchWithin_ntakenStripPure2 hbr3 (fun _ hq => by
     obtain ⟨_, _, _, _, _, hrest⟩ := hq
