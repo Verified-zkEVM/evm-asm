@@ -118,6 +118,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.decode_encode_mutual
 
+#print axioms EvmAsm.EL.RLP.decode_injective
+
+#print axioms EvmAsm.EL.RLP.encode_decode
+
+#print axioms EvmAsm.EL.RLP.encode_decode_mutual
+
 #print axioms EvmAsm.EL.RLP.encode_injective
 
 #print axioms EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
