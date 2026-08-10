@@ -369,3 +369,9 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.bytesBEtoNat_beBytes32
 
 #print axioms EvmAsm.Stateless.decode_account_from_leaf_accountRlp
+
+#print axioms EvmAsm.Stateless.groupByAddress_keys_nodup
+
+#print axioms EvmAsm.Stateless.groupByAddress_total
+
+#print axioms EvmAsm.Stateless.storageRowsAbstract_holds

@@ -361,15 +361,172 @@ def groupByAddress (rs : List StorageWriteRow) :
     distinct address, and every `(slot, value)` pair of the flat list appears in
     exactly one group.
 
-    Stated, not proved — the statement is the deliverable #11571 asks for ("state the
-    intended abstraction lemma per predicate"), and discharging it wants the upsert
-    routine's uniqueness fact, which is a follow-on. Naming it here means the
-    `StateTracker` correspondence proof has a single named obligation to consume
-    rather than re-deriving the grouping inline. -/
+    ⭐ **Proved** — `storageRowsAbstract_holds` below (#11921 row 2). The earlier note here
+    said discharging it "wants the upsert routine's uniqueness fact"; that turned out
+    to be false. Both halves are invariants of `groupByAddress` itself, so no upsert
+    fact and in fact **no hypothesis at all** is needed — see the section header before
+    `gbaStep` for why that matters to the correspondence proof.
+
+    Kept as a `def` returning a `Prop` (rather than restated as a theorem) because it is
+    the shape #11571 froze and callers cite it by name; `storageRowsAbstract_holds` is
+    the discharge. -/
 def storageRowsAbstract (rs : List StorageWriteRow) : Prop :=
   StorageWriteRowsMap rs →
     (((groupByAddress rs).map Prod.fst).Nodup
       ∧ (groupByAddress rs).foldl (fun n p => n + p.2.length) 0 = rs.length)
+
+/-! ### Discharging `storageRowsAbstract` (#11921 row 2)
+
+    ⭐ **Proved below, and the `StorageWriteRowsMap` hypothesis turns out to be
+    unnecessary.** Both halves hold for an arbitrary row list:
+
+    * the fold appends a key only in the branch where `any` says it is absent, and its
+      other branch rewrites values while keeping `p.1` — so distinct keys are an
+      invariant *of the grouping function*, not something inherited from the rows;
+    * each row therefore contributes exactly one `(slot, value)` pair, so the totals
+      match.
+
+    `storageRowsAbstract` keeps its hypothesis (the shape #11571 froze, and callers
+    have it anyway), but `storageRowsAbstract_holds` ignores it. That is worth knowing
+    for the correspondence proof: **the flat→nested abstraction does not depend on row
+    uniqueness**, so it composes with a mid-upsert state that has not re-established
+    the map property. Uniqueness is still needed to know the *nested* result is a
+    faithful dictionary — that is a separate claim about the values, not the grouping. -/
+
+/-- The grouped shape: an address paired with its `(slot, value)` list. -/
+private abbrev SGroup := List (BitVec 8) × List (List (BitVec 8) × List (BitVec 8))
+
+/-- `groupByAddress`'s fold step, named so the lemmas can speak about it without
+    repeating the lambda — and so a change to the lambda breaks them loudly rather
+    than silently invalidating the proofs. -/
+private def gbaStep (acc : List SGroup) (r : StorageWriteRow) : List SGroup :=
+  if acc.any (fun p => p.1 = r.rowAddress) then
+    acc.map (fun p => if p.1 = r.rowAddress then (p.1, p.2 ++ [(r.slotKey, r.value)]) else p)
+  else acc ++ [(r.rowAddress, [(r.slotKey, r.value)])]
+
+private theorem groupByAddress_eq_foldl (rs : List StorageWriteRow) :
+    groupByAddress rs = rs.foldl gbaStep [] := rfl
+
+/-- The snoc equation — a push is one step on the already-grouped prefix. This is what
+    lets the inductions below run without generalising over the accumulator. -/
+private theorem groupByAddress_snoc (rs : List StorageWriteRow) (r : StorageWriteRow) :
+    groupByAddress (rs ++ [r]) = gbaStep (groupByAddress rs) r := by
+  rw [groupByAddress_eq_foldl, groupByAddress_eq_foldl, List.foldl_append]
+  rfl
+
+/-- The value-rewriting branch keeps every key. -/
+private theorem map_keys_step (a : List (BitVec 8))
+    (kv : List (BitVec 8) × List (BitVec 8)) : ∀ acc : List SGroup,
+    (acc.map (fun p => if p.1 = a then (p.1, p.2 ++ [kv]) else p)).map Prod.fst
+      = acc.map Prod.fst := by
+  intro acc
+  induction acc with
+  | nil => rfl
+  | cons p ps ih => by_cases h : p.1 = a <;> simp [h, ih]
+
+/-- ⭐ **Distinct keys, unconditionally.** -/
+theorem groupByAddress_keys_nodup (rs : List StorageWriteRow) :
+    ((groupByAddress rs).map Prod.fst).Nodup := by
+  induction rs using List.reverseRecOn with
+  | nil => simp [groupByAddress]
+  | append_singleton rs r ih =>
+    rw [groupByAddress_snoc, gbaStep]
+    by_cases h : (groupByAddress rs).any (fun p => p.1 = r.rowAddress) = true
+    · rw [if_pos h, map_keys_step]
+      exact ih
+    · rw [if_neg h, List.map_append]
+      rw [List.nodup_append]
+      refine ⟨ih, by simp, ?_⟩
+      intro x hx y hy
+      simp only [List.map_cons, List.map_nil, List.mem_singleton] at hy
+      subst hy
+      intro hxy
+      subst hxy
+      -- `any` was false, so no existing group carries this address.
+      obtain ⟨p, hp, hpk⟩ := List.mem_map.1 hx
+      exact h (List.any_eq_true.2 ⟨p, hp, by simp [hpk]⟩)
+
+/-- Re-indexing the running total: this fold only ever adds, so a shifted start shifts
+    the result by the same amount. -/
+private theorem foldl_len_shift : ∀ (acc : List SGroup) (n m : Nat),
+    acc.foldl (fun n p => n + p.2.length) (n + m)
+      = acc.foldl (fun n p => n + p.2.length) n + m := by
+  intro acc
+  induction acc with
+  | nil => intro n m; rfl
+  | cons p ps ih =>
+    intro n m
+    show ps.foldl _ ((n + m) + p.2.length) = ps.foldl _ (n + p.2.length) + m
+    rw [show (n + m) + p.2.length = (n + p.2.length) + m from by omega, ih]
+
+/-- Where the key is absent the rewrite is the identity. -/
+private theorem map_step_id_of_not_mem (a : List (BitVec 8))
+    (kv : List (BitVec 8) × List (BitVec 8)) : ∀ acc : List SGroup,
+    a ∉ acc.map Prod.fst →
+    acc.map (fun p => if p.1 = a then (p.1, p.2 ++ [kv]) else p) = acc := by
+  intro acc
+  induction acc with
+  | nil => intro _; rfl
+  | cons p ps ih =>
+    intro hmem
+    simp only [List.map_cons, List.mem_cons, not_or] at hmem
+    obtain ⟨hne, hrest⟩ := hmem
+    simp only [List.map_cons]
+    rw [if_neg (fun hc => hne hc.symm), ih hrest]
+
+/-- The rewriting branch adds exactly one pair — **one**, and this is where distinct
+    keys earn their keep: with a duplicated key the `map` would append to every match
+    and the total would jump by more than one. -/
+private theorem foldl_len_map_step (a : List (BitVec 8))
+    (kv : List (BitVec 8) × List (BitVec 8)) : ∀ (acc : List SGroup) (n : Nat),
+    (acc.map Prod.fst).Nodup → a ∈ acc.map Prod.fst →
+    (acc.map (fun p => if p.1 = a then (p.1, p.2 ++ [kv]) else p)).foldl
+        (fun n p => n + p.2.length) n
+      = acc.foldl (fun n p => n + p.2.length) n + 1 := by
+  intro acc
+  induction acc with
+  | nil => intro n _ hmem; simp at hmem
+  | cons p ps ih =>
+    intro n hnd hmem
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    obtain ⟨hpnot, hndps⟩ := hnd
+    simp only [List.map_cons]
+    by_cases hpa : p.1 = a
+    · -- head matches, so the tail cannot
+      subst hpa
+      rw [if_pos rfl, map_step_id_of_not_mem _ _ _ hpnot]
+      show ps.foldl _ (n + (p.2 ++ [kv]).length) = ps.foldl _ (n + p.2.length) + 1
+      rw [List.length_append, List.length_singleton,
+        show n + (p.2.length + 1) = (n + p.2.length) + 1 from by omega, foldl_len_shift]
+    · rw [if_neg hpa]
+      show (ps.map _).foldl _ (n + p.2.length) = ps.foldl _ (n + p.2.length) + 1
+      refine ih (n + p.2.length) hndps ?_
+      simp only [List.map_cons, List.mem_cons] at hmem
+      rcases hmem with hc | hc
+      · exact absurd hc.symm hpa
+      · exact hc
+
+/-- ⭐ **Every row lands in exactly one group.** -/
+theorem groupByAddress_total (rs : List StorageWriteRow) :
+    (groupByAddress rs).foldl (fun n p => n + p.2.length) 0 = rs.length := by
+  induction rs using List.reverseRecOn with
+  | nil => rfl
+  | append_singleton rs r ih =>
+    rw [groupByAddress_snoc, gbaStep]
+    by_cases h : (groupByAddress rs).any (fun p => p.1 = r.rowAddress) = true
+    · rw [if_pos h,
+        foldl_len_map_step _ _ _ 0 (groupByAddress_keys_nodup rs)
+          (by obtain ⟨p, hp, hpk⟩ := List.any_eq_true.1 h
+              exact List.mem_map.2 ⟨p, hp, by simpa using hpk⟩),
+        ih]
+      simp
+    · rw [if_neg h, List.foldl_append, ih]
+      simp
+
+/-- ⭐⭐ **The abstraction hook, discharged.** `storageRowsAbstract` holds for every row
+    list — see the section header on why its hypothesis is not needed. -/
+theorem storageRowsAbstract_holds (rs : List StorageWriteRow) : storageRowsAbstract rs :=
+  fun _ => ⟨groupByAddress_keys_nodup rs, groupByAddress_total rs⟩
 
 /-! ## Non-vacuity, kernel-checked
 
