@@ -120,6 +120,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
