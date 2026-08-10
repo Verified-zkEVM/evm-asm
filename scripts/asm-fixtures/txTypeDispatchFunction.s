@@ -2,7 +2,7 @@ tx_type_dispatch:
   beqz a1, .Ltd_fail
   lbu t0, 0(a0)
   li t1, 0xc0
-  bgeu t0, t1, .Ltd_legacy
+  bgeu t0, t1, .Ltd_guard
   li t1, 1
   beq t0, t1, .Ltd_t1
   li t1, 2
@@ -50,3 +50,8 @@ tx_type_dispatch:
   sd zero, 0(a3)
   li a0, 1
   ret
+
+.Ltd_guard:
+  li t1, 0xff
+  beq t0, t1, .Ltd_fail
+  j .Ltd_legacy

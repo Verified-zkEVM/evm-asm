@@ -272,7 +272,7 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 174
+EXPECTED_BARE_J_SITES = 173
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -281,7 +281,7 @@ EXPECTED_BARE_J_SITES = 174
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 872
+EXPECTED_BARE_B_SITES = 793
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1297,6 +1297,34 @@ def _gen_with_br_threshold(asm, fn, prog, relocs, layout, thr, jal_thr=None):
         mod.BR_NAMED_THRESHOLD = saved
         mod.JAL_NAMED_THRESHOLD = saved_jal
 
+
+_BROFF_TO_BARE_RE = re.compile(
+    r'\(brOff\s*\(\s*[A-Za-z_][A-Za-z0-9_.]*\s*\+\s*(-?\d+)\s*\)\s*'
+    r'\(\s*[A-Za-z_][A-Za-z0-9_.]*\s*\+\s*(-?\d+)\s*\)\s*\)'
+)
+
+
+def _strip_broff_to_bare(text):
+    """Replace ``brOff (base+tgt) (base+cur)`` with the equivalent bare BitVec-13.
+
+    Used by the source-drift gate to accept surgical partial B-naming
+    migrations (#11512 head retarget): a module may name a subset of long-B
+    sites while leaving the rest bare.  After stripping, the block must match
+    the all-bare converter output.  Geometry of each named site is already
+    enforced by ``_check_b_geometry``.
+    """
+    def repl(m):
+        tgt = int(m.group(1))
+        cur = int(m.group(2))
+        off = tgt - cur
+        return f'({off} : BitVec 13)'
+    return _BROFF_TO_BARE_RE.sub(repl, text)
+
+
+def _source_matches_bare_up_to_broff(text, bare_block):
+    """True if ``text`` is ``bare_block`` with a subset of long-B imms upgraded to brOff."""
+    return bare_block in _strip_broff_to_bare(text)
+
 def _local_long_jal_sites(asm):
     """Return local `j`/`jal` sites at the named-target threshold or above."""
     items=tokenize(asm)
@@ -1810,8 +1838,10 @@ def check_file(path, funcs, rendered=None):
                                           thr=BR_NAMED_THRESHOLD, jal_thr=10**9)[0],
                 ]
                 if not any(form.rstrip() in leaf_text for form in leaf_forms):
-                    problems.append(f"{fn}: generated LEAF block not found verbatim in "
-                                    f"{os.path.basename(leaf_path)} (source drift)")
+                    if not any(_source_matches_bare_up_to_broff(leaf_text, form.rstrip())
+                               for form in leaf_forms):
+                        problems.append(f"{fn}: generated LEAF block not found verbatim in "
+                                        f"{os.path.basename(leaf_path)} (source drift)")
             if bridge_block.rstrip() not in text:
                 problems.append(f"{fn}: generated BRIDGE def not found verbatim (source drift)")
         elif fn not in SOURCE_DRIFT_ALLOW:
@@ -1826,7 +1856,13 @@ def check_file(path, funcs, rendered=None):
                                           thr=BR_NAMED_THRESHOLD, jal_thr=10**9),
                 ]
                 if not any(form in text for form in forms):
-                    problems.append(f"{fn}: generated block not found verbatim (source drift)")
+                    # Partial B-naming (#11512 surgical head retarget): source may
+                    # brOff a subset of long-B sites.  Strip brOff→bare BitVec-13
+                    # and match any of the threshold forms (B/J migration axes
+                    # are independent).  Per-site geometry already checked above.
+                    if not any(_source_matches_bare_up_to_broff(text, form)
+                               for form in forms):
+                        problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
 REPO=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

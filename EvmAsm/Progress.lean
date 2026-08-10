@@ -45,6 +45,7 @@ import EvmAsm.Evm64.Dup.Spec
 import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
+import EvmAsm.Stateless.State.AccountWriteUpsert
 import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
@@ -53,6 +54,8 @@ import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
+-- #10190 / PR #11910: the `evmMemoryIs` bridge lemmas, so the axiom gate covers them.
+import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 import EvmAsm.Evm64.DivMod.Compose.V6DivStackSpec
@@ -102,6 +105,8 @@ import EvmAsm.Evm64.ReturnData.CopySpec
 -- takes a direct import. Core → core, and no Codegen, so the rebuild-cost note in
 -- `Progress/Routines.lean`'s header is unaffected.
 import EvmAsm.EL.RLP.FuelMono
+-- #11896: the canonicality direction of the RLP round trip.
+import EvmAsm.EL.RLP.EncodeDecode
 
 namespace EvmAsm.Progress
 
@@ -719,8 +724,42 @@ private noncomputable abbrev _rlp_decodeFully_encode_witness :=
 -- confusion, the shape #11523's non-canonical leaves live in.
 private noncomputable abbrev _rlp_encode_injective_witness :=
   @EvmAsm.EL.RLP.encode_injective
+-- #11896: the CANONICALITY direction — `decode bs = some (item, []) → encode item = bs`,
+-- i.e. the decoder has no non-canonical accepts. This is the prerequisite for every
+-- `.machineOnly → .bridged` upgrade whose reference side is an ENCODER, because
+-- composing that encoder with `decode_encode` gives a reference decoder only for bytes
+-- already known to be an encoding; transferring a differential for ARBITRARY input is
+-- exactly this direction. Witnessed alongside `decode_injective`, its dual to
+-- `encode_injective` above.
+private noncomputable abbrev _rlp_encode_decode_witness :=
+  @EvmAsm.EL.RLP.encode_decode
+private noncomputable abbrev _rlp_encode_decode_mutual_witness :=
+  @EvmAsm.EL.RLP.encode_decode_mutual
+private noncomputable abbrev _rlp_decode_injective_witness :=
+  @EvmAsm.EL.RLP.decode_injective
+-- #10190 (PR #11910). Flagged there: `check-axioms.sh` only inspects proofs witnessed
+-- here, so these two were NOT covered by CI's axiom gate despite being the load-bearing
+-- content of the MSTORE `evmMemoryIs` migration. `bytesRegion_dword_pair_at_setBytes` is
+-- the straddling generalisation of `Rv64.bytesRegion_dword_at_setBytes` (payload may span
+-- two dwords rather than one), and `evmMemoryIs_quarter_pair_setBytes` is the
+-- interface-level bridge #10190 asks for -- the shape that avoids the eight-disjoint-dword
+-- precondition whose unsatisfiability is #11913.
+private noncomputable abbrev _mstore_dword_pair_setBytes_witness :=
+  @EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+private noncomputable abbrev _mstore_evmMemoryIs_quarter_pair_witness :=
+  @EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 private noncomputable abbrev _decode_account_from_leaf_inv_witness :=
   @EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+-- #11921 row 1: the `account_write_record` writer model turns `AccountWriteRowsMap`'s
+-- `Nodup` clause from a precondition into a theorem. Model-level (there is no SAsm
+-- transcription of the routine to attach a triple to), so no registry row is claimed —
+-- witnessed here so the invariant and the `dictSet` key correspondence are axiom-gated.
+private noncomputable abbrev _accountWriteUpsert_nodup_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_nodup
+private noncomputable abbrev _accountWriteUpsert_rowsMap_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+private noncomputable abbrev _accountWriteUpsert_keys_dictSet_witness :=
+  @EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the
 -- pure `EMPTY_ACCOUNT` kernel, which is the guest routine's comparison point.
 private noncomputable abbrev _accountExistsAndIsEmpty_eq_kernel_witness :=

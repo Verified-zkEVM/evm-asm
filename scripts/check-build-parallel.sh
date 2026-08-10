@@ -14,10 +14,13 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=5
+  [codegen]=6
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  [reports]=3
+  # 4 since the `check-registry-coverage.py --self-test` step was added ahead of
+  # its real run. ⚠️ This count is asserted exactly: adding a `run_step` to a lane
+  # without bumping it here reports the lane INCOMPLETE and fails the wrapper.
+  [reports]=4
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -49,6 +52,9 @@ codegen_checks() {
   # missing invariant (declared anchor => has a region entry). Pure grep, instant.
   run_step scripts/check-memorylayout-region-coverage.sh
   run_step scripts/check-guarded-handler-bytes.sh
+  # GH #11186: retired layout literals must not reappear after a relocate.
+  # Pure rg, no toolchain. Declared step so an unwired guard cannot green-pass.
+  run_step scripts/check-layout-residual-literals.sh
 }
 
 report_checks() {
@@ -57,6 +63,13 @@ report_checks() {
   # #11637: row EXISTENCE, which nothing gated before -- every other registry
   # invariant quantifies over rows that are already there, so a linked, proven
   # routine with no row at all tripped nothing. Pure source scan, instant.
+  #
+  # The self-test runs FIRST and is not ceremony: this gate's own pattern had a
+  # blind spot (`_fnspec`, three linked spec-bearing routines it scanned straight
+  # past), and a census that cannot see a convention passes while covering
+  # nothing. The self-test plants one name per convention so that failure mode is
+  # a build error rather than a clean report.
+  run_step scripts/check-registry-coverage.py --self-test
   run_step scripts/check-registry-coverage.py
 }
 

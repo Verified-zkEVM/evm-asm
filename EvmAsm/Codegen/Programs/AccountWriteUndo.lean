@@ -87,7 +87,7 @@ def accountWritesUndoPushFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, " ++ toString accountWritesUndoCapacity ++ "; bgeu t1, t2, .Lawu_fail\n" ++
-  "  li t2, 0xbe580000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
+  "  li t2, 0xbe380000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
   "  sd a5, 0(t3)\n" ++                                            -- entryIndex
   "  sd a6, 8(t3)\n" ++                                            -- wasAbsent
@@ -95,7 +95,7 @@ def accountWritesUndoPushFunction : String :=
   -- Overwrite: snapshot every non-key word, including the valid mask. The
   -- reverse replay must restore an invalid component as invalid, not merely
   -- restore its payload bytes.
-  "  li t2, 0xa2b20000; slli t4, a5, 7; add t4, t2, t4\n" ++       -- t4 = &tx_entry[idx]
+  "  li t2, 0xbf780000; slli t4, a5, 7; add t4, t2, t4\n" ++       -- t4 = &tx_entry[idx]
   "  ld t2, 32(t4);  sd t2, 16(t3); ld t2, 40(t4);  sd t2, 24(t3); ld t2, 48(t4);  sd t2, 32(t3); ld t2, 56(t4);  sd t2, 40(t3)\n" ++
   "  ld t2, 64(t4);  sd t2, 48(t3); ld t2, 72(t4);  sd t2, 56(t3); ld t2, 80(t4);  sd t2, 64(t3); ld t2, 88(t4);  sd t2, 72(t3)\n" ++
   "  ld t2, 96(t4);  sd t2, 80(t3); ld t2, 104(t4); sd t2, 88(t3); ld t2, 112(t4); sd t2, 96(t3); ld t2, 120(t4); sd t2, 104(t3)\n" ++
@@ -129,7 +129,7 @@ def accountWritesRestoreFrameFunction : String :=
   ".Lawf_loop:\n" ++
   "  bgeu a0, t1, .Lawf_done\n" ++                                 -- count <= mark: nothing left
   "  addi t1, t1, -1\n" ++                                         -- pop the newest
-  "  li t2, 0xbe580000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
+  "  li t2, 0xbe380000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
   "  ld t4, 0(t3)\n" ++                                            -- entryIndex
   "  ld t5, 8(t3)\n" ++                                            -- wasAbsent
   "  beqz t5, .Lawf_overwrite\n" ++
@@ -137,7 +137,7 @@ def accountWritesRestoreFrameFunction : String :=
   "  la t2, tx_account_writes_count; sd t4, 0(t2)\n" ++
   "  j .Lawf_loop\n" ++
   ".Lawf_overwrite:\n" ++
-  "  li t2, 0xa2b20000; slli t5, t4, 7; add t5, t2, t5\n" ++       -- t5 = &tx_entry[idx]
+  "  li t2, 0xbf780000; slli t5, t4, 7; add t5, t2, t5\n" ++       -- t5 = &tx_entry[idx]
   "  ld t2, 16(t3); sd t2, 32(t5); ld t2, 24(t3); sd t2, 40(t5); ld t2, 32(t3); sd t2, 48(t5); ld t2, 40(t3); sd t2, 56(t5)\n" ++
   "  ld t2, 48(t3); sd t2, 64(t5); ld t2, 56(t3); sd t2, 72(t5); ld t2, 64(t3); sd t2, 80(t5); ld t2, 72(t3); sd t2, 88(t5)\n" ++
   "  ld t2, 80(t3); sd t2, 96(t5); ld t2, 88(t3); sd t2, 104(t5); ld t2, 96(t3); sd t2, 112(t5); ld t2, 104(t3); sd t2, 120(t5)\n" ++

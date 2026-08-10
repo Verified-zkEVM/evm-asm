@@ -863,7 +863,7 @@ structure BalSortCallSite where
 def balSortCallSites : List BalSortCallSite :=
   [ { array := "bal_builder_storage_changes", stride := 96,
       segments := 0x0818a0209400, segCount := 3 },
-    { array := "0xa1ba0000 (storage_reads)", stride := 64,
+    { array := "0xa1908780 (storage_reads)", stride := 64,
       segments := 0x2020, segCount := 1 },
     { array := "bal_builder_balance_changes", stride := 64,
       segments := 0x08189400, segCount := 2 },

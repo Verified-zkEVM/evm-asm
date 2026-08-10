@@ -26,10 +26,8 @@
 #   structured-only spec as a flat triple is exactly the invisible overclaim this
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 
-# --- TIER A: flat triple at the guest address; registrable now (19) ---
-account_extract_balance	tier A — flat triple `account_extract_balance_spec_within` at GuestAddrs.account_extract_balance (EvmAsm/Codegen/Programs/AccountAccessorTopSpec.lean); registrable as .proven, not yet rowed (#11637)
+# --- TIER A: flat triple at the guest address; registrable now (14) ---
 account_extract_nonce	tier A — flat triple `account_extract_nonce_spec_within` at GuestAddrs.account_extract_nonce (EvmAsm/Codegen/Programs/AccountAccessorNonceSpec.lean); registrable as .proven, not yet rowed (#11637)
-account_is_eip161_empty	tier A — flat triple `account_is_eip161_empty_spec_within` at GuestAddrs.account_is_eip161_empty (EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose6.lean); registrable as .proven, not yet rowed (#11637)
 blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 blsg_le_to_be	tier A — flat triple `blsgLeToBeFn_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G1LeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
 bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
@@ -37,7 +35,6 @@ bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
-receipt_extract_logs_bloom	tier A — flat triple `receiptExtractLogsBloom_spec_within` at GuestAddrs.receipt_extract_logs_bloom (EvmAsm/Codegen/Programs/ReceiptExtractLogsBloomSpec.lean); registrable as .proven, not yet rowed (#11637)
 secf_be_to_le	tier A — flat triple `secfBeToLeFn_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldConvSAsm.lean); registrable as .proven, not yet rowed (#11637)
 secf_is_zero32	tier A — flat triple `secfIsZero32Fn_spec` at GuestAddrs.secf_is_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldIsZeroSAsm.lean); registrable as .proven, not yet rowed (#11637)
 secf_le_to_be	tier A — flat triple `secfLeToBeFn_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldLeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
@@ -45,7 +42,7 @@ secf_zero32	tier A — flat triple `secfZero32Fn_spec` at GuestAddrs.secf_zero32
 tx_type_dispatch	tier A — flat triple `txTypeDispatch_spec_within` at GuestAddrs.tx_type_dispatch (EvmAsm/Codegen/Programs/TxTypeDispatchTop.lean); registrable as .proven, not yet rowed (#11637)
 u256_sub_be	tier A — flat triple `u256SubBeFlat_spec` at GuestAddrs.u256_sub_be (EvmAsm/Codegen/Programs/Secp256k1FieldReduceOnceSAsmSupport.lean); registrable as .proven, not yet rowed (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (83) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (75) ---
 bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -84,10 +81,6 @@ bnq_eq	tier B — structured SAsm spec `bnqEq_spec` (EvmAsm/Codegen/Programs/Bn2
 bnq_is_zero	tier B — structured SAsm spec `bnqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnq_pt_copy	tier B — structured SAsm spec `bnqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bn254PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 call_frame_set_calldata	tier B — structured SAsm spec `callFrameSetCalldataFn_spec` (EvmAsm/Codegen/Programs/CallFrameSetCalldataSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-chain_validate_blob_gas_used_multiple	tier B — structured SAsm spec `chain_validate_blob_gas_used_multiple_spec_within` (EvmAsm/Codegen/Programs/ChainValidateBlobGasMultipleLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-chain_validate_blob_gas_used_under_max	tier B — structured SAsm spec `chain_validate_blob_gas_used_under_max_spec_within` (EvmAsm/Codegen/Programs/ChainValidateBlobGasUnderMaxLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-chain_validate_extra_data_length	tier B — structured SAsm spec `chain_validate_extra_data_length_spec_within` (EvmAsm/Codegen/Programs/ChainValidateExtraDataLengthLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-chain_validate_gas_used_under_limit	tier B — structured SAsm spec `chain_validate_gas_used_under_limit_spec_within` (EvmAsm/Codegen/Programs/ChainValidateGasUsedUnderLimitLoopClose.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 dispatcher_capture_exec_state_gas	tier B — structured SAsm spec `dispatcherCaptureExecStateGas_spec` (EvmAsm/Codegen/Programs/DispatcherCaptureExecStateGasSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 enrg_u32le	tier B — structured SAsm spec `enrgU32leFn_spec` (EvmAsm/Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -96,6 +89,9 @@ frame_depth_pop	tier B — structured SAsm spec `frameDepthPop_spec` (EvmAsm/Cod
 frame_depth_push	tier B — structured SAsm spec `frameDepthPush_spec` (EvmAsm/Codegen/Programs/FrameDepthPushSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 frame_load_regs	tier B — structured SAsm spec `frameLoadRegs_spec` (EvmAsm/Codegen/Programs/FrameLoadRegsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 frame_save_regs	tier B — structured SAsm spec `frameSaveRegs_spec` (EvmAsm/Codegen/Programs/FrameSaveRegsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+header_extract_receipts_root	tier B — structured SAsm spec `header_extract_receipts_root_fnspec` (EvmAsm/Codegen/Programs/HeaderReceiptsRootSpec.lean); CodeReq-parameterised triple (`cr` + `hcr_*` linkage hyps), not a flat one at the guest address, plus an `hbound` hypothesis quantified over `rlpItemDecode`; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE — the #11042 silent-skip class (#11637)
+header_extract_state_root	tier B — structured SAsm spec `header_extract_state_root_fnspec` (EvmAsm/Codegen/Programs/HeaderFieldsSpec.lean); CodeReq-parameterised triple, not a flat one at the guest address; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE (#11637)
+header_extract_withdrawals_root	tier B — structured SAsm spec `header_extract_withdrawals_root_fnspec` (EvmAsm/Codegen/Programs/HeaderWithdrawalsRootSpec.lean); CodeReq-parameterised triple, not a flat one at the guest address; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE (#11637)
 hp_decode_nibbles	tier B — structured SAsm spec `hp_decode_nibbles_spec` (EvmAsm/Codegen/Programs/HpDecodeNibblesSAsmPaths.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 hp_encode_nibbles	tier B — structured SAsm spec `hpEncodeNibblesFn_spec` (EvmAsm/Codegen/Programs/HpEncodeNibblesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 mpt_resolve_cache_reset	tier B — structured SAsm spec `mptResolveCacheReset_spec` (EvmAsm/Codegen/Programs/MptResolveCacheResetSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)

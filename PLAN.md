@@ -219,6 +219,27 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
   is name-based, so it can UNDER-report a gap but never invent one: a floor on the
   backlog, not a census.
+  - ⛔ **The gate had its own blind spot: `_fnspec` (2026-08-10).** `SPEC_RE` matched
+    `Fn_spec` / `Flat_spec` / `_spec_within` / `_spec`, and **`…_fnspec` matches none
+    of them** — in `_fnspec` the substring "spec" is preceded by `n`, not `_`, so
+    `_spec` cannot fire. Consequence: the three `_fnspec` header byte-field
+    extractors (`header_extract_state_root`, `_receipts_root`,
+    `_withdrawals_root`) were **linked** (`GuestAddrs.lean:513-515`), carried
+    whole-routine `cpsTripleWithin`s, and sat in **neither** registry **nor** the
+    allowlist — and this gate scanned straight past them and reported OK. That is
+    the #11042 silent-skip class *reappearing inside the gate built to prevent it*.
+    ⭐ The general lesson: **a census that cannot see a naming convention is
+    indistinguishable from one that finds nothing wrong.** Fixed by adding `_fnspec`
+    to `SPEC_SUFFIXES`/`SPEC_RE`; spec-bearing count 117 → 120, allowlist 93 → 96
+    (all three graded **tier B** — their triples are `CodeReq`-parameterised, not
+    flat at the guest address, and the withdrawals one additionally carries an
+    `hbound` hypothesis quantified over `rlpItemDecode`; grading them `.proven`
+    would be exactly the invisible overclaim the gate exists to stop).
+    Also added **`--self-test`** (wired ahead of the real run in
+    `check-build-parallel.sh`): it plants one synthetic name per convention, checks
+    suffix stripping recovers the guest symbol, and checks a name merely
+    *containing* "spec" does not over-match. Verified to fail on the planted
+    regression — reverting `_fnspec` support makes it report the exact two errors.
   - **Burn-down (2026-08-10, #11575): 95 → 93.** `chain_validate_consecutive_numbers`
     and `chain_validate_increasing_timestamps` registered `.proven` in
     `Routines.lean` (routine registry 33 → 35 rows, 24 → 26 proven, 23 → 25 distinct
@@ -435,7 +456,57 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   recipe"); `mptNodeIs`/`nodeDbIs` with the
   `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
-  tie (`Evm64/WitnessAssertions.lean`). The concrete↔abstract refinement
+  tie (`Evm64/WitnessAssertions.lean`) — now both sides of that pairing, keys
+  (`indexOfSection_hashes_eq_build_code_db`) *and* values
+  (`witnessLookupSpec_slice_eq_build_code_db`, and against `SpecRef.get_code`
+  itself in `witnessLookupSpec_slice_eq_get_code`), plus the
+  `witnessIndexIs_snoc`/`codeDbIs_snoc` step lemmas (#11573; the heapsort
+  permutation fact and the routine triples stay open). The concrete↔abstract refinement
+  tie (`Evm64/WitnessAssertions.lean`).
+  - **Spec-shaped write maps** (2026-08-10, #11571):
+    `accountWritesMapIs` / `txAccountWritesMapIs` / `storageWritesMapIs` in
+    `Stateless/State/WriteMapAssertions.lean`, over `AccountWriteRow` (stride
+    **128**, `addr_BE20@0 balance@32 nonce@64 optionalState@72 codePtr@80
+    codeLen@88 execFlags@96 validMask@112`) and `StorageWriteRow` (stride 128,
+    `rowAddress@0 slotKey@32 value@64 baseline@96`). Scalars use `↦ₘ` because the
+    guest reads them with `ld`/`sd`; every offset is 8-aligned so `memIs`'s
+    alignment holds by construction. Unlocked by #11655's Lane-1 close: the
+    attribution cluster is shape-final, and #11654 (SLOAD's spec deleted the day
+    its container retired) is why a predicate goes in *before* the triples.
+    ⚠️ **Three design facts worth not re-deriving:**
+    (i) these must be **core-side**, so `Codegen/RegionPredicates.lean`'s
+    `teerEntriesFrom` is *mirrored, not imported* — `check-layering` L1 makes
+    Codegen a pure sink and the consumers are core bridges against
+    `SpecRef/StateTracker`; `Stateless/Crypto/FieldAssertions.lean` is the
+    precedent for the same call;
+    (ii) **a row list is not a map** — `execFlags@96` value 2 is a *live* flag and
+    the arena is append-with-scan, so duplicate addresses across a dead/live pair
+    are reachable. Hence `liveAccountRows` + `AccountWriteRowsMap`, with `Nodup`
+    over *live* rows only; a predicate demanding `Nodup` over all rows would
+    reject real states (kernel-checked both ways in the file's non-vacuity
+    section, including that negative control);
+    (iii) ⭐ **SpecRef's storage side is NESTED** (`List (Address × List (Bytes32 ×
+    U256))`, mirroring `Dict[Address, Dict[...]]`) while the guest's rows are
+    **flat** per `(address, slot)`. #11571's proposed signature is the flat one,
+    which is right — so the correspondence is a **group-by**, not a rename.
+    `groupByAddress` + `storageRowsAbstract` are that hook (3 flat rows over 2
+    contracts → 2 buckets, `decide`-checked).
+    Uniqueness was stated as a PRECONDITION, not proved: it is a property of the
+    upsert *writer*. Undo journals excluded — #11572.
+  - **The account-write writer model** (2026-08-10, #11921 row 1):
+    `Stateless/State/AccountWriteUpsert.lean` models `account_write_record`'s
+    scan-then-append upsert and **discharges that precondition** —
+    `accountWriteUpsert_rowsMap` proves `AccountWriteRowsMap` is preserved by the
+    writer, from the empty arena up, plus read-visibility on both branches and
+    `accountWriteUpsert_keys_dictSet` (the arena's key sequence *is* `SpecRef`'s
+    `dictSet`, below capacity). ⚠️ **Model-level only**: there is no SAsm
+    transcription of the routine, so the emitted-sequence↔model step is open and no
+    registry row or tier is claimed. Two divergences from `setAccount` are
+    `decide`-checked rather than glossed: the nonce is **max-reduced** (a lower
+    incoming nonce does not lower the row) and the mask gates every field, so an
+    `.agrees` claim needs nonce-monotonicity + full-mask hypotheses. The capacity arm
+    **drops** the write (`accountRowLookup_upsert_of_full`).
+    The concrete↔abstract refinement
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
   work is decomposed as beads `evm-asm-4ch8f.75.*` (MSTORE

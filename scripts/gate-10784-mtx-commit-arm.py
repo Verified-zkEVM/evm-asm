@@ -57,8 +57,8 @@ into new .bss cells, dump window slots 16/24/232/240/248 repointed at the
 cells — then assemble and link with the standard flags:
 
     riscv64-unknown-elf-as -march=rv64imac -mno-relax -o probe.o probe.s
-    riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa3000000 \
-        --section-start=.bss=0xa4000000 --section-start=.sszscratch=0xbf800000 \
+    riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa0b00000 \
+        --section-start=.bss=0xa0b70000 --section-start=.sszscratch=0xbf980000 \
         -nostdlib --no-relax -o probe.elf probe.o
 
 spike_run dumps a 256-byte window at OUTPUT 0xa0010000; every 8-byte slot in
@@ -98,9 +98,9 @@ LD = "riscv64-unknown-elf-ld"
 AS_FLAGS = ["-march=rv64imac", "-mno-relax"]
 LD_FLAGS = [
     "-Ttext=0x80000000",
-    "-Tdata=0xa3000000",
-    "--section-start=.bss=0xa4000000",
-    "--section-start=.sszscratch=0xbf800000",
+    "-Tdata=0xa0b00000",
+    "--section-start=.bss=0xa0b70000",
+    "--section-start=.sszscratch=0xbf980000",
     "-nostdlib",
     "--no-relax",
 ]

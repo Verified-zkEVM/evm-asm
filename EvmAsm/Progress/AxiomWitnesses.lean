@@ -38,6 +38,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 
+#print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
+
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
 #print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
@@ -52,7 +54,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
+#print axioms EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
+
 #print axioms EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.chain_validate_extra_data_length_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
 
 #print axioms EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
 
@@ -69,6 +79,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+
+#print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
@@ -102,6 +114,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
+#print axioms EvmAsm.Codegen.account_extract_balance_spec_within
+
 #print axioms EvmAsm.Codegen.blsgLtP_spec_specref
 
 #print axioms EvmAsm.Codegen.bnfLtP_spec_specref
@@ -117,6 +131,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.EL.RLP.decode_encode
 
 #print axioms EvmAsm.EL.RLP.decode_encode_mutual
+
+#print axioms EvmAsm.EL.RLP.decode_injective
+
+#print axioms EvmAsm.EL.RLP.encode_decode
+
+#print axioms EvmAsm.EL.RLP.encode_decode_mutual
 
 #print axioms EvmAsm.EL.RLP.encode_injective
 
@@ -228,7 +248,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Evm64.account_rlp_walk_next_field1_spec_within
 
+#print axioms EvmAsm.Evm64.bytesRegion_dword_pair_at_setBytes
+
 #print axioms EvmAsm.Evm64.evmMemoryIs_peel_window64
+
+#print axioms EvmAsm.Evm64.evmMemoryIs_quarter_pair_setBytes
 
 #print axioms EvmAsm.Evm64.evm_add_stack_spec_within
 
@@ -331,6 +355,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
 
 #print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
+
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_nodup
+
+#print axioms EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 

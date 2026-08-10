@@ -57,6 +57,27 @@ namespace EvmAsm.Codegen
 
 /-- Stateless guest program with the codegen epilogue and guest data section. -/
 def statelessGuestUnit : BuildUnit := {
+  -- GH #11186: raised log arenas + lead pad must be the FIRST `.bss` material
+  -- in the whole guest `.s`. `epilogueAsm` (via SharedHelpers) emits `widx_*`
+  -- zeros that `moveZeroDataToBss` promotes before `dataAsm` runs, so putting
+  -- logs in `dataAsm` left them mid-bss and overlapping scheme-A absolute
+  -- arenas. `prologueAsm` is emitted right after `textPreamble` and before
+  -- body/epilogue, so this block owns `.bss` HEAD at `0xa0b70000`.
+  -- Pad `0x14fe880` covers scheme-A absolute pack through page-aligned TSW end
+  -- (`0xa2e07000`); main body (`widx_*`, …) follows immediately — no pin to the
+  -- legacy `0xa3110000` base (saves ~3 MiB so storage-undo clears ACCOUNT_WRITES).
+  prologueAsm :=
+    ".section .bss,\"aw\",@nobits\n" ++
+    ".balign 8\n" ++
+    "evm_event_logs:\n  .zero 11444992\n" ++
+    ".balign 8\n" ++
+    "evm_log_data:\n  .zero 2095652\n" ++
+    ".balign 32\n" ++
+    "evm_log_data_meta:\n  .zero 715312\n" ++
+    "evm_log_data_used:\n  .zero 8\n" ++
+    "evm_log_data_overflow:\n  .zero 8\n" ++
+    "bss_lead_pad:\n  .zero 0x14fe880\n" ++
+    ".section .text\n"
   body        := EvmAsm.Stateless.run_stateless_guest
   epilogueAsm :=
     statelessGuestEpilogue ++ "\n" ++

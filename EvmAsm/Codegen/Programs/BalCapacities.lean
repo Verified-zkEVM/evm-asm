@@ -10,7 +10,8 @@ namespace EvmAsm.Codegen
 
 def balBuilderAccountCapacity : Nat := 140000
 def balBuilderStorageChangeCapacity : Nat := 47522
-def balBuilderStorageReadsCapacity : Nat := 16384
+/-- Block cold-storage bound: `200_000_000 / 3_000 = 66_666` (GH #11186 D4). -/
+def balBuilderStorageReadsCapacity : Nat := 66666
 def balBuilderBalanceCapacity : Nat := 105000
 def balBuilderNonceCapacity : Nat := 35000
 def balBuilderCodeCapacity : Nat := 13125

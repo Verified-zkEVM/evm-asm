@@ -67,6 +67,14 @@ jobs:
       - name: Naming convention scan (advisory)
         if: ${{ github.event_name == 'pull_request' }}
         run: scripts/check-naming.sh --base "origin/${{ github.base_ref }}"
+      # #11517: `reference` line numbers in the correspondence registry rot as SpecRef
+      # modules grow, and check-spec-refs.sh validates PYTHON citations only. Two had
+      # drifted into unrelated code. Pure source scan, no build. Self-test first, since
+      # catching a wrong-line citation is this gate's whole purpose.
+      - name: SpecRef citation drift (advisory)
+        run: |
+          scripts/check-specref-citations.py --self-test
+          scripts/check-specref-citations.py
 
   build:
     runs-on: ubuntu-latest

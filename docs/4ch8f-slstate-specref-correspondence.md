@@ -48,7 +48,7 @@ Summary table (details per section):
 | SL Assertion (module) | Abstract counterpart | α status |
 |---|---|---|
 | `witnessSectionIs` (WitnessAssertions) | `SpecRef.ExecutionWitness.{state,codes,headers}` | **proven-adjacent** (`#guard` vs `SszValue.serialize`; α = `sszSectionElements`) |
-| `codeDbIs` / `witnessIndexIs` (WitnessAssertions) | `WitnessPreState.codeDb` = `build_code_db` | **proven** (`indexOfSection_hashes_eq_build_code_db`, `witnessLookupSpec_correct`) |
+| `codeDbIs` / `witnessIndexIs` (WitnessAssertions) | `WitnessPreState.codeDb` = `build_code_db`, read by `get_code` | **proven, keys + values** (`indexOfSection_hashes_eq_build_code_db`, `witnessLookupSpec_slice_eq_build_code_db`, `witnessLookupSpec_slice_eq_get_code`, `codeDbIs_lookup_correct`) — modulo the heapsort permutation, §2 |
 | `nodeDbIs` (MptAssertions) | `WitnessPreState.nodeDb` = `build_node_db` | **proven** (`nodeDbLookupSpec_eq_build_node_db`) |
 | `mptNodeIs` (MptAssertions) | `SpecRef.MutableNode` / `trieLookup` | **sketched** (`αnode`; kind/path/projection lemmas proven) |
 | `accountRlpIs` / `accountDecodedIs` (AccountAssertions) | `SpecRef.Account` (+ `storageRoot`) | **proven** (`decode_account_from_leaf_accountRlp`, `bytesBEtoNat_beBytes32`) |
@@ -118,29 +118,50 @@ and, via the index the guest actually searches,
 `(r.hash, (sectionBytes.drop r.offset).take r.len)`.
 
 **Proven today**:
-- `indexOfSection_hashes_eq_build_code_db` — the index keys are exactly
-  `(build_code_db (sszSectionElements bs)).map Prod.fst`, in element order.
+- `indexOfSection_hashes_eq_build_code_db` — the KEY side: the index keys are
+  exactly `(build_code_db (sszSectionElements bs)).map Prod.fst`, in element
+  order.
+- `witnessLookupSpec_slice_eq_build_code_db` — the VALUE side: materializing
+  the resolved `(offset, len)` view yields exactly the bytes `build_code_db`
+  stores under that key. Stated with `List.find?` on both sides (not
+  `List.lookup`), which is both what `get_code` actually does and what makes
+  the duplicate-key behaviour explicit: **both sides take the first match**.
+- `witnessLookupSpec_slice_eq_get_code` — the same equation stated against
+  `SpecRef.get_code` itself, for every hash but `EMPTY_CODE_HASH`.
 - `witnessLookupSpec_correct` — a lookup hit returns a slice whose keccak IS
   the queried hash (given `matchesSection`, which
-  `indexOfSection_matchesSection` establishes under `sszSectionWF`).
+  `indexOfSection_matchesSection` establishes under `sszSectionWF`);
+  `codeDbIs_lookup_correct` is that guarantee read straight off the composed
+  resource, because `codeDbIs` is what carries the hash-binding (see below).
+- `witnessIndexIs_snoc` / `codeDbIs_snoc` — the append-one-record step
+  lemmas, the `nodeDbIs_snoc` analogue, for a build-loop proof.
 
-**Missing (sketch)**: the value-side equation
-`witnessLookupSpec (indexOfSection bs) h = (build_code_db
-(sszSectionElements bs)).lookup h` *as slices* — the hash side is proven;
-the offset/len-to-element identification needs
-`sszElement bs i = (bs.drop off_i).take len_i` unfolded through
-`indexOfSection` (definitional, one lemma). Also: the guest *sorts* the index
-(binary search); the correspondence should be stated against the unsorted
-`indexOfSection` and a permutation fact for the heapsort (or against
+**Where the hash-binding lives (decided, #11573 item 2): in the predicate.**
+`codeDbIs` carries `∀ r ∈ records, r.matchesSection sectionBytes`, so a
+consumer reads `keccak256 (returned slice) = queried key` off the resource
+and no routine triple re-establishes it; `indexOfSection_matchesSection`
+discharges the conjunct at build time from the validated offsets table alone.
+
+**Still missing**: the guest *sorts* the index (binary search), so the
+correspondence above — stated against the unsorted `indexOfSection` — needs a
+permutation fact for the heapsort to reach a real run (or, equivalently,
 `witnessLookupSpec` on the sorted list plus "sorted lookup = unsorted lookup
-for distinct keys" — note **duplicate code hashes are possible** in a
-malicious witness; `build_code_db`'s assoc-list `lookup` takes the *first*,
-the guest's binary search takes *some* match — for duplicate keys with
-different bodies the keccak tie still pins the body up to hash collision, so
-the divergence is benign, but say so in the proof, don't discover it there).
+for distinct keys"). Note **duplicate code hashes are possible** in a
+malicious witness; `build_code_db` lookup takes the *first* match and the
+guest's binary search takes *some* match — for duplicate keys with different
+bodies the keccak tie still pins the body up to hash collision, so the
+divergence is benign, but say so in the proof, don't discover it there.
 
 **Alignment / divergence.** Log-free, map-shaped on both sides — the closest
-correspondence in the whole map. Divergences: capacity (`2^17` index records
+correspondence in the whole map. Divergences: **the `EMPTY_CODE_HASH`
+short-circuit** — `get_code` answers `b""` for `keccak256 b""` *without
+consulting the code DB* (`WitnessReads.lean:133`), so on a witness whose codes
+section does not itself carry the empty code the spec says `some []` where the
+index says miss. That is why `witnessLookupSpec_slice_eq_get_code` carries
+`h ≠ EMPTY_CODE_HASH` as a hypothesis rather than proving it away: a
+`get_code`-shaped guest routine has to reproduce the short-circuit ahead of
+its lookup, and that obligation is now explicit instead of latent. Also:
+capacity (`2^17` index records
 vs `MAX_WITNESS_CODES = 2^16` — codes fit; the *state* flavour vs
 `MAX_WITNESS_NODES = 2^20` does **not** fit, and the guest falls back to the
 uncapped linear scan — the correspondence must cover both lookup paths);

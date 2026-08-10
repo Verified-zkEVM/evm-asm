@@ -129,7 +129,7 @@ def frameSlotCount : Nat := maxCallDepth + 1
 /-! ## Guest memory map (matches `EvmAsm/Codegen/Driver.lean` ld flags) -/
 
 /-- `-Tdata=` base. -/
-def dataBase : Nat := 0xa3000000
+def dataBase : Nat := 0xa0b00000
 /-- `--section-start=.sszscratch=` base. -/
 def sszScratchBase : Nat := 0xbf980000
 
@@ -220,18 +220,18 @@ theorem frameArray_unions_basr_baap :
     arenas (~83 MiB at the 200M capacity) plus the standalone 1025-slot frame
     array (104,960,000 B, about 100.1 MiB at the current `0x19000` stride) stay well inside
     the `.data`→`.sszscratch` span
-    (456 MiB) — ~145 MiB of slack for the remaining `.data` objects (~80 MiB
-    measured). The ELF-level ground truth is `readelf -lW`: the top RW LOAD
-    address must stay below the 0xc0000000 RAM ceiling. (Replaces
-    `frameArray_fits_union`, which pinned the retired #8513 basr aliasing.) -/
+    (GH #11186: `0xa0b00000`→`0xbf980000` = 518.5 MiB). The ELF-level ground
+    truth is `readelf -lW`: the top RW LOAD address must stay below the
+    0xc0000000 RAM ceiling. (Replaces `frameArray_fits_union`, which pinned the
+    retired #8513 basr aliasing.) -/
 theorem frameArray_and_balArenas_fit :
     balArenaTotalBytes + frameArrayBytes ≤ sszScratchBase - dataBase := by decide
 
-/-- The usable `.data`→`.sszscratch` span is `0x1c980000` = 479,723,520 B
-    = 457.5 MiB. Under the 200M layout the BAL-replay arenas (~83 MiB) and the
-    current standalone frame array (104,960,000 B, about 100.1 MiB) leave ample
-    room for the rest of `.data`. -/
-theorem data_gap_bytes : sszScratchBase - dataBase = 0x1c980000 := by decide
+/-- The usable `.data`→`.sszscratch` span is `0x1ee80000` = 518,520,832 B
+    = 494.5 MiB (GH #11186: dataBase dropped to `0xa0b00000`). Under the 200M
+    layout the BAL-replay arenas (~83 MiB) and the current standalone frame
+    array (104,960,000 B, about 100.1 MiB) leave ample room for the rest. -/
+theorem data_gap_bytes : sszScratchBase - dataBase = 0x1ee80000 := by decide
 
 /-- **vv4hr.3.4.2 PACK:** the active block-log arena = packed descriptors
     (32 B/gas-unit) + the 24 B/log meta table (with the packed desc byte-offset)

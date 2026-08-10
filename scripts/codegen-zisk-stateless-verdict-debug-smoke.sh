@@ -91,9 +91,9 @@ patch_bsr_caps_asm "$PATCHED_PREFIX.s"
 as_tool="$(resolve_riscv_tool RISCV_AS riscv64-unknown-elf-as riscv64-elf-as)"
 ld_tool="$(resolve_riscv_tool RISCV_LD riscv64-unknown-elf-ld riscv64-elf-ld)"
 "$as_tool" -march=rv64imac -mno-relax -o "$PATCHED_PREFIX.o" "$PATCHED_PREFIX.s"
-"$ld_tool" -Ttext=0x80000000 -Tdata=0xa3000000 \
-  --section-start=.bss=0xa4000000 \
-  --section-start=.sszscratch=0xbf800000 \
+"$ld_tool" -Ttext=0x80000000 -Tdata=0xa0b00000 \
+  --section-start=.bss=0xa0b70000 \
+  --section-start=.sszscratch=0xbf980000 \
   -nostdlib --no-relax -o "$PATCHED_PREFIX.elf" "$PATCHED_PREFIX.o"
 test -s "$PATCHED_PREFIX.elf"
 
