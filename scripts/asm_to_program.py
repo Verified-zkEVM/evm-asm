@@ -272,7 +272,9 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 174
+# 175 includes the explicit tx_type_dispatch upper-bound guard jump added in
+# TxExtract.lean; the jump is intentional and remains a counted local site.
+EXPECTED_BARE_J_SITES = 175
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
