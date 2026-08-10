@@ -47,7 +47,7 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
     (hover : hdrBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (hdrBase + BitVec.ofNat 64 k) = true) :
-    cpsTripleWithin (5 + 1 + nCall) (D + 72) (D + 96) fullCode
+    cpsTripleWithin (5 + 1 + nCall bytes.length) (D + 72) (D + 96) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
         (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ x21val) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) ** (.x13 ↦ᵣ o13) **
@@ -109,7 +109,7 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
     hcalleeNewSp rfl (by decide) (by decide)
     hsalign hslack hover hvalid (by show LinkRA0 &&& ~~~(1 : Word) = LinkRA0; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
-  have hcallee : cpsTripleWithin nCall EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA0 fullCode
+  have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA0 fullCode
       (regOwn .x5 **
         ((.x1 ↦ᵣ LinkRA0) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
           (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ x21val) **
@@ -201,12 +201,13 @@ theorem cvitHdr0Finish (hdrBase lenBase ts0 : Word) (L0 : Nat) (old5 o6 o7 o21 :
 /-- Step budget for the loop with `r = N − i` iterations remaining: each full
     iteration is `cvitIter`'s cost, the exhausted guard + all-valid exit is
     `11` (guard `1` + `retAllValid` `10`). -/
-def cvitLoopSteps : Nat → Nat
+def cvitLoopSteps (bytesLen : Nat) : Nat → Nat
   | 0 => 11
-  | r + 1 => (1 + (16 + 1 + nCall)) + (24 + cvitLoopSteps r)
+  | r + 1 => (1 + (16 + 1 + nCall bytesLen)) + (24 + cvitLoopSteps bytesLen r)
 
-theorem cvitLoopSteps_succ (r : Nat) :
-    cvitLoopSteps (r + 1) = (1 + (16 + 1 + nCall)) + (24 + cvitLoopSteps r) := rfl
+theorem cvitLoopSteps_succ (bytesLen r : Nat) :
+    cvitLoopSteps bytesLen (r + 1) =
+      (1 + (16 + 1 + nCall bytesLen)) + (24 + cvitLoopSteps bytesLen r) := rfl
 
 set_option maxRecDepth 8000 in
 theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
@@ -225,7 +226,7 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     ∀ (f i : Nat), lengths.length - i ≤ f → 1 ≤ i → i ≤ lengths.length →
-      cpsTripleWithin (cvitLoopSteps (lengths.length - i)) (D + 124) raIn fullCode
+      cpsTripleWithin (cvitLoopSteps bigBytes.length (lengths.length - i)) (D + 124) raIn fullCode
         (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths i)
         (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -237,7 +238,7 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     unfold savedFrame; rw [hraSaved]
   -- All-valid exit reached at the guard when `i = N`.
   have base :
-      cpsTripleWithin (cvitLoopSteps 0) (D + 124) raIn fullCode
+      cpsTripleWithin (cvitLoopSteps bigBytes.length 0) (D + 124) raIn fullCode
         (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths lengths.length)
         (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -249,7 +250,7 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     -- Expose x1 / x10 (overwritten by the exit block) as concrete regs.
     refine cpsTripleWithin_weaken (fun h hp => by unfold payload scratchRegs at hp; xperm_hyp hp)
       (fun _ hq => hq)
-      (show cpsTripleWithin (cvitLoopSteps 0) (D + 124) raIn fullCode
+      (show cpsTripleWithin (cvitLoopSteps bigBytes.length 0) (D + 124) raIn fullCode
         ((((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
             (.x6 ↦ᵣ hdrBaseAt hdrBase lengths lengths.length) ** (.x18 ↦ᵣ hdrBase) **
             (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
@@ -266,7 +267,7 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
           firstBadPtr csaved bigBytes lengths) from ?_)
     refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun o10 => ?_)
     refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-      (show cpsTripleWithin (cvitLoopSteps 0) (D + 124) raIn fullCode
+      (show cpsTripleWithin (cvitLoopSteps bigBytes.length 0) (D + 124) raIn fullCode
         (((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
             (.x6 ↦ᵣ hdrBaseAt hdrBase lengths lengths.length) ** (.x18 ↦ᵣ hdrBase) **
             (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
@@ -361,11 +362,15 @@ theorem cvitLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     · subst hi; rw [Nat.sub_self]; exact base
     · rw [show lengths.length - i = (lengths.length - (i + 1)) + 1 from by omega,
         cvitLoopSteps_succ]
-      exact cvitIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
-        (cvitLoopSteps (lengths.length - (i + 1))) hi1 hi hN hspC hraSaved hret
+      have hiter := cvitIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
+        (cvitLoopSteps bigBytes.length (lengths.length - (i + 1))) hi1 hi hN hspC hraSaved hret
         (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllSlack i hi) (hAllOver i hi)
         (hAllValid i hi)
         (fun _ => ih (i + 1) (by omega) (by omega) (by omega))
+      have hdrop : (bigBytes.drop (hdrOff lengths i)).length ≤ bigBytes.length := by
+        rw [List.length_drop]
+        omega
+      refine cpsTripleWithin_mono_nSteps (by unfold nCall; omega) hiter
 
 
 /-! ## Header-0 flatPost normalization (K34 saved-ra = `LinkRA0`)
@@ -827,7 +832,7 @@ theorem cvitHdr0Block
           firstBadPtr csaved bigBytes lengths 1)
         (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
           firstBadPtr csaved bigBytes lengths)) :
-    cpsTripleWithin ((5 + 1 + nCall) + (22 + nTail)) (D + 72) raIn fullCode
+    cpsTripleWithin ((5 + 1 + nCall bigBytes.length) + (22 + nTail)) (D + 72) raIn fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
         (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ x21val) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) ** (.x13 ↦ᵣ o13) **
@@ -887,7 +892,7 @@ theorem chain_validate_increasing_timestamps_spec_within
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin
-      (17 + (1 + ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1)))))
+      (17 + (1 + ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1)))))
       D raIn fullCode
       (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) **
           (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
@@ -928,7 +933,7 @@ theorem chain_validate_increasing_timestamps_spec_within
       stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) (by pcfx) hpro
   -- Tail from the loop-comparand load (`D+68`): BLTU then header-0 or the N<2 exit.
   have htail :
-      cpsTripleWithin (1 + ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1))))
+      cpsTripleWithin (1 + ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1))))
         (D + 68) raIn fullCode
         (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) **
             (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
@@ -989,7 +994,7 @@ theorem chain_validate_increasing_timestamps_spec_within
           hdrBase validPtr firstBadPtr cs5 hspC rfl hret)
       refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun h hq => ?_)
         (cpsTripleWithin_mono_nSteps
-          (show 1 + 10 ≤ 1 + ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1))) by
+          (show 1 + 10 ≤ 1 + ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1))) by
             unfold nCall; omega)
           (cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
             htakenF hallv))
@@ -1052,21 +1057,21 @@ theorem chain_validate_increasing_timestamps_spec_within
           memOwn IterChild ** memOwn IterPrev) with hBASE
       -- Peel the three K34 scratch cells (owned) into concrete inputs; run the block+loop.
       have hcont :
-          cpsTripleWithin ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1)))
+          cpsTripleWithin ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1)))
             (D + 72) raIn fullCode
             (((BASE ** memOwn Ts) ** memOwn RfuOff) ** memOwn RfuLen)
             (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
               firstBadPtr ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths) := by
         refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldLen => ?_)
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-          (show cpsTripleWithin ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1)))
+          (show cpsTripleWithin ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1)))
             (D + 72) raIn fullCode
             (((BASE ** (RfuLen ↦ₘ oldLen)) ** memOwn Ts) ** memOwn RfuOff)
             (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
               firstBadPtr ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths) from ?_)
         refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff => ?_)
         refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp) (fun _ hq => hq)
-          (show cpsTripleWithin ((5 + 1 + nCall) + (22 + cvitLoopSteps (lengths.length - 1)))
+          (show cpsTripleWithin ((5 + 1 + nCall bigBytes.length) + (22 + cvitLoopSteps bigBytes.length (lengths.length - 1)))
             (D + 72) raIn fullCode
             (((BASE ** (RfuLen ↦ₘ oldLen)) ** (RfuOff ↦ₘ oldOff)) ** memOwn Ts)
             (cvitPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -1075,7 +1080,8 @@ theorem chain_validate_increasing_timestamps_spec_within
         have hblock := cvitHdr0Block sp0 spC hdrBase lenBase validPtr firstBadPtr raIn cs5
           lengths[0]! oldOut oldOff oldLen firstBadPtr raIn (2 : Word)
           (BitVec.ofNat 64 lengths.length) lenBase hdrBase validPtr
-          ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths (cvitLoopSteps (lengths.length - 1))
+          ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths
+          (cvitLoopSteps bigBytes.length (lengths.length - 1))
           hge rfl hspC rfl hret
           (by have := hAllSalign 0 (by omega); rwa [hHB0] at this)
           (by have := hAllSlack 0 (by omega); rwa [hdrop0] at this)
