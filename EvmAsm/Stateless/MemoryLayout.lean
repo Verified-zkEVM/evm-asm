@@ -77,8 +77,13 @@
   Each anchor is the start of a region whose size is sized at codegen
   time. Sizes will be tightened as modules land; for now we reserve
   generous slabs so successive PRs do not have to reflow addresses.
-  Total reserved through `SHA256_SCRATCH` end is ~28 MiB; ziskemu's
-  RAM region carries ~512 MiB of headroom past `0xa0020000`.
+  Linked `.bss` now owns `0xa0b70000` (logs head + lead pad + main body;
+  GH #11186). Former aspirational slabs `EVM_MEMORY_AREA` (16 MiB at that
+  base) and `KECCAK`/`ECRECOVER`/`SHA256_SCRATCH` (which collided with the
+  raised block-read pack) are **not** declared as `Word` anchors — a
+  RegionMap entry would assert fit/disjointness for VAs nothing uses.
+  Production substitutes: `evm_memory` / `evm_memory_pool` /
+  `call_frame_arena` and per-routine `.bss` crypto scratch symbols.
 
   | Anchor                       | Address          | Size budget |
   |------------------------------|------------------|-------------|
@@ -90,8 +95,6 @@
   | `STATE_TRACKER_AREA`         | `0xa0630000`     | 4 MiB legacy |
   | `EVM_FRAME_STACK`            | `0xa0a30000`     | 256 KiB     |
   | `EVM_VALUE_STACK`            | `0xa0a70000`     | 1 MiB       |
-  | `EVM_MEMORY_AREA`            | RECLAIMED (#11186) — `.bss` now owns `0xa0b70000` |
-  | `KECCAK/ECRECOVER/SHA256_SCRATCH` | RECLAIMED (#11186) — collide with raised reads |
   | `STORAGE_READS_AREA`         | `0xa1908780`     | 4,266,624 B (66,666×64) |
   | `ACCOUNT_READS_AREA`         | `0xa1d1a200`     | 2,133,312 B (66,666×32) |
   | `CODE_READS_AREA`            | `0xa1f22f40`     | 4,266,624 B (66,666×64) |
@@ -188,19 +191,6 @@ def EVM_FRAME_STACK         : Word := 0xa0a30000
     `call_frame_arena` (32 KiB window per slot,
     `Codegen/CallFrameLayout.lean`). -/
 def EVM_VALUE_STACK         : Word := 0xa0a70000
-/-- RECLAIMED (GH #11186) — former aspirational 16 MiB slab at `0xa0b70000`.
-    That VA is now the linked `.bss` base (logs head + lead pad + main body).
-    Production EVM memory is `evm_memory` / `evm_memory_pool` /
-    `call_frame_arena` in `.bss`. Constant retained only so old port docs
-    still name the retired VA; do not add it to `schemeAAnchors`. -/
-def EVM_MEMORY_AREA         : Word := 0xa0b70000
-/-- RECLAIMED (GH #11186) — collides with raised block read pack. -/
-def KECCAK_SCRATCH          : Word := 0xa1b70000
-/-- RECLAIMED (GH #11186) — collides with raised block read pack. -/
-def ECRECOVER_SCRATCH       : Word := 0xa1b80000
-/-- RECLAIMED (GH #11186) — collides with raised block read pack. -/
-def SHA256_SCRATCH          : Word := 0xa1b90000
-
 /-! ## Read containers — the spec's three read sets (GH #10619)
 
     `state_tracker.py` keeps reads and writes in **separate containers with

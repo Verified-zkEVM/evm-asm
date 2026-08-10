@@ -15,8 +15,9 @@
   `Codegen/CallFrameLayout.lean`), child base = parent memBase +
   parent MSIZE, with a sparse overflow store for beyond-pool growth
   (`Codegen/Programs/EvmMemoryHandlers.lean`). The former
-  `EVM_MEMORY_AREA = 0xa0b70000` 16 MiB-per-frame anchor is ASPIRATIONAL
-  (a `MemoryLayout` constant; issue #10526) — **not** the emitted layout.
+  former `0xa0b70000` 16 MiB-per-frame slab was aspirational and is
+  **reclaimed** into linked `.bss` (GH #11186; issue #10526) — **not**
+  the emitted layout and no longer a `MemoryLayout` `Word` anchor.
   Callers instantiate `base`/`capacity` from the frame's actual
   placement; the assertion itself is the generic dense byte-buffer atom.
 
@@ -46,7 +47,6 @@
 -/
 
 import EvmAsm.Rv64.MemRegion
-import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Evm64
 
@@ -328,15 +328,13 @@ theorem evmMemoryIs_peel_window64 (base : Word) (capacity k : Nat) (bs : List (B
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc', sepConj_assoc',
       sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
-/-! ## Address facts for the (aspirational) anchor constant
+/-! ## Retired VA arithmetic (not an allocation claim)
 
-The `EVM_MEMORY_AREA` anchor constant itself (`EvmAsm/Stateless/MemoryLayout.lean`).
-`EVM_MEMORY_AREA` is ASPIRATIONAL — the emitted guest does not place EVM
-memory there (issue #10526) — so these are pure arithmetic facts kept for
-clients that reference the constant; they are **not** allocation claims. -/
+GH #11186 reclaimed the former aspirational 16 MiB slab at `0xa0b70000`
+into linked `.bss`. The `MemoryLayout` `Word` anchor is gone so
+`check-memorylayout-region-coverage` does not demand a false RegionMap
+fit. These are pure facts about that historical VA only. -/
 
-theorem EVM_MEMORY_AREA_toNat : Stateless.EVM_MEMORY_AREA.toNat = 0xa0b70000 := rfl
-
-theorem EVM_MEMORY_AREA_aligned : Stateless.EVM_MEMORY_AREA.toNat % 8 = 0 := by decide
+theorem retired_evm_memory_va_aligned : (0xa0b70000 : Nat) % 8 = 0 := by decide
 
 end EvmAsm.Evm64
