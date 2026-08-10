@@ -157,10 +157,10 @@ def ziskBalSerializerMeasurePrologue : String :=
   -- read-in-tx-0/written-in-tx-3 only exists across transactions. That is why it is here
   -- rather than in the EEST corpus.
   --
-  -- Read rows live at 0xa1ba0000 on a 64-byte stride and hold the address as an LE stack
+  -- Read rows live at 0xa1908780 on a 64-byte stride and hold the address as an LE stack
   -- word, so BE byte 0 of the address sits at row byte 19 -- not byte 0, which is where
   -- the builder rows keep it.
-  "  li t0, 0xa1ba0000\n" ++
+  "  li t0, 0xa1908780\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0)\n" ++
   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); sd zero, 88(t0)\n" ++

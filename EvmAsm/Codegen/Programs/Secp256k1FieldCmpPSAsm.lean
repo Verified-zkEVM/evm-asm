@@ -351,7 +351,7 @@ private theorem cmpIter_spec
   have hlbuP := liftCode (cr' := CR)
     (bytesRegion_lbu_within .x29 .x5 pConstAddr v29 (cmpPBase + 24)
       secp256k1PBytes i (by decide) (by decide) hip
-      (by have h : pConstAddr.toNat = 0xa3000680 := by decide
+      (by have h : pConstAddr.toNat = 0xa0b00680 := by decide
           omega)
       (pByte_valid i hi))
     (by rw [hCR]; code_mem)

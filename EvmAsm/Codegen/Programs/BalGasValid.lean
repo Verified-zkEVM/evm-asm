@@ -256,7 +256,7 @@ def balGasValidFromBuilderFunction : String :=
   "  li s3, 0\n" ++
   ".Lbgvfb_rd:\n" ++
   "  bgeu s3, s2, .Lbgvfb_test\n" ++
-  "  slli t0, s3, 6; li t1, 0xa1ba0000; add s5, t1, t0\n" ++
+  "  slli t0, s3, 6; li t1, 0xa1908780; add s5, t1, t0\n" ++
   -- reverse LE stack-word low 20 bytes → BE20 scratch at sp+64 (fits in 96 B frame)
   "  li t5, 0\n" ++
   ".Lbgvfb_rd_rev:\n" ++

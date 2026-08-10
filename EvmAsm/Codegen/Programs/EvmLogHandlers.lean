@@ -50,7 +50,7 @@ def logTopicCopies (topicCount : Nat) : String :=
     the event. -/
 def logCapturePreBody (topicCount : Nat) : String :=
   "  ld x15, 472(x20)\n" ++          -- x15 = event log length
-  "  li x16, 4096\n" ++              -- static cap: 4096 descriptors (v0.6.0 deposit blocks exceed 1024)
+  "  li x16, 44707\n" ++             -- GH #11186: (TX_MAX-TX_BASE)/LOG375 = 44707
   "  bgeu x15, x16, 9f\n" ++
   "  la x14, evm_event_logs\n" ++
   "  slli x16, x15, 8\n" ++          -- entry offset = count * 256
@@ -132,7 +132,7 @@ def logCapturePreBody (topicCount : Nat) : String :=
   "  add x25, x25, x22\n" ++         -- &meta[index]
   "  sd x19, 0(x25)\n" ++            -- meta[index].offset = used
   "  sd x16, 8(x25)\n" ++            -- meta[index].len = full size
-  "  li x22, 1048576\n" ++
+  "  li x22, 2095652\n" ++           -- GH #11186: log data cap (TX_MAX-TX_BASE)/8
   "  add x23, x19, x16\n" ++         -- end = used + size
   "  bgtu x23, x22, 5f\n" ++         -- overflow -> set flag, still record descriptor
   "  la x25, evm_log_data\n" ++

@@ -150,7 +150,7 @@ def balSerializerFilterReadsFunction : String :=
   "  li t3, 0\n" ++                                              -- t3 = read index
   ".Lbsfr_read:\n" ++
   "  bgeu t3, s2, .Lbsfr_done\n" ++
-  "  li t0, 0xa1ba0000; slli t1, t3, 6; add t4, t0, t1\n" ++      -- t4 = &readrow[i]
+  "  li t0, 0xa1908780; slli t1, t3, 6; add t4, t0, t1\n" ++      -- t4 = &readrow[i]
   -- The read row's addrHash is a 32-byte stack-word key; the account address is BE20.
   -- Compare the low 20 bytes of the reversed key against it, which is the same
   -- canonicalisation the builder rows use.
@@ -221,13 +221,13 @@ def balSerializerMeasureReadsFunction : String :=
   "  bgeu s3, s2, .Lbsmr_done\n" ++
   -- SAME two predicates the filter and the emit use. Re-running one routine cannot
   -- diverge from itself, which is why no materialised survivor list is needed.
-  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
   "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
   "  beqz a0, .Lbsmr_next\n" ++
-  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
   "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
   "  bnez a0, .Lbsmr_next\n" ++
-  "  li t0, 0xa1ba0000; slli t1, s3, 6; add t4, t0, t1\n" ++
+  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
   "  addi a0, t4, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
   "  add s1, s1, a0\n" ++
   ".Lbsmr_next:\n" ++
@@ -755,7 +755,7 @@ def balSerializerEmitStorageFunction : String :=
 
     Mirrors `bal_serializer_measure_reads`, including its use of
     `bal_serializer_addr_matches` -- the REVERSING comparator -- rather than the `_be`
-    one. Read rows come from the exec log at `0xa1ba0000` and hold the address in the low
+    one. Read rows come from the exec log at `0xa1908780` and hold the address in the low
     bytes of an LE stack word, unlike the builder rows, which are big-endian. The two
     comparators are not interchangeable and picking the wrong one silently matches
     nothing. -/
@@ -768,7 +768,7 @@ def balSerializerEmitReadsFunction : String :=
   "  li s4, 0\n" ++
   ".Lbser_loop:\n" ++
   "  bgeu s4, s3, .Lbser_done\n" ++
-  "  li t0, 0xa1ba0000; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)\n" ++
+  "  li t0, 0xa1908780; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)\n" ++
   "  mv a0, s1; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
   "  beqz a0, .Lbser_next\n" ++
   "  ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written\n" ++
@@ -1078,7 +1078,7 @@ def balSerializerRebuildHashFunction : String :=
   "  bnez a0, .Lbsrh_ret\n" ++
   -- storage_reads by slot value. The read row's slot is an LE stack word at +32, so the
   -- segment carries no BE flag: offset 0x20, width 0x20.
-  "  li a0, 0xa1ba0000\n" ++
+  "  li a0, 0xa1908780\n" ++
   "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
   "  li a2, 64; li a3, 0x2020; li a4, 1; li a5, " ++
   toString balBuilderStorageReadsCapacity ++ "\n" ++

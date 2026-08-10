@@ -89,9 +89,9 @@ Mutation (one declared value plus the two forced re-pins):
      .dword 1 -> .dword 0 (no source/tree change, guest ELF untouched):
        cp verdict_probe.s verdict_probe_nohash.s   # flip the cell
        riscv64-unknown-elf-as -march=rv64imac -mno-relax -o x.o x.s
-       riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa3000000 \
-         --section-start=.bss=0xa4000000 \
-         --section-start=.sszscratch=0xbf800000 \
+       riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa0b00000 \
+         --section-start=.bss=0xa0b70000 \
+         --section-start=.sszscratch=0xbf980000 \
          -nostdlib --no-relax -o verdict_probe_nohash.elf x.o
      On the step-1 blob the nohash probe reports verdict=0 bv_fail=1
      (state-root mismatch, the expected failure) with header_status=0 and

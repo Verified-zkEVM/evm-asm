@@ -2238,13 +2238,13 @@ def emitDispatcherDataSection
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
   ".balign 8\n" ++
   "evm_event_logs:\n" ++
-  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
+  "  .zero 11444992\n" ++  -- GH #11186: 44707 × 256-byte LOG descriptors
   ".balign 8\n" ++
   "evm_log_data:\n" ++
-  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
-  ".balign 8\n" ++
+  "  .zero 2095652\n" ++   -- GH #11186: (TX_MAX-TX_BASE)/8 log data bytes
+  ".balign 32\n" ++
   "evm_log_data_meta:\n" ++
-  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
+  "  .zero 715312\n" ++   -- GH #11186: 44707 × 16-byte meta
   ".balign 8\n" ++
   "evm_log_data_used:\n" ++
   "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
@@ -3535,7 +3535,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
     1024-word stack depth. -/
 def emitRuntimeDispatcherDataSectionCore
     (registry : List OpcodeHandlerSpec)
-    (includeKeccakScratch includeSharedHelperData : Bool) : String :=
+    (includeKeccakScratch includeSharedHelperData includeLogArenas : Bool) : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
   "runtime_dispatcher_caller_ra:\n" ++
@@ -3792,20 +3792,24 @@ def emitRuntimeDispatcherDataSectionCore
   ".balign 8\n" ++
   "evm_block_hashes:\n" ++
   "  .zero 8192\n" ++     -- M29: 256 × 32-byte recent BLOCKHASH ancestors
-  ".balign 8\n" ++
-  "evm_event_logs:\n" ++
-  "  .zero 1048576\n" ++   -- M26: 4096 × 256-byte bounded LOG event descriptors (v0.6.0 deposit blocks exceed 1024)
-  ".balign 8\n" ++
-  "evm_log_data:\n" ++
-  "  .zero 1048576\n" ++   -- 8uld3.1a: per-tx FULL LOG data buffer (parallel to evm_event_logs); overflow -> evm_log_data_overflow
-  ".balign 8\n" ++
-  "evm_log_data_meta:\n" ++
-  "  .zero 65536\n" ++    -- 8uld3.1a: 4096 logs × [u64 byte-offset into evm_log_data][u64 data_len], parallel to the descriptors
-  ".balign 8\n" ++
-  "evm_log_data_used:\n" ++
-  "  .zero 8\n" ++        -- 8uld3.1a: bytes used in evm_log_data this tx (reset with eventLogLength)
-  "evm_log_data_overflow:\n" ++
-  "  .zero 8\n" ++        -- 8uld3.1a: set to 1 if a log's full data overflowed the buffer -> consumer bails conservatively
+  (if includeLogArenas then
+    ".balign 8\n" ++
+    "evm_event_logs:\n" ++
+    "  .zero 11444992\n" ++  -- GH #11186: 44707 × 256-byte LOG descriptors
+    ".balign 8\n" ++
+    "evm_log_data:\n" ++
+    "  .zero 2095652\n" ++   -- GH #11186: (TX_MAX-TX_BASE)/8 log data bytes
+    ".balign 32\n" ++
+    "evm_log_data_meta:\n" ++
+    "  .zero 715312\n" ++   -- GH #11186: 44707 × 16-byte meta
+    ".balign 8\n" ++
+    "evm_log_data_used:\n" ++
+    "  .zero 8\n" ++
+    "evm_log_data_overflow:\n" ++
+    "  .zero 8\n"
+   else
+    -- SharedGuest: logs+pad at .bss HEAD via StatelessGuest (GH #11186).
+    "") ++
   ".balign 8\n" ++
   "system_call_mode:\n" ++
   "  .zero 8\n" ++        -- 8uld3.2.1a: when !=0, a top-level (depth-0) RETURN captures its data into system_call_returndata (for EIP-7002/7251 predeploy system calls). 0 for normal txs -> halt path byte-identical.
@@ -3926,20 +3930,20 @@ def emitRuntimeDispatcherDataSectionCore
     1024-word stack depth. -/
 def emitRuntimeDispatcherDataSection
     (registry : List OpcodeHandlerSpec) : String :=
-  emitRuntimeDispatcherDataSectionCore registry true true
+  emitRuntimeDispatcherDataSectionCore registry true true true
 
 /-- Runtime dispatcher data for guests that already provide the shared
     `zk3_state` keccak scratch in their own data section. -/
 def emitRuntimeDispatcherDataSectionSharedKeccak
     (registry : List OpcodeHandlerSpec) : String :=
-  emitRuntimeDispatcherDataSectionCore registry false true
+  emitRuntimeDispatcherDataSectionCore registry false true true
 
 /-- Runtime dispatcher data for embedding into `stateless_guest`, which already
     links both `zk3_state` and the helper scratch records used by the runtime
     opcode helper functions. -/
 def emitRuntimeDispatcherDataSectionSharedGuest
     (registry : List OpcodeHandlerSpec) : String :=
-  emitRuntimeDispatcherDataSectionCore registry false false
+  emitRuntimeDispatcherDataSectionCore registry false false false
 
 /-- Frame/CREATE helper closure for STANDALONE runtime-dispatcher units.
 

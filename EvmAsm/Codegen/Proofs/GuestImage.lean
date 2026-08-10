@@ -209,21 +209,21 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- Link pins are `abbrev` from RegionMapLinkPins (#11230). Use `decide` (not
   -- omega) so inequalities reduce through abbrevs; no hand-typed end/size hex.
   have t6 : (regionScratch RegionMap.dataRegion).SatWithin
-      0xa3000000 (0xa3000000 + RegionMap.dataSizeBytes) := by
+      0xa0b00000 (0xa0b00000 + RegionMap.dataSizeBytes) := by
     dsimp [regionScratch, RegionMap.dataRegion, RegionMap.dataSizeBytes,
       RegionMapLinkPins.dataSizeBytes]
     apply satWithin_ramRegion <;> decide
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
-      0xa3110000 (0xa3110000 + RegionMap.bssSizeBytes) := by
+      0xa0b70000 (0xa0b70000 + RegionMap.bssSizeBytes) := by
     dsimp [regionScratch, RegionMap.bssRegion, RegionMap.bssSizeBytes,
       RegionMapLinkPins.bssSizeBytes]
     apply satWithin_ramRegion <;> decide
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      (0xa3000000 + RegionMap.dataSizeBytes) (0xa3110000 + RegionMap.bssSizeBytes) :=
+      (0xa0b00000 + RegionMap.dataSizeBytes) (0xa0b70000 + RegionMap.bssSizeBytes) :=
     t7.mono (by decide) (le_refl _)
   -- GH #11186: `.state_gas_diag` is linker-placed immediately after `.bss`, so
   -- its base IS `t7`'s upper bound, and this join needs no `mono` widening —
-  -- but ONLY because the base is DERIVED as `0xa3110000 + bssSizeBytes` and the
+  -- but ONLY because the base is DERIVED as `0xa0b70000 + bssSizeBytes` and the
   -- two bounds are therefore the SAME TERM. While it was an independent pin the
   -- join typechecked only because the two `abbrev`s reduced to the same numeral;
   -- when `bssSizeBytes` moved, that coincidence ended and CI failed here with an
@@ -234,8 +234,8 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
   -- widened. Pins are `abbrev`, hence `decide` not `omega`; alignment holds
   -- structurally (`.balign 8` in its emitter).
   have t7b : (regionScratch RegionMap.stateGasDiagRegion).SatWithin
-      (0xa3110000 + RegionMap.bssSizeBytes)
-      (0xa3110000 + RegionMap.bssSizeBytes + RegionMap.stateGasDiagSizeBytes) := by
+      (0xa0b70000 + RegionMap.bssSizeBytes)
+      (0xa0b70000 + RegionMap.bssSizeBytes + RegionMap.stateGasDiagSizeBytes) := by
     dsimp [regionScratch, RegionMap.stateGasDiagRegion,
       RegionMap.stateGasDiagBase, RegionMap.stateGasDiagSizeBytes,
       RegionMap.bssSizeBytes, RegionMapLinkPins.bssSizeBytes,

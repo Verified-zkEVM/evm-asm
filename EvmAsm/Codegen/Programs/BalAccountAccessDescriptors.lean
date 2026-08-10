@@ -18,8 +18,8 @@ namespace EvmAsm.Codegen
 def balAccountAccessOutcomeDescriptorsPc : Nat := 0x80000000
 
 /-- Probe-only data placeholders (unlinked consumer; not in GuestAddrs). -/
-def baaodHashPlaceholder : Nat := 0xa3000000
-def baaodEmptyAccountPlaceholder : Nat := 0xa3000000
+def baaodHashPlaceholder : Nat := 0xa0b00000
+def baaodEmptyAccountPlaceholder : Nat := 0xa0b00000
 
 open EvmAsm.Rv64
 

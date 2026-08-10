@@ -79,7 +79,7 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- no-op here: `evm_memory_pool` is itself 8-aligned and `evmMemoryPoolBytes`
   -- is a multiple of 8, so the bloom starts at exactly `evm_memory_pool_end`.
   -- Verified in the linked image (`gen-out/stateless_guest.elf`): both symbols
-  -- resolve to 0xbbb19b60.
+  -- resolve to 0xb8266c20.
   --
   -- CONSEQUENCE, and it is a soundness one: ANY overshoot in ANY loop that
   -- fills or zeroes the pool corrupts VERDICT STATE, not padding. The running

@@ -114,7 +114,7 @@ def executionMapStateChangesFunction : String :=
   "  mv s2, a2                   # legacy BAL address count (unused)\n" ++
   -- GH #11431: system 2935/4788 posts are ordinary map owners (no pre-seed).
   "  la t0, bsr_emitted_owner_count; sd zero, 0(t0)\n" ++
-  "  la t0, account_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xbdd80000; li s6, 0\n" ++
+  "  la t0, account_writes_count; ld s9, 0(t0); li s4, 0; li s5, 0xbdb80000; li s6, 0\n" ++
   "  j .Lem_account_loop\n" ++
   ".Lem_owner_seen:\n" ++
   "  la t0, bsr_emitted_owner_count; ld t1, 0(t0); li t2, 0\n" ++

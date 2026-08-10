@@ -168,8 +168,8 @@ def accountWriteHasState : Nat := 8
 
     ## `execFlags@+96` — what this structure's flag word means (GH #11706)
 
-    Structure: `account_writes` rows, base `0xbdd80000` (block map) and
-    `tx_account_writes`, base `0xa2b20000` (tx map). **Stride 128.** Flag word at
+    Structure: `account_writes` rows, base `0xbdb80000` (block map) and
+    `tx_account_writes`, base `0xbf780000` (tx map). **Stride 128.** Flag word at
     `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
 
@@ -245,7 +245,7 @@ def accountWriteRecordFunction : String :=
   "  addi sp, sp, -128\n" ++
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
   "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; li t4, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; li t4, 0\n" ++
   ".Lawr_scan:\n" ++
   "  bgeu t4, t1, .Lawr_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; ld t3, 64(sp)\n" ++
   ".Lawr_cmp:\n" ++
@@ -253,10 +253,10 @@ def accountWriteRecordFunction : String :=
   ".Lawr_hit:\n" ++
   "  mv a5, t4; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow; j .Lawr_store\n" ++
   ".Lawr_next:\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; addi t4, t4, 1; j .Lawr_scan\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; addi t4, t4, 1; j .Lawr_scan\n" ++
   ".Lawr_append:\n" ++
   "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawr_overflow; mv a5, t1; li a6, 1; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xa2b20000; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20\n" ++
   ".Lawr_copy_addr:\n" ++
   "  beqz t6, .Lawr_zero; lbu t3, 0(t2); sb t3, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lawr_copy_addr\n" ++
   ".Lawr_zero:\n" ++
@@ -303,7 +303,7 @@ def accountWriteRecordFunction : String :=
 def accountWritesLatestBalanceFunction : String :=
   "account_writes_latest_balance:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawlb_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawlb_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlb_tx_cmp:\n" ++
@@ -313,7 +313,7 @@ def accountWritesLatestBalanceFunction : String :=
   ".Lawlb_tx_key:\n" ++
   "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
   ".Lawlb_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawlb_block_loop:\n" ++
   "  bgeu t3, t1, .Lawlb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlb_block_cmp:\n" ++
@@ -341,7 +341,7 @@ def accountWritesLatestBalanceFunction : String :=
 def accountWritesLatestBalanceBlockFunction : String :=
   "account_writes_latest_balance_block:\n" ++
   "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawlbb_loop:\n" ++
   "  bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlbb_cmp:\n" ++
@@ -366,7 +366,7 @@ def accountWritesLatestBalanceBlockFunction : String :=
 def accountWritesLatestNonceBlockFunction : String :=
   "account_writes_latest_nonce_block:\n" ++
   "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawlnb_loop:\n" ++
   "  bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
   ".Lawlnb_cmp:\n" ++
@@ -391,7 +391,7 @@ def accountWritesLatestNonceBlockFunction : String :=
 def accountWritesLatestNonceTxFunction : String :=
   "account_writes_latest_nonce_tx:\n" ++
   "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawlnt_loop:\n" ++
   "  bgeu t3, t1, .Lawlnt_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
   ".Lawlnt_cmp:\n" ++
@@ -423,7 +423,7 @@ def accountWritesLatestNonceTxFunction : String :=
 def accountWritesAuthCurrentFunction : String :=
   "account_writes_auth_current:\n" ++
   "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
-  "  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawa_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawa_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawa_tx_cmp:\n" ++
@@ -433,7 +433,7 @@ def accountWritesAuthCurrentFunction : String :=
   ".Lawa_tx_key:\n" ++
   "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_tx_next; andi t1, t0, 8; beqz t1, .Lawa_tx_next; andi t1, t0, 16; beqz t1, .Lawa_tx_next; j .Lawa_hit\n" ++
   ".Lawa_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawa_block_loop:\n" ++
   "  bgeu t3, t1, .Lawa_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawa_block_cmp:\n" ++
@@ -458,7 +458,7 @@ def accountWritesAuthCurrentFunction : String :=
 def accountWritesAuthBlockFunction : String :=
   "account_writes_auth_block:\n" ++
   "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawab_loop:\n" ++
   "  bgeu t3, t1, .Lawab_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawab_cmp:\n" ++
@@ -483,7 +483,7 @@ def accountWritesAuthBlockFunction : String :=
     contract deliberately does not treat every code row as created. -/
 def accountWritesCreatedContainsFunction : String :=
   "account_writes_created_contains:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawc_loop:\n" ++
   "  bgeu t3, t1, .Lawc_no; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawc_cmp:\n" ++
@@ -511,7 +511,7 @@ def accountWritesCreatedContainsFunction : String :=
 def accountWritesLookupCurrentFunction : String :=
   "account_writes_lookup_current:\n" ++
   "  addi sp, sp, -24; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawlc_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawlc_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlc_tx_cmp:\n" ++
@@ -521,7 +521,7 @@ def accountWritesLookupCurrentFunction : String :=
   ".Lawlc_tx_key:\n" ++
   "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
   ".Lawlc_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawlc_block_loop:\n" ++
   "  bgeu t3, t1, .Lawlc_absent; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawlc_block_cmp:\n" ++
@@ -548,7 +548,7 @@ def accountWritesLookupCurrentFunction : String :=
 def accountWritesTombstoneBalanceZeroFunction : String :=
   "account_writes_tombstone_balance_zero:\n" ++
   "  addi sp, sp, -160; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); mv s0, a0; li s1, 0; li s2, 0\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lawtbz_tx_loop:\n" ++
   "  bgeu t3, t1, .Lawtbz_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawtbz_tx_cmp:\n" ++
@@ -559,7 +559,7 @@ def accountWritesTombstoneBalanceZeroFunction : String :=
   "  mv s1, t5\n" ++
   "  j .Lawtbz_block_init\n" ++
   ".Lawtbz_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lawtbz_block_loop:\n" ++
   "  bgeu t3, t1, .Lawtbz_state_select; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
   ".Lawtbz_block_cmp:\n" ++
@@ -653,14 +653,14 @@ def accountWritesBlockUpsertFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0xbdd80000\n" ++                                      -- ACCOUNT_WRITES_AREA
+  "  li t3, 0xbdb80000\n" ++                                      -- ACCOUNT_WRITES_AREA
   "  li t4, 0\n" ++
   ".Lawb_scan:\n" ++
   "  bgeu t4, t1, .Lawb_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; mv t3, a0\n" ++
   ".Lawb_cmp:\n" ++
   "  beqz t6, .Lawb_store; lbu t1, 0(t2); lbu a1, 0(t3); bne t1, a1, .Lawb_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawb_cmp\n" ++
   ".Lawb_next:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t3, 0xbdd80000; addi t4, t4, 1; j .Lawb_scan\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t3, 0xbdb80000; addi t4, t4, 1; j .Lawb_scan\n" ++
   ".Lawb_append:\n" ++
   "  li t2, " ++ toString blockAccountWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lawb_overflow\n" ++
@@ -739,7 +739,7 @@ def accountWritesApplyDeletesFunction : String :=
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, " ++ toString txAccountWritesCapacity ++ "; bgtu t1, t2, .Lawd_overflow; li s3, 0\n" ++
   ".Lawd_tx_loop:\n" ++
   "  bgeu s3, t1, .Lawd_miss\n" ++
-  "  slli t2, s3, 7; li t3, 0xa2b20000; add t2, t3, t2; mv t3, t2; mv t4, s0; li t5, 20\n" ++
+  "  slli t2, s3, 7; li t3, 0xbf780000; add t2, t3, t2; mv t3, t2; mv t4, s0; li t5, 20\n" ++
   ".Lawd_cmp:\n" ++
   "  beqz t5, .Lawd_hit; lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lawd_next; addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lawd_cmp\n" ++
   ".Lawd_next:\n" ++
@@ -757,7 +757,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- materializer; every deferred delete must cross this path before it can
   -- become Present-None in `account_writes`.
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
-  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
+  "  slli t0, s3, 7; li t1, 0xbf780000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
   -- Map bal=0 + HAS_BALANCE: authoritative post-drain zero (do not resurrect
   -- parent pre-balance).  GH #11688 / fixture 01114.
@@ -773,7 +773,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- nonzero balance could be turned into STATE=None and alter EIP-161 deletion.
   "  bnez a0, .Lawd_overflow\n" ++
   "  ld t1, 48(sp); ld t2, 56(sp); or t1, t1, t2; ld t2, 64(sp); or t1, t1, t2; ld t2, 72(sp); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
-  "  slli t0, s3, 7; li t2, 0xa2b20000; add t0, t2, t0\n" ++
+  "  slli t0, s3, 7; li t2, 0xbf780000; add t0, t2, t0\n" ++
   "  ld t1, 48(sp); sd t1, 32(t0); ld t1, 56(sp); sd t1, 40(t0)\n" ++
   "  ld t1, 64(sp); sd t1, 48(t0); ld t1, 72(sp); sd t1, 56(t0)\n" ++
   "  j .Lawd_keep_present\n" ++
@@ -782,7 +782,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- same-tx CREATE collision, or mischarge NEW_ACCOUNT.  Conversely, skipping
   -- this boundary materialization leaves deleted state visible to the next tx.
   ".Lawd_present_none:\n" ++
-  "  slli t0, s3, 7; li t1, 0xa2b20000; add t0, t1, t0\n" ++
+  "  slli t0, s3, 7; li t1, 0xbf780000; add t0, t1, t0\n" ++
   "  sd zero, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
   ".Lawd_keep_present:\n" ++
   "  li t1, 1; sd t1, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
@@ -846,12 +846,12 @@ def accountWritesEmitBuilderTxFunction : String :=
   "account_writes_emit_builder_tx:\n" ++
   "  addi sp, sp, -112\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xa2b20000; li s3, 0\n" ++
+  "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xbf780000; li s3, 0\n" ++
   ".Laweb_loop:\n" ++
   "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
   -- Find this address in the block-cumulative map.  A hit may still lack an
   -- individual field, in which case that component keeps the pre-state base.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0; li s5, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0; li s5, 0\n" ++
   ".Laweb_scan:\n" ++
   "  bgeu t3, t1, .Laweb_header; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s4\n" ++
   ".Laweb_cmp:\n" ++
@@ -959,7 +959,7 @@ def accountWritesIncorporateTxFunction : String :=
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
   "  la s0, tx_account_writes_count; ld s1, 0(s0)\n" ++            -- s1 = tx count
-  "  li s2, 0xa2b20000\n" ++                                       -- s2 = tx area
+  "  li s2, 0xbf780000\n" ++                                       -- s2 = tx area
   "  li s3, 0\n" ++                                                -- s3 = i
   ".Lawi_loop:\n" ++
   "  bgeu s3, s1, .Lawi_clear\n" ++
@@ -1005,7 +1005,7 @@ def accountResolvePreStateFunction : String :=
   "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
   -- First source: block-cumulative account_writes. It is the pre-tx
   -- baseline for the current transaction, not the immutable parent account.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Larp_block_scan:\n" ++
   "  bgeu t3, t1, .Larp_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
   ".Larp_block_cmp:\n" ++
@@ -1112,7 +1112,7 @@ def accountResolveExecutionStateFunction : String :=
   -- First source: the current transaction's account_writes map.  A valid
   -- component in this keyed overlay is the execution-time value and must win
   -- over both the prior block state and the authenticated parent.
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xa2b20000; li t3, 0\n" ++
+  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
   ".Lare_tx_scan:\n" ++
   "  bgeu t3, t1, .Lare_tx_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
   ".Lare_tx_cmp:\n" ++
@@ -1134,7 +1134,7 @@ def accountResolveExecutionStateFunction : String :=
   "  andi t0, s8, 8; beqz t0, .Lare_block_scan\n" ++
   "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
   ".Lare_block_scan:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdd80000; li t3, 0\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
   ".Lare_block_loop:\n" ++
   "  bgeu t3, t1, .Lare_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
   ".Lare_block_cmp:\n" ++
@@ -1288,13 +1288,13 @@ def accountWriteTouchE2eFunction : String :=
   "  la a0, account_write_e2e_addr; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
   "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags) ++ "; li a7, 0x33\n" ++
   "  jal ra, account_write_record\n" ++
-  "  li t3, 0xa2b20000; lbu t0, 112(t3); sd t0, 0(s0); ld t0, 96(t3); sd t0, 8(s0)\n" ++
+  "  li t3, 0xbf780000; lbu t0, 112(t3); sd t0, 0(s0); ld t0, 96(t3); sd t0, 8(s0)\n" ++
   -- 2) twin same-addr BALANCE-only write (no TOUCHED in mask) — sticky must keep 32
   "  la t0, account_write_e2e_bal; li t1, 7; sb t1, 31(t0)\n" ++
   "  la a0, account_write_e2e_addr; la a1, account_write_e2e_bal; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
   "  li a6, " ++ toString accountWriteHasBalance ++ "; li a7, 0\n" ++
   "  jal ra, account_write_record\n" ++
-  "  li t3, 0xa2b20000; lbu t0, 112(t3); sd t0, 16(s0)\n" ++
+  "  li t3, 0xbf780000; lbu t0, 112(t3); sd t0, 16(s0)\n" ++
   -- 3) undo restore to mark 0 — row must disappear (count→0, mask read as 0)
   "  li a0, 0; jal ra, account_writes_restore_frame\n" ++
   "  la t0, tx_account_writes_count; ld t0, 0(t0); sd t0, 24(s0)\n" ++
@@ -1361,19 +1361,14 @@ def accountWriteMapFunctions : String :=
 -- old block top (0xa2f20000) found nothing and suggested no assumption spanned
 -- the block. It did -- here.
 
--- The two relocated arenas remain laid end to end, and the journal ends exactly
--- at `.sszscratch`'s base: abutting is the convention here (the scheme-A block
--- is one contiguous span) and is safe because the capacity guards fire BEFORE
--- any store.
+-- High pack (GH #11186): AW + 8 MiB = AU + 20 MiB = TX_AW + 2 MiB = SSZ.
+-- Capacity guards fire BEFORE any store.
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + 0x800000 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x1400000 == EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
--- Both sit above `.bss` and its trailing `.state_gas_diag`, i.e. inside the gap.
-#guard 0xa3110000 < EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
--- The transaction map did NOT move and still fits below `.data` at 0xa3000000.
-#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 <= 0xa3000000
--- The vacated 4.5 MiB below `.data` is a DELIBERATE hole, not an oversight:
--- 2.5 MiB where the block map was and 2 MiB where the journal was. Pinned so a
--- later reader does not "restore contiguity" by moving something into it.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x1400000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 == EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+-- High arenas sit above `.bss` / `.state_gas_diag` / storage undo.
+#guard 0xa0b70000 < EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+-- Low storage-write pack ends below the high TX account-writes arena.
 #guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 
 -- Capacity x stride must equal the reserved arena exactly: an arena larger than

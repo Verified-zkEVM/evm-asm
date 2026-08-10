@@ -39,7 +39,7 @@ def _find_tool(*names: str) -> str:
 
 # Sections this generator reads.  `.state_gas_diag`'s SIZE is pinned; its BASE
 # deliberately is NOT.  The linker places that section immediately after `.bss`,
-# so RegionMap DERIVES the base as `0xa3110000 + bssSizeBytes` and the two can
+# so RegionMap DERIVES the base as `0xa0b70000 + bssSizeBytes` and the two can
 # never disagree -- pinning it independently let it contradict its own premise
 # (GH #11186).  Emitted unconditionally by
 # `dispatcherExecStateGasDifferentialData` (DispatcherExecStateGas.lean:158).

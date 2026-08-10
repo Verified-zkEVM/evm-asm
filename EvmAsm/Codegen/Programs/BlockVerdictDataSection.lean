@@ -491,7 +491,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- round8(24576)" — stale; the buffer and .Ldtrc_stage guard already use the
   -- 65536 headroom (covers EIP-7907 MAX_CODE_SIZE). Guard bails conservatively
   -- so the staging write can never overflow into adjacent gas-result / bvcd_* cells.
-  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~62MB (dataBase 0xa3000000 -> sszScratchBase 0xbf600000).
+  "bv_runtime_payload:\n  .zero " ++ toString (bsrAccountSlotCap * 64 + 65536) ++ "\n" ++   -- 4jczt class-B BAL>128 lift: hold storage*64 at the gas-derived bsrAccountSlotCap (6.4MB) + the original 65536 code/calldata/witness/584 headroom (calldata/witness worst case stays bmvmx.1.7.2's payload-cap concern). .data headroom verified ~62MB (dataBase 0xa0b00000 -> sszScratchBase 0xbf600000).
   "bv_stop_code:\n  .byte 0x00\n" ++
   ".balign 8\n" ++
   "bv_runtime_gas_left:\n  .zero 8\n" ++

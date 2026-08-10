@@ -143,7 +143,7 @@ def balBuilderCodeRowBytes : Nat := 64
 
     One entry per account across the block would be `balBuilderAccountCapacity * 48` =
     6.41 MiB. **`.bss` has about 7.2 MiB of headroom**: after the GH #10836 arena
-    resize its base moved down to `0xa3110000` (into the `.data` slack), it ends at
+    resize its base moved down to `0xa2e07000` (into the `.data` slack), it ends at
     about `0xbf249580` — about 7.2 MiB of headroom to `.sszscratch` at `0xbf980000`;
     the linker rejects
     an overlap outright (`section .sszscratch VMA ... overlaps section .bss VMA ...`).
@@ -363,7 +363,7 @@ def balBuilderIncorporateTouchedAccountsFunction : String :=
   "  la s0, account_reads_count; ld s1, 0(s0); li s2, 0\n" ++
   ".Lbbita_loop:\n" ++
   "  bgeu s2, s1, .Lbbita_done\n" ++
-  "  slli t0, s2, 5; li t1, 0xa1ca0000; add a0, t1, t0\n" ++
+  "  slli t0, s2, 5; li t1, 0xa1d1a200; add a0, t1, t0\n" ++
   "  jal ra, bal_builder_ensure_account\n" ++
   "  addi s2, s2, 1; j .Lbbita_loop\n" ++
   ".Lbbita_done:\n" ++

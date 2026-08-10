@@ -163,7 +163,7 @@ def txStorageWritesCapacity : Nat := (16777216 - bvMtxIntrinsicGasFloor) / coldS
 def storageWritesBlockBase : Nat := EvmAsm.Stateless.STORAGE_WRITES_AREA.toNat
 def storageWritesTxBase : Nat := EvmAsm.Stateless.TX_STORAGE_WRITES_AREA.toNat
 def storageWritesStateGasDiagEnd : Nat :=
-  0xa3110000 + RegionMapLinkPins.bssSizeBytes + RegionMapLinkPins.stateGasDiagSizeBytes
+  0xa0b70000 + RegionMapLinkPins.bssSizeBytes + RegionMapLinkPins.stateGasDiagSizeBytes
 def storageWritesUndoBase : Nat :=
   ((storageWritesStateGasDiagEnd + 0xfff) / 0x1000) * 0x1000
 
