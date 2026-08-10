@@ -145,13 +145,17 @@ unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
     status := .blocked,
     blockedBy :=
       [.infra "no simulation bridge from dispatched handlers to the SpecRef \
-interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge"],
-    auditedAt := some "2026-08-10 @372162cc2",
+interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
+       .infra "`stage_system_call` has no machine post yet; #11578 proves only the \
+pure 0x01/0x02 request framing, with the tail-called dispatcher contract still \
+outstanding"],
+    auditedAt := some "2026-08-10 @76889ef97",
     note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
 M5's runtime fetch/decode/dispatch and 91 wired opcodes, for weeks. The real gap \
-is the simulation relation, which that row was hiding" },
+is the simulation relation, which that row was hiding. #11578 adds the request-\
+derive framing bridge but does not close the `stage_system_call` premise" },
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
