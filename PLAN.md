@@ -219,6 +219,21 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   census, which is the defect the gate exists to prevent. ⚠️ The symbol↔theorem map
   is name-based, so it can UNDER-report a gap but never invent one: a floor on the
   backlog, not a census.
+  - **Burn-down (2026-08-10, #11575): 95 → 93.** `chain_validate_consecutive_numbers`
+    and `chain_validate_increasing_timestamps` registered `.proven` in
+    `Routines.lean` (routine registry 33 → 35 rows, 24 → 26 proven, 23 → 25 distinct
+    symbols; 145 → 147 axiom witnesses). ⭐ The lesson is about the *issue*, not the
+    gate: #11575 was filed as "fork `header_extract_number`'s pattern to its 8
+    mechanical siblings", but **all 8 forks already existed, sorry-free** — 2 were
+    rowed and 6 were sitting in this allowlist. The remaining work was never proving,
+    it was registration. #11351's note generalises: *a missing row was never evidence
+    of a missing proof*, so read the allowlist before believing an issue that says a
+    triple is absent. ⚠️ The other 4 (`blob_gas_used_multiple`,
+    `blob_gas_used_under_max`, `extra_data_length`, `gas_used_under_limit`) stay
+    allowlisted as **tier B** — structured SAsm specs needing `Fn.retSpecFlat` before
+    a `.proven` row is honest. Do not bulk-register them to shorten the file.
+    Correspondence rows for all 6 are separate work again: they need a `_of_decode`
+    bridge to `SpecRef`, which this family does not have.
 - **Witness ≠ row** (GH #11348, #11516): a Correspondence/Routines row naming a
   theorem does NOT put that theorem in the axiom gate — the `private noncomputable
   abbrev _<name>_witness := @…` is what does. They are separate obligations: the
