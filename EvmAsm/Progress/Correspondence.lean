@@ -255,9 +255,13 @@ has no counterpart in the untyped shared model, so it rests on the machine tripl
     reference := "decode_item_length",
     note := "short forms only (SpanForm); long string 0xb8-0xbf and long list 0xf8-0xff uncovered" },
   { family := "rlp", routine := "rlp_item_span",
-    verdict := .unproven, basis := .none,
+    spec := some "rlp_item_span_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
     reference := "decode_item_length",
-    note := "RlpItemSpanSpec.lean is cursor algebra + CodeReq plumbing; no machine triple" },
+    note := "whole-routine cpsTripleWithin under short-list outer (payload ≤ 55) + \
+WalkedSpanForm on every walked prefix 0..i (#11577). Long-list outer header and \
+non-SpanForm walked items uncovered. coverRef `rlp_item_span_precondition_reachable` \
+([0xc1,0x80] i=0). Witnessed in Progress/Routines.lean" },
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
@@ -835,9 +839,9 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 18 ∧ countVerdict .domainRestricted = 8 ∧
+    countVerdict .agrees = 18 ∧ countVerdict .domainRestricted = 9 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
-    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 3 := by decide
+    countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
 /-- Port defects are counted separately because they are a different axis.
     **Back to 0 as of #11513**, which fixed the one defect that had been
@@ -849,8 +853,8 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 2 ∧ countBasis .inspection = 5 ∧
-    countBasis .none = 3 := by decide
+    countBasis .machineOnly = 3 ∧ countBasis .inspection = 5 ∧
+    countBasis .none = 2 := by decide
 
 /-! ## Invariants
 

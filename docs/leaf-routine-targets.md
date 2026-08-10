@@ -34,9 +34,11 @@ Assertion → SpecRef (`docs/4ch8f-slstate-specref-correspondence.md`).
   proof lands; the `SpecRef` file:line anchors below are the port-side entry points.
 
 Rule firing, recorded so the criterion is visibly non-vacuous: `eip8037_state_used_before_tx`
-and `runtime_same_block_delegation_code` *look* startable (every fixture-level callee
-verified) but transitively call `rlp_item_span`, which is `.unproven` — both excluded. That
-is exactly the "leaf means leaf in the TRANSITIVE call graph" trap.
+and `runtime_same_block_delegation_code` *looked* startable (every fixture-level callee
+verified) but transitively called `rlp_item_span`, which was `.unproven` — both excluded.
+That was exactly the "leaf means leaf in the TRANSITIVE call graph" trap. **#11577 lifted
+the exclusion**: `rlp_item_span` is now `.conditional` (short-list outer + WalkedSpanForm
+on every walked prefix); callers are startable and inherit that domain.
 
 ## The table
 
