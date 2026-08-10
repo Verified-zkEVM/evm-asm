@@ -108,7 +108,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
+#print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
+
 #print axioms EvmAsm.EL.RLP.decodeFully_encode
+
+#print axioms EvmAsm.EL.RLP.decodeItems_mono_fuel
 
 #print axioms EvmAsm.EL.RLP.decode_encode
 
