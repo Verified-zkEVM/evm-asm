@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
 import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.Address
@@ -41,6 +42,7 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalMapBuilderConsistent
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder

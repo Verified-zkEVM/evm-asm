@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 -- #11118: BalAllAccountsCodeCovers / BalStorageReadsExecLog data unlinked with dead 43/38.
 import EvmAsm.Codegen.Programs.BlockVerdictDataSectionTail
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 

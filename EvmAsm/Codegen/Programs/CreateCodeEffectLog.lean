@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.HashBridgeProg
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.AsmReloc

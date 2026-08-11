@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.Bls12Map
 import EvmAsm.Codegen.Programs.Bls12Kzg
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Ripemd160
 import EvmAsm.Codegen.Programs.Bn254Fp2
