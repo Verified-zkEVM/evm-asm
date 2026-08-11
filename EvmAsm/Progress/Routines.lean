@@ -86,13 +86,17 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
+import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
@@ -491,14 +495,19 @@ def routineRegistry : List RoutineEntry := [
         ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
         ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
         ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes"),
-  -- #11352: `bgv_u32le`, row 10 of docs/leaf-routine-targets.md. Guest-input u32
-  -- accessor with 8 fixture in-edges. The flat triple is DERIVED from the SAsm
-  -- `bgvU32leFn_spec` by `Fn.retSpecFlat`, so the machine reasoning is the SAsm proof.
-  routine "bgv_u32le" .proven (some "bgvU32leFlat_spec")
-      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le`: `a0 = leU32 bs 0` for "
-        ++ "a read-only region of >= 4 bytes, region intact. Only ABI hyps (pointer in "
-        ++ "a0, region wf, aligned ra). Tied to the reference by "
-        ++ "`leU32_eq_bytesLEtoNat`"),
+  -- #11352 + #11578: `bgv_u32le`. Witness is offset form (covers unaligned a0).
+  -- h_align listBase%8=0 is a CALLER assumption (ABI region base), NOT a static
+  -- GuestAddrs pin discharged by decide — so `.conditional`, not `.proven`.
+  -- coverRef `bgv_u32le_offset_precondition_reachable`. Flat form had the same
+  -- gate as Region.wf on a0; moving it to listBase fixed production offs 4/12
+  -- but did not erase the alignment hyp.
+  routine "bgv_u32le" .conditional (some "bgv_u32le_offset_spec_within")
+      (notes := "offset-form triple at GuestAddrs.bgv_u32le: a0=listBase+off "
+        ++ "(may be unaligned), bytesRegion listBase bs, post a0=leU32 (bs.drop off) 0. "
+        ++ "Gate: h_align listBase.toNat%8=0 remains a caller hyp at erh sites "
+        ++ "(listBase is ABI a0, not a static GuestAddrs base). coverRef "
+        ++ "`bgv_u32le_offset_precondition_reachable`. Prior flat_spec Region.wf "
+        ++ "a0%8=0 does not cover offs 4/12. leU32_eq_bytesLEtoNat still ties value"),
 
   -- #11349: `check_gas_limit`, row 7 of docs/leaf-routine-targets.md. The machine
   -- triple already existed byte-transparently at the guest address; what this row
@@ -612,7 +621,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest (operational). Resource/ABI "
-        ++ "preconditions only → .proven")
+        ++ "preconditions only → .proven"),
+
+  -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
+  -- (7-insn JAL x0 stage_system_call). Validation prefix of
+  -- execution_requests_hash instead → hash-entry B+300. Hash half residual.
+  -- FULL named gates (binder list, not intent): h_align listBase%8=0 (ABI a0,
+  -- not static GuestAddrs pin); h_fit 20≤bs.length; h_ge ¬ult endW 20;
+  -- erhOffsetsMonoW; erhGatesOkW. h_valid/h_over = ordinary memory framing.
+  routine "execution_requests_hash" .conditional
+      (some "execution_requests_hash_validation_accept")
+      (notes := "validation-accept prefix at GuestAddrs.execution_requests_hash "
+        ++ "(B → B+300, fuel 135): prologue sp-96 + five bgv_u32le offset reads "
+        ++ "+ mono + five REMU/DIVU/cap gates. GATES (all caller hyps on the top "
+        ++ "triple): h_align listBase.toNat%8=0; h_fit 20≤bs.length; h_ge "
+        ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
+        ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
+        ++ "deposit 192). Hash half residual. Parked: block_state_root + "
+        ++ "requests_hash_verify still String asm")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -624,10 +650,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 51 := by decide
+theorem routineCount_eq : routineCount = 52 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 15 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -641,7 +667,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 39 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 40 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -712,6 +738,26 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
+-- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
+-- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
+-- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
+-- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
+-- gated. No registry row changes: this is a side condition, not a routine triple.
+private noncomputable abbrev _rlp_prefix_first_length_byte_ne_zero_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
+private noncomputable abbrev _rlp_prefix_pow_le_u64ByteLen_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.pow_le_u64ByteLen
+-- #11795: the REFUTATION of `RlpWalkNextStrict`, plus the accept-indexed bridge that
+-- replaces it. Neither changes a registry row -- witnessed because a negative control is
+-- only worth what its axioms are, and this one is load-bearing for the issue's
+-- sequencing: it is what says the residual is FALSE rather than open, so nobody schedules
+-- a proof against it. The replacement is witnessed alongside so the correction and its
+-- repair cannot drift apart.
+private noncomputable abbrev _not_rlpWalkNextStrict_witness :=
+  @EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
+private noncomputable abbrev _rlpItemDecodeBridgesOn_of_accepts_witness :=
+  @EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=
@@ -837,7 +883,7 @@ private noncomputable abbrev _rlp_encode_list_prefix_long2_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
-  @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
+  @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 private noncomputable abbrev _check_gas_limit_routine_witness :=
   @EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
@@ -870,5 +916,8 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+-- #11578 rescope: execution_requests_hash validation-accept prefix.
+private noncomputable abbrev _execution_requests_hash_routine_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
 end EvmAsm.Progress
