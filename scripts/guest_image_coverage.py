@@ -50,10 +50,10 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # .text growth alone must not fail the gate, and a silent conversion drop
 # must. Bump ONLY in the same commit that lands a conversion extending
 # guestImageEntries (or that shortens .text without losing covered ranges).
-# Measured live at origin/main 2464330c1: 80608 B / 341076 B = 23.63%.
-EXPECTED_COVERED_BYTES_FLOOR = 80608
+# Measured live at origin/main 55f864d9a: 83252 B / 341076 B = 24.41%.
+EXPECTED_COVERED_BYTES_FLOOR = 83252
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 330
+EXPECTED_CONVERTED_COUNT_FLOOR = 336
 
 
 def lean_camel(entry: str) -> str:

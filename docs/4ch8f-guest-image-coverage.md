@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (42 of 372 today — gas helpers etc.
+not linked** (42 of 378 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053454), 341076 bytes (`RegionMap.textSizeBytes = 0x53454`)
 
-- symbols in `.text`: 905 (330 converted, 575 unconverted)
-- covered by converted `_prog`s: 80608 bytes (23.63%)
-- NOT covered: 260468 bytes (76.37%), 576 ranges
+- symbols in `.text`: 905 (336 converted, 569 unconverted)
+- covered by converted `_prog`s: 83252 bytes (24.41%)
+- NOT covered: 257824 bytes (75.59%), 570 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -298,7 +298,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80027c9c` | `0x80027d00` | 100 | `sender_debit_from_gas` | UNCONVERTED |
 | `0x80027d00` | `0x8002821c` | 1308 | `tx_gas_bal_post_verify_runtime` | UNCONVERTED |
 | `0x8002827c` | `0x8002831c` | 160 | `eip7778_remaining_block_gas_check` | UNCONVERTED |
-| `0x800286c4` | `0x8002881c` | 344 | `eip7702_authorization_extract_signature` | UNCONVERTED |
 | `0x800289d4` | `0x80028b64` | 400 | `eip7702_warm_recovered_authorities` | UNCONVERTED |
 | `0x80028b64` | `0x80028ee0` | 892 | `eip7702_authority_asof` | UNCONVERTED |
 | `0x80028ee0` | `0x800296d4` | 2036 | `eip7702_auth_state_prepare` | UNCONVERTED |
@@ -307,11 +306,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80029d68` | `0x8002a004` | 668 | `b1_sender_count_table` | UNCONVERTED |
 | `0x8002a004` | `0x8002a03c` | 56 | `b1sc_write_entry` | UNCONVERTED |
 | `0x8002a404` | `0x8002a4f0` | 236 | `dispatcher_capture_exec_state_gas_differential` | UNCONVERTED |
-| `0x8002a640` | `0x8002a7d4` | 404 | `tx_legacy_extract_signature` | UNCONVERTED |
-| `0x8002a7d4` | `0x8002a990` | 444 | `tx_eip2930_extract_signature` | UNCONVERTED |
-| `0x8002a990` | `0x8002ab60` | 464 | `tx_eip1559_extract_signature` | UNCONVERTED |
-| `0x8002ab60` | `0x8002ad58` | 504 | `tx_eip4844_extract_signature` | UNCONVERTED |
-| `0x8002ad58` | `0x8002af3c` | 484 | `tx_eip7702_extract_signature` | UNCONVERTED |
 | `0x8002bc34` | `0x8002c124` | 1264 | `stateless_verdict_v2` | UNCONVERTED |
 | `0x8002c124` | `0x8002cb70` | 2636 | `block_verdict_deferred_system_requests` | UNCONVERTED |
 | `0x8002cb70` | `0x8002d140` | 1488 | `precompile_shared_select_price` | UNCONVERTED |

@@ -130,6 +130,7 @@ import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
+import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256GasPricing
@@ -343,6 +344,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
+  (GuestAddrs.eip7702_authorization_extract_signature, eip7702AuthorizationExtractSignature_prog),
   (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
   (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
@@ -353,6 +355,11 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.enrg_u32le, enrgU32le_prog),
   (GuestAddrs.dispatcher_capture_exec_state_gas, dispatcherCaptureExecStateGas_prog),
   (GuestAddrs.rlp_list_truncate_to_n_fields, rlpListTruncateToNFields_prog),
+  (GuestAddrs.tx_legacy_extract_signature, txLegacyExtractSignature_prog),
+  (GuestAddrs.tx_eip2930_extract_signature, txEip2930ExtractSignature_prog),
+  (GuestAddrs.tx_eip1559_extract_signature, txEip1559ExtractSignature_prog),
+  (GuestAddrs.tx_eip4844_extract_signature, txEip4844ExtractSignature_prog),
+  (GuestAddrs.tx_eip7702_extract_signature, txEip7702ExtractSignature_prog),
   (GuestAddrs.tx_signing_hash, txSigningHash_prog),
   (GuestAddrs.tx_signing_hash_legacy_eip155, txSigningHashLegacyEip155_prog),
   (GuestAddrs.tx_pubkey_signature_material, txPubkeySignatureMaterial_prog),
@@ -477,6 +484,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 330
+#guard guestImageEntries.length = 336
 
 end EvmAsm.Codegen
