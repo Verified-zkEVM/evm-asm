@@ -761,17 +761,17 @@ shape but did not erase the hyp. Value tie unchanged" },
     verdict := .domainRestricted, basis := .machineOnly,
     reference := "SszCodec.deserializeAux fixed-list length/divisibility gates \
 (requests section lengths multiple of stride and under cap)",
-    note := "WHY `domainRestricted`: ACCEPT PATH ONLY under mono+gates on decoded \
-offsets (erhOffsetsMonoW ∧ erhGatesOkW); reject arms and hash half residual. \
+    note := "WHY `domainRestricted`: ACCEPT PATH ONLY. FULL named gates matching \
+the top-triple binder list (not intent): h_align listBase.toNat%8=0 (ABI a0, \
+universally quantified — NOT a static GuestAddrs pin discharged by decide); \
+h_fit 20≤bs.length; h_ge ¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. \
+h_valid/h_over ordinary memory framing only. Reject arms + hash half residual. \
 coverRef `erh_validation_precondition_reachable` (non-empty deposit 192). \
 WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
-hash half (erh_hash_one + zkvm_sha256) unproven. CRITICAL: bgv_u32le flat_spec \
-is aligned-only (Region.wf %8=0); production unaligned a0 needs \
-`bgv_u32le_offset_spec_within` (SizeOffset class). \
-NOT leaves: derive_withdrawal/consolidation_requests are 7-insn JAL x0 \
-stage_system_call shims — rescope endorsed. \
-PARKED: live consumers block_state_root + requests_hash_verify still String \
-asm; correct triple exists but nothing lifts past guestImage_block_sub today" },
+hash half (erh_hash_one + zkvm_sha256) unproven. bgv reads use offset form \
+(flat_spec Region.wf a0%8=0 does not cover offs 4/12). \
+NOT leaves: derive_* are 7-insn JAL x0 stage_system_call shims. \
+PARKED: block_state_root + requests_hash_verify still String asm" },
 
   -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
   -- this registration by months; a name search for the routines found nothing
