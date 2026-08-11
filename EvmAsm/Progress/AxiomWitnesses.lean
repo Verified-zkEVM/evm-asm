@@ -54,6 +54,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_1seg
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
