@@ -56,6 +56,7 @@
 
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
+import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -803,6 +804,8 @@ private noncomputable abbrev _not_rlpWalkNextStrict_witness :=
   @EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
 private noncomputable abbrev _rlpItemDecodeBridgesOn_of_accepts_witness :=
   @EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
+private noncomputable abbrev _rlpItemDecodeStrictW_of_decodeAux_witness :=
+  @EvmAsm.Rv64.RLP.rlpItemDecodeStrictW_of_decodeAux
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=

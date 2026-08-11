@@ -131,10 +131,13 @@ def obligations : List Obligation := [
 items still uncovered)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
-       .infra "nested-list decode bridges: `rlpItemDecode`'s list arms check a \
-span fit and say nothing about the payload, while `decodeAux` rejects a malformed \
-interior — a strength mismatch, tracked at #11795 with the relation-side decision \
-scoped at #11898"],
+       .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \
+two-level split — `rlpItemDecode` stays the core's lenient span relation and \
+`rlpItemDecodeStrictW` (`Rv64/RLP/WalkNextStrict.lean`) is the wrapper's relation \
+with the recursive payload condition in its list arms, and the reverse bridge \
+(`decodeAux` acceptance → wrapper relation, both arms) is proven there. Remaining: \
+tying the wrapper relation to the MACHINE needs `rlp_walk_next_shared` / \
+`rlp_validate_payload` transcribed — tracked at #12021"],
     auditedAt := some "2026-08-10 @11577",
     note := "pure-Lean RLP ✅; the RV64 decoder registry is 36 rows / 26 proven / \
 10 conditional / 0 partly (`Progress/Routines.lean`). #11577 landed \

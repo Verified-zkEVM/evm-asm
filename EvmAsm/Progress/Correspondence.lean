@@ -221,7 +221,11 @@ def registry : List Entry := [
     spec := some "rlp_walk_next_spec_within",
     verdict := .agrees, basis := .bridged,
     reference := "decode_item_length + decode_joined_encodings loop",
-    note := "18 paths → 6 statuses; predicate rlpItemDecode, bridged" },
+    note := "18 paths → 6 statuses; predicate rlpItemDecode, bridged. Two-level \
+model: this row is the CORE's lenient span relation; the strict wrapper \
+(`rlp_walk_next_shared`/`rlp_validate_payload`, the only guest call surface — \
+165/165 `jal rlp_walk_next` sites) has relation `rlpItemDecodeStrictW` with the \
+reverse bridge proven (`Rv64/RLP/WalkNextStrict.lean`); machine-tying = #12021" },
   { family := "rlp", routine := "rlp_content_to_u64",
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
