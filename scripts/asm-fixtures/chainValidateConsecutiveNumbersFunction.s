@@ -12,7 +12,7 @@ chain_validate_consecutive_numbers:
   ld a1, 0(s1)
   mv a0, s2; li a2, 8
   la a3, cvcn_num
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvcn_propagate
   la t0, cvcn_num; ld s5, 0(t0)
   ld t0, 0(s1)
@@ -28,7 +28,7 @@ chain_validate_consecutive_numbers:
   ld a1, 0(t3)
   mv a0, t1; li a2, 8
   la a3, cvcn_num
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvcn_propagate
   la t0, cvcn_num;        ld t3, 0(t0)
   la t0, cvcn_iter_prev;  ld t4, 0(t0)

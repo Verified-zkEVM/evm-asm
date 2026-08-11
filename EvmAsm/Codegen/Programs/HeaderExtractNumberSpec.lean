@@ -3,7 +3,7 @@
 
   `headerExtractNumber_prog` allocates a 16-byte frame, saves `ra`, shuffles
   its arguments (`a3 := a2` output pointer, `a2 := 8` field index), tail-calls
-  the verified lenient `rlp_field_to_u64` selector, then restores `ra`,
+  the verified strict `rlp_field_to_u64_strict` selector, then restores `ra`,
   deallocates, and returns.  Its whole-program contract is therefore
 
       prologue  ;;  rlpFieldToU64_flat_spec_within  ;;  epilogue
@@ -12,18 +12,18 @@
   big-endian decode of the real field-8 content (via K34's `Result`).
 -/
 
-import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Codegen.Programs.HeaderU64
 
 namespace EvmAsm.Codegen.HeaderExtractNumberSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 
 /-! ## Base addresses and linked code
 
     Header field 8 (`number`) is `Uint` in the reference model, so this
-    wrapper intentionally uses the lenient K34 path.  The machine-side width
+    wrapper uses the strict K34 path for canonicality.  The machine-side width
     assumption remains explicit in the bridge below. -/
 
 abbrev H : Word := (GuestAddrs.header_extract_number : Word)
@@ -33,38 +33,38 @@ theorem hdr_length : headerExtractNumber_prog.length = 8 := by decide
 /-- The wrapper's own re-emitted instructions at `header_extract_number`. -/
 def hdrCode : CodeReq := CodeReq.ofProg H headerExtractNumber_prog
 
-/-- The full linked closure: this wrapper plus the lenient K34 selector and its
+/-- The full linked closure: this wrapper plus the strict K34 selector and its
     transitive callees. -/
-def fullCode : CodeReq := hdrCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
+def fullCode : CodeReq := hdrCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
 theorem hdr_disjoint :
-    hdrCode.Disjoint EvmAsm.Codegen.RlpFieldToU64SAsm.code := by
-  unfold hdrCode EvmAsm.Codegen.RlpFieldToU64SAsm.code
+    hdrCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
+  unfold hdrCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
   refine CodeReq.Disjoint.union_right ?_
     (CodeReq.Disjoint.union_right ?_ ?_)
-  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.wrapperCode
-      EvmAsm.Codegen.RlpFieldToU64SAsm.B H
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B H
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [hdr_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
-    · rw [hdr_length, EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · rw [hdr_length, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
   · unfold EvmAsm.Codegen.RlpListNthItemSAsm.code
       EvmAsm.Codegen.RlpListNthItemSAsm.B H
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [hdr_length]; decide
     · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
     · rw [hdr_length, EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.contentCode
-      rlp_content_to_u64_code EvmAsm.Codegen.RlpFieldToU64SAsm.C64B H
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
+      rlp_content_to_u64_strict_code EvmAsm.Codegen.RlpFieldToU64StrictSAsm.C64B H
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [hdr_length]; decide
-    · rw [rlp_content_to_u64_prog_length]; decide
-    · rw [hdr_length, rlp_content_to_u64_prog_length]; decide
+    · rw [rlp_content_to_u64_strict_prog_length]; decide
+    · rw [hdr_length, rlp_content_to_u64_strict_prog_length]; decide
 
 
 /-- K34's linked code is subsumed by the wrapper's full closure. -/
 theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64SAsm.code a = some i → fullCode a = some i := by
+    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
   exact CodeReq.mono_union_right hdr_disjoint (fun _ _ h => h) a i hi
@@ -395,7 +395,7 @@ theorem header_extract_number_spec_within
     let callSteps := 1 + ((12 + ((85 + 93 * (8 + 2)) + 6)) + 9)
     -- The tail bound follows the caller-owned input byte region, as in the
     -- callee's data-derived `rlpFieldToU64_flat_spec_within` bound.
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34) + 3) H raIn fullCode
       (hdrPre sp0 raIn oldRaSlot spH newSp listBase listLenW outputPtr old13
@@ -407,7 +407,7 @@ theorem header_extract_number_spec_within
   have hpro := hdrPrologue sp0 raIn oldRaSlot spH newSp listBase listLenW
     outputPtr old13 old14 oldOut oldOffset oldLen s0In s1In s2 s3 s4 s5 outer
     bytes rfl hspH
-  -- Call: instruction 4 (jal) + lenient K34.
+  -- Call: instruction 4 (jal) + strict K34.
   have hflat := rlpFieldToU64_flat_spec_within spH newSp listBase listLenW
     (8 : Word) outputPtr oldOut oldOffset oldLen old14 outer s2 s3 s4 s5 bytes
     listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign hslack hover
@@ -424,11 +424,11 @@ theorem header_extract_number_spec_within
     cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hflatF
   have hcall := callWithin_spec (H + 16) B raIn
-    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.header_extract_number + 16))
+    (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.header_extract_number + 16))
     n34 (by show (H + 16) + signExtend21 _ = B; decide)
     (fun a i hi => hdr_mono a i
       (CodeReq.ofProg_mem_at H (H + 16) headerExtractNumber_prog 4
-        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict
           (GuestAddrs.header_extract_number + 16))) (by bv_omega)
         (by rw [hdr_length]; decide) rfl (by rw [hdr_length]; decide) a i hi))
     (by unfold flatPre wholeRest; pcf) hcallee

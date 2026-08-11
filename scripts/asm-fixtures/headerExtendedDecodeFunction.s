@@ -49,25 +49,25 @@ header_extended_decode:
   # field 8: number (u64 @ struct+64)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 64(s2)
   # field 9: gas_limit (u64 @ struct+80)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 80(s2)
   # field 10: gas_used (u64 @ struct+88)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 88(s2)
   # field 11: timestamp (u64 @ struct+72)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 72(s2)
   # fields 12..14: skip

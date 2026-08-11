@@ -70,7 +70,7 @@ def chainComputeMaxTimestampGapFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 11\n" ++
   "  la a3, ccmtg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lccmtg_propagate\n" ++
   "  la t0, ccmtg_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -87,7 +87,7 @@ def chainComputeMaxTimestampGapFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 11\n" ++
   "  la a3, ccmtg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lccmtg_propagate\n" ++
   "  la t0, ccmtg_field;       ld t3, 0(t0)\n" ++
   "  la t0, ccmtg_iter_prev;   ld t4, 0(t0)\n" ++
@@ -138,7 +138,8 @@ def ziskChainComputeMaxTimestampGapPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmtg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxTimestampGapFunction ++ "\n" ++
   ".Lccmtg_pdone:"
 
@@ -210,7 +211,7 @@ def chainComputeMinTimestampGapFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 11\n" ++
   "  la a3, ccmintg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lccmintg_propagate\n" ++
   "  la t0, ccmintg_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -227,7 +228,7 @@ def chainComputeMinTimestampGapFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 11\n" ++
   "  la a3, ccmintg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lccmintg_propagate\n" ++
   "  la t0, ccmintg_field;       ld t3, 0(t0)\n" ++
   "  la t0, ccmintg_iter_prev;   ld t4, 0(t0)\n" ++
@@ -281,7 +282,8 @@ def ziskChainComputeMinTimestampGapPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmintg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinTimestampGapFunction ++ "\n" ++
   ".Lccmintg_pdone:"
 

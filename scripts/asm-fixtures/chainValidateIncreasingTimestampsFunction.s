@@ -13,7 +13,7 @@ chain_validate_increasing_timestamps:
   mv a0, s2
   li a2, 11
   la a3, cvit_ts
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvit_propagate
   la t0, cvit_ts; ld s5, 0(t0)
   # Walk: parent_ptr = headers[0]; for i in [0, N-1): parent=headers[i], child=headers[i+1]
@@ -31,7 +31,7 @@ chain_validate_increasing_timestamps:
   mv a0, t1
   li a2, 11
   la a3, cvit_ts
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvit_propagate
   la t0, cvit_ts;          ld t3, 0(t0)
   la t0, cvit_iter_prev;   ld t4, 0(t0)

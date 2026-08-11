@@ -13,7 +13,7 @@
     K233  header_extract_number           (field 8,  Uint projected to u64)
 
   All six functions are thin wrappers around `rlp_list_nth_item`
-  + `rlp_field_to_u64` (or a small byte-level body), depending
+  + `rlp_field_to_u64_strict` (or a small byte-level body), depending
   only on `Programs/Tx.lean` for the shared RLP helpers.
 
   No proofs yet -- these are codegen `String` defs only.
@@ -445,8 +445,8 @@ def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
 /-! ## header_extract_number -- PR-K233
 
     Extract `block.number` (field 8, reference `Uint`, projected to u64 BE)
-    from a header RLP.  `Uint` is intentionally routed through lenient K34;
-    the caller's width assumption is recorded by HeaderExtractNumberBridge.
+    from a header RLP. Canonicality is checked by strict K34; the caller's
+    separate width assumption is recorded by HeaderExtractNumberBridge.
     Cross-fork — every header has a number.
 
     Calling convention:
@@ -463,7 +463,7 @@ def headerExtractNumber_prog : Program :=
     .SD .x2 .x1 (0 : BitVec 12),
     .MV .x13 .x12,
     .LI .x12 (8 : Word),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.header_extract_number + 16)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.header_extract_number + 16)),
     .LD .x1 .x2 (0 : BitVec 12),
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
@@ -472,7 +472,7 @@ def headerExtractNumber_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractNumber_relocs : RelocTable :=
-  [ (4, .jal .x1 "rlp_field_to_u64") ]
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def headerExtractNumberFunction : String :=
   "header_extract_number:\n" ++ emitProgramR headerExtractNumber_prog headerExtractNumber_relocs
@@ -498,7 +498,8 @@ def ziskHeaderExtractNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhenu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   ".Lhenu_pdone:"
 
@@ -554,7 +555,7 @@ def chainComputeMaxGasUsedFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 10\n" ++
   "  la a3, ccmgu_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmgu_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -597,7 +598,8 @@ def ziskChainComputeMaxGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmgu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxGasUsedFunction ++ "\n" ++
   ".Lccmgu_pdone:"
 

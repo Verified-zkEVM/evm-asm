@@ -10,7 +10,7 @@
     K230  chain_validate_consecutive_numbers
     K240  chain_validate_gas_used_under_limit
 
-  Compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64` from
+  Compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64_strict` from
   `RlpRead.lean` + `Tx.lean`. `ChainValidate.lean` imports both.
 
   No proofs yet -- these are codegen `String` defs only.
@@ -44,7 +44,8 @@ def ziskChainValidateIncreasingTimestampsPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvit_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateIncreasingTimestampsFunction ++ "\n" ++
   ".Lcvit_pdone:"
 
@@ -117,7 +118,7 @@ def chainValidateConsecutiveNumbers_prog : Program :=
     .LI .x12 (8 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 84)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 84)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_consecutive_numbers + 92)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_consecutive_numbers + 92)),
     .BNE .x10 .x0 (216 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 100)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 100)),
@@ -142,7 +143,7 @@ def chainValidateConsecutiveNumbers_prog : Program :=
     .LI .x12 (8 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 184)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 184)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_consecutive_numbers + 192)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_consecutive_numbers + 192)),
     .BNE .x10 .x0 (116 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 200)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvcn_num (GuestAddrs.chain_validate_consecutive_numbers + 200)),
@@ -193,13 +194,13 @@ def chainValidateConsecutiveNumbers_prog : Program :=
     above carries the concrete guest-linked immediates for verification. -/
 def chainValidateConsecutiveNumbers_relocs : RelocTable :=
   [ (21, .la .x13 "cvcn_num"),
-    (23, .jal .x1 "rlp_field_to_u64"),
+    (23, .jal .x1 "rlp_field_to_u64_strict"),
     (25, .la .x5 "cvcn_num"),
     (32, .la .x5 "cvcn_iter_child"),
     (35, .la .x5 "cvcn_iter_i"),
     (38, .la .x5 "cvcn_iter_prev"),
     (46, .la .x13 "cvcn_num"),
-    (48, .jal .x1 "rlp_field_to_u64"),
+    (48, .jal .x1 "rlp_field_to_u64_strict"),
     (50, .la .x5 "cvcn_num"),
     (53, .la .x5 "cvcn_iter_prev"),
     (58, .la .x5 "cvcn_iter_child"),
@@ -234,7 +235,8 @@ def ziskChainValidateConsecutiveNumbersPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvcn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateConsecutiveNumbersFunction ++ "\n" ++
   ".Lcvcn_pdone:"
 
@@ -315,7 +317,7 @@ def chainValidateGasUsedUnderLimit_prog : Program :=
     .LI .x12 (10 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 116)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvgul_gas_used (GuestAddrs.chain_validate_gas_used_under_limit + 116)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_gas_used_under_limit + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_gas_used_under_limit + 124)),
     .BNE .x10 .x0 (156 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 132)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 132)),
@@ -330,7 +332,7 @@ def chainValidateGasUsedUnderLimit_prog : Program :=
     .LI .x12 (9 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 176)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvgul_gas_limit (GuestAddrs.chain_validate_gas_used_under_limit + 176)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_gas_used_under_limit + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_gas_used_under_limit + 184)),
     .BNE .x10 .x0 (96 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 192)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvgul_iter_ptr (GuestAddrs.chain_validate_gas_used_under_limit + 192)),
@@ -375,11 +377,11 @@ def chainValidateGasUsedUnderLimit_relocs : RelocTable :=
   [ (18, .la .x5 "cvgul_iter_ptr"),
     (21, .la .x5 "cvgul_iter_i"),
     (29, .la .x13 "cvgul_gas_used"),
-    (31, .jal .x1 "rlp_field_to_u64"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
     (33, .la .x5 "cvgul_iter_ptr"),
     (36, .la .x5 "cvgul_iter_i"),
     (44, .la .x13 "cvgul_gas_limit"),
-    (46, .jal .x1 "rlp_field_to_u64"),
+    (46, .jal .x1 "rlp_field_to_u64_strict"),
     (48, .la .x5 "cvgul_iter_ptr"),
     (51, .la .x5 "cvgul_iter_i"),
     (54, .la .x5 "cvgul_gas_used"),
@@ -412,7 +414,8 @@ def ziskChainValidateGasUsedUnderLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvgul_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateGasUsedUnderLimitFunction ++ "\n" ++
   ".Lcvgul_pdone:"
 
@@ -596,7 +599,7 @@ def chainValidateConstantGasLimitFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvcgl_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvcgl_propagate\n" ++
   "  la t0, cvcgl_field; ld s5, 0(t0)\n" ++
   "  # Walk: child_ptr = headers[1]; i = 1\n" ++
@@ -613,7 +616,7 @@ def chainValidateConstantGasLimitFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvcgl_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvcgl_propagate\n" ++
   "  la t0, cvcgl_field; ld t3, 0(t0)\n" ++
   "  bne t3, s5, .Lcvcgl_pred_false\n" ++
@@ -658,7 +661,8 @@ def ziskChainValidateConstantGasLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvcgl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateConstantGasLimitFunction ++ "\n" ++
   ".Lcvcgl_pdone:"
 
@@ -981,7 +985,7 @@ def chainValidateGasLimitNonDecreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvglnd_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvglnd_propagate\n" ++
   "  la t0, cvglnd_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -998,7 +1002,7 @@ def chainValidateGasLimitNonDecreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvglnd_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvglnd_propagate\n" ++
   "  la t0, cvglnd_field;        ld t3, 0(t0)\n" ++
   "  la t0, cvglnd_iter_prev;    ld t4, 0(t0)\n" ++
@@ -1045,7 +1049,8 @@ def ziskChainValidateGasLimitNonDecreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvglnd_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateGasLimitNonDecreasingFunction ++ "\n" ++
   ".Lcvglnd_pdone:"
 
@@ -1109,7 +1114,7 @@ def chainValidateGasLimitNonIncreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvglni_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvglni_propagate\n" ++
   "  la t0, cvglni_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -1126,7 +1131,7 @@ def chainValidateGasLimitNonIncreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 9\n" ++
   "  la a3, cvglni_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvglni_propagate\n" ++
   "  la t0, cvglni_field;        ld t3, 0(t0)\n" ++
   "  la t0, cvglni_iter_prev;    ld t4, 0(t0)\n" ++
@@ -1173,7 +1178,8 @@ def ziskChainValidateGasLimitNonIncreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvglni_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateGasLimitNonIncreasingFunction ++ "\n" ++
   ".Lcvglni_pdone:"
 
