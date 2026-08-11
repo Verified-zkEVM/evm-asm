@@ -671,14 +671,23 @@ theorem rlpItemDecodeBridgesOn_of_accepts {accept : Nat → Word → Word → Pr
     | `rlp_walk_next` (entry) | 52 B | none |
     | `rlp_walk_next_nested` | 4 B | none |
     | `rlp_walk_next_shared` (the recursive validator) | 208 B | none |
+    | `rlp_validate_payload` (the descent added by #11776) | 92 B | none |
     | `rlp_walk_next_core` (one item) | 412 B | `rlp_walk_next_prog`, 103 instrs |
 
     (sizes from `docs/4ch8f-guest-image-coverage.md:114-118`; the core's 103 × 4 = 412 B
     is what `rlpWalkNextCoreFunction_eq_verified_prog` (`RlpWalk.lean:264`) pins, and that
     theorem's own docstring calls the wrapper *"intentionally codegen-specific"*).
 
-    So the 264 bytes that do the recursing have no model, and the 412 that do have one
-    validate a single item — the half that was never in question.
+    So **356 of 768 bytes** have no model, and the 412 that do have one validate a single
+    item — the half that was never in question.
+
+    ⚠️ An earlier revision of this table listed four symbols and 264 bytes: it omitted
+    `rlp_validate_payload` (`:117`), which sits inside the very line range the citation
+    names. The omission mattered more than the arithmetic — that symbol is the descent
+    #11776 *added*, i.e. the single most load-bearing unmodelled piece, and leaving it out
+    made the gap look like plumbing around a validator rather than the validator itself.
+    Corrected here rather than only on the issue, since a merged docstring is what a later
+    reader cites.
 
     ⇒ The exact behaviour #11795 needs — recursive payload validation, exact cursor-to-end
     exhaustion, status 7 on nested-malformed interiors — is the behaviour that is NOT in
