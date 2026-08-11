@@ -47,10 +47,12 @@
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
+import EvmAsm.Stateless.SpecRef.WitnessState
 
 namespace EvmAsm.Codegen.AccountDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
+open EvmAsm.Stateless.SpecRef
 
 /-! ## Code layout -/
 
@@ -431,6 +433,41 @@ def adEmptyCodeHashBytes : List (BitVec 8) :=
     0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 ]
 
 theorem adEmptyCodeHashBytes_length : adEmptyCodeHashBytes.length = 32 := by decide
+
+/-! The concrete `keccak256 []` reduction is deliberately split from the
+    sentinel theorem below.  Unfolding the 24-round Keccak permutation directly
+    at each use exhausts the default recursion depth; the one-block absorption
+    and the existing accelerator KAT keep that cost contained in one lemma. -/
+
+private theorem adEmptyCodeHash_absorb_block :
+    keccakAbsorbBlock (List.replicate 25 (0 : BitVec 64)) (keccakPad []) =
+      [1#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64,
+       0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0x8000000000000000#64,
+       0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64] := by
+  decide
+
+private theorem adEmptyCodeHash_keccak_empty :
+    keccak256 [] =
+      ((Accel.keccakF (List.ofFn (n := 25) (fun j =>
+        if j.val = 0 then 0x0000000000000001
+        else if j.val = 16 then 0x8000000000000000
+        else 0))).take 4).flatMap (fun lane => natToBytesLE 8 lane.toNat) := by
+  have hchunks : chunkBytes 136 (keccakPad []) = [keccakPad []] := by
+    simp [chunkBytes, chunkBytesAux, keccakPad, keccakRateBytes]
+  have hchunks' : chunkBytes keccakRateBytes (keccakPad []) = [keccakPad []] := by
+    simpa [keccakRateBytes] using hchunks
+  unfold keccak256
+  rw [hchunks']
+  simp only [keccakAbsorb]
+  rw [adEmptyCodeHash_absorb_block]
+  congr 2
+
+/-- The baked-in code-hash sentinel is the SpecRef `EMPTY_CODE_HASH` value. -/
+theorem adEmptyCodeHashBytes_eq_spec :
+    adEmptyCodeHashBytes = EMPTY_CODE_HASH := by
+  rw [show EMPTY_CODE_HASH = keccak256 [] from rfl,
+    adEmptyCodeHash_keccak_empty, Accel.keccakF_kat_empty]
+  decide
 
 /-- A hash output cell: the 32 copied content bytes, or the fold constant when
     the field was zero-length.  `fixed32Copied` cannot express the folded case

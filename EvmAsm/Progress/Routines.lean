@@ -769,10 +769,17 @@ private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
 -- baked asm literals -- so a typo in one typechecked everywhere and produced a wrong state
 -- root. These are the ties. Gated deliberately: the value of a drift pin is that CI
 -- rechecks it, and a pin outside the gate is a comment.
+-- #11517 (template pair): the account-leaf sentinels. `EMPTY_CODE_HASH` now has a
+-- kernel-checked SpecRef tie through the split Keccak proof; the trie-root copy remains a
+-- numeral drift pin because its distinct `keccak256 [0x80]` KAT would need a separately
+-- justified intrinsic-depth theorem. The pins stay gated so CI rechecks the remaining
+-- literal correspondence.
 private noncomputable abbrev _ad_empty_trie_root_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
 private noncomputable abbrev _ad_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
+private noncomputable abbrev _ad_empty_code_hash_spec_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
 private noncomputable abbrev _aie_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
 private noncomputable abbrev _ad_empty_code_hash_eq_aie_witness :=
