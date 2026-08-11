@@ -8,3 +8,4 @@
 # names the entry to delete. Inertness claims live here, where they are
 # re-checked every run — not in docstrings, where they rot (#11258).
 secf_add_mod_n	probe-only PC placeholder, unlinked from guest (Secp256k1Field.lean:26 says so); the k1 scalar-field add is exercised via the recover chain, not this standalone entry
+bal_account_code_at_or_before	standalone residual-probe helper retained inside retired bal_code_preimages_valid (BalCodePreimages.lean:20-25); only its MANIFEST fixture exercises it, while the guest links accountStateDelegationCodeResolveFunction
