@@ -1397,6 +1397,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12134: pre-existing proved Program (fa1a1cf40) registered into MANIFEST/
+    # GuestImageEntries. Source is hand-written with 0xNN Word literals and a
+    # core-side drift guard (`rlpItemSize_prog_eq_verified_prog`); not a paste
+    # of gen_lean's decimal form. Legs (a)/(c) still assemble-check the fixture.
+    'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
