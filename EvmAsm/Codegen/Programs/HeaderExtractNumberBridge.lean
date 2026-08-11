@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 
-  Model tie for #11351: from the lenient `rlp_field_to_u64` `Result` at field index 8,
+  Model tie for #11351: from the strict `rlp_field_to_u64_strict` `Result` at field index 8,
   read off the value the model's `_decode_header` assigns to `number`.
 
   The machine side is `HeaderExtractNumberSpec.header_extract_number_spec_within`;
@@ -32,10 +32,25 @@ import EvmAsm.Stateless.SpecRef.Stateless
 namespace EvmAsm.Codegen.HeaderExtractNumberSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 open EvmAsm.Codegen.RlpListNthItemSAsm
 
-/-- **The value tie.**  Under the explicit width assumption, the lenient guest
+private theorem getByteAt_eq_headD_local (srcBytes : List (BitVec 8)) (srcOff len : Nat)
+    (hpos : 0 < len) (hs : srcOff + len ≤ srcBytes.length) :
+    (getByteAt srcBytes srcOff = 0) ↔
+      (((srcBytes.drop srcOff).take len).headD 1 = 0) := by
+  have hlt : srcOff < srcBytes.length := by omega
+  have hd : (srcBytes.drop srcOff).take len =
+      srcBytes[srcOff]'hlt :: ((srcBytes.drop (srcOff + 1)).take (len - 1)) := by
+    cases len with
+    | zero => omega
+    | succ k =>
+      rw [List.drop_eq_getElem_cons hlt, List.take_succ_cons]
+      simp
+  rw [hd, getByteAt]
+  simp [hlt]
+
+/-- **The value tie.**  Under the explicit width assumption and canonical input, the strict guest
     reports success and its output is the big-endian decode of the field
     content — which is exactly what `bytesBEtoNat` computes on the port side. -/
 theorem result_value_of_success
@@ -47,7 +62,8 @@ theorem result_value_of_success
     (hlen : len = BitVec.ofNat 64 p.length)
     (hplen : p.length < 2 ^ 64)
     (hcontent : (bytes.drop offset.toNat).take len.toNat = p)
-    (hshort : p.length ≤ 8) :
+    (hshort : p.length ≤ 8)
+    (hcanonical : p.headD 1 ≠ 0) :
     status = 0 ∧ value = BitVec.ofNat 64 (Nat.fromBytesBE p) := by
   have hlenNat : len.toNat = p.length := by
     rw [hlen, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hplen]
@@ -56,6 +72,21 @@ theorem result_value_of_success
   | tooLong o l hok hgt =>
       obtain ⟨-, rfl⟩ := success_deterministic hok hsucc
       omega
+  | noncanonical o l hok hpos hfit hzero =>
+      obtain ⟨ho, hl⟩ := success_deterministic hok hsucc
+      have hlenNat' : l.toNat = p.length := by
+        rw [hl, hlen, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hplen]
+      have hcontent' : (bytes.drop o.toNat).take l.toNat = p := by
+        simpa [ho, hl] using hcontent
+      have hshape := congrArg List.length hcontent'
+      simp [List.length_take, List.length_drop, hlenNat'] at hshape
+      have hbound : o.toNat + l.toNat ≤ bytes.length := by omega
+      have hne : getByteAt bytes o.toNat ≠ 0 := by
+        intro hz
+        have hz' := (getByteAt_eq_headD_local bytes o.toNat l.toNat hpos hbound).mp hz
+        rw [hcontent'] at hz'
+        exact hcanonical hz'
+      exact (hne hzero).elim
   | empty o l hok hempty =>
       obtain ⟨-, rfl⟩ := success_deterministic hok hsucc
       have hnil : p = [] := by
@@ -123,7 +154,7 @@ theorem header_number_of_decode
   obtain ⟨hst, hval⟩ :=
     result_value_of_success headerBytes base headerBytes.length status value offset
       (BitVec.ofNat 64 (bs.getD 8 []).length) (bs.getD 8 []) hover hres hsucc rfl
-      (by omega) (by rw [hlenNat]; exact hcont) hshort
+      (by omega) (by rw [hlenNat]; exact hcont) hshort hcanon1
   exact ⟨hst, by rw [hval, hnum]⟩
 
 end EvmAsm.Codegen.HeaderExtractNumberSpec

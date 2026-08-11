@@ -56,7 +56,7 @@
 
 import EvmAsm.Codegen.Programs.ChainValidateProgs
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
-import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
 
@@ -85,32 +85,32 @@ theorem cvit_length : cvitProg.length = 92 := by decide
 def cvitCode : CodeReq := CodeReq.ofProg D cvitProg
 
 /-- The full linked closure: the chain accessor plus the strict K34
-    `rlp_field_to_u64` wrapper and its transitive callees. -/
-def fullCode : CodeReq := cvitCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
+    `rlp_field_to_u64_strict` wrapper and its transitive callees. -/
+def fullCode : CodeReq := cvitCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
 theorem cvit_disjoint :
-    cvitCode.Disjoint EvmAsm.Codegen.RlpFieldToU64SAsm.code := by
-  unfold cvitCode EvmAsm.Codegen.RlpFieldToU64SAsm.code
-    EvmAsm.Codegen.RlpFieldToU64SAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64SAsm.contentCode
+    cvitCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
+  unfold cvitCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
   refine CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_)
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvit_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
-    · right; rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · left; rw [cvit_length]; decide
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvit_length]; decide
     · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
     · right; rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_code
+  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_code
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvit_length]; decide
-    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_prog_length]; decide
+    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
     · left; rw [cvit_length]; decide
 
 
 /-- K34's linked code is subsumed by the chain accessor's full closure. -/
 theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64SAsm.code a = some i → fullCode a = some i := by
+    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
   exact CodeReq.mono_union_right cvit_disjoint (fun _ _ h => h) a i hi
@@ -142,7 +142,7 @@ abbrev LinkRA : Word := D + 196
     0 (success), genuinely tied to K34's `Result` at header `i`'s base. -/
 def hdrTsOk (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (i : Nat) (value : Word) : Prop :=
-  EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
     (hdrBaseAt hdrBase lengths i) (lengths[i]!) 11 0 value
 
 /-- Adjacent pair `(i-1, i)` is strictly increasing: both headers decode field
@@ -165,7 +165,7 @@ def tsViolation (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Na
 def hdrBadParse (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (k : Nat) (status : Word) : Prop :=
   ∃ value,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths k))
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths k))
       (hdrBaseAt hdrBase lengths k) (lengths[k]!) 11 status value ∧ status ≠ 0
 
 /-! ## Frames -/
@@ -186,7 +186,7 @@ def scratchRegs (calleeNewSp : Word) : Assertion :=
   regOwn .x1 ** regOwn .x5 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8
 
 /-- Loop invariant at the guard (`D + 124`) entering iteration `i` (`1 ≤ i ≤ N`).
@@ -217,7 +217,7 @@ def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8 ** payload hdrBase lenBase bigBytes lengths
 
 /-- All adjacent pairs strictly increasing (or `N < 2`): `a0 = 0`,

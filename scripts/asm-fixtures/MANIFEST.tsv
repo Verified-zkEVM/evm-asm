@@ -278,6 +278,11 @@ rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListTruncateToNFieldsFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
+rlpValidatePayloadFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpWalkNextCoreFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpWalkNextEntryFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpWalkNextNestedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpWalkNextSharedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean
 runningBloomZeroFunction	EvmAsm/Codegen/Programs/Bloom.lean
 runtimeSameBlockDelegationCodeFunction	EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean

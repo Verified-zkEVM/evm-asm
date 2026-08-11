@@ -16,7 +16,7 @@ chain_validate_gas_used_under_limit:
   ld a1, 0(t3)
   mv a0, s2; li a2, 10
   la a3, cvgul_gas_used
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvgul_propagate
   la t0, cvgul_iter_ptr; ld s2, 0(t0)
   la t0, cvgul_iter_i;   ld s5, 0(t0)
@@ -25,7 +25,7 @@ chain_validate_gas_used_under_limit:
   ld a1, 0(t3)
   mv a0, s2; li a2, 9
   la a3, cvgul_gas_limit
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvgul_propagate
   la t0, cvgul_iter_ptr; ld s2, 0(t0)
   la t0, cvgul_iter_i;   ld s5, 0(t0)

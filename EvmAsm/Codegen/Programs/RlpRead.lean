@@ -18,6 +18,10 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
+-- #10780: the core-side copy of `rlpItemSize_prog` that the long-form length-loop
+-- lemmas are stated over. Core may not import `Codegen`, so the loop proof cannot
+-- reach the definition below; the drift guard beneath it is what keeps the two honest.
+import EvmAsm.Rv64.RLP.ItemSizeLenLoop
 
 namespace EvmAsm.Codegen
 
@@ -766,6 +770,26 @@ theorem rlpItemSizeFunction_eq_prog :
 
 #guard rlpItemSizeFunction.startsWith "rlp_item_size:\n"
 #guard rlpItemSize_prog.length = 35
+
+/-- ⭐ **Kernel-checked drift guard for the core-side copy** (#10780).
+
+    `rlp_item_size`'s long-form length loop is proved in `Rv64/RLP/ItemSizeLenLoop.lean`,
+    which is verified **core** — and `scripts/check-layering.sh` L1 forbids core importing
+    `Codegen`, so that proof cannot be stated over the definition above. It therefore
+    carries its own copy of the 35 instructions, exactly as `rlp_walk_init_prog` does
+    (declared core-side in `WalkInit.lean`, emitted from here).
+
+    ⚠️ A duplicated program with nothing tying the copies together is a silent-drift
+    surface: edit one and every proof still closes, against the wrong machine. This `rfl`
+    is that tie, and it is the same role `rlpWalkNextCoreFunction_eq_verified_prog` plays
+    for the walker's emitted core.
+
+    The tidier end state is for this definition to *be* the core one (as `rlp_walk_init`
+    manages, having no Codegen-side copy at all). That is a rename touching every
+    consumer of `rlpItemSize_prog`, so it is left as follow-up — but it must not be left
+    without this guard in the meantime. -/
+theorem rlpItemSize_prog_eq_verified_prog :
+    rlpItemSize_prog = EvmAsm.Rv64.RLP.rlp_item_size_prog := rfl
 
 /-- `rlp_item_span`: a0 = list ptr, a1 = list len, a2 = item index i,
     a3 = out_start_ptr (u64, item start offset incl. its prefix, relative to

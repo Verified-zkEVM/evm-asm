@@ -276,28 +276,28 @@ def validateHeaderPairFunction : String :=
   "  # ---- (2/3/4) Extract parent number/timestamp/gas_limit ----\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
   "  la a3, vhp_parent_number\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_parent_field_fail\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 11\n" ++
   "  la a3, vhp_parent_timestamp\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_parent_field_fail\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 9\n" ++
   "  la a3, vhp_parent_gas_limit\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_parent_field_fail\n" ++
   "  # ---- Extract child number/timestamp/gas_limit ----\n" ++
   "  mv a0, s2; mv a1, s3; li a2, 8\n" ++
   "  la a3, vhp_child_number\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_child_field_fail\n" ++
   "  mv a0, s2; mv a1, s3; li a2, 11\n" ++
   "  la a3, vhp_child_timestamp\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_child_field_fail\n" ++
   "  mv a0, s2; mv a1, s3; li a2, 9\n" ++
   "  la a3, vhp_child_gas_limit\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lvhp_child_field_fail\n" ++
   "  # (2) child.number == parent.number + 1\n" ++
   "  la t0, vhp_parent_number; ld t1, 0(t0)\n" ++
@@ -359,7 +359,8 @@ def ziskValidateHeaderPairPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lvhp_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
@@ -527,7 +528,8 @@ def ziskValidateHeaderChainPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lvhc_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
@@ -712,7 +714,8 @@ def ziskBlockHashArrayFromChainPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbhac_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
@@ -902,7 +905,8 @@ def ziskValidateBlockHashChainMatchPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lvbhcm_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
