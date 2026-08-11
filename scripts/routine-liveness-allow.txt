@@ -9,3 +9,4 @@
 # re-checked every run — not in docstrings, where they rot (#11258).
 secf_add_mod_n	probe-only PC placeholder, unlinked from guest (Secp256k1Field.lean:26 says so); the k1 scalar-field add is exercised via the recover chain, not this standalone entry
 bal_serializer_filter_reads	probe/selftest-only, deliberately not jal'd from the guest (Codegen/Programs/BlockAccessListBuilder.lean:745); absence from the emitted builder is guarded at :1077 and its standalone MANIFEST fixture is the only exercise
+bal_account_nonce_before_index	standalone BAL nonce-before-index probe retained by TxIntrinsicStateGas.lean:50 and its MANIFEST fixture; production nonce resolution uses account_writes_latest_nonce_tx/block (AccountWriteMap.lean:359-412) after the state-gas path migration, so this legacy helper is intentionally unlinked
