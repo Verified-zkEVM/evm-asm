@@ -747,17 +747,17 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
 -- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
 -- gated. No registry row changes: this is a side condition, not a routine triple.
--- #11517 (template pair): the account-leaf sentinels. `EMPTY_CODE_HASH` now has a
--- kernel-checked SpecRef tie through the split Keccak proof; the trie-root copy remains a
--- numeral drift pin because its distinct `keccak256 [0x80]` KAT would need a separately
--- justified intrinsic-depth theorem. The pins stay gated so CI rechecks the remaining
--- literal correspondence.
+-- #11517 (template pair): the account-leaf sentinels. Both `EMPTY_CODE_HASH` and
+-- `EMPTY_TRIE_ROOT` now have kernel-checked SpecRef ties through split Keccak proofs.
+-- The literal pins remain gated so CI also rechecks their byte values.
 private noncomputable abbrev _ad_empty_trie_root_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
 private noncomputable abbrev _ad_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
 private noncomputable abbrev _ad_empty_code_hash_spec_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
+private noncomputable abbrev _ad_empty_trie_root_spec_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_eq_spec
 private noncomputable abbrev _aie_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
 private noncomputable abbrev _ad_empty_code_hash_eq_aie_witness :=

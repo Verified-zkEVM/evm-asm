@@ -7,9 +7,8 @@
   #11517 asks for one of three outcomes per pairing — a correspondence theorem, a
   documented pairing with a stated gap, or a divergence — and names this pair as the one
   to start with, *"because the answer is already known and it establishes the template"*.
-  This module delivers a **kernel correspondence for the code-hash sentinel** and a
-  **numeral drift pin for the trie-root sentinel**, plus a **documented gap with a named
-  blocker** for the field contents (outcome 2). No divergence was found; the one that
+  This module delivers **kernel correspondences for both empty sentinels**, plus a
+  **documented gap with a named blocker** for the field contents (outcome 2). No divergence was found; the one that
   motivated #11517 (#11516) is already repaired.
 
   ## ⭐ What was actually unpinned: the constants, in triplicate
@@ -30,14 +29,12 @@
   `adEmptyCodeHashBytes = EMPTY_CODE_HASH` is now a genuine kernel-checked theorem.
   Its proof isolates the concrete one-block absorption and consumes the pre-existing
   `Accel.keccakF_kat_empty`; the new lemmas add no recursion-depth or heartbeat option.
-  The KAT's existing `maxRecDepth 8000` is documented in `ZiskAccel.lean` as the
-  intrinsic evaluation depth of its 24 rounds.
+  The KAT now evaluates two concrete 12-round chunks under the default recursion
+  limit; no raised limit is part of this correspondence.
 
-  `adEmptyTrieRootBytes = EMPTY_TRIE_ROOT` remains a numeral pin.  Its input is
-  `keccak256 [0x80]`, which needs a different 24-round KAT; a direct concrete proof
-  exhausts the default recursion depth, and this change deliberately adds no new limit
-  raise. Thus the trie-root half stays an honest drift gate until an independently
-  justified intrinsic-depth KAT exists, while the code-hash half is proved to be keccak.
+  The trie-root sentinel now uses the same split-round route with a dedicated
+  keccakF_kat_rlp_empty for the 0x80 RLP input. Neither sentinel correspondence adds
+  a recursion-depth or heartbeat override.
 
   ## The fold, and where the pairing bottoms out
 
@@ -67,10 +64,9 @@ open EvmAsm.Stateless.SpecRef (bytesBEtoNat)
 
 /-! ## The sentinel pins
 
-    The literal-value pins are `decide`-checked 32-byte big-endian folds, which the
-    kernel's GMP-backed `Nat` handles directly. The numerals are the ones
-    `WitnessState.lean:41-46` checks `EMPTY_CODE_HASH` and `EMPTY_TRIE_ROOT` against;
-    the code-hash copy additionally has the direct Keccak theorem above. -/
+    The literal-value pins are decide-checked 32-byte big-endian folds, which the
+    kernel's GMP-backed Nat handles directly. Both copies additionally have direct
+    Keccak correspondences through the split KATs in ZiskAccel.lean. -/
 
 /-- `adEmptyTrieRootBytes` is `keccak256(rlp(""))`, pinned through the numeral SpecRef's
     `#guard` uses for `EMPTY_TRIE_ROOT`. -/
@@ -90,6 +86,11 @@ theorem adEmptyCodeHashBytes_value :
 theorem adEmptyCodeHashBytes_eq_spec :
     adEmptyCodeHashBytes = EvmAsm.Stateless.SpecRef.EMPTY_CODE_HASH := by
   exact EvmAsm.Codegen.AccountDecodeSpec.adEmptyCodeHashBytes_eq_spec
+
+/-- The account-decoder trie-root sentinel is the SpecRef EMPTY_TRIE_ROOT value. -/
+theorem adEmptyTrieRootBytes_eq_spec :
+    adEmptyTrieRootBytes = EvmAsm.Stateless.SpecRef.EMPTY_TRIE_ROOT := by
+  exact EvmAsm.Codegen.AccountDecodeSpec.adEmptyTrieRootBytes_eq_spec
 
 /-- The `account_is_eip161_empty` copy is pinned to the same numeral. -/
 theorem aieEmptyCodeHashBytes_value :

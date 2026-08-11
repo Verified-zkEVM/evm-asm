@@ -109,6 +109,23 @@ def keccakRound (rc : BitVec 64) (st : List (BitVec 64)) : List (BitVec 64) :=
 def keccakF (st : List (BitVec 64)) : List (BitVec 64) :=
   keccakRC.foldl (fun s rc => keccakRound rc s) st
 
+/-! A named round-list runner lets concrete KATs be checked in bounded chunks.
+    The permutation itself remains the 24-round `keccakF`; this is only a
+    proof-evaluation seam, avoiding one monolithic kernel reduction. -/
+def keccakRounds (rcs : List (BitVec 64)) (st : List (BitVec 64)) : List (BitVec 64) :=
+  rcs.foldl (fun s rc => keccakRound rc s) st
+
+theorem keccakF_eq_keccakRounds_split (st : List (BitVec 64)) :
+    keccakF st =
+      keccakRounds (List.drop 12 keccakRC) (keccakRounds (List.take 12 keccakRC) st) := by
+  calc
+    keccakF st = keccakRounds (List.take 12 keccakRC ++ List.drop 12 keccakRC) st := by
+      unfold keccakF keccakRounds
+      rw [List.take_append_drop]
+    _ = keccakRounds (List.drop 12 keccakRC) (keccakRounds (List.take 12 keccakRC) st) := by
+      unfold keccakRounds
+      rw [List.foldl_append]
+
 /-- Each round materializes exactly the 25 lanes (`List.ofFn`), whatever
     the input length. -/
 theorem keccakRound_length (rc : BitVec 64) (st : List (BitVec 64)) :
@@ -132,25 +149,79 @@ theorem keccakF_length (st : List (BitVec 64)) : (keccakF st).length = 25 := by
   rw [hrc, List.foldl_cons]
   exact aux rest _ (keccakRound_length rc st)
 
-set_option maxRecDepth 8000 in
 /-- Known-answer test, kernel-checked: absorbing the padded empty message
     into a zero state (rate 1088: `st[0] ^= 0x01`, `st[16] ^= 0x80 << 56`)
     and permuting yields `keccak256("") =
     c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`
     in the first four LE lanes.
 
-    The `maxRecDepth` bump is NOT proof-search scaling: `decide` here is
-    concrete evaluation, and the recursion depth is the intrinsic
-    evaluation depth of 24 chained rounds (each round's lanes read the
-    previous round's materialized list), not a symptom of a mis-stated
-    goal. -/
+    The proof evaluates two concrete 12-round chunks separately, so no
+    recursion-depth override is needed: each round reads the previous
+    materialized list, but the default limit handles each half. -/
 theorem keccakF_kat_empty :
     (keccakF (List.ofFn (n := 25) (fun j =>
       if j.val = 0 then 0x0000000000000001
       else if j.val = 16 then 0x8000000000000000
       else 0))).take 4
     = [0x3C23F7860146D2C5, 0xC003C7DCB27D7E92,
-       0x3B2782CA53B600E5, 0x70A4855D04D8FA7B] := by decide
+       0x3B2782CA53B600E5, 0x70A4855D04D8FA7B] := by
+  let input : List (BitVec 64) := List.ofFn (n := 25) (fun j =>
+    if j.val = 0 then 0x0000000000000001
+    else if j.val = 16 then 0x8000000000000000
+    else 0)
+  let mid : List (BitVec 64) :=
+    [0xe215d0d659163823, 0x8683974493a469b1, 0xf64f37f10bf45b28,
+     0xfdee927ea471df68, 0x500c7269f3ee0799, 0x45d78ea405a3a964,
+     0x03557220b429a4d3, 0x3195deb85a7107ab, 0x3d502ddda7398a8d,
+     0xc2febbf32d430d7b, 0x917923e1a60bf1be, 0xc22dd9cf3e60efbe,
+     0x21ce54a25b74d00d, 0x9868de16a584c50e, 0xa62d01cd00859e89,
+     0xd1c3d4f6f08da26f, 0xb0be6294f4d17ace, 0x69da1afce162547d,
+     0x03c8a7b614f3cab7, 0xc5b26f28bfdb70e2, 0x795ad43d7a4beaea,
+     0x9d9bba34ab9d1948, 0x7be76f07d92b7c83, 0x1528c0dc1cce7e4e,
+     0x2831a3bf7aeeb33e]
+  have hmid : keccakRounds (List.take 12 keccakRC) input = mid := by decide
+  have htail :
+      (keccakRounds (List.drop 12 keccakRC) mid).take 4 =
+        [0x3c23f7860146d2c5, 0xc003c7dcb27d7e92, 0x3b2782ca53b600e5,
+         0x70a4855d04d8fa7b] := by decide
+  rw [keccakF_eq_keccakRounds_split]
+  change (keccakRounds (List.drop 12 keccakRC)
+      (keccakRounds (List.take 12 keccakRC) input)).take 4 = _
+  rw [hmid, htail]
+
+/-! The same split evaluation for the RLP encoding of an empty byte string.
+    `keccakPad [0x80]` absorbs lane 0 as `0x0180`: `0x80` is the RLP byte and
+    `0x01` is Keccak's domain suffix. -/
+theorem keccakF_kat_rlp_empty :
+    (keccakF (List.ofFn (n := 25) (fun j =>
+      if j.val = 0 then 0x0000000000000180
+      else if j.val = 16 then 0x8000000000000000
+      else 0))).take 4
+    = [0xa655cc1b171fe856, 0x6ef8c092e64583ff,
+       0xc0ad6c991be0485b, 0x21b463e3b52f6201] := by
+  let input : List (BitVec 64) := List.ofFn (n := 25) (fun j =>
+    if j.val = 0 then 0x0000000000000180
+    else if j.val = 16 then 0x8000000000000000
+    else 0)
+  let mid : List (BitVec 64) :=
+    [0x9274d3ed9e5067fb, 0xc5e372db6f26d7f6, 0x1cf2f4de22080ca5,
+     0x760f767a4525ee2f, 0x6b760d7168e341fd, 0xb59864c9d3bd788b,
+     0xa13c7bb52744135c, 0x289652e9c670511b, 0x0011c5a834fa332b,
+     0x25ce52eb3e8ee470, 0x7776b79a07f8a6bc, 0xc4a7399afd8d0c44,
+     0x9dddb4859b104d9e, 0xe478dfe2e639525b, 0x4797911ec008c55c,
+     0x51dd25b22fd158f5, 0x201a1d0e365113ea, 0x4e0a875bc60fee60,
+     0xb440a0f245401d65, 0xfd532878cb53a182, 0xe3c607cf61f32c54,
+     0xbe496f726be93b7e, 0xbfb57adc43cc2270, 0x2dc5913f0719f645,
+     0x2bd8f57b9f103185]
+  have hmid : keccakRounds (List.take 12 keccakRC) input = mid := by decide
+  have htail :
+      (keccakRounds (List.drop 12 keccakRC) mid).take 4 =
+        [0xa655cc1b171fe856, 0x6ef8c092e64583ff,
+         0xc0ad6c991be0485b, 0x21b463e3b52f6201] := by decide
+  rw [keccakF_eq_keccakRounds_split]
+  change (keccakRounds (List.drop 12 keccakRC)
+      (keccakRounds (List.take 12 keccakRC) input)).take 4 = _
+  rw [hmid, htail]
 
 -- ============================================================================
 -- SHA-256 compression
