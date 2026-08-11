@@ -6,7 +6,6 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
 
 namespace EvmAsm.Codegen
 
@@ -46,7 +45,6 @@ def blockVerdictGasGatePrelude : String :=
   "  la t2, bvgr_runtime_count; ld a4, 0(t2)\n" ++
   "  li a5, " ++ toString bvMtxFullTxCap ++ "\n" ++
   "  jal ra, block_verdict_gas_result_arena_prepare\n" ++
-  bvRuntimeCompletenessSetFromArenaStatus ++
   ""
 
 end EvmAsm.Codegen

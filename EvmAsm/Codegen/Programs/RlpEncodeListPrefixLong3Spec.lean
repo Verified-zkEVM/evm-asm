@@ -66,7 +66,6 @@ import EvmAsm.EL.RLP.Properties
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 

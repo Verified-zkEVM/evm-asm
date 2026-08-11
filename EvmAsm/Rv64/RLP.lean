@@ -143,6 +143,7 @@ import EvmAsm.Rv64.RLP.WalkItemDeterminism
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.Rv64.RLP.ItemDecodeForward
 import EvmAsm.Rv64.RLP.ItemSizeLenLoop
+import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Rv64.RLP.WithdrawalDecode
 import EvmAsm.Rv64.RLP.WithdrawalSchemaWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeFailureWP

@@ -17,7 +17,6 @@ import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen.MptNodeKindSpec
 
@@ -25,7 +24,12 @@ open EvmAsm.Evm64
 open EvmAsm.Rv64
 open EvmAsm.EL.RLP
 
-/-- Guest-faithful kind discriminator (arity-exact). -/
+/-- Guest-faithful kind discriminator (arity-exact).
+
+    Kept for coverRef / `#guard`s only. Result→`kindTag` under WF is
+    `MptNodeKindWire.mptNodeKindResult_eq_kindTag` (#12027) — that path does
+    **not** go through this def (the pure `mptNodeKindGuest_eq_kindTag` /
+    `mptNodeKindSpec_eq_guest_of_WF` bridges were deleted as unused supersedes). -/
 def mptNodeKindGuest (node : List (BitVec 8)) : Nat :=
   match decodeFully node with
   | some (.list items) =>
@@ -41,72 +45,6 @@ def mptNodeKindGuest (node : List (BitVec 8)) : Nat :=
           if hn < 2 then 1 else if hn < 4 then 2 else 3
       | _ => 3
   | _ => 3
-
-/-- Under `MptNode.WF`, guest kind equals the structural tag.
-
-    This is a pure well-formed-node bridge only.  The machine theorem
-    `mpt_node_kind_spec_within` posts the operational `MptNodeKindResult`, and
-    its current consumers carry that result through the walk dispatch; no
-    machine consumer currently invokes this theorem or derives `kindTag` from
-    the operational result.  Thus this declaration does not by itself wire
-    the machine classifier to the `MptNode`/SpecRef tag; a future wiring proof
-    must provide that Result-to-WF/decode bridge explicitly. -/
-theorem mptNodeKindGuest_eq_kindTag (n : MptNode) (hwf : n.WF) :
-    mptNodeKindGuest n.rlp = n.kindTag := by
-  have hdec := decodeFully_encode n.rlpItem (n.rlp_length_lt hwf)
-  unfold mptNodeKindGuest
-  rw [show n.rlp = encode n.rlpItem from rfl, hdec]
-  cases n with
-  | branch cs v =>
-    obtain ⟨hcs, -, -⟩ := hwf
-    show (if (cs.map RLPItem.bytes ++ [RLPItem.bytes v]).length = 17 then (0 : Nat)
-      else _) = 0
-    rw [if_pos (by simp [hcs])]
-  | leaf p v =>
-    obtain ⟨hp, -, -⟩ := hwf
-    obtain ⟨b0, tl, heq, hdiv⟩ := hpEncodeAux_head_div 2 (by omega) p hp
-    show (if ([RLPItem.bytes (hpEncode true p), RLPItem.bytes v]).length = 17
-        then (0 : Nat)
-      else if ([RLPItem.bytes (hpEncode true p), RLPItem.bytes v]).length ≠ 2 then 3
-      else match hpEncode true p with
-        | [] => 3
-        | b0 :: _ =>
-          if b0.toNat / 16 < 2 then 1 else if b0.toNat / 16 < 4 then 2 else 3) = 2
-    have hne17 : ¬ ([RLPItem.bytes (hpEncode true p), RLPItem.bytes v]).length = 17 := by
-      simp
-    have heq2 : ([RLPItem.bytes (hpEncode true p), RLPItem.bytes v]).length = 2 := by
-      simp
-    rw [if_neg hne17, if_neg (by simp [heq2])]
-    rw [show hpEncode true p = hpEncodeAux 2 p from rfl, heq]
-    show (if b0.toNat / 16 < 2 then (1 : Nat)
-      else if b0.toNat / 16 < 4 then 2 else 3) = 2
-    have hmod2 : p.length % 2 < 2 := Nat.mod_lt _ (by decide)
-    rw [if_neg (by omega), if_pos (by omega)]
-  | extension p c =>
-    obtain ⟨hp, -, -⟩ := hwf
-    obtain ⟨b0, tl, heq, hdiv⟩ := hpEncodeAux_head_div 0 (by omega) p hp
-    show (if ([RLPItem.bytes (hpEncode false p), RLPItem.bytes c]).length = 17
-        then (0 : Nat)
-      else if ([RLPItem.bytes (hpEncode false p), RLPItem.bytes c]).length ≠ 2 then 3
-      else match hpEncode false p with
-        | [] => 3
-        | b0 :: _ =>
-          if b0.toNat / 16 < 2 then 1 else if b0.toNat / 16 < 4 then 2 else 3) = 1
-    have hne17 : ¬ ([RLPItem.bytes (hpEncode false p), RLPItem.bytes c]).length = 17 := by
-      simp
-    have heq2 : ([RLPItem.bytes (hpEncode false p), RLPItem.bytes c]).length = 2 := by
-      simp
-    rw [if_neg hne17, if_neg (by simp [heq2])]
-    rw [show hpEncode false p = hpEncodeAux 0 p from rfl, heq]
-    show (if b0.toNat / 16 < 2 then (1 : Nat)
-      else if b0.toNat / 16 < 4 then 2 else 3) = 1
-    have hmod2 : p.length % 2 < 2 := Nat.mod_lt _ (by decide)
-    rw [if_pos (by omega)]
-
-/-- Pure `mptNodeKindSpec` agrees with guest on every well-formed node. -/
-theorem mptNodeKindSpec_eq_guest_of_WF (n : MptNode) (hwf : n.WF) :
-    mptNodeKindSpec n.rlp = mptNodeKindGuest n.rlp := by
-  rw [mptNodeKindSpec_rlp n hwf, mptNodeKindGuest_eq_kindTag n hwf]
 
 /-! ## coverRef — all three success tags + fail, decide-closed -/
 
@@ -136,8 +74,8 @@ theorem mpt_node_kind_precondition_reachable :
 
     The guest classifies via `rlp_list_count_items` / `rlp_list_nth_item`
     (strict walk), not `decodeFully`. The machine triple posts this relation;
-    under `MptNode.WF`, `mptNodeKindGuest_eq_kindTag` + a Success-of-encode
-    bridge (separate pure work) recovers `kindTag` for walk callers. -/
+    under `MptNode.WF`, `MptNodeKindWire.mptNodeKindResult_eq_kindTag` recovers
+    `kindTag` for walk callers (success arms `kind < 3`). -/
 
 /-- HP high-nibble → kind tag (1 ext / 2 leaf / 3 fail). -/
 def hpKind (b : BitVec 8) : Nat :=

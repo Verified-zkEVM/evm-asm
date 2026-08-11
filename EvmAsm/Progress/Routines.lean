@@ -56,6 +56,7 @@
 
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
+import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -87,11 +88,17 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
+import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
+-- #10817: `bal_canonical_sort`'s nibble extractor against a SEMANTICALLY decoded
+-- key. A block lemma over the whole routine's `CodeReq`, not a routine triple.
+import EvmAsm.Codegen.Programs.BalCanonicalSortDigitSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
+import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
@@ -101,6 +108,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.MptNodeKindWire
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -112,6 +120,7 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
@@ -208,6 +217,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#10780 item 3)")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
+  -- #10780 item 3: the two arms `SpanForm` excludes, proved per-form rather than by
+  -- widening the gate (`SpanForm` has 50+ consumers; widening it is separate work).
+  -- Both cite `risLenLoop` for the length-byte loop instead of unrolling it, so each is
+  -- its dispatch path plus the shared idx22-34 tail.
+  routine "rlp_item_size" .conditional
+      (some "rlp_item_size_long_string_pinned_spec_within")
+      (gate := "`0xb8 ≤ p < 0xc0` — the long-string form, one of the two arms "
+        ++ "`SpanForm` excludes. Input-domain only; coverRef "
+        ++ "`longStringSample_reachable` exhibits the SMALLEST such item (a "
+        ++ "56-byte string, exactly the short/long boundary) and checks its span "
+        ++ "identity, so the arm is not reachable only in the large")
+      (notes := "per-form pinned triple; `a0 = 1 + lenOfLen + fromBytesBE lenBytes`, "
+        ++ "spelled in the model's own `rlpPrefixLongBytesLenOfLen` vocabulary. Step "
+        ++ "bound `7*lenOfLen + 17`. ⭐ Full identification with `(encode item).length` "
+        ++ "is the separate corollary `…_encode_length_spec_within`, because it needs "
+        ++ "`decode`/`readLength` facts a machine triple cannot manufacture — folding "
+        ++ "them into the triple would have been a weakening"),
+  routine "rlp_item_size" .conditional
+      (some "rlp_item_size_long_list_pinned_spec_within")
+      (gate := "`p ≥ 0xf8` — the long-list form, the other `SpanForm` exclusion. "
+        ++ "coverRef `longListSample_reachable`. Every block header RLP is a long "
+        ++ "list, so this arm is on the common path, not an edge case")
+      (notes := "per-form pinned triple, step bound `7*lenOfLen + 18` (one dispatch "
+        ++ "step more than the long-string arm). The payload's own well-formedness is "
+        ++ "NOT part of the gate: `rlp_item_size` computes a span and does not descend"),
   -- #11577: whole-routine span under short-list outer + WalkedSpanForm on
   -- every walked prefix. Lifts the leaf-routine-targets exclusion (verified
   -- set includes .conditional). Callers inherit the SpanForm domain.
@@ -563,9 +597,9 @@ def routineRegistry : List RoutineEntry := [
   -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
   -- fail joins) with operational `MptNodeKindResult` post — no input-domain
   -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
-  -- vs the arity-exact guest; do not rest the post on it. No current caller
-  -- uses `mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF
-  -- first needs the missing Result-to-WF/decode bridge.
+  -- vs the arity-exact guest; do not rest the post on it.
+  -- #12027: Result→kindTag wiring under WF (success arms kind < 3) lands in
+  -- MptNodeKindWire; existence + uniqueness witnessed below.
   routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
@@ -575,6 +609,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "entry values — guest restores them via count/nth saves; old regOwn "
         ++ "export discarded that and blocked hop consumers. PRE unchanged "
         ++ "(already concrete v18..v21 in kindCallerPre/countAmbient). "
+        ++ "#12027 wire: `mptNodeKindResult_eq_kindTag` (kind < 3) + "
+        ++ "`mptNodeKindResult_exists_kindTag` under WF; encode-domain count "
+        ++ "Success + path head HP; no #11341 (WF top-level .bytes only); "
+        ++ "supersedes (does not consume) deleted pure guest_eq_kindTag bridge. "
         ++ "coverRef `mpt_node_kind_precondition_reachable`. Callees already "
         ++ "`.proven`; first walker-dispatch machine triple"),
 
@@ -683,10 +721,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 53 := by decide
+theorem routineCount_eq : routineCount = 55 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 16 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 18 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -767,6 +805,35 @@ private noncomputable abbrev _reb_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 private noncomputable abbrev _reb_rlpItem_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
+-- #10780 item 3: the two long-form arms, their reference-tied corollaries, and the two
+-- reachability witnesses their `.conditional` rows name as coverRefs (#12014's ruling).
+-- The corollaries are witnessed separately from the triples on purpose: they are where
+-- the `decode`/`readLength` hypotheses enter, and a reader should be able to see which
+-- claim is the machine result and which is the model identification.
+-- #10780: the TOTAL dispatch — one triple over all five RLP prefix forms, no `SpanForm`
+-- gate. Witnessed but deliberately NOT re-graded: `rlp_item_size` keeps its
+-- `.conditional` row on `rlp_item_size_spec_within`, because the total statement carries a
+-- prefix-dependent step bound and a seven-register footprint where the existing one is
+-- constant-time over two, and which of those a consumer wants is a per-caller decision.
+-- Additive by construction: nothing consuming `SpanForm` changes.
+private noncomputable abbrev _rlp_item_size_total_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+private noncomputable abbrev _rlp_item_size_total_covers_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_covers
+private noncomputable abbrev _rlp_item_size_total_bound_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
+private noncomputable abbrev _rlp_item_size_long_string_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_pinned_spec_within
+private noncomputable abbrev _rlp_item_size_long_list_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_pinned_spec_within
+private noncomputable abbrev _rlp_item_size_long_string_encode_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_encode_length_spec_within
+private noncomputable abbrev _rlp_item_size_long_list_encode_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_encode_length_spec_within
+private noncomputable abbrev _rlp_item_size_long_string_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
+private noncomputable abbrev _rlp_item_size_long_list_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
@@ -807,6 +874,30 @@ private noncomputable abbrev _rlp_prefix_lol_body_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
+-- #10817: `bal_canonical_sort`'s canonical nibble extractor (flat indices 67-94,
+-- `base+268 -> base+380`), proved to agree with a key decoded from the FIELD
+-- SEMANTICS rather than from the sorter's own segment descriptor. That direction is
+-- the whole point: a descriptor-derived key would let a limb swap satisfy both
+-- sortedness and permutation-preservation, which is exactly why
+-- `BalCanonicalSort.lean:41-44` refuses to substitute either property. Witnessed
+-- rather than left to the sortedness theorem that will consume it -- the same
+-- discipline as `lpLolLoop`, and for the same reason: a specification outside the
+-- axiom gate is the #11637 failure mode. The model side is witnessed WITH the
+-- machine side, because a key definition that drifted from the reversal it encodes
+-- would silently re-open the vacuity. No registry row changes: a block lemma over
+-- a pc range, not a routine triple, and no `JALR`.
+private noncomputable abbrev _bal_digit_agree_1seg_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_1seg
+private noncomputable abbrev _bal_digit_agree_2seg_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg
+private noncomputable abbrev _bal_digit_agree_2seg_live_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
+private noncomputable abbrev _bal_digit_at_67_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+private noncomputable abbrev _bal_key_getD_head_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
+private noncomputable abbrev _bal_key_getD_tail_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
 -- #11517 (template pair): the account-leaf sentinels, pinned. `EMPTY_TRIE_ROOT` /
 -- `EMPTY_CODE_HASH` existed in three unconnected copies -- SpecRef's computed pair and two
 -- baked asm literals -- so a typo in one typechecked everywhere and produced a wrong state
@@ -817,6 +908,32 @@ private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
 -- numeral drift pin because its distinct `keccak256 [0x80]` KAT would need a separately
 -- justified intrinsic-depth theorem. The pins stay gated so CI rechecks the remaining
 -- literal correspondence.
+-- #11517: the `Stateless/Constants.lean` hex-`String` copies, pinned to the byte-list
+-- copies #12032 pinned. The `eq_adBytes`/`eq_aieBytes` ties are the strongest of the set:
+-- two independent asm-side definitions in two different representations, equal outright,
+-- with no keccak and no written numeral in between.
+private noncomputable abbrev _keccak256EmptyHashHex_eq_adBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_adBytes
+private noncomputable abbrev _keccak256EmptyHashHex_eq_aieBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_aieBytes
+private noncomputable abbrev _emptyTrieRootHex_eq_adBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
+private noncomputable abbrev _trieRoot_ne_codeHash_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+-- ✅ #12081 REPAIRED: `emptyOmmerHashHex` now holds the empty ommer hash (keccak of
+-- rlp([]) = keccak(0xc0)); it previously aliased the empty trie root. The divergence
+-- was pinned as `divergence_emptyOmmerHashHex` by #12082 and retired by #12081; the
+-- registry keeps a row pointing at the fix pin so the record does not vanish.
+private noncomputable abbrev _fix_emptyOmmerHashHex_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.fix_emptyOmmerHashHex
+-- #11517: SpecRef-derived vs asm-flattened numbers -- the sharpest drift shape, since a
+-- repricing moves the SpecRef side silently while the asm literal stays put.
+private noncomputable abbrev _bvEip7702AuthRegularGas_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
+private noncomputable abbrev _maxInitcodeSize_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
+private noncomputable abbrev _maxDeployedCodeSize_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
 private noncomputable abbrev _ad_empty_trie_root_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
 private noncomputable abbrev _ad_empty_code_hash_value_witness :=
@@ -843,6 +960,8 @@ private noncomputable abbrev _not_rlpWalkNextStrict_witness :=
   @EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
 private noncomputable abbrev _rlpItemDecodeBridgesOn_of_accepts_witness :=
   @EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
+private noncomputable abbrev _rlpItemDecodeStrictW_of_decodeAux_witness :=
+  @EvmAsm.Rv64.RLP.rlpItemDecodeStrictW_of_decodeAux
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=
@@ -885,6 +1004,20 @@ private noncomputable abbrev _header_extract_number_routine_witness :=
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
+-- #11576: the seventh header-family routine — the one `docs/leaf-routine-targets.md`
+-- singles out as NOT a mechanical fork, because it had only the string↔Program
+-- byte-identity theorem and no triple at all. Domain-restricted to the empty header list
+-- (`hN : encoded = []`), with the restriction IN the statement; the `N ≥ 1` loop is the
+-- named remaining half. No registry row yet: a row would advertise coverage of a routine
+-- whose loop is unproven, and the six exit-path lemmas are the honest unit until then.
+-- `nonce_rule_agrees` is witnessed because it settles the canonical-scalar leniency
+-- question — on an 8-byte field the guest's `u64 = 0` test IS the port's all-zero test.
+private noncomputable abbrev _cvpmf_empty_routine_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
+private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
+private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
 private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
@@ -980,6 +1113,11 @@ private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
 -- #11799 dep: whole-routine mpt_node_kind machine triple.
 private noncomputable abbrev _mpt_node_kind_routine_witness :=
   @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+-- #12027: Result → kindTag wiring under WF (success arms + constructive existence).
+private noncomputable abbrev _mpt_node_kind_result_eq_kindTag_witness :=
+  @EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
+private noncomputable abbrev _mpt_node_kind_result_exists_kindTag_witness :=
+  @EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
 -- #11799 residual audit: hp_decode_nibbles machine already existed; register it.
 private noncomputable abbrev _hp_decode_nibbles_routine_witness :=

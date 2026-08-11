@@ -367,7 +367,7 @@ def balMapAccountMatches_prog : Program :=
     .MV .x6 .x12,
     .MV .x10 .x5,
     .MV .x11 .x6,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (balMapAccountMatchesPc + 444)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (balMapAccountMatchesPc + 444)),
     .BNE .x11 .x0 (brOff (balMapAccountMatchesPc + 676) (balMapAccountMatchesPc + 448)),
     .BNE .x10 .x19 (brOff (balMapAccountMatchesPc + 648) (balMapAccountMatchesPc + 452)),
     .MV .x10 .x8,
@@ -414,7 +414,7 @@ def balMapAccountMatches_prog : Program :=
     .JAL .x0 (40 : BitVec 21),
     .MV .x10 .x5,
     .MV .x11 .x6,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (balMapAccountMatchesPc + 632)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (balMapAccountMatchesPc + 632)),
     .BNE .x11 .x0 (40 : BitVec 13),
     .LD .x7 .x20 (0 : BitVec 12),
     .BEQ .x10 .x7 (16 : BitVec 13),
@@ -452,12 +452,12 @@ def balMapAccountMatches_relocs : RelocTable :=
     (87, .jal .x1 "rlp_walk_next"),
     (96, .jal .x1 "rlp_walk_init"),
     (104, .jal .x1 "rlp_walk_next"),
-    (111, .jal .x1 "rlp_content_to_u64"),
+    (111, .jal .x1 "rlp_content_to_u64_strict"),
     (116, .jal .x1 "rlp_walk_next"),
     (137, .la .x12 "bame_value"),
     (139, .jal .x1 "rlp_content_to_u256_be"),
     (141, .la .x31 "bame_value"),
-    (158, .jal .x1 "rlp_content_to_u64") ]
+    (158, .jal .x1 "rlp_content_to_u64_strict") ]
 
 def balMapAccountMatchesFunction : String :=
   "bal_map_account_matches:\n" ++ emitProgramR balMapAccountMatches_prog balMapAccountMatches_relocs

@@ -99,15 +99,18 @@ def stageRuntimePayloadFunction : String :=
   -- Block env words available from the exec payload.
   -- BASEFEE (word 11 -> +88 + 11*32 = +440): 32-byte direct copy from
   -- exec+440 (SSZ LE bytes == stack-word LE limbs).
-  "  addi t1, a2, 440\n" ++
-  "  ld t2, 0(t1); sd t2, 440(s0)\n" ++
-  "  ld t2, 8(t1); sd t2, 448(s0)\n" ++
-  "  ld t2, 16(t1); sd t2, 456(s0)\n" ++
-  "  ld t2, 24(t1); sd t2, 464(s0)\n" ++
+  "  # #12057 BASEFEE 32B byte-copy (exec+440 may be unaligned)\n" ++
+  "  addi t1, a2, 440; addi t3, s0, 440; li t4, 0\n" ++
+  ".Lsrp_basefee_loop:\n" ++
+  "  li t5, 32; beq t4, t5, .Lsrp_basefee_done\n" ++
+  "  add t6, t1, t4; lbu t5, 0(t6)\n" ++
+  "  add t6, t3, t4; sb t5, 0(t6)\n" ++
+  "  addi t4, t4, 1; j .Lsrp_basefee_loop\n" ++
+  ".Lsrp_basefee_done:\n" ++
   -- NUMBER (word 8 -> +344): exec u64 @404.
-  "  ld t2, 404(a2); sd t2, 344(s0)\n" ++
+  "  # #12057 aligned: u64 LE from a2+404 via LBU pack\n  lbu t2, 404(a2)\n  lbu t3, 405(a2); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 406(a2); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 407(a2); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 408(a2); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 409(a2); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 410(a2); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 411(a2); slli t3, t3, 56; or t2, t2, t3\n  sd t2, 344(s0)\n" ++
   -- TIMESTAMP (word 7 -> +312): exec u64 @428.
-  "  ld t2, 428(a2); sd t2, 312(s0)\n" ++
+  "  # #12057 aligned: u64 LE from a2+428 via LBU pack\n  lbu t2, 428(a2)\n  lbu t3, 429(a2); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 430(a2); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 431(a2); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 432(a2); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 433(a2); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 434(a2); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 435(a2); slli t3, t3, 56; or t2, t2, t3\n  sd t2, 312(s0)\n" ++
   -- PREVRANDAO (word 9 -> +376): exec+372 is a canonical Bytes32 (big-endian
   -- integer), while EVM stack words use low limbs first. Reverse all 32 bytes;
   -- a direct copy makes PREVRANDAO byte-swapped for arithmetic consumers.
@@ -119,7 +122,7 @@ def stageRuntimePayloadFunction : String :=
   "  addi t4, t4, 1; j .Lsrp_prevrandao_loop\n" ++
   ".Lsrp_prevrandao_done:\n" ++
   -- GASLIMIT (word 10 -> +408): exec u64 @412.
-  "  ld t2, 412(a2); sd t2, 408(s0)\n" ++
+  "  # #12057 aligned: u64 LE from a2+412 via LBU pack\n  lbu t2, 412(a2)\n  lbu t3, 413(a2); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 414(a2); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 415(a2); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 416(a2); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 417(a2); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 418(a2); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 419(a2); slli t3, t3, 56; or t2, t2, t3\n  sd t2, 408(s0)\n" ++
   -- 6121j.1: CHAINID (word 12 -> +472): bv_chain_id (u64, set by chain_config_valid during the
   -- verdict's config validation, BEFORE dispatch). Direct u64 copy like NUMBER/TIMESTAMP/GASLIMIT
   -- above (the handler evm_env_load .chainId reads env+384 the same way). Activates CHAINID for

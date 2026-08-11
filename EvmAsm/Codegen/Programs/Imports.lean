@@ -101,6 +101,8 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanSizeOffset
 import EvmAsm.Codegen.Programs.RlpItemSpanSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
@@ -139,6 +141,7 @@ import EvmAsm.Codegen.Programs.MptWalkResidualChain
 import EvmAsm.Codegen.Programs.MptWalkSetupToKind
 import EvmAsm.Codegen.Programs.HpDecodeNibblesCallSAsm
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
+import EvmAsm.Codegen.Programs.MptNodeKindWire
 import EvmAsm.Codegen.Programs.MptNodeKindMachine
 import EvmAsm.Codegen.Programs.MptNodeKindBody
 import EvmAsm.Codegen.Programs.MptNodeKindTop
@@ -401,6 +404,7 @@ import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak

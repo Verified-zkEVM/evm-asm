@@ -71,7 +71,7 @@ def balCodePreimagesAuxFunctions : String :=
   "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
   "  bnez a1, .Lbicc_next_row\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lbicc_next_row\n" ++
   "  mv a1, a0; beqz a1, .Lbicc_next_row\n" ++
   "  addi a1, a1, -1           # pre_nonce = new_nonce - 1\n" ++

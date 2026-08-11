@@ -1,47 +1,73 @@
 address_compute_create2:
-  addi sp, sp, -48
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)
-  mv s0, a0                   # sender ptr
-  mv s1, a1                   # salt ptr
-  mv s4, a4                   # output ptr (stash)
-  # Step 1: inner = keccak256(init_code).
-  # init_code ptr/len already in (a2, a3); rotate into (a0, a1).
-  mv a0, a2
-  mv a1, a3
-  la a2, ac2_inner_digest
-  jal ra, zkvm_keccak256
-  # Step 2: build preimage.
-  la s2, ac2_preimage
-  li t0, 0xff
-  sb t0, 0(s2)
-  # Copy sender 20 B → preimage[1..21] (8 + 8 + 4).
-  ld t0,  0(s0); sd t0,  1(s2)
-  ld t0,  8(s0); sd t0,  9(s2)
-  lwu t0, 16(s0); sw t0, 17(s2)
-  # Copy salt 32 B → preimage[21..53] (8 × 4).
-  ld t0,  0(s1); sd t0, 21(s2)
-  ld t0,  8(s1); sd t0, 29(s2)
-  ld t0, 16(s1); sd t0, 37(s2)
-  ld t0, 24(s1); sd t0, 45(s2)
-  # Copy inner digest 32 B → preimage[53..85].
-  la t1, ac2_inner_digest
-  ld t0,  0(t1); sd t0, 53(s2)
-  ld t0,  8(t1); sd t0, 61(s2)
-  ld t0, 16(t1); sd t0, 69(s2)
-  ld t0, 24(t1); sd t0, 77(s2)
-  # Step 3: outer = keccak256(preimage, 85).
-  mv a0, s2
-  li a1, 85
-  la a2, ac2_outer_digest
-  jal ra, zkvm_keccak256
-  # Step 4: copy outer[12..32] (20 B) → out.
-  la t0, ac2_outer_digest
-  ld t1, 12(t0); sd t1,  0(s4)
-  ld t1, 20(t0); sd t1,  8(s4)
-  lwu t1, 28(t0); sw t1, 16(s4)
-  li a0, 0
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)
-  addi sp, sp, 48
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x20, x14
+  mv x10, x12
+  mv x11, x13
+  la x12, ac2_inner_digest
+  jal x1, zkvm_keccak256
+  la x18, ac2_preimage
+  li x5, 255
+  sb x5, 0(x18)
+  li x5, 0
+  li x6, 20
+  beq x5, x6, .+32
+  add x7, x8, x5
+  lbu x28, 0(x7)
+  addi x7, x18, 1
+  add x7, x7, x5
+  sb x28, 0(x7)
+  addi x5, x5, 1
+  jal x0, .-32
+  li x5, 0
+  li x6, 32
+  beq x5, x6, .+32
+  add x7, x9, x5
+  lbu x28, 0(x7)
+  addi x7, x18, 21
+  add x7, x7, x5
+  sb x28, 0(x7)
+  addi x5, x5, 1
+  jal x0, .-32
+  la x6, ac2_inner_digest
+  li x5, 0
+  li x28, 32
+  beq x5, x28, .+32
+  add x7, x6, x5
+  lbu x28, 0(x7)
+  addi x7, x18, 53
+  add x7, x7, x5
+  sb x28, 0(x7)
+  addi x5, x5, 1
+  jal x0, .-32
+  mv x10, x18
+  li x11, 85
+  la x12, ac2_outer_digest
+  jal x1, zkvm_keccak256
+  la x5, ac2_outer_digest
+  li x6, 0
+  li x7, 20
+  beq x6, x7, .+32
+  addi x28, x5, 12
+  add x28, x28, x6
+  lbu x29, 0(x28)
+  add x28, x20, x6
+  sb x29, 0(x28)
+  addi x6, x6, 1
+  jal x0, .-32
+  li x10, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)

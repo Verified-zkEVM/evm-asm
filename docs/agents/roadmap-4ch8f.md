@@ -69,19 +69,26 @@ Rules:
 | bottom-test loop (fixed-limb crypto, sequential accumulate) | `Stmt.doWhile` (#9818) + fold invariant | `SAsm/*` (doWhile demo); consumers: `Bls12Fq12`, `Bn254Fq12`, `TxIntrinsicStateGas` |
 | outer counting loop w/ bottom test (snapshot) | `Stmt.doWhileS` (`.69`) + entry-snapshot inv | mirrors `whileS`; see `.70.3` consumer inventory |
 | mid-break scan ("until predicate", found/not-found) | `Stmt.whileBreak` (#9804) + flag in `post` | `Codegen/Programs/SwdMinimalCopySAsm.lean` |
-| early-return-from-loop (walk short-circuit) | **no byte-match combinator** — decide in `.70.2` (whileBreak-to-epilogue vs drop-in) | `mpt_insert`, `mpt_set` (only 2 in corpus) |
+| early-return-looking MPT fail arm | existing `whileBreak` + `li`/jump tail into shared epilogue; `.70.2` resolved | `mpt_insert`, `mpt_set` (2 routines) |
 
-**Shape census** (all 848 `*Function` asm defs, exhaustive CFG parse — see
-`docs/agents/4ch8f-shape-survey.md` `.70`): **612 straight-line** (424 flat
-`block`, 188 `ite`/`when` cascades) + **236 looping** (159 single, 77 nested,
-**0 indirect**). The **628 loop back-edges** split **493 top-test `while` / 100
-bottom-test `doWhile` / 34 `whileBreak` / 1 unresolved / 0 rotated-while** —
-i.e. every emitted loop already byte-matches an existing combinator; **no new
-loop combinator is needed**. `while`-vs-`whileS` and `doWhile`-vs-`doWhileS` is a
-*proof-side* choice (identical bytes): use the `S` variant only for an **inner**
-loop whose invariant must see an **outer** loop's counter register. Byte-match is
-a hand-authoring *convention*, not a codegen pass — protect it with the `.70.1`
-loop-shape lint rather than reshaping emission.
+**Shape census and planning denominator** (see `docs/agents/4ch8f-shape-survey.md`
+`.70`): the current planning population is **973 definitions across 365 source
+files**. The readiness classes are **406 ALREADY-STRUCTURED, 140 READY-WAVE3, 249
+BLOCKED_ON_.6, 133 COMPOSITE, 17 CONVERTED-CLEAN, 23 CALLER-LOCAL-FRAGMENT,
+and 5 MULTI-ENTRY-BUNDLE**, with NEEDS-LI-EXPANSION and NEEDS-DOTWORD at zero.
+The independent CFG parser covers **970 parseable Program `*Function`
+definitions** inside the 973-definition planning population; the other 3 are
+the `Dispatch.lean` entries outside that parser: **635 straight-line** (449 flat
+`block`, 186 `ite`/`when` cascades) + **333 looping** (202 single, 131 nested,
+**2 indirect named exceptions**). Its **841 loop back-edges** split **696
+top-test `while` / 113 bottom-test `doWhile` / 32 `whileBreak` / 0 unresolved /
+0 rotated-while**.
+Every emitted loop byte-matches an existing combinator. `while`-vs-`whileS` and
+`doWhile`-vs-`doWhileS` is a *proof-side* choice (identical bytes): use the `S`
+variant only for an **inner** loop whose invariant must see an **outer** loop's
+counter register. Byte-match is a hand-authoring *convention*, not a codegen
+pass — protect it with the `.70.1` loop-shape lint rather than reshaping
+emission. The 2 indirect routines are outside the loop tally and need ABI review.
 
 Spec-side reference: `EvmAsm/Stateless/SpecRef/*` is the Lean port of the
 Python spec (`tests-zkevm@v0.4.0` — read the Python via
