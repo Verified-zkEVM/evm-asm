@@ -506,18 +506,30 @@ theorem rlpListInteriorsDecode_of_strict {bytes : List (BitVec 8)} {base endPtr 
   obtain ⟨_, hpay⟩ := hstrict off next len hitem
   exact hpay b hget hlist
 
-/-- **The residual, as one statement about the ROUTINE.** `rlp_walk_next` accepts an item
-    only when the strict relation holds — i.e. the relation stops understating the guest.
+/-- ⛔ **NOT a routine obligation — see `not_rlpWalkNextStrict_nestedNonCanonical`.**
 
-    After #11776 this should be true: `rlp_walk_next_core` recursively validates list
-    payloads, requiring exact cursor-to-end exhaustion and rejecting malformed, truncated,
-    non-canonical, nested-malformed and trailing interiors with status 7. The relation
-    simply never recorded it.
+    ⚠️ The docstring this declaration originally carried was WRONG, and the correction
+    matters because #11795 schedules work against it. It claimed this was a statement
+    about `rlp_walk_next` that *"after #11776 should be true"*, dischargeable by
+    *"the walker's triple"*. Both halves are false:
 
-    Stated as a `Prop` over the walker's accept predicate rather than proved: discharging
-    it is the walker's triple, which is out of scope here. Naming it means #11795's
-    residual is a routine obligation with a known discharge route, not a model-side
-    impossibility. -/
+    * **It contains no machine execution.** Its hypothesis is `rlpItemDecode`, a pure
+      five-disjunct relation over `bytes` (`WalkNext.lean:3649`). So this is a property
+      of the BYTE STRING, not of the routine, and no Hoare triple can discharge a goal
+      the machine does not appear in.
+    * **It is FALSE**, refuted below on the counterexample the tree already records at
+      `ItemDecodeForward.lean:10-14`. `rlpItemDecode` accepts a list whose span fits and
+      whose interior is malformed; `decodeAux` rejects it. That is precisely the gap
+      `RlpListInteriorsDecode` (`:405`) names — and that declaration states the
+      situation correctly (*"NOT dischargeable from `rlpItemDecode` alone"*), so the two
+      disagreed with each other in the same file.
+
+    ⇒ Restricting `bytes` so that this holds is exactly **route 1** (import a caller-side
+    well-formedness fact), the option #11795 and #11898 both rejected — it was reached by
+    accident, wearing route 2's label. Kept (not deleted) because
+    `rlpItemDecodeBridgesFrom_of_walkNextStrict` consumes it and the implication is still
+    true; what changes is that its hypothesis is now known to be a domain restriction
+    rather than a scheduled proof. -/
 def RlpWalkNextStrict (bytes : List (BitVec 8)) (base endPtr : Word) (floor : Nat) : Prop :=
   ∀ (off : Nat) (next len : Word),
     rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
@@ -538,5 +550,143 @@ theorem rlpItemDecodeBridgesFrom_of_walkNextStrict {bytes : List (BitVec 8)}
     (hstrict : RlpWalkNextStrict bytes base endPtr floor) :
     RlpItemDecodeBridgesFrom bytes base endPtr floor :=
   rlpItemDecodeBridgesFrom_of_parts hbytes (rlpListInteriorsDecode_of_strict hstrict)
+
+/-! ## ⛔ Negative control: `RlpWalkNextStrict` is FALSE, not merely unproven
+
+    A predicate that is quietly false is worse than an open goal: it reads as scheduled
+    work, it makes every theorem consuming it vacuous on the domain that matters, and the
+    next reader spends their time trying to prove it. So the refutation is checked by the
+    kernel here rather than asserted in prose.
+
+    The witness is the one `ItemDecodeForward.lean:10-14` already records as the reason
+    the guest→model direction is false for the list disjuncts, reused rather than
+    reinvented. -/
+
+/-- `[0xc3, 0xc2, 0x81, 0x00]` — an outer 3-byte list containing a 2-byte list whose sole
+    element is the **non-canonical** `81 00` (a one-byte string with content `< 0x80`,
+    which RLP requires to use the single-byte form).
+
+    The outer span is 4 bytes and fits the window, so the machine relation's short-list
+    arm accepts it. The model rejects it two levels down. -/
+private def nestedNonCanonical : List (BitVec 8) := [0xc3, 0xc2, 0x81, 0x00]
+
+/-- The model rejects it, at the budget `decode` would supply (`2 * bs.length = 8`). -/
+private theorem decodeAux_nestedNonCanonical :
+    decodeAux 8 nestedNonCanonical = none := by
+  decide
+
+/-- The machine relation accepts it: the short-list arm asks only for header range and a
+    span fit, and `4 = endPtr - cursor` fits exactly. -/
+private theorem rlpItemDecode_nestedNonCanonical :
+    rlpItemDecode nestedNonCanonical 0
+      ((0x1000 : Word) + BitVec.ofNat 64 0) (0x1004 : Word) (0x1004 : Word) (4 : Word) := by
+  refine ⟨0xc3, by decide, ?_⟩
+  exact Or.inr (Or.inr (Or.inr (Or.inl ⟨by decide, by decide, by decide, by decide, by decide⟩)))
+
+/-- ⭐ **`RlpWalkNextStrict` is false.** Its hypothesis is the machine relation, which the
+    counterexample satisfies; its conclusion needs the model decode, which fails. No
+    strengthening of `rlp_walk_next` can change this, because the routine never appears in
+    the statement — which is the point of recording it.
+
+    Consequence for #11795: `rlpItemDecodeBridgesFrom_of_walkNextStrict` is a true
+    implication whose hypothesis is **unsatisfiable on any byte string containing a
+    span-fitting list with a malformed interior** — i.e. on exactly the MPT inline-node
+    domain that made `rlp_list_count_items` need the bridge in the first place. -/
+theorem not_rlpWalkNextStrict_nestedNonCanonical :
+    ¬ RlpWalkNextStrict nestedNonCanonical (0x1000 : Word) (0x1004 : Word) 8 := by
+  intro h
+  obtain ⟨-, hpay⟩ := h 0 (0x1004 : Word) (4 : Word) rlpItemDecode_nestedNonCanonical
+  obtain ⟨inner, hdec⟩ := hpay 0xc3 (by decide) (by decide)
+  rw [show (nestedNonCanonical.drop 0) = nestedNonCanonical from rfl,
+    decodeAux_nestedNonCanonical] at hdec
+  exact absurd hdec.symm (Option.some_ne_none _)
+
+/-! ## The residual, stated so that the routine actually appears in it
+
+    What #11795 needs is not a fact about `bytes` but a fact about **acceptance**: when
+    `rlp_walk_next` returns status 0, the model decode succeeds. `rlpItemDecode` is only a
+    NECESSARY condition of acceptance (it is what the existing per-form postconditions
+    pin), never a sufficient one — that asymmetry is the whole defect above.
+
+    So the obligation is parameterised by the routine's accept predicate, left abstract
+    here for a reason recorded below. -/
+
+/-- The corrected residual: `accept off next len` — read as *"`rlp_walk_next` run at
+    `base + off` returned status 0 with outputs `next`/`len`"* — implies the strict
+    relation. Unlike `RlpWalkNextStrict` this is genuinely a routine obligation, because
+    the antecedent is about a machine run rather than about `bytes`. -/
+def RlpWalkNextAccepts (accept : Nat → Word → Word → Prop)
+    (bytes : List (BitVec 8)) (base endPtr : Word) (floor : Nat) : Prop :=
+  ∀ (off : Nat) (next len : Word),
+    accept off next len →
+    rlpItemDecodeStrict bytes off (base + BitVec.ofNat 64 off) endPtr next len
+      (next - base).toNat floor
+
+/-- The per-item bridge, restricted to offsets the routine actually accepted. This is the
+    honest replacement for `rlpItemDecodeBridgesFrom_of_walkNextStrict`: same conclusion
+    shape, but the quantifier ranges over accepted items instead of over everything the
+    weak relation admits. -/
+def RlpItemDecodeBridgesOn (accept : Nat → Word → Word → Prop)
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat) : Prop :=
+  ∀ (off : Nat) (next len : Word),
+    accept off next len →
+    ∃ item : RLPItem,
+      decodeAux floor (bytes.drop off) = some (item, bytes.drop (next - base).toNat)
+
+/-- ⭐ Given the corrected residual, the accept-indexed bridge follows for **both** prefix
+    classes — lists from the strict conjunct, byte strings from the already-proven half —
+    with no domain restriction on `bytes` anywhere.
+
+    That it goes through cleanly is the evidence that the defect was in *where the
+    quantifier sat*, not in the surrounding development: nothing else in this file had to
+    change. -/
+theorem rlpItemDecodeBridgesOn_of_accepts {accept : Nat → Word → Word → Prop}
+    {bytes : List (BitVec 8)} {base endPtr : Word} {floor : Nat}
+    (hbytes : ∀ (off : Nat) (next len : Word) (b : BitVec 8),
+      bytes[off]? = some b →
+      BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true →
+      rlpItemDecode bytes off (base + BitVec.ofNat 64 off) endPtr next len →
+      ∃ item : RLPItem,
+        decodeAux floor (bytes.drop off) = some (item, bytes.drop (next - base).toNat))
+    (haccept : RlpWalkNextAccepts accept bytes base endPtr floor) :
+    RlpItemDecodeBridgesOn accept bytes base floor := by
+  intro off next len hacc
+  obtain ⟨hweak, hlist⟩ := haccept off next len hacc
+  have hcopy := hweak
+  obtain ⟨b, hget, -⟩ := hcopy
+  by_cases hlt : BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true
+  · exact hbytes off next len b hget hlt hweak
+  · obtain ⟨inner, hdec⟩ := hlist b hget hlt
+    exact ⟨.list inner, hdec⟩
+
+/-! ## ⛔ Why `accept` is abstract, and what unblocks #11795
+
+    `accept` is left as a parameter because **there is nothing to instantiate it with.**
+    The interior validation that #11776 added lives in `rlpWalkNextFunction`
+    (`RlpWalk.lean:155`), hand-written RISC-V emitted as a raw `String`. Measured against
+    the guest image, the split is exact:
+
+    | symbol | size | Lean representation |
+    |---|---|---|
+    | `rlp_walk_next` (entry) | 52 B | none |
+    | `rlp_walk_next_nested` | 4 B | none |
+    | `rlp_walk_next_shared` (the recursive validator) | 208 B | none |
+    | `rlp_walk_next_core` (one item) | 412 B | `rlp_walk_next_prog`, 103 instrs |
+
+    (sizes from `docs/4ch8f-guest-image-coverage.md:114-118`; the core's 103 × 4 = 412 B
+    is what `rlpWalkNextCoreFunction_eq_verified_prog` (`RlpWalk.lean:264`) pins, and that
+    theorem's own docstring calls the wrapper *"intentionally codegen-specific"*).
+
+    So the 264 bytes that do the recursing have no model, and the 412 that do have one
+    validate a single item — the half that was never in question.
+
+    ⇒ The exact behaviour #11795 needs — recursive payload validation, exact cursor-to-end
+    exhaustion, status 7 on nested-malformed interiors — is the behaviour that is NOT in
+    the model. So the blocker is a **representation gap, not a proof effort**: the wrapper
+    must become a `Program` before any triple about interior validation is statable, let
+    alone provable. Sizing the bridge as "the walker's triple" understated it by the cost
+    of an SAsm transcription.
+
+    Until then `rlp_list_count_items` stays `.machineOnly`, and correctly so. -/
 
 end EvmAsm.Codegen.RlpListCountItemsBridge
