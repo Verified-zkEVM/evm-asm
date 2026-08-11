@@ -100,6 +100,13 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 -- #10780 item 3, next width: the 4-length-byte long form. Long3's ladder with
 -- ONE more fall-through, plus `lpLolLoop` cited at `m := 4`.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
+-- #10780 item 3, widths 5/6/7: each is long4's ladder with one more fall-through
+-- per width, plus `lpLolLoop` cited at `m := 5`/`6`/`7`. `lenlen = 8` is NOT here —
+-- its loop overflow side condition needs `outPtr.toNat + 9 ≤ 2 ^ 64`, which is one
+-- byte more than `outPtr.toNat % 8 = 0` supplies.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
@@ -562,7 +569,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long4_pinned_spec_within")
       (gate := "`16777216 ≤ len.toNat < 4294967296` — the 4-length-byte long form. "
         ++ "With the short, long1, long2 and long3 rows this covers "
-        ++ "`len < 4294967296`; the cut moves to `lenlen ≥ 5`. ⚠️ INPUT-DOMAIN gate "
+        ++ "`len < 4294967296`; the cut moved to `lenlen ≥ 5`, which the long5, "
+        ++ "long6 and long7 rows below then push to `lenlen ≥ 8`. ⚠️ INPUT-DOMAIN gate "
         ++ "ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI obligations "
         ++ "on the caller-supplied output region, not domain restrictions. coverRef "
         ++ "is the smallest qualifying input, `len = 16777216` — exactly the "
@@ -577,6 +585,75 @@ def routineRegistry : List RoutineEntry := [
         ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
         ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
         ++ "closes from `outPtr.toNat % 8 = 0` alone"),
+  -- #10780 item 3, widths 5/6/7. Each row is long4's arm with ONE more ladder
+  -- fall-through and the loop cited one trip longer; header writer (idx30-34),
+  -- epilogue (idx42-44), frame and clobber set are byte-identical across all three,
+  -- so the per-width cost really is the three dispatch steps long4 measured.
+  -- ⛔ `lenlen = 8` is deliberately absent: see the long7 note.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long5_pinned_spec_within")
+      (gate := "`4294967296 ≤ len.toNat < 1099511627776` — the 5-length-byte long "
+        ++ "form. With the short, long1, long2, long3 and long4 rows this covers "
+        ++ "`len < 1099511627776`; the cut moves to `lenlen ≥ 6`. ⚠️ INPUT-DOMAIN "
+        ++ "gate ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI "
+        ++ "obligations on the caller-supplied output region, not domain "
+        ++ "restrictions. coverRef is the smallest qualifying input, "
+        ++ "`len = 4294967296` — exactly the long4/long5 boundary, so the gate is "
+        ++ "REACHABLE and adjacent to already covered ground rather than merely "
+        ++ "consistent (#12014)")
+      (notes := "per-form (\"long5\") pinned triple; writes "
+        ++ "`[0xFC, len >>> 32, len >>> 24, len >>> 16, len >>> 8, len]` and sets "
+        ++ "the cell flag to 6. Step bound 62 = 17 ladder (idx 0, 1, 8-22) + 5 "
+        ++ "header + 36 loop (`7*5+1`) + 3 epilogue + 1 `JALR` — long4's 52 with "
+        ++ "three more dispatch steps and seven more loop steps. ⭐ The loop is "
+        ++ "CITED at `m := 5`, not unrolled. Canonical form comes from the "
+        ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
+        ++ "`long5_first_length_byte_ne_zero`. The loop's overflow side condition "
+        ++ "is `outPtr.toNat + 6 ≤ 2^64`, which still closes from "
+        ++ "`outPtr.toNat % 8 = 0` alone"),
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long6_pinned_spec_within")
+      (gate := "`1099511627776 ≤ len.toNat < 281474976710656` — the 6-length-byte "
+        ++ "long form. With the short and long1-long5 rows this covers "
+        ++ "`len < 281474976710656`; the cut moves to `lenlen ≥ 7`. ⚠️ INPUT-DOMAIN "
+        ++ "gate ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI "
+        ++ "obligations on the caller-supplied output region, not domain "
+        ++ "restrictions. coverRef is the smallest qualifying input, "
+        ++ "`len = 1099511627776` — exactly the long5/long6 boundary, so the gate "
+        ++ "is REACHABLE and adjacent to already covered ground rather than merely "
+        ++ "consistent (#12014)")
+      (notes := "per-form (\"long6\") pinned triple; writes "
+        ++ "`[0xFD, len >>> 40, len >>> 32, len >>> 24, len >>> 16, len >>> 8, "
+        ++ "len]` and sets the cell flag to 7. Step bound 72 = 20 ladder "
+        ++ "(idx 0, 1, 8-25) + 5 header + 43 loop (`7*6+1`) + 3 epilogue + 1 "
+        ++ "`JALR`. ⭐ The loop is CITED at `m := 6`, not unrolled. Canonical form "
+        ++ "comes from the all-widths `first_length_byte_ne_zero`, specialised "
+        ++ "here as `long6_first_length_byte_ne_zero`. The loop's overflow side "
+        ++ "condition is `outPtr.toNat + 7 ≤ 2^64`, which still closes from "
+        ++ "`outPtr.toNat % 8 = 0` alone"),
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long7_pinned_spec_within")
+      (gate := "`281474976710656 ≤ len.toNat < 72057594037927936` — the "
+        ++ "7-length-byte long form. With the short and long1-long6 rows this "
+        ++ "covers `len < 72057594037927936`; the cut moves to `lenlen ≥ 8`, the "
+        ++ "last width. ⚠️ INPUT-DOMAIN gate ONLY: `h_out_align`, `h_out_len` and "
+        ++ "`h_out_valid` are ABI obligations on the caller-supplied output "
+        ++ "region, not domain restrictions. coverRef is the smallest qualifying "
+        ++ "input, `len = 281474976710656` — exactly the long6/long7 boundary, so "
+        ++ "the gate is REACHABLE and adjacent to already covered ground rather "
+        ++ "than merely consistent (#12014)")
+      (notes := "per-form (\"long7\") pinned triple; writes "
+        ++ "`[0xFE, len >>> 48, …, len >>> 8, len]` and sets the cell flag to 8. "
+        ++ "Step bound 82 = 23 ladder (idx 0, 1, 8-28) + 5 header + 50 loop "
+        ++ "(`7*7+1`) + 3 epilogue + 1 `JALR`. ⭐ The loop is CITED at `m := 7`, "
+        ++ "not unrolled. Canonical form comes from the all-widths "
+        ++ "`first_length_byte_ne_zero`, specialised here as "
+        ++ "`long7_first_length_byte_ne_zero`. ⚠️ This is the LAST width alignment "
+        ++ "can pay for: the loop's overflow side condition is "
+        ++ "`outPtr.toNat + 8 ≤ 2^64`, and `outPtr.toNat % 8 = 0` closes it exactly "
+        ++ "(checked: the same `omega` step with `+ 9` does NOT close). So "
+        ++ "`lenlen = 8` is out of scope here and needs an explicit bound rather "
+        ++ "than alignment"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -748,10 +825,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 56 := by decide
+theorem routineCount_eq : routineCount = 59 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 19 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 22 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1134,6 +1211,22 @@ private noncomputable abbrev _rlp_encode_list_prefix_long4_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long4_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
+-- #10780 item 3, widths 5/6/7. Each triple is witnessed alongside its canonicality
+-- instance for the same reason long3/long4 are: the instance is what makes the emitted
+-- header canonical RLP rather than merely parseable, and a specification outside the
+-- axiom gate is the #11637 failure mode.
+private noncomputable abbrev _rlp_encode_list_prefix_long5_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.rlp_encode_list_prefix_long5_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long5_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.long5_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long6_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.rlp_encode_list_prefix_long6_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long6_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.long6_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long7_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long7_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.long7_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
