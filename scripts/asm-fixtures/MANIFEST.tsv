@@ -45,11 +45,11 @@ balMapFinalValueMatchesFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.
 balRlpEmitBytesFunction	EvmAsm/Codegen/Programs/BalRlpEncode.lean
 balSectionInfoFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balSerializerBalanceToLeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
-balSerializerEmitAccountFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
-balSerializerEmitBalanceFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
-balSerializerEmitCodeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
-balSerializerEmitNonceFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
-balSerializerEmitOuterFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
+balSerializerEmitAccountFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
+balSerializerEmitBalanceFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
+balSerializerEmitCodeFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
+balSerializerEmitNonceFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
+balSerializerEmitOuterFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balSerializerEmitReadsFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerEmitStorageFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerFilterReadsFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
@@ -403,7 +403,7 @@ storageRootSingleSlotFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
-txCostComputeFunction	EvmAsm/Codegen/Programs/Tx.lean
+txCostComputeFunction	EvmAsm/Codegen/Programs/TxTail.lean
 txEffectiveGasPricingFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txEip1559DecodeFunction	EvmAsm/Codegen/Programs/TxDecode1559.lean
 txEip1559ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
