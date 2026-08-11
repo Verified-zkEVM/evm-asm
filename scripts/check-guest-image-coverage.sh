@@ -2,10 +2,14 @@
 #
 # check-guest-image-coverage.sh — CI entry point.
 #
-# Asserts that docs/4ch8f-guest-image-coverage.md matches what
-# `python3 scripts/guest_image_coverage.py --write-doc` would emit from the
-# live linker-facts / manifest / #guard-pin inputs. Fails the build on
-# drift. Same shape as scripts/check-drift.sh.
+# 1. Asserts that docs/4ch8f-guest-image-coverage.md matches what
+#    `python3 scripts/guest_image_coverage.py --write-doc` would emit from the
+#    live linker-facts / manifest / #guard-pin inputs. Fails the build on
+#    drift. Same shape as scripts/check-drift.sh.
+# 2. #11923 floor ratchet: covered bytes and converted-entry count must not
+#    drop below EXPECTED_*_FLOOR in guest_image_coverage.py (absolute bytes,
+#    not ratio — .text growth alone must not fail). Bump the floor only in
+#    the same commit that lands a conversion.
 #
 # Why: the doc embeds generator numbers (§1 summary, §3 gap table). The tsv
 # inputs were already drift-guarded, but the doc was not — so its figures
@@ -18,4 +22,7 @@
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec python3 scripts/guest_image_coverage.py --check-doc
+# --check-doc already enforces the floor after the doc compare; a second
+# --check-floor pass makes the floor line visible even when the doc is clean.
+python3 scripts/guest_image_coverage.py --check-doc
+exec python3 scripts/guest_image_coverage.py --check-floor

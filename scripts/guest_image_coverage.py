@@ -46,6 +46,15 @@ TEMPLATE = os.path.join(
 TEXT_BASE = 0x80000000
 _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 
+# Coverage floor ratchet (#11923). Absolute covered *bytes*, not ratio:
+# .text growth alone must not fail the gate, and a silent conversion drop
+# must. Bump ONLY in the same commit that lands a conversion extending
+# guestImageEntries (or that shortens .text without losing covered ranges).
+# Measured live at origin/main 2464330c1: 80608 B / 341076 B = 23.63%.
+EXPECTED_COVERED_BYTES_FLOOR = 80608
+# Linked converted entry count floor (guestImageEntries.length #guard twin).
+EXPECTED_CONVERTED_COUNT_FLOOR = 330
+
 
 def lean_camel(entry: str) -> str:
     """symbol label -> Lean camelCase stem (mirrors asm_to_program.py lean_camel)."""
@@ -360,6 +369,10 @@ def main():
     ap.add_argument("--check-declared-starts", action="store_true",
                     help="#11280: GuestAddrs declared start vs TSV actual "
                          "(converted linked only); exit 1 on mismatch")
+    ap.add_argument("--check-floor", action="store_true",
+                    help="#11923: fail if covered bytes or converted count "
+                         "drops below EXPECTED_*_FLOOR (also enforced on "
+                         "--check-doc and the default summary path)")
     args = ap.parse_args()
 
     syms, text_end, converted = load_converted()
@@ -438,6 +451,9 @@ def main():
                          "relative to the live generator. Regenerate:\n\n"
                          "    python3 scripts/guest_image_coverage.py --write-doc\n")
             print(f"{os.path.relpath(DOC, ROOT)}: CLEAN")
+    elif args.check_floor:
+        # Quiet: floor line only (CI second pass). Accounting still runs below.
+        pass
     elif args.md:
         print(f"`.text` = [0x{TEXT_BASE:08x}, 0x{text_end:08x}), "
               f"{text_size} bytes (`RegionMap.textSizeBytes = 0x{text_size:x}`)\n")
@@ -472,6 +488,45 @@ def main():
         print(f"\nACCOUNTING MISMATCH: covered({covered_bytes}) + "
               f"gaps({gap_bytes}) != text({text_size})", file=sys.stderr)
         sys.exit(1)
+
+    # #11923 floor ratchet — skip pure emit/declared-starts/gaps/write-doc/md.
+    # --check-doc and default summary always enforce; --check-floor is the
+    # explicit quiet CI entry.
+    enforce_floor = (
+        args.check_floor or args.check_doc
+        or not (args.gaps or args.emit_lean or args.check_declared_starts
+                or args.write_doc or args.md)
+    )
+    if enforce_floor:
+        pct = 100 * covered_bytes / text_size if text_size else 0.0
+        print(f"coverage floor: covered={covered_bytes} B "
+              f"({pct:.2f}% of {text_size}) "
+              f"converted={n_conv}  "
+              f"floor_bytes={EXPECTED_COVERED_BYTES_FLOOR}  "
+              f"floor_converted={EXPECTED_CONVERTED_COUNT_FLOOR}")
+        errs = []
+        if covered_bytes < EXPECTED_COVERED_BYTES_FLOOR:
+            errs.append(
+                f"covered bytes {covered_bytes} < floor "
+                f"{EXPECTED_COVERED_BYTES_FLOOR} — conversion drop or "
+                f"stale floor; restore coverage or lower the floor only "
+                f"with an explicit #11923 justification")
+        if n_conv < EXPECTED_CONVERTED_COUNT_FLOOR:
+            errs.append(
+                f"converted count {n_conv} < floor "
+                f"{EXPECTED_CONVERTED_COUNT_FLOOR}")
+        if errs:
+            for e in errs:
+                print(f"COVERAGE FLOOR FAIL: {e}", file=sys.stderr)
+            sys.exit(1)
+        if (covered_bytes > EXPECTED_COVERED_BYTES_FLOOR
+                or n_conv > EXPECTED_CONVERTED_COUNT_FLOOR):
+            print(
+                f"NOTE: live coverage exceeds floor — bump "
+                f"EXPECTED_COVERED_BYTES_FLOOR to {covered_bytes} and/or "
+                f"EXPECTED_CONVERTED_COUNT_FLOOR to {n_conv} in the same "
+                f"commit that landed the conversion (#11923 ratchet up)",
+                file=sys.stderr)
 
 
 if __name__ == "__main__":
