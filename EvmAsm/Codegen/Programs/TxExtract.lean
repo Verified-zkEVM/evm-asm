@@ -239,7 +239,7 @@ def txExtractNonceAndGasFunction : String :=
   "  mv s7, a0                              # cursor after nonce\n" ++
   "  mv a0, t6\n" ++
   "  mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  beqz a1, .Lteng_step3\n" ++
   ".Lteng_nonce_fail:\n" ++
   "  sd zero, 0(s2)\n" ++
@@ -270,7 +270,7 @@ def txExtractNonceAndGasFunction : String :=
   ".Lteng_g_have_field:\n" ++
   "  mv a0, t6\n" ++
   "  mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  beqz a1, .Lteng_store_gas\n" ++
   ".Lteng_gas_fail:\n" ++
   "  sd zero, 0(s3)\n" ++
@@ -546,7 +546,7 @@ def txExtractValueFunction : String :=
   "  mv a0, t6\n" ++
   "  mv a1, a2\n" ++
   "  mv a2, s2\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  beqz a0, .Ltev_ok\n" ++
   ".Ltev_field_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
@@ -743,7 +743,7 @@ def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
     Composes:
       - PR-K40 `tx_type_dispatch`        — typed-tx detector
       - RlpWalk cursor helpers           — field bounds
-      - `rlp_content_to_u256_be` helper  — canonical u256 content decoder
+      - `rlp_content_to_u256_be_strict` helper  — canonical u256 content decoder
 
     Calling convention:
       a0 (input)  : tx_bytes ptr (encoded form)
@@ -804,7 +804,7 @@ def txExtractGasPricingFunction : String :=
   "  mv a0, t6\n" ++
   "  mv a1, a2\n" ++
   "  mv a2, s2\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  beqz a0, .Ltegp_after_p\n" ++
   ".Ltegp_p_fail:\n" ++
   "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
@@ -827,7 +827,7 @@ def txExtractGasPricingFunction : String :=
   "  mv a0, t6\n" ++
   "  mv a1, a2\n" ++
   "  mv a2, s3\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  beqz a0, .Ltegp_ok\n" ++
   ".Ltegp_fee_fail:\n" ++
   "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++

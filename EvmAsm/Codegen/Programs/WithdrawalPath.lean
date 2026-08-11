@@ -134,7 +134,8 @@ def ziskWithdrawalToPathDeltaPrologue : String :=
   "  j .Lwtpd_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   bytesToNibblesFunction ++ "\n" ++
   u256FromU64BeFunction ++ "\n" ++

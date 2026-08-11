@@ -20,7 +20,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose3
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 
 /-! ## Whole-program post-condition pieces -/
 
@@ -275,7 +275,7 @@ theorem wdK34FailDF (spW newSp listBase oldOffset oldLen raRet : Word)
     (outer : Saved) (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
-      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen index status v →
       DecodeFailure bytes listBase listLen) :
     ∀ h, k34FailPost spW newSp listBase oldOffset oldLen raRet outer saved bytes
       listLen index h → DecodeFailure bytes listBase listLen := by
@@ -285,11 +285,11 @@ theorem wdK34FailDF (spW newSp listBase oldOffset oldLen raRet : Word)
   · obtain ⟨hnz, hrest⟩ := (sepConj_pure_left h).1 hs
     obtain ⟨_, hb, _, _, _, hB⟩ := hrest
     obtain ⟨_, hd, _, _, _, hSucc⟩ := hB
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hSucc
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.successPayload at hSucc
     exact mkDF ws ov hnz ((sepConj_pure_right hd).1 hSucc).2
   · obtain ⟨_, hb, _, _, _, hB⟩ := hf
     obtain ⟨_, hd, _, _, _, hFail⟩ := hB
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hFail
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.failurePayload at hFail
     exact mkDF 1 0 (by decide) ((sepConj_pure_right hd).1 hFail).2
 
 #print axioms wdK34FailDF
@@ -393,7 +393,7 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
     (Frest : Assertion)
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
-      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen index status v →
       DecodeFailure bytes listBase listLen)
     (hleft : ∀ (roff rlen ov : Word), ∀ h,
       (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **
@@ -424,12 +424,12 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
         (((.x1 ↦ᵣ raRet) **
           (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
             savedFrame newSp outer) **
-           EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload newSp listBase offset len
+           EvmAsm.Codegen.RlpFieldToU64StrictSAsm.successPayload newSp listBase offset len
              v12 x5r ss ws ov saved bytes listLen index)) **
          (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
           ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest)) h :=
       ⟨ha, hb, hdab, huab, hX, hRp⟩
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hcomb
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.successPayload at hcomb
     have hgR :
         (((( .x2 ↦ᵣ spW) ** (.x1 ↦ᵣ raRet) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
            (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
@@ -443,7 +443,7 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
             bytesRegion listBase bytes ** (offsetCell ↦ₘ offset) **
             (lengthCell ↦ₘ len) ** (saved.s1 ↦ₘ ov) ** Frest)) **
           (.x10 ↦ᵣ ws)) **
-         ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index ws ov⌝) h := by
+         ⌜EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen index ws ov⌝) h := by
       xperm_hyp hcomb
     have hg_top := ((sepConj_pure_right h).1 hgR).1
     refine sepConj_mono ?_ (regIs_implies_regOwn .x10) h hg_top
@@ -466,12 +466,12 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
         (((.x1 ↦ᵣ raRet) **
           (((.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
             savedFrame newSp outer) **
-           EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload newSp listBase oldOffset
+           EvmAsm.Codegen.RlpFieldToU64StrictSAsm.failurePayload newSp listBase oldOffset
              oldLen v11 v12 saved bytes listLen index)) **
          (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
           ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** Frest)) h :=
       ⟨ha, hb, hdab, huab, hf, hRp⟩
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hcomb
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.failurePayload at hcomb
     have hgR :
         (((( .x2 ↦ᵣ spW) ** (.x1 ↦ᵣ raRet) ** (.x8 ↦ᵣ outer.s0) ** (.x9 ↦ᵣ outer.s1) **
            (.x18 ↦ᵣ saved.s2) ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
@@ -485,7 +485,7 @@ theorem wdK34FailPre (spW newSp raIn listBase oldOffset oldLen raRet
             bytesRegion listBase bytes ** (offsetCell ↦ₘ oldOffset) **
             (lengthCell ↦ₘ oldLen) ** (saved.s1 ↦ₘ (0 : Word)) ** Frest)) **
           (.x10 ↦ᵣ (1 : Word))) **
-         ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index 1 0⌝) h := by
+         ⌜EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen index 1 0⌝) h := by
       xperm_hyp hcomb
     have hg_top := ((sepConj_pure_right h).1 hgR).1
     refine sepConj_mono ?_ (regIs_implies_regOwn .x10) h hg_top
@@ -521,7 +521,7 @@ theorem wdK34FailArm (sp0 spW newSp raIn listBase oldOffset oldLen raRet
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (mkDF : ∀ (status v : Word), status ≠ (0 : Word) →
-      EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen index status v →
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen index status v →
       DecodeFailure bytes listBase listLen)
     (hleft : ∀ (roff rlen ov : Word), ∀ h,
       (wdScratch saved.s3 saved.s4 saved.s5 ** stackFree spW 12 **

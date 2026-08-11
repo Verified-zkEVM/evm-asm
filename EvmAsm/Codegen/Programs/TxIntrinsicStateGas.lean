@@ -251,11 +251,11 @@ def eip7702AuthStatePrepareFunction : String :=
   -- it cannot equal the u64 block chain id.  The U256 decoder preserves the
   -- fail-closed behavior for non-canonical or over-32-byte scalar content.
   "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_target_off; la a4, b1an_target_len; jal ra, rlp_list_nth_item; bnez a0, .L77prep_bad_chain; la t0, b1an_target_len; ld t0, 0(t0); li t1, 8; bltu t1, t0, .L77prep_chain_wide\n" ++
-  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64; bnez a0, .L77prep_bad_chain; la t0, b1an_field; ld t0, 0(t0); beqz t0, .L77prep_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .L77prep_next; j .L77prep_chain_ok\n" ++
+  "  mv a0, s8; mv a1, s9; li a2, 0; la a3, b1an_field; jal ra, rlp_field_to_u64_strict; bnez a0, .L77prep_bad_chain; la t0, b1an_field; ld t0, 0(t0); beqz t0, .L77prep_chain_ok; la t1, bv_chain_id; ld t1, 0(t1); bne t0, t1, .L77prep_next; j .L77prep_chain_ok\n" ++
   ".L77prep_chain_wide:\n" ++
-  "  la t0, b1an_target_off; ld t0, 0(t0); add a0, s8, t0; la t0, b1an_target_len; ld a1, 0(t0); la a2, b1an_recover_scratch; jal ra, rlp_content_to_u256_be; bnez a0, .L77prep_bad_chain; j .L77prep_next\n" ++
+  "  la t0, b1an_target_off; ld t0, 0(t0); add a0, s8, t0; la t0, b1an_target_len; ld a1, 0(t0); la a2, b1an_recover_scratch; jal ra, rlp_content_to_u256_be_strict; bnez a0, .L77prep_bad_chain; j .L77prep_next\n" ++
   ".L77prep_chain_ok:\n" ++
-  "  mv a0, s8; mv a1, s9; li a2, 2; la a3, b1an_signed_nonce; jal ra, rlp_field_to_u64; bnez a0, .L77prep_bad_nonce; la t0, b1an_signed_nonce; ld t0, 0(t0); li t1, -1; beq t0, t1, .L77prep_next\n" ++
+  "  mv a0, s8; mv a1, s9; li a2, 2; la a3, b1an_signed_nonce; jal ra, rlp_field_to_u64_strict; bnez a0, .L77prep_bad_nonce; la t0, b1an_signed_nonce; ld t0, 0(t0); li t1, -1; beq t0, t1, .L77prep_next\n" ++
   -- `rlp_list_nth_item` returns raw byte-string CONTENT, with its RLP prefix
   -- stripped.  Thus `0x80` is a zero-length target and `0x94 || address`
   -- is returned as the 20-byte address payload.

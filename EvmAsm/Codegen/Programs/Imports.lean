@@ -568,6 +568,10 @@ import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.RlpListCountItemsFlatSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFinishSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictWholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeWholeSAsm
 import EvmAsm.Codegen.Programs.SszPackBytesSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU256BeFlatSAsm

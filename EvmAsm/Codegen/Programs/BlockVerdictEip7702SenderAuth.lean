@@ -34,11 +34,11 @@ def eip7702SenderSelfAuthPostNonceCheck : String :=
   "  la t0, bsg_data_ptr; ld t2, 0(t0); la t0, bsg_idx_off; ld t1, 0(t0); add t1, t2, t1; la t0, bsg_change_ptr; sd t1, 0(t0)\n" ++
   "  la t0, bsg_idx_len; ld t1, 0(t0); la t0, bsg_change_item_len; sd t1, 0(t0)\n" ++
   "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); li a2, 0; la a3, bsg_index\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bsg_index; ld t0, 0(t0); bnez t0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); li a2, 2; la a3, bsg_index\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lbv_sender_nonce_fail\n" ++
   "  la t0, tgbpvr_lookup; ld t1, 80(t0); addi t1, t1, 1; la t2, bsg_index; ld t2, 0(t2); bne t1, t2, .Lbv_sender_nonce_fail\n" ++
   "  la t0, bsg_change_ptr; ld a0, 0(t0); la t0, bsg_change_item_len; ld a1, 0(t0); la a2, teer_authority; la a3, teer_recover_scratch\n" ++

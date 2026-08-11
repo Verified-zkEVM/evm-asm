@@ -309,7 +309,7 @@ Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.m
 
 | Verdict | Count |
 |---|---|
-| agrees | 19 |
+| agrees | 21 |
 | domain-restricted | 9 |
 | stricter | 0 |
 | **looser** | 0 |
@@ -323,7 +323,7 @@ Method: [`docs/agents/spec-correspondence.md`](docs/agents/spec-correspondence.m
 | bridged | 12 | tied to the shared model, inherits the differential |
 | ported | 8 | machine-checked tie to a SpecRef port that has no differential; requires a port-fidelity clause table |
 | machine-only | 4 | spec restates the rules locally; differential does NOT transfer |
-| inspection | 5 | read both sides; no executable backing |
+| inspection | 7 | read both sides; no executable backing |
 | — | 2 | no verdict to support |
 
 `diff` is 0 at *routine* granularity by construction: the differential validates
@@ -342,8 +342,10 @@ assembly implements them is the open obligation.
 |---|---|---|---|---|---|---|
 | `rlp` | guest | `rlp_walk_init` | `rlp_walk_init_spec_within` | agrees | bridged | decode_to_sequence entry |
 | `rlp` | guest | `rlp_walk_next` | `rlp_walk_next_spec_within` | agrees | bridged | decode_item_length + decode_joined_encodings loop |
-| `rlp` | guest | `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` | agrees | inspection | _deserialize_to_uint at U64 |
+| `rlp` | guest | `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` | agrees | inspection | int.from_bytes at U64 |
+| `rlp` | guest | `rlp_content_to_u64_strict` | `rlp_content_to_u64_strict_spec_within` | agrees | inspection | _deserialize_to_uint at U64 |
 | `rlp` | guest | `rlp_content_to_u256_be` | `rlp_content_to_u256_be_scalar_spec_within` | agrees | bridged | _deserialize_to_uint at U256 |
+| `rlp` | guest | `rlp_content_to_u256_be_strict` | `rlp_content_to_u256_be_strict_spec_within` | agrees | inspection | _deserialize_to_uint at U256 |
 | `rlp` | guest | `rlp_item_size` | `rlp_item_size_spec_within` | domain-restricted | bridged | decode_item_length |
 | `rlp` | guest | `rlp_item_span` | `rlp_item_span_spec_within` | domain-restricted | machine-only | decode_item_length |
 | `rlp` | guest | `rlp_list_count_items` | `rlp_list_count_items_spec_within` | agrees | machine-only | decode_joined_encodings |
@@ -418,4 +420,3 @@ This is the verified gas-cost surrogate.
 | M23 | ✅ |
 | M24 | ✅ |
 | M25 | ⏳ |
-
