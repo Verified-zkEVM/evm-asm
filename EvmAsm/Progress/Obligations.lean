@@ -178,8 +178,17 @@ opcodes plus the 14 `.execSpec` rows. `no_proven_opcode_blockers` below now \
 fails the build if a `.proven` opcode is ever listed here again" },
   { id := 6, name := "Accelerator ECALL bridges per `zkvm_accelerators.h`",
     status := .blocked,
-    blockedBy := [.infra "per-precompile EL bridges not yet codegen-wired"],
-    note := "vendored header + EL bridges; not codegen-wired" },
+    blockedBy :=
+      [.infra "55 accelerator-site bridges remain after the landed `zkvm_keccak256` \
+pilot: secp256k1 recovery (0x01), BN254, P256VERIFY, BLS G1, and the curve/complex \
+accelerator families 0x802–0x80A; the 56-site census is recorded in #10552 and the \
+family inventory is `docs/4ch8f-crypto-kernel-inventory.md`; the 56 figure counts \
+decoded CSRRS encodings, while that inventory's 64 counts raw pre-encoded `.4byte` \
+sites, so the two populations are not yet reconciled"],
+    auditedAt := some "2026-08-11 @84e000579",
+    note := "Pilot landed: `EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within` in \
+`HashBridgeKeccakTop.lean:283`, a genuine accelerator-site triple. One site is \
+covered; the other 55 sites and the remaining accelerator families are still open." },
   -- Audited as part of #11803. Not one of the rows that issue named, but the
   -- same defect class pointing the other way: a row understating its own
   -- progress hides that the work is startable, which is just as misleading to
