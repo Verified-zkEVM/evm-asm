@@ -79,7 +79,7 @@ def chainComputeTotalGasUsedFunction : String :=
   "  mv a0, s2                   # header_ptr\n" ++
   "  li a2, 10                   # field 10 = gas_used\n" ++
   "  la a3, ccgu_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccgu_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -131,7 +131,8 @@ def ziskChainComputeTotalGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccgu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalGasUsedFunction ++ "\n" ++
   ".Lccgu_pdone:"
 
@@ -191,7 +192,7 @@ def chainExtractNumberRangeFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 8                    # field 8 = number\n" ++
   "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcenr_propagate\n" ++
   "  # Advance to last header: skip the first (N-1) headers\n" ++
   "  mv t1, s2\n" ++
@@ -209,7 +210,7 @@ def chainExtractNumberRangeFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 8\n" ++
   "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcenr_propagate\n" ++
   "  li a0, 0\n" ++
   "  j .Lcenr_ret\n" ++
@@ -247,7 +248,8 @@ def ziskChainExtractNumberRangePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcenr_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractNumberRangeFunction ++ "\n" ++
   ".Lcenr_pdone:"
 
@@ -296,7 +298,7 @@ def headerExtractBasefeeFunction : String :=
   "  # rlp_field_to_u64(a0=header_ptr, a1=len, a2=15, a3=output_ptr)\n" ++
   "  mv a3, a2                   # output ptr (caller-supplied) -> a3\n" ++
   "  li a2, 15                   # field index = 15 (base_fee)\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"

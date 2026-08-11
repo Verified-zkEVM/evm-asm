@@ -36,9 +36,9 @@ open EvmAsm.Rv64
     fixed-size record.
 
     Composes K172 (block_hash) + a single RLP cursor walk over the
-    header fields. The walk directly copies field 3 (state_root) and
-    decodes fields 8, 10, 11, and 15 with rlp_content_to_u64, avoiding
-    four full rlp_field_to_u64 rescans of the same header.
+    header fields. The walk directly copies field 3 (state_root), decodes
+    fields 8, 10, and 11 with rlp_content_to_u64_strict, and keeps field 15
+    on the lenient path for its separate reference type.
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -87,17 +87,17 @@ def headerComputeSummaryStructFunction : String :=
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail; mv s3, a0\n" ++
   "  # Field 8: number -> out[64..72].\n" ++
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail\n" ++
-  "  sub t0, a0, a2; mv s5, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64; bnez a1, .Lhcss_int_fail\n" ++
+  "  sub t0, a0, a2; mv s5, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64_strict; bnez a1, .Lhcss_int_fail\n" ++
   "  sd a0, 64(s2); mv s3, s5\n" ++
   "  # Skip field 9.\n" ++
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail; mv s3, a0\n" ++
   "  # Field 10: gas_used -> out[80..88].\n" ++
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail\n" ++
-  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64; bnez a1, .Lhcss_int_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64_strict; bnez a1, .Lhcss_int_fail\n" ++
   "  sd a0, 80(s2)\n" ++
   "  # Field 11: timestamp -> out[72..80].\n" ++
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail\n" ++
-  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64; bnez a1, .Lhcss_int_fail\n" ++
+  "  sub t0, a0, a2; mv s3, a0; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64_strict; bnez a1, .Lhcss_int_fail\n" ++
   "  sd a0, 72(s2)\n" ++
   "  # Skip fields 12, 13, 14.\n" ++
   "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail; mv s3, a0\n" ++

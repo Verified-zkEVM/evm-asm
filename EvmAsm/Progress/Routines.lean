@@ -88,6 +88,9 @@ import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
+-- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
+-- `lpLolLoop` instead of unrolling the length-byte loop.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
@@ -495,6 +498,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "discharged separately by `long2_first_length_byte_ne_zero`: the high "
         ++ "byte is nonzero, so the length-of-length carries no leading zero — "
         ++ "vacuous at long1, real from here on"),
+  -- #10780 item 3: the first arm that CITES the length-byte loop instead of
+  -- unrolling it. `lpLolLoop` (RlpEncodeListPrefixLoopSpec) proves idx35-idx41 at
+  -- a symbolic trip count, so this arm is its ladder path plus the fixed
+  -- header/epilogue -- which is why it costs 580 lines rather than the ~200/byte
+  -- the long2 header priced unrolling at.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long3_pinned_spec_within")
+      (gate := "`65536 ≤ len.toNat < 16777216` — the 3-length-byte long form. With "
+        ++ "the short, long1 and long2 rows this covers `len < 16777216`; the cut "
+        ++ "moves to `lenlen ≥ 4`")
+      (notes := "per-form (\"long3\") pinned triple; writes "
+        ++ "`[0xFA, len >>> 16, len >>> 8, len]` and sets the cell flag to 4. Step "
+        ++ "bound 42 = 11 ladder + 5 header + 22 loop (`7*3+1`) + 3 epilogue + 1 "
+        ++ "`JALR`. ⭐ The loop is CITED, not unrolled: `lpLolLoop` covers "
+        ++ "idx35-idx41 at any trip count `≤ 8`, so each further width is its "
+        ++ "ladder path plus this same epilogue. Canonical form comes from the "
+        ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
+        ++ "`long3_first_length_byte_ne_zero`"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -662,10 +683,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 52 := by decide
+theorem routineCount_eq : routineCount = 53 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 15 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 16 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -766,6 +787,20 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- that consumes it: this is a machine result about the emitted program, and it is the
 -- piece a later composition will trust without re-checking. No registry row changes --
 -- a block lemma, not a routine triple.
+-- #10780: `rlp_item_size`'s long-form length-byte ACCUMULATION loop (idx25-31) at a
+-- symbolic trip count -- the read/accumulate counterpart of `lpLolLoop`'s write/extract.
+-- Ported from `wi_len_loop` (`rlp_walk_init` idx17-23): the same seven instructions with
+-- counter x30/x30, accumulator x31/x28, scratch x28/x31, cursor x6/x29. This is the
+-- machine half the `SpanForm` long arms need; the model half is already gated as the
+-- `LongSpan` lemmas. ⚠️ The drift guard is witnessed WITH it on purpose: the loop is
+-- proved core-side over a second copy of `rlpItemSize_prog` (core may not import Codegen),
+-- so the guard is the only thing keeping the copy and the emitted program in step.
+private noncomputable abbrev _rlp_item_size_len_loop_witness :=
+  @EvmAsm.Rv64.RLP.risLenLoop
+private noncomputable abbrev _rlp_item_size_len_loop_body_witness :=
+  @EvmAsm.Rv64.RLP.risLenLoopBody
+private noncomputable abbrev _rlp_item_size_prog_drift_guard_witness :=
+  @EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 private noncomputable abbrev _rlp_prefix_lol_loop_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
 private noncomputable abbrev _rlp_prefix_lol_body_witness :=
@@ -931,6 +966,10 @@ private noncomputable abbrev _rlp_encode_list_prefix_long2_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long2_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long3_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.rlp_encode_list_prefix_long3_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long3_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.long3_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within

@@ -101,6 +101,7 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1Field
@@ -173,6 +174,11 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_encode_bytes, rlpEncodeBytes_prog),
   (GuestAddrs.rlp_encode_uint_be, rlpEncodeUintBe_prog),
   (GuestAddrs.rlp_encode_list_prefix, rlpEncodeListPrefix_prog),
+  (GuestAddrs.rlp_walk_next, rlpWalkNext_prog),
+  (GuestAddrs.rlp_walk_next_nested, rlpWalkNextNested_prog),
+  (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
+  (GuestAddrs.rlp_validate_payload, rlpValidatePayload_prog),
+  (GuestAddrs.rlp_walk_next_core, rlpWalkNextCore_prog),
   (GuestAddrs.mpt_node_slot_encode, mptNodeSlotEncode_prog),
   (GuestAddrs.bytes_to_nibbles, bytesToNibbles_prog),
   (GuestAddrs.u256_from_u64_be, u256FromU64Be_prog),
@@ -485,6 +491,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 337
+#guard guestImageEntries.length = 342
 
 end EvmAsm.Codegen
