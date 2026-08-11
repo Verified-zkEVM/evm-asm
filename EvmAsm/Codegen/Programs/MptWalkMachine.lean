@@ -48,7 +48,7 @@ abbrev NthB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
 abbrev HpDecodeB : Word := BitVec.ofNat 64 GuestAddrs.hp_decode_nibbles
 
 #guard mptWalk_prog.length = 314
-#guard GuestAddrs.mpt_walk = 0x80005eb0
+#guard GuestAddrs.mpt_walk = 0x80005f70
 
 /-- Frame: ra@0, s0@8, s1@16, s2..s8 @24..72. -/
 def walkFrame : FrameDesc :=
@@ -271,7 +271,7 @@ theorem pc_eq_walkB (n : Nat) : pc n = walkB + BitVec.ofNat 64 (4 * n) := rfl
 /-- First `mpt_node_kind` call site (prog idx 47 = walk+188). -/
 def kindCallPc : Word := pc 47
 
-#guard GuestAddrs.mpt_walk + 188 = 0x80005eb0 + 188
+#guard GuestAddrs.mpt_walk + 188 = 0x80005f70 + 188
 
 theorem kindCallPc_eq : kindCallPc = walkB + 188 := by
   unfold kindCallPc pc walkB; decide
