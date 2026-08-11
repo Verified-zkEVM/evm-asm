@@ -1,10 +1,12 @@
 /-
   Result → kindTag wiring for `mpt_node_kind` (#12027).
 
-  The machine triple posts operational `MptNodeKindResult`. The pure bridge
-  `mptNodeKindGuest_eq_kindTag` already exists and was unused. This file
-  supplies the missing Result-to-WF link so a caller holding a WF `MptNode`
-  and a **successful** operational result (`kind < 3`) can recover `kindTag`.
+  The machine triple posts operational `MptNodeKindResult`. This file supplies
+  the Result-to-WF link so a caller holding a WF `MptNode` and a **successful**
+  operational result (`kind < 3`) can recover `kindTag` via encode-domain count
+  Success + path head HP (`mptNodeArity` / `path_head_hpKind`). It does **not**
+  consume the deleted pure `mptNodeKindGuest_eq_kindTag` bridge — that path was
+  superseded and removed unused.
 
   Item-two verdict (#12027 milestone): does NOT need #11341 fuel-insensitivity.
   Under `MptNode.WF`, `rlpItem` is a top-level list of `.bytes` only (no nested

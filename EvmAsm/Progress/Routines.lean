@@ -557,7 +557,8 @@ def routineRegistry : List RoutineEntry := [
         ++ "(already concrete v18..v21 in kindCallerPre/countAmbient). "
         ++ "#12027 wire: `mptNodeKindResult_eq_kindTag` (kind < 3) + "
         ++ "`mptNodeKindResult_exists_kindTag` under WF; encode-domain count "
-        ++ "Success + path head HP; no #11341 (WF top-level .bytes only). "
+        ++ "Success + path head HP; no #11341 (WF top-level .bytes only); "
+        ++ "supersedes (does not consume) deleted pure guest_eq_kindTag bridge. "
         ++ "coverRef `mpt_node_kind_precondition_reachable`. Callees already "
         ++ "`.proven`; first walker-dispatch machine triple"),
 

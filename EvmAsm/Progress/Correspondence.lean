@@ -483,6 +483,8 @@ via countAmbient). #12027 WIRING: `MptNodeKindWire.mptNodeKindResult_eq_kindTag`
 (success arms `kind < 3`) and `mptNodeKindResult_exists_kindTag` tie operational \
 Result to `MptNode.kindTag` under WF via encode-domain count Success + path head \
 HP nibble — does NOT need #11341 (top-level items are `.bytes` only under WF). \
+Does NOT consume the deleted pure `mptNodeKindGuest_eq_kindTag` bridge \
+(superseded unused; `mptNodeKindGuest` def remains for coverRef only). \
 Fail arms (`kind = 3`) excluded: pure `Failure` is over-broad at exclusive list end. \
 WHY still `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has no \
 executable differential; wiring closes the kindTag consumer gap for kind dispatch \
