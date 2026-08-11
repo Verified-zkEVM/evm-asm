@@ -53,7 +53,7 @@ def headerExtractBaseFeeU64_prog : Program :=
     .SD .x2 .x1 (0 : BitVec 12),
     .MV .x13 .x12,
     .LI .x12 (15 : Word),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (16)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (16)),
     .LD .x1 .x2 (0 : BitVec 12),
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
