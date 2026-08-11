@@ -98,6 +98,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixCanonical.pow_le_u64ByteLen
+
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within

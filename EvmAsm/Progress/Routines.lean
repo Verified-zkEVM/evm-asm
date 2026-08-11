@@ -86,6 +86,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
@@ -737,6 +738,16 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
+-- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
+-- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
+-- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
+-- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
+-- gated. No registry row changes: this is a side condition, not a routine triple.
+private noncomputable abbrev _rlp_prefix_first_length_byte_ne_zero_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
+private noncomputable abbrev _rlp_prefix_pow_le_u64ByteLen_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.pow_le_u64ByteLen
 -- #11795: the REFUTATION of `RlpWalkNextStrict`, plus the accept-indexed bridge that
 -- replaces it. Neither changes a registry row -- witnessed because a negative control is
 -- only worth what its axioms are, and this one is load-bearing for the issue's
