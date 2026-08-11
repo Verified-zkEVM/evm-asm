@@ -56,7 +56,7 @@ def balAccountCodeAtOrBeforeFunction : String :=
   "  mv a0, s4; mv a1, s5; mv a2, s6; addi a3, sp, 104; addi a4, sp, 112; jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lbcab_fail\n" ++
   "  ld t0, 104(sp); add s8, s4, t0; ld t1, 112(sp)\n" ++
-  "  mv a0, s8; mv a1, t1; li a2, 0; addi a3, sp, 120; jal ra, rlp_field_to_u64\n" ++
+  "  mv a0, s8; mv a1, t1; li a2, 0; addi a3, sp, 120; jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lbcab_fail\n" ++
   "  ld t0, 120(sp); bgtu t0, s3, .Lbcab_next; bltu t0, s7, .Lbcab_next\n" ++
   "  sd t0, 152(sp); mv a0, s8; ld a1, 112(sp); li a2, 1; addi a3, sp, 128; addi a4, sp, 136; jal ra, rlp_list_nth_item\n" ++
