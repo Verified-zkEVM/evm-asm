@@ -33,6 +33,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakSegments
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakRem
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakPad
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
