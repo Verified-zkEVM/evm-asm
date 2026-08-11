@@ -6,9 +6,9 @@
   `header_extract_base_fee_u64` (the existing
   `header_validate_base_fee` takes a pointer to the field,
   not an extractor). The helper reuses
-  `rlp_field_to_u64`, which fails if the field is > 8
-  bytes -- mainnet base fees have stayed sub-u64 since
-  EIP-1559.
+  `rlp_field_to_u64_strict`, which rejects non-canonical
+  scalars and fails if the field is > 8 bytes -- mainnet
+  base fees have stayed sub-u64 since EIP-1559.
 
   Completes the EIP-1559 fee-market triple at block_number
   alongside gas_used (PR 7541) and gas_limit (PR 7551).
@@ -62,7 +62,7 @@ def headerExtractBaseFeeU64_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractBaseFeeU64_relocs : RelocTable :=
-  [ (4, .jal .x1 "rlp_field_to_u64") ]
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def headerExtractBaseFeeU64Function : String :=
   "header_extract_base_fee_u64:\n" ++ emitProgramR headerExtractBaseFeeU64_prog headerExtractBaseFeeU64_relocs
@@ -207,7 +207,7 @@ def ziskBaseFeePerGasAtBlockNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbfbn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   headerExtractBaseFeeU64Function ++ "\n" ++
   baseFeePerGasAtBlockNumberFunction ++ "\n" ++

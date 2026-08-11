@@ -45,7 +45,7 @@ def headerExtractBaseFeeU64Bh_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractBaseFeeU64Bh_relocs : RelocTable :=
-  [ (4, .jal .x1 "rlp_field_to_u64") ]
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def headerExtractBaseFeeU64BhFunction : String :=
   "header_extract_base_fee_u64_bh:\n" ++ emitProgramR headerExtractBaseFeeU64Bh_prog headerExtractBaseFeeU64Bh_relocs
@@ -159,7 +159,7 @@ def ziskBaseFeePerGasAtBlockHashPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBaseFeeU64BhFunction ++ "\n" ++
   baseFeePerGasAtBlockHashFunction ++ "\n" ++
   ".Lbfbh_pdone:"
