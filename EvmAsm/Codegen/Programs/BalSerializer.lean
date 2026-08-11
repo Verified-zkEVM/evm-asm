@@ -1244,3 +1244,5 @@ theorem balSerializerMeasureAccountFunction_eq_prog :
 
 #guard balSerializerMeasureAccountFunction.startsWith "bal_serializer_measure_account:\n"
 #guard balSerializerMeasureAccount_prog.length = 57
+
+end EvmAsm.Codegen
