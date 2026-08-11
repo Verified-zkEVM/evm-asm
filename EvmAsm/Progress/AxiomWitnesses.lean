@@ -36,6 +36,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
+
 #print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
