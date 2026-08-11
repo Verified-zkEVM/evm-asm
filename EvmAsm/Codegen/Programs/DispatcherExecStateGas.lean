@@ -116,35 +116,98 @@ theorem dispatcherCaptureExecStateGasFunction_eq_prog :
 
     (execution-specs `vm/interpreter.py:362-364`, with the reservoir supplied
     by `fork.py:1101`, `fork.py:1129`, and `utils/message.py:79`). -/
+def dispatcherCaptureExecStateGasDifferential_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_used (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 0)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_entry_valid (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 12)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_entry_valid (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 12)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 176) (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 24)),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 28)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 28)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 40)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 40)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SUB .x6 .x6 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 56)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 56)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 72)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 72)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .SUB .x6 .x6 .x7,
+    .SLLI .x28 .x10 (3 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_derived (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 92)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_derived (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 92)),
+    .ADD .x7 .x7 .x28,
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_diff (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 108)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_diff (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 108)),
+    .ADD .x7 .x7 .x28,
+    .BNE .x5 .x6 (28 : BitVec 13),
+    .SD .x7 .x0 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 128)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 128)),
+    .ADD .x7 .x7 .x28,
+    .SD .x7 .x0 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x29 (1 : Word),
+    .SD .x7 .x29 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 156)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 156)),
+    .ADD .x7 .x7 .x28,
+    .SD .x7 .x0 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .SLLI .x28 .x10 (3 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_derived (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 180)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_derived (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 180)),
+    .ADD .x7 .x7 .x28,
+    .SD .x7 .x0 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_diff (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 196)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_diff (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 196)),
+    .ADD .x7 .x7 .x28,
+    .SD .x7 .x0 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 212)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bvgr_tx_exec_state_gas_nonderivable (GuestAddrs.dispatcher_capture_exec_state_gas_differential + 212)),
+    .ADD .x7 .x7 .x28,
+    .LI .x29 (1 : Word),
+    .SD .x7 .x29 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `dispatcherCaptureExecStateGasDifferential_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def dispatcherCaptureExecStateGasDifferential_relocs : RelocTable :=
+  [ (0, .la .x5 "evm_state_gas_used"),
+    (3, .la .x6 "runtime_tx_state_gas_entry_valid"),
+    (7, .la .x6 "runtime_tx_state_gas_message_left"),
+    (10, .la .x7 "evm_state_gas_left"),
+    (14, .la .x7 "evm_state_gas_spilled"),
+    (18, .la .x7 "runtime_tx_state_gas_message_spilled"),
+    (23, .la .x7 "bvgr_tx_exec_state_gas_derived"),
+    (27, .la .x7 "bvgr_tx_exec_state_gas_diff"),
+    (32, .la .x7 "bvgr_tx_exec_state_gas_nonderivable"),
+    (39, .la .x7 "bvgr_tx_exec_state_gas_nonderivable"),
+    (45, .la .x7 "bvgr_tx_exec_state_gas_derived"),
+    (49, .la .x7 "bvgr_tx_exec_state_gas_diff"),
+    (53, .la .x7 "bvgr_tx_exec_state_gas_nonderivable") ]
+
 def dispatcherCaptureExecStateGasDifferentialFunction : String :=
-  "dispatcher_capture_exec_state_gas_differential:\n" ++
-  "  la t0, evm_state_gas_used; ld t0, 0(t0)\n" ++
-  -- Every MTx route now has a baseline before preparation, including collision
-  -- and authorization-phase OOG.  The marker remains a validity bit rather
-  -- than a zero-value convention: a zero derived value is meaningful only
-  -- after this universal snapshot.
-  "  la t1, runtime_tx_state_gas_entry_valid; ld t1, 0(t1)\n" ++
-  "  beqz t1, .Lcesg_diff_not_derivable\n" ++
-  ".Lcesg_diff_post_preparation:\n" ++
-  "  la t1, runtime_tx_state_gas_message_left; ld t1, 0(t1)\n" ++
-  "  la t2, evm_state_gas_left; ld t2, 0(t2); sub t1, t1, t2\n" ++
-  "  la t2, evm_state_gas_spilled; ld t2, 0(t2); add t1, t1, t2\n" ++
-  "  la t2, runtime_tx_state_gas_message_spilled; ld t2, 0(t2); sub t1, t1, t2\n" ++
-  "  slli t3, a0, 3\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd t1, 0(t2)\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3\n" ++
-  "  bne t0, t1, .Lcesg_diff_mismatch\n" ++
-  "  sd zero, 0(t2)\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; sd zero, 0(t2)\n" ++
-  "  ret\n" ++
-  ".Lcesg_diff_mismatch:\n" ++
-  "  li t4, 1; sd t4, 0(t2)\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; sd zero, 0(t2); ret\n" ++
-  ".Lcesg_diff_not_derivable:\n" ++
-  "  slli t3, a0, 3\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_derived; add t2, t2, t3; sd zero, 0(t2)\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_diff; add t2, t2, t3; sd zero, 0(t2)\n" ++
-  "  la t2, bvgr_tx_exec_state_gas_nonderivable; add t2, t2, t3; li t4, 1; sd t4, 0(t2); ret\n"
+  "dispatcher_capture_exec_state_gas_differential:\n" ++ emitProgramR dispatcherCaptureExecStateGasDifferential_prog dispatcherCaptureExecStateGasDifferential_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `dispatcherCaptureExecStateGasDifferential_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem dispatcherCaptureExecStateGasDifferentialFunction_eq_prog :
+    dispatcherCaptureExecStateGasDifferentialFunction = "dispatcher_capture_exec_state_gas_differential:\n" ++ emitProgramR dispatcherCaptureExecStateGasDifferential_prog dispatcherCaptureExecStateGasDifferential_relocs := rfl
+
+#guard dispatcherCaptureExecStateGasDifferentialFunction.startsWith "dispatcher_capture_exec_state_gas_differential:\n"
+#guard dispatcherCaptureExecStateGasDifferential_prog.length = 59
 /-- The per-tx executed-state-gas array definition (`bvMtxArenaTxCap` entries,
     matching `bvgr_tx_state_gas`). c1 adds this identical line next to
     `bvgr_tx_state_gas` in `BlockVerdictDataSection.lean` so the verdict program

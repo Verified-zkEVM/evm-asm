@@ -31,6 +31,9 @@ import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -57,49 +60,73 @@ open EvmAsm.Rv64.Program
         0 : success
         1 : empty chain (N == 0)
         2 : RLP parse fail at head or tail header -/
-def chainExtractFirstLastStateRootFunction : String :=
-  "chain_extract_first_last_state_root:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  beqz s0, .Lceflsr_empty\n" ++
-  "  # first = headers[0].state_root\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a2, s3\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  bnez a0, .Lceflsr_parse_fail\n" ++
-  "  # Advance to last header\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lceflsr_skip:\n" ++
-  "  beqz t3, .Lceflsr_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lceflsr_skip\n" ++
-  ".Lceflsr_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  bnez a0, .Lceflsr_parse_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lceflsr_ret\n" ++
-  ".Lceflsr_empty:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lceflsr_ret\n" ++
-  ".Lceflsr_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lceflsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractFirstLastStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483784 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root 2147483712),
+    .BNE .x10 .x0 (brOff 2147483792 2147483716),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root 2147483768),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractFirstLastStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractFirstLastStateRoot_relocs : RelocTable :=
+  [ (16, .jal .x1 "header_extract_state_root"),
+    (30, .jal .x1 "header_extract_state_root") ]
+
+def chainExtractFirstLastStateRootFunction : String :=
+  "chain_extract_first_last_state_root:\n" ++ emitProgramR chainExtractFirstLastStateRoot_prog chainExtractFirstLastStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractFirstLastStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractFirstLastStateRootFunction_eq_prog :
+    chainExtractFirstLastStateRootFunction = "chain_extract_first_last_state_root:\n" ++ emitProgramR chainExtractFirstLastStateRoot_prog chainExtractFirstLastStateRoot_relocs := rfl
+
+#guard chainExtractFirstLastStateRootFunction.startsWith "chain_extract_first_last_state_root:\n"
+#guard chainExtractFirstLastStateRoot_prog.length = 45
 def ziskChainExtractFirstLastStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -155,47 +182,73 @@ def ziskChainExtractFirstLastStateRootProbeUnit : BuildUnit := {
         0 : success
         1 : empty chain (N == 0)
         2 : RLP parse fail at head or tail header -/
-def chainExtractFirstLastReceiptsRootFunction : String :=
-  "chain_extract_first_last_receipts_root:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  beqz s0, .Lceflrr_empty\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a2, s3\n" ++
-  "  jal ra, header_extract_receipts_root\n" ++
-  "  bnez a0, .Lceflrr_parse_fail\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lceflrr_skip:\n" ++
-  "  beqz t3, .Lceflrr_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lceflrr_skip\n" ++
-  ".Lceflrr_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, header_extract_receipts_root\n" ++
-  "  bnez a0, .Lceflrr_parse_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lceflrr_ret\n" ++
-  ".Lceflrr_empty:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lceflrr_ret\n" ++
-  ".Lceflrr_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lceflrr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractFirstLastReceiptsRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483784 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_receipts_root 2147483712),
+    .BNE .x10 .x0 (brOff 2147483792 2147483716),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_receipts_root 2147483768),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractFirstLastReceiptsRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractFirstLastReceiptsRoot_relocs : RelocTable :=
+  [ (16, .jal .x1 "header_extract_receipts_root"),
+    (30, .jal .x1 "header_extract_receipts_root") ]
+
+def chainExtractFirstLastReceiptsRootFunction : String :=
+  "chain_extract_first_last_receipts_root:\n" ++ emitProgramR chainExtractFirstLastReceiptsRoot_prog chainExtractFirstLastReceiptsRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractFirstLastReceiptsRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractFirstLastReceiptsRootFunction_eq_prog :
+    chainExtractFirstLastReceiptsRootFunction = "chain_extract_first_last_receipts_root:\n" ++ emitProgramR chainExtractFirstLastReceiptsRoot_prog chainExtractFirstLastReceiptsRoot_relocs := rfl
+
+#guard chainExtractFirstLastReceiptsRootFunction.startsWith "chain_extract_first_last_receipts_root:\n"
+#guard chainExtractFirstLastReceiptsRoot_prog.length = 45
 def ziskChainExtractFirstLastReceiptsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -352,47 +405,73 @@ def ziskChainExtractFirstLastTransactionsRootProbeUnit : BuildUnit := {
         1 : empty chain (N == 0)
         2 : RLP parse fail at head or tail header
             (pre-Shanghai header missing withdrawals_root) -/
-def chainExtractFirstLastWithdrawalsRootFunction : String :=
-  "chain_extract_first_last_withdrawals_root:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  beqz s0, .Lceflwr_empty\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a2, s3\n" ++
-  "  jal ra, header_extract_withdrawals_root\n" ++
-  "  bnez a0, .Lceflwr_parse_fail\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lceflwr_skip:\n" ++
-  "  beqz t3, .Lceflwr_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lceflwr_skip\n" ++
-  ".Lceflwr_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, header_extract_withdrawals_root\n" ++
-  "  bnez a0, .Lceflwr_parse_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lceflwr_ret\n" ++
-  ".Lceflwr_empty:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lceflwr_ret\n" ++
-  ".Lceflwr_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Lceflwr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractFirstLastWithdrawalsRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483784 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_withdrawals_root 2147483712),
+    .BNE .x10 .x0 (brOff 2147483792 2147483716),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_withdrawals_root 2147483768),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractFirstLastWithdrawalsRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractFirstLastWithdrawalsRoot_relocs : RelocTable :=
+  [ (16, .jal .x1 "header_extract_withdrawals_root"),
+    (30, .jal .x1 "header_extract_withdrawals_root") ]
+
+def chainExtractFirstLastWithdrawalsRootFunction : String :=
+  "chain_extract_first_last_withdrawals_root:\n" ++ emitProgramR chainExtractFirstLastWithdrawalsRoot_prog chainExtractFirstLastWithdrawalsRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractFirstLastWithdrawalsRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractFirstLastWithdrawalsRootFunction_eq_prog :
+    chainExtractFirstLastWithdrawalsRootFunction = "chain_extract_first_last_withdrawals_root:\n" ++ emitProgramR chainExtractFirstLastWithdrawalsRoot_prog chainExtractFirstLastWithdrawalsRoot_relocs := rfl
+
+#guard chainExtractFirstLastWithdrawalsRootFunction.startsWith "chain_extract_first_last_withdrawals_root:\n"
+#guard chainExtractFirstLastWithdrawalsRoot_prog.length = 45
 def ziskChainExtractFirstLastWithdrawalsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -548,44 +627,69 @@ def ziskChainExtractFirstLastOmmersHashProbeUnit : BuildUnit := {
       a0 (output) :
         0 : success
         1 : empty chain (N == 0) -/
-def chainExtractFirstLastBlockHashFunction : String :=
-  "chain_extract_first_last_block_hash:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  beqz s0, .Lceflbh_empty\n" ++
-  "  # first = keccak256(headers[0])\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  mv a2, s3\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  # Advance to last header\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lceflbh_skip:\n" ++
-  "  beqz t3, .Lceflbh_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lceflbh_skip\n" ++
-  ".Lceflbh_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  mv a2, s4\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lceflbh_ret\n" ++
-  ".Lceflbh_empty:\n" ++
-  "  li a0, 1\n" ++
-  ".Lceflbh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractFirstLastBlockHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483776 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.block_hash_from_header 2147483712),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.block_hash_from_header 2147483764),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractFirstLastBlockHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractFirstLastBlockHash_relocs : RelocTable :=
+  [ (16, .jal .x1 "block_hash_from_header"),
+    (29, .jal .x1 "block_hash_from_header") ]
+
+def chainExtractFirstLastBlockHashFunction : String :=
+  "chain_extract_first_last_block_hash:\n" ++ emitProgramR chainExtractFirstLastBlockHash_prog chainExtractFirstLastBlockHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractFirstLastBlockHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractFirstLastBlockHashFunction_eq_prog :
+    chainExtractFirstLastBlockHashFunction = "chain_extract_first_last_block_hash:\n" ++ emitProgramR chainExtractFirstLastBlockHash_prog chainExtractFirstLastBlockHash_relocs := rfl
+
+#guard chainExtractFirstLastBlockHashFunction.startsWith "chain_extract_first_last_block_hash:\n"
+#guard chainExtractFirstLastBlockHash_prog.length = 41
 def ziskChainExtractFirstLastBlockHashPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

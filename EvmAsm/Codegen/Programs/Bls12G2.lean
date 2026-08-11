@@ -623,219 +623,375 @@ theorem bls12G2ChordTailFunction_eq_prog :
 /-- Double an affine LE point: a0 = input, a1 = output (192 B LE, may
     alias). Returns a0 = 1 when the result is infinity (input infinity
     or y = 0; output zeroed), else 0. -/
-def bls12G2PointDblFunction : String :=
-  "blsg2_point_dbl:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  addi a0, s0, 96\n" ++
-  "  li a1, 96\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  bnez a0, .Lblsg2_dbl_inf       # y = 0 (covers all-zero infinity)\n" ++
-  -- lam = 3x^2 * (2y)^-1
-  "  mv a0, s0\n" ++
-  "  la a1, blsg2_lam\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads        # lam = x\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  mv a1, s0\n" ++
-  "  jal ra, blsg2_fp2_mul          # lam = x^2\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  la a1, blsg2_den\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads        # den = x^2\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  la a1, blsg2_den\n" ++
-  "  jal ra, blsg2_fp2_add          # lam = 2x^2\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  la a1, blsg2_den\n" ++
-  "  jal ra, blsg2_fp2_add          # lam = 3x^2\n" ++
-  "  addi a0, s0, 96\n" ++
-  "  la a1, blsg2_den\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads        # den = y\n" ++
-  "  la a0, blsg2_den\n" ++
-  "  addi a1, s0, 96\n" ++
-  "  jal ra, blsg2_fp2_add          # den = 2y\n" ++
-  "  la a0, blsg2_den\n" ++
-  "  la a1, blsg2_inv_out\n" ++
-  "  jal ra, blsg2_fp2_inv          # inv_out = (2y)^-1\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  la a1, blsg2_inv_out\n" ++
-  "  jal ra, blsg2_fp2_mul          # lam = 3x^2 / 2y\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, blsg2_chord_tail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg2_dbl_ret\n" ++
-  ".Lblsg2_dbl_inf:\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg2_zero192\n" ++
-  "  li a0, 1\n" ++
-  ".Lblsg2_dbl_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blsg2PointDbl_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (96 : BitVec 12),
+    .LI .x11 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_point_dbl + 32)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.blsg2_point_dbl + 240) (GuestAddrs.blsg2_point_dbl + 36)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 44)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 44)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_point_dbl + 56)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 60)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 60)),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_point_dbl + 72)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 76)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 76)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 84)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 84)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_point_dbl + 96)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 100)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 108)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 108)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_add (GuestAddrs.blsg2_point_dbl + 116)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 120)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 120)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 128)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 128)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_add (GuestAddrs.blsg2_point_dbl + 136)),
+    .ADDI .x10 .x8 (96 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 144)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 144)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_point_dbl + 156)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 160)),
+    .ADDI .x11 .x8 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_add (GuestAddrs.blsg2_point_dbl + 172)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 176)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_dbl + 176)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_dbl + 184)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_dbl + 184)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_inv (GuestAddrs.blsg2_point_dbl + 192)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 196)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_dbl + 196)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_dbl + 204)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_dbl + 204)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_point_dbl + 212)),
+    .MV .x10 .x8,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_chord_tail (GuestAddrs.blsg2_point_dbl + 228)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_zero192 (GuestAddrs.blsg2_point_dbl + 244)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsg2PointDbl_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsg2PointDbl_relocs : RelocTable :=
+  [ (8, .jal .x1 "blsg_is_zero_n"),
+    (11, .la .x11 "blsg2_lam"),
+    (14, .jal .x1 "blsf_copy_quads"),
+    (15, .la .x10 "blsg2_lam"),
+    (18, .jal .x1 "blsg2_fp2_mul"),
+    (19, .la .x10 "blsg2_lam"),
+    (21, .la .x11 "blsg2_den"),
+    (24, .jal .x1 "blsf_copy_quads"),
+    (25, .la .x10 "blsg2_lam"),
+    (27, .la .x11 "blsg2_den"),
+    (29, .jal .x1 "blsg2_fp2_add"),
+    (30, .la .x10 "blsg2_lam"),
+    (32, .la .x11 "blsg2_den"),
+    (34, .jal .x1 "blsg2_fp2_add"),
+    (36, .la .x11 "blsg2_den"),
+    (39, .jal .x1 "blsf_copy_quads"),
+    (40, .la .x10 "blsg2_den"),
+    (43, .jal .x1 "blsg2_fp2_add"),
+    (44, .la .x10 "blsg2_den"),
+    (46, .la .x11 "blsg2_inv_out"),
+    (48, .jal .x1 "blsg2_fp2_inv"),
+    (49, .la .x10 "blsg2_lam"),
+    (51, .la .x11 "blsg2_inv_out"),
+    (53, .jal .x1 "blsg2_fp2_mul"),
+    (57, .jal .x1 "blsg2_chord_tail"),
+    (61, .jal .x1 "blsg2_zero192") ]
+
+def bls12G2PointDblFunction : String :=
+  "blsg2_point_dbl:\n" ++ emitProgramR blsg2PointDbl_prog blsg2PointDbl_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsg2PointDbl_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G2PointDblFunction_eq_prog :
+    bls12G2PointDblFunction = "blsg2_point_dbl:\n" ++ emitProgramR blsg2PointDbl_prog blsg2PointDbl_relocs := rfl
+
+#guard bls12G2PointDblFunction.startsWith "blsg2_point_dbl:\n"
+#guard blsg2PointDbl_prog.length = 68
 /-- Add two affine LE points: a0 = P, a1 = Q, a2 = out (192 B LE; out
     may alias). Software-handles infinity, equal-x doubling, and
     P + (-P). Returns a0 = 1 when the result is infinity. -/
-def bls12G2PointAddFunction : String :=
-  "blsg2_point_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  mv a0, s0\n" ++
-  "  li a1, 192\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg2_add_p_finite\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg2_copy192          # P = inf: result = Q\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 192\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  j .Lblsg2_add_ret\n" ++
-  ".Lblsg2_add_p_finite:\n" ++
-  "  mv a0, s1\n" ++
-  "  li a1, 192\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg2_add_q_finite\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg2_copy192          # Q = inf: result = P (finite)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg2_add_ret\n" ++
-  ".Lblsg2_add_q_finite:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  li a2, 96\n" ++
-  "  jal ra, blsg2_eq_n\n" ++
-  "  beqz a0, .Lblsg2_add_distinct_x\n" ++
-  "  addi a0, s0, 96\n" ++
-  "  addi a1, s1, 96\n" ++
-  "  li a2, 96\n" ++
-  "  jal ra, blsg2_eq_n\n" ++
-  "  beqz a0, .Lblsg2_add_inf       # x equal, y opposite: P + (-P) = inf\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, blsg2_point_dbl        # x and y equal: P + P\n" ++
-  "  j .Lblsg2_add_ret\n" ++
-  ".Lblsg2_add_distinct_x:\n" ++
-  -- lam = (y2 - y1) * (x2 - x1)^-1
-  "  addi a0, s1, 96\n" ++
-  "  la a1, blsg2_lam\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads        # lam = y2\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  addi a1, s0, 96\n" ++
-  "  jal ra, blsg2_fp2_sub          # lam = y2 - y1\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, blsg2_den\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads        # den = x2\n" ++
-  "  la a0, blsg2_den\n" ++
-  "  mv a1, s0\n" ++
-  "  jal ra, blsg2_fp2_sub          # den = x2 - x1\n" ++
-  "  la a0, blsg2_den\n" ++
-  "  la a1, blsg2_inv_out\n" ++
-  "  jal ra, blsg2_fp2_inv\n" ++
-  "  la a0, blsg2_lam\n" ++
-  "  la a1, blsg2_inv_out\n" ++
-  "  jal ra, blsg2_fp2_mul          # lam = (y2-y1)/(x2-x1)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s2\n" ++
-  "  jal ra, blsg2_chord_tail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg2_add_ret\n" ++
-  ".Lblsg2_add_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, blsg2_zero192\n" ++
-  "  li a0, 1\n" ++
-  ".Lblsg2_add_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def blsg2PointAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .LI .x11 (192 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_point_add + 40)),
+    .BEQ .x10 .x0 (32 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_copy192 (GuestAddrs.blsg2_point_add + 56)),
+    .MV .x10 .x18,
+    .LI .x11 (192 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_point_add + 68)),
+    .JAL .x0 (jalOff (GuestAddrs.blsg2_point_add + 316) (GuestAddrs.blsg2_point_add + 72)),
+    .MV .x10 .x9,
+    .LI .x11 (192 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_point_add + 84)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_copy192 (GuestAddrs.blsg2_point_add + 100)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.blsg2_point_add + 316) (GuestAddrs.blsg2_point_add + 108)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_eq_n (GuestAddrs.blsg2_point_add + 124)),
+    .BEQ .x10 .x0 (40 : BitVec 13),
+    .ADDI .x10 .x8 (96 : BitVec 12),
+    .ADDI .x11 .x9 (96 : BitVec 12),
+    .LI .x12 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_eq_n (GuestAddrs.blsg2_point_add + 144)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsg2_point_add + 304) (GuestAddrs.blsg2_point_add + 148)),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_point_dbl (GuestAddrs.blsg2_point_add + 160)),
+    .JAL .x0 (jalOff (GuestAddrs.blsg2_point_add + 316) (GuestAddrs.blsg2_point_add + 164)),
+    .ADDI .x10 .x9 (96 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 172)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 172)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_point_add + 184)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 188)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 188)),
+    .ADDI .x11 .x8 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_sub (GuestAddrs.blsg2_point_add + 200)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 208)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 208)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_point_add + 220)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 224)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 224)),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_sub (GuestAddrs.blsg2_point_add + 236)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 240)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_den (GuestAddrs.blsg2_point_add + 240)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_add + 248)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_add + 248)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_inv (GuestAddrs.blsg2_point_add + 256)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 260)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_lam (GuestAddrs.blsg2_point_add + 260)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_add + 268)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_inv_out (GuestAddrs.blsg2_point_add + 268)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_point_add + 276)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_chord_tail (GuestAddrs.blsg2_point_add + 292)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_zero192 (GuestAddrs.blsg2_point_add + 308)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsg2PointAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsg2PointAdd_relocs : RelocTable :=
+  [ (10, .jal .x1 "blsg_is_zero_n"),
+    (14, .jal .x1 "blsg2_copy192"),
+    (17, .jal .x1 "blsg_is_zero_n"),
+    (21, .jal .x1 "blsg_is_zero_n"),
+    (25, .jal .x1 "blsg2_copy192"),
+    (31, .jal .x1 "blsg2_eq_n"),
+    (36, .jal .x1 "blsg2_eq_n"),
+    (40, .jal .x1 "blsg2_point_dbl"),
+    (43, .la .x11 "blsg2_lam"),
+    (46, .jal .x1 "blsf_copy_quads"),
+    (47, .la .x10 "blsg2_lam"),
+    (50, .jal .x1 "blsg2_fp2_sub"),
+    (52, .la .x11 "blsg2_den"),
+    (55, .jal .x1 "blsf_copy_quads"),
+    (56, .la .x10 "blsg2_den"),
+    (59, .jal .x1 "blsg2_fp2_sub"),
+    (60, .la .x10 "blsg2_den"),
+    (62, .la .x11 "blsg2_inv_out"),
+    (64, .jal .x1 "blsg2_fp2_inv"),
+    (65, .la .x10 "blsg2_lam"),
+    (67, .la .x11 "blsg2_inv_out"),
+    (69, .jal .x1 "blsg2_fp2_mul"),
+    (73, .jal .x1 "blsg2_chord_tail"),
+    (77, .jal .x1 "blsg2_zero192") ]
+
+def bls12G2PointAddFunction : String :=
+  "blsg2_point_add:\n" ++ emitProgramR blsg2PointAdd_prog blsg2PointAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsg2PointAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G2PointAddFunction_eq_prog :
+    bls12G2PointAddFunction = "blsg2_point_add:\n" ++ emitProgramR blsg2PointAdd_prog blsg2PointAdd_relocs := rfl
+
+#guard bls12G2PointAddFunction.startsWith "blsg2_point_add:\n"
+#guard blsg2PointAdd_prog.length = 85
 /-- Decode one EIP-2537 G2 wire point (a0 = 256-byte padded BE record,
     byte reads) into a 192-byte LE point at a1: each of the four 64-byte
     field elements needs a zero 16-byte pad and a 48-byte value < p, and
     the point must be all-zero (infinity) or satisfy y^2 = x^3 + 4(u+1).
     Returns a0 = 0 (valid finite), 1 (infinity), or 2 (invalid). -/
-def bls12G2DecodeFunction : String :=
-  "blsg2_decode_g2:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  li s2, 0                       # felt index 0..3\n" ++
-  ".Lblsg2_dec_felt:\n" ++
-  "  slli t0, s2, 6\n" ++
-  "  add a0, s0, t0\n" ++
-  "  li a1, 16\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg2_dec_bad       # pad nonzero\n" ++
-  "  slli t0, s2, 6\n" ++
-  "  add a0, s0, t0\n" ++
-  "  addi a0, a0, 16\n" ++
-  "  jal ra, blsg_lt_p\n" ++
-  "  beqz a0, .Lblsg2_dec_bad       # value >= p\n" ++
-  "  slli t0, s2, 6\n" ++
-  "  add a0, s0, t0\n" ++
-  "  addi a0, a0, 16\n" ++
-  "  slli t0, s2, 4\n" ++
-  "  slli t1, s2, 5\n" ++
-  "  add t0, t0, t1                 # 48 * felt index\n" ++
-  "  add a1, s1, t0\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  "  addi s2, s2, 1\n" ++
-  "  li t0, 4\n" ++
-  "  bne s2, t0, .Lblsg2_dec_felt\n" ++
-  "  mv a0, s1\n" ++
-  "  li a1, 192\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsg2_dec_finite\n" ++
-  "  li a0, 1                       # all-zero = infinity, valid\n" ++
-  "  j .Lblsg2_dec_ret\n" ++
-  ".Lblsg2_dec_finite:\n" ++
-  -- on-curve: oc_t = x^3 + b; oc_y2 = y^2; equal?
-  "  mv a0, s1\n" ++
-  "  la a1, blsg2_oc_t\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsg2_oc_t\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg2_fp2_mul          # x^2\n" ++
-  "  la a0, blsg2_oc_t\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, blsg2_fp2_mul          # x^3\n" ++
-  "  la a0, blsg2_oc_t\n" ++
-  "  la a1, blsg2_b_le\n" ++
-  "  jal ra, blsg2_fp2_add          # x^3 + (4 + 4u)\n" ++
-  "  addi a0, s1, 96\n" ++
-  "  la a1, blsg2_oc_y2\n" ++
-  "  li a2, 12\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsg2_oc_y2\n" ++
-  "  addi a1, s1, 96\n" ++
-  "  jal ra, blsg2_fp2_mul          # y^2\n" ++
-  "  la a0, blsg2_oc_t\n" ++
-  "  la a1, blsg2_oc_y2\n" ++
-  "  li a2, 96\n" ++
-  "  jal ra, blsg2_eq_n\n" ++
-  "  beqz a0, .Lblsg2_dec_bad\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsg2_dec_ret\n" ++
-  ".Lblsg2_dec_bad:\n" ++
-  "  li a0, 2\n" ++
-  ".Lblsg2_dec_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+def blsg2DecodeG2_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LI .x18 (0 : Word),
+    .SLLI .x5 .x18 (6 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .LI .x11 (16 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_decode_g2 + 44)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsg2_decode_g2 + 284) (GuestAddrs.blsg2_decode_g2 + 48)),
+    .SLLI .x5 .x18 (6 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .ADDI .x10 .x10 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_lt_p (GuestAddrs.blsg2_decode_g2 + 64)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsg2_decode_g2 + 284) (GuestAddrs.blsg2_decode_g2 + 68)),
+    .SLLI .x5 .x18 (6 : BitVec 6),
+    .ADD .x10 .x8 .x5,
+    .ADDI .x10 .x10 (16 : BitVec 12),
+    .SLLI .x5 .x18 (4 : BitVec 6),
+    .SLLI .x6 .x18 (5 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .ADD .x11 .x9 .x5,
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsg2_decode_g2 + 100)),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BNE .x18 .x5 (brOff (GuestAddrs.blsg2_decode_g2 + 32) (GuestAddrs.blsg2_decode_g2 + 112)),
+    .MV .x10 .x9,
+    .LI .x11 (192 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsg2_decode_g2 + 124)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.blsg2_decode_g2 + 288) (GuestAddrs.blsg2_decode_g2 + 136)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 144)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 144)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_decode_g2 + 156)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 160)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 160)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_decode_g2 + 172)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 176)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 176)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_decode_g2 + 188)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 192)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 192)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_b_le (GuestAddrs.blsg2_decode_g2 + 200)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_b_le (GuestAddrs.blsg2_decode_g2 + 200)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_add (GuestAddrs.blsg2_decode_g2 + 208)),
+    .ADDI .x10 .x9 (96 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 216)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 216)),
+    .LI .x12 (12 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads (GuestAddrs.blsg2_decode_g2 + 228)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 232)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 232)),
+    .ADDI .x11 .x9 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp2_mul (GuestAddrs.blsg2_decode_g2 + 244)),
+    .AUIPC .x10 (laHi GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 248)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsg2_oc_t (GuestAddrs.blsg2_decode_g2 + 248)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 256)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_oc_y2 (GuestAddrs.blsg2_decode_g2 + 256)),
+    .LI .x12 (96 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_eq_n (GuestAddrs.blsg2_decode_g2 + 268)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsg2DecodeG2_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsg2DecodeG2_relocs : RelocTable :=
+  [ (11, .jal .x1 "blsg_is_zero_n"),
+    (16, .jal .x1 "blsg_lt_p"),
+    (25, .jal .x1 "blsg_be_to_le"),
+    (31, .jal .x1 "blsg_is_zero_n"),
+    (36, .la .x11 "blsg2_oc_t"),
+    (39, .jal .x1 "blsf_copy_quads"),
+    (40, .la .x10 "blsg2_oc_t"),
+    (43, .jal .x1 "blsg2_fp2_mul"),
+    (44, .la .x10 "blsg2_oc_t"),
+    (47, .jal .x1 "blsg2_fp2_mul"),
+    (48, .la .x10 "blsg2_oc_t"),
+    (50, .la .x11 "blsg2_b_le"),
+    (52, .jal .x1 "blsg2_fp2_add"),
+    (54, .la .x11 "blsg2_oc_y2"),
+    (57, .jal .x1 "blsf_copy_quads"),
+    (58, .la .x10 "blsg2_oc_y2"),
+    (61, .jal .x1 "blsg2_fp2_mul"),
+    (62, .la .x10 "blsg2_oc_t"),
+    (64, .la .x11 "blsg2_oc_y2"),
+    (67, .jal .x1 "blsg2_eq_n") ]
+
+def bls12G2DecodeFunction : String :=
+  "blsg2_decode_g2:\n" ++ emitProgramR blsg2DecodeG2_prog blsg2DecodeG2_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsg2DecodeG2_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12G2DecodeFunction_eq_prog :
+    bls12G2DecodeFunction = "blsg2_decode_g2:\n" ++ emitProgramR blsg2DecodeG2_prog blsg2DecodeG2_relocs := rfl
+
+#guard bls12G2DecodeFunction.startsWith "blsg2_decode_g2:\n"
+#guard blsg2DecodeG2_prog.length = 78
 /-- Multiply an affine LE point by a big-endian scalar (MSB-first
     double-and-add over the raw bytes). a0 = scalar bytes, a1 = scalar
     byte length, a2 = base point, a3 = output (192 B LE; must not alias

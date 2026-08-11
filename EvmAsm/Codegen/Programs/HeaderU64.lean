@@ -51,17 +51,35 @@ open EvmAsm.Rv64.Program
         0 : success
         1 : RLP parse failure
         2 : field 7 exceeds 8 bytes BE -/
-def headerExtractDifficultyFunction : String :=
-  "header_extract_difficulty:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 7\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractDifficulty_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (7 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483664),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractDifficulty_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractDifficulty_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64") ]
+
+def headerExtractDifficultyFunction : String :=
+  "header_extract_difficulty:\n" ++ emitProgramR headerExtractDifficulty_prog headerExtractDifficulty_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractDifficulty_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractDifficultyFunction_eq_prog :
+    headerExtractDifficultyFunction = "header_extract_difficulty:\n" ++ emitProgramR headerExtractDifficulty_prog headerExtractDifficulty_relocs := rfl
+
+#guard headerExtractDifficultyFunction.startsWith "header_extract_difficulty:\n"
+#guard headerExtractDifficulty_prog.length = 8
 def ziskHeaderExtractDifficultyPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -639,17 +657,35 @@ def ziskChainComputeMaxGasUsedProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure (pre-Cancun header)
         2 : field 17 exceeds 8 bytes BE -/
-def headerExtractBlobGasUsedFunction : String :=
-  "header_extract_blob_gas_used:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 17\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractBlobGasUsed_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (17 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483664),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractBlobGasUsed_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractBlobGasUsed_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def headerExtractBlobGasUsedFunction : String :=
+  "header_extract_blob_gas_used:\n" ++ emitProgramR headerExtractBlobGasUsed_prog headerExtractBlobGasUsed_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractBlobGasUsed_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractBlobGasUsedFunction_eq_prog :
+    headerExtractBlobGasUsedFunction = "header_extract_blob_gas_used:\n" ++ emitProgramR headerExtractBlobGasUsed_prog headerExtractBlobGasUsed_relocs := rfl
+
+#guard headerExtractBlobGasUsedFunction.startsWith "header_extract_blob_gas_used:\n"
+#guard headerExtractBlobGasUsed_prog.length = 8
 def ziskHeaderExtractBlobGasUsedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -704,17 +740,35 @@ def ziskHeaderExtractBlobGasUsedProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure (pre-Cancun header)
         2 : field 18 exceeds 8 bytes BE -/
-def headerExtractExcessBlobGasFunction : String :=
-  "header_extract_excess_blob_gas:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 18\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractExcessBlobGas_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (18 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483664),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractExcessBlobGas_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractExcessBlobGas_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def headerExtractExcessBlobGasFunction : String :=
+  "header_extract_excess_blob_gas:\n" ++ emitProgramR headerExtractExcessBlobGas_prog headerExtractExcessBlobGas_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractExcessBlobGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractExcessBlobGasFunction_eq_prog :
+    headerExtractExcessBlobGasFunction = "header_extract_excess_blob_gas:\n" ++ emitProgramR headerExtractExcessBlobGas_prog headerExtractExcessBlobGas_relocs := rfl
+
+#guard headerExtractExcessBlobGasFunction.startsWith "header_extract_excess_blob_gas:\n"
+#guard headerExtractExcessBlobGas_prog.length = 8
 def ziskHeaderExtractExcessBlobGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

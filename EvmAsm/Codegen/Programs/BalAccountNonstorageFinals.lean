@@ -27,6 +27,8 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsProg
 import EvmAsm.Codegen.GuestLayoutInstance
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -38,40 +40,122 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok / 1 parse failure (conservative). -/
 def balAccountNonstorageFinals_prog : Program := balAccountNonstorageFinals_prog_of guestLayout
 
+def balAccountCodeAtOrBefore_prog : Program :=
+  [ .ADDI .x2 .x2 (-160 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (56 : BitVec 12),
+    .SD .x18 .x0 (64 : BitVec 12),
+    .SD .x18 .x0 (72 : BitVec 12),
+    .SD .x2 .x0 (152 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (5 : Word),
+    .ADDI .x13 .x2 (80 : BitVec 12),
+    .ADDI .x14 .x2 (88 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item 2147483744),
+    .BNE .x10 .x0 (brOff 2147483960 2147483748),
+    .LD .x5 .x2 (80 : BitVec 12),
+    .ADD .x20 .x8 .x5,
+    .LD .x21 .x2 (88 : BitVec 12),
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .ADDI .x12 .x2 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items 2147483776),
+    .BNE .x10 .x0 (brOff 2147483960 2147483780),
+    .LI .x22 (0 : Word),
+    .LI .x23 (0 : Word),
+    .LD .x5 .x2 (96 : BitVec 12),
+    .BEQ .x22 .x5 (brOff 2147483952 2147483796),
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .MV .x12 .x22,
+    .ADDI .x13 .x2 (104 : BitVec 12),
+    .ADDI .x14 .x2 (112 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item 2147483820),
+    .BNE .x10 .x0 (brOff 2147483960 2147483824),
+    .LD .x5 .x2 (104 : BitVec 12),
+    .ADD .x24 .x20 .x5,
+    .LD .x6 .x2 (112 : BitVec 12),
+    .MV .x10 .x24,
+    .MV .x11 .x6,
+    .LI .x12 (0 : Word),
+    .ADDI .x13 .x2 (120 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483856),
+    .BNE .x10 .x0 (brOff 2147483960 2147483860),
+    .LD .x5 .x2 (120 : BitVec 12),
+    .BLTU .x19 .x5 (brOff 2147483944 2147483868),
+    .BLTU .x5 .x23 (brOff 2147483944 2147483872),
+    .SD .x2 .x5 (152 : BitVec 12),
+    .MV .x10 .x24,
+    .LD .x11 .x2 (112 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .ADDI .x13 .x2 (128 : BitVec 12),
+    .ADDI .x14 .x2 (136 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item 2147483900),
+    .BNE .x10 .x0 (56 : BitVec 13),
+    .LD .x6 .x2 (128 : BitVec 12),
+    .ADD .x6 .x24 .x6,
+    .SUB .x6 .x6 .x8,
+    .SD .x18 .x6 (64 : BitVec 12),
+    .LD .x6 .x2 (136 : BitVec 12),
+    .SD .x18 .x6 (72 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x18 .x6 (56 : BitVec 12),
+    .LD .x23 .x2 (152 : BitVec 12),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (jalOff 2147483792 2147483948),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (160 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balAccountCodeAtOrBefore_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountCodeAtOrBefore_relocs : RelocTable :=
+  [ (24, .jal .x1 "rlp_list_nth_item"),
+    (32, .jal .x1 "rlp_list_count_items"),
+    (43, .jal .x1 "rlp_list_nth_item"),
+    (52, .jal .x1 "rlp_field_to_u64"),
+    (63, .jal .x1 "rlp_list_nth_item") ]
+
 def balAccountCodeAtOrBeforeFunction : String :=
-  "bal_account_code_at_or_before:\n" ++
-  "  addi sp, sp, -160\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  sd zero, 56(s2); sd zero, 64(s2); sd zero, 72(s2); sd zero, 152(sp)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 5; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbcab_fail\n" ++
-  "  ld t0, 80(sp); add s4, s0, t0; ld s5, 88(sp)\n" ++
-  "  mv a0, s4; mv a1, s5; addi a2, sp, 96; jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbcab_fail\n" ++
-  "  li s6, 0; li s7, 0\n" ++
-  ".Lbcab_loop:\n" ++
-  "  ld t0, 96(sp); beq s6, t0, .Lbcab_done\n" ++
-  "  mv a0, s4; mv a1, s5; mv a2, s6; addi a3, sp, 104; addi a4, sp, 112; jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbcab_fail\n" ++
-  "  ld t0, 104(sp); add s8, s4, t0; ld t1, 112(sp)\n" ++
-  "  mv a0, s8; mv a1, t1; li a2, 0; addi a3, sp, 120; jal ra, rlp_field_to_u64\n" ++
-  "  bnez a0, .Lbcab_fail\n" ++
-  "  ld t0, 120(sp); bgtu t0, s3, .Lbcab_next; bltu t0, s7, .Lbcab_next\n" ++
-  "  sd t0, 152(sp); mv a0, s8; ld a1, 112(sp); li a2, 1; addi a3, sp, 128; addi a4, sp, 136; jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbcab_fail\n" ++
-  "  ld t1, 128(sp); add t1, s8, t1; sub t1, t1, s0; sd t1, 64(s2); ld t1, 136(sp); sd t1, 72(s2); li t1, 1; sd t1, 56(s2); ld s7, 152(sp)\n" ++
-  ".Lbcab_next:\n" ++
-  "  addi s6, s6, 1; j .Lbcab_loop\n" ++
-  ".Lbcab_done:\n" ++
-  "  li a0, 0; j .Lbcab_ret\n" ++
-  ".Lbcab_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbcab_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 160; ret"
+  "bal_account_code_at_or_before:\n" ++ emitProgramR balAccountCodeAtOrBefore_prog balAccountCodeAtOrBefore_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountCodeAtOrBefore_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountCodeAtOrBeforeFunction_eq_prog :
+    balAccountCodeAtOrBeforeFunction = "bal_account_code_at_or_before:\n" ++ emitProgramR balAccountCodeAtOrBefore_prog balAccountCodeAtOrBefore_relocs := rfl
+
+#guard balAccountCodeAtOrBeforeFunction.startsWith "bal_account_code_at_or_before:\n"
+#guard balAccountCodeAtOrBefore_prog.length = 91
 /-- `zisk_bal_account_nonstorage_finals`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16 : AccountChanges byte length
