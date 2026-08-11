@@ -124,6 +124,12 @@ private def decodeFixedHash32 (field : String) (emptyValue : Hash32) (bs : Bytes
   else
     throw (.accountFieldWrongLength field bs.length)
 
+theorem decodeFixedHash32_of_nonempty_of_length (field : String)
+    (emptyValue : Hash32) (bs : Bytes) (h_empty : bs.isEmpty = false)
+    (h_len : bs.length = 32) :
+    decodeFixedHash32 field emptyValue bs = .ok bs := by
+  simp [decodeFixedHash32, h_empty, h_len] <;> rfl
+
 /-- Decode `(nonce, balance, storage_root, code_hash)` from a trie leaf.
     Returns the `Account` and the `storage_root` separately (mirrors the
     Python tuple return). Non-empty `storage_root` and `code_hash` fields
