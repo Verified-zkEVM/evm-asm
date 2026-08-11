@@ -440,6 +440,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Rv64.RLP.risLenLoopBody
 
+#print axioms EvmAsm.Rv64.RLP.rlpItemDecodeStrictW_of_decodeAux
+
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
