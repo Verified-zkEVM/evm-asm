@@ -15,7 +15,7 @@ tx_eip2930_decode:
   bnez a1, .Lt29_fail
   sub a0, a0, a2             # content_ptr = advanced - len
   mv a1, a2                  # content_len
-  jal ra, rlp_content_to_u64 # a0=u64, a1=status
+  jal ra, rlp_content_to_u64_strict # a0=u64, a1=status
   bnez a1, .Lt29_fail
   sd a0, 0(s2)
   # Field 1: nonce (u64 at offset 8)
@@ -24,7 +24,7 @@ tx_eip2930_decode:
   mv s3, a0
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt29_fail
   sd a0, 8(s2)
   # Field 2: gas_price (u256 at offset 16)
@@ -34,7 +34,7 @@ tx_eip2930_decode:
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 16
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt29_fail
   # Field 3: gas_limit (u64 at offset 48)
   mv a0, s3; mv a1, s1
@@ -42,7 +42,7 @@ tx_eip2930_decode:
   mv s3, a0
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt29_fail
   sd a0, 48(s2)
   # Field 4: to (0 or 20 bytes at 56; to_present u32 at 76)
@@ -73,7 +73,7 @@ tx_eip2930_decode:
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 80
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt29_fail
   # Field 6: data (offset+length u64 at 112/120)
   mv a0, s3; mv a1, s1
@@ -99,7 +99,7 @@ tx_eip2930_decode:
   mv s3, a0
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt29_fail
   sd a0, 144(s2)
   # Field 9: r (u256 at offset 152)
@@ -109,7 +109,7 @@ tx_eip2930_decode:
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 152
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt29_fail
   # Field 10: s (u256 at offset 184)
   mv a0, s3; mv a1, s1
@@ -118,7 +118,7 @@ tx_eip2930_decode:
   bnez a1, .Lt29_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 184
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt29_fail
   li a0, 0
   j .Lt29_ret

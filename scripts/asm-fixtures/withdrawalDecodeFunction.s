@@ -7,12 +7,12 @@ withdrawal_decode:
   mv s2, a2                  # struct out
   # Field 0: index (u64 at offset 0)
   mv a0, s0; mv a1, s1; li a2, 0; mv a3, s2
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lwd_fail
   # Field 1: validator_index (u64 at offset 8)
   mv a0, s0; mv a1, s1; li a2, 1
   addi a3, s2, 8
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lwd_fail
   # Field 2: address (20 bytes at offset 16)
   mv a0, s0; mv a1, s1; li a2, 2
@@ -31,7 +31,7 @@ withdrawal_decode:
   # Field 3: amount (u64 at offset 40)
   mv a0, s0; mv a1, s1; li a2, 3
   addi a3, s2, 40
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lwd_fail
   li a0, 0
   j .Lwd_ret
