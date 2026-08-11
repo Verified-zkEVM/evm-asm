@@ -44,6 +44,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
+import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
