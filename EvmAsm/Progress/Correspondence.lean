@@ -225,7 +225,10 @@ def registry : List Entry := [
 model: this row is the CORE's lenient span relation; the strict wrapper \
 (`rlp_walk_next_shared`/`rlp_validate_payload`, the only guest call surface — \
 165/165 `jal rlp_walk_next` sites) has relation `rlpItemDecodeStrictW` with the \
-reverse bridge proven (`Rv64/RLP/WalkNextStrict.lean`); machine-tying = #12021" },
+reverse bridge proven (`Rv64/RLP/WalkNextStrict.lean`). Machine-tying is no longer \
+blocked on transcription — #12021 landed all four wrapper programs \
+(`Codegen/Programs/RlpWalk.lean:104`/`:139`/`:162`/`:237`) — but no \
+`cpsTripleWithin` covers them yet, so the tie remains open as ordinary proof work" },
   { family := "rlp", routine := "rlp_content_to_u64",
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
@@ -287,31 +290,68 @@ non-SpanForm walked items uncovered. coverRef `rlp_item_span_precondition_reacha
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
     reference := "decode_joined_encodings",
-    note := "⛔ BLOCKED ON #11711, and the reason is structural rather than unfinished \
-work. #11341 asked for a bridge from the local `StrictPrefix` walk relation to the shared \
-`DecodeChain`; PR #11694 landed the structural half (`DecodeChain.snoc`, the snoc-vs-cons \
-reversal, plus the count-to-items construction) and two of the three byte-string per-item \
-disjuncts. The remaining per-item obligation CANNOT BE DISCHARGED: `DecodeChain` demands \
-fuel-insensitivity (`∀ m`) per link, which is sound only for byte-string items, whereas a \
-nested list's `decodeAux` recurses into `decodeItems nDepth payload` and IS fuel-sensitive \
-(WalkDecodeBridge.lean:405-408 says so in the tree's own words). ⚠️ AND THE DOMAIN CONTAINS \
-NESTED LISTS: since #11675 this routine is called by `mpt_node_kind` to check node arity, and \
-MPT branch children are either a 32-byte hash or an INLINE EMBEDDED NODE — \
-`SpecRef/IncrementalMpt.lean:155` `resolveChildRefAux` has an explicit `| .list items =>` arm \
-for exactly that. So the hypothesis is not merely unproven on this routine's domain, it is \
-unsatisfiable, and a structural theorem whose hypothesis cannot be instantiated says nothing \
-about the routine. The row therefore stays `machineOnly` until #11711 supplies a \
-fuel-sensitive chain predicate; regrading it earlier would claim a differential transfer that \
-does not exist. Separately noted on #11341: the machine relation accepts a list item whose \
-SPAN fits without validating its interior, where `decode_joined_encodings` decodes every \
-item — a looser-than-reference shape whose reachability is NOT established. CLAUSE-FIDELITY \
-ATTEMPT: the byte-string item clauses are discharged by `decodeAux_of_singleByte` / \
-`decodeAux_of_shortBytes`, but the recursive LIST-PAYLOAD clause is defeated. `decodeAux` \
-recurses into `decodeItems nDepth payload` and is fuel-sensitive, while `DecodeChain` requires \
-one fuel-insensitive `∀ m` decoder per item. The concrete `[0xc3,0xc2,0x81,0x00]` witness \
-(`RlpListCountItemsBridge.lean:571-584`) is accepted by the machine span-only list arm and \
-rejected by `decodeAux`; reachability in a live accepted MPT path is not established. No \
-complete table or ported regrade is therefore claimed" },
+    note := "⛔ STILL `machineOnly`, AND THE BLOCKER IS NO LONGER THE ONE THIS ROW NAMED. \
+The previous note (2026-08-07) read `BLOCKED ON #11711` and put the obstruction in \
+`DecodeChain`'s per-link fuel-insensitivity. #11711 IS CLOSED and its deliverable LANDED, so \
+that citation was pointing at a resolved issue: `DecodeChainFrom` \
+(`Rv64/RLP/WalkDecodeBridge.lean:499`) carries a single `floor` and states each link as a \
+plain `decodeAux floor …` obligation, `decodeItems_of_chainFrom` (:527) composes a chain \
+under the ONE side condition `floor ≤ k + 1`, and `decodeAux_mono_fuel` \
+(`EL/RLP/FuelMono.lean:216`) removes the per-link fuel algebra entirely. A NESTED LIST IS \
+NOW A LEGAL LINK. The machine-side structural half is done too: `DecodeChainFrom.snoc` and \
+`StrictPrefix.decodeChainFrom_of_itemBridge` (`RlpListCountItemsBridge.lean:346`, `:373`) \
+turn a `StrictPrefix` of length `count` into a `DecodeChainFrom` over exactly `count` items. \
+So the fuel obstruction is GONE and the row still cannot be regraded — the citation had to \
+be replaced, not refreshed. \
+⭐ RE-MEASURED AGAINST `rlpItemDecodeStrictW` (`Rv64/RLP/WalkNextStrict.lean:52`), the \
+fuel-sensitive wrapper relation with both bridge directions proven \
+(`rlpItemDecodeStrictW_to_decodeAux` :788, `rlpItemDecodeStrictW_of_decodeAux` :829). IT \
+DOES NOT BRIDGE THIS ROW, and the reason is that it is not additional strength but the \
+missing hypothesis under a new name. Its second conjunct — on a list prefix, `decodeAux` \
+decodes the span as a `.list` — is pointwise the already-named residual \
+`RlpListInteriorsDecode` (`RlpListCountItemsBridge.lean:405`), i.e. the payload conjunct of \
+`rlpItemDecodeStrict` (:475). Accordingly the forward bridge proves its two LIST arms by \
+CONSUMING that conjunct (`obtain ⟨inner, hdec⟩ := hrecursive …`), never by discharging it. \
+Both directions being proven is a statement about the MODEL's two levels; it moves nothing \
+on the guest side. \
+⛔ THE GAP IS MACHINE-SIDE, WHICH IS WHY NO MODEL-SIDE PREDICATE CAN CLOSE IT. \
+`rlp_list_count_items_spec_within`'s post is `StrictPrefix` \
+(`RlpListNthItemSAsmBase.lean:312`), whose `succ` constructor carries the LENIENT \
+`rlpItemDecode` — the routine embeds `rlp_walk_next_prog`, the 412-byte CORE, and consumes \
+the core triple `rlp_walk_next_spec_within` (`RlpListCountItemsSAsmCode.lean:20`, \
+`…SAsmNext.lean:62`). Nothing in that post mentions the recursive payload check, so \
+`rlpItemDecodeStrictW` cannot be OBTAINED from the theorem this row cites; assuming it \
+would be exactly the over-grading #11341 exists to prevent. \
+⚠️ AND THE BYTE-LEVEL VERSION OF THE MISSING FACT IS FALSE, kernel-checked, not merely \
+unproven: `not_rlpWalkNextStrict_nestedNonCanonical` (`RlpListCountItemsBridge.lean:595`) \
+refutes it on `[0xc3,0xc2,0x81,0x00]` — an outer list whose span fits and whose interior is \
+non-canonical, accepted by the machine span-only list arm and rejected by `decodeAux`. So \
+there is no route through the weak relation at all; the fact must come from ACCEPTANCE, \
+which is why the residual is stated as `RlpWalkNextAccepts` (:618) with the accept \
+predicate ABSTRACT. \
+⇒ THE BLOCKER IS THAT NOTHING PROVEN COVERS THE RECURSIVE VALIDATOR, so there is nothing \
+to instantiate `accept` with. ⭐ NOTE THIS IS NO LONGER A REPRESENTATION GAP: #12021 landed \
+all four programs — `rlpWalkNext_prog` (`Codegen/Programs/RlpWalk.lean:104`), \
+`rlpWalkNextNested_prog` (`:139`), `rlpWalkNextShared_prog` (`:162`) and \
+`rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard — so the 356 of 768 \
+bytes that used to exist only as emitted assembly STRINGS are now transcribed. What is \
+missing is a TRIPLE over them: no `cpsTripleWithin` mentions any of the four, so the \
+routine still consumes only the 412-byte core's `rlp_walk_next_spec_within`, whose post \
+carries the LENIENT `rlpItemDecode`. That is ordinary proof work on a statable goal rather \
+than a prerequisite, which is a better position than this row previously recorded. \
+⚠️ `WalkNextStrict.lean`'s own header still names #12021 as the dependency and is stale in \
+the same way this note was. \
+⚠️ THE DOMAIN STILL CONTAINS NESTED LISTS, so this is live rather than hypothetical: since \
+#11675 the routine is called by `mpt_node_kind` to check node arity, and MPT branch \
+children are either a 32-byte hash or an INLINE EMBEDDED NODE — \
+`SpecRef/IncrementalMpt.lean:155` `resolveChildRefAux` has an explicit `| .list items =>` \
+arm for exactly that. \
+CLAUSE-FIDELITY STATUS, unchanged: the byte-string item clauses ARE discharged \
+(`decodeAux_of_singleByte` / `decodeAux_of_shortBytes`), the list-payload clause is not, \
+and no complete table or `ported` regrade is claimed. Separately noted on #11341 and still \
+open: the machine relation accepts a list item whose SPAN fits without validating its \
+interior, where `decode_joined_encodings` decodes every item — a looser-than-reference \
+shape whose reachability on a live accepted MPT path is NOT established" },
   { family := "rlp", routine := "rlp_list_nth_item",
     spec := some "rlpListNthItem_spec_within",
     verdict := .agrees, basis := .bridged,
@@ -928,7 +968,66 @@ strings are not compared (harness contract, docs/agents/spec-correspondence.md 9
 (4) `field_modulus` is syntactically the port's `fieldModulus`, same decimal literal; \
 the Python imports it from py_ecc `fields/field_properties.py:24`, verified identical. \
 ⚠️ CITATION KIND: clauses 2 and 4 cite CPython and EXTERNAL `py_ecc`, not the vendored \
-tree — read, not machine-checked. See #11574" }
+tree — read, not machine-checked. See #11574" },
+
+  -- #11901: the `tx` family's FIRST row, and the family's existence is the finding.
+  -- The divergence #11901 reported was fixed in the guest (#11929) and then recorded
+  -- NOWHERE: `tx_type_dispatch` was `.proven` in `Progress/Routines.lean` with no
+  -- Correspondence row, and `countFamily "tx"` was 0 -- i.e. the one registry that
+  -- exists to record spec correspondence had nothing to say about the routine whose
+  -- spec correspondence was the subject of an issue. #11342 established that this
+  -- shape passes the cross-registry gate VACUOUSLY.
+  { family := "tx", routine := "tx_type_dispatch",
+    spec := some "txTypeDispatch_spec_within",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "the first-byte envelope dispatch of `decode_transaction` \
+(SpecRef/Transactions.lean:386), a port of amsterdam/transactions.py:575-577 -- \
+0x01..0x04 typed, 0xC0..0xFE legacy, anything else (including 0xFF) rejected",
+    note := "⭐ THE AGREEMENT ON THE 0xFF BOUNDARY IS ENGINEERED, NOT INCIDENTAL, and a \
+reader must not take it for a coincidence. #11901 found the guest MODEL treating `0xff` as \
+a legacy prefix while the emitted routine already rejected it; the resolution was to \
+change the GUEST to match the port and the Python, per the maintainer's reading of the \
+reference. `teerTxTypeDispatch` (`Codegen/Programs/TxTypeDispatchSpec.lean:53`) is now \
+closed-range -- `if 192 ≤ b.toNat ∧ b.toNat < 255 then (0,0,0)` -- and the emitted program \
+carries the matching guard, `.LI .x6 (255 : Word)` then `.BEQ .x5 .x6` at \
+`Codegen/Programs/TxExtract.lean:124-125` (45 -> 48 instructions, #11929, dc3a45d7a). So \
+the 0xff arm is a FAILURE disjunct inside a post that stays TOTAL over the first byte, not \
+an omission. \
+⚠️ NO NEGATIVE CONTROL / REFUTATION DECLARATION EXISTS, and that is worth saying out loud \
+because it bounds what this row protects: the divergence was FIXED rather than \
+CHARACTERISED, so there is nothing in the tree of the shape \
+`not_rlpWalkNextStrict_nestedNonCanonical` (the RLP rows' kernel-checked refutation) \
+pinning the old 0xff reading as wrong. The machine triple would fail if the emitted guard \
+were removed while the model kept it -- real protection, but protection of the GUEST \
+against `teerTxTypeDispatch`, not of `teerTxTypeDispatch` against `transactions.py`. \
+WHY `.machineOnly` AND NOT `.ported`/`.bridged`: `txTypeDispatch_spec_within` is proven \
+against `teerTxTypeDispatch`, a LOCAL Lean restatement of the classification that lives in \
+the same Codegen module as the program and re-derives the reference's rules independently. \
+There is NO bridge lemma -- cited or consumed -- from it to `SpecRef.decode_transaction`, \
+and no port-fidelity clause table, so `.ported`'s stated requirement is unmet; and the tx \
+family has no executable differential for `.bridged` to inherit. #11341 exists precisely \
+because four rows were graded as though a local restatement were the spec: when the tie is \
+to our own Lean model rather than to SpecRef, the honest rung is the weaker one. \
+WHAT WOULD LIFT IT: the target already exists and is byte-for-byte the guest's range -- \
+the port renders the boundary in its legacy arm (`decode_transaction`, \
+SpecRef/Transactions.lean:386-402) as `0xC0 ≤ b0.toNat && b0.toNat ≤ 0xFE`, with 0x01..0x04 \
+above it and a `txErr` fallthrough. Nobody has stated the tie. \
+⚠️ THE SUBJECT IS THE DISPATCH CLAUSE, NOT `decode_transaction` AS A WHOLE. That function \
+also decodes the envelope payload (`decodeFully` plus the per-type field decoders) and can \
+fail there; this routine returns only (type, inner_offset) and never looks at the payload. \
+`.agrees` is graded against the first-byte classification named in `reference`, exactly as \
+`bnf_lt_p` is graded against the `x >= field_modulus` conjunct of `bytes_to_g1`. Reading \
+it as whole-function agreement would be an overclaim: a legacy envelope with malformed RLP \
+is classified (0,0,0) here and REJECTED by `decode_transaction`, which is not a leniency \
+of this routine but a consequence of its narrower job -- the callers that decode the \
+payload are the ones that must reject it. \
+FULL DOMAIN on that clause, both sides, which is what keeps this `.agrees` rather than \
+`.domainRestricted`: empty -> reject (the reference's `tx[0]` IndexError), 0x01..0x04 -> \
+typed with inner offset 1, 0xc0..0xfe -> legacy (0,0,0), and 0x00 / 0x05..0xbf / 0xff -> \
+reject. No input-domain precondition on `txBytes`; the triple's hypotheses are ABI only \
+(aligned `ra`, 8-aligned `txBase`, size bound, byte-access validity). Witnessed in \
+`Progress/Routines.lean`, not here -- this file deliberately does not import Codegen (see \
+the Witnesses block)" }
 ]
 
 /-! ## Counts -/
@@ -944,7 +1043,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 36 := by decide
+theorem registry_size : registry.length = 37 := by decide
 theorem rlp_rows : countFamily "rlp" = 21 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
@@ -961,6 +1060,11 @@ theorem bloom_rows : countFamily "bloom" = 1 := by decide
 /-- #11574. Two rows, the family's first. Both machine triples predated the rows
     by months — the gap was vocabulary and registration, not proof. -/
 theorem crypto_rows : countFamily "crypto" = 2 := by decide
+/-- #11901. The family's first row, opened by `tx_type_dispatch`. Before it
+    `countFamily "tx"` was **0** -- the routine was `.proven` and its spec
+    correspondence was the subject of an issue, and neither fact was recorded here.
+    No differential for this family; see the row's note for why `.machineOnly`. -/
+theorem tx_rows : countFamily "tx" = 1 := by decide
 
 /-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
     that is not automatically a sign the schema has stopped discriminating.
@@ -980,7 +1084,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 21 ∧ countVerdict .domainRestricted = 11 ∧
+    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 11 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -994,7 +1098,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 9 ∧
-    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
+    countBasis .machineOnly = 6 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
