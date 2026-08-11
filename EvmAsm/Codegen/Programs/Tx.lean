@@ -679,30 +679,56 @@ def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
       a0 (output) : 0 success / 1 parse fail (output zeroed).
 
     Uses 8 bytes of `.data` scratch (`bgvh_count_scratch`). -/
-def blobGasUsedFromVersionedHashesFunction : String :=
-  "blob_gas_used_from_versioned_hashes:\n" ++
-  "  addi sp, sp, -24\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a2                   # gas_per_blob\n" ++
-  "  mv s1, a3                   # out ptr\n" ++
-  "  la a2, bgvh_count_scratch\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbgvh_fail\n" ++
-  "  la t0, bgvh_count_scratch; ld t1, 0(t0)\n" ++
-  "  mul t2, t1, s0\n" ++
-  "  sd t2, 0(s1)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbgvh_ret\n" ++
-  ".Lbgvh_fail:\n" ++
-  "  sd zero, 0(s1)\n" ++
-  "  li a0, 1\n" ++
-  ".Lbgvh_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 24\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def blobGasUsedFromVersionedHashesPc : Nat := 0x80000000
 
+def blobGasUsedFromVersionedHashes_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .AUIPC .x12 (laHi GuestAddrs.bgvh_count_scratch (blobGasUsedFromVersionedHashesPc + 24)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bgvh_count_scratch (blobGasUsedFromVersionedHashesPc + 24)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (blobGasUsedFromVersionedHashesPc + 32)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.bgvh_count_scratch (blobGasUsedFromVersionedHashesPc + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bgvh_count_scratch (blobGasUsedFromVersionedHashesPc + 40)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .MUL .x7 .x6 .x8,
+    .SD .x9 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `blobGasUsedFromVersionedHashes_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blobGasUsedFromVersionedHashes_relocs : RelocTable :=
+  [ (6, .la .x12 "bgvh_count_scratch"),
+    (8, .jal .x1 "rlp_list_count_items"),
+    (10, .la .x5 "bgvh_count_scratch") ]
+
+def blobGasUsedFromVersionedHashesFunction : String :=
+  "blob_gas_used_from_versioned_hashes:\n" ++ emitProgramR blobGasUsedFromVersionedHashes_prog blobGasUsedFromVersionedHashes_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blobGasUsedFromVersionedHashes_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blobGasUsedFromVersionedHashesFunction_eq_prog :
+    blobGasUsedFromVersionedHashesFunction = "blob_gas_used_from_versioned_hashes:\n" ++ emitProgramR blobGasUsedFromVersionedHashes_prog blobGasUsedFromVersionedHashes_relocs := rfl
+
+#guard blobGasUsedFromVersionedHashesFunction.startsWith "blob_gas_used_from_versioned_hashes:\n"
+#guard blobGasUsedFromVersionedHashes_prog.length = 24
 /-- `zisk_blob_gas_used_from_versioned_hashes`: probe BuildUnit.
     Reads (list_len, gas_per_blob, list_bytes) from host input,
     writes (status, blob_gas_used) to OUTPUT (16 bytes total). -/
@@ -1146,33 +1172,53 @@ def ziskValidateTransactionBasicProbeUnit : BuildUnit := {
       a3 (input)  : out ptr (32 B BE; receives tx_cost)
       ra (input)  : return
       a0 (output) : 0 success / 1 overflow on mul or add. -/
-def txCostComputeFunction : String :=
-  "tx_cost_compute:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a2                   # value ptr\n" ++
-  "  mv s1, a3                   # out ptr\n" ++
-  "  # Step 1: out = effective_gas_price × gas_limit.\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++
-  "  bnez a0, .Ltcc_fail\n" ++
-  "  # Step 2: out = out + value.\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s0\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, u256_add_be\n" ++
-  "  bnez a0, .Ltcc_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltcc_ret\n" ++
-  ".Ltcc_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Ltcc_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def txCostComputePc : Nat := 0x80000000
 
+def txCostCompute_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (txCostComputePc + 28)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x8,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (txCostComputePc + 48)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txCostCompute_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txCostCompute_relocs : RelocTable :=
+  [ (7, .jal .x1 "u256_mul_u64_be"),
+    (12, .jal .x1 "u256_add_be") ]
+
+def txCostComputeFunction : String :=
+  "tx_cost_compute:\n" ++ emitProgramR txCostCompute_prog txCostCompute_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txCostCompute_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txCostComputeFunction_eq_prog :
+    txCostComputeFunction = "tx_cost_compute:\n" ++ emitProgramR txCostCompute_prog txCostCompute_relocs := rfl
+
+#guard txCostComputeFunction.startsWith "tx_cost_compute:\n"
+#guard txCostCompute_prog.length = 22
 /-- `zisk_tx_cost_compute`: probe BuildUnit. Reads (32B egp, 8B
     gas_limit LE, 32B value) from host input, writes (status,
     32B tx_cost BE) to OUTPUT (40 bytes total). -/

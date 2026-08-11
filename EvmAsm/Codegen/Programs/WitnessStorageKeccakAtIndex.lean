@@ -17,6 +17,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -53,50 +56,75 @@ open EvmAsm.Rv64.Program
 
       a0 (output) : 0 = ok / 1 = index OOB
 -/
-def witnessStorageKeccakAtIndexFunction : String :=
-  "witness_storage_keccak_at_index:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # index\n" ++
-  "  mv s3, a3                  # out buf (32 B)\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3)\n" ++
-  "  sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  beqz s1, .Lwzki_oob\n" ++
-  "  lwu t0, 0(s0)              # first inner offset = 4 * N\n" ++
-  "  srli s4, t0, 2             # s4 = N\n" ++
-  "  bgeu s2, s4, .Lwzki_oob\n" ++
-  "  slli t0, s2, 2             # 4 * i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s2, 1\n" ++
-  "  beq t3, s4, .Lwzki_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lwzki_have_end\n" ++
-  ".Lwzki_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lwzki_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  mv a2, s3                  # out buf\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lwzki_ret\n" ++
-  ".Lwzki_oob:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwzki_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessStorageKeccakAtIndexPc : Nat := 0x80000000
 
+def witnessStorageKeccakAtIndex_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessStorageKeccakAtIndexPc + 144) (witnessStorageKeccakAtIndexPc + 60)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x20 .x5 (2 : BitVec 6),
+    .BGEU .x18 .x20 (brOff (witnessStorageKeccakAtIndexPc + 144) (witnessStorageKeccakAtIndexPc + 72)),
+    .SLLI .x5 .x18 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x18 (1 : BitVec 12),
+    .BEQ .x28 .x20 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (witnessStorageKeccakAtIndexPc + 132)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessStorageKeccakAtIndex_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessStorageKeccakAtIndex_relocs : RelocTable :=
+  [ (33, .jal .x1 "zkvm_keccak256") ]
+
+def witnessStorageKeccakAtIndexFunction : String :=
+  "witness_storage_keccak_at_index:\n" ++ emitProgramR witnessStorageKeccakAtIndex_prog witnessStorageKeccakAtIndex_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessStorageKeccakAtIndex_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessStorageKeccakAtIndexFunction_eq_prog :
+    witnessStorageKeccakAtIndexFunction = "witness_storage_keccak_at_index:\n" ++ emitProgramR witnessStorageKeccakAtIndex_prog witnessStorageKeccakAtIndex_relocs := rfl
+
+#guard witnessStorageKeccakAtIndexFunction.startsWith "witness_storage_keccak_at_index:\n"
+#guard witnessStorageKeccakAtIndex_prog.length = 45
 /-- `zisk_witness_storage_keccak_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

@@ -42,6 +42,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockHashPredicates
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -56,72 +59,107 @@ open EvmAsm.Rv64
     a4 = u64 out ptr for `cur` (the current block number)
     a5 = u64 out ptr for `count` (number of contiguous recent ancestors found)
     a0 (output) = 0. -/
-def stageBlockhashM29Function : String :=
-  "stage_blockhash_m29:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  ld s0, 404(a0)              # cur = exec NUMBER\n" ++
-  "  sd s0, 0(a4)                # *cur_out = cur\n" ++
-  "  mv s1, a1                   # headers ptr\n" ++
-  "  mv s2, a2                   # headers len\n" ++
-  "  mv s6, a3                   # output table base\n" ++
-  "  mv s3, a5                   # count_out ptr (a5 reused as call arg below)\n" ++
-  -- window = min(256, cur)
-  "  li t0, 256\n" ++
-  "  bgeu s0, t0, .Lsbm_wincap\n" ++
-  "  mv t0, s0\n" ++
-  ".Lsbm_wincap:\n" ++
-  "  mv s4, t0                   # s4 = window\n" ++
-  "  li s5, 0                    # s5 = count\n" ++
-  -- Pass 1: count consecutive hits for age = 1..window (stop at first miss).
-  ".Lsbm_count:\n" ++
-  "  bgeu s5, s4, .Lsbm_count_done\n" ++
-  "  addi t0, s5, 1              # age = count + 1\n" ++
-  "  sub a0, s0, t0              # target = cur - age\n" ++
-  "  mv a1, s1; mv a2, s2\n" ++
-  "  la a3, m29_hash_tmp; la a4, m29_off_tmp; la a5, m29_len_tmp\n" ++
-  "  jal ra, blockhash_from_witness_headers\n" ++
-  "  bnez a0, .Lsbm_count_done   # first miss -> contiguous stop\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lsbm_count\n" ++
-  ".Lsbm_count_done:\n" ++
-  "  sd s5, 0(s3)                # *count_out = count\n" ++
-  -- Pass 2: for age = 1..count, write block_hashes[count-age] = hash(cur-age).
-  -- (All hit, since pass 1 confirmed ages 1..count.) Reuse s4 as the age counter.
-  "  li s4, 1\n" ++
-  ".Lsbm_fill:\n" ++
-  "  bgtu s4, s5, .Lsbm_done     # age > count -> done\n" ++
-  "  sub a0, s0, s4              # target = cur - age\n" ++
-  "  mv a1, s1; mv a2, s2\n" ++
-  "  sub t0, s5, s4             # idx = count - age\n" ++
-  "  slli t0, t0, 5             # idx * 32\n" ++
-  "  add a3, s6, t0             # a3 = &block_hashes[idx]\n" ++
-  "  mv s3, a3                  # keep the slot ptr across the call (s3 dead after count store)\n" ++
-  "  la a4, m29_off_tmp; la a5, m29_len_tmp\n" ++
-  "  jal ra, blockhash_from_witness_headers\n" ++
-  -- The callee returns the raw keccak digest in canonical big-endian byte-string
-  -- order; the table contract is the EVM stack-word layout (numeric, low limb
-  -- first). Reverse the 32 bytes in place before publishing the entry.
-  "  mv t0, s3                  # lo ptr\n" ++
-  "  addi t1, s3, 31            # hi ptr\n" ++
-  "  li t2, 16                  # pair count\n" ++
-  ".Lsbm_rev:\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1)\n" ++
-  "  sb t4, 0(t0); sb t3, 0(t1)\n" ++
-  "  addi t0, t0, 1; addi t1, t1, -1\n" ++
-  "  addi t2, t2, -1; bnez t2, .Lsbm_rev\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lsbm_fill\n" ++
-  ".Lsbm_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def stageBlockhashM29_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .LD .x8 .x10 (404 : BitVec 12),
+    .SD .x14 .x8 (0 : BitVec 12),
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x22 .x13,
+    .MV .x19 .x15,
+    .LI .x5 (256 : Word),
+    .BGEU .x8 .x5 (8 : BitVec 13),
+    .MV .x5 .x8,
+    .MV .x20 .x5,
+    .LI .x21 (0 : Word),
+    .BGEU .x21 .x20 (60 : BitVec 13),
+    .ADDI .x5 .x21 (1 : BitVec 12),
+    .SUB .x10 .x8 .x5,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .AUIPC .x13 (laHi GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 100)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 100)),
+    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 108)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 108)),
+    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 116)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 116)),
+    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 124)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .SD .x19 .x21 (0 : BitVec 12),
+    .LI .x20 (1 : Word),
+    .BLTU .x21 .x20 (brOff (GuestAddrs.stage_blockhash_m29 + 252) (GuestAddrs.stage_blockhash_m29 + 148)),
+    .SUB .x10 .x8 .x20,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .SUB .x5 .x21 .x20,
+    .SLLI .x5 .x5 (5 : BitVec 6),
+    .ADD .x13 .x22 .x5,
+    .MV .x19 .x13,
+    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 180)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 180)),
+    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 188)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 188)),
+    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 196)),
+    .MV .x5 .x19,
+    .ADDI .x6 .x19 (31 : BitVec 12),
+    .LI .x7 (16 : Word),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .SB .x5 .x29 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-28 : BitVec 13),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.stage_blockhash_m29 + 148) (GuestAddrs.stage_blockhash_m29 + 248)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `stageBlockhashM29_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def stageBlockhashM29_relocs : RelocTable :=
+  [ (25, .la .x13 "m29_hash_tmp"),
+    (27, .la .x14 "m29_off_tmp"),
+    (29, .la .x15 "m29_len_tmp"),
+    (31, .jal .x1 "blockhash_from_witness_headers"),
+    (45, .la .x14 "m29_off_tmp"),
+    (47, .la .x15 "m29_len_tmp"),
+    (49, .jal .x1 "blockhash_from_witness_headers") ]
+
+def stageBlockhashM29Function : String :=
+  "stage_blockhash_m29:\n" ++ emitProgramR stageBlockhashM29_prog stageBlockhashM29_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `stageBlockhashM29_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem stageBlockhashM29Function_eq_prog :
+    stageBlockhashM29Function = "stage_blockhash_m29:\n" ++ emitProgramR stageBlockhashM29_prog stageBlockhashM29_relocs := rfl
+
+#guard stageBlockhashM29Function.startsWith "stage_blockhash_m29:\n"
+#guard stageBlockhashM29_prog.length = 74
 /-- `zisk_stage_blockhash_m29`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : cur (current block number)

@@ -171,71 +171,116 @@ def stageSystemCallPayloadFunction : String :=
     Exec-status discriminator is `rdg_halt_kind` (#11798 / #11815) — the same
     cell `dispatcher_tx_gas_settle` reads. Do NOT read OUTPUT+32: after #11815
     the verdict-callable path never stamps halt_kind there (claim-window fix). -/
-def stageSystemCallFunction : String :=
-  "stage_system_call:\n" ++
-  -- runtime_dispatcher_call sets sp = lp64_sp_top and grows its own stack down from
-  -- there, clobbering any caller-frame this function might keep on the stack across
-  -- the call. So save ra + the scratch s0 in GLOBALS (ssc_saved_ra/ssc_saved_s0), not
-  -- on the stack. Non-reentrant, which is fine (the dispatched predeploy never re-enters).
-  "  la t0, ssc_saved_ra; sd ra, 0(t0)\n" ++
-  "  la t0, ssc_saved_s0; sd s0, 0(t0)\n" ++
-  -- `process_checked_system_transaction` reads its target through the real
-  -- TransactionState before it calls `process_unchecked_system_transaction`.
-  -- Its four request-predeploy callers enter this shared dispatch seam with the
-  -- canonical 20-byte target in a0, so record the matching access here rather than
-  -- duplicating four per-predeploy hooks.  t1 is restored by account_read_record,
-  -- preserving the target for the staging ABI.
-  "  mv t1, a0; jal ra, account_read_record; mv a0, t1\n" ++
-  -- fork.py:761-765 process_checked: len(system_contract_code) == 0 → InvalidBlock.
-  -- Do not fall through to empty-code STOP success (would accept a forged empty
-  -- predeploy). a1/a2 survive account_read_record (t-regs only).
-  "  beqz a2, .Lssc_fail\n" ++
-  "  mv s0, a4                    # out payload ptr (used only pre-dispatch)\n" ++
-  -- 87gow: reset the captured return-data length to 0 BEFORE each system call. The capture
-  -- (NoopHalt) writes system_call_returndata_len ONLY on a depth-0 RETURN within
-  -- systemCallReturndataMaxBytes; a
-  -- predeploy that ends in a clean STOP (empty return_data, spec fork.py:976-997) or an
-  -- oversized return does NOT write it. Without this reset the consolidation system call would
-  -- inherit the withdrawal call's stale length -> a spurious consolidation request body ->
-  -- wrong header.requests_hash -> false-reject/accept. Spec: each return_data is a SEPARATE
-  -- MessageCallOutput; empty == len 0.
-  "  li t0, 0; la t1, system_call_returndata_len; sd t0, 0(t1)\n" ++
-  "  li t0, 1; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- enable depth-0 RETURN capture
-  -- Drop any leftover user-tx auth callback before re-entering the dispatcher
-  -- (code44: system path must not re-run eip7702_auth_state_prepare).
-  "  la t1, runtime_tx_auth_exec_fn; sd zero, 0(t1)\n" ++
-  -- Clear rdg_halt_kind so a prior dispatch's REVERT/exceptional cannot leak
-  -- into the post-dispatch status map (#11798 / #11815).
-  "  la t0, rdg_halt_kind; sd zero, 0(t0)\n" ++
-  "  jal ra, stage_system_call_payload\n" ++                     -- a0..a4 already set by caller
-  "  bnez a0, .Lssc_fail\n" ++                                   -- staging rejected -> bail (no dispatch)
-  "  addi t1, s0, 8; la t0, runtime_dispatcher_input_ptr; sd t1, 0(t0)\n" ++   -- input = out + 8 (skip codelen header)
-  "  jal ra, runtime_dispatcher_call\n" ++                       -- run predeploy; RETURN -> system_call_returndata
-  "  la t0, runtime_dispatcher_input_ptr; sd zero, 0(t0)\n" ++   -- clear input ptr
-  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- disable capture
-  "  la a0, system_call_returndata\n" ++
-  "  la t0, system_call_returndata_len; ld a1, 0(t0)\n" ++
-  -- fork.py:773-777 / MessageCallOutput.error: REVERT and ExceptionalHalt both
-  -- set error. Map rdg_halt_kind like dispatcher_tx_gas_settle success inverted:
-  -- success {0,1,5} → a2=0; else a2=2 (exec fail). Not gas_left (REVERT keeps gas).
-  -- MUST read rdg_halt_kind, not OUTPUT+32 (#11815 claim-window).
-  "  la t0, rdg_halt_kind; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Lssc_ok\n" ++
-  "  li t0, 1; beq t1, t0, .Lssc_ok\n" ++
-  "  li t0, 5; beq t1, t0, .Lssc_ok\n" ++
-  "  li a2, 2\n" ++
-  "  j .Lssc_ret\n" ++
-  ".Lssc_ok:\n" ++
-  "  li a2, 0\n" ++
-  "  j .Lssc_ret\n" ++
-  ".Lssc_fail:\n" ++
-  "  li t0, 0; la t1, system_call_mode; sd t0, 0(t1)\n" ++       -- restore flag on the staging-fail path
-  "  la a0, system_call_returndata; li a1, 0; li a2, 1\n" ++
-  ".Lssc_ret:\n" ++
-  "  la t0, ssc_saved_s0; ld s0, 0(t0)\n" ++
-  "  la t0, ssc_saved_ra; ld ra, 0(t0)\n" ++
-  "  ret"
+def stageSystemCall_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.ssc_saved_ra (GuestAddrs.stage_system_call + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_saved_ra (GuestAddrs.stage_system_call + 0)),
+    .SD .x5 .x1 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_saved_s0 (GuestAddrs.stage_system_call + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_saved_s0 (GuestAddrs.stage_system_call + 12)),
+    .SD .x5 .x8 (0 : BitVec 12),
+    .MV .x6 .x10,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.stage_system_call + 28)),
+    .MV .x10 .x6,
+    .BEQ .x12 .x0 (brOff (GuestAddrs.stage_system_call + 224) (GuestAddrs.stage_system_call + 36)),
+    .MV .x8 .x14,
+    .LI .x5 (0 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.system_call_returndata_len (GuestAddrs.stage_system_call + 48)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.system_call_returndata_len (GuestAddrs.stage_system_call + 48)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 64)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 64)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_auth_exec_fn (GuestAddrs.stage_system_call + 76)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_auth_exec_fn (GuestAddrs.stage_system_call + 76)),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rdg_halt_kind (GuestAddrs.stage_system_call + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rdg_halt_kind (GuestAddrs.stage_system_call + 88)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.stage_system_call_payload (GuestAddrs.stage_system_call + 100)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.stage_system_call + 224) (GuestAddrs.stage_system_call + 104)),
+    .ADDI .x6 .x8 (8 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_dispatcher_input_ptr (GuestAddrs.stage_system_call + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_dispatcher_input_ptr (GuestAddrs.stage_system_call + 112)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.runtime_dispatcher_call (GuestAddrs.stage_system_call + 124)),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_dispatcher_input_ptr (GuestAddrs.stage_system_call + 128)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_dispatcher_input_ptr (GuestAddrs.stage_system_call + 128)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 144)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 144)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.system_call_returndata (GuestAddrs.stage_system_call + 156)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.system_call_returndata (GuestAddrs.stage_system_call + 156)),
+    .AUIPC .x5 (laHi GuestAddrs.system_call_returndata_len (GuestAddrs.stage_system_call + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.system_call_returndata_len (GuestAddrs.stage_system_call + 164)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rdg_halt_kind (GuestAddrs.stage_system_call + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rdg_halt_kind (GuestAddrs.stage_system_call + 176)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x6 .x5 (20 : BitVec 13),
+    .LI .x5 (5 : Word),
+    .BEQ .x6 .x5 (12 : BitVec 13),
+    .LI .x12 (2 : Word),
+    .JAL .x0 (44 : BitVec 21),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .LI .x5 (0 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 228)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.system_call_mode (GuestAddrs.stage_system_call + 228)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.system_call_returndata (GuestAddrs.stage_system_call + 240)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.system_call_returndata (GuestAddrs.stage_system_call + 240)),
+    .LI .x11 (0 : Word),
+    .LI .x12 (1 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_saved_s0 (GuestAddrs.stage_system_call + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_saved_s0 (GuestAddrs.stage_system_call + 256)),
+    .LD .x8 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_saved_ra (GuestAddrs.stage_system_call + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_saved_ra (GuestAddrs.stage_system_call + 268)),
+    .LD .x1 .x5 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `stageSystemCall_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def stageSystemCall_relocs : RelocTable :=
+  [ (0, .la .x5 "ssc_saved_ra"),
+    (3, .la .x5 "ssc_saved_s0"),
+    (7, .jal .x1 "account_read_record"),
+    (12, .la .x6 "system_call_returndata_len"),
+    (16, .la .x6 "system_call_mode"),
+    (19, .la .x6 "runtime_tx_auth_exec_fn"),
+    (22, .la .x5 "rdg_halt_kind"),
+    (25, .jal .x1 "stage_system_call_payload"),
+    (28, .la .x5 "runtime_dispatcher_input_ptr"),
+    (31, .jal .x1 "runtime_dispatcher_call"),
+    (32, .la .x5 "runtime_dispatcher_input_ptr"),
+    (36, .la .x6 "system_call_mode"),
+    (39, .la .x10 "system_call_returndata"),
+    (41, .la .x5 "system_call_returndata_len"),
+    (44, .la .x5 "rdg_halt_kind"),
+    (57, .la .x6 "system_call_mode"),
+    (60, .la .x10 "system_call_returndata"),
+    (64, .la .x5 "ssc_saved_s0"),
+    (67, .la .x5 "ssc_saved_ra") ]
+
+def stageSystemCallFunction : String :=
+  "stage_system_call:\n" ++ emitProgramR stageSystemCall_prog stageSystemCall_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `stageSystemCall_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem stageSystemCallFunction_eq_prog :
+    stageSystemCallFunction = "stage_system_call:\n" ++ emitProgramR stageSystemCall_prog stageSystemCall_relocs := rfl
+
+#guard stageSystemCallFunction.startsWith "stage_system_call:\n"
+#guard stageSystemCall_prog.length = 71
 /-! ## process_block_start_system_transactions (GH #11431)
 
     Spec pin `amsterdam/forks/.../fork.py:897-910` `apply_body`:
@@ -261,112 +306,358 @@ def stageSystemCallFunction : String :=
       parent_beacon_block_root @ SSZ_BASE+24 = bv_exec_p - 36
       parent_hash             @ SSZ_BASE+60 = bv_exec_p + 0
     a0 (out) = 0 ok / 1 fail. -/
-def processBlockStartSystemTransactionsFunction : String :=
-  "process_block_start_system_transactions:\n" ++
-  "  la t0, pbsst_saved_ra; sd ra, 0(t0)\n" ++
-  -- BAI=0 for both startup system transactions (fork.py apply_body before loop).
-  "  la t0, current_block_access_index; sd zero, 0(t0)\n" ++
-  -- Clear optional calldata; each arm installs its own 32B blob.
-  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  -- Witness cells for cold SLOAD / code_at (same as deferred 7002 path).
-  "  la t0, svf_witness; ld t1, 0(t0); la t2, bv_witness_state_ptr; sd t1, 0(t2)\n" ++
-  "  la t0, svf_witness_len; ld t1, 0(t0); la t2, bv_witness_state_len; sd t1, 0(t2)\n" ++
-  -- == EIP-4788 BEACON_ROOTS (first in apply_body) ==
-  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, bsr_addr_4788\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  -- The spec records the target read before resolving its code. Keep this outside
-  -- the executable-code gate so an absent/codeless predeploy still contributes its
-  -- empty AccountChanges row while the unchecked system call itself is skipped.
-  "  mv t0, a0; mv t1, a1; mv a0, a2; jal ra, account_read_record; mv a0, t0; mv a1, t1\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  -- process_unchecked (fork.py:788): no code → run nothing, continue. Distinguishes
-  -- EMPTY_CODE_HASH (case A no-op) from status-5 missing preimage of a real hash
-  -- (case B reject). Pattern: BlockVerdictDispatchTx materialize (#11520 gate).
-  "  li t0, 1; beq a0, t0, .Lpbs_4788_skip\n" ++
-  "  li t0, 5; bne a0, t0, .Lpbs_4788_lookup_done\n" ++
-  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
-  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
-  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_4788_lookup_done\n" ++
-  "  j .Lpbs_4788_skip\n" ++
-  ".Lpbs_4788_lookup_done:\n" ++
-  "  bnez a0, .Lpbs_fail\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_4788_skip\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
-  "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
-  -- calldata = parent_beacon_block_root @ bv_exec_p - 36
-  "  la t0, bv_exec_p; ld t1, 0(t0); addi t1, t1, -36\n" ++
-  "  la t0, ssc_calldata_ptr; sd t1, 0(t0); li t1, 32; la t0, ssc_calldata_len; sd t1, 0(t0)\n" ++
-  "  la a0, bsr_addr_4788\n" ++
-  "  la t0, pbsst_code_ptr; ld a1, 0(t0); la t0, pbsst_code_len; ld a2, 0(t0)\n" ++
-  "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
-  "  jal ra, stage_system_call\n" ++
-  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
-  "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
-  -- Storage map + BAL BAI=0 via write_sets_incorporate_tx (bal_emit inside).
-  -- Account-write map: clear any tx-local rows without block merge — system
-  -- contracts are storage-authority only here (formula path never seeded AW);
-  -- merging TOUCHED-only AW rows for 2935/4788 regressed CREATE Present-None
-  -- on 01114 (optionalState flipped 0→1).
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
-  "  jal ra, write_sets_incorporate_tx\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  ".Lpbs_4788_skip:\n" ++
-  -- == EIP-2935 HISTORY_STORAGE ==
-  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, bsr_addr_2935\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  -- As above, record the lookup even when the target is absent or codeless.
-  "  mv t0, a0; mv t1, a1; mv a0, a2; jal ra, account_read_record; mv a0, t0; mv a1, t1\n" ++
-  "  jal ra, code_at_header_state_root\n" ++
-  -- Same EMPTY_CODE_HASH vs missing-preimage split as 4788 (fork.py:788; #11520).
-  "  li t0, 1; beq a0, t0, .Lpbs_2935_skip\n" ++
-  "  li t0, 5; bne a0, t0, .Lpbs_2935_lookup_done\n" ++
-  "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
-  "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
-  "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lpbs_2935_lookup_done\n" ++
-  "  j .Lpbs_2935_skip\n" ++
-  ".Lpbs_2935_lookup_done:\n" ++
-  "  bnez a0, .Lpbs_fail\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Lpbs_2935_skip\n" ++
-  "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
-  "  la t0, pbsst_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, pbsst_code_len; sd t3, 0(t0)\n" ++
-  -- calldata = parent_hash @ bv_exec_p + 0
-  "  la t0, bv_exec_p; ld t1, 0(t0)\n" ++
-  "  la t0, ssc_calldata_ptr; sd t1, 0(t0); li t1, 32; la t0, ssc_calldata_len; sd t1, 0(t0)\n" ++
-  "  la a0, bsr_addr_2935\n" ++
-  "  la t0, pbsst_code_ptr; ld a1, 0(t0); la t0, pbsst_code_len; ld a2, 0(t0)\n" ++
-  "  la t0, bv_exec_p; ld a3, 0(t0); la a4, c1_staging\n" ++
-  "  jal ra, stage_system_call\n" ++
-  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
-  "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
-  "  jal ra, write_sets_incorporate_tx\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  ".Lpbs_2935_skip:\n" ++
-  -- fork.py:908 track_ancestor_access(1) — host-side unconditional after both
-  -- system txs (not a 2935 bytecode side effect). Under-mark is FA-ward for
-  -- BLOCKHASH witness coverage (#11378 FunctionTail).
-  "  la t0, evm_oldest_ancestor_offset; ld t1, 0(t0); bnez t1, .Lpbs_ok\n" ++
-  "  li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lpbs_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lpbs_ret\n" ++
-  ".Lpbs_fail:\n" ++
-  "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
-  "  li a0, 1\n" ++
-  ".Lpbs_ret:\n" ++
-  "  la t0, pbsst_saved_ra; ld ra, 0(t0)\n" ++
-  "  ret"
+def processBlockStartSystemTransactions_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.pbsst_saved_ra (GuestAddrs.process_block_start_system_transactions + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_saved_ra (GuestAddrs.process_block_start_system_transactions + 0)),
+    .SD .x5 .x1 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.current_block_access_index (GuestAddrs.process_block_start_system_transactions + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.current_block_access_index (GuestAddrs.process_block_start_system_transactions + 12)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 24)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 24)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 36)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.process_block_start_system_transactions + 60)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.process_block_start_system_transactions + 60)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 72)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.process_block_start_system_transactions + 84)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.process_block_start_system_transactions + 84)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 96)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 108)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp (GuestAddrs.process_block_start_system_transactions + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp (GuestAddrs.process_block_start_system_transactions + 120)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.process_block_start_system_transactions + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.process_block_start_system_transactions + 132)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bsr_addr_4788 (GuestAddrs.process_block_start_system_transactions + 144)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsr_addr_4788 (GuestAddrs.process_block_start_system_transactions + 144)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 152)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.process_block_start_system_transactions + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.process_block_start_system_transactions + 164)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x10 .x12,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.process_block_start_system_transactions + 188)),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.process_block_start_system_transactions + 200)),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.process_block_start_system_transactions + 528) (GuestAddrs.process_block_start_system_transactions + 208)),
+    .LI .x5 (5 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.process_block_start_system_transactions + 292) (GuestAddrs.process_block_start_system_transactions + 216)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.process_block_start_system_transactions + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.process_block_start_system_transactions + 220)),
+    .ADDI .x5 .x5 (72 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.chahsr_empty_code_hash (GuestAddrs.process_block_start_system_transactions + 232)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.chahsr_empty_code_hash (GuestAddrs.process_block_start_system_transactions + 232)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (44 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (32 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (20 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.process_block_start_system_transactions + 528) (GuestAddrs.process_block_start_system_transactions + 288)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.process_block_start_system_transactions + 988) (GuestAddrs.process_block_start_system_transactions + 292)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 296)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.process_block_start_system_transactions + 528) (GuestAddrs.process_block_start_system_transactions + 308)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 312)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.process_block_start_system_transactions + 324)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.process_block_start_system_transactions + 324)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x29 .x6 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 340)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 340)),
+    .SD .x5 .x29 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 352)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 352)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 364)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 364)),
+    .SD .x5 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 376)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 376)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (-36 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 392)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 392)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (32 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 408)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 408)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_addr_4788 (GuestAddrs.process_block_start_system_transactions + 420)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_addr_4788 (GuestAddrs.process_block_start_system_transactions + 420)),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 428)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 428)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 440)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 440)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 452)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 452)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.c1_staging (GuestAddrs.process_block_start_system_transactions + 464)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.c1_staging (GuestAddrs.process_block_start_system_transactions + 464)),
+    .JAL .x1 (jalOff GuestAddrs.stage_system_call (GuestAddrs.process_block_start_system_transactions + 472)),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 476)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 488)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .BEQ .x12 .x5 (brOff (GuestAddrs.process_block_start_system_transactions + 988) (GuestAddrs.process_block_start_system_transactions + 504)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.process_block_start_system_transactions + 508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.process_block_start_system_transactions + 508)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.write_sets_incorporate_tx (GuestAddrs.process_block_start_system_transactions + 520)),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_incorporate_tx (GuestAddrs.process_block_start_system_transactions + 524)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 528)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness (GuestAddrs.process_block_start_system_transactions + 528)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 540)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.process_block_start_system_transactions + 540)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp (GuestAddrs.process_block_start_system_transactions + 552)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp (GuestAddrs.process_block_start_system_transactions + 552)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.process_block_start_system_transactions + 564)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.process_block_start_system_transactions + 564)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.bsr_addr_2935 (GuestAddrs.process_block_start_system_transactions + 576)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bsr_addr_2935 (GuestAddrs.process_block_start_system_transactions + 576)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 584)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 584)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.process_block_start_system_transactions + 596)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.process_block_start_system_transactions + 596)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x10 .x12,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.process_block_start_system_transactions + 620)),
+    .MV .x10 .x5,
+    .MV .x11 .x6,
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.process_block_start_system_transactions + 632)),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.process_block_start_system_transactions + 956) (GuestAddrs.process_block_start_system_transactions + 640)),
+    .LI .x5 (5 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.process_block_start_system_transactions + 724) (GuestAddrs.process_block_start_system_transactions + 648)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.process_block_start_system_transactions + 652)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.process_block_start_system_transactions + 652)),
+    .ADDI .x5 .x5 (72 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.chahsr_empty_code_hash (GuestAddrs.process_block_start_system_transactions + 664)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.chahsr_empty_code_hash (GuestAddrs.process_block_start_system_transactions + 664)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .LD .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (44 : BitVec 13),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x28 .x6 (8 : BitVec 12),
+    .BNE .x7 .x28 (32 : BitVec 13),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .LD .x28 .x6 (16 : BitVec 12),
+    .BNE .x7 .x28 (20 : BitVec 13),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .LD .x28 .x6 (24 : BitVec 12),
+    .BNE .x7 .x28 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.process_block_start_system_transactions + 956) (GuestAddrs.process_block_start_system_transactions + 720)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.process_block_start_system_transactions + 988) (GuestAddrs.process_block_start_system_transactions + 724)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 728)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 728)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.process_block_start_system_transactions + 956) (GuestAddrs.process_block_start_system_transactions + 740)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 744)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.process_block_start_system_transactions + 744)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.process_block_start_system_transactions + 756)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.process_block_start_system_transactions + 756)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x29 .x6 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 772)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 772)),
+    .SD .x5 .x29 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 784)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.process_block_start_system_transactions + 784)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 796)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 796)),
+    .SD .x5 .x28 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 808)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 808)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 820)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 820)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x6 (32 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 836)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 836)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bsr_addr_2935 (GuestAddrs.process_block_start_system_transactions + 848)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bsr_addr_2935 (GuestAddrs.process_block_start_system_transactions + 848)),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 856)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_ptr (GuestAddrs.process_block_start_system_transactions + 856)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 868)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_code_len (GuestAddrs.process_block_start_system_transactions + 868)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 880)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_exec_p (GuestAddrs.process_block_start_system_transactions + 880)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.c1_staging (GuestAddrs.process_block_start_system_transactions + 892)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.c1_staging (GuestAddrs.process_block_start_system_transactions + 892)),
+    .JAL .x1 (jalOff GuestAddrs.stage_system_call (GuestAddrs.process_block_start_system_transactions + 900)),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 904)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 904)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 916)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 916)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .BEQ .x12 .x5 (56 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.process_block_start_system_transactions + 936)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.process_block_start_system_transactions + 936)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.write_sets_incorporate_tx (GuestAddrs.process_block_start_system_transactions + 948)),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_incorporate_tx (GuestAddrs.process_block_start_system_transactions + 952)),
+    .AUIPC .x5 (laHi GuestAddrs.evm_oldest_ancestor_offset (GuestAddrs.process_block_start_system_transactions + 956)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_oldest_ancestor_offset (GuestAddrs.process_block_start_system_transactions + 956)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (12 : BitVec 13),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 988)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.process_block_start_system_transactions + 988)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 1000)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.process_block_start_system_transactions + 1000)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.pbsst_saved_ra (GuestAddrs.process_block_start_system_transactions + 1016)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pbsst_saved_ra (GuestAddrs.process_block_start_system_transactions + 1016)),
+    .LD .x1 .x5 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `processBlockStartSystemTransactions_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def processBlockStartSystemTransactions_relocs : RelocTable :=
+  [ (0, .la .x5 "pbsst_saved_ra"),
+    (3, .la .x5 "current_block_access_index"),
+    (6, .la .x5 "ssc_calldata_ptr"),
+    (9, .la .x5 "ssc_calldata_len"),
+    (12, .la .x5 "svf_witness"),
+    (15, .la .x7 "bv_witness_state_ptr"),
+    (18, .la .x5 "svf_witness_len"),
+    (21, .la .x7 "bv_witness_state_len"),
+    (24, .la .x5 "svf_witness"),
+    (27, .la .x5 "svf_witness_len"),
+    (30, .la .x5 "svf_parent_rlp"),
+    (33, .la .x5 "svf_parent_rlp_len"),
+    (36, .la .x12 "bsr_addr_4788"),
+    (38, .la .x5 "svf_codes_ptr"),
+    (41, .la .x5 "svf_codes_len"),
+    (47, .jal .x1 "account_read_record"),
+    (50, .jal .x1 "code_at_header_state_root"),
+    (55, .la .x5 "cahsr_acct_struct"),
+    (58, .la .x6 "chahsr_empty_code_hash"),
+    (74, .la .x5 "cahsr_code_length"),
+    (78, .la .x5 "svf_codes_ptr"),
+    (81, .la .x7 "cahsr_code_offset"),
+    (85, .la .x5 "pbsst_code_ptr"),
+    (88, .la .x7 "cahsr_code_length"),
+    (91, .la .x5 "pbsst_code_len"),
+    (94, .la .x5 "bv_exec_p"),
+    (98, .la .x5 "ssc_calldata_ptr"),
+    (102, .la .x5 "ssc_calldata_len"),
+    (105, .la .x10 "bsr_addr_4788"),
+    (107, .la .x5 "pbsst_code_ptr"),
+    (110, .la .x5 "pbsst_code_len"),
+    (113, .la .x5 "bv_exec_p"),
+    (116, .la .x14 "c1_staging"),
+    (118, .jal .x1 "stage_system_call"),
+    (119, .la .x5 "ssc_calldata_ptr"),
+    (122, .la .x5 "ssc_calldata_len"),
+    (127, .la .x5 "tx_account_writes_count"),
+    (130, .jal .x1 "write_sets_incorporate_tx"),
+    (131, .jal .x1 "read_sets_incorporate_tx"),
+    (132, .la .x5 "svf_witness"),
+    (135, .la .x5 "svf_witness_len"),
+    (138, .la .x5 "svf_parent_rlp"),
+    (141, .la .x5 "svf_parent_rlp_len"),
+    (144, .la .x12 "bsr_addr_2935"),
+    (146, .la .x5 "svf_codes_ptr"),
+    (149, .la .x5 "svf_codes_len"),
+    (155, .jal .x1 "account_read_record"),
+    (158, .jal .x1 "code_at_header_state_root"),
+    (163, .la .x5 "cahsr_acct_struct"),
+    (166, .la .x6 "chahsr_empty_code_hash"),
+    (182, .la .x5 "cahsr_code_length"),
+    (186, .la .x5 "svf_codes_ptr"),
+    (189, .la .x7 "cahsr_code_offset"),
+    (193, .la .x5 "pbsst_code_ptr"),
+    (196, .la .x7 "cahsr_code_length"),
+    (199, .la .x5 "pbsst_code_len"),
+    (202, .la .x5 "bv_exec_p"),
+    (205, .la .x5 "ssc_calldata_ptr"),
+    (209, .la .x5 "ssc_calldata_len"),
+    (212, .la .x10 "bsr_addr_2935"),
+    (214, .la .x5 "pbsst_code_ptr"),
+    (217, .la .x5 "pbsst_code_len"),
+    (220, .la .x5 "bv_exec_p"),
+    (223, .la .x14 "c1_staging"),
+    (225, .jal .x1 "stage_system_call"),
+    (226, .la .x5 "ssc_calldata_ptr"),
+    (229, .la .x5 "ssc_calldata_len"),
+    (234, .la .x5 "tx_account_writes_count"),
+    (237, .jal .x1 "write_sets_incorporate_tx"),
+    (238, .jal .x1 "read_sets_incorporate_tx"),
+    (239, .la .x5 "evm_oldest_ancestor_offset"),
+    (247, .la .x5 "ssc_calldata_ptr"),
+    (250, .la .x5 "ssc_calldata_len"),
+    (254, .la .x5 "pbsst_saved_ra") ]
+
+def processBlockStartSystemTransactionsFunction : String :=
+  "process_block_start_system_transactions:\n" ++ emitProgramR processBlockStartSystemTransactions_prog processBlockStartSystemTransactions_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `processBlockStartSystemTransactions_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem processBlockStartSystemTransactionsFunction_eq_prog :
+    processBlockStartSystemTransactionsFunction = "process_block_start_system_transactions:\n" ++ emitProgramR processBlockStartSystemTransactions_prog processBlockStartSystemTransactions_relocs := rfl
+
+#guard processBlockStartSystemTransactionsFunction.startsWith "process_block_start_system_transactions:\n"
+#guard processBlockStartSystemTransactions_prog.length = 258
 /-! ## derive_withdrawal_requests (8uld3.2b, EIP-7002)
 
     Run the WITHDRAWAL_REQUEST_PREDEPLOY (0x00000961Ef480Eb55e80D19ad83579A64c007002)
@@ -492,18 +783,64 @@ the EIP-7002/7251 request predeploys. These thin adapters keep the ABI explicit:
 return `(return_data_ptr, return_data_len, status)`.
 -/
 
+def deriveBuilderDepositRequests_prog : Program :=
+  [ .MV .x14 .x13,
+    .MV .x13 .x12,
+    .MV .x12 .x11,
+    .MV .x11 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.builder_deposit_contract_addr (GuestAddrs.derive_builder_deposit_requests + 16)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.builder_deposit_contract_addr (GuestAddrs.derive_builder_deposit_requests + 16)),
+    .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_builder_deposit_requests + 24)) ]
+
+/-- Reloc side-table for `deriveBuilderDepositRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveBuilderDepositRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "builder_deposit_contract_addr"),
+    (6, .jal .x0 "stage_system_call") ]
+
 def deriveBuilderDepositRequestsFunction : String :=
-  "derive_builder_deposit_requests:\n" ++
-  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
-  "  la a0, builder_deposit_contract_addr\n" ++
-  "  j stage_system_call\n"
+  "derive_builder_deposit_requests:\n" ++ emitProgramR deriveBuilderDepositRequests_prog deriveBuilderDepositRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveBuilderDepositRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem deriveBuilderDepositRequestsFunction_eq_prog :
+    deriveBuilderDepositRequestsFunction = "derive_builder_deposit_requests:\n" ++ emitProgramR deriveBuilderDepositRequests_prog deriveBuilderDepositRequests_relocs := rfl
+
+#guard deriveBuilderDepositRequestsFunction.startsWith "derive_builder_deposit_requests:\n"
+#guard deriveBuilderDepositRequests_prog.length = 7
+def deriveBuilderExitRequests_prog : Program :=
+  [ .MV .x14 .x13,
+    .MV .x13 .x12,
+    .MV .x12 .x11,
+    .MV .x11 .x10,
+    .AUIPC .x10 (laHi GuestAddrs.builder_exit_contract_addr (GuestAddrs.derive_builder_exit_requests + 16)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.builder_exit_contract_addr (GuestAddrs.derive_builder_exit_requests + 16)),
+    .JAL .x0 (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_builder_exit_requests + 24)) ]
+
+/-- Reloc side-table for `deriveBuilderExitRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveBuilderExitRequests_relocs : RelocTable :=
+  [ (4, .la .x10 "builder_exit_contract_addr"),
+    (6, .jal .x0 "stage_system_call") ]
 
 def deriveBuilderExitRequestsFunction : String :=
-  "derive_builder_exit_requests:\n" ++
-  "  mv a4, a3; mv a3, a2; mv a2, a1; mv a1, a0\n" ++
-  "  la a0, builder_exit_contract_addr\n" ++
-  "  j stage_system_call\n"
+  "derive_builder_exit_requests:\n" ++ emitProgramR deriveBuilderExitRequests_prog deriveBuilderExitRequests_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveBuilderExitRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem deriveBuilderExitRequestsFunction_eq_prog :
+    deriveBuilderExitRequestsFunction = "derive_builder_exit_requests:\n" ++ emitProgramR deriveBuilderExitRequests_prog deriveBuilderExitRequests_relocs := rfl
+
+#guard deriveBuilderExitRequestsFunction.startsWith "derive_builder_exit_requests:\n"
+#guard deriveBuilderExitRequests_prog.length = 7
 /-! ## derive_block_system_requests (probe-only glue; #11156)
 
     Historical combined wrapper: run BOTH system-call request derivations — withdrawal
@@ -518,44 +855,117 @@ def deriveBuilderExitRequestsFunction : String :=
       a4 = block exec payload ptr           a5 = staging output buffer ptr (reused per call)
     Writes: dbsr_wbody + dbsr_wlen; dbsr_cbody + dbsr_clen.
     Returns a0 = 0 ok / 1 = a system call returned staging or exec failure. -/
-def deriveBlockSystemRequestsFunction : String :=
-  "derive_block_system_requests:\n" ++
-  "  la t0, dbsr_saved_ra; sd ra, 0(t0)\n" ++
-  -- stash the consolidation args + exec + staging (the dispatcher clobbers everything)
-  "  la t0, dbsr_ccode; sd a2, 0(t0)\n" ++
-  "  la t0, dbsr_in_clen; sd a3, 0(t0)\n" ++
-  "  la t0, dbsr_exec; sd a4, 0(t0)\n" ++
-  "  la t0, dbsr_staging; sd a5, 0(t0)\n" ++
-  -- derive withdrawal: derive_withdrawal_requests(a0=wcode, a1=wlen, a2=exec, a3=staging)
-  "  mv a2, a4; mv a3, a5\n" ++
-  "  jal ra, derive_withdrawal_requests\n" ++          -- a0=wbody, a1=wlen, a2=status
-  "  bnez a2, .Ldbsr_fail\n" ++
-  "  la t0, dbsr_wlen; sd a1, 0(t0)\n" ++
-  "  mv t1, a0; la t2, dbsr_wbody; mv t3, a1\n" ++
-  ".Ldbsr_wcopy:\n" ++
-  "  beqz t3, .Ldbsr_wcopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_wcopy\n" ++
-  ".Ldbsr_wcopy_d:\n" ++
-  -- Each system predeploy is its own TransactionState.  Merge and clear this
-  -- completed withdrawal call before beginning consolidation, exactly as
-  -- incorporate_tx_into_block does for ordinary transactions.
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  -- derive consolidation: derive_consolidation_requests(a0=ccode, a1=clen, a2=exec, a3=staging)
-  "  la t0, dbsr_ccode; ld a0, 0(t0); la t0, dbsr_in_clen; ld a1, 0(t0)\n" ++
-  "  la t0, dbsr_exec; ld a2, 0(t0); la t0, dbsr_staging; ld a3, 0(t0)\n" ++
-  "  jal ra, derive_consolidation_requests\n" ++       -- a0=cbody, a1=clen, a2=status
-  "  bnez a2, .Ldbsr_fail\n" ++
-  "  la t0, dbsr_clen; sd a1, 0(t0)\n" ++
-  "  mv t1, a0; la t2, dbsr_cbody; mv t3, a1\n" ++
-  ".Ldbsr_ccopy:\n" ++
-  "  beqz t3, .Ldbsr_ccopy_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Ldbsr_ccopy\n" ++
-  ".Ldbsr_ccopy_d:\n" ++
-  "  jal ra, read_sets_incorporate_tx\n" ++
-  "  li a0, 0; j .Ldbsr_ret\n" ++
-  ".Ldbsr_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Ldbsr_ret:\n" ++
-  "  la t0, dbsr_saved_ra; ld ra, 0(t0); ret\n"
+/-! Probe-only local PC placeholder. -/
+def deriveBlockSystemRequestsPc : Nat := 0x80000000
 
+def deriveBlockSystemRequests_prog : Program :=
+  [ .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 0)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 0)),
+    .SD .x5 .x1 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 12)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 12)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 24)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 24)),
+    .SD .x5 .x13 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 36)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 36)),
+    .SD .x5 .x14 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 48)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 48)),
+    .SD .x5 .x15 (0 : BitVec 12),
+    .MV .x12 .x14,
+    .MV .x13 .x15,
+    .JAL .x1 (jalOff GuestAddrs.derive_withdrawal_requests (deriveBlockSystemRequestsPc + 68)),
+    .BNE .x12 .x0 (brOff (deriveBlockSystemRequestsPc + 260) (deriveBlockSystemRequestsPc + 72)),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 76)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 76)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .MV .x6 .x10,
+    .AUIPC .x7 (laHi 0 (deriveBlockSystemRequestsPc + 92)),
+    .ADDI .x7 .x7 (laLo 0 (deriveBlockSystemRequestsPc + 92)),
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_incorporate_tx (deriveBlockSystemRequestsPc + 132)),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 136)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 136)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 148)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 148)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 160)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 160)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 172)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 172)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.derive_consolidation_requests (deriveBlockSystemRequestsPc + 184)),
+    .BNE .x12 .x0 (brOff (deriveBlockSystemRequestsPc + 260) (deriveBlockSystemRequestsPc + 188)),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 192)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 192)),
+    .SD .x5 .x11 (0 : BitVec 12),
+    .MV .x6 .x10,
+    .AUIPC .x7 (laHi 0 (deriveBlockSystemRequestsPc + 208)),
+    .ADDI .x7 .x7 (laLo 0 (deriveBlockSystemRequestsPc + 208)),
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_incorporate_tx (deriveBlockSystemRequestsPc + 248)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .AUIPC .x5 (laHi 0 (deriveBlockSystemRequestsPc + 264)),
+    .ADDI .x5 .x5 (laLo 0 (deriveBlockSystemRequestsPc + 264)),
+    .LD .x1 .x5 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `deriveBlockSystemRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def deriveBlockSystemRequests_relocs : RelocTable :=
+  [ (0, .la .x5 "dbsr_saved_ra"),
+    (3, .la .x5 "dbsr_ccode"),
+    (6, .la .x5 "dbsr_in_clen"),
+    (9, .la .x5 "dbsr_exec"),
+    (12, .la .x5 "dbsr_staging"),
+    (17, .jal .x1 "derive_withdrawal_requests"),
+    (19, .la .x5 "dbsr_wlen"),
+    (23, .la .x7 "dbsr_wbody"),
+    (33, .jal .x1 "read_sets_incorporate_tx"),
+    (34, .la .x5 "dbsr_ccode"),
+    (37, .la .x5 "dbsr_in_clen"),
+    (40, .la .x5 "dbsr_exec"),
+    (43, .la .x5 "dbsr_staging"),
+    (46, .jal .x1 "derive_consolidation_requests"),
+    (48, .la .x5 "dbsr_clen"),
+    (52, .la .x7 "dbsr_cbody"),
+    (62, .jal .x1 "read_sets_incorporate_tx"),
+    (66, .la .x5 "dbsr_saved_ra") ]
+
+def deriveBlockSystemRequestsFunction : String :=
+  "derive_block_system_requests:\n" ++ emitProgramR deriveBlockSystemRequests_prog deriveBlockSystemRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `deriveBlockSystemRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem deriveBlockSystemRequestsFunction_eq_prog :
+    deriveBlockSystemRequestsFunction = "derive_block_system_requests:\n" ++ emitProgramR deriveBlockSystemRequests_prog deriveBlockSystemRequests_relocs := rfl
+
+#guard deriveBlockSystemRequestsFunction.startsWith "derive_block_system_requests:\n"
+#guard deriveBlockSystemRequests_prog.length = 70
 /-- Globals for `derive_block_system_requests` (saved state across the dispatcher runs +
     the two stable body buffers). Bodies are bounded: withdrawals ≤ 16×76, consolidations
     ≤ a similar block cap; 2048 each is ample. -/

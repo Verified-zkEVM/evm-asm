@@ -50,54 +50,76 @@ open EvmAsm.Rv64.Program
       32 bytes at *a2 : keccak256(element[N-1]) if N > 0, else 0.
 
     No per-element scratch; works for any N. -/
-def headersKeccakChainFunction : String :=
-  "headers_keccak_chain:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                  # s0 = section ptr\n" ++
-  "  mv s1, a1                  # s1 = section_len\n" ++
-  "  mv s2, a2                  # s2 = output ptr\n" ++
-  "  beqz s1, .Lhkc_n0          # empty section ⇒ N = 0\n" ++
-  "  lwu t0, 0(s0)              # offset_0 = 4 * N\n" ++
-  "  srli s3, t0, 2             # s3 = N\n" ++
-  "  li s4, 0                   # s4 = i\n" ++
-  ".Lhkc_loop:\n" ++
-  "  beq s4, s3, .Lhkc_done\n" ++
-  "  slli t0, s4, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add a0, s0, t2             # el_i_start\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lhkc_use_end\n" ++
-  "  slli t3, t3, 2             # 4*(i+1)\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lhkc_have_end\n" ++
-  ".Lhkc_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lhkc_have_end:\n" ++
-  "  sub a1, t4, a0             # el_i_len\n" ++
-  "  mv a2, s2                  # output (overwritten each iter)\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lhkc_loop\n" ++
-  ".Lhkc_n0:\n" ++
-  "  sd zero,  0(s2)\n" ++
-  "  sd zero,  8(s2)\n" ++
-  "  sd zero, 16(s2)\n" ++
-  "  sd zero, 24(s2)\n" ++
-  "  li s3, 0                   # N = 0\n" ++
-  ".Lhkc_done:\n" ++
-  "  mv a0, s3                  # return N\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def headersKeccakChainPc : Nat := 0x80000000
 
+def headersKeccakChain_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x9 .x0 (brOff (headersKeccakChainPc + 128) (headersKeccakChainPc + 40)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x19 .x5 (2 : BitVec 6),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (brOff (headersKeccakChainPc + 148) (headersKeccakChainPc + 56)),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (headersKeccakChainPc + 116)),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (jalOff (headersKeccakChainPc + 56) (headersKeccakChainPc + 124)),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .MV .x10 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `headersKeccakChain_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headersKeccakChain_relocs : RelocTable :=
+  [ (29, .jal .x1 "zkvm_keccak256") ]
+
+def headersKeccakChainFunction : String :=
+  "headers_keccak_chain:\n" ++ emitProgramR headersKeccakChain_prog headersKeccakChain_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headersKeccakChain_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headersKeccakChainFunction_eq_prog :
+    headersKeccakChainFunction = "headers_keccak_chain:\n" ++ emitProgramR headersKeccakChain_prog headersKeccakChain_relocs := rfl
+
+#guard headersKeccakChainFunction.startsWith "headers_keccak_chain:\n"
+#guard headersKeccakChain_prog.length = 46
 /-- `zisk_headers_keccak_chain`: probe BuildUnit that reads an
     SSZ list section from host input and writes the count + last
     digest to OUTPUT.

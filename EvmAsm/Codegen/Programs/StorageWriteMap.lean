@@ -103,8 +103,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! The live block map is bounded by the block-lifetime cold-slot gas budget;
     the transaction map has its own smaller capacity.  They must not share a
@@ -718,13 +723,39 @@ def destroyStorageFunction : String :=
     **dropped**. Same event, opposite treatment.
 
     No arguments; no result register. -/
-def writeSetsDiscardTxFunction : String :=
-  "write_sets_discard_tx:\n" ++
-  "  la t0, tx_storage_writes_count; sd zero, 0(t0)\n" ++
-  "  la t0, tx_storage_writes_overflow; sd zero, 0(t0)\n" ++
-  "  la t0, storage_writes_undo_count; sd zero, 0(t0)\n" ++
-  "  ret\n"
+def writeSetsDiscardTx_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_discard_tx + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_discard_tx + 0)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_storage_writes_overflow (GuestAddrs.write_sets_discard_tx + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_writes_overflow (GuestAddrs.write_sets_discard_tx + 12)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_discard_tx + 24)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_discard_tx + 24)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `writeSetsDiscardTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def writeSetsDiscardTx_relocs : RelocTable :=
+  [ (0, .la .x5 "tx_storage_writes_count"),
+    (3, .la .x5 "tx_storage_writes_overflow"),
+    (6, .la .x5 "storage_writes_undo_count") ]
+
+def writeSetsDiscardTxFunction : String :=
+  "write_sets_discard_tx:\n" ++ emitProgramR writeSetsDiscardTx_prog writeSetsDiscardTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `writeSetsDiscardTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem writeSetsDiscardTxFunction_eq_prog :
+    writeSetsDiscardTxFunction = "write_sets_discard_tx:\n" ++ emitProgramR writeSetsDiscardTx_prog writeSetsDiscardTx_relocs := rfl
+
+#guard writeSetsDiscardTxFunction.startsWith "write_sets_discard_tx:\n"
+#guard writeSetsDiscardTx_prog.length = 10
 /-- Data symbols for the two `storage_writes` levels.
 
     The entries live in `STORAGE_WRITES_AREA` / `TX_STORAGE_WRITES_AREA` (NOBITS

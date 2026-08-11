@@ -344,27 +344,54 @@ post_nonce stored, or 0 when the log has no record. Clobbers a0-a2/t0-t6
 (caller saves x10/x12/x13 per the ChildFrameCreateTail idiom). Plain
 string (no `_eq_prog` guard): mirrors `nonstorageEffectLatestBalance_prog`'s
 scan, last-write-wins by writing on every match. -/
-def nonstorageEffectLatestNonceFunction : String :=
-  "# a0 = addr ptr (20B compared), a1 = out u64 ptr -> a0 = 1/0\n" ++
-  "nonstorage_effect_latest_nonce:\n" ++
-  "  la t0, exec_nonstorage_effect_log\n" ++
-  "  la t1, exec_nonstorage_effect_count\n  ld t1, 0(t1)\n" ++
-  "  li t2, 112\n  mul t1, t1, t2\n  add t1, t0, t1\n" ++
-  "  li a2, 0\n" ++
-  ".Lneln_scan:\n" ++
-  "  beq t0, t1, .Lneln_done\n" ++
-  "  ld t3, 0(t0); ld t4, 0(a0); bne t3, t4, .Lneln_next\n" ++
-  "  ld t3, 8(t0); ld t4, 8(a0); bne t3, t4, .Lneln_next\n" ++
-  "  lw t3, 16(t0); lw t4, 16(a0); bne t3, t4, .Lneln_next\n" ++
-  "  ld t3, 104(t0); sd t3, 0(a1)\n" ++
-  "  li a2, 1\n" ++
-  ".Lneln_next:\n" ++
-  "  addi t0, t0, 112\n" ++
-  "  j .Lneln_scan\n" ++
-  ".Lneln_done:\n" ++
-  "  mv a0, a2\n" ++
-  "  ret\n"
+def nonstorageEffectLatestNonce_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_nonce + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_nonce + 0)),
+    .AUIPC .x6 (laHi GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.nonstorage_effect_latest_nonce + 8)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.nonstorage_effect_latest_nonce + 8)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .LI .x7 (112 : Word),
+    .MUL .x6 .x6 .x7,
+    .ADD .x6 .x5 .x6,
+    .LI .x12 (0 : Word),
+    .BEQ .x5 .x6 (60 : BitVec 13),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .LD .x29 .x10 (0 : BitVec 12),
+    .BNE .x28 .x29 (40 : BitVec 13),
+    .LD .x28 .x5 (8 : BitVec 12),
+    .LD .x29 .x10 (8 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .LW .x28 .x5 (16 : BitVec 12),
+    .LW .x29 .x10 (16 : BitVec 12),
+    .BNE .x28 .x29 (16 : BitVec 13),
+    .LD .x28 .x5 (104 : BitVec 12),
+    .SD .x11 .x28 (0 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .ADDI .x5 .x5 (112 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .MV .x10 .x12,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `nonstorageEffectLatestNonce_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def nonstorageEffectLatestNonce_relocs : RelocTable :=
+  [ (0, .la .x5 "exec_nonstorage_effect_log"),
+    (2, .la .x6 "exec_nonstorage_effect_count") ]
+
+def nonstorageEffectLatestNonceFunction : String :=
+  "nonstorage_effect_latest_nonce:\n" ++ emitProgramR nonstorageEffectLatestNonce_prog nonstorageEffectLatestNonce_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `nonstorageEffectLatestNonce_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem nonstorageEffectLatestNonceFunction_eq_prog :
+    nonstorageEffectLatestNonceFunction = "nonstorage_effect_latest_nonce:\n" ++ emitProgramR nonstorageEffectLatestNonce_prog nonstorageEffectLatestNonce_relocs := rfl
+
+#guard nonstorageEffectLatestNonceFunction.startsWith "nonstorage_effect_latest_nonce:\n"
+#guard nonstorageEffectLatestNonce_prog.length = 26
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=
