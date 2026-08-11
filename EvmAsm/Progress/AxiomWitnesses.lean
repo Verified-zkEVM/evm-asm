@@ -114,6 +114,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
+
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within

@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
@@ -535,8 +536,9 @@ def routineRegistry : List RoutineEntry := [
   -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
   -- fail joins) with operational `MptNodeKindResult` post — no input-domain
   -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
-  -- vs the arity-exact guest; do not rest the post on it. Callers that want
-  -- `kindTag` under WF use `mptNodeKindGuest_eq_kindTag`.
+  -- vs the arity-exact guest; do not rest the post on it. No current caller
+  -- uses `mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF
+  -- first needs the missing Result-to-WF/decode bridge.
   routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
@@ -748,6 +750,19 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
 -- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
 -- gated. No registry row changes: this is a side condition, not a routine triple.
+-- #10780: the length-byte loop of `rlp_encode_list_prefix` at a SYMBOLIC trip count,
+-- which is what the `lenlen >= 3` arms were missing. Ported from `rebLolLoop` (same five
+-- instructions, registers renamed), so the ~200-lines-per-byte unrolling cost the long2
+-- header warns about does not have to be paid. Witnessed rather than left for the arm
+-- that consumes it: this is a machine result about the emitted program, and it is the
+-- piece a later composition will trust without re-checking. No registry row changes --
+-- a block lemma, not a routine triple.
+private noncomputable abbrev _rlp_prefix_lol_loop_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
+private noncomputable abbrev _rlp_prefix_lol_body_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
+private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
 private noncomputable abbrev _rlp_prefix_first_length_byte_ne_zero_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
 private noncomputable abbrev _rlp_prefix_pow_le_u64ByteLen_witness :=

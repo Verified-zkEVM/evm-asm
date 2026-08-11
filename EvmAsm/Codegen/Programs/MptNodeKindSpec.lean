@@ -42,7 +42,15 @@ def mptNodeKindGuest (node : List (BitVec 8)) : Nat :=
       | _ => 3
   | _ => 3
 
-/-- Under `MptNode.WF`, guest kind equals the structural tag. -/
+/-- Under `MptNode.WF`, guest kind equals the structural tag.
+
+    This is a pure well-formed-node bridge only.  The machine theorem
+    `mpt_node_kind_spec_within` posts the operational `MptNodeKindResult`, and
+    its current consumers carry that result through the walk dispatch; no
+    machine consumer currently invokes this theorem or derives `kindTag` from
+    the operational result.  Thus this declaration does not by itself wire
+    the machine classifier to the `MptNode`/SpecRef tag; a future wiring proof
+    must provide that Result-to-WF/decode bridge explicitly. -/
 theorem mptNodeKindGuest_eq_kindTag (n : MptNode) (hwf : n.WF) :
     mptNodeKindGuest n.rlp = n.kindTag := by
   have hdec := decodeFully_encode n.rlpItem (n.rlp_length_lt hwf)
