@@ -13,7 +13,7 @@
   range extractors.
 
   All predicates compose K20 `rlp_list_nth_item` + K34
-  `rlp_field_to_u64` helpers, shared with the rest of the chain
+  `rlp_field_to_u64_strict` helpers, shared with the rest of the chain
   aggregators.
 
   No proofs yet -- these are codegen `String` defs only.
