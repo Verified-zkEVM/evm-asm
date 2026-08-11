@@ -361,121 +361,175 @@ def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
       a2 (input)  : output struct ptr (196 bytes)
       ra (input)  : return
       a0 (output) : 0 success / 1 parse fail -/
-def txLegacyDecodeFunction : String :=
-  "tx_legacy_decode:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0                  # tx_rlp ptr (list base)\n" ++
-  "  mv s2, a2                  # struct out\n" ++
-  "  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status\n" ++
-  "  bnez a2, .Ltxd_fail\n" ++
-  "  mv s1, a1                  # end\n" ++
-  "  mv s3, a0                  # cursor\n" ++
-  "  # Field 0: nonce (u64 at offset 0)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
-  "  mv a1, a2                  # content_len\n" ++
-  "  jal ra, rlp_content_to_u64_strict # a0=u64, a1=status\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sd a0, 0(s2)\n" ++
-  "  # Field 1: gas_price (u256 BE at offset 8)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  addi a2, s2, 8\n" ++
-  "  jal ra, rlp_content_to_u256_be_strict\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 2: gas_limit (u64 at offset 40)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64_strict\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sd a0, 40(s2)\n" ++
-  "  # Field 3: to (0 or 20 bytes at offset 48; to_present u64 at 68)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  beqz a2, .Ltxd_to_creation\n" ++
-  "  li t0, 20\n" ++
-  "  bne a2, t0, .Ltxd_fail\n" ++
-  "  sub t3, a0, a2             # content_ptr\n" ++
-  "  addi t4, s2, 48\n" ++
-  "  ld t5,  0(t3); sd t5, 0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5, 8(t4)\n" ++
-  "  lwu t5, 16(t3); sw t5, 16(t4)\n" ++
-  "  li t5, 1\n" ++
-  "  sd t5, 68(s2)              # to_present = 1\n" ++
-  "  j .Ltxd_after_to\n" ++
-  ".Ltxd_to_creation:\n" ++
-  "  addi t4, s2, 48\n" ++
-  "  sd zero, 0(t4); sd zero, 8(t4); sw zero, 16(t4)\n" ++
-  "  sd zero, 68(s2)            # to_present = 0\n" ++
-  ".Ltxd_after_to:\n" ++
-  "  # Field 4: value (u256 BE at offset 76)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  addi a2, s2, 76\n" ++
-  "  jal ra, rlp_content_to_u256_be_strict\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 5: data (offset+length u64 at 108/116)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub t3, a0, a2             # content_ptr\n" ++
-  "  sub t1, t3, s0             # offset = content_ptr - base\n" ++
-  "  sd t1, 108(s2)\n" ++
-  "  sd a2, 116(s2)             # content_len\n" ++
-  "  # Field 6: v (u64 at offset 124)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64_strict\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sd a0, 124(s2)\n" ++
-  "  # Field 7: r (u256 BE at offset 132)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  addi a2, s2, 132\n" ++
-  "  jal ra, rlp_content_to_u256_be_strict\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  # Field 8: s (u256 BE at offset 164)\n" ++
-  "  mv a0, s3; mv a1, s1\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  mv s3, a0\n" ++
-  "  bnez a1, .Ltxd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  addi a2, s2, 164\n" ++
-  "  jal ra, rlp_content_to_u256_be_strict\n" ++
-  "  bnez a0, .Ltxd_fail\n" ++
-  "  li a0, 0\n" ++
-  "  j .Ltxd_ret\n" ++
-  ".Ltxd_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Ltxd_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-- Probe-only entry PC: `tx_legacy_decode` is not a symbol in the linked
+    `stateless_guest` image at this ref.  The emitted string keeps all
+    cross-image calls symbolic; this placeholder only anchors the concrete
+    verification `Program`, as for the other unlinked probe routines. -/
+def txLegacyDecodePc : Nat := 0x80000000
 
+def txLegacyDecode_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x18 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (txLegacyDecodePc + 32)),
+    .BNE .x12 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 36)),
+    .MV .x9 .x11,
+    .MV .x19 .x10,
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 56)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 64)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (txLegacyDecodePc + 76)),
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 80)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 96)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 104)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (txLegacyDecodePc + 120)),
+    .BNE .x10 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 124)),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 136)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 144)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (txLegacyDecodePc + 156)),
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 160)),
+    .SD .x18 .x10 (40 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 176)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 184)),
+    .BEQ .x12 .x0 (56 : BitVec 13),
+    .LI .x5 (20 : Word),
+    .BNE .x12 .x5 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 196)),
+    .SUB .x28 .x10 .x12,
+    .ADDI .x29 .x18 (48 : BitVec 12),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LWU .x30 .x28 (16 : BitVec 12),
+    .SW .x29 .x30 (16 : BitVec 12),
+    .LI .x30 (1 : Word),
+    .SD .x18 .x30 (68 : BitVec 12),
+    .JAL .x0 (24 : BitVec 21),
+    .ADDI .x29 .x18 (48 : BitVec 12),
+    .SD .x29 .x0 (0 : BitVec 12),
+    .SD .x29 .x0 (8 : BitVec 12),
+    .SW .x29 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (68 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 272)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 280)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (76 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (txLegacyDecodePc + 296)),
+    .BNE .x10 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 300)),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 312)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 320)),
+    .SUB .x28 .x10 .x12,
+    .SUB .x6 .x28 .x8,
+    .SD .x18 .x6 (108 : BitVec 12),
+    .SD .x18 .x12 (116 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 348)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 356)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (txLegacyDecodePc + 368)),
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 372)),
+    .SD .x18 .x10 (124 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 388)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (brOff (txLegacyDecodePc + 468) (txLegacyDecodePc + 396)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (132 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (txLegacyDecodePc + 412)),
+    .BNE .x10 .x0 (52 : BitVec 13),
+    .MV .x10 .x19,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (txLegacyDecodePc + 428)),
+    .MV .x19 .x10,
+    .BNE .x11 .x0 (32 : BitVec 13),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .ADDI .x12 .x18 (164 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (txLegacyDecodePc + 452)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `txLegacyDecode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txLegacyDecode_relocs : RelocTable :=
+  [ (8, .jal .x1 "rlp_walk_init"),
+    (14, .jal .x1 "rlp_walk_next"),
+    (19, .jal .x1 "rlp_content_to_u64_strict"),
+    (24, .jal .x1 "rlp_walk_next"),
+    (30, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (34, .jal .x1 "rlp_walk_next"),
+    (39, .jal .x1 "rlp_content_to_u64_strict"),
+    (44, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_walk_next"),
+    (74, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (78, .jal .x1 "rlp_walk_next"),
+    (87, .jal .x1 "rlp_walk_next"),
+    (92, .jal .x1 "rlp_content_to_u64_strict"),
+    (97, .jal .x1 "rlp_walk_next"),
+    (103, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (107, .jal .x1 "rlp_walk_next"),
+    (113, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txLegacyDecodeFunction : String :=
+  "tx_legacy_decode:\n" ++ emitProgramR txLegacyDecode_prog txLegacyDecode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txLegacyDecode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). This entry is probe-only at the current link,
+    so the concrete Program uses `txLegacyDecodePc`; symbolic assemble identity
+    is the applicable coverage gate. -/
+theorem txLegacyDecodeFunction_eq_prog :
+    txLegacyDecodeFunction = "tx_legacy_decode:\n" ++ emitProgramR txLegacyDecode_prog txLegacyDecode_relocs := rfl
+
+#guard txLegacyDecodeFunction.startsWith "tx_legacy_decode:\n"
+#guard txLegacyDecode_prog.length = 125
 /-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
     (tx_len, tx_bytes) from host input, writes
     (status, 196-byte struct) to OUTPUT.

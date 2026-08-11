@@ -93,6 +93,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
@@ -528,8 +529,22 @@ def routineRegistry : List RoutineEntry := [
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
         ++ "HP nibble classify for leaf/ext. Post is operational "
         ++ "`MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path). "
+        ++ "POST STRENGTHEN (path preserve, free): x18..x21 stay concrete at "
+        ++ "entry values — guest restores them via count/nth saves; old regOwn "
+        ++ "export discarded that and blocked hop consumers. PRE unchanged "
+        ++ "(already concrete v18..v21 in kindCallerPre/countAmbient). "
         ++ "coverRef `mpt_node_kind_precondition_reachable`. Callees already "
-        ++ "`.proven`; this is the first walker-dispatch machine triple"),
+        ++ "`.proven`; first walker-dispatch machine triple"),
+
+  -- #11799: `hp_decode_nibbles` machine was already proved (HpDecodeNibblesSAsmPaths)
+  -- but never registered — residual audit found it RETIRED as a walk dependency.
+  -- callWithin adapter: HpDecodeNibblesCallSAsm.
+  routine "hp_decode_nibbles" .proven (some "hp_decode_nibbles_spec")
+      (notes := "whole-routine triple at `GuestAddrs.hp_decode_nibbles` / symbolic "
+        ++ "base: abiFrame over hdnBody; post is guest-exact `hdnRes` (= `hpDecode`) "
+        ++ "into nibble buf + count/is-leaf cells. FULL DOMAIN (ABI hyps only). "
+        ++ "Registered under #11799 residual audit — machine predated registration. "
+        ++ "callWithin adapter `hp_decode_nibbles_call_spec_within` for walk ext/leaf"),
 
   -- #11574: the two field-bound scans. ⚠️ BOTH machine triples predate this
   -- registration by months and were simply never registered — a name search for
@@ -609,9 +624,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 50 := by decide
+theorem routineCount_eq : routineCount = 51 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -626,7 +641,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 38 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 39 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -830,6 +845,10 @@ private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
 -- #11799 dep: whole-routine mpt_node_kind machine triple.
 private noncomputable abbrev _mpt_node_kind_routine_witness :=
   @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+
+-- #11799 residual audit: hp_decode_nibbles machine already existed; register it.
+private noncomputable abbrev _hp_decode_nibbles_routine_witness :=
+  @EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 -- #11574: the two field-bound scans. The MACHINE triples were unwitnessed by

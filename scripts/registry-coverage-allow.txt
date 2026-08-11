@@ -40,7 +40,7 @@ secf_le_to_be	tier A — flat triple `secfLeToBeFn_spec` at GuestAddrs.secf_le_t
 secf_zero32	tier A — flat triple `secfZero32Fn_spec` at GuestAddrs.secf_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); registrable as .proven, not yet rowed (#11637)
 u256_sub_be	tier A — flat triple `u256SubBeFlat_spec` at GuestAddrs.u256_sub_be (EvmAsm/Codegen/Programs/Secp256k1FieldReduceOnceSAsmSupport.lean); registrable as .proven, not yet rowed (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (75) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (74) ---
 bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -90,7 +90,6 @@ frame_save_regs	tier B — structured SAsm spec `frameSaveRegs_spec` (EvmAsm/Cod
 header_extract_receipts_root	tier B — structured SAsm spec `header_extract_receipts_root_fnspec` (EvmAsm/Codegen/Programs/HeaderReceiptsRootSpec.lean); CodeReq-parameterised triple (`cr` + `hcr_*` linkage hyps), not a flat one at the guest address, plus an `hbound` hypothesis quantified over `rlpItemDecode`; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE — the #11042 silent-skip class (#11637)
 header_extract_state_root	tier B — structured SAsm spec `header_extract_state_root_fnspec` (EvmAsm/Codegen/Programs/HeaderFieldsSpec.lean); CodeReq-parameterised triple, not a flat one at the guest address; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE (#11637)
 header_extract_withdrawals_root	tier B — structured SAsm spec `header_extract_withdrawals_root_fnspec` (EvmAsm/Codegen/Programs/HeaderWithdrawalsRootSpec.lean); CodeReq-parameterised triple, not a flat one at the guest address; needs Fn.retSpecFlat before a .proven row is honest. ⚠️ Was INVISIBLE to this gate until the `_fnspec` suffix was added to SPEC_RE (#11637)
-hp_decode_nibbles	tier B — structured SAsm spec `hp_decode_nibbles_spec` (EvmAsm/Codegen/Programs/HpDecodeNibblesSAsmPaths.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 hp_encode_nibbles	tier B — structured SAsm spec `hpEncodeNibblesFn_spec` (EvmAsm/Codegen/Programs/HpEncodeNibblesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 mpt_resolve_cache_reset	tier B — structured SAsm spec `mptResolveCacheReset_spec` (EvmAsm/Codegen/Programs/MptResolveCacheResetSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_be_to_le	tier B — structured SAsm spec `p256BeToLeFn_spec` (EvmAsm/Codegen/Programs/P256BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
