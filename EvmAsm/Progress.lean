@@ -343,8 +343,10 @@ def registry : List OpcodeEntry := [
        "trailing guard band supplies the pair-read tail"),
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within_region")
       ("region-backed spec covers every byte offset with an explicit guard; " ++
-       "the HandlerSpecs/MemoryFrameSpec lift chain still consumes the raw " ++
-       "eight-cell theorem and is tracked separately"),
+       "HandlerSpecs:1543 is now the sole remaining consumer of the raw " ++
+       "eight-cell theorem; UnalignedVacuity proves that form vacuous off-" ++
+       "alignment, and migration is blocked on the handler layer acquiring a " ++
+       "whole-region memory assertion (see #11983)"),
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
   entry "SLOAD" .execSpec none
       "The legacy append-only persistent-log proof was retired; persistent storage now follows the spec-shaped storage-write path.",
