@@ -455,7 +455,7 @@ private theorem widx_cmp32_iter
     have hne : as ≠ bs := by
       intro heq
       have hbad : (bs[i]'hib).toNat < (bs[i]'hib).toNat := by
-        simpa [heq] using hgtN
+        simp [heq] at hgtN
       exact Nat.lt_irrefl _ hbad
     have h := cpsTripleWithin_frameR
       (((.x6 : Reg) ↦ᵣ aByte) ** ((.x7 : Reg) ↦ᵣ bByte) **
@@ -692,13 +692,6 @@ private theorem widx_cmp32_iter
 private theorem widx_cmp32_exh
     (base ret ptrA ptrB : Word) (as bs : List (BitVec 8))
     (hlenA : as.length = 32) (hlenB : bs.length = 32)
-    (halignA : ptrA.toNat % 8 = 0) (halignB : ptrB.toNat % 8 = 0)
-    (hovA : ptrA.toNat + 32 < 2 ^ 64)
-    (hovB : ptrB.toNat + 32 < 2 ^ 64)
-    (hvalidA : ∀ k, k < 32 →
-      isValidByteAccess (ptrA + BitVec.ofNat 64 k) = true)
-    (hvalidB : ∀ k, k < 32 →
-      isValidByteAccess (ptrB + BitVec.ofNat 64 k) = true)
     (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin 3 (base + 4) ret
       (CodeReq.ofProg base widxCmp32Prog)
@@ -820,7 +813,7 @@ theorem widx_cmp32_spec
       halignA halignB hovA hovB hvalidA hvalidB halignRet i hi)
     (cpsTripleWithin_mono_nSteps (by decide)
       (widx_cmp32_exh base ret ptrA ptrB as bs hlenA hlenB
-        halignA halignB hovA hovB hvalidA hvalidB halignRet))
+        halignRet))
   have hloop' := cpsTripleWithin_weaken
     (P' := P0 ** ((.x5 : Reg) ↦ᵣ (32 : Word)))
     (fun h hp => by
@@ -938,8 +931,7 @@ private theorem widx_swap_body_concrete
     (qa qb n : Nat) (ret v5 v31 : Word)
     (hn : n < 6)
     (hA : 8 * (qa + n) + 8 ≤ (widxSwapMem arena qa qb n).length)
-    (hB : 8 * (qb + n) + 8 ≤ (widxSwapMem arena qa qb n).length)
-    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    (hB : 8 * (qb + n) + 8 ≤ (widxSwapMem arena qa qb n).length) :
     cpsTripleWithin 8 (base + 12) (base + 8)
       (CodeReq.ofProg base widxSwapProg)
       (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
@@ -1149,8 +1141,7 @@ private theorem widx_swap_body
     (qa qb n : Nat) (ret : Word)
     (hn : n < 6)
     (hA : 8 * (qa + n) + 8 ≤ (widxSwapMem arena qa qb n).length)
-    (hB : 8 * (qb + n) + 8 ≤ (widxSwapMem arena qa qb n).length)
-    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    (hB : 8 * (qb + n) + 8 ≤ (widxSwapMem arena qa qb n).length) :
     cpsTripleWithin 8 (base + 12) (base + 8)
       (CodeReq.ofProg base widxSwapProg)
       (widxSwapInv arenaBase arena qa qb ret n)
@@ -1215,12 +1206,12 @@ private theorem widx_swap_body
         (widxSwapInv arenaBase arena qa qb ret (n + 1)) := by
     intro vf
     have hcon := widx_swap_body_concrete base arenaBase arena qa qb n ret
-      (vf .x5) (vf .x31) hn hA hB halignRet
+      (vf .x5) (vf .x31) hn hA hB
     exact cpsTripleWithin_weaken
       (P' := (preA ** memA) ** regAtomsOf vf [.x5, .x31])
       (fun _ hp => by
         dsimp [preA, memA] at hp ⊢
-        try simp only [sepConj_emp_left', sepConj_emp_right'] at hp ⊢
+        try simp only [sepConj_emp_right'] at hp ⊢
         sep_perm hp)
       (fun _ hq => hq) hcon
   have hpeel := cpsTripleWithin_peel_regOwns [ .x5, .x31 ] (by decide)
@@ -1229,7 +1220,7 @@ private theorem widx_swap_body
   exact cpsTripleWithin_weaken
     (fun _ hp => by
       dsimp [preA, memA] at hp ⊢
-      try simp only [sepConj_emp_left', sepConj_emp_right'] at hp ⊢
+      try simp only [sepConj_emp_right'] at hp ⊢
       sep_perm hp)
     (fun _ hq => hq) hpeel
 
@@ -1429,7 +1420,7 @@ theorem widx_swap_records_spec
       rw [widxSwapMem_length]
       omega
     have hh := widx_swap_head_false2 base arenaBase arena qa qb j ret hj
-    have hb := widx_swap_body base arenaBase arena qa qb j ret hj hAj hBj halignRet
+    have hb := widx_swap_body base arenaBase arena qa qb j ret hj hAj hBj
     exact cpsTripleWithin_seq_same_cr hh hb
   have hr0 := hround 0 (by decide)
   have hr1 := hround 1 (by decide)
