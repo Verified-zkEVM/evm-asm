@@ -46,7 +46,13 @@ private def bltuOff68 : BitVec 13 :=
 
 private theorem bltu_taken_68 :
     (B + 68) + signExtend13 bltuOff68 = B + 480 := by
-  unfold B bltuOff68 brOff signExtend13; decide
+  unfold B bltuOff68
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 68 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 68)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 68 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- Three ABI MVs: B+52 → B+64. Fuel 3. -/
 theorem erh_setup_mvs

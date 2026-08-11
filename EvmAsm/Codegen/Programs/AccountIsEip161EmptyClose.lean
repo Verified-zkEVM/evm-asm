@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.AccountIsEip161EmptySpec
@@ -360,8 +361,12 @@ theorem aieCall0 (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
   -- [16] jal x1, rlp_list_nth_item
   have hjal := jal_link_spec_within (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
     (GuestAddrs.account_is_eip161_empty + 64)) (AB + 64) raIn
-  rw [show (AB + 64) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_is_eip161_empty + 64)) = B from by decide,
+  rw [show (AB + 64) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_is_eip161_empty + 64)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_is_eip161_empty + BitVec.ofNat 64 64 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_is_eip161_empty 64
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 64 + 4 : Word) = AB + 68 from by bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code (aieFC 16, (AB + 64),
     (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
@@ -503,8 +508,12 @@ theorem aieCall1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
   -- [43] jal x1, rlp_list_nth_item
   have hjal := jal_link_spec_within (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
     (GuestAddrs.account_is_eip161_empty + 172)) (AB + 172) v1
-  rw [show (AB + 172) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_is_eip161_empty + 172)) = B from by decide,
+  rw [show (AB + 172) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_is_eip161_empty + 172)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_is_eip161_empty + BitVec.ofNat 64 172 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_is_eip161_empty 172
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 172 + 4 : Word) = AB + 176 from by bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code (aieFC 43, (AB + 172),
     (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
@@ -627,8 +636,12 @@ theorem aieCall3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
   -- [67] jal x1, rlp_list_nth_item
   have hjal := jal_link_spec_within (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
     (GuestAddrs.account_is_eip161_empty + 268)) (AB + 268) v1
-  rw [show (AB + 268) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_is_eip161_empty + 268)) = B from by decide,
+  rw [show (AB + 268) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.account_is_eip161_empty + 268)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_is_eip161_empty + BitVec.ofNat 64 268 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_is_eip161_empty 268
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 268 + 4 : Word) = AB + 272 from by bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code (aieFC 67, (AB + 268),
     (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item

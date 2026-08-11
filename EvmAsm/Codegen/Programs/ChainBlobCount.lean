@@ -14,7 +14,7 @@
   `chain_compute_max_blob_gas_used` (K237) likewise stay in
   Programs.Chain.
 
-  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64`
+  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64_strict`
   helpers, shared with the rest of the chain aggregators.
 
   No proofs yet -- these are codegen `String` defs only.

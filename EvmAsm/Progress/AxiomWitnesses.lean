@@ -96,6 +96,22 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authCallSite_ok_sample
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authJal_target
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authSigningPreimage_segments
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.eip7702AuthorizationSigningHash_prog_eq_frame
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.eip7702_authorization_signing_hash_spec_within
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.recover_authority_unfold
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
+
+#print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
+
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
