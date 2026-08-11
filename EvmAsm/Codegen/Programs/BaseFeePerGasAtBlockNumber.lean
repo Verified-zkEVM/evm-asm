@@ -6,9 +6,9 @@
   `header_extract_base_fee_u64` (the existing
   `header_validate_base_fee` takes a pointer to the field,
   not an extractor). The helper reuses
-  `rlp_field_to_u64`, which fails if the field is > 8
-  bytes -- mainnet base fees have stayed sub-u64 since
-  EIP-1559.
+  `rlp_field_to_u64_strict`, which rejects non-canonical
+  scalars and fails if the field is > 8 bytes -- mainnet
+  base fees have stayed sub-u64 since EIP-1559.
 
   Completes the EIP-1559 fee-market triple at block_number
   alongside gas_used (PR 7541) and gas_limit (PR 7551).
@@ -51,7 +51,7 @@ def headerExtractBaseFeeU64Function : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 15\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -186,7 +186,7 @@ def ziskBaseFeePerGasAtBlockNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbfbn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   headerExtractBaseFeeU64Function ++ "\n" ++
   baseFeePerGasAtBlockNumberFunction ++ "\n" ++

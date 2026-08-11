@@ -13,7 +13,7 @@
   there; this module groups the order-statistic aggregators
   introduced after the basefee-total landed.
 
-  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64`
+  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64_strict`
   helpers, shared with the sister aggregators in `Programs.Chain`.
 
   No proofs yet -- these are codegen `String` defs only.
@@ -67,7 +67,7 @@ def chainComputeMaxBasefeeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 15\n" ++
   "  la a3, ccmbf_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmbf_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -110,7 +110,7 @@ def ziskChainComputeMaxBasefeePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmbf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxBasefeeFunction ++ "\n" ++
   ".Lccmbf_pdone:"
 
@@ -170,7 +170,7 @@ def chainComputeMinBasefeeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 15\n" ++
   "  la a3, ccminbf_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccminbf_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -215,7 +215,7 @@ def ziskChainComputeMinBasefeePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccminbf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinBasefeeFunction ++ "\n" ++
   ".Lccminbf_pdone:"
 
