@@ -151,10 +151,42 @@ that, mirroring the spec order rather than special-casing it.
   the fix itself* (an `OK → FR` transition vs the exact parent) is not — repair
   it before merge. The exact-parent A/B is the arbiter of new-vs-pre-existing.
 
+## 7. Preserve digest comparisons when the spec compares digests
+
+When `execution-specs` compares a commitment hash, the guest must compare the
+same digest value, not the underlying bytes or structure. This is a
+spec-alignment rule, not a cryptographic assumption. Hash collisions are
+provably present in the mathematical model: an arbitrary-length byte-string
+domain maps into a 256-bit codomain, so the pigeonhole principle gives distinct
+inputs with the same digest.
+
+That makes digest equality and raw-value equality observably different
+functions. On a colliding pair, the reference's digest comparison accepts while
+a guest that replaces it with raw-byte comparison rejects. The latter is a
+false-reject divergence introduced by making the check appear stronger. Do not
+replace a spec-level digest comparison with a raw comparison, and do not treat
+collision resistance as a premise needed to justify the relative
+guest-versus-`execution-specs` claim.
+
+The current load-bearing sites are:
+
+- BAL digest: `EvmAsm/Codegen/Programs/BalSerializer.lean:1159-1167`.
+- Post-state-root digest and its MPT production:
+  `EvmAsm/Codegen/Programs/BlockVerdictMtxRuntime.lean:739-748` and
+  `EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean:445-449`.
+- Block-hash digest: `EvmAsm/Codegen/Programs/BlockVerdictFunction.lean:65-72` and
+  `EvmAsm/Codegen/Programs/Header.lean:1128-1178`.
+- EIP-7685 requests digest under SHA-256:
+  `EvmAsm/Codegen/Programs/BlockVerdictReceiptsTail.lean:126-135`,
+  `EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean:159-215`, and
+  `EvmAsm/Codegen/Programs/RequestsHash.lean:1-6,112-136`.
+
 ---
 
 These principles compound: mirroring the spec's model (1) is what makes the
 final form both correct and eventually provable (2, 3); representing control
 flow as derived values (4) and honoring temporal scopes (5) is *how* you mirror
-it faithfully; and the debugging discipline (6) is what keeps a reconstruction
-from quietly diverging from the spec it is supposed to equal.
+it faithfully; the debugging discipline (6) keeps a reconstruction from
+quietly diverging from the spec it is supposed to equal; and preserving the
+spec's digest comparisons (7) prevents a seemingly stronger check from adding
+a false reject.
