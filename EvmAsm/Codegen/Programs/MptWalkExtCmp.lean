@@ -9,7 +9,6 @@
   Domain: HP segment nibbles equal path nibbles (exact match).
 -/
 import EvmAsm.Codegen.Programs.MptWalkExtPostHp
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.ByteOps

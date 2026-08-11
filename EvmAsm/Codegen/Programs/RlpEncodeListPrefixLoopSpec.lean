@@ -57,7 +57,6 @@
 -/
 import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 

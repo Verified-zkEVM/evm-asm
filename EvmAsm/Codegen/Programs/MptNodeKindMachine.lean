@@ -8,8 +8,9 @@
 
   Domain for registry: NO input-domain gate for an honest full-guest post
   (arity-exact 17|2). Pure `mptNodeKindSpec` is looser and is NOT the machine
-  post — use `mptNodeKindGuest` / Result composition. Under `MptNode.WF`,
-  `mptNodeKindGuest_eq_kindTag` bridges to `kindTag`.
+  post — use operational `MptNodeKindResult`. Under `MptNode.WF`,
+  `MptNodeKindWire.mptNodeKindResult_eq_kindTag` recovers `kindTag` (success
+  arms). The pure `mptNodeKindGuest` def remains for coverRef only.
 -/
 
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
@@ -36,7 +37,7 @@ abbrev MnkPathLen : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_length
 private abbrev B : Word := kindB
 
 #guard mptNodeKind_prog.length = 53
-#guard GuestAddrs.mpt_node_kind = 0x80004790
+#guard GuestAddrs.mpt_node_kind = 0x80004a2c
 
 /-- Frame: ra @0, s0 @8, s1 @16 (8 bytes unused of the 32-byte frame). -/
 def kindFrame : FrameDesc :=

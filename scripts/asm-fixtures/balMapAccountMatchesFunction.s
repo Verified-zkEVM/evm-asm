@@ -15,7 +15,7 @@ bal_map_account_matches:
   mv a0, t0; mv a1, t1; jal ra, rlp_walk_init; bnez a2, .Lbmam_parse; mv s0, a0; mv s1, a1
 .Lbmam_loop:
   beq s0, s1, .Lbmam_miss; mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; sd s0, 64(sp); sd s1, 72(sp); mv a0, t0; mv a1, t1; jal ra, rlp_walk_init; bnez a2, .Lbmam_parse; mv s0, a0; mv s1, a1; sd s0, 80(sp); sd s1, 88(sp)
-  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmam_parse; bne a0, s3, .Lbmam_next_tuple
+  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmam_parse; bne a0, s3, .Lbmam_next_tuple
   mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; li t2, 1; beq s6, t2, .Lbmam_balance; li t2, 2; beq s6, t2, .Lbmam_nonce
   bne t1, s5, .Lbmam_next_tuple; li t2, 0
 .Lbmam_code_cmp:
@@ -23,7 +23,7 @@ bal_map_account_matches:
 .Lbmam_balance:
   mv a0, t0; mv a1, t1; la a2, bame_value; jal ra, rlp_content_to_u256_be; bnez a0, .Lbmam_parse; la t6, bame_value; ld t2, 0(t6); ld t3, 0(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 8(t6); ld t3, 8(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 16(t6); ld t3, 16(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 24(t6); ld t3, 24(s4); bne t2, t3, .Lbmam_next_tuple; j .Lbmam_hit
 .Lbmam_nonce:
-  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmam_parse; ld t2, 0(s4); beq a0, t2, .Lbmam_hit
+  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmam_parse; ld t2, 0(s4); beq a0, t2, .Lbmam_hit
 .Lbmam_next_tuple:
   ld s0, 64(sp); ld s1, 72(sp); j .Lbmam_loop
 .Lbmam_hit:

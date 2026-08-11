@@ -69,7 +69,28 @@ def stageBlockhashM29_prog : Program :=
     .SD .x2 .x20 (40 : BitVec 12),
     .SD .x2 .x21 (48 : BitVec 12),
     .SD .x2 .x22 (56 : BitVec 12),
-    .LD .x8 .x10 (404 : BitVec 12),
+    .LBU .x8 .x10 (404 : BitVec 12),
+    .LBU .x6 .x10 (405 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (406 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (407 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (408 : BitVec 12),
+    .SLLI .x6 .x6 (32 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (409 : BitVec 12),
+    .SLLI .x6 .x6 (40 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (410 : BitVec 12),
+    .SLLI .x6 .x6 (48 : BitVec 6),
+    .OR .x8 .x8 .x6,
+    .LBU .x6 .x10 (411 : BitVec 12),
+    .SLLI .x6 .x6 (56 : BitVec 6),
+    .OR .x8 .x8 .x6,
     .SD .x14 .x8 (0 : BitVec 12),
     .MV .x9 .x11,
     .MV .x18 .x12,
@@ -85,19 +106,19 @@ def stageBlockhashM29_prog : Program :=
     .SUB .x10 .x8 .x5,
     .MV .x11 .x9,
     .MV .x12 .x18,
-    .AUIPC .x13 (laHi GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 100)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 100)),
-    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 108)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 108)),
-    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 116)),
-    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 116)),
-    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 124)),
+    .AUIPC .x13 (laHi GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 184)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.m29_hash_tmp (GuestAddrs.stage_blockhash_m29 + 184)),
+    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 192)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 192)),
+    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 200)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 200)),
+    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 208)),
     .BNE .x10 .x0 (12 : BitVec 13),
     .ADDI .x21 .x21 (1 : BitVec 12),
     .JAL .x0 (-56 : BitVec 21),
     .SD .x19 .x21 (0 : BitVec 12),
     .LI .x20 (1 : Word),
-    .BLTU .x21 .x20 (brOff (GuestAddrs.stage_blockhash_m29 + 252) (GuestAddrs.stage_blockhash_m29 + 148)),
+    .BLTU .x21 .x20 (brOff (GuestAddrs.stage_blockhash_m29 + 336) (GuestAddrs.stage_blockhash_m29 + 232)),
     .SUB .x10 .x8 .x20,
     .MV .x11 .x9,
     .MV .x12 .x18,
@@ -105,11 +126,11 @@ def stageBlockhashM29_prog : Program :=
     .SLLI .x5 .x5 (5 : BitVec 6),
     .ADD .x13 .x22 .x5,
     .MV .x19 .x13,
-    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 180)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 180)),
-    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 188)),
-    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 188)),
-    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 196)),
+    .AUIPC .x14 (laHi GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 264)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.m29_off_tmp (GuestAddrs.stage_blockhash_m29 + 264)),
+    .AUIPC .x15 (laHi GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 272)),
+    .ADDI .x15 .x15 (laLo GuestAddrs.m29_len_tmp (GuestAddrs.stage_blockhash_m29 + 272)),
+    .JAL .x1 (jalOff GuestAddrs.blockhash_from_witness_headers (GuestAddrs.stage_blockhash_m29 + 280)),
     .MV .x5 .x19,
     .ADDI .x6 .x19 (31 : BitVec 12),
     .LI .x7 (16 : Word),
@@ -122,7 +143,7 @@ def stageBlockhashM29_prog : Program :=
     .ADDI .x7 .x7 (-1 : BitVec 12),
     .BNE .x7 .x0 (-28 : BitVec 13),
     .ADDI .x20 .x20 (1 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.stage_blockhash_m29 + 148) (GuestAddrs.stage_blockhash_m29 + 248)),
+    .JAL .x0 (jalOff (GuestAddrs.stage_blockhash_m29 + 232) (GuestAddrs.stage_blockhash_m29 + 332)),
     .LI .x10 (0 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
@@ -139,13 +160,13 @@ def stageBlockhashM29_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def stageBlockhashM29_relocs : RelocTable :=
-  [ (25, .la .x13 "m29_hash_tmp"),
-    (27, .la .x14 "m29_off_tmp"),
-    (29, .la .x15 "m29_len_tmp"),
-    (31, .jal .x1 "blockhash_from_witness_headers"),
-    (45, .la .x14 "m29_off_tmp"),
-    (47, .la .x15 "m29_len_tmp"),
-    (49, .jal .x1 "blockhash_from_witness_headers") ]
+  [ (46, .la .x13 "m29_hash_tmp"),
+    (48, .la .x14 "m29_off_tmp"),
+    (50, .la .x15 "m29_len_tmp"),
+    (52, .jal .x1 "blockhash_from_witness_headers"),
+    (66, .la .x14 "m29_off_tmp"),
+    (68, .la .x15 "m29_len_tmp"),
+    (70, .jal .x1 "blockhash_from_witness_headers") ]
 
 def stageBlockhashM29Function : String :=
   "stage_blockhash_m29:\n" ++ emitProgramR stageBlockhashM29_prog stageBlockhashM29_relocs
@@ -159,7 +180,7 @@ theorem stageBlockhashM29Function_eq_prog :
     stageBlockhashM29Function = "stage_blockhash_m29:\n" ++ emitProgramR stageBlockhashM29_prog stageBlockhashM29_relocs := rfl
 
 #guard stageBlockhashM29Function.startsWith "stage_blockhash_m29:\n"
-#guard stageBlockhashM29_prog.length = 74
+#guard stageBlockhashM29_prog.length = 95
 /-- `zisk_stage_blockhash_m29`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : cur (current block number)

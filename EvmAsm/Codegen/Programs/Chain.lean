@@ -815,7 +815,7 @@ def chainExtractBasefeeFirstLastFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 15\n" ++
   "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcebfl_propagate\n" ++
   "  # Advance to last header\n" ++
   "  mv t1, s2\n" ++
@@ -833,7 +833,7 @@ def chainExtractBasefeeFirstLastFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 15\n" ++
   "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcebfl_propagate\n" ++
   "  li a0, 0\n" ++
   "  j .Lcebfl_ret\n" ++
@@ -1021,7 +1021,7 @@ def chainComputeTotalBasefeeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 15\n" ++
   "  la a3, cctbf_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctbf_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -1061,7 +1061,7 @@ def ziskChainComputeTotalBasefeePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctbf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalBasefeeFunction ++ "\n" ++
   ".Lcctbf_pdone:"
 
