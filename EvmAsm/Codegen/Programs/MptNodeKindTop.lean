@@ -23,15 +23,18 @@ set_option maxRecDepth 8000
 
 /-- Shared ambient after every arm reaches the epilogue join (pc 48).
     Frame regs + scratch temps are owned (values dead — epi restores).
+    Callee-saved path regs x18..x21 are PRESERVED (count/nth save/restore)
+    so walk hop arms can keep concrete path/value pointers (#11799).
     BSS cells keep final written values (count / path off / path len). -/
 def bodyExitAmb (newSp : Word) (ks : KindSaved) (kindW : Word)
     (listBase : Word) (bytes : List (BitVec 8))
-    (countW offW lenW : Word) : Assertion :=
+    (countW offW lenW : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
   (.x2 ↦ᵣ newSp) ** kindSavedFrame newSp ks ** regsOwnAt kindFrame **
   (.x10 ↦ᵣ kindW) ** (.x0 ↦ᵣ (0 : Word)) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
-  regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   bytesRegion listBase bytes **
   (MnkCount ↦ₘ countW) ** (MnkPathOff ↦ₘ offW) ** (MnkPathLen ↦ₘ lenW) **
@@ -39,8 +42,10 @@ def bodyExitAmb (newSp : Word) (ks : KindSaved) (kindW : Word)
 
 theorem bodyExitAmb_pcFree (newSp : Word) (ks : KindSaved) (kindW : Word)
     (listBase : Word) (bytes : List (BitVec 8))
-    (countW offW lenW : Word) :
-    (bodyExitAmb newSp ks kindW listBase bytes countW offW lenW).pcFree := by
+    (countW offW lenW : Word)
+    (v18 v19 v20 v21 : Word) :
+    (bodyExitAmb newSp ks kindW listBase bytes countW offW lenW
+      v18 v19 v20 v21).pcFree := by
   unfold bodyExitAmb kindSavedFrame
   repeat' first
     | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
@@ -56,8 +61,10 @@ theorem regsOwnAt_kindFrame :
 def bodyPost (newSp : Word) (ks : KindSaved) (kind : Nat)
     (listBase : Word) (bytes : List (BitVec 8)) (listLen : Nat)
     (oldCount oldOff oldLen : Word)
-    (countW offW lenW : Word) : Assertion :=
-  bodyExitAmb newSp ks (BitVec.ofNat 64 kind) listBase bytes countW offW lenW **
+    (countW offW lenW : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
+  bodyExitAmb newSp ks (BitVec.ofNat 64 kind) listBase bytes countW offW lenW
+    v18 v19 v20 v21 **
   ⌜MptNodeKindResult bytes listBase listLen oldCount oldOff oldLen kind⌝
 
 private theorem kindW_one : BitVec.ofNat 64 1 = (1 : Word) := rfl
@@ -413,17 +420,20 @@ def PathByteOk (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
     len = (0 : Word) ∨
       (len ≠ (0 : Word) ∧ ∃ b : BitVec 8, bytes[off.toNat]? = some b)
 
-/-- Caller ambient around nth return (frame + count + stack; no path cells).
-    `x1` still holds the nth-return PC; converted to own at bodyPost. -/
-def nthCallerAmb (newSp : Word) (ks : KindSaved) (countW : Word) : Assertion :=
+/-- Caller ambient around nth return (frame + count + stack).
+    Path regs x18..x21 kept concrete (nth save/restore). `x1` still holds
+    the nth-return PC; converted to own at bodyPost. -/
+def nthCallerAmb (newSp : Word) (ks : KindSaved) (countW : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
   (.x2 ↦ᵣ newSp) ** kindSavedFrame newSp ks **
   (.x1 ↦ᵣ (pc 25)) **
   regOwn .x8 ** regOwn .x9 **
-  regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
   (MnkCount ↦ₘ countW) ** stackFree newSp 8
 
-theorem nthCallerAmb_pcFree (newSp : Word) (ks : KindSaved) (countW : Word) :
-    (nthCallerAmb newSp ks countW).pcFree := by
+theorem nthCallerAmb_pcFree (newSp : Word) (ks : KindSaved) (countW : Word)
+    (v18 v19 v20 v21 : Word) :
+    (nthCallerAmb newSp ks countW v18 v19 v20 v21).pcFree := by
   unfold nthCallerAmb kindSavedFrame
   repeat' first
     | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
@@ -443,7 +453,7 @@ def nthPeelAmb (newSp : Word) (nSaved : RlpListNthItemSAsm.Saved)
       (MnkPathOff ↦ₘ offset) ** (MnkPathLen ↦ₘ len)))) **
   kindSavedFrame newSp ks ** (MnkCount ↦ₘ countW)
 
-/-! Drop savedRegTail to owns, keep x1 concrete; result matches nth_fail_to_kind3 frame. -/
+/-! Drop savedRegTail x8/x9 to owns; KEEP x18..x21 concrete; keep x1. -/
 private theorem nthPeel_drop_saved_fail
     (newSp : Word) (nSaved : RlpListNthItemSAsm.Saved) (ks : KindSaved)
     (v11 v12 countW oldOff oldLen : Word)
@@ -457,7 +467,7 @@ private theorem nthPeel_drop_saved_fail
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       bytesRegion listBase bytes **
       (MnkPathOff ↦ₘ oldOff) ** (MnkPathLen ↦ₘ oldLen) **
-      nthCallerAmb newSp ks countW) h := by
+      nthCallerAmb newSp ks countW nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5) h := by
   simp only [nthPeelAmb, RlpListNthItemSAsm.savedRegTail, kindSavedFrame,
     nthCallerAmb] at hp ⊢
   have hx :
@@ -480,20 +490,7 @@ private theorem nthPeel_drop_saved_fail
     (fun _ x => x) h hx
   have d2 := sepConj_mono (fun _ x => x)
     (sepConj_mono (regIs_implies_regOwn (v := nSaved.s1) .x9) (fun _ x => x)) h d1
-  have d3 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (regIs_implies_regOwn (v := nSaved.s2) .x18) (fun _ x => x))) h d2
-  have d4 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := nSaved.s3) .x19) (fun _ x => x)))) h d3
-  have d5 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := nSaved.s4) .x20) (fun _ x => x))))) h d4
-  have d6 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (fun _ x => x)
-        (sepConj_mono (regIs_implies_regOwn (v := nSaved.s5) .x21)
-          (fun _ x => x)))))) h d5
-  xperm_chunked d6
+  xperm_chunked d2
 
 /-! Nth fail peel ambient → bodyPost kind 3 + `.nthFail`. Fuel 2. -/
 set_option maxRecDepth 8000 in
@@ -511,7 +508,7 @@ theorem nth_fail_outcome
       (nthPeelAmb newSp nSaved ks (1 : Word) oldOff oldLen v11 v12 countW
         listBase bytes)
       (bodyPost newSp ks 3 listBase bytes listLen oldCount oldOff oldLen
-        countW oldOff oldLen) := by
+        countW oldOff oldLen nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5) := by
   have hfail := nth_fail_to_kind3
     (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -519,8 +516,13 @@ theorem nth_fail_outcome
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       bytesRegion listBase bytes **
       (MnkPathOff ↦ₘ oldOff) ** (MnkPathLen ↦ₘ oldLen) **
-      nthCallerAmb newSp ks countW)
-    (by pcf)
+      nthCallerAmb newSp ks countW nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5)
+    (by
+      unfold nthCallerAmb kindSavedFrame
+      repeat' first
+        | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+        | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj)
   refine cpsTripleWithin_weaken
     (fun h hp => by
       have hp' := nthPeel_drop_saved_fail newSp nSaved ks v11 v12 countW
@@ -539,7 +541,8 @@ theorem nth_fail_outcome
           (.x2 ↦ᵣ newSp) **
           ((newSp ↦ₘ ks.ra) ** ((newSp + 8) ↦ₘ ks.s0) ** ((newSp + 16) ↦ₘ ks.s1)) **
           regOwn .x8 ** regOwn .x9 **
-          regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+          (.x18 ↦ᵣ nSaved.s2) ** (.x19 ↦ᵣ nSaved.s3) **
+          (.x20 ↦ᵣ nSaved.s4) ** (.x21 ↦ᵣ nSaved.s5) **
           (MnkCount ↦ₘ countW) ** stackFree newSp 8)) h := by
     xperm_chunked hq
   have hx1 := sepConj_mono (regIs_implies_regOwn (v := v11) .x11) (fun _ x => x) h hx
@@ -553,22 +556,24 @@ theorem nth_fail_outcome
   simp only [bodyExitAmb, kindSavedFrame, regsOwnAt_kindFrame, kindW_three] at hx3 ⊢
   xperm_chunked hx3
 
-/-- Ambient for nth-ok path after dropping non-x8 saved regs. -/
-def nthOkCallerF (newSp : Word) (ks : KindSaved) (countW : Word) : Assertion :=
+/-- Ambient for nth-ok path after dropping x9; KEEP x18..x21. -/
+def nthOkCallerF (newSp : Word) (ks : KindSaved) (countW : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
   (.x2 ↦ᵣ newSp) ** kindSavedFrame newSp ks **
   (.x1 ↦ᵣ (pc 25)) **
   regOwn .x9 **
-  regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+  (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
   (MnkCount ↦ₘ countW) ** stackFree newSp 8
 
-theorem nthOkCallerF_pcFree (newSp : Word) (ks : KindSaved) (countW : Word) :
-    (nthOkCallerF newSp ks countW).pcFree := by
+theorem nthOkCallerF_pcFree (newSp : Word) (ks : KindSaved) (countW : Word)
+    (v18 v19 v20 v21 : Word) :
+    (nthOkCallerF newSp ks countW v18 v19 v20 v21).pcFree := by
   unfold nthOkCallerF kindSavedFrame
   repeat' first
     | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
     | exact pcFree_stackFree _ _ | apply pcFree_sepConj
 
-/-! Drop peel ambient (with s0=listBase) into nth_ok_to_hp pre. -/
+/-! Drop peel ambient (with s0=listBase) into nth_ok_to_hp pre; keep path regs. -/
 private theorem nthPeel_drop_saved_ok
     (newSp : Word) (nSaved : RlpListNthItemSAsm.Saved) (ks : KindSaved)
     (v11 v12 countW pathOff pathLen : Word)
@@ -584,7 +589,7 @@ private theorem nthPeel_drop_saved_ok
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       bytesRegion listBase bytes **
       (MnkPathOff ↦ₘ pathOff) ** (MnkPathLen ↦ₘ pathLen) **
-      nthOkCallerF newSp ks countW) h := by
+      nthOkCallerF newSp ks countW nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5) h := by
   simp only [nthPeelAmb, RlpListNthItemSAsm.savedRegTail, kindSavedFrame,
     nthOkCallerF, hs0] at hp ⊢
   have hx :
@@ -606,17 +611,7 @@ private theorem nthPeel_drop_saved_ok
     xperm_chunked hp
   have d1 := sepConj_mono (regIs_implies_regOwn (v := nSaved.s1) .x9)
     (fun _ x => x) h hx
-  have d2 := sepConj_mono (fun _ x => x)
-    (sepConj_mono (regIs_implies_regOwn (v := nSaved.s2) .x18) (fun _ x => x)) h d1
-  have d3 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (regIs_implies_regOwn (v := nSaved.s3) .x19) (fun _ x => x))) h d2
-  have d4 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := nSaved.s4) .x20) (fun _ x => x)))) h d3
-  have d5 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := nSaved.s5) .x21) (fun _ x => x))))) h d4
-  xperm_chunked d5
+  xperm_chunked d1
 
 /-! Nth ok peel ambient → HP → bodyPost + `.emptyPath` / `.path`. Fuel 17. -/
 set_option maxRecDepth 8000 in
@@ -642,11 +637,11 @@ theorem nth_ok_outcome
         listBase bytes)
       (fun h => ∃ kind : Nat,
         (bodyPost newSp ks kind listBase bytes listLen oldCount oldOff oldLen
-          countW pathOff pathLen) h) := by
+          countW pathOff pathLen nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5) h) := by
   have hhp := nth_ok_to_hp listBase pathOff pathLen bytes v11 v12
     halign hover_base hvalid_all hb_opt
-    (nthOkCallerF newSp ks countW)
-    (nthOkCallerF_pcFree newSp ks countW)
+    (nthOkCallerF newSp ks countW nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5)
+    (nthOkCallerF_pcFree newSp ks countW nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5)
   refine cpsTripleWithin_weaken
     (fun h hp => by
       have hp' := nthPeel_drop_saved_ok newSp nSaved ks v11 v12 countW
@@ -668,7 +663,8 @@ theorem nth_ok_outcome
           (.x2 ↦ᵣ newSp) **
           ((newSp ↦ₘ ks.ra) ** ((newSp + 8) ↦ₘ ks.s0) ** ((newSp + 16) ↦ₘ ks.s1)) **
           regOwn .x9 **
-          regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+          (.x18 ↦ᵣ nSaved.s2) ** (.x19 ↦ᵣ nSaved.s3) **
+          (.x20 ↦ᵣ nSaved.s4) ** (.x21 ↦ᵣ nSaved.s5) **
           (MnkCount ↦ₘ countW) ** stackFree newSp 8)) h := by
     xperm_chunked hamb
   have d1 := sepConj_mono (regIs_implies_regOwn (v := listBase) .x8) (fun _ x => x) h hx
@@ -729,21 +725,24 @@ theorem nth_ok_outcome
 
 /-! ## Nth callReturn peel → bodyPost (fail | ok+HP) -/
 
-/-- Body-post existential over kind and final path BSS cells. -/
+/-- Body-post existential over kind and final path BSS cells.
+    Preserves path regs x18..x21 (walk hop needs them). -/
 def bodyPostEx (newSp : Word) (ks : KindSaved)
     (listBase : Word) (bytes : List (BitVec 8)) (listLen : Nat)
-    (oldCount oldOff oldLen countW : Word) : Assertion :=
+    (oldCount oldOff oldLen countW : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
   fun h => ∃ (kind : Nat) (offW lenW : Word),
     (bodyPost newSp ks kind listBase bytes listLen oldCount oldOff oldLen
-      countW offW lenW) h
+      countW offW lenW v18 v19 v20 v21) h
 
 /-- Like `bodyPostEx`, but also hides the final count BSS word (count arms differ). -/
 def bodyPostExAny (newSp : Word) (ks : KindSaved)
     (listBase : Word) (bytes : List (BitVec 8)) (listLen : Nat)
-    (oldCount oldOff oldLen : Word) : Assertion :=
+    (oldCount oldOff oldLen : Word)
+    (v18 v19 v20 v21 : Word) : Assertion :=
   fun h => ∃ (kind : Nat) (countW offW lenW : Word),
     (bodyPost newSp ks kind listBase bytes listLen oldCount oldOff oldLen
-      countW offW lenW) h
+      countW offW lenW v18 v19 v20 v21) h
 
 /-! Nth return (any Result) → bodyPost. Fuel 17.
     Requires `nSaved.s0 = listBase` so ok-path keeps x8 as listBase. -/
@@ -767,7 +766,8 @@ theorem nth_outcome
           MnkPathOff MnkPathLen oldOff oldLen
           { nSaved with ra := pc 25 } bytes listLen 0) **
         kindSavedFrame newSp ks ** (MnkCount ↦ₘ countW))
-      (bodyPostEx newSp ks listBase bytes listLen oldCount oldOff oldLen countW) := by
+      (bodyPostEx newSp ks listBase bytes listLen oldCount oldOff oldLen countW
+        nSaved.s2 nSaved.s3 nSaved.s4 nSaved.s5) := by
   refine cpsTripleWithin_nthReturn_pre (N := 17) (ret := pc 48) (X := pc 25)
     (F := kindSavedFrame newSp ks ** (MnkCount ↦ₘ countW))
     newSp listBase MnkPathOff MnkPathLen oldOff oldLen
@@ -816,8 +816,8 @@ def countPeelAmb (newSp : Word) (cSaved : RlpListCountItemsSAsm.Saved)
       bytesRegion listBase bytes ** (MnkCount ↦ₘ result)))) **
   countCallF newSp ks oldOff oldLen v13 v14 v20 v21 R
 
-/-! Drop count savedRegTail + concrete temps to owns; recombine
-    `R ** stackFree 6` → `stackFree 8` via the split equality. -/
+/-! Drop count savedRegTail temps to owns; KEEP x18..x21 concrete (path
+    preserve for walk hop). Recombine `R ** stackFree 6` → `stackFree 8`. -/
 private theorem countPeel_drop_to_exit
     (newSp : Word) (cSaved : RlpListCountItemsSAsm.Saved) (ks : KindSaved)
     (kindW result v11 v12 : Word)
@@ -834,7 +834,8 @@ private theorem countPeel_drop_to_exit
           regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion listBase bytes ** (MnkCount ↦ₘ result)))) **
       countCallF newSp ks oldOff oldLen v13 v14 v20 v21 R) h) :
-    (bodyExitAmb newSp ks kindW listBase bytes result oldOff oldLen) h := by
+    (bodyExitAmb newSp ks kindW listBase bytes result oldOff oldLen
+      cSaved.s2 cSaved.s3 v20 v21) h := by
   simp only [countCallF, kindSavedFrame, RlpListCountItemsSAsm.savedRegTail] at hp
   have hx :
       ((.x8 ↦ᵣ cSaved.s0) ** (.x9 ↦ᵣ cSaved.s1) **
@@ -856,14 +857,10 @@ private theorem countPeel_drop_to_exit
     (fun _ x => x) h hx
   have d2 := sepConj_mono (fun _ x => x)
     (sepConj_mono (regIs_implies_regOwn (v := cSaved.s1) .x9) (fun _ x => x)) h d1
-  have d3 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (regIs_implies_regOwn (v := cSaved.s2) .x18) (fun _ x => x))) h d2
-  have d4 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := cSaved.s3) .x19) (fun _ x => x)))) h d3
+  -- Keep x18/x19 as cSaved.s2/s3 (path preserve); drop only x1 and scratch.
   have d5 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
     (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (regIs_implies_regOwn (v := pc 9) .x1) (fun _ x => x))))) h d4
+      (sepConj_mono (regIs_implies_regOwn (v := pc 9) .x1) (fun _ x => x))))) h d2
   have d6 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
     (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
       (sepConj_mono (fun _ x => x)
@@ -884,21 +881,7 @@ private theorem countPeel_drop_to_exit
         (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
           (sepConj_mono (regIs_implies_regOwn (v := v14) .x14)
             (fun _ x => x))))))))) h d8
-  have d10 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-        (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-          (sepConj_mono (fun _ x => x)
-            (sepConj_mono (regIs_implies_regOwn (v := v20) .x20)
-              (fun _ x => x)))))))))) h d9
-  have d11 := sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-    (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-      (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-        (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-          (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
-            (sepConj_mono (regIs_implies_regOwn (v := v21) .x21)
-              (fun _ x => x))))))))))) h d10
-  -- Front the residual stack pair so `hR` rewrites it to `stackFree 8`.
+  -- Front residual stack; keep x18..x21 concrete.
   have hx2 :
       (((R ** stackFree newSp 6) **
         ((.x10 ↦ᵣ kindW) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -909,12 +892,12 @@ private theorem countPeel_drop_to_exit
           (.x2 ↦ᵣ newSp) **
           ((newSp ↦ₘ ks.ra) ** ((newSp + 8) ↦ₘ ks.s0) ** ((newSp + 16) ↦ₘ ks.s1)) **
           regOwn .x8 ** regOwn .x9 **
-          regOwn .x18 ** regOwn .x19 **
+          (.x18 ↦ᵣ cSaved.s2) ** (.x19 ↦ᵣ cSaved.s3) **
+          (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
           regOwn .x1 **
           regOwn .x11 ** regOwn .x12 **
-          regOwn .x13 ** regOwn .x14 **
-          regOwn .x20 ** regOwn .x21))) h := by
-    xperm_chunked d11
+          regOwn .x13 ** regOwn .x14))) h := by
+    xperm_chunked d9
   rw [← hR] at hx2
   simp only [bodyExitAmb, kindSavedFrame, regsOwnAt_kindFrame] at hx2 ⊢
   xperm_chunked hx2
@@ -933,7 +916,7 @@ theorem count_fail_outcome
       (countPeelAmb newSp cSaved ks (1 : Word) (0 : Word) v11 v12
         oldOff oldLen v13 v14 v20 v21 listBase bytes R)
       (bodyPost newSp ks 3 listBase bytes listLen oldCount oldOff oldLen
-        (0 : Word) oldOff oldLen) := by
+        (0 : Word) oldOff oldLen cSaved.s2 cSaved.s3 v20 v21) := by
   have hfail := count_fail_arm newSp listBase (0 : Word) v11 v12 cSaved bytes
     (countCallF newSp ks oldOff oldLen v13 v14 v20 v21 R)
     (countCallF_pcFree newSp ks oldOff oldLen v13 v14 v20 v21 R hRp)
@@ -963,7 +946,7 @@ theorem count_branch_outcome
       (countPeelAmb newSp cSaved ks (0 : Word) (17 : Word) v11 v12
         oldOff oldLen v13 v14 v20 v21 listBase bytes R)
       (bodyPost newSp ks 0 listBase bytes listLen oldCount oldOff oldLen
-        (17 : Word) oldOff oldLen) := by
+        (17 : Word) oldOff oldLen cSaved.s2 cSaved.s3 v20 v21) := by
   let F : Assertion :=
     ((.x1 ↦ᵣ (pc 9)) **
       (((.x2 ↦ᵣ newSp) ** stackFree newSp 6 **
@@ -1043,7 +1026,7 @@ theorem count_badArity_outcome
       (countPeelAmb newSp cSaved ks (0 : Word) (BitVec.ofNat 64 c) v11 v12
         oldOff oldLen v13 v14 v20 v21 listBase bytes R)
       (bodyPost newSp ks 3 listBase bytes listLen oldCount oldOff oldLen
-        (BitVec.ofNat 64 c) oldOff oldLen) := by
+        (BitVec.ofNat 64 c) oldOff oldLen cSaved.s2 cSaved.s3 v20 v21) := by
   let countW : Word := BitVec.ofNat 64 c
   have hne17W : countW ≠ (17 : Word) :=
     ofNat64_ne_of_ne c 17 hc64 (by decide) hne17
