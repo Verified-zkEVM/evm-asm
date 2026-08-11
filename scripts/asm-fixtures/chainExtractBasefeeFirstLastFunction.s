@@ -9,7 +9,7 @@ chain_extract_basefee_first_last:
   mv a0, s2
   li a2, 15
   mv a3, s3
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcebfl_propagate
   # Advance to last header
   mv t1, s2
@@ -27,7 +27,7 @@ chain_extract_basefee_first_last:
   mv a0, t1
   li a2, 15
   mv a3, s4
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcebfl_propagate
   li a0, 0
   j .Lcebfl_ret

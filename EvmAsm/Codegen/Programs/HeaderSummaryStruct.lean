@@ -186,7 +186,7 @@ def headerComputeSummaryStruct_prog : Program :=
     .SUB .x5 .x10 .x12,
     .MV .x10 .x5,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 2147484180),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict 2147484180),
     .BNE .x11 .x0 (32 : BitVec 13),
     .SD .x18 .x10 (88 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -231,7 +231,7 @@ def headerComputeSummaryStruct_relocs : RelocTable :=
     (118, .jal .x1 "rlp_walk_next"),
     (123, .jal .x1 "rlp_walk_next"),
     (128, .jal .x1 "rlp_walk_next"),
-    (133, .jal .x1 "rlp_content_to_u64") ]
+    (133, .jal .x1 "rlp_content_to_u64_strict") ]
 
 def headerComputeSummaryStructFunction : String :=
   "header_compute_summary_struct:\n" ++ emitProgramR headerComputeSummaryStruct_prog headerComputeSummaryStruct_relocs

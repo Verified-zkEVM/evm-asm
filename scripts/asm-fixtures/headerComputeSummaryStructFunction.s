@@ -53,7 +53,7 @@ header_compute_summary_struct:
   mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail; mv s3, a0
   # Field 15: base_fee_per_gas -> out[88..96].
   mv a0, s3; mv a1, s4; jal ra, rlp_walk_next; bnez a1, .Lhcss_parse_fail
-  sub t0, a0, a2; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64; bnez a1, .Lhcss_int_fail
+  sub t0, a0, a2; mv a0, t0; mv a1, a2; jal ra, rlp_content_to_u64_strict; bnez a1, .Lhcss_int_fail
   sd a0, 88(s2)
   li a0, 0
   j .Lhcss_ret

@@ -844,7 +844,7 @@ def chainExtractBasefeeFirstLast_prog : Program :=
     .MV .x10 .x18,
     .LI .x12 (15 : Word),
     .MV .x13 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483716),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483716),
     .BNE .x10 .x0 (brOff 2147483800 2147483720),
     .MV .x6 .x18,
     .MV .x7 .x9,
@@ -859,7 +859,7 @@ def chainExtractBasefeeFirstLast_prog : Program :=
     .MV .x10 .x6,
     .LI .x12 (15 : Word),
     .MV .x13 .x20,
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483776),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483776),
     .BNE .x10 .x0 (20 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
@@ -879,8 +879,8 @@ def chainExtractBasefeeFirstLast_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def chainExtractBasefeeFirstLast_relocs : RelocTable :=
-  [ (17, .jal .x1 "rlp_field_to_u64"),
-    (32, .jal .x1 "rlp_field_to_u64") ]
+  [ (17, .jal .x1 "rlp_field_to_u64_strict"),
+    (32, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def chainExtractBasefeeFirstLastFunction : String :=
   "chain_extract_basefee_first_last:\n" ++ emitProgramR chainExtractBasefeeFirstLast_prog chainExtractBasefeeFirstLast_relocs

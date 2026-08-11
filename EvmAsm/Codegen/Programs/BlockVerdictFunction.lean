@@ -58,13 +58,15 @@ def blockVerdictFunction : String :=
   "  la t0, bv_eip4788_current_fast_seen; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_upfront_balance_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_pending_recipient_credit_flag; sd zero, 0(t0)\n" ++
-  "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n  la t0, bv_runtime_completeness_status; sd zero, 0(t0)\n" ++
+  "  la t0, bvgr_runtime_count; sd zero, 0(t0)\n" ++
   "  ld a0, 0(s0); ld a1, 32(s0); ld a2, 40(s0); ld a3, 48(s0); ld a4, 56(s0); ld a7, 96(s0)\n" ++
   "  la a5, sv_this_rlp; la a6, sv_this_rlp_len\n" ++
   "  jal ra, block_header_ssz_to_rlp\n" ++
   "  la t0, bv_block_hash_check_enabled; ld t0, 0(t0); beqz t0, .Lbv_block_hash_ok\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); la a2, bv_block_hash\n" ++
   "  jal ra, block_hash_from_header\n" ++
+  -- Spec-alignment: execution-specs compares the block-hash digest. Do not
+  -- strengthen this to raw-header comparison; see docs/agents/spec-alignment-doctrine.md §7.
   "  la t0, bv_block_hash; ld t1, 0(s0); addi t1, t1, 472; li t2, 32\n" ++
   ".Lbv_block_hash_cmp:\n" ++
   "  beqz t2, .Lbv_block_hash_ok\n" ++

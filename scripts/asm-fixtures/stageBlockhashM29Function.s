@@ -3,7 +3,15 @@ stage_blockhash_m29:
   sd ra, 0(sp)
   sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
   sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)
-  ld s0, 404(a0)              # cur = exec NUMBER
+  # #12057 aligned: u64 LE from a0+404 via LBU pack
+  lbu s0, 404(a0)
+  lbu t1, 405(a0); slli t1, t1, 8; or s0, s0, t1
+  lbu t1, 406(a0); slli t1, t1, 16; or s0, s0, t1
+  lbu t1, 407(a0); slli t1, t1, 24; or s0, s0, t1
+  lbu t1, 408(a0); slli t1, t1, 32; or s0, s0, t1
+  lbu t1, 409(a0); slli t1, t1, 40; or s0, s0, t1
+  lbu t1, 410(a0); slli t1, t1, 48; or s0, s0, t1
+  lbu t1, 411(a0); slli t1, t1, 56; or s0, s0, t1
   sd s0, 0(a4)                # *cur_out = cur
   mv s1, a1                   # headers ptr
   mv s2, a2                   # headers len

@@ -727,7 +727,7 @@ def chainValidateBasefeeNonDecreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 15\n" ++
   "  la a3, cvbnd_bf\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvbnd_propagate\n" ++
   "  la t0, cvbnd_bf; ld s5, 0(t0)\n" ++
   "  # child_ptr starts at headers[1]; i = 1\n" ++
@@ -745,7 +745,7 @@ def chainValidateBasefeeNonDecreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 15\n" ++
   "  la a3, cvbnd_bf\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvbnd_propagate\n" ++
   "  la t0, cvbnd_bf;         ld t3, 0(t0)\n" ++
   "  la t0, cvbnd_iter_prev;  ld t4, 0(t0)\n" ++
@@ -792,7 +792,7 @@ def ziskChainValidateBasefeeNonDecreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvbnd_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateBasefeeNonDecreasingFunction ++ "\n" ++
   ".Lcvbnd_pdone:"
 
@@ -857,7 +857,7 @@ def chainValidateBasefeeNonIncreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 15\n" ++
   "  la a3, cvbni_bf\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvbni_propagate\n" ++
   "  la t0, cvbni_bf; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -874,7 +874,7 @@ def chainValidateBasefeeNonIncreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 15\n" ++
   "  la a3, cvbni_bf\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvbni_propagate\n" ++
   "  la t0, cvbni_bf;         ld t3, 0(t0)\n" ++
   "  la t0, cvbni_iter_prev;  ld t4, 0(t0)\n" ++
@@ -921,7 +921,7 @@ def ziskChainValidateBasefeeNonIncreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvbni_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateBasefeeNonIncreasingFunction ++ "\n" ++
   ".Lcvbni_pdone:"
 

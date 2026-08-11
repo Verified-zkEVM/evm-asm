@@ -130,6 +130,9 @@ def blockVerdictReceiptsTail : String :=
   "  la t1, c1_er_assembled_len; sd t0, 0(t1)\n" ++
   "  la a6, erh_requests_hash\n" ++
   "  la a7, c1_er_assembled\n" ++
+  -- Spec-alignment: execution-specs compares the EIP-7685 SHA-256 digest.
+  -- Keep the digest comparison, not a comparison of the assembled request
+  -- bodies; see docs/agents/spec-alignment-doctrine.md §7.
   "  jal ra, requests_hash_verify\n" ++
   "  la t2, c1_erh_status; sd a0, 0(t2)\n" ++
   "  bnez a0, .Lbv_requests_hash_fail\n" ++

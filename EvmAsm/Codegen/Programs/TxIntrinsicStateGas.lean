@@ -11,7 +11,6 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.IntrinsicGas

@@ -31,7 +31,8 @@ process_block_start_system_transactions:
   jal ra, stage_system_call
   la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)
   li t0, 1; beq a2, t0, .Lpbs_fail
-  la t0, tx_account_writes_count; sd zero, 0(t0)
+  jal ra, account_writes_emit_builder_tx
+  jal ra, account_writes_incorporate_tx
   jal ra, write_sets_incorporate_tx
   jal ra, read_sets_incorporate_tx
 .Lpbs_4788_skip:
@@ -62,7 +63,8 @@ process_block_start_system_transactions:
   jal ra, stage_system_call
   la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)
   li t0, 1; beq a2, t0, .Lpbs_fail
-  la t0, tx_account_writes_count; sd zero, 0(t0)
+  jal ra, account_writes_emit_builder_tx
+  jal ra, account_writes_incorporate_tx
   jal ra, write_sets_incorporate_tx
   jal ra, read_sets_incorporate_tx
 .Lpbs_2935_skip:
