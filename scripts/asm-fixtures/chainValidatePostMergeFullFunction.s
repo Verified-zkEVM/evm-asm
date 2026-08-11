@@ -1,97 +1,131 @@
 chain_validate_post_merge_full:
-  addi sp, sp, -56
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp)
-  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4
-  li t0, 1
-  sd t0, 0(s3); sd zero, 0(s4)
-  li s5, 0
-.Lcvpmf_loop:
-  beq s5, s0, .Lcvpmf_done
-  la t0, cvpmf_iter_ptr; sd s2, 0(t0)
-  la t0, cvpmf_iter_i;   sd s5, 0(t0)
-  # (1) difficulty (field 7) -- must be 0
-  slli t3, s5, 3
-  add t3, s1, t3
-  ld a1, 0(t3)
-  mv a0, s2; li a2, 7
-  la a3, cvpmf_field
-  jal ra, rlp_field_to_u64
-  bnez a0, .Lcvpmf_propagate
-  la t0, cvpmf_field; ld t1, 0(t0)
-  bnez t1, .Lcvpmf_diff_fail
-  # (2) nonce (field 14) -- must be 0
-  la t0, cvpmf_iter_ptr; ld s2, 0(t0)
-  la t0, cvpmf_iter_i;   ld s5, 0(t0)
-  slli t3, s5, 3
-  add t3, s1, t3
-  ld a1, 0(t3)
-  mv a0, s2; li a2, 14
-  la a3, cvpmf_field
-  jal ra, rlp_field_to_u64
-  bnez a0, .Lcvpmf_propagate
-  la t0, cvpmf_field; ld t1, 0(t0)
-  bnez t1, .Lcvpmf_nonce_fail
-  # (3) ommers_hash (field 1, 32B) -- must equal EMPTY_LIST_KECCAK
-  la t0, cvpmf_iter_ptr; ld s2, 0(t0)
-  la t0, cvpmf_iter_i;   ld s5, 0(t0)
-  slli t3, s5, 3
-  add t3, s1, t3
-  ld a1, 0(t3)
-  mv a0, s2; li a2, 1
-  la a3, cvpmf_offset; la a4, cvpmf_length
-  jal ra, rlp_list_nth_item
-  bnez a0, .Lcvpmf_propagate
-  la t0, cvpmf_length; ld t1, 0(t0)
-  li t2, 32
-  bne t1, t2, .Lcvpmf_size_fail
-  la t0, cvpmf_iter_ptr; ld s2, 0(t0)
-  la t0, cvpmf_iter_i;   ld s5, 0(t0)
-  la t0, cvpmf_offset; ld t1, 0(t0)
-  add t2, s2, t1
-  la t3, cvpmf_empty_hash
-  ld t4,  0(t2); ld t5,  0(t3); bne t4, t5, .Lcvpmf_omh_fail
-  ld t4,  8(t2); ld t5,  8(t3); bne t4, t5, .Lcvpmf_omh_fail
-  ld t4, 16(t2); ld t5, 16(t3); bne t4, t5, .Lcvpmf_omh_fail
-  ld t4, 24(t2); ld t5, 24(t3); bne t4, t5, .Lcvpmf_omh_fail
-  # All three checks pass; advance to next header
-  slli t3, s5, 3
-  add t3, s1, t3
-  ld t4, 0(t3)
-  add s2, s2, t4
-  addi s5, s5, 1
-  j .Lcvpmf_loop
-.Lcvpmf_diff_fail:
-  slli t2, s5, 2; ori t2, t2, 1
-  sd zero, 0(s3); sd t2, 0(s4)
-  li a0, 0
-  j .Lcvpmf_ret
-.Lcvpmf_nonce_fail:
-  slli t2, s5, 2; ori t2, t2, 2
-  sd zero, 0(s3); sd t2, 0(s4)
-  li a0, 0
-  j .Lcvpmf_ret
-.Lcvpmf_omh_fail:
-  slli t2, s5, 2; ori t2, t2, 3
-  sd zero, 0(s3); sd t2, 0(s4)
-  li a0, 0
-  j .Lcvpmf_ret
-.Lcvpmf_size_fail:
-  la t0, cvpmf_iter_i; ld t1, 0(t0)
-  slli t2, t1, 2; ori t2, t2, 3
-  sd t2, 0(s4)
-  li a0, 3
-  j .Lcvpmf_ret
-.Lcvpmf_propagate:
-  la t0, cvpmf_iter_i; ld t1, 0(t0)
-  sd t1, 0(s4)
-  j .Lcvpmf_ret
-.Lcvpmf_done:
-  li a0, 0
-.Lcvpmf_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp)
-  addi sp, sp, 56
-  ret
+  addi x2, x2, -56
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  mv x20, x14
+  li x5, 1
+  sd x5, 0(x19)
+  sd x0, 0(x20)
+  li x21, 0
+  beq x21, x8, .+488
+  la x5, cvpmf_iter_ptr
+  sd x18, 0(x5)
+  la x5, cvpmf_iter_i
+  sd x21, 0(x5)
+  slli x28, x21, 3
+  add x28, x9, x28
+  ld x11, 0(x28)
+  mv x10, x18
+  li x12, 7
+  la x13, cvpmf_field
+  jal x1, rlp_field_to_u64_strict
+  bne x10, x0, .+408
+  la x5, cvpmf_field
+  ld x6, 0(x5)
+  bne x6, x0, .+288
+  la x5, cvpmf_iter_ptr
+  ld x18, 0(x5)
+  la x5, cvpmf_iter_i
+  ld x21, 0(x5)
+  slli x28, x21, 3
+  add x28, x9, x28
+  ld x11, 0(x28)
+  mv x10, x18
+  li x12, 14
+  la x13, cvpmf_field
+  jal x1, rlp_field_to_u64_strict
+  bne x10, x0, .+332
+  la x5, cvpmf_field
+  ld x6, 0(x5)
+  bne x6, x0, .+236
+  la x5, cvpmf_iter_ptr
+  ld x18, 0(x5)
+  la x5, cvpmf_iter_i
+  ld x21, 0(x5)
+  slli x28, x21, 3
+  add x28, x9, x28
+  ld x11, 0(x28)
+  mv x10, x18
+  li x12, 1
+  la x13, cvpmf_offset
+  la x14, cvpmf_length
+  jal x1, rlp_list_nth_item
+  bne x10, x0, .+248
+  la x5, cvpmf_length
+  ld x6, 0(x5)
+  li x7, 32
+  bne x6, x7, .+196
+  la x5, cvpmf_iter_ptr
+  ld x18, 0(x5)
+  la x5, cvpmf_iter_i
+  ld x21, 0(x5)
+  la x5, cvpmf_offset
+  ld x6, 0(x5)
+  add x7, x18, x6
+  la x28, cvpmf_empty_hash
+  ld x29, 0(x7)
+  ld x30, 0(x28)
+  bne x29, x30, .+112
+  ld x29, 8(x7)
+  ld x30, 8(x28)
+  bne x29, x30, .+100
+  ld x29, 16(x7)
+  ld x30, 16(x28)
+  bne x29, x30, .+88
+  ld x29, 24(x7)
+  ld x30, 24(x28)
+  bne x29, x30, .+76
+  slli x28, x21, 3
+  add x28, x9, x28
+  ld x29, 0(x28)
+  add x18, x18, x29
+  addi x21, x21, 1
+  jal x0, .-360
+  slli x7, x21, 2
+  ori x7, x7, 1
+  sd x0, 0(x19)
+  sd x7, 0(x20)
+  li x10, 0
+  jal x0, .+108
+  slli x7, x21, 2
+  ori x7, x7, 2
+  sd x0, 0(x19)
+  sd x7, 0(x20)
+  li x10, 0
+  jal x0, .+84
+  slli x7, x21, 2
+  ori x7, x7, 3
+  sd x0, 0(x19)
+  sd x7, 0(x20)
+  li x10, 0
+  jal x0, .+60
+  la x5, cvpmf_iter_i
+  ld x6, 0(x5)
+  slli x7, x6, 2
+  ori x7, x7, 3
+  sd x7, 0(x20)
+  li x10, 3
+  jal x0, .+28
+  la x5, cvpmf_iter_i
+  ld x6, 0(x5)
+  sd x6, 0(x20)
+  jal x0, .+8
+  li x10, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  addi x2, x2, 56
+  jalr x0, 0(x1)

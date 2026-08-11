@@ -65,11 +65,11 @@
      this is the family convention `a0 ≠ 0 ⇒ *validPtr is meaningless`, not a fork.)
   3. **The propagate arm writes `*codePtr := i`, unshifted**, where every other failing
      arm writes `i<<2 ||| kind`.  Again disambiguated only by `a0 ≠ 0`.
-  4. **This routine calls the NON-strict `rlp_field_to_u64`** (`GuestAddrs.rlp_field_to_u64`,
-     idx 31 and 50), where its numeric siblings
-     (`chain_validate_blob_gas_used_{multiple,under_max}`) call
-     `rlp_field_to_u64_strict`.  So the canonical-scalar leniency of the non-strict
-     decoder is inherited here and nowhere else in the family.
+  4. **This routine calls the strict `rlp_field_to_u64_strict` helper**
+     (`GuestAddrs.rlp_field_to_u64_strict`, idx 31 and 50), matching its numeric
+     siblings (`chain_validate_blob_gas_used_{multiple,under_max}`).  Non-canonical
+     scalar encodings therefore take the strict decoder's failure path rather than
+     being accepted by this routine.
 
   ## 2. `EMPTY_OMMER_HASH` — a drift gate, not a proof
 
@@ -488,9 +488,12 @@ theorem cvpmfRetDifficulty
   rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
     show codePtr + (0 : Word) = codePtr from by bv_omega] at s3
   have s4 := li_spec_gen_within .x10 o10 (0 : Word) (D + 448) (by decide)
-  have s5 := jal_x0_spec_gen_within (108 : BitVec 21) (D + 452)
-  rw [show (D + 452) + signExtend21 (108 : BitVec 21) = D + 560 from by
-    rw [show signExtend21 (108 : BitVec 21) = (108 : Word) from by decide]; bv_omega] at s5
+  have s5 := jal_x0_spec_gen_within
+    (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+      (GuestAddrs.chain_validate_post_merge_full + 452)) (D + 452)
+  rw [show (D + 452) + signExtend21
+      (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+        (GuestAddrs.chain_validate_post_merge_full + 452)) = D + 560 by decide] at s5
   have hblock : cpsTripleWithin 6 (D + 432) (D + 560) cvpmfCode
       ((.x21 ↦ᵣ iWord) ** (.x7 ↦ᵣ o7) ** (.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn validPtr ** (.x20 ↦ᵣ codePtr) ** memOwn codePtr ** (.x10 ↦ᵣ o10))
@@ -550,9 +553,12 @@ theorem cvpmfRetNonce
   rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
     show codePtr + (0 : Word) = codePtr from by bv_omega] at s3
   have s4 := li_spec_gen_within .x10 o10 (0 : Word) (D + 472) (by decide)
-  have s5 := jal_x0_spec_gen_within (84 : BitVec 21) (D + 476)
-  rw [show (D + 476) + signExtend21 (84 : BitVec 21) = D + 560 from by
-    rw [show signExtend21 (84 : BitVec 21) = (84 : Word) from by decide]; bv_omega] at s5
+  have s5 := jal_x0_spec_gen_within
+    (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+      (GuestAddrs.chain_validate_post_merge_full + 476)) (D + 476)
+  rw [show (D + 476) + signExtend21
+      (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+        (GuestAddrs.chain_validate_post_merge_full + 476)) = D + 560 by decide] at s5
   have hblock : cpsTripleWithin 6 (D + 456) (D + 560) cvpmfCode
       ((.x21 ↦ᵣ iWord) ** (.x7 ↦ᵣ o7) ** (.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn validPtr ** (.x20 ↦ᵣ codePtr) ** memOwn codePtr ** (.x10 ↦ᵣ o10))
