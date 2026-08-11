@@ -17,7 +17,7 @@ chain_validate_post_merge_full:
   ld a1, 0(t3)
   mv a0, s2; li a2, 7
   la a3, cvpmf_field
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvpmf_propagate
   la t0, cvpmf_field; ld t1, 0(t0)
   bnez t1, .Lcvpmf_diff_fail
