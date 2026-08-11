@@ -37,6 +37,7 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalMapBuilderConsistent
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder

@@ -33,6 +33,7 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalCapacities
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.AsmReloc
