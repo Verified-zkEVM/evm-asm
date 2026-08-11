@@ -100,6 +100,10 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 -- #10780 item 3, next width: the 4-length-byte long form. Long3's ladder with
 -- ONE more fall-through, plus `lpLolLoop` cited at `m := 4`.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
+-- #12038 opening move on the signing-hash lane: the K147 EIP-7702
+-- authorization-signing-hash wrapper, whole-routine, under a named
+-- unproven-callee residual for K145 `tx_signing_hash`.
+import EvmAsm.Codegen.Programs.Eip7702AuthSigningHashTop
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
@@ -736,7 +740,70 @@ def routineRegistry : List RoutineEntry := [
         ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
         ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
         ++ "deposit 192). Hash half residual. Parked: block_state_root + "
-        ++ "requests_hash_verify still String asm")
+        ++ "requests_hash_verify still String asm"),
+
+  -- #12038 FIRST row on the signing-hash lane (there was none for any
+  -- signing hash before this). K147 is the 9-instruction typed wrapper; it
+  -- owns exactly the three facts proved here (n=3, MAGIC=0x05, a2→a4 output
+  -- forward) and delegates the rest to K145 `tx_signing_hash` by one
+  -- cross-`jal`.
+  --
+  -- ⚠️ There is NO input-domain gate on this row. `auth` ranges over every
+  -- `Authorization`; `sp0`/`inPtr`/`outPtr`/`lenW` over every word. The
+  -- condition is an UNPROVEN-CALLEE DEPENDENCY (`txSigningHashContract`),
+  -- which per the 2026-08-11 coord rule is a dependency and not a gate — but
+  -- since that residual carries essentially all of the routine's semantics, a
+  -- `.proven` row would overclaim badly, so the tier is `.conditional` and the
+  -- gate field names the callee rather than a domain restriction.
+  --
+  -- ⚠️ NOT tied to `SpecRef.Transactions.signing_hash_*`: the EIP-7702
+  -- *authorization* digest is not one of those six (they are the TRANSACTION
+  -- signing hashes). It lives inline in `SpecRef.Interpreter.recover_authority`
+  -- keyed on `SET_CODE_TX_MAGIC`, and `recover_authority_unfold` (by `rfl`) is
+  -- the tie.
+  routine "eip7702_authorization_signing_hash" .conditional
+      (some "eip7702_authorization_signing_hash_spec_within")
+      (gate := "NOT an input-domain gate — an UNPROVEN-CALLEE DEPENDENCY. The "
+        ++ "one condition is `h_tsh : txSigningHashContract`, the whole-routine "
+        ++ "calling contract of K145 `tx_signing_hash` at the site "
+        ++ "eip7702_authorization_signing_hash+20, which has no machine triple "
+        ++ "today. It is stated GENERIC in (n_fields, type_prefix) — a "
+        ++ "`∀ nW prefixW, nW.toNat ≤ fields.length` family — so the wrapper's "
+        ++ "3 and 0x05 are DERIVED from the machine's two LIs, not assumed; the "
+        ++ "`≤ fields.length` bound is load-bearing (beyond it the callee "
+        ++ "returns status 1 and writes no hash, so an unbounded ∀ would be a "
+        ++ "FALSE hypothesis). Every non-triple conjunct of the residual is "
+        ++ "discharged at the real call site: coverRef "
+        ++ "`authCallSite_ok_sample`, a closed term on the concrete "
+        ++ "`sampleAuth` (chain id 1, delegate 0xDD*20, nonce 0) with its "
+        ++ "27-byte tuple and a zeroed 32-byte output buffer. What is NOT "
+        ++ "exhibited is exactly one `cpsTripleWithin` for tx_signing_hash. "
+        ++ "The remaining hypotheses are ABI/framing obligations, not domain "
+        ++ "restrictions: `halign` (even return address, witnessed by "
+        ++ "`sample_ret_align`) and `hF` (caller-frame pcFree)")
+      (notes := "whole-routine triple at GuestAddrs.eip7702_authorization_signing_hash "
+        ++ "over eip7702AuthorizationSigningHash_prog (9 insn) via abiFrame_spec; "
+        ++ "frame = [(x1,0)] at sp-16, step budget `authSteps fuel` = "
+        ++ "1+1+(3+(1+fuel))+1+1+1. Structural drift guard "
+        ++ "`eip7702AuthorizationSigningHash_prog_eq_frame` (rfl) pins the "
+        ++ "emitted routine to abiFrameProg(-16,16,[(x1,0)],authBody); "
+        ++ "`authJal_target` (decide) pins the cross-jal reloc to "
+        ++ "GuestAddrs.tx_signing_hash. Post: a0=0, tuple region intact, output "
+        ++ "region = `authSigningHash auth`, which `recover_authority_unfold` "
+        ++ "(rfl) shows IS the digest SpecRef.recover_authority feeds to "
+        ++ "Secp256k1.recover — a reduction, not a transcription. Field-position "
+        ++ "pinning: `authSigningPreimage_segments` (general, short-list form) "
+        ++ "and `sampleAuth_preimage` (concrete 25 bytes: MAGIC[0], list "
+        ++ "header[1], chain_id[2], 0x94+address[3..23], nonce[24]) — not "
+        ++ "symmetric in any two fields. Six-field wire layout confirmed against "
+        ++ "SpecRef's PUBLIC decoder by `sampleAuth_decodes`. ⚠️ #12104's "
+        ++ "keccakBodyDigest_eq_specref is NOT usable at this level: "
+        ++ "tx_signing_hash hashes via zkvm_keccak256_segments (3-segment gather "
+        ++ "entry point, no triple, no row), not zkvm_keccak256 — so the "
+        ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
+        ++ "which is the form #12104 will close against once "
+        ++ "tx_signing_hash_spec_within exists. Retirement: "
+        ++ "`txSigningHashResidualNote`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -748,10 +815,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 56 := by decide
+theorem routineCount_eq : routineCount = 57 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 19 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 20 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -765,7 +832,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 40 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 41 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1205,5 +1272,27 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
+-- named unproven-callee residual for K145 `tx_signing_hash`.
+private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.eip7702_authorization_signing_hash_spec_within
+-- The SpecRef tie (by `rfl`): the digest IS `recover_authority`'s `signing_hash`.
+private noncomputable abbrev _eip7702_auth_signing_hash_specref_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.recover_authority_unfold
+-- Structural drift guard on the emitted routine + its cross-`jal` reloc.
+private noncomputable abbrev _eip7702_auth_signing_hash_frame_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.eip7702AuthorizationSigningHash_prog_eq_frame
+private noncomputable abbrev _eip7702_auth_signing_hash_jal_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authJal_target
+-- coverRef: the residual's computable half, discharged at the real call site.
+private noncomputable abbrev _eip7702_auth_signing_hash_cover_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authCallSite_ok_sample
+-- Field-position pinning (general short-list form + the concrete 25 bytes).
+private noncomputable abbrev _eip7702_auth_signing_hash_segments_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authSigningPreimage_segments
+private noncomputable abbrev _eip7702_auth_signing_hash_preimage_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
+private noncomputable abbrev _eip7702_auth_signing_hash_decodes_witness :=
+  @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
 
 end EvmAsm.Progress
