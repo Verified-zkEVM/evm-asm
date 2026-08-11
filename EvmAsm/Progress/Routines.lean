@@ -492,18 +492,19 @@ def routineRegistry : List RoutineEntry := [
         ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
         ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
         ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes"),
-  -- #11352 + #11578: `bgv_u32le`. Guest-input u32 accessor. Witness SWAPPED in
-  -- #11578 from `bgvU32leFlat_spec` (Region.wf ⇒ a0%8=0) to the offset form:
-  -- production callers pass unaligned a0 (erh offs 4/12; BlockVerdict* addi 4).
-  -- Flat remains a valid special case (off=0, aligned) but must not be the
-  -- sole .proven witness — alignment is an input-domain gate the grade denied.
-  routine "bgv_u32le" .proven (some "bgv_u32le_offset_spec_within")
-      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le` via offset form: "
-        ++ "`a0 = listBase+off` (may be unaligned), `bytesRegion listBase bs` with "
-        ++ "listBase%8=0, post a0=leU32 (bs.drop off) 0. Covers production. "
-        ++ "Prior witness `bgvU32leFlat_spec` requires a0 aligned (Region.wf) and "
-        ++ "does NOT cover offs 4/12 — kept as aligned corollary, not the grade. "
-        ++ "Tied to the reference by `leU32_eq_bytesLEtoNat`"),
+  -- #11352 + #11578: `bgv_u32le`. Witness is offset form (covers unaligned a0).
+  -- h_align listBase%8=0 is a CALLER assumption (ABI region base), NOT a static
+  -- GuestAddrs pin discharged by decide — so `.conditional`, not `.proven`.
+  -- coverRef `bgv_u32le_offset_precondition_reachable`. Flat form had the same
+  -- gate as Region.wf on a0; moving it to listBase fixed production offs 4/12
+  -- but did not erase the alignment hyp.
+  routine "bgv_u32le" .conditional (some "bgv_u32le_offset_spec_within")
+      (notes := "offset-form triple at GuestAddrs.bgv_u32le: a0=listBase+off "
+        ++ "(may be unaligned), bytesRegion listBase bs, post a0=leU32 (bs.drop off) 0. "
+        ++ "Gate: h_align listBase.toNat%8=0 remains a caller hyp at erh sites "
+        ++ "(listBase is ABI a0, not a static GuestAddrs base). coverRef "
+        ++ "`bgv_u32le_offset_precondition_reachable`. Prior flat_spec Region.wf "
+        ++ "a0%8=0 does not cover offs 4/12. leU32_eq_bytesLEtoNat still ties value"),
 
   -- #11349: `check_gas_limit`, row 7 of docs/leaf-routine-targets.md. The machine
   -- triple already existed byte-transparently at the guest address; what this row
@@ -633,8 +634,8 @@ def routineCountTier (t : ProofTier) : Nat :=
 
 theorem routineCount_eq : routineCount = 51 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 14 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 15 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what

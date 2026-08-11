@@ -354,4 +354,13 @@ theorem bgv_u32le_offset_spec_within
             (sepConj_mono (regIs_implies_regOwn (r := .x6))
               (fun _ hx => hx))))) h hq1) c12
 
+/-- coverRef: `h_align` is satisfiable (listBase = 0, off = 0, 4 zero bytes).
+    Alignment is a caller hyp on the region base (ABI a0 framing), not a static
+    GuestAddrs pin discharged by decide — hence `.conditional`, not `.proven`. -/
+theorem bgv_u32le_offset_precondition_reachable :
+    ∃ (listBase : Word) (off : Nat) (bs : List (BitVec 8)),
+      listBase.toNat % 8 = 0 ∧ off + 4 ≤ bs.length ∧
+      listBase.toNat + (off + 3) < 2 ^ 64 :=
+  ⟨0, 0, [0, 0, 0, 0], by decide, by decide, by decide⟩
+
 end EvmAsm.Codegen.ExecutionRequestsHashBgvOffset

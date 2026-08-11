@@ -735,7 +735,7 @@ docs/agents/spec-correspondence.md 6a. See #11513" },
   -- witnessed symbol with NO row passes the cross-registry gate vacuously.
   { family := "guest", routine := "bgv_u32le",
     spec := some "bgv_u32le_offset_spec_within",
-    verdict := .agrees, basis := .ported,
+    verdict := .domainRestricted, basis := .ported,
     reference := "the fixed-width LE reads of deserialize_stateless_input \
 (SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
     note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). Reference: the \
@@ -744,14 +744,14 @@ fixed-width LE reads in `deserialize_stateless_input` reduce to `bytesLEtoNat` \
 accumulates `b + 256 * rest` where the guest ORs four shifted bytes. That restatement is \
 NOT syntactic and is PROVED, not assumed, by `leU32_eq_bytesLEtoNat` via `toNat_or_shift` \
 (OR past the accumulated width is addition). No other clause differs. \
-WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential, so \
-there is no `diff` result to inherit; the row's value is bounded by the port's fidelity to \
-the Python, which the clause table above is what establishes. Was `.machineOnly` when the \
-rung did not exist — that grade's description was false here, since the tie is \
-machine-checked rather than a local restatement. Regraded in #11341. \
-#11578 WITNESS SWAP: prior `bgvU32leFlat_spec` required a0 aligned (Region.wf); production \
-unaligned a0 (offs 4/12) needs `bgv_u32le_offset_spec_within` (listBase%8=0, a0=listBase+off). \
-Flat remains aligned corollary; grade stays `.agrees`/`.proven` under the production form" },
+WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential. \
+#11578: witness is offset form (a0=listBase+off may be unaligned). WHY \
+`domainRestricted` AND NOT `agrees`: h_align listBase.toNat%8=0 is a CALLER \
+assumption at production sites (listBase is ABI a0 / buffer start, not a static \
+GuestAddrs pin discharged by decide). coverRef \
+`bgv_u32le_offset_precondition_reachable`. Prior flat_spec had the same gate as \
+Region.wf on a0 and failed offs 4/12; moving alignment to listBase fixed production \
+shape but did not erase the hyp. Value tie unchanged" },
 
   -- #11578 rescope: validation-accept prefix of execution_requests_hash.
   -- Anchor is SszCodec.deserializeAux fixed-list shape (not compute_requests_hash).
@@ -903,7 +903,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 21 ∧ countVerdict .domainRestricted = 10 ∧
+    countVerdict .agrees = 20 ∧ countVerdict .domainRestricted = 11 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
