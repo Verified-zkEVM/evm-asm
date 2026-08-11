@@ -133,13 +133,18 @@ def stageCreationRuntimePayloadFunction : String :=
   "  addi t3, t3, 1; j .Lscrp_coinbase\n" ++
   ".Lscrp_coinbase_done:\n" ++
   -- NUMBER (word 8), TIMESTAMP (word 7), GASLIMIT (word 10).
-  "  ld t1, 404(s2); sd t1, 256(t6)\n" ++
-  "  ld t1, 428(s2); sd t1, 224(t6)\n" ++
-  "  ld t1, 412(s2); sd t1, 320(t6)\n" ++
+  "  # #12057 aligned: u64 LE from s2+404 via LBU pack\n  lbu t1, 404(s2)\n  lbu t2, 405(s2); slli t2, t2, 8; or t1, t1, t2\n  lbu t2, 406(s2); slli t2, t2, 16; or t1, t1, t2\n  lbu t2, 407(s2); slli t2, t2, 24; or t1, t1, t2\n  lbu t2, 408(s2); slli t2, t2, 32; or t1, t1, t2\n  lbu t2, 409(s2); slli t2, t2, 40; or t1, t1, t2\n  lbu t2, 410(s2); slli t2, t2, 48; or t1, t1, t2\n  lbu t2, 411(s2); slli t2, t2, 56; or t1, t1, t2\n  sd t1, 256(t6)\n" ++
+  "  # #12057 aligned: u64 LE from s2+428 via LBU pack\n  lbu t1, 428(s2)\n  lbu t2, 429(s2); slli t2, t2, 8; or t1, t1, t2\n  lbu t2, 430(s2); slli t2, t2, 16; or t1, t1, t2\n  lbu t2, 431(s2); slli t2, t2, 24; or t1, t1, t2\n  lbu t2, 432(s2); slli t2, t2, 32; or t1, t1, t2\n  lbu t2, 433(s2); slli t2, t2, 40; or t1, t1, t2\n  lbu t2, 434(s2); slli t2, t2, 48; or t1, t1, t2\n  lbu t2, 435(s2); slli t2, t2, 56; or t1, t1, t2\n  sd t1, 224(t6)\n" ++
+  "  # #12057 aligned: u64 LE from s2+412 via LBU pack\n  lbu t1, 412(s2)\n  lbu t2, 413(s2); slli t2, t2, 8; or t1, t1, t2\n  lbu t2, 414(s2); slli t2, t2, 16; or t1, t1, t2\n  lbu t2, 415(s2); slli t2, t2, 24; or t1, t1, t2\n  lbu t2, 416(s2); slli t2, t2, 32; or t1, t1, t2\n  lbu t2, 417(s2); slli t2, t2, 40; or t1, t1, t2\n  lbu t2, 418(s2); slli t2, t2, 48; or t1, t1, t2\n  lbu t2, 419(s2); slli t2, t2, 56; or t1, t1, t2\n  sd t1, 320(t6)\n" ++
+
   -- BASEFEE (word 11): 32-byte copy from exec+440.
-  "  addi t1, s2, 440\n" ++
-  "  ld t2, 0(t1); sd t2, 352(t6); ld t2, 8(t1); sd t2, 360(t6)\n" ++
-  "  ld t2, 16(t1); sd t2, 368(t6); ld t2, 24(t1); sd t2, 376(t6)\n" ++
+  "  # #12057 BASEFEE 32B byte-copy\n" ++
+  "  addi t1, s2, 440; addi t2, t6, 352; li t3, 0\n" ++
+  ".Lscrp_basefee:\n" ++
+  "  li t4, 32; beq t3, t4, .Lscrp_basefee_done\n" ++
+  "  add t5, t1, t3; lbu t4, 0(t5); add t5, t2, t3; sb t4, 0(t5)\n" ++
+  "  addi t3, t3, 1; j .Lscrp_basefee\n" ++
+  ".Lscrp_basefee_done:\n" ++
   -- CALLVALUE (word 3): context value is BE, while the payload's EVM words
   -- are LE limbs. This legacy emitted stager is currently non-live, but keep
   -- its ABI correct instead of preserving an emitted raw-BE env seed.

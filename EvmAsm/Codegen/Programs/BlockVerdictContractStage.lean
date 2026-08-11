@@ -163,8 +163,9 @@ def stageRuntimePayloadCodeFunction : String :=
   -- PREVRANDAO (word 9 -> +288) = exec Bytes32 @372, reversed from its
   -- canonical big-endian byte order into the low-limb-first EVM stack layout;
   -- GASLIMIT (word 10 -> +320) = @412.
-  "  ld t3, 404(s2); sd t3, 256(s5)\n" ++
-  "  ld t3, 428(s2); sd t3, 224(s5)\n" ++
+  "  # #12057 aligned: u64 LE from s2+404 via LBU pack\n  lbu t3, 404(s2)\n  lbu t4, 405(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 406(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 407(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 408(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 409(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 410(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 411(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 256(s5)\n" ++
+  "  # #12057 aligned: u64 LE from s2+428 via LBU pack\n  lbu t3, 428(s2)\n  lbu t4, 429(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 430(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 431(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 432(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 433(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 434(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 435(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 224(s5)\n" ++
+
   "  addi t3, s2, 372; addi t4, s5, 288; li t5, 0\n" ++
   ".Lsrpc_prevrandao_loop:\n" ++
   "  li t6, 32; beq t5, t6, .Lsrpc_prevrandao_done\n" ++
@@ -172,11 +173,15 @@ def stageRuntimePayloadCodeFunction : String :=
   "  li a5, 31; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5)\n" ++
   "  addi t5, t5, 1; j .Lsrpc_prevrandao_loop\n" ++
   ".Lsrpc_prevrandao_done:\n" ++
-  "  ld t3, 412(s2); sd t3, 320(s5)\n" ++
+  "  # #12057 aligned: u64 LE from s2+412 via LBU pack\n  lbu t3, 412(s2)\n  lbu t4, 413(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 414(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 415(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 416(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 417(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 418(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 419(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 320(s5)\n" ++
   -- BASEFEE (word 11 -> +352): 32-byte copy from exec+440.
-  "  addi t3, s2, 440\n" ++
-  "  ld t4, 0(t3); sd t4, 352(s5); ld t4, 8(t3); sd t4, 360(s5)\n" ++
-  "  ld t4, 16(t3); sd t4, 368(s5); ld t4, 24(t3); sd t4, 376(s5)\n" ++
+  "  # #12057 BASEFEE 32B byte-copy\n" ++
+  "  addi t3, s2, 440; addi t4, s5, 352; li t5, 0\n" ++
+  ".Lsrpc_basefee:\n" ++
+  "  li t6, 32; beq t5, t6, .Lsrpc_basefee_done\n" ++
+  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5)\n" ++
+  "  addi t5, t5, 1; j .Lsrpc_basefee\n" ++
+  ".Lsrpc_basefee_done:\n" ++
   -- CHAINID (word 12 -> +384): chain_config_valid captured the execution
   -- chain id before contract dispatch. Store it as the low limb of the EVM
   -- stack-word layout, matching the simple-transfer staging path.
