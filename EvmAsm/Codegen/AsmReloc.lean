@@ -160,6 +160,24 @@ example : BitVec.ofNat 64 0x80000000 + EvmAsm.Rv64.signExtend21 (jalOff 0x800001
     BitVec.ofNat 64 0x80000100 :=
   jalOff_correct 0x80000100 0x80000000 (by decide)
 
+private theorem ofNat_add_ofNat (base k : Nat)
+    (hbase : base < 2 ^ 64) (hk : k < 2 ^ 64) (hsum : base + k < 2 ^ 64) :
+    BitVec.ofNat 64 base + BitVec.ofNat 64 k = BitVec.ofNat 64 (base + k) := by
+  apply BitVec.eq_of_toNat_eq
+  change (base % 2 ^ 64 + k % 2 ^ 64) % 2 ^ 64 = (base + k) % 2 ^ 64
+  rw [Nat.mod_eq_of_lt hbase, Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt hsum]
+
+/-- Canonical ofNat form of the JAL landing fact (base + k).
+    Site proofs `change` their `AB + k` / `B` abbrevs into this shape, then `exact`. -/
+theorem jalOff_correct_add (target base k : Nat)
+    (h : jalOffInRange target (base + k))
+    (hbase : base < 2 ^ 64) (hk : k < 2 ^ 64) (hsum : base + k < 2 ^ 64) :
+    BitVec.ofNat 64 base + BitVec.ofNat 64 k +
+        EvmAsm.Rv64.signExtend21 (jalOff target (base + k)) =
+      BitVec.ofNat 64 target := by
+  rw [ofNat_add_ofNat base k hbase hk hsum]
+  exact jalOff_correct target (base + k) h
+
 /-- Same-function branch byte offset: `target − pc` as a signed 13-bit
     PC-relative displacement (`pc` = the branch's own absolute address).
     Prefer `brOff (entry + tgtOff) (entry + pcOff)` over a bare
