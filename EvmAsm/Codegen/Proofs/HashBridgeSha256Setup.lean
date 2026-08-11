@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.LaResolve
+import EvmAsm.Rv64.SAsm.AccelStep
 import EvmAsm.Rv64.SAsm.SelectedRead
 import EvmAsm.Rv64.Tactics.XPermChunked
 
@@ -314,5 +315,78 @@ theorem sha256InitDword_spec (cr : CodeReq) (entry : Word)
       simp only [vD, hdw] at hq' ⊢
       xperm_hyp hq') hsdF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
+
+/-- External-memory CSR seam used by SHA's wrapper.  The parameter block,
+    state buffer and message block are three distinct regions (unlike the
+    original window-local `csrs_sha256Compress_spec_within` contract).  The
+    semantic guard is deliberately explicit: callers must prove both the
+    accelerator validity bit and the exact state-buffer write target/payload.
+-/
+theorem sha256ExternalCsrs_spec_within
+    (base : Word) (rf : RegFile) (paramsBase stateBase inputBase : Word)
+    (params state input : List (BitVec 8)) (payload : List Word)
+    (_hparams : params.length = 16) (hstate : state.length = 32)
+    (_hinput : input.length = 64) (hpayload : payload.length = 4)
+    (_hstate_fit : 8 * payload.length ≤ state.length)
+    (hsem : ∀ (R : Assertion) (s : MachineState),
+      (((regFileIs rf) ** bytesRegion paramsBase params **
+        bytesRegion stateBase state ** bytesRegion inputBase input) ** R).holdsFor s →
+      s.csrsValid 0x805 .x10 = true ∧
+      s.csrsWrite 0x805 .x10 = (stateBase, payload)) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.CSRS 0x805 .x10))
+      ((regFileIs rf) ** bytesRegion paramsBase params **
+        bytesRegion stateBase state ** bytesRegion inputBase input)
+      ((regFileIs rf) ** bytesRegion paramsBase params **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        bytesRegion inputBase input) := by
+  intro R hR s hcr hPR hpcs
+  subst hpcs
+  have hfetch : s.code s.pc = some (.CSRS 0x805 .x10) :=
+    CodeReq.singleton_satisfiedBy.mp hcr
+  obtain ⟨hvalidCsrs, hwriteCsrs⟩ := hsem R s hPR
+  simp only [sepConj_assoc'] at hPR
+  have hMem :
+      ((bytesRegion stateBase state) **
+        ((regFileIs rf) ** bytesRegion paramsBase params **
+          bytesRegion inputBase input ** R)).holdsFor s := by
+    sep_perm hPR
+  have hW := holdsFor_bytesRegion_writeWords payload state s 0 hMem
+    (by simp) (by omega)
+  have hstep : step s = some (execInstrBr s (.CSRS 0x805 .x10)) :=
+    step_csrs hfetch hvalidCsrs
+  have hwrite : s.execCsrs 0x805 .x10 =
+      s.writeWords stateBase payload := by
+    show s.writeWords (s.csrsWrite 0x805 .x10).1
+      (s.csrsWrite 0x805 .x10).2 = _
+    rw [hwriteCsrs]
+  refine ⟨1, Nat.le_refl 1,
+    ((s.execCsrs 0x805 .x10).setPC (s.pc + 4)), ?_, ?_, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep]
+    rfl
+  · rfl
+  · have hpcf :
+        ((bytesRegion paramsBase params **
+          bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+          bytesRegion inputBase input) ** ((regFileIs rf) ** R)).pcFree := by
+      have hmemFree :
+          (bytesRegion paramsBase params **
+            bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+            bytesRegion inputBase input).pcFree :=
+        pcFree_sepConj (bytesRegion_pcFree _ _)
+          (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _))
+      exact pcFree_sepConj hmemFree (pcFree_sepConj (pcFree_regFileIs _) hR)
+    have hW' :
+        ((bytesRegion paramsBase params **
+          bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+          bytesRegion inputBase input) ** ((regFileIs rf) ** R)).holdsFor
+          (s.writeWords (stateBase + 0#64) payload) := by
+      sep_perm hW
+    have hzero : stateBase + 0#64 = stateBase := by simp
+    rw [hzero] at hW'
+    have hfin := holdsFor_pcFree_setPC (v := s.pc + 4) hpcf hW'
+    rw [← hwrite] at hfin
+    sep_perm hfin
 
 end EvmAsm.Codegen.Proofs
