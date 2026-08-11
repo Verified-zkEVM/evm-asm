@@ -16,6 +16,7 @@ import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
+import EvmAsm.Codegen.Programs.TxSigningHashResidual
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
