@@ -54,8 +54,8 @@ import EvmAsm.Evm64.MptCorrespondence
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
-import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 -- #10190 / PR #11910: the `evmMemoryIs` bridge lemmas, so the axiom gate covers them.
+-- MSTORE public top is region-backed; UnalignedFramed is pulled in transitively.
 import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
