@@ -248,9 +248,13 @@ def stageSystemCallFunction : String :=
     shortcut:
     each contract is looked up via `code_at_header_state_root`, executed through
     `stage_system_call` with the real 32-byte calldata, then
-    `account_writes_emit_builder_tx` + `write_sets_incorporate_tx` (which emits
-    BAL storage changes at `current_block_access_index` and merges into the
-    block map for tier-2 SLOAD) + `read_sets_incorporate_tx`.
+    `account_writes_emit_builder_tx` + `account_writes_incorporate_tx` before
+    `write_sets_incorporate_tx` (which emits BAL storage changes at
+    `current_block_access_index` and merges into the block map for tier-2 SLOAD)
+    + `read_sets_incorporate_tx`.  The account-write pair is the guest
+    equivalent of `update_builder_from_tx` followed by the account-write merge
+    in `incorporate_tx_into_block`: it records balance, nonce, and code effects
+    before clearing the transaction map.
 
     Unchecked semantics (fork.py:782 process_unchecked): code_at miss / empty
     code → skip dispatch (no write), still mark OAO. Spec-level exec failure
@@ -307,12 +311,12 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
   -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
   "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
-  -- Storage map + BAL BAI=0 via write_sets_incorporate_tx (bal_emit inside).
-  -- Account-write map: clear any tx-local rows without block merge — system
-  -- contracts are storage-authority only here (formula path never seeded AW);
-  -- merging TOUCHED-only AW rows for 2935/4788 regressed CREATE Present-None
-  -- on 01114 (optionalState flipped 0→1).
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  -- BAI=0 account effects must reach the BAL before the transaction map is
+  -- incorporated and cleared.  The reference's unchecked system transaction
+  -- calls `incorporate_tx_into_block` even when execution returns an error;
+  -- only staging failure is rejected before this boundary.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   ".Lpbs_4788_skip:\n" ++
@@ -348,7 +352,9 @@ def processBlockStartSystemTransactionsFunction : String :=
   "  la t0, ssc_calldata_ptr; sd zero, 0(t0); la t0, ssc_calldata_len; sd zero, 0(t0)\n" ++
   -- Unchecked: reject staging (a2=1) only; ignore exec fail (a2=2). #11810
   "  li t0, 1; beq a2, t0, .Lpbs_fail\n" ++
-  "  la t0, tx_account_writes_count; sd zero, 0(t0)\n" ++
+  -- Same BAI=0 account-write realization as the beacon-roots path above.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   ".Lpbs_2935_skip:\n" ++
