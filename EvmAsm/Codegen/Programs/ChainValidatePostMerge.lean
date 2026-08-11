@@ -37,9 +37,10 @@ open EvmAsm.Rv64.Program
     predicate for analytics windows.
 
     Note: when `difficulty == 0`, RLP encodes the integer as an
-    empty byte string; `rlp_field_to_u64` returns 0. Any nonzero
-    value (whether single-byte or multi-byte BE encoding) flags
-    a violation.
+    empty byte string; the strict field decoder returns 0. Any
+    canonical nonzero value (whether single-byte or multi-byte
+    BE encoding) flags a violation; non-canonical scalar
+    encodings are parse failures.
 
     Vacuous-true on N = 0.
 
@@ -73,7 +74,7 @@ def chainValidateDifficultyZeroFunction : String :=
   "  ld a1, 0(t3)\n" ++
   "  mv a0, s2; li a2, 7\n" ++
   "  la a3, cvdz_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvdz_propagate\n" ++
   "  la t0, cvdz_iter_ptr; ld s2, 0(t0)\n" ++
   "  la t0, cvdz_iter_i;   ld s5, 0(t0)\n" ++
@@ -116,7 +117,7 @@ def ziskChainValidateDifficultyZeroPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvdz_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateDifficultyZeroFunction ++ "\n" ++
   ".Lcvdz_pdone:"
 
@@ -451,7 +452,7 @@ def chainValidatePostMergeFull_prog : Program :=
     .LI .x12 (7 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_post_merge_full + 124)),
     .BNE .x10 .x0 (408 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
@@ -470,7 +471,7 @@ def chainValidatePostMergeFull_prog : Program :=
     .LI .x12 (14 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 200)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_post_merge_full + 200)),
     .BNE .x10 .x0 (332 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
@@ -577,12 +578,12 @@ def chainValidatePostMergeFull_relocs : RelocTable :=
   [ (18, .la .x5 "cvpmf_iter_ptr"),
     (21, .la .x5 "cvpmf_iter_i"),
     (29, .la .x13 "cvpmf_field"),
-    (31, .jal .x1 "rlp_field_to_u64"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
     (33, .la .x5 "cvpmf_field"),
     (37, .la .x5 "cvpmf_iter_ptr"),
     (40, .la .x5 "cvpmf_iter_i"),
     (48, .la .x13 "cvpmf_field"),
-    (50, .jal .x1 "rlp_field_to_u64"),
+    (50, .jal .x1 "rlp_field_to_u64_strict"),
     (52, .la .x5 "cvpmf_field"),
     (56, .la .x5 "cvpmf_iter_ptr"),
     (59, .la .x5 "cvpmf_iter_i"),
@@ -624,7 +625,7 @@ def ziskChainValidatePostMergeFullPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvpmf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
   ".Lcvpmf_pdone:"
 
