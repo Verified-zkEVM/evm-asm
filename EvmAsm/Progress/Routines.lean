@@ -92,6 +92,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 -- `lpLolLoop` instead of unrolling the length-byte loop.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
+import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
@@ -822,6 +823,33 @@ private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
 -- numeral drift pin because its distinct `keccak256 [0x80]` KAT would need a separately
 -- justified intrinsic-depth theorem. The pins stay gated so CI rechecks the remaining
 -- literal correspondence.
+-- #11517: the `Stateless/Constants.lean` hex-`String` copies, pinned to the byte-list
+-- copies #12032 pinned. The `eq_adBytes`/`eq_aieBytes` ties are the strongest of the set:
+-- two independent asm-side definitions in two different representations, equal outright,
+-- with no keccak and no written numeral in between.
+private noncomputable abbrev _keccak256EmptyHashHex_eq_adBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_adBytes
+private noncomputable abbrev _keccak256EmptyHashHex_eq_aieBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_aieBytes
+private noncomputable abbrev _emptyTrieRootHex_eq_adBytes_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
+private noncomputable abbrev _trieRoot_ne_codeHash_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+-- ⛔ #12081: a DEFECT MARKER, not a correctness claim. `emptyOmmerHashHex` holds the empty
+-- TRIE ROOT rather than the empty ommer hash. Witnessed on purpose: the theorem states
+-- what the constant currently IS, so it stops compiling the moment the constant is
+-- repaired, and the repair must delete it in the same change. Latent, not live -- nothing
+-- reads the constant, and SpecRef plus all 13 emitted byte copies are correct.
+private noncomputable abbrev _divergence_emptyOmmerHashHex_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.divergence_emptyOmmerHashHex
+-- #11517: SpecRef-derived vs asm-flattened numbers -- the sharpest drift shape, since a
+-- repricing moves the SpecRef side silently while the asm literal stays put.
+private noncomputable abbrev _bvEip7702AuthRegularGas_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
+private noncomputable abbrev _maxInitcodeSize_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
+private noncomputable abbrev _maxDeployedCodeSize_eq_spec_witness :=
+  @EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
 private noncomputable abbrev _ad_empty_trie_root_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
 private noncomputable abbrev _ad_empty_code_hash_value_witness :=
