@@ -400,6 +400,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
 
+#print axioms EvmAsm.Stateless.State.storageRowLookup_storageWriteUpsert
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_baselines
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_nodup
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_rowsMap
+
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 
 #print axioms EvmAsm.Stateless.bytesBEtoNat_beBytes32
