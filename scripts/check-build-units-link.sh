@@ -48,8 +48,14 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
 # Units that MUST link — the verdict-family probes that MIRROR guest handlers,
-# which is exactly the property that makes them go stale when a handler gains a new
-# callee.
+# which is exactly the property that makes them go stale when a handler gains a
+# new callee.
+#
+# The zisk_*_effect_log probes compose guest routines the same way (GH #11987):
+# they spent weeks unlinkable after the account-writes migration (2ce981df8)
+# added callees their prologues never picked up, and nothing red-lit because
+# nothing in the gate set ever built them. The sweep is what stops that
+# recurring.
 #
 # `stateless_guest` is deliberately NOT here: `codegen-stateless-link-check.sh`
 # already links it in the same CI group, and it is the most expensive link of the
@@ -64,7 +70,8 @@ cd "$REPO"
 # tell a year from now whether the entry still describes reality or outlived its
 # reason.
 UNITS_DEFAULT="zisk_stateless_verdict zisk_stateless_verdict_v2 zisk_step2_verdict \
-runtime_dispatcher runtime_dispatcher_call_probe zisk_runtime_access_list_seeded_sload"
+runtime_dispatcher runtime_dispatcher_call_probe zisk_runtime_access_list_seeded_sload \
+zisk_nonstorage_effect_log zisk_create_code_effect_log"
 
 # Structurally non-linkable; NOT failures. Reason recorded so a reader can tell an
 # expected gap from a regression.
