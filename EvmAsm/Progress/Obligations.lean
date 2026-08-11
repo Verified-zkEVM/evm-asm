@@ -135,10 +135,13 @@ and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)"
 two-level split — `rlpItemDecode` stays the core's lenient span relation and \
 `rlpItemDecodeStrictW` (`Rv64/RLP/WalkNextStrict.lean`) is the wrapper's relation \
 with the recursive payload condition in its list arms, and the reverse bridge \
-(`decodeAux` acceptance → wrapper relation, both arms) is proven there. Remaining: \
-tying the wrapper relation to the MACHINE needs `rlp_walk_next_shared` / \
-`rlp_validate_payload` transcribed — tracked at #12021"],
-    auditedAt := some "2026-08-10 @11577",
+(`decodeAux` acceptance → wrapper relation, both arms) is proven there. \
+⭐ TRANSCRIPTION NO LONGER BLOCKS THIS — both programs landed (that issue \
+closed): `rlpWalkNextShared_prog` (`Codegen/Programs/RlpWalk.lean:162`) and \
+`rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. \
+Remaining is the PROOF tying the wrapper relation to the machine, which is now \
+statable and unblocked"],
+    auditedAt := some "2026-08-11 @11579-prune",
     note := "pure-Lean RLP ✅; the RV64 decoder registry is 36 rows / 26 proven / \
 10 conditional / 0 partly (`Progress/Routines.lean`). #11577 landed \
 `rlp_item_span_spec_within` (domainRestricted/machineOnly) — the prior \
@@ -149,17 +152,19 @@ unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
     blockedBy :=
        [.infra "no simulation bridge from dispatched handlers to the SpecRef \
 interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
-         .infra "`stage_system_call` has no machine post yet; #11578 rescoped off \
-derive_* shims (NOT leaves) to `execution_requests_hash` validation-accept \
-prefix (landed domainRestricted); hash half compose + stage_system_call still open",
-         .infra "`assemble_execution_requests` converted to Program under #12011 \
-(byte-identity waived; ELF remained byte-identical). Machine triple + \
-`requests_hash_verify` callWithin still open — not a residual dependency",
+         .infra "`stage_system_call` has no machine post yet, and the \
+`execution_requests_hash` hash-half compose is still open. (The \
+validation-accept prefix landed domainRestricted; that work is DONE and its \
+issue closed — the surviving dependency is the two items named here)",
+         .infra "`assemble_execution_requests` machine triple + \
+`requests_hash_verify` callWithin still open — not a residual dependency. (The \
+Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
+its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
 (shaCallWithinShape) landed; discharge owner #12018 zkvm_sha256_spec_within \
 (partial frame/loop only — does NOT yet discharge). Hash-half five-slot compose \
 after validation_accept still open"],
-      auditedAt := some "2026-08-11",
+      auditedAt := some "2026-08-11 @11579-prune",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
@@ -205,9 +210,12 @@ covered; the other 55 sites and the remaining accelerator families are still ope
     status := .blocked,
     blockedBy :=
       [.infra "trie-walk loop spec for `mpt_walk` over `mptNodeIs`/`nodeDbIs` \
-against `trieLookup` (#11799) — arm pieces + kind callWithin landed; residual \
-callee `witness_lookup_by_hash` machine triple still open (named hyp \
-`wlCallWithinShape` in MptWalkResiduals.lean). `hp_decode_nibbles` RETIRED \
+against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
+the surviving residual is the callee `witness_lookup_by_hash` machine triple, \
+named hyp `wlCallWithinShape` in MptWalkResiduals.lean, tracked at #12036. \
+⚠️ #12036 is itself blocked on TRANSCRIPTION: `witness_lookup_by_hash` is \
+`String`-only (`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), \
+so no triple is statable until it is converted. `hp_decode_nibbles` RETIRED \
 (machine predated registration; now `.proven`). Setup/root RETIRED \
 (SetupBody+RootResolve)",
        .infra "machine triple `witness_lookup_by_hash_spec_within` at \
@@ -218,7 +226,7 @@ GuestAddrs.witness_lookup_by_hash — retires walk residual hyps at root \
        .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-11 @11799-residuals",
+    auditedAt := some "2026-08-11 @11579-prune",
     note := "Re-audited 2026-08-11 (#11799 residual audit): mpt_node_kind \
 `.proven` (#11964); hp_decode_nibbles registered `.proven` (machine predated \
 row); walk arm pieces stop at named residual wlCallWithinShape only. \
@@ -244,27 +252,34 @@ Overlaps obligation 10" },
   { id := 10, name := "Witness reads are sound (get_account_optional composition)",
     status := .blocked,
     blockedBy :=
-      [ .infra "account_decode ↔ decode_account_from_leaf (#11345)",
-        .infra "bal_canonical_sort ordering + permutation (#10817)",
+      [ .infra "bal_canonical_sort ordering + permutation (#10817) — the digit \
+extractor's descriptor↔semantic-key agreement landed; the remaining blocker is \
+the `.Lbalsort_pop` work-list loop's lexicographic measure. ⚠️ Key uniqueness is \
+a PRECONDITION discharged by the producer, and it is discharged for only 2 of the \
+6 live sort call sites (#12102)",
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
-against trieLookup (#11799) — arm pieces + kind callWithin + path-preserve \
-landed; residual only `witness_lookup_by_hash` machine (wlCallWithinShape). \
-hp_decode_nibbles RETIRED (registered `.proven`). Setup/root RETIRED. \
-Three-tier resolve divergence stated in \
+against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
+issue closed); residual only `witness_lookup_by_hash` machine \
+(wlCallWithinShape), tracked at #12036. hp_decode_nibbles RETIRED (registered \
+`.proven`). Setup/root RETIRED. Three-tier resolve divergence stated in \
 docs/4ch8f-slstate-specref-correspondence.md:164",
-         .infra "machine triple `witness_lookup_by_hash_spec_within` — retires \
-mpt_walk residual hyps (MptWalkResiduals.witnessLookupResidualNote)",
+         .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
+retires mpt_walk residual hyps (MptWalkResiduals.witnessLookupResidualNote). \
+⚠️ Blocked on TRANSCRIPTION first: the routine is `String`-only \
+(`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), so no triple is \
+statable yet",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
-`witness_codes_lookup_by_hash` — the code-DB *routines* (the predicate side is \
-done; see #11573 / PR #11902)" ],
-    auditedAt := some "2026-08-11 @11799-residuals",
+`witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
+DONE and its issue closed; only the routine triples remain" ],
+    auditedAt := some "2026-08-11 @11579-prune",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
 2026-08-11 (#11799 residual audit): mpt_node_kind `.proven`; hp_decode_nibbles \
 registered `.proven` (machine predated row); walk residual is DEPENDENCY \
 wlCallWithinShape only (not domain gate). Spine: input deserialize (done) \
--> node/code DB build -> trie walk (#11799 open, residual wl) -> mpt_node_kind \
+-> node/code DB build -> trie walk (loop spec landed, residual wl at #12036) \
+-> mpt_node_kind \
 `.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \
 compact_to_nibbles closed #11422) -> account_decode -> EIP-161 classification. \
 Summit is SpecRef/WitnessReads.lean's get_account_optional" },
