@@ -72,13 +72,23 @@ private def bltuOffDeposit : BitVec 13 :=
 
 private theorem bne_deposit_taken :
     (B + 172) + signExtend13 bneOffDeposit = B + 480 := by
-  unfold B bneOffDeposit brOff signExtend13
-  decide
+  unfold B bneOffDeposit
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 172 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 172)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 172 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 private theorem bltu_deposit_taken :
     (B + 184) + signExtend13 bltuOffDeposit = B + 480 := by
-  unfold B bltuOffDeposit brOff signExtend13
-  decide
+  unfold B bltuOffDeposit
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 184 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 184)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 184 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- LUI imm=2 result equals 8192. -/
 private theorem lui_imm2_eq_8192 :
