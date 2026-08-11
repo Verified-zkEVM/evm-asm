@@ -86,6 +86,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
@@ -712,6 +713,16 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
+-- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
+-- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
+-- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
+-- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
+-- gated. No registry row changes: this is a side condition, not a routine triple.
+private noncomputable abbrev _rlp_prefix_first_length_byte_ne_zero_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
+private noncomputable abbrev _rlp_prefix_pow_le_u64ByteLen_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.pow_le_u64ByteLen
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=
