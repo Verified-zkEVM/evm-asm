@@ -40,7 +40,8 @@ theorem count_eq2_outcome
     cpsTripleWithin (countEq2Fuel listLen) (pc 9) (pc 48) fullCode
       (countPeelAmb newSp cSaved ks (0 : Word) (2 : Word) v11 v12
         oldOff oldLen v13 v14 v20 v21 listBase bytes R)
-      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen) := by
+      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen
+        cSaved.s2 cSaved.s3 v20 v21) := by
   have hsetup := count_eq2_nth_setup newSp cSaved ks listBase listLenW bytes
     oldOff oldLen v11 v12 v13 v14 v20 v21 R hRp hs0 hs1
   have hcall := kind_nth_call_spec_within newSp listBase listLenW (pc 9)
@@ -95,23 +96,30 @@ theorem count_outcome
         RlpListCountItemsSAsm.callReturnResult newSp listBase MnkCount cSaved
           bytes listLen) **
         countCallF newSp ks oldOff oldLen v13 v14 v20 v21 R)
-      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen) := by
+      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen
+        cSaved.s2 cSaved.s3 v20 v21) := by
   refine cpsTripleWithin_countReturn_pre (N := countEq2Fuel listLen)
     (ret := pc 48) (X := pc 9)
     (F := countCallF newSp ks oldOff oldLen v13 v14 v20 v21 R)
-    (Q := bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen)
+    (Q := bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen
+      cSaved.s2 cSaved.s3 v20 v21)
     newSp listBase MnkCount cSaved bytes listLen
     (fun status result v11 v12 hres => by
       cases hres with
       | fail hf =>
         have hfail := count_fail_outcome newSp cSaved ks listBase bytes listLen
           oldCount oldOff oldLen v11 v12 v13 v14 v20 v21 R hR hRp (.fail hf)
-        refine cpsTripleWithin_mono_nSteps (by
-          unfold countEq2Fuel; omega)
+        -- After `fail`, status=1 and result=0 by constructor indices.
+        refine cpsTripleWithin_mono_nSteps (by unfold countEq2Fuel; omega)
           (cpsTripleWithin_weaken
             (fun h hp => by
-              simp only [countPeelAmb] at hp ⊢
-              xperm_chunked hp)
+              have hp' :
+                  (countPeelAmb newSp cSaved ks (1 : Word) (0 : Word)
+                    v11 v12 oldOff oldLen v13 v14 v20 v21 listBase bytes R) h := by
+                -- status/result are 1/0 after cases; simpa bridges Word numerals.
+                simpa using hp
+              simp only [countPeelAmb] at hp' ⊢
+              xperm_chunked hp')
             (fun _ hq => ⟨3, (0 : Word), oldOff, oldLen, hq⟩) hfail)
       | ok count hc64 hSucc =>
         have hc : RlpListCountItemsSAsm.Result bytes listBase listLen (0 : Word)
@@ -120,8 +128,7 @@ theorem count_outcome
         · subst h17
           have hbr := count_branch_outcome newSp cSaved ks listBase bytes listLen
             oldCount oldOff oldLen v11 v12 v13 v14 v20 v21 R hR hRp hc
-          refine cpsTripleWithin_mono_nSteps (by
-            unfold countEq2Fuel; omega)
+          refine cpsTripleWithin_mono_nSteps (by unfold countEq2Fuel; omega)
             (cpsTripleWithin_weaken
               (fun h hp => by
                 have hp' :
@@ -148,8 +155,7 @@ theorem count_outcome
           · have hbad := count_badArity_outcome newSp cSaved ks listBase bytes
               listLen oldCount oldOff oldLen v11 v12 v13 v14 v20 v21
               count hc64 R hR hRp hc h17 h2
-            refine cpsTripleWithin_mono_nSteps (by
-              unfold countEq2Fuel; omega)
+            refine cpsTripleWithin_mono_nSteps (by unfold countEq2Fuel; omega)
               (cpsTripleWithin_weaken
                 (fun h hp => by
                   have hp' :
@@ -212,7 +218,8 @@ theorem body_spec
     cpsTripleWithin (bodyFuel listLen) (pc 4) (pc 48) fullCode
       (bodyEntryPre newSp listBase listLenW ks bytes oldCount oldOff oldLen
         v12 v13 v14 v18 v19 v20 v21)
-      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen) := by
+      (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen
+        v18 v19 v20 v21) := by
   have hsetup := setup_spec newSp listBase listLenW ks bytes oldCount oldOff oldLen
     v12 v13 v14 v18 v19 v20 v21
   have hcall := kind_count_call_spec_within newSp listBase listLenW ks.ra oldCount
@@ -262,14 +269,15 @@ theorem kindCallerPre_pcFree (newSp listBase listLenW : Word)
     | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
     | apply pcFree_sepConj
 
-/-- Caller-owned body post: kind in a0 + BSS finals + pure Result (temps owned). -/
+/-- Caller-owned body post: kind in a0 + BSS finals + pure Result.
+    Path temps x18..x21 are PRESERVED (walk hop arms need path ptr/len). -/
 def kindCallerPost (newSp listBase : Word) (bytes : List (BitVec 8))
-    (listLen : Nat) (oldCount oldOff oldLen : Word) : Assertion :=
+    (listLen : Nat) (oldCount oldOff oldLen v18 v19 v20 v21 : Word) : Assertion :=
   fun h => ∃ (kind : Nat) (countW offW lenW : Word),
     (((.x10 ↦ᵣ BitVec.ofNat 64 kind) ** (.x0 ↦ᵣ (0 : Word)) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
-      regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+      (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       bytesRegion listBase bytes **
       (MnkCount ↦ₘ countW) ** (MnkPathOff ↦ₘ offW) ** (MnkPathLen ↦ₘ lenW) **
@@ -277,15 +285,16 @@ def kindCallerPost (newSp listBase : Word) (bytes : List (BitVec 8))
       ⌜MptNodeKindResult bytes listBase listLen oldCount oldOff oldLen kind⌝) h
 
 theorem kindCallerPost_pcFree (newSp listBase : Word) (bytes : List (BitVec 8))
-    (listLen : Nat) (oldCount oldOff oldLen : Word) :
-    (kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen).pcFree := by
+    (listLen : Nat) (oldCount oldOff oldLen v18 v19 v20 v21 : Word) :
+    (kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+      v18 v19 v20 v21).pcFree := by
   intro h hp
   obtain ⟨kind, countW, offW, lenW, hp'⟩ := hp
   have hpf :
       (((.x10 ↦ᵣ BitVec.ofNat 64 kind) ** (.x0 ↦ᵣ (0 : Word)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
-        regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+        (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         bytesRegion listBase bytes **
         (MnkCount ↦ₘ countW) ** (MnkPathOff ↦ₘ offW) ** (MnkPathLen ↦ₘ lenW) **
@@ -315,12 +324,12 @@ private theorem bodyEntryPre_of_abi
 
 /-- Non-frame core of `bodyPost` (temps + BSS + pure) for a fixed kind. -/
 private def kindCallerPostCore (newSp listBase : Word) (bytes : List (BitVec 8))
-    (listLen : Nat) (oldCount oldOff oldLen : Word)
+    (listLen : Nat) (oldCount oldOff oldLen v18 v19 v20 v21 : Word)
     (kind : Nat) (countW offW lenW : Word) : Assertion :=
   ((.x10 ↦ᵣ BitVec.ofNat 64 kind) ** (.x0 ↦ᵣ (0 : Word)) **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
-    regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x21 **
+    (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
     bytesRegion listBase bytes **
     (MnkCount ↦ₘ countW) ** (MnkPathOff ↦ₘ offW) ** (MnkPathLen ↦ₘ lenW) **
@@ -330,25 +339,28 @@ private def kindCallerPostCore (newSp listBase : Word) (bytes : List (BitVec 8))
 /-! Reshape bodyPostExAny → abiFrame body-post shape. -/
 private theorem bodyPostExAny_to_abi
     (newSp listBase : Word) (ks : KindSaved) (bytes : List (BitVec 8))
-    (listLen : Nat) (oldCount oldOff oldLen : Word)
+    (listLen : Nat) (oldCount oldOff oldLen v18 v19 v20 v21 : Word)
     (h : PartialState)
-    (hp : (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen) h) :
+    (hp : (bodyPostExAny newSp ks listBase bytes listLen oldCount oldOff oldLen
+      v18 v19 v20 v21) h) :
     (((.x2 ↦ᵣ newSp) ** regsOwnAt kindFrame **
       frameSlotsSaved kindFrame newSp (kindSavedVals ks) **
-      kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen) h) := by
+      kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+        v18 v19 v20 v21) h) := by
   obtain ⟨kind, countW, offW, lenW, hp0⟩ := hp
   -- Flatten bodyPost into x2 ** regsOwn ** kindSaved ** core.
   have hp1 :
       (((.x2 ↦ᵣ newSp) ** regsOwnAt kindFrame ** kindSavedFrame newSp ks **
         kindCallerPostCore newSp listBase bytes listLen oldCount oldOff oldLen
-          kind countW offW lenW) h) := by
+          v18 v19 v20 v21 kind countW offW lenW) h) := by
     simp only [bodyPost, bodyExitAmb, kindCallerPostCore, regsOwnAt_kindFrame,
       kindSavedFrame] at hp0 ⊢
     xperm_chunked hp0
   -- Lift core into kindCallerPost existential.
   have hp2 :
       (((.x2 ↦ᵣ newSp) ** regsOwnAt kindFrame ** kindSavedFrame newSp ks **
-        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen) h) := by
+        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+          v18 v19 v20 v21) h) := by
     obtain ⟨a1, a2, hd1, hu1, hA, hRest⟩ := hp1
     obtain ⟨b1, b2, hd2, hu2, hB, hRest2⟩ := hRest
     obtain ⟨c1, c2, hd3, hu3, hC, hCore⟩ := hRest2
@@ -382,7 +394,8 @@ theorem body_spec_abi
           v12 v13 v14 v18 v19 v20 v21))
       (((.x2 ↦ᵣ newSp) ** regsOwnAt kindFrame **
         frameSlotsSaved kindFrame newSp (kindSavedVals ks) **
-        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen)) := by
+        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+          v18 v19 v20 v21)) := by
   have hb := body_spec newSp listBase listLenW ks bytes listLen
     oldCount oldOff oldLen v12 v13 v14 v18 v19 v20 v21 R hRp hR
     hlistLenW halign hslack hover hvalid hpath
@@ -390,7 +403,7 @@ theorem body_spec_abi
     (fun h hp => bodyEntryPre_of_abi newSp listBase listLenW ks bytes
       oldCount oldOff oldLen v12 v13 v14 v18 v19 v20 v21 h hp)
     (fun h hq => bodyPostExAny_to_abi newSp listBase ks bytes listLen
-      oldCount oldOff oldLen h hq) hb
+      oldCount oldOff oldLen v18 v19 v20 v21 h hq) hb
 
 private theorem pc4_eq_bodyEntry :
     pc 4 = kindB + BitVec.ofNat 64 (4 * (1 + kindFrame.length)) := by
@@ -418,7 +431,8 @@ private theorem kind_wrapper_sub :
   exact CodeReq.union_mono_left a i hi'
 
 /-! Whole-routine capstone: ABI frame + operational `MptNodeKindResult` post.
-    No input-domain gate → registry `.proven`. -/
+    No input-domain gate → registry `.proven`.
+    Path temps x18..x21 PRESERVED for walk hop arms. -/
 set_option maxRecDepth 8000 in
 theorem mpt_node_kind_spec_within
     (sp0 ret listBase listLenW : Word) (ks : KindSaved)
@@ -445,7 +459,7 @@ theorem mpt_node_kind_spec_within
         frameSlotsSaved kindFrame (sp0 + signExtend12 (-32 : BitVec 12))
           (kindSavedVals ks) **
         kindCallerPost (sp0 + signExtend12 (-32 : BitVec 12)) listBase bytes
-          listLen oldCount oldOff oldLen)) := by
+          listLen oldCount oldOff oldLen v18 v19 v20 v21)) := by
   set newSp := sp0 + signExtend12 (-32 : BitVec 12) with hNS
   obtain ⟨R, hRp, hR⟩ := stackFree_split newSp (m := 6) (K := 8) (by decide)
   have hbody0 := body_spec_abi newSp listBase listLenW ks bytes listLen
@@ -461,7 +475,8 @@ theorem mpt_node_kind_spec_within
           v12 v13 v14 v18 v19 v20 v21))
       (((.x2 ↦ᵣ newSp) ** regsOwnAt kindFrame **
         frameSlotsSaved kindFrame newSp (kindSavedVals ks) **
-        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen)) := by
+        kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+          v18 v19 v20 v21)) := by
     simpa only [← pc4_eq_bodyEntry, ← pc48_eq_bodyExit, ← hNS] using hbody0
   have hprogBound :
       4 * (abiFrameProg (-32 : BitVec 12) (32 : BitVec 12) kindFrame kindBody).length
@@ -477,7 +492,8 @@ theorem mpt_node_kind_spec_within
     (kindSavedVals ks) kindBody (bodyFuel listLen)
     (kindCallerPre newSp listBase listLenW bytes oldCount oldOff oldLen
       v12 v13 v14 v18 v19 v20 v21)
-    (kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen)
+    (kindCallerPost newSp listBase bytes listLen oldCount oldOff oldLen
+      v18 v19 v20 v21)
     fullCode
   · rfl
   · decide
@@ -489,6 +505,7 @@ theorem mpt_node_kind_spec_within
   · exact kindCallerPre_pcFree newSp listBase listLenW bytes oldCount oldOff oldLen
       v12 v13 v14 v18 v19 v20 v21
   · exact kindCallerPost_pcFree newSp listBase bytes listLen oldCount oldOff oldLen
+      v18 v19 v20 v21
   · exact kind_wrapper_sub
   · simpa only [hNS, kindFrame, List.length_cons, List.length_nil,
       Nat.reduceAdd, Nat.reduceMul] using hbody

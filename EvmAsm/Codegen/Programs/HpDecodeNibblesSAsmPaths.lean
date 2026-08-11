@@ -966,7 +966,7 @@ private theorem hdnBody_unified (base sp0new : Word) (vals : Reg → Word)
 
 /-! ## The whole-routine contract -/
 
-private theorem pcFree_hdnCallerPre (src dst cnt isl : Word)
+theorem pcFree_hdnCallerPre (src dst cnt isl : Word)
     (srcBytes bufOrig : List (BitVec 8))
     (v5 v6 v7 v28 v29 v30 v31 oldCnt oldIsl : Word) :
     (hdnCallerPre src dst cnt isl srcBytes bufOrig
@@ -978,7 +978,7 @@ private theorem pcFree_hdnCallerPre (src dst cnt isl : Word)
     | exact bytesRegion_pcFree _ _
     | apply pcFree_sepConj
 
-private theorem pcFree_hdnCallerPost (src dst cnt isl : Word)
+theorem pcFree_hdnCallerPost (src dst cnt isl : Word)
     (srcBytes bufOrig : List (BitVec 8)) (oldCnt oldIsl : Word) :
     (hdnCallerPost src dst cnt isl srcBytes bufOrig oldCnt oldIsl).pcFree := by
   unfold hdnCallerPost

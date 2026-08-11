@@ -431,15 +431,39 @@ is the ABI contract, not an input-domain gate" },
 (SpecRef/IncrementalMpt.lean:182) — 17-item branch vs 2-item leaf/extension",
     note := "WHOLE-ROUTINE cpsTripleWithin at `GuestAddrs.mpt_node_kind` (#11799 dep). \
 Post is operational `MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path \
-with HP nibble), matching the guest's arity-exact control flow after #11347. WHY \
-`.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has no executable \
-differential, and the top triple is stated over the operational result rather than \
-over SpecRef `kindTag` — callers that want `kindTag` under WF use the pure bridge \
-`mptNodeKindGuest_eq_kindTag` (MptNodeKindSpec). The pure `MptAssertions.mptNodeKindSpec` \
-is LOOSER (2 < len → branch) and STALE vs the arity-17 guest; it is NOT the machine \
-post. FULL DOMAIN: no input-domain gate (ABI hyps only — region wf, alignment, stack \
-free for nth frame). coverRef `mpt_node_kind_precondition_reachable` (branch/ext/leaf/fail). \
-Witnessed in Progress/Routines.lean. Walk body (`mpt_walk`) still open under #11799" },
+with HP nibble), matching the guest's arity-exact control flow after #11347. POST \
+STRENGTHEN (path preserve, free — NOT a domain restriction): x18..x21 stay concrete \
+at their entry values; the guest restores them through count/nth saves, so the old \
+regOwn export discarded information the machine preserves and blocked every consumer \
+that needed the path. PRE unchanged (kindCallerPre already carried concrete v18..v21 \
+via countAmbient). WHY `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has \
+no executable differential, and the top triple is stated over the operational result \
+rather than over SpecRef `kindTag` — callers that want `kindTag` under WF use the pure \
+bridge `mptNodeKindGuest_eq_kindTag` (MptNodeKindSpec). The pure \
+`MptAssertions.mptNodeKindSpec` is LOOSER (2 < len → branch) and STALE vs the arity-17 \
+guest; it is NOT the machine post. FULL DOMAIN: no input-domain gate (ABI hyps only — \
+region wf, alignment, stack free for nth frame). coverRef \
+`mpt_node_kind_precondition_reachable` (branch/ext/leaf/fail). Witnessed in \
+Progress/Routines.lean. Walk body (`mpt_walk`) still open under #11799" },
+
+  -- #11799 residual audit: hp_decode_nibbles machine predated registration.
+  { family := "mpt", routine := "hp_decode_nibbles",
+    spec := some "hp_decode_nibbles_spec",
+    verdict := .agrees, basis := .machineOnly,
+    reference := "hpDecode / compact_to_nibbles guest mirror \
+(Evm64/MptAssertions.lean; SpecRef compact_to_nibbles is STRICTER on head nibbles — \
+see HpDecodeNibblesSAsm docstring and GH #10528)",
+    note := "WHOLE-ROUTINE cpsTripleWithin (HpDecodeNibblesSAsmPaths) via abiFrame. \
+Post is guest-exact `hdnRes` (= `hpDecode`); `hdnRes_eq_hpDecode` is definitional. \
+WHY `.machineOnly`: MPT family has no executable differential; SpecRef \
+`compact_to_nibbles` rejects head nibbles the guest accepts (lenient padding), so \
+the reference is STRICTER than the guest on malformed heads — not a walk residual \
+(the walk feeds well-formed HP from RLP). FULL DOMAIN: ABI hyps only. Registered \
+under #11799 residual audit (machine predated the row — 11637 inverse class). \
+callWithin adapter `hp_decode_nibbles_call_spec_within` for mpt_walk ext/leaf arms. \
+Witnessed in Progress/Routines.lean. JOINS #11341 OPEN CLASS: `.agrees` on \
+`.machineOnly` basis (differential does not transfer); taxonomy not closed — \
+flagged not resolved." },
 
   -- #11516: account-leaf decode, the pairing that issue says must be stated.
   { family := "account", routine := "account_decode",
@@ -827,15 +851,15 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 32 := by decide
+theorem registry_size : registry.length = 33 := by decide
 theorem rlp_rows : countFamily "rlp" = 19 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
 theorem header_rows : countFamily "header" = 4 := by decide
-/-- #11344 + #11799 dep (`mpt_node_kind`). No differential for this family. -/
-theorem mpt_rows : countFamily "mpt" = 2 := by decide
+/-- #11344 + #11799 dep (`mpt_node_kind`) + `hp_decode_nibbles` residual audit. -/
+theorem mpt_rows : countFamily "mpt" = 3 := by decide
 /-- #11516. One row; the pairing that issue says must be stated. -/
 theorem account_rows : countFamily "account" = 1 := by decide
 /-- #11348. One row; the reference counterpart is constructed in BloomAlgebra rather
@@ -863,7 +887,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 19 ∧ countVerdict .domainRestricted = 9 ∧
+    countVerdict .agrees = 20 ∧ countVerdict .domainRestricted = 9 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -877,7 +901,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 4 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 5 ∧ countBasis .inspection = 5 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
