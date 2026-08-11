@@ -6,7 +6,7 @@
   exit blocks).  The distinguishing feature of this CROSS-HEADER accessor is the
   spill/reload of the iterator state — `{base_i, i, prev = ts[i-1]}` — through
   the scratch cells `cvit_iter_child` / `cvit_iter_i` / `cvit_iter_prev` around
-  each `rlp_field_to_u64` (field 11) call, and the `BGEU x29 x28` comparison of
+  each `rlp_field_to_u64_strict` (field 11) call, and the `BGEU x29 x28` comparison of
   the reloaded `prev` (`cvit_iter_prev`) against the freshly-decoded `cur`
   (`cvit_ts`).  The `prev` cell genuinely holds the ACTUAL decoded timestamp of
   header `i-1` (tied to K34's `Result`), so the invariant threads the real value.
@@ -269,7 +269,7 @@ local macro "pcfx" : tactic =>
       | exact bytesRegion_pcFree _ _ | exact pcFree_frameSlotsOwn _ _
       | exact pcFree_stackFree _ _
       | exact pcFree_wordArray _ _ | exact pcFree_wordArrayFrom _ _ _ | unfold savedFrame
-      | unfold EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame)
+      | unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame)
 
 /-! ## Combined loop-body setup (instructions 32--47): spill ;; arg setup
 
@@ -303,11 +303,11 @@ theorem cvitSetup (hbi lenBase iW prevVal : Word) (Li : Nat)
 
 
 /-! ## K34's whole-routine step count for field index 11. -/
-def nCall (bytesLen : Nat) : Nat :=
+def nCall (_bytesLen : Nat) : Nat :=
   (7 + 4 + (1 + ((12 + ((85 + 93 * (11 + 2)) + 6)) + 9)))
-    + ((1 + ((7 + (1 + (7 * bytesLen + 11))) + 5)) + 5)
+    + ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5)
 
-/-! ## Call block (instructions 32--48 + K34): setup ;; jal ;; rlp_field_to_u64
+/-! ## Call block (instructions 32--48 + K34): setup ;; jal ;; rlp_field_to_u64_strict
 
     From the loop-body entry (`D+128`) to the return site (`D+196`), producing
     K34's `flatPost` for header `hbi` (field 11).  `x18` holds the ORIGINAL
@@ -331,14 +331,14 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
         (.x1 ↦ᵣ oldX1) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
         ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
-        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
         stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
         (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
         bytesRegion hbi bytes ** savedFrame spC csaved)
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
-          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           bytes Li 11 **
         (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
         ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
@@ -350,24 +350,24 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
     ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
       (.x20 ↦ᵣ firstBadPtr) ** (.x14 ↦ᵣ old14) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x1 ↦ᵣ oldX1) ** (.x0 ↦ᵣ (0 : Word)) **
-      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
       stackFree calleeNewSp 8 **
       (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
       bytesRegion hbi bytes ** savedFrame spC csaved)
     (by pcfx) hsetup
-  -- [48] jal x1, rlp_field_to_u64
+  -- [48] jal x1, rlp_field_to_u64_strict
   have hjal := jal_link_spec_within
-    (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+    (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_increasing_timestamps + 192)) (D + 192) oldX1
-  rw [show (D + 192) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+  rw [show (D + 192) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_increasing_timestamps + 192))
-      = EvmAsm.Codegen.RlpFieldToU64SAsm.B from by decide,
+      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
     show (D + 192 + 4 : Word) = LinkRA from by
       change (D + 192 + 4 : Word) = D + 196; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvit_mono
     (cpsTripleWithin_extend_code (cr' := cvitCode)
       (CodeReq.ofProg_mem_at D (D + 192) cvitProg 48
-        (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64
+        (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
           (GuestAddrs.chain_validate_increasing_timestamps + 192))) (by bv_omega)
         (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
@@ -377,7 +377,7 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
       (.x12 ↦ᵣ (11 : Word)) ** (.x13 ↦ᵣ Ts) ** (.x14 ↦ᵣ old14) **
       (.x28 ↦ᵣ (lenBase + (iW <<< 3))) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word)) **
-      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
       stackFree calleeNewSp 8 **
       (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
       bytesRegion hbi bytes **
@@ -385,31 +385,31 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
       ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved)
     (by pcfx) hjalC
   -- K34 flat callee, lifted to fullCode, framed with the spill/array/chain payload.
-  have hcallee0 := EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_flat_spec_within
+  have hcallee0 := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_flat_spec_within
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (11 : Word) Ts oldOut oldOff oldLen old14
-    (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) hdrBase validPtr firstBadPtr
+    (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hdrBase validPtr firstBadPtr
     prevVal bytes Li 11
     hcalleeNewSp rfl (by decide) (by decide)
     hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with x5/x6/x7/x28 shown owned.
-  have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64SAsm.B LinkRA fullCode
+  have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA fullCode
       (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
         ((.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) **
           (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
           (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) ** (.x12 ↦ᵣ (11 : Word)) **
           (.x13 ↦ᵣ Ts) ** (.x14 ↦ᵣ old14) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           (.x0 ↦ᵣ (0 : Word)) **
-          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
           stackFree calleeNewSp 8 ** bytesRegion hbi bytes **
           (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen)))
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC calleeNewSp hbi oldOff oldLen
-          (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC calleeNewSp hbi oldOff oldLen
+          (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           bytes Li 11) :=
     cpsTripleWithin_weaken (fun h hp => by
-      unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatPre EvmAsm.Codegen.RlpFieldToU64SAsm.wholeRest
+      unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPre EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wholeRest
       xperm_hyp hp) (fun _ hq => hq) hcalleeC
   have hcalleeF := cpsTripleWithin_frameR
     ((IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
@@ -426,7 +426,7 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
         (.x10 ↦ᵣ hbi) ** (.x11 ↦ᵣ BitVec.ofNat 64 Li) ** (.x12 ↦ᵣ (11 : Word)) **
         (.x13 ↦ᵣ Ts) ** (.x14 ↦ᵣ old14) ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x0 ↦ᵣ (0 : Word)) **
-        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
         stackFree calleeNewSp 8 ** bytesRegion hbi bytes **
         (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
         (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
@@ -459,16 +459,16 @@ theorem cvitCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal :
           (.x0 ↦ᵣ (0 : Word)) **
           memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
           ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
-          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
           (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
           bytesRegion hbi bytes ** savedFrame spC csaved) **
         regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x28) ** regOwn .x1)
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
-          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           bytes Li 11 **
         (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
         ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) := by
@@ -481,16 +481,16 @@ theorem cvitCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal :
           (.x0 ↦ᵣ (0 : Word)) **
           memOwn IterChild ** memOwn IterI ** memOwn IterPrev **
           ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) **
-          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
           (Ts ↦ₘ oldOut) ** (RfuOff ↦ₘ oldOff) ** (RfuLen ↦ₘ oldLen) **
           bytesRegion hbi bytes ** savedFrame spC csaved) ** (.x1 ↦ᵣ v1)) **
         regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x28)
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
-          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+          oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           bytes Li 11 **
         (IterChild ↦ₘ hbi) ** (IterI ↦ₘ iW) ** (IterPrev ↦ₘ prevVal) **
         ((lenBase + (iW <<< 3)) ↦ₘ BitVec.ofNat 64 Li) ** savedFrame spC csaved) from ?_)
@@ -517,26 +517,26 @@ def dispNorm (spC calleeNewSp hbi hdrBase validPtr firstBadPtr nN lenBase prevVa
   regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   memOwn RfuOff ** memOwn RfuLen ** stackFree calleeNewSp 8 **
   bytesRegion hbi bytes **
-  EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame calleeNewSp ⟨LinkRA, nN, lenBase⟩
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame calleeNewSp ⟨LinkRA, nN, lenBase⟩
 
 set_option maxRecDepth 8000 in
 theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prevVal
     oldOff oldLen : Word) (bytes : List (BitVec 8)) (Li : Nat) : ∀ h,
-    (EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
-      oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-      (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
+    (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12)) hbi
+      oldOff oldLen (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+      (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hbi, Ts, hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
       bytes Li 11) h →
     (∃ status value,
       (dispNorm spC (spC + signExtend12 (-32 : BitVec 12)) hbi hdrBase validPtr firstBadPtr nN
           lenBase prevVal value status bytes **
-        ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes hbi Li 11 status value⌝) h) := by
+        ⌜EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes hbi Li 11 status value⌝) h) := by
   intro h hp
-  unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost at hp
+  unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost at hp
   rcases hp with hs | hf
   · -- success arm: status = wrapperStatus, value = outputValue.
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatSuccessReturned at hs
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatSuccessReturned at hs
     obtain ⟨offset, len, v12, x5v, scalarStatus, wrapperStatus, outputValue, hs⟩ := hs
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.successPayload at hs
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.successPayload at hs
     refine ⟨wrapperStatus, outputValue, ?_⟩
     obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hs
     obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
@@ -551,16 +551,16 @@ theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prev
           regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
           regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
-          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+          EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
             ⟨LinkRA, nN, lenBase⟩)) h := by xperm_hyp hOB
     have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
       (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x11)
         (sepConj_mono (regIs_implies_regOwn .x12) (fun _ x => x))))) h hp1
     xperm_hyp hp2
   · -- failure arm: status = 1, value = 0.
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.flatFailureReturned at hf
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatFailureReturned at hf
     obtain ⟨v11, v12, hf⟩ := hf
-    unfold EvmAsm.Codegen.RlpFieldToU64SAsm.failurePayload at hf
+    unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.failurePayload at hf
     refine ⟨(1 : Word), (0 : Word), ?_⟩
     obtain ⟨h1, h2, hd, hu, hO, hP⟩ := hf
     obtain ⟨hBig, hRes⟩ := (sepConj_pure_right _).1 hP
@@ -575,7 +575,7 @@ theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prev
           regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 ** bytesRegion hbi bytes **
-          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+          EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
             ⟨LinkRA, nN, lenBase⟩)) h := by xperm_hyp hOB
     have hp2 := sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
       (sepConj_mono (regIs_implies_regOwn .x11) (sepConj_mono (regIs_implies_regOwn .x12)
@@ -586,14 +586,14 @@ theorem flatPost_normalize (spC hbi hdrBase validPtr firstBadPtr nN lenBase prev
 /-- K34's 3-slot saved frame, once restored, weakens to the merely-owned frame
     slots the loop invariant carries. -/
 theorem k34SavedFrame_implies_frameSlotsOwn (newSp : Word)
-    (saved : EvmAsm.Codegen.RlpFieldToU64SAsm.Saved) : ∀ h,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame newSp saved h →
-    frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp h := by
+    (saved : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) : ∀ h,
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame newSp saved h →
+    frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame newSp h := by
   intro h hp
-  rw [← EvmAsm.Codegen.RlpFieldToU64SAsm.frameSlotsSaved_frame] at hp
+  rw [← EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frameSlotsSaved_frame] at hp
   exact EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.frameSlotsSaved_implies_frameSlotsOwn
-    EvmAsm.Codegen.RlpFieldToU64SAsm.frame newSp
-    (EvmAsm.Codegen.RlpFieldToU64SAsm.savedVals saved) h hp
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame newSp
+    (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedVals saved) h hp
 
 
 /-! ## Entry half of one loop iteration: guard → call → K34 flatPost
@@ -630,14 +630,14 @@ theorem cvitIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
         regOwn .x1 ** regOwn .x5 ** regOwn .x10 **
         regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
         stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
           (hdrBaseAt hdrBase lengths i) oldOff oldLen
           (⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ :
-            EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hdrBaseAt hdrBase lengths i, Ts,
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hdrBaseAt hdrBase lengths i, Ts,
             hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           (bigBytes.drop (hdrOff lengths i)) lengths[i]! 11 **
         (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
@@ -675,7 +675,7 @@ theorem cvitIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
       regOwn .x1 ** regOwn .x5 ** regOwn .x10 **
       regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
       stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) (by pcfx) hguard0
   -- The call, framed with the untouched wordArray/bytesRegion prefixes.
   have hcall := cvitCallOwned spC hdrBase lenBase (hdrBaseAt hdrBase lengths i)
@@ -730,11 +730,11 @@ theorem cvitIterDispatch
           bigBytes lengths)) :
     cpsTripleWithin (24 + nTail) (D + 196) raIn fullCode
       ((.x1 ↦ᵣ LinkRA) **
-        EvmAsm.Codegen.RlpFieldToU64SAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
+        EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spC (spC + signExtend12 (-32 : BitVec 12))
           (hdrBaseAt hdrBase lengths i) oldOff oldLen
           (⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ :
-            EvmAsm.Codegen.RlpFieldToU64SAsm.Saved)
-          (⟨EvmAsm.Codegen.RlpFieldToU64SAsm.B + 48, hdrBaseAt hdrBase lengths i, Ts,
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
+          (⟨EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B + 48, hdrBaseAt hdrBase lengths i, Ts,
             hdrBase, validPtr, firstBadPtr, prevVal⟩ : Saved)
           (bigBytes.drop (hdrOff lengths i)) lengths[i]! 11 **
         (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
@@ -764,7 +764,7 @@ theorem cvitIterDispatch
             (dispNorm spC (spC + signExtend12 (-32 : BitVec 12)) (hdrBaseAt hdrBase lengths i)
                 hdrBase validPtr firstBadPtr (BitVec.ofNat 64 lengths.length) lenBase prevVal
                 value status (bigBytes.drop (hdrOff lengths i)) **
-              ⌜EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+              ⌜EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
                 (hdrBaseAt hdrBase lengths i) lengths[i]! 11 status value⌝) **
             ((IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
               (IterPrev ↦ₘ prevVal) **
@@ -786,7 +786,7 @@ theorem cvitIterDispatch
     -- Pull the semantic `Result` out of the precondition.
     refine cpsTripleWithin_weaken (fun h hp => ?hpull) (fun _ hq => hq)
       (cpsTripleWithin_pure_pre
-        (P := EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+        (P := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
           (hdrBaseAt hdrBase lengths i) lengths[i]! 11 status value)
         (H := (.x1 ↦ᵣ LinkRA) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) **
           (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
@@ -797,7 +797,7 @@ theorem cvitIterDispatch
           regOwn .x31 ** memOwn RfuOff ** memOwn RfuLen **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
           bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-          EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+          EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
             ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
           (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
           (IterPrev ↦ₘ prevVal) **
@@ -825,7 +825,7 @@ theorem cvitIterDispatch
             regOwn .x31 ** memOwn RfuOff ** memOwn RfuLen **
             stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
             bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-            EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
               ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
             (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
             (IterPrev ↦ₘ prevVal) **
@@ -861,7 +861,7 @@ theorem cvitIterDispatch
               regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
               memOwn RfuOff ** memOwn RfuLen ** stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
               bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
               (IterPrev ↦ₘ prevVal) **
@@ -886,7 +886,7 @@ theorem cvitIterDispatch
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
             memOwn RfuOff ** memOwn RfuLen ** stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
             bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-            EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
               ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
             (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
             ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -933,7 +933,7 @@ theorem cvitIterDispatch
                 regOwn .x13 ** regOwn .x14 ** memOwn RfuOff ** memOwn RfuLen **
                 stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
                 bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-                EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+                EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                   ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                 (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
                 ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -953,7 +953,7 @@ theorem cvitIterDispatch
                 memOwn RfuOff ** memOwn RfuLen **
                 stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
                 bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-                EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+                EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                   ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                 (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
                 ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -978,7 +978,7 @@ theorem cvitIterDispatch
                     memOwn RfuOff ** memOwn RfuLen **
                     stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
                     bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-                    EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame
+                    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame
                       (spC + signExtend12 (-32 : BitVec 12))
                       ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                     (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
@@ -1001,7 +1001,7 @@ theorem cvitIterDispatch
               (.x28 ↦ᵣ value) ** (.x29 ↦ᵣ prevVal) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
               (Ts ↦ₘ value) ** (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
               (IterI ↦ₘ BitVec.ofNat 64 i) ** (IterPrev ↦ₘ prevVal) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               ((.x10 ↦ᵣ (0 : Word)) ** (validPtr ↦ₘ (0 : Word)) **
                 (firstBadPtr ↦ₘ BitVec.ofNat 64 i) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
@@ -1044,7 +1044,7 @@ theorem cvitIterDispatch
                 regOwn .x13 ** regOwn .x14 ** memOwn RfuOff ** memOwn RfuLen **
                 stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
                 bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-                EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+                EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                   ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                 (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
                 ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -1073,7 +1073,7 @@ theorem cvitIterDispatch
               (.x20 ↦ᵣ firstBadPtr) ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
               memOwn RfuOff ** memOwn RfuLen ** stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
               bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               wordArrayFrom lenBase 0 (lengths.take i) **
               wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
@@ -1096,7 +1096,7 @@ theorem cvitIterDispatch
                     (.x31 ↦ᵣ BitVec.ofNat 64 lengths[i]!) **
                     (Ts ↦ₘ value) ** (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
                     (IterI ↦ₘ BitVec.ofNat 64 i) ** (IterPrev ↦ₘ prevVal) **
-                    EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+                    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                       ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                     ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
                       (.x6 ↦ᵣ (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 lengths[i]!)) **
@@ -1142,7 +1142,7 @@ theorem cvitIterDispatch
               memOwn RfuOff ** memOwn RfuLen **
               stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
               bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
               (IterPrev ↦ₘ prevVal) **
@@ -1168,7 +1168,7 @@ theorem cvitIterDispatch
               memOwn RfuOff ** memOwn RfuLen **
               stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
               bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
               (IterPrev ↦ₘ prevVal) **
@@ -1203,7 +1203,7 @@ theorem cvitIterDispatch
             regOwn .x31 ** memOwn RfuOff ** memOwn RfuLen **
             stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
             bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-            EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
               ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
             (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterI ↦ₘ BitVec.ofNat 64 i) **
             (IterPrev ↦ₘ prevVal) **
@@ -1222,7 +1222,7 @@ theorem cvitIterDispatch
               regOwn .x31 ** memOwn RfuOff ** memOwn RfuLen **
               stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
               bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-              EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+              EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                 ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
               (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterPrev ↦ₘ prevVal) **
               ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -1245,7 +1245,7 @@ theorem cvitIterDispatch
                   regOwn .x30 ** regOwn .x31 ** memOwn RfuOff ** memOwn RfuLen **
                   stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
                   bytesRegion (hdrBaseAt hdrBase lengths i) (bigBytes.drop (hdrOff lengths i)) **
-                  EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+                  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
                     ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
                   (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) ** (IterPrev ↦ₘ prevVal) **
                   ((lenBase + BitVec.ofNat 64 (8 * i)) ↦ₘ BitVec.ofNat 64 lengths[i]!) **
@@ -1265,7 +1265,7 @@ theorem cvitIterDispatch
         have hp1 : ((.x5 ↦ᵣ IterI) ** (.x6 ↦ᵣ BitVec.ofNat 64 i) ** (Ts ↦ₘ value) **
             (IterChild ↦ₘ hdrBaseAt hdrBase lengths i) **
             (IterI ↦ₘ BitVec.ofNat 64 i) ** (IterPrev ↦ₘ prevVal) **
-            EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
+            EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame (spC + signExtend12 (-32 : BitVec 12))
               ⟨LinkRA, BitVec.ofNat 64 lengths.length, lenBase⟩ **
             ((.x10 ↦ᵣ status) ** (validPtr ↦ₘ (1 : Word)) **
               (firstBadPtr ↦ₘ BitVec.ofNat 64 i) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
@@ -1348,7 +1348,7 @@ theorem cvitIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
       regOwn .x1 ** regOwn .x5 ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
       regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word)) **
-      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
       stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) with hEBody
   refine cpsTripleWithin_weaken (fun h hp => by
     unfold payload scratchRegs at hp

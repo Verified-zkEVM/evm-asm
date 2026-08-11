@@ -264,10 +264,10 @@ def blockHashAndExtractNumberFunction : String :=
   "  mv s2, a3                            # number out ptr (stash)\n" ++
   "  # 1. block_hash -> a2 (already set by caller)\n" ++
   "  jal ra, block_hash_from_header\n" ++
-  "  # 2. number -> via rlp_field_to_u64(header, len, 8, &out)\n" ++
+  "  # 2. number -> via rlp_field_to_u64_strict(header, len, 8, &out)\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
   "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra,  0(sp)\n" ++
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
@@ -293,7 +293,8 @@ def ziskBlockHashAndExtractNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbhen_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   blockHashFromHeaderFunction ++ "\n" ++
   blockHashAndExtractNumberFunction ++ "\n" ++
@@ -472,7 +473,8 @@ def ziskBlockhashFromWitnessHeadersPrologue : String :=
   "  j .Lbhfwh_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   blockhashFromWitnessHeadersFunction ++ "\n" ++
   ".Lbhfwh_pdone:"
@@ -979,7 +981,8 @@ def ziskWitnessHeadersMinBlockNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lwhmbn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   witnessHeadersMinBlockNumberFunction ++ "\n" ++
   ".Lwhmbn_pdone:"

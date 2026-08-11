@@ -28,7 +28,7 @@ open EvmAsm.Rv64
       K210  header_extract_gas_used   (field 10)
       K211  header_extract_gas_limit  (field 9)
 
-    Each thin-wraps `rlp_field_to_u64` for the specific field
+    Each thin-wraps `rlp_field_to_u64_strict` for the specific field
     index. Useful for chain monitoring / fee-market analysis.
 
     Calling convention (both):
@@ -46,7 +46,7 @@ def headerExtractGasUsedFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 10\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -62,7 +62,8 @@ def ziskHeaderExtractGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhegu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractGasUsedFunction ++ "\n" ++
   ".Lhegu_pdone:"
 
@@ -88,7 +89,7 @@ def headerExtractGasLimitFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 9\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -104,7 +105,8 @@ def ziskHeaderExtractGasLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhegl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractGasLimitFunction ++ "\n" ++
   ".Lhegl_pdone:"
 

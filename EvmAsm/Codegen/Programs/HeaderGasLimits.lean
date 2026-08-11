@@ -51,7 +51,7 @@ def chainComputeMaxGasLimitFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 9\n" ++
   "  la a3, ccmgl_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmgl_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -94,7 +94,8 @@ def ziskChainComputeMaxGasLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmgl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxGasLimitFunction ++ "\n" ++
   ".Lccmgl_pdone:"
 
@@ -151,7 +152,7 @@ def chainComputeMinGasLimitFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 9\n" ++
   "  la a3, ccmingl_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmingl_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -196,7 +197,8 @@ def ziskChainComputeMinGasLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmingl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinGasLimitFunction ++ "\n" ++
   ".Lccmingl_pdone:"
 
@@ -249,7 +251,7 @@ def chainComputeTotalGasLimitFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 9\n" ++
   "  la a3, cctgl_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctgl_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -289,7 +291,8 @@ def ziskChainComputeTotalGasLimitPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctgl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalGasLimitFunction ++ "\n" ++
   ".Lcctgl_pdone:"
 
@@ -340,7 +343,7 @@ def chainExtractGasLimitFirstLastFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 9\n" ++
   "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lceglfl_propagate\n" ++
   "  # Advance to last header\n" ++
   "  mv t1, s2\n" ++
@@ -358,7 +361,7 @@ def chainExtractGasLimitFirstLastFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 9\n" ++
   "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lceglfl_propagate\n" ++
   "  li a0, 0\n" ++
   "  j .Lceglfl_ret\n" ++
@@ -387,7 +390,8 @@ def ziskChainExtractGasLimitFirstLastPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lceglfl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractGasLimitFirstLastFunction ++ "\n" ++
   ".Lceglfl_pdone:"
 

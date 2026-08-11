@@ -3,20 +3,17 @@
   `chain_validate_consecutive_numbers` accessor.
 
   `chainValidateConsecutiveNumbers_prog` iterates over an array of `N` block
-  headers and validates that the `timestamp` field (RLP field 11) is STRICTLY
-  increasing across consecutive headers: `ts[i] > ts[i-1]` for every adjacent
+  headers and validates that the `number` field (RLP field 8) is CONSECUTIVE
+  across consecutive headers: `number[i] = number[i-1] + 1` for every adjacent
   pair.  This is the CROSS-HEADER sibling of the per-header-independent
   `chain_validate_blob_gas_used_under_max` / `chain_validate_extra_data_length`
   accessors: the per-header value decoded from header `i` is compared against
   the value decoded from header `i-1` (threaded through a scratch cell).
 
-  Conformance: the Yellow Paper (`validate_header`, see
-  `EvmAsm/Stateless/SpecRef/SeamShell.lean`) rejects a block whose timestamp is
-  `≤` its parent's, i.e. requires the STRICT relation `Hs > parent.Hs`.  The
-  guest decodes `cur = ts[i]` into `x28`, `prev = ts[i-1]` into `x29`, and takes
-  `BGEU x29 x28` (`prev ≥ᵤ cur`) as the violation branch.  So the guest accepts
-  exactly `prev <ᵤ cur`, i.e. `ts[i-1] < ts[i]` — the STRICT relation.  Guest
-  and spec MATCH; no conformance divergence.
+  Conformance: the execution spec requires `header.number =
+  parent.number + 1`.  The guest decodes `cur = number[i]` into `x28`,
+  `prev = number[i-1]` into `x29`, adds one to `prev`, and takes `BNE x29 x28`
+  as the violation branch.  Guest and spec MATCH; no conformance divergence.
 
   Calling convention (see the program docstring):
     a0 (input)  : N (header count)
@@ -26,7 +23,7 @@
     a4 (input)  : u64 out cell (first_bad_index)
     ra (input)  : return
     a0 (output) : 0 = success (every adjacent pair strictly increasing, or N<2);
-                  nonzero = some header failed the strict field-11 u64 decode.
+                  nonzero = some header failed the strict field-8 u64 decode.
 
   The real validity verdict lives in the two output memory cells:
     *is_valid       : 1 iff every adjacent pair is strictly increasing, else 0.
@@ -35,12 +32,12 @@
   Program structure:
     * prologue (0-16): spill saved regs, `*is_valid := 1`, `*first_bad := 0`;
     * `BLTU x8, 2` (17): if `N < 2` jump to the a0:=0 exit (vacuously valid);
-    * header-0 block (18-30): decode header-0 field 11 into `cvcn_num`, save it
+    * header-0 block (18-30): decode header-0 field 8 into `cvcn_num`, save it
       as the initial `prev` (`x21`), set `x6 := base of header 1`, `x7 := 1`;
       on parse-fail jump to the parse-fail exit (77);
     * loop guard (31): `BEQ x7, x8` — if `i = N` jump to the a0:=0 exit;
     * loop body (32-69): spill `{child=base_i, i, prev}` to scratch cells, decode
-      header-`i` field 11, on parse-fail exit; else compare `prev` (from the
+      header-`i` field 8, on parse-fail exit; else compare `prev` (from the
       `cvcn_iter_prev` cell) against `cur` via `BGEU x29 x28`; on `prev ≥ cur`
       jump to the violation exit (70); else `prev := cur`, `base += len_i`,
       `i += 1`, loop back to the guard;
@@ -50,13 +47,13 @@
     * epilogue (83-91): restore saved regs, return.
 
   The saved-prev cell (`cvcn_iter_prev`) is genuinely tied to the ACTUAL decoded
-  timestamp of header `i-1` (via K34's `Result` at header `i-1`'s base), so the
+  number of header `i-1` (via K34's `Result` at header `i-1`'s base), so the
   final cross-header postcondition is genuine.
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateProgs
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
-import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
 
@@ -85,32 +82,32 @@ theorem cvcn_length : cvcnProg.length = 93 := by decide
 def cvcnCode : CodeReq := CodeReq.ofProg D cvcnProg
 
 /-- The full linked closure: the chain accessor plus the strict K34
-    `rlp_field_to_u64` wrapper and its transitive callees. -/
-def fullCode : CodeReq := cvcnCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
+    `rlp_field_to_u64_strict` wrapper and its transitive callees. -/
+def fullCode : CodeReq := cvcnCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
 theorem cvcn_disjoint :
-    cvcnCode.Disjoint EvmAsm.Codegen.RlpFieldToU64SAsm.code := by
-  unfold cvcnCode EvmAsm.Codegen.RlpFieldToU64SAsm.code
-    EvmAsm.Codegen.RlpFieldToU64SAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64SAsm.contentCode
+    cvcnCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
+  unfold cvcnCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
   refine CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_)
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvcn_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
-    · right; rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · left; rw [cvcn_length]; decide
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvcn_length]; decide
     · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
     · right; rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_code
+  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_code
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvcn_length]; decide
-    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_prog_length]; decide
+    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
     · left; rw [cvcn_length]; decide
 
 
 /-- K34's linked code is subsumed by the chain accessor's full closure. -/
 theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64SAsm.code a = some i → fullCode a = some i := by
+    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
   exact CodeReq.mono_union_right cvcn_disjoint (fun _ _ h => h) a i hi
@@ -142,7 +139,7 @@ abbrev LinkRA : Word := D + 196
     0 (success), genuinely tied to K34's `Result` at header `i`'s base. -/
 def hdrNumOk (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (i : Nat) (value : Word) : Prop :=
-  EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
     (hdrBaseAt hdrBase lengths i) (lengths[i]!) 8 0 value
 
 /-- Adjacent pair `(i-1, i)` is consecutive: both headers decode field 8 to a
@@ -169,7 +166,7 @@ def numViolation (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List N
 def hdrBadParse (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (k : Nat) (status : Word) : Prop :=
   ∃ value,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths k))
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths k))
       (hdrBaseAt hdrBase lengths k) (lengths[k]!) 8 status value ∧ status ≠ 0
 
 /-! ## Frames -/
@@ -190,13 +187,13 @@ def scratchRegs (calleeNewSp : Word) : Assertion :=
   regOwn .x1 ** regOwn .x5 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8
 
 /-- Loop invariant at the guard (`D + 124`) entering iteration `i` (`1 ≤ i ≤ N`).
 
     The register file holds `x6 = base of header i`, `x7 = i`, and
-    `x21 = prevVal`, where `prevVal` is GENUINELY the field-11 timestamp decoded
+    `x21 = prevVal`, where `prevVal` is GENUINELY the field-8 number decoded
     from header `i-1` (`⌜hdrNumOk … (i-1) prevVal⌝` — tied to K34's `Result` at
     header `i-1`'s base).  The accumulated `hprefix` (all earlier adjacent pairs
     strictly increasing) is carried as a pure fact. -/
@@ -221,7 +218,7 @@ def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8 ** payload hdrBase lenBase bigBytes lengths
 
 /-- All adjacent pairs strictly increasing (or `N < 2`): `a0 = 0`,
@@ -248,7 +245,7 @@ def postViolation (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Wo
       commonRet sp0 spC calleeNewSp hdrBase lenBase csaved bigBytes lengths) h
 
 /-- First parse failure at `k`: `a0 = status` (the actual nonzero K34 status),
-    `*firstBadPtr = k`, `*validPtr = 1`, header `k` fails the strict field-11
+    `*firstBadPtr = k`, `*validPtr = 1`, header `k` fails the strict field-8
     decode, and all earlier adjacent pairs are strictly increasing.  (For `k = 0`
     the header-0 block reads the zero-initialized `cvcn_iter_i` cell, so
     `*firstBadPtr = 0`.) -/

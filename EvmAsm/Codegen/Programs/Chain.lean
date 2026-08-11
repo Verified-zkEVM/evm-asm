@@ -270,7 +270,7 @@ def chainComputeMinGasUsedFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 10\n" ++
   "  la a3, ccming_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccming_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -315,7 +315,8 @@ def ziskChainComputeMinGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccming_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinGasUsedFunction ++ "\n" ++
   ".Lccming_pdone:"
 
@@ -373,7 +374,7 @@ def chainExtractTimestampRangeFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 11                   # field 11 = timestamp\n" ++
   "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcetr_propagate\n" ++
   "  # Advance to last header\n" ++
   "  mv t1, s2\n" ++
@@ -391,7 +392,7 @@ def chainExtractTimestampRangeFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 11\n" ++
   "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcetr_propagate\n" ++
   "  li a0, 0\n" ++
   "  j .Lcetr_ret\n" ++
@@ -420,7 +421,8 @@ def ziskChainExtractTimestampRangePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcetr_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractTimestampRangeFunction ++ "\n" ++
   ".Lcetr_pdone:"
 
@@ -584,7 +586,7 @@ def chainExtractGasUsedRangeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 10\n" ++
   "  la a3, cegur_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcegur_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -638,7 +640,8 @@ def ziskChainExtractGasUsedRangePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcegur_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractGasUsedRangeFunction ++ "\n" ++
   ".Lcegur_pdone:"
 
@@ -859,7 +862,8 @@ def ziskChainExtractBasefeeFirstLastPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcebfl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractBasefeeFirstLastFunction ++ "\n" ++
   ".Lcebfl_pdone:"
 

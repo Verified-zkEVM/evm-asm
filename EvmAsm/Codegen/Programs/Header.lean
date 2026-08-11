@@ -34,10 +34,10 @@
   No proofs yet -- these are codegen `String` defs only.
 
   Header scalar routing (Amsterdam `blocks.py` / `SpecRef.Types`):
-    `number : Uint`       -> lenient K34
-    `gas_limit : Uint`    -> lenient K34
-    `gas_used : Uint`     -> lenient K34
-    `timestamp : U256`    -> lenient path (the guest's u64 projection)
+    `number : Uint`       -> strict K34
+    `gas_limit : Uint`    -> strict K34
+    `gas_used : Uint`     -> strict K34
+    `timestamp : U256`    -> strict path (the guest's u64 projection)
     `blob_gas_used : U64` -> strict K34
     `excess_blob_gas : U64` -> strict K34
   The per-field reference type, rather than the shared header location, is
@@ -1229,7 +1229,7 @@ def headerExtractTimestampFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 11\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -1245,7 +1245,8 @@ def ziskHeaderExtractTimestampPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhets_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractTimestampFunction ++ "\n" ++
   ".Lhets_pdone:"
 

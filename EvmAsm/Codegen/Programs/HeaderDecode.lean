@@ -50,9 +50,10 @@ open EvmAsm.Rv64.Program
                      or timestamp > 8 bytes BE).
 
      Composes the cursor walker (`rlp_walk_init` +
-     `rlp_walk_next` + `rlp_content_to_u64`). The scalar fields remain on the
-     lenient path where their reference types are `Uint`/`U256`; the two U64
-     blob fields use `rlp_content_to_u64_strict`. The four wanted
+     `rlp_walk_next` + `rlp_content_to_u64_strict`). Header scalar fields use
+     the strict canonical decoder selected by their execution-specs types;
+     the guest's separate u64 width/representability assumption is unchanged.
+     The two U64 blob fields also use `rlp_content_to_u64_strict`. The four wanted
      fields live at indices {0,3,8,11}; the walker visits the
      first 12 items once (single O(N) pass), capturing the four
      wanted fields and skipping the eight in between. The hash
@@ -103,7 +104,7 @@ def headerMinimalDecodeFunction : String :=
   "  # field 8: number (u64 @ struct+64)\n" ++
   "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
   "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lhmd_fail\n" ++
   "  sd a0, 64(s2)\n" ++
   "  # fields 9..10: skip (gas_limit, gas_used)\n" ++
@@ -114,7 +115,7 @@ def headerMinimalDecodeFunction : String :=
   "  # field 11: timestamp (u64 @ struct+72)\n" ++
   "  mv a0, s3; mv a1, s1; jal ra, rlp_walk_next\n" ++
   "  mv s3, a0; bnez a1, .Lhmd_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lhmd_fail\n" ++
   "  sd a0, 72(s2)\n" ++
   "  li a0, 0\n" ++
@@ -151,7 +152,7 @@ def ziskHeaderMinimalDecodePrologue : String :=
   "  j .Lhmd_pdone\n" ++
   rlpWalkInitFunction ++ "\n" ++
   rlpWalkNextFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
   headerMinimalDecodeFunction ++ "\n" ++
   ".Lhmd_pdone:"
 
@@ -270,7 +271,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (352 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 324)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 324)),
     .BNE .x11 .x0 (336 : BitVec 13),
     .SD .x18 .x10 (64 : BitVec 12),
     .MV .x10 .x19,
@@ -280,7 +281,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (312 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 364)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 364)),
     .BNE .x11 .x0 (296 : BitVec 13),
     .SD .x18 .x10 (80 : BitVec 12),
     .MV .x10 .x19,
@@ -290,7 +291,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (272 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 404)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 404)),
     .BNE .x11 .x0 (256 : BitVec 13),
     .SD .x18 .x10 (88 : BitVec 12),
     .MV .x10 .x19,
@@ -300,7 +301,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (232 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 444)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 444)),
     .BNE .x11 .x0 (216 : BitVec 13),
     .SD .x18 .x10 (72 : BitVec 12),
     .MV .x10 .x19,
@@ -378,13 +379,13 @@ def headerExtendedDecode_relocs : RelocTable :=
     (66, .jal .x1 "rlp_walk_next"),
     (71, .jal .x1 "rlp_walk_next"),
     (76, .jal .x1 "rlp_walk_next"),
-    (81, .jal .x1 "rlp_content_to_u64"),
+    (81, .jal .x1 "rlp_content_to_u64_strict"),
     (86, .jal .x1 "rlp_walk_next"),
-    (91, .jal .x1 "rlp_content_to_u64"),
+    (91, .jal .x1 "rlp_content_to_u64_strict"),
     (96, .jal .x1 "rlp_walk_next"),
-    (101, .jal .x1 "rlp_content_to_u64"),
+    (101, .jal .x1 "rlp_content_to_u64_strict"),
     (106, .jal .x1 "rlp_walk_next"),
-    (111, .jal .x1 "rlp_content_to_u64"),
+    (111, .jal .x1 "rlp_content_to_u64_strict"),
     (116, .jal .x1 "rlp_walk_next"),
     (121, .jal .x1 "rlp_walk_next"),
     (126, .jal .x1 "rlp_walk_next"),
