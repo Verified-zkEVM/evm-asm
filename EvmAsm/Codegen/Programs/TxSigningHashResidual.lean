@@ -217,6 +217,38 @@ def txSigningHashCallWithinShape (cr : CodeReq)
       (((.x1 ↦ᵣ (callerPC + 4)) **
         signingHashOperationalCallReturn sp0 inPtr lenW nFields typePrefix outPtr input outOld message) ** F)
 
+theorem txSigningHashCallWithinShape_to_spec
+    (cr : CodeReq)
+    (callerPC vOld sp0 inPtr lenW nFields typePrefix outPtr : Word)
+    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
+    (hshape : txSigningHashCallWithinShape cr callerPC vOld sp0 inPtr lenW
+      nFields typePrefix outPtr input outOld offset fuel F) :
+    F.pcFree ∧ lenW.toNat = input.length ∧
+    outOld.length = 32 ∧
+    (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
+    callerPC + signExtend21 offset = TxSigningHashB ∧
+    (∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → cr a = some i) ∧
+    ∃ message, message = genericSigningMessage input nFields typePrefix ∧
+      (match message with
+       | some msg => keccakBodyDigestBridge msg
+       | none => True) ∧
+      cpsTripleWithin fuel callerPC (callerPC + 4) cr
+        (((.x1 ↦ᵣ vOld) **
+          signingHashCallEntry sp0 inPtr lenW nFields typePrefix outPtr input outOld) ** F)
+        (((.x1 ↦ᵣ (callerPC + 4)) **
+          signingHashCallReturn sp0 inPtr lenW nFields typePrefix outPtr input outOld message) ** F) := by
+  rcases hshape with ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
+  refine ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
+  cases message with
+  | none =>
+      exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => hq) htrip
+  | some msg =>
+      have heq := signingHashOperationalReturn_to_spec
+        sp0 inPtr lenW nFields typePrefix outPtr input outOld (some msg)
+        (fun msg' hmsg' => by cases hmsg'; exact hbridge)
+      exact cpsTripleWithin_weaken (fun _ hp => hp)
+        (fun _ hq => by simpa only [heq] using hq) htrip
+
 /-- Generic K145 contract with the segment-hash residual named separately.
     This makes the dependency visible to a caller proof instead of treating it
     as a domain restriction. -/
@@ -247,6 +279,37 @@ def txSigningHashLegacyCallWithinShape (cr : CodeReq)
       (((.x1 ↦ᵣ (callerPC + 4)) **
         legacySigningHashOperationalCallReturn sp0 inPtr lenW chainId outPtr
           input outOld message) ** F)
+
+theorem txSigningHashLegacyCallWithinShape_to_spec
+    (cr : CodeReq)
+    (callerPC vOld sp0 inPtr lenW chainId outPtr : Word)
+    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
+    (hshape : txSigningHashLegacyCallWithinShape cr callerPC vOld sp0 inPtr lenW
+      chainId outPtr input outOld offset fuel F) :
+    F.pcFree ∧ lenW.toNat = input.length ∧ outOld.length = 32 ∧
+    (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
+    callerPC + signExtend21 offset = TxSigningHashLegacyB ∧
+    (∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → cr a = some i) ∧
+    ∃ message, message = legacyEip155SigningMessage input chainId ∧
+      (match message with
+       | some msg => keccakBodyDigestBridge msg
+       | none => True) ∧
+      cpsTripleWithin fuel callerPC (callerPC + 4) cr
+        (((.x1 ↦ᵣ vOld) **
+          legacySigningHashCallEntry sp0 inPtr lenW chainId outPtr input outOld) ** F)
+        (((.x1 ↦ᵣ (callerPC + 4)) **
+          legacySigningHashCallReturn sp0 inPtr lenW chainId outPtr input outOld message) ** F) := by
+  rcases hshape with ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
+  refine ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
+  cases message with
+  | none =>
+      exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => hq) htrip
+  | some msg =>
+      have heq := legacySigningHashOperationalReturn_to_spec
+        sp0 inPtr lenW chainId outPtr input outOld (some msg)
+        (fun msg' hmsg' => by cases hmsg'; exact hbridge)
+      exact cpsTripleWithin_weaken (fun _ hp => hp)
+        (fun _ hq => by simpa only [heq] using hq) htrip
 
 def txSigningHashResidualNote : String :=
   "K145/K146 caller contracts expose the RLP-derived signing message and the " ++
