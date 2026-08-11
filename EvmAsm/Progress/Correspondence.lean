@@ -465,8 +465,9 @@ regOwn export discarded information the machine preserves and blocked every cons
 that needed the path. PRE unchanged (kindCallerPre already carried concrete v18..v21 \
 via countAmbient). WHY `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has \
 no executable differential, and the top triple is stated over the operational result \
-rather than over SpecRef `kindTag` — callers that want `kindTag` under WF use the pure \
-bridge `mptNodeKindGuest_eq_kindTag` (MptNodeKindSpec). The pure \
+rather than over SpecRef `kindTag` — no current caller uses the pure bridge \
+`mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF first needs the \
+missing Result-to-WF/decode bridge. The pure \
 `MptAssertions.mptNodeKindSpec` is LOOSER (2 < len → branch) and STALE vs the arity-17 \
 guest; it is NOT the machine post. FULL DOMAIN: no input-domain gate (ABI hyps only — \
 region wf, alignment, stack free for nth frame). coverRef \

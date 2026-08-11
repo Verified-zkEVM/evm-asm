@@ -536,8 +536,9 @@ def routineRegistry : List RoutineEntry := [
   -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
   -- fail joins) with operational `MptNodeKindResult` post — no input-domain
   -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
-  -- vs the arity-exact guest; do not rest the post on it. Callers that want
-  -- `kindTag` under WF use `mptNodeKindGuest_eq_kindTag`.
+  -- vs the arity-exact guest; do not rest the post on it. No current caller
+  -- uses `mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF
+  -- first needs the missing Result-to-WF/decode bridge.
   routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
