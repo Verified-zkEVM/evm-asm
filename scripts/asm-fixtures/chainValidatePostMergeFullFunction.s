@@ -42,7 +42,7 @@ chain_validate_post_merge_full:
   mv x10, x18
   li x12, 14
   la x13, cvpmf_field
-  jal x1, rlp_field_to_u64_strict
+  jal x1, rlp_field_to_u64
   bne x10, x0, .+332
   la x5, cvpmf_field
   ld x6, 0(x5)
