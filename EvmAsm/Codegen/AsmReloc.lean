@@ -186,6 +186,93 @@ theorem jalOff_correct_add (target base k : Nat)
 def brOff (target pc : Nat) : BitVec 13 :=
   BitVec.ofInt 13 ((target : Int) - (pc : Int))
 
+/-- Range hyp for `brOff_correct`: signed 13-bit branch displacement fits
+    (`|target − pc| < 2^12`). Same shape as `jalOffInRange` with `2^12`
+    instead of `2^20`. Strict `<` excludes the lone edge `−2^12`
+    so `toInt_ofInt_eq_self` applies directly. -/
+@[inline] def brOffInRange (target pc : Nat) : Prop :=
+  Int.natAbs ((target : Int) - (pc : Int)) < 2 ^ 12
+
+instance (target pc : Nat) : Decidable (brOffInRange target pc) :=
+  inferInstanceAs (Decidable (Int.natAbs ((target : Int) - (pc : Int)) < 2 ^ 12))
+
+private theorem brOff_s_bounds {target pc : Nat} (h : brOffInRange target pc) :
+    -((2 : Int) ^ 12) ≤ ((target : Int) - (pc : Int)) ∧
+      ((target : Int) - (pc : Int)) < (2 : Int) ^ 12 := by
+  let s : Int := (target : Int) - (pc : Int)
+  have habs : (Int.natAbs s : Int) < (2 : Int) ^ 12 := by
+    have h' : Int.natAbs s < 2 ^ 12 := by
+      simpa [s, brOffInRange] using h
+    exact (Int.ofNat_lt (n := Int.natAbs s) (m := 2 ^ 12)).mpr h'
+  have hle : s ≤ (Int.natAbs s : Int) := Int.le_natAbs
+  have hge : - (Int.natAbs s : Int) ≤ s := by
+    have h1 := Int.le_natAbs (a := -s)
+    rw [Int.natAbs_neg] at h1
+    have h2 := Int.neg_le_neg h1
+    simpa only [Int.neg_neg] using h2
+  refine ⟨?_, ?_⟩
+  · have : -((2 : Int) ^ 12) ≤ - (Int.natAbs s : Int) := by
+      have : (Int.natAbs s : Int) ≤ (2 : Int) ^ 12 := Int.le_of_lt habs
+      exact Int.neg_le_neg this
+    exact Int.le_trans this hge
+  · exact Int.lt_of_le_of_lt hle habs
+
+/-- PC-relative branch lands on `target`:
+    `(pc : Word) + signExtend13 (brOff target pc) = (target : Word)`.
+
+    Retires the 21 ad-hoc `unfold B … brOff signExtend13; decide` landing
+    facts in Programs (LiGate/Mono/Gate/Early/MptNodeKindBody). Same `toInt`
+    route as `jalOff_correct` with widths 13/12 instead of 21/20 —
+    no `bv_decide`/`native_decide`/`maxRecDepth`. -/
+theorem brOff_correct (target pc : Nat) (h : brOffInRange target pc) :
+    (BitVec.ofNat 64 pc) + EvmAsm.Rv64.signExtend13 (brOff target pc) =
+      BitVec.ofNat 64 target := by
+  let s : Int := (target : Int) - (pc : Int)
+  have hs : (target : Int) - (pc : Int) = s := rfl
+  obtain ⟨hge, hlt⟩ := brOff_s_bounds (target := target) (pc := pc) h
+  have hge' : -((2 : Int) ^ 12) ≤ s := hs ▸ hge
+  have hlt' : s < (2 : Int) ^ 12 := hs ▸ hlt
+  have htoInt13 : (BitVec.ofInt 13 s).toInt = s :=
+    BitVec.toInt_ofInt_eq_self (by decide : 0 < 13) hge' hlt'
+  have hse : (EvmAsm.Rv64.signExtend13 (BitVec.ofInt 13 s)).toInt = s := by
+    unfold EvmAsm.Rv64.signExtend13
+    rw [BitVec.toInt_signExtend_of_le (by decide : 13 ≤ 64), htoInt13]
+  apply BitVec.eq_of_toInt_eq
+  rw [BitVec.toInt_add, brOff, hs, hse, BitVec.toInt_ofNat', BitVec.toInt_ofNat']
+  have hcongr :
+      (pc : Int).bmod (2 ^ 64) + s =
+        (target : Int) + ((pc : Int).bmod (2 ^ 64) - (pc : Int)) := by
+    omega
+  rw [hcongr]
+  rw [Int.bmod_eq_bmod_iff_bmod_sub_eq_zero]
+  have hsub :
+      (target : Int) + ((pc : Int).bmod (2 ^ 64) - (pc : Int)) - (target : Int) =
+        (pc : Int).bmod (2 ^ 64) - (pc : Int) := by
+    omega
+  rw [hsub, ← Int.dvd_iff_bmod_eq_zero]
+  exact Int.dvd_bmod_sub_self (x := (pc : Int)) (m := 2 ^ 64)
+
+/-- Canonical ofNat form of the branch landing fact (base + k). -/
+theorem brOff_correct_add (target base k : Nat)
+    (h : brOffInRange target (base + k))
+    (hbase : base < 2 ^ 64) (hk : k < 2 ^ 64) (hsum : base + k < 2 ^ 64) :
+    BitVec.ofNat 64 base + BitVec.ofNat 64 k +
+        EvmAsm.Rv64.signExtend13 (brOff target (base + k)) =
+      BitVec.ofNat 64 target := by
+  rw [ofNat_add_ofNat base k hbase hk hsum]
+  exact brOff_correct target (base + k) h
+
+-- Concrete KATs (split): forward, backward, guest-scale LiGate delta 280.
+example : brOffInRange 0x100 0 := by decide
+example : BitVec.ofNat 64 0 + EvmAsm.Rv64.signExtend13 (brOff 0x100 0) =
+    BitVec.ofNat 64 0x100 := brOff_correct 0x100 0 (by decide)
+example : brOffInRange 0 0x100 := by decide
+example : BitVec.ofNat 64 0x100 + EvmAsm.Rv64.signExtend13 (brOff 0 0x100) =
+    BitVec.ofNat 64 0 := brOff_correct 0 0x100 (by decide)
+example : BitVec.ofNat 64 0x80000000 + EvmAsm.Rv64.signExtend13 (brOff 0x80000118 0x80000000) =
+    BitVec.ofNat 64 0x80000118 :=
+  brOff_correct 0x80000118 0x80000000 (by decide)
+
 /-! Reduction sanity checks: the helpers must evaluate under the kernel so the
     per-function `#guard` length/prefix pins (which force `emitProgram`) hold.
     Positive, negative, and boundary deltas.  (Real-address correctness is the
