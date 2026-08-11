@@ -623,19 +623,20 @@ def routineRegistry : List RoutineEntry := [
 
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
-  -- execution_requests_hash instead: five bgv_u32le reads + mono +
-  -- divisibility/cap gates → hash-entry B+300. Hash half residual.
-  -- Domain gate: mono+gates on decoded offsets (accept path only).
+  -- execution_requests_hash instead → hash-entry B+300. Hash half residual.
+  -- FULL named gates (binder list, not intent): h_align listBase%8=0 (ABI a0,
+  -- not static GuestAddrs pin); h_fit 20≤bs.length; h_ge ¬ult endW 20;
+  -- erhOffsetsMonoW; erhGatesOkW. h_valid/h_over = ordinary memory framing.
   routine "execution_requests_hash" .conditional
       (some "execution_requests_hash_validation_accept")
       (notes := "validation-accept prefix at GuestAddrs.execution_requests_hash "
-        ++ "(B → B+300, fuel 135): prologue sp-96 + five unaligned bgv_u32le "
-        ++ "reads via bgv_u32le_offset_spec_within (flat_spec Region.wf%8=0 does "
-        ++ "NOT cover offs 4/12) + mono BNE/BLTU + five REMU/DIVU/cap gates. "
-        ++ "coverRef erh_validation_precondition_reachable (non-empty deposit "
-        ++ "192). Hash half residual. Parked: live consumers block_state_root + "
-        ++ "requests_hash_verify still String asm — correct triple exists, "
-        ++ "nothing lifts past guestImage_block_sub today")
+        ++ "(B → B+300, fuel 135): prologue sp-96 + five bgv_u32le offset reads "
+        ++ "+ mono + five REMU/DIVU/cap gates. GATES (all caller hyps on the top "
+        ++ "triple): h_align listBase.toNat%8=0; h_fit 20≤bs.length; h_ge "
+        ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
+        ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
+        ++ "deposit 192). Hash half residual. Parked: block_state_root + "
+        ++ "requests_hash_verify still String asm")
 ]
 
 /-! ## Counts (kernel-checked) -/
