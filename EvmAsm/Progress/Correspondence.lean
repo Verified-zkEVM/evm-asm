@@ -750,6 +750,26 @@ the Python, which the clause table above is what establishes. Was `.machineOnly`
 rung did not exist — that grade's description was false here, since the tie is \
 machine-checked rather than a local restatement. Regraded in #11341" },
 
+  -- #11578 rescope: validation-accept prefix of execution_requests_hash.
+  -- Anchor is SszCodec.deserializeAux fixed-list shape (not compute_requests_hash).
+  -- Hash half residual; consumers still String asm (parked, not scaffold).
+  { family := "guest", routine := "execution_requests_hash",
+    spec := some "execution_requests_hash_validation_accept",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "SszCodec.deserializeAux fixed-list length/divisibility gates \
+(requests section lengths multiple of stride and under cap)",
+    note := "WHY `domainRestricted`: ACCEPT PATH ONLY under mono+gates on decoded \
+offsets (erhOffsetsMonoW ∧ erhGatesOkW); reject arms and hash half residual. \
+coverRef `erh_validation_precondition_reachable` (non-empty deposit 192). \
+WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
+hash half (erh_hash_one + zkvm_sha256) unproven. CRITICAL: bgv_u32le flat_spec \
+is aligned-only (Region.wf %8=0); production unaligned a0 needs \
+`bgv_u32le_offset_spec_within` (SizeOffset class). \
+NOT leaves: derive_withdrawal/consolidation_requests are 7-insn JAL x0 \
+stage_system_call shims — rescope endorsed. \
+PARKED: live consumers block_state_root + requests_hash_verify still String \
+asm; correct triple exists but nothing lifts past guestImage_block_sub today" },
+
   -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
   -- this registration by months; a name search for the routines found nothing
   -- because the specs live in sibling `*SAsm` modules. What was missing is the
@@ -844,11 +864,11 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 34 := by decide
+theorem registry_size : registry.length = 35 := by decide
 theorem rlp_rows : countFamily "rlp" = 21 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
-/-- #11352. One row so far; the family has no differential (see the row's note). -/
-theorem guest_rows : countFamily "guest" = 1 := by decide
+/-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
+theorem guest_rows : countFamily "guest" = 2 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
 theorem header_rows : countFamily "header" = 4 := by decide
 /-- #11344 + #11799 dep (`mpt_node_kind`). No differential for this family. -/
@@ -880,7 +900,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 21 ∧ countVerdict .domainRestricted = 9 ∧
+    countVerdict .agrees = 21 ∧ countVerdict .domainRestricted = 10 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -894,7 +914,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 4 ∧ countBasis .inspection = 7 ∧
+    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants

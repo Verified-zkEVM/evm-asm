@@ -93,6 +93,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
@@ -597,7 +598,23 @@ def routineRegistry : List RoutineEntry := [
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest (operational). Resource/ABI "
-        ++ "preconditions only → .proven")
+        ++ "preconditions only → .proven"),
+
+  -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
+  -- (7-insn JAL x0 stage_system_call). Validation prefix of
+  -- execution_requests_hash instead: five bgv_u32le reads + mono +
+  -- divisibility/cap gates → hash-entry B+300. Hash half residual.
+  -- Domain gate: mono+gates on decoded offsets (accept path only).
+  routine "execution_requests_hash" .conditional
+      (some "execution_requests_hash_validation_accept")
+      (notes := "validation-accept prefix at GuestAddrs.execution_requests_hash "
+        ++ "(B → B+300, fuel 135): prologue sp-96 + five unaligned bgv_u32le "
+        ++ "reads via bgv_u32le_offset_spec_within (flat_spec Region.wf%8=0 does "
+        ++ "NOT cover offs 4/12) + mono BNE/BLTU + five REMU/DIVU/cap gates. "
+        ++ "coverRef erh_validation_precondition_reachable (non-empty deposit "
+        ++ "192). Hash half residual. Parked: live consumers block_state_root + "
+        ++ "requests_hash_verify still String asm — correct triple exists, "
+        ++ "nothing lifts past guestImage_block_sub today")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -609,10 +626,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 50 := by decide
+theorem routineCount_eq : routineCount = 51 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 13 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 14 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -626,7 +643,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 38 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 39 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -851,5 +868,8 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+-- #11578 rescope: execution_requests_hash validation-accept prefix.
+private noncomputable abbrev _execution_requests_hash_routine_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
 end EvmAsm.Progress
