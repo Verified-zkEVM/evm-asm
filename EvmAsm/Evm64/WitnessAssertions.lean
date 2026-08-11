@@ -9,8 +9,8 @@
   ## Layout faithfulness — what the guest ACTUALLY keeps
 
   **Important**: the reserved scheme-A anchors `EXECUTION_WITNESS_AREA =
-  0xa0030000`, `SSZ_INPUT_DECODED = 0xa0020000` and `CODE_DB_BUCKETS =
-  0xa0530000` (`EvmAsm/Stateless/MemoryLayout.lean`) are *aspirational*:
+  0xa0030000` and `SSZ_INPUT_DECODED = 0xa0020000`
+  (`EvmAsm/Stateless/MemoryLayout.lean`) are *aspirational*:
   no emitted guest instruction references them, and the live RV64 call
   stack occupies `[0xa0020000, 0xa0050000)` — colliding with the first
   two. That collision is kernel-checked in

@@ -193,10 +193,10 @@ def schemeAAnchors : List GuestRegion :=
       evidence := "MemoryLayout SSZ_INPUT_DECODED; 64 KiB slab (verified-port scheme A)" },
     { name := "execution_witness_area", base := 0xa0030000, size := 0x100000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout EXECUTION_WITNESS_AREA; 1 MiB slab" },
-    { name := "node_db_buckets",        base := 0xa0130000, size := 0x400000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout NODE_DB_BUCKETS; 4 MiB slab" },
-    { name := "code_db_buckets",        base := 0xa0530000, size := 0x100000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout CODE_DB_BUCKETS; 1 MiB slab" },
+    -- GH #11995: NODE_DB_BUCKETS (0xa0130000, 4 MiB) and CODE_DB_BUCKETS
+    -- (0xa0530000, 1 MiB) removed — aspirational anchors for the deleted
+    -- Stateless/Witness/{NodeDb,CodeDb} scaffolds; no emitted instruction
+    -- ever referenced either base.
     { name := "state_tracker_area",     base := 0xa0630000, size := 0x400000,  mode := .rw, zone := .ram,
       evidence := "MemoryLayout STATE_TRACKER_AREA; legacy 4 MiB port-contract slab. "
         ++ "The persistent 2 MiB arena at 0xa0630000 is retired; the emitted guest keeps only the transient log at 0xa0830000. "
@@ -711,8 +711,7 @@ theorem schemeA_matches_layout :
     (schemeAAnchors.map GuestRegion.base) =
       [ (EvmAsm.Stateless.SSZ_INPUT_DECODED).toNat,
         (EvmAsm.Stateless.EXECUTION_WITNESS_AREA).toNat,
-        (EvmAsm.Stateless.NODE_DB_BUCKETS).toNat,
-        (EvmAsm.Stateless.CODE_DB_BUCKETS).toNat,
+        -- GH #11995: NODE_DB_BUCKETS / CODE_DB_BUCKETS anchors removed.
         (EvmAsm.Stateless.STATE_TRACKER_AREA).toNat,
         (EvmAsm.Stateless.EVM_FRAME_STACK).toNat,
         (EvmAsm.Stateless.EVM_VALUE_STACK).toNat,
@@ -910,6 +909,8 @@ def stableGuestBases : List (String × Nat) :=
 --            so three in-use regions had no disjointness or fit proof.
 -- 31 -> 27: GH #11186 reclaimed EVM_MEMORY + three crypto scratches into .bss
 --            (four scheme-A anchors removed; section bases still 8).
-theorem stableGuestBases_length : stableGuestBases.length = 27 := by decide
+-- 27 -> 25: GH #11995 removed the aspirational NODE_DB/CODE_DB bucket anchors
+--            (never referenced by any emitted instruction).
+theorem stableGuestBases_length : stableGuestBases.length = 25 := by decide
 
 end EvmAsm.Codegen.RegionMap

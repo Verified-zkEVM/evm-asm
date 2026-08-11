@@ -300,7 +300,14 @@ about the routine. The row therefore stays `machineOnly` until #11711 supplies a
 fuel-sensitive chain predicate; regrading it earlier would claim a differential transfer that \
 does not exist. Separately noted on #11341: the machine relation accepts a list item whose \
 SPAN fits without validating its interior, where `decode_joined_encodings` decodes every \
-item — a looser-than-reference shape whose reachability is NOT established" },
+item — a looser-than-reference shape whose reachability is NOT established. CLAUSE-FIDELITY \
+ATTEMPT: the byte-string item clauses are discharged by `decodeAux_of_singleByte` / \
+`decodeAux_of_shortBytes`, but the recursive LIST-PAYLOAD clause is defeated. `decodeAux` \
+recurses into `decodeItems nDepth payload` and is fuel-sensitive, while `DecodeChain` requires \
+one fuel-insensitive `∀ m` decoder per item. The concrete `[0xc3,0xc2,0x81,0x00]` witness \
+(`RlpListCountItemsBridge.lean:571-584`) is accepted by the machine span-only list arm and \
+rejected by `decodeAux`; reachability in a live accepted MPT path is not established. No \
+complete table or ported regrade is therefore claimed" },
   { family := "rlp", routine := "rlp_list_nth_item",
     spec := some "rlpListNthItem_spec_within",
     verdict := .agrees, basis := .bridged,
@@ -393,12 +400,21 @@ not here — this file deliberately does not import Codegen (see the Witnesses b
     reference := "inverse of withdrawalToRlpItem (SpecRef/BlocksRlp): RLP → (index, \
 validatorIndex, address, amount)",
     note := "whole-routine triple `wdPrologue ;; wdBBField0` proven against LOCAL \
-`Decoded`/`DecodeFailure` predicates. SpecRef carries withdrawal ENCODE (`withdrawalToRlpItem`) \
-and SSZ decode (`sszToWithdrawal`) but NO RLP decoder, so there is nothing to bridge to and the \
-differential does not transfer — `machineOnly`, not `bridged`. Registered in #11291; this row \
-added in #11342 because a witnessed routine with no Correspondence row passed the #11335 gate \
-vacuously (absence is weaker than an `unproven` row yet was not caught). Witnessed in \
-`Progress/Routines.lean`, not here — this file deliberately does not import Codegen." },
+`Decoded`/`DecodeFailure` predicates. CLAUSE-FIDELITY ATTEMPT against \
+`execution-specs/forks/amsterdam/blocks.py:36-50` and the port's \
+`withdrawalToRlpItem`: list arity/order (four fields) matches; address width (20 bytes) \
+matches; scalar direction (canonical minimal big-endian bytes, U64 width for index and \
+validator index) matches the strict local decoder. The defeated clause is the CONVERSE \
+reconstruction needed to consume that encoder: no SpecRef RLP decoder theorem produces a \
+`Withdrawal` from arbitrary decoded bytes, and `WithdrawalItemReconstructs` remains unproved \
+because scalar inversion needs canonicality plus the private `scalarItem` definition \
+(`BlocksRlpRoundTrip.lean:29-42`). A leading-zero scalar is deliberately outside the \
+encoder image, so the round-trip direction alone cannot transfer the machine theorem. \
+SpecRef also carries SSZ decode but no consumed RLP reconstruction; the differential does not \
+transfer — `machineOnly`, not `ported`/`bridged`. Registered in #11291; this row added in \
+#11342 because a witnessed routine with no Correspondence row passed the #11335 gate \
+vacuously. Witnessed in `Progress/Routines.lean`, not here — this file deliberately does not \
+import Codegen." },
 
   -- BAL canonical ordering. The model is differential-backed; every guest
   -- routine is unproven because BalCanonicalSort.lean defines only Strings —
@@ -465,32 +481,49 @@ regOwn export discarded information the machine preserves and blocked every cons
 that needed the path. PRE unchanged (kindCallerPre already carried concrete v18..v21 \
 via countAmbient). WHY `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has \
 no executable differential, and the top triple is stated over the operational result \
-rather than over SpecRef `kindTag` — callers that want `kindTag` under WF use the pure \
-bridge `mptNodeKindGuest_eq_kindTag` (MptNodeKindSpec). The pure \
+rather than over SpecRef `kindTag` — no current caller uses the pure bridge \
+`mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF first needs the \
+missing Result-to-WF/decode bridge. The pure \
 `MptAssertions.mptNodeKindSpec` is LOOSER (2 < len → branch) and STALE vs the arity-17 \
-guest; it is NOT the machine post. FULL DOMAIN: no input-domain gate (ABI hyps only — \
+guest; it is NOT the machine post. CLAUSE-FIDELITY ATTEMPT against \
+`incremental_mpt.py:917-970`: full-RLP envelope and 17/2 arity are present in the \
+SpecRef decoder; compact-path flag/nibble behavior is now separately proved by \
+`compact_to_nibbles_eq_hpDecode`. The defeated clause is the CONSUMER tie: the machine \
+triple returns operational `MptNodeKindResult` statuses and path cells, while \
+`decodeNodeItemAux` continues through leaf/extension value and child-reference checks. \
+`mptNodeKindGuest_eq_kindTag` only proves the pure mirror under `MptNode.WF` and is not \
+consumed by the operational triple. No theorem states that triple as the SpecRef node \
+decode result, so no complete port-fidelity table exists and `.machineOnly` remains. FULL \
+DOMAIN: no input-domain gate (ABI hyps only — \
 region wf, alignment, stack free for nth frame). coverRef \
 `mpt_node_kind_precondition_reachable` (branch/ext/leaf/fail). Witnessed in \
 Progress/Routines.lean. Walk body (`mpt_walk`) still open under #11799" },
 
   -- #11799 residual audit: hp_decode_nibbles machine predated registration.
   { family := "mpt", routine := "hp_decode_nibbles",
-    spec := some "hp_decode_nibbles_spec",
-    verdict := .agrees, basis := .machineOnly,
-    reference := "hpDecode / compact_to_nibbles guest mirror \
-(Evm64/MptAssertions.lean; SpecRef compact_to_nibbles is STRICTER on head nibbles — \
-see HpDecodeNibblesSAsm docstring and GH #10528)",
-    note := "WHOLE-ROUTINE cpsTripleWithin (HpDecodeNibblesSAsmPaths) via abiFrame. \
-Post is guest-exact `hdnRes` (= `hpDecode`); `hdnRes_eq_hpDecode` is definitional. \
-WHY `.machineOnly`: MPT family has no executable differential; SpecRef \
-`compact_to_nibbles` rejects head nibbles the guest accepts (lenient padding), so \
-the reference is STRICTER than the guest on malformed heads — not a walk residual \
-(the walk feeds well-formed HP from RLP). FULL DOMAIN: ABI hyps only. Registered \
-under #11799 residual audit (machine predated the row — 11637 inverse class). \
-callWithin adapter `hp_decode_nibbles_call_spec_within` for mpt_walk ext/leaf arms. \
-Witnessed in Progress/Routines.lean. JOINS #11341 OPEN CLASS: `.agrees` on \
-`.machineOnly` basis (differential does not transfer); taxonomy not closed — \
-flagged not resolved." },
+    spec := some "hp_decode_nibbles_spec_ported",
+    verdict := .agrees, basis := .ported,
+    reference := "compact_to_nibbles (`execution-specs/src/ethereum/forks/amsterdam/\
+incremental_mpt.py:859-889`), ported at SpecRef/IncrementalMpt.lean:71-89",
+    note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`), consumed by \
+`hp_decode_nibbles_spec_ported` in `Codegen/Programs/HpDecodeCompactBridge.lean`: \
+(1) input/empty: Python indexes `compact[0]`, so empty input rejects; the port \
+does the same and the bridge ties its error to guest `none`; (2) flags: Python \
+uses bits 1 and 0 of `compact[0] >>> 4`, while the guest branches on `% 4`; \
+`flag_bits` proves equality for all 256 head bytes; (3) odd path: Python \
+prepends `compact[0] &&& 0x0f` exactly when bit 0 is set; \
+`compact_to_nibbles_eq_hpDecode` plus `hpUnpackPairs_eq_keyToNibbles` proves \
+the same tuple; (4) even path: Python omits the low head nibble and expands only \
+the tail; the same bridge proves that shape; (5) result representation: the \
+port returns `(nibbles,is_leaf)` / error and `hpDecode` returns `(is_leaf,nibbles)` \
+/ `none`; the bridge proves the checked reordering and error correspondence. \
+No clause is a prose assumption. The port-shaped post is reconciled to the \
+machine post by `hdnPortPost_eq_hdnCallerPost`, and the whole theorem consumes \
+that rewrite. WHY `.ported` AND NOT `.bridged`: MPT has no executable differential. \
+FULL DOMAIN: ABI/resource hypotheses only. The existing `hp_decode_nibbles_spec` \
+machine contract and `hp_decode_nibbles_call_spec_within` adapter remain the \
+same; this row now records their SpecRef tie rather than calling it a guest-only \
+mirror." },
 
   -- #11516: account-leaf decode, the pairing that issue says must be stated.
   { family := "account", routine := "account_decode",
@@ -950,8 +983,8 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
-    countBasis .ported = 8 ∧
-    countBasis .machineOnly = 6 ∧ countBasis .inspection = 7 ∧
+    countBasis .ported = 9 ∧
+    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
