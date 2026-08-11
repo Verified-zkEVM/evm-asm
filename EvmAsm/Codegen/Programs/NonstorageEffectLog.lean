@@ -27,35 +27,13 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
-
-/-- Capacity (entries) of the non-storage effect log — touched non-recipient accounts per tx.
-    Set to 65536 (bmvmx.5.5.7.3, final capacity-chain slice): now that BOTH exec-vs-BAL
-    comparators are linear — the FORWARD binary-searches the sorted agg (#9018) and the REVERSE
-    _covers uses a matched-bitmap over the sorted agg (#9021) — there is no remaining super-linear
-    consumer, so the cap can cover the full 200M-gas worst case.
-
-    Worst-case bound: a nonzero value-CALL appends TWO raw records, the caller debit and the callee
-    credit (ChildFrameHandlers .61.6.8), while its cheapest regular-gas charge is an existing warm
-    account: GAS_WARM_ACCESS(100) + GAS_CALL_VALUE(10300) = 10400. Thus execution contributes
-      2 * floor(200_000_000 / 10400) = 38_460
-    raw records. CREATE and SELFDESTRUCT producer paths are more expensive per emitted effect.
-    `block_verdict_withdrawal_nonstorage_effects` appends withdrawals to this SAME raw log, and
-    withdrawals are bounded separately to 16 records, so the full stream bound is
-      38_460 + 16 = 38_476.
-    This uses the regular-gas budget only: EIP-7928 state gas is a separate block budget and cannot
-    reduce the execution bound. The withdrawal contributor is named here because "separately
-    bounded" is true of its count, but false of the storage it shares. The overflow flag remains a
-    fail-closed runtime guard, rather than a verdict assumption.
-
-    Cost: live consumers iterate over the recorded `count`, never `cap`, so a larger cap is
-    pure reserved BSS. The exec_nonstorage_effect_log and shared radix-sort buffers are sized
-    from this cap, so they scale automatically. -/
-def nonstorageEffectLogCap : Nat := 38476
 
 /-- The resolver in AccountWriteMap emits the same AccountState capacity as
     CreateCodeEffectLog. Keep the cross-module fact kernel-checked so a future
@@ -439,6 +417,8 @@ def ziskNonstorageEffectLogPrologue : String :=
   accountStateCopyFunction ++ "\n" ++
   accountStateAppendPendingFunction ++ "\n" ++
   accountStateRecordNonstorageFunction ++ "\n" ++
+  accountWriteRecordFunction ++ "\n" ++
+  accountWritesUndoPushFunction ++ "\n" ++
   ".Lnsel_done:"
 
 def ziskNonstorageEffectLogDataSection : String :=
@@ -451,30 +431,16 @@ def ziskNonstorageEffectLogDataSection : String :=
   "nsel_qa:\n  .zero 32\n" ++
   "nsel_pb:\n  .zero 32\n" ++
   "nsel_qb:\n  .zero 32\n" ++
-  nonstorageEffectLogData ++
-  codeStateData
+  nonstorageEffectLogData ++ "\n" ++
+  codeStateData ++ "\n" ++
+  nonstorageEffectSharedScratch ++ "\n" ++
+  accountWriteMapDataSection ++ "\n" ++
+  accountStateProbeOnlyData
 
 def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskNonstorageEffectLogPrologue
   dataAsm     := ziskNonstorageEffectLogDataSection
 }
-
-/-- Shared AccountState and radix-sort scratch used by live dispatcher paths. -/
-def nonstorageEffectSharedScratch : String :=
-  -- This is runtime scratch, not initialized input data.  Name the section
-  -- explicitly because the main dispatcher appends it while emitting `.data`.
-  -- In particular, AccountState's phase alias must cover both radix buffers
-  -- in the same NOBITS region.
-  ".section .bss, \"aw\", @nobits\n" ++
-  ".balign 8\n" ++
-  -- The per-transaction AccountState journal and sender-count radix buffers share
-  -- this NOBITS region; both are live dispatcher storage.
-  "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
-  "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
-  ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
-  ".set account_state_delete, account_state_pending + " ++ toString (accountStateTableBytes + accountStateCreatedCapacity * 32) ++ "\n" ++
-  -- Callers append initialized dispatcher storage after this shared scratch.
-  ".section .data\n"
 
 end EvmAsm.Codegen

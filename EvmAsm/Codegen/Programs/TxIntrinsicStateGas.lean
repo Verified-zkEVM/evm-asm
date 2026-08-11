@@ -207,14 +207,14 @@ def eip7702AuthorityAsOfFunction : String :=
 
     The live EIP-7702 intrinsic-state-gas writer.  Unlike the frozen legacy
     replay routine, this executes once at the transaction boundary and writes
-    its accepted authorizations directly to AccountState's pending overlay.
+    its accepted authorizations directly to the account-writes overlay.
     AccountState then provides the as-of state to the next transaction only
     after the ordinary success commit.
 
     a0/a1: inner RLP transaction bytes; a2: sender address; a3: tx type.
     This is the single execution-time traversal for EIP-7702 preparation:
     it charges the state-dependent costs, records the regular ACCOUNT_WRITE
-    component, and writes accepted authorities to AccountState's pending
+    component, and writes accepted authorities to the account-writes
     overlay plus the BAL effects at the same authorization point. The dispatcher invokes it after the state-gas
     reservoir exists and before prepare_dispatch consumes the staged charge.
     Bad individual authorizations are ignored, matching `validate_authorization`.

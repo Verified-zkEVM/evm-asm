@@ -109,7 +109,7 @@ def ziskStatelessVerdictV2ProbeUnit : BuildUnit := {
     -- Re-emitting them in this debug-only helper block duplicates symbols.
     -- GH #10619: this debug unit mirrors the guest's handlers and helpers, so every
     -- routine the read containers hook is present here too -- h_SLOAD/h_SSTORE,
-    -- account_state_commit_pending, code_at_header_state_root,
+    -- code_at_header_state_root,
     -- dispatch_tx_runtime_code, block_verdict_withdrawal_nonstorage_effects. It
     -- therefore needs the recorders, both tracked accessors and the promotion
     -- boundary, or it fails to LINK with undefined references to

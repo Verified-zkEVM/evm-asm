@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.HashBridgeProg
 import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
@@ -96,21 +97,27 @@ def codeStateEntryBytes : Nat := 64
 def codeStateEntryCapacity : Nat := 8192
 def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
 
-/-! ## Bounded execution AccountState
+/-! ## Bounded execution AccountState (pending/durable journal retired, #11978)
 
-    AccountState is the emitted execution model: a complete account snapshot
-    is written for every execution mutation, so a later read has one layered
-    source of truth.  Pending entries form a per-transaction journal; durable
-    entries retain the latest successful block state.  CodeState-named helpers
-    are compatibility aliases or source-only migration scaffolding, not a
-    second execution authority.  Both AccountState layers are fixed arenas.
+    AccountState was the emitted execution model: a complete account snapshot
+    per execution mutation, with a per-transaction pending journal and a
+    durable latest-state map.  The account-writes migration (2ce981df8) moved
+    transaction boundaries to `account_writes_*`, and #11978 deleted the
+    journal outright: `account_state_pending_count`, `account_state_scratch`,
+    and `account_state_durable` had zero references in the guest `.text`, and
+    their consumers (`account_state_commit_pending`,
+    `account_state_upsert_durable`, `account_state_publish_sender_inclusion`,
+    `code_state_final_balance_nonzero`) were linked into no image.  What
+    survives in the guest: the created/delete sets, the live counts and
+    resolver scratch in `codeStateData`, and the EIP-7702 delegation resolver.
+    The capacity constants remain because `nonstorageEffectSharedScratch`
+    derives the created/delete table offsets from them and the (currently
+    unlinked, #11987) probe scaffolding names them.
 
     38,460 entries is the gas-derived bound.  The lowest-cost operation that
     changes two accounts is a value transfer; the existing 200M-gas bound is
     38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
-    cost, keeping its two-account writes below this cap.  Pending is reset at
-    every transaction boundary, while durable stores one latest entry per
-    address for the block. -/
+    cost, keeping its two-account writes below this cap. -/
 def accountStateEntryBytes : Nat := 128
 def accountStateEntryCapacity : Nat := 38460
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
@@ -128,10 +135,11 @@ def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCa
                   code-resolved, auth-nonce)
       +96  reserved (32 bytes; retained so future state fields do not change stride)
 
-    A pending table deliberately appends complete snapshots rather than updating
-    an entry in place: frame rollback is then exactly a high-water-mark rewind.
-    The durable table uses the same record shape but upserts by real address,
-    so its size is bounded by distinct accounts touched in the block. -/
+    This record shape is retained for the probe-side snapshot producers
+    (`account_state_record_nonstorage`, `code_state_record_code_effect`).  The
+    pending-journal semantics the shape was designed for — append-only
+    snapshots with high-water-mark rollback, plus a durable real-address
+    upsert map — were retired in #11978 together with the journal cells. -/
 
 /-! ## account_state_find
 
@@ -190,104 +198,6 @@ def accountStateAppendPendingFunction : String :=
   "  li a0, 1\n" ++
   ".Lasap_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 32; ret"
-
-/-! ## account_state_upsert_durable
-
-    a0 = full snapshot, a1 = durable base, a2 = durable count pointer,
-    a3 = capacity.  The durable table is a real-address latest map: a present
-    address is overwritten, otherwise one fixed slot is appended. -/
-def accountStateUpsertDurableFunction : String :=
-  "account_state_upsert_durable:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a3, 40(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  ld t0, 0(s2); bgtu t0, s3, .Lasud_over; mv a0, s0; mv a1, s1; mv a2, t0; mv a3, s3; jal ra, account_state_find; bnez a0, .Lasud_copy\n" ++
-  "  ld t0, 0(s2); bgeu t0, s3, .Lasud_over; slli t1, t0, 7; add a0, s1, t1; mv t1, a0; addi t0, t0, 1; sd t0, 0(s2); j .Lasud_copy_dst\n" ++
-  ".Lasud_copy:\n" ++
-  "  mv t1, a0\n" ++
-  ".Lasud_copy_dst:\n" ++
-  "  mv a0, s0; mv a1, t1; jal ra, account_state_copy; li a0, 0; j .Lasud_ret\n" ++
-  ".Lasud_over:\n" ++
-  "  li a0, 1\n" ++
-  ".Lasud_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a3, 40(sp); addi sp, sp, 48; ret"
-
-/-! ## account_state_commit_pending
-
-    Commit the successful transaction's snapshot journal into the durable
-    block-state map.  Transaction failure and child-frame reversion never call
-    this helper: they rewind the pending count to the saved high-water mark.
-    EIP-161 deletion is applied after pending snapshots merge: therefore a
-    same-transaction CALL can still see its created contract's code, while the
-    next transaction sees the durable cleared-account snapshot. -/
-def accountStateCommitPendingFunction : String :=
-  "account_state_commit_pending:\n" ++
-  -- The generic read-set promotion is deliberately NOT here.  The spec
-  -- incorporates storage/account/code reads for every transaction, including
-  -- a preparation failure that bypasses this AccountState commit; MTxRuntime
-  -- owns that unconditional transaction-boundary call.
-  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
-  -- GH #10645: SELFDESTRUCT storage rows are execution reads too.  Promote
-  -- them while the tx-level read set is still live; this helper is reached only
-  -- from successful transaction finalization.
-  "  jal ra, account_state_promote_delete_reads\n" ++
-  -- r59nm: the STORAGE half of the merge is NOT here.  This function is called
-  -- on a commit predicate that also fires for a FAILED body when the
-  -- post-preparation coverage point was reached, which is correct for
-  -- AccountState and wrong for storage_writes.  The storage decision is made on
-  -- tx status alone in BlockVerdictMtxRuntime.  Generic read promotion is at
-  -- that routine's unconditional transaction-boundary join.
-  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp)\n" ++
-  "  la t0, account_state_pending_count; ld s0, 0(t0); li t0, " ++ toString accountStateEntryCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
-  ".Lascp_loop:\n" ++
-  "  bgeu s1, s0, .Lascp_clear; slli t0, s1, 7; la s2, account_state_pending; add s2, s2, t0; ld t1, 88(s2); andi t1, t1, 1; beqz t1, .Lascp_next\n" ++
-  "  mv a0, s2; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over\n" ++
-  ".Lascp_next:\n" ++
-  "  addi s1, s1, 1; j .Lascp_loop\n" ++
-  ".Lascp_clear:\n" ++
-  -- EIP-6780's deferred delete set is also the authoritative source for the
-  -- transaction AccountWrite in-place clear.  Apply it before consuming the
-  -- set below, so the subsequent BAL builder walk and block incorporation see
-  -- the same final account fields as AccountState.
-  "  jal ra, account_writes_apply_deletes; bnez a0, .Lascp_over\n" ++
-  "  la t0, account_state_delete_count; ld s0, 0(t0); li t0, " ++ toString accountStateDeleteCapacity ++ "; bgtu s0, t0, .Lascp_over; li s1, 0\n" ++
-  ".Lascp_delete_loop:\n" ++
-  "  bgeu s1, s0, .Lascp_finish; slli t0, s1, 5; la s2, account_state_delete; add s2, s2, t0; ld t1, 24(s2); beqz t1, .Lascp_delete_next\n" ++
-  -- EIP-161 preserves an empty-code account whose final balance is nonzero.
-  -- The AccountState final snapshot must therefore distinguish `exists, no
-  -- code` from a fully empty account using execution state, never the BAL
-  -- comparison input.
-  "  mv a0, s2; jal ra, code_state_final_balance_nonzero; li t1, 2; beq a0, t1, .Lascp_over; li t1, 17; beqz a0, .Lascp_delete_flags; li t1, 51\n" ++
-  ".Lascp_delete_flags:\n" ++
-  "  sd t1, 40(sp)\n" ++
-  "  mv a0, s2; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Lascp_tombstone_found\n" ++
-  "  la t0, account_state_scratch; li t1, 0\n" ++
-  ".Lascp_tombstone_zero:\n" ++
-  "  li t2, 128; beq t1, t2, .Lascp_tombstone_addr; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Lascp_tombstone_zero\n" ++
-  ".Lascp_tombstone_addr:\n" ++
-  "  li t1, 0\n" ++
-  ".Lascp_tombstone_copy_addr:\n" ++
-  "  li t2, 20; beq t1, t2, .Lascp_tombstone_new; add t2, s2, t1; lbu t3, 0(t2); la t4, account_state_scratch; add t4, t4, t1; sb t3, 0(t4); addi t1, t1, 1; j .Lascp_tombstone_copy_addr\n" ++
-  ".Lascp_tombstone_new:\n" ++
-  "  ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_over; la t0, account_state_scratch; sd t1, 88(t0); la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; bnez a0, .Lascp_over; j .Lascp_delete_next\n" ++
-  ".Lascp_tombstone_found:\n" ++
-  "  mv t0, a0; ld t1, 40(sp); li t2, 51; beq t1, t2, .Lascp_tombstone_nonzero\n" ++
-  ".Lascp_tombstone_write:\n" ++
-  "  sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sd zero, 56(t0); sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0); j .Lascp_delete_next\n" ++
-   -- Balance-preserved tombstone (flags 51): pin clear_account_preserving_balance
-   -- (execution-specs state_tracker.py:536-557) zeros nonce + code and keeps
-   -- balance only. Fully-deleted path above already zeros nonce@+64; this path
-   -- must too — otherwise a stale nonce makes account_deployable permanently
-   -- False and every consumer of durable nonce reads a wrong post-delete value.
-   ".Lascp_tombstone_nonzero:\n" ++
-   "  sd zero, 64(t0); sd zero, 72(t0); sd zero, 80(t0); ld t1, 40(sp); sd t1, 88(t0)\n" ++
-   ".Lascp_delete_next:\n" ++
-  "  addi s1, s1, 1; j .Lascp_delete_loop\n" ++
-  ".Lascp_finish:\n" ++
-  "  la t0, account_state_pending_count; sd zero, 0(t0); la t0, account_state_created_count; sd zero, 0(t0); la t0, account_state_delete_count; sd zero, 0(t0); li a0, 0; j .Lascp_ret\n" ++
-  ".Lascp_over:\n" ++
-  "  la t0, account_state_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lascp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
 /-! ## account_state_record_nonstorage
 
@@ -426,36 +336,6 @@ def accountStateRecordCodeFunction : String :=
   ".Lasrc_ret:\n" ++
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); addi sp, sp, 48; ret"
 
-/-! ## account_state_publish_sender_inclusion
-
-    Publish the transaction sender's post-increment nonce to the durable block
-    overlay.  Unlike authorization effects, this survives both an exceptional
-    top-level body and authorization-preparation OOG, matching
-    `process_transaction`'s `increment_nonce` before `prepare_message` in
-    execution-specs.  The sender balance is deliberately not snapshotted here:
-    its later value, refund, and coinbase-credit transitions require a complete
-    balance-specific state model.
-
-    a0 = canonical sender address, a1 = post-increment nonce. -/
-def accountStatePublishSenderInclusionFunction : String :=
-  "account_state_publish_sender_inclusion:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd a3, 24(sp); mv s0, a0; mv s1, a1\n" ++
-  "  mv a0, s0; la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; bnez a0, .Laspsn_clone\n" ++
-  "  la t0, account_state_scratch; li t1, 0\n" ++
-  ".Laspsn_zero:\n" ++
-  "  li t2, 128; beq t1, t2, .Laspsn_addr; add t3, t0, t1; sd zero, 0(t3); addi t1, t1, 8; j .Laspsn_zero\n" ++
-  ".Laspsn_clone:\n" ++
-  "  la a1, account_state_scratch; jal ra, account_state_copy\n" ++
-  ".Laspsn_addr:\n" ++
-  "  la t0, account_state_scratch; li t1, 0\n" ++
-  ".Laspsn_addr_loop:\n" ++
-  "  li t2, 20; beq t1, t2, .Laspsn_fields; add t2, s0, t1; lbu t3, 0(t2); add t2, t0, t1; sb t3, 0(t2); addi t1, t1, 1; j .Laspsn_addr_loop\n" ++
-  ".Laspsn_fields:\n" ++
-  "  sd s1, 64(t0); ld t1, 88(t0); ori t1, t1, 67; sd t1, 88(t0)\n" ++
-  "  la a0, account_state_scratch; la a1, account_state_durable; la a2, account_state_durable_count; li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_upsert_durable; beqz a0, .Laspsn_ret; la t0, account_state_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Laspsn_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld a3, 24(sp); addi sp, sp, 40; ret"
-
 /-! ## account_write_touch_current
 
     First TOUCHED producer (#11329 / entry6). Publishes a TOUCHED-only
@@ -501,39 +381,6 @@ def accountStateCreatedContainsFunction : String :=
   "  li a0, 0; ret\n" ++
   ".Lascc_overflow:\n" ++
   "  li a0, 2; ret"
-
-/-! ## code_state_final_balance_nonzero
-
-    Resolve the final EIP-161 existence predicate for a deferred SELFDESTRUCT
-    deletion.  The primary source is the already-committed execution
-    `AccountState` snapshot; an authenticated pre-block account lookup is used
-    only when execution has no authoritative balance/nonce snapshot.  BAL is a
-    comparison input and must never decide an execution-visible account state.
-
-    a0 = canonical 20-byte BE address
-    returns a0 = 0 EIP-161-empty, 1 exists (nonzero balance or nonce),
-                 2 authenticated fallback unavailable. -/
-def codeStateFinalBalanceNonzeroFunction : String :=
-  "code_state_final_balance_nonzero:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd a3, 16(sp); sd a4, 24(sp); sd a5, 32(sp); mv s0, a0\n" ++
-  "  la a1, account_state_durable; la t0, account_state_durable_count; ld a2, 0(t0); li a3, " ++ toString accountStateEntryCapacity ++ "; jal ra, account_state_find; beqz a0, .Lcsfb_preblock; ld t0, 88(a0); andi t1, t0, 32; beqz t1, .Lcsfb_preblock\n" ++
-  "  ld t1, 32(a0); ld t2, 40(a0); or t1, t1, t2; ld t2, 48(a0); or t1, t1, t2; ld t2, 56(a0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 64(a0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
-  ".Lcsfb_zero:\n" ++
-  "  li a0, 0; j .Lcsfb_ret\n" ++
-  ".Lcsfb_nonzero:\n" ++
-  "  li a0, 1; j .Lcsfb_ret\n" ++
-  -- A missing authoritative execution snapshot inherits the authenticated
-  -- pre-block balance/nonce.  This is normally an absent same-tx CREATE,
-  -- therefore EIP-161-empty, but also handles a pre-funded CREATE target.
-  ".Lcsfb_preblock:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_resolver_pre_acct; jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .Lcsfb_pre_found; li t0, 1; bne a0, t0, .Lcsfb_unavailable; li a0, 0; j .Lcsfb_zero\n" ++
-  ".Lcsfb_pre_found:\n" ++
-  "  la t0, account_resolver_pre_acct; ld t1, 8(t0); ld t2, 16(t0); or t1, t1, t2; ld t2, 24(t0); or t1, t1, t2; ld t2, 32(t0); or t1, t1, t2; bnez t1, .Lcsfb_nonzero; ld t1, 0(t0); bnez t1, .Lcsfb_nonzero; j .Lcsfb_zero\n" ++
-  ".Lcsfb_unavailable:\n" ++
-  "  li a0, 2\n" ++
-  ".Lcsfb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld a3, 16(sp); ld a4, 24(sp); ld a5, 32(sp); addi sp, sp, 40; ret"
 
 /-! ## codeStateStatusIsLiveAsm
 
@@ -608,10 +455,10 @@ def codeStateData : String :=
   -- callable dispatcher deliberately leave it unread and unwritten.
   "runtime_mtx_active:\n  .zero 8\n" ++
   -- tqj1m: AccountState is the sole execution-state source.  The old
-  -- CodeState tables were retired after the atomic reader cutover; its small
-  -- scalar names below remain only as compatibility guards for the retained
-  -- comparison-record producer.
-  "account_state_pending_count:\n  .zero 8\n" ++
+  -- CodeState tables were retired after the atomic reader cutover.
+  -- #11978: account_state_pending_count was deleted outright (zero guest
+  -- .text references); account_state_durable_count remains as a
+  -- compatibility cell for the retained comparison-record producer.
   "account_state_durable_count:\n  .zero 8\n" ++
   "account_state_created_count:\n  .zero 8\n" ++
   "account_state_delete_count:\n  .zero 8\n" ++
@@ -621,7 +468,43 @@ def codeStateData : String :=
   -- account_resolve_execution_state output for CREATE code publication:
   -- nonce@0, balance@8..40, code pointer@40, code length@48, present@56.
   ".balign 8\n" ++
-  "create_resolved_account_state:\n  .zero 64\n" ++
+  "create_resolved_account_state:\n  .zero 64\n"
+
+/-- Shared scratch block: the live created/delete AccountState tables are
+    `.set`-carved inside it; the `account_state_pending`/`nea_sort_*` aliases
+    are probe-only since the #11533 retirement. -/
+def nonstorageEffectSharedScratch : String :=
+  -- This is runtime scratch, not initialized input data.  Name the section
+  -- explicitly because the main dispatcher appends it while emitting `.data`.
+  -- In particular, AccountState's phase alias must cover both radix buffers
+  -- in the same NOBITS region.
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  -- The retired per-transaction AccountState journal alias and the
+  -- sender-count radix buffers share this NOBITS region (probe-only since
+  -- #11533); the live created/delete tables are `.set`-carved inside it.
+  "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
+  ".set account_state_delete, account_state_pending + " ++ toString (accountStateTableBytes + accountStateCreatedCapacity * 32) ++ "\n" ++
+  -- Callers append initialized dispatcher storage after this shared scratch.
+  ".section .data\n"
+
+/-- Probe-only AccountState journal cells: `account_state_pending_count`,
+    `account_state_scratch`, `account_state_durable`.
+
+    #11978 deleted these from `codeStateData` with zero guest `.text`
+    references (the journal lifecycle retired in the account-writes
+    migration); the guest `.bss` keeps the full 4,923,040-byte shrink. The
+    `zisk_*_effect_log` probes still compose `account_state_record_nonstorage`
+    / `account_state_record_code`, whose journal logic (dedup find, durable
+    fallback, scratch staging) is written against these cells — so they live
+    here, linked by the two probe data sections only. Do NOT add this def to
+    the guest (`Dispatch.lean`); that would undo #11978. -/
+def accountStateProbeOnlyData : String :=
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  "account_state_pending_count:\n  .zero 8\n" ++
   ".balign 32\n" ++
   "account_state_scratch:\n  .zero 128\n" ++
   ".balign 32\n" ++
@@ -947,6 +830,9 @@ def ziskCreateCodeEffectLogPrologue : String :=
   codeStateAddressSetFlagFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
   findCodeEffectByHashFunction ++ "\n" ++
+  accountWriteRecordFunction ++ "\n" ++
+  accountWritesUndoPushFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
   ".Lccel_done:"
 
 def ziskCreateCodeEffectLogDataSection : String :=
@@ -957,8 +843,13 @@ def ziskCreateCodeEffectLogDataSection : String :=
   "ccel_addr_c:\n  .zero 20\n" ++
   "ccel_code_a:\n  .zero 8\n" ++
   "ccel_code_b:\n  .zero 8\n" ++
-  createCodeEffectLogData ++
-  codeStateData
+  createCodeEffectLogData ++ "\n" ++
+  codeStateData ++ "\n" ++
+  nonstorageEffectSharedScratch ++ "\n" ++
+  accountWriteMapDataSection ++ "\n" ++
+  accountStateProbeOnlyData ++ "\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n  .zero 200\n"
 
 def ziskCreateCodeEffectLogProbeUnit : BuildUnit := {
   body        := NOP
