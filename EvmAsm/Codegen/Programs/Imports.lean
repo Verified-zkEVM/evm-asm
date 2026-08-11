@@ -139,6 +139,7 @@ import EvmAsm.Codegen.Programs.MptWalkResidualChain
 import EvmAsm.Codegen.Programs.MptWalkSetupToKind
 import EvmAsm.Codegen.Programs.HpDecodeNibblesCallSAsm
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
+import EvmAsm.Codegen.Programs.MptNodeKindWire
 import EvmAsm.Codegen.Programs.MptNodeKindMachine
 import EvmAsm.Codegen.Programs.MptNodeKindBody
 import EvmAsm.Codegen.Programs.MptNodeKindTop

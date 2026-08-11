@@ -82,7 +82,7 @@ def balCodePreimagesCreateCollisionFunctions : String :=
   "  add a0, t4, t1; addi a0, a0, 1       # skip SEC1 0x04 prefix\n" ++
   "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, bsg_data_off; ld a0, 0(t0); la t0, bsg_data_len; ld a1, 0(t0)\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lbcc_next_tx\n" ++
   "  la t0, bsg_tx_nonce; sd a0, 0(t0)\n" ++
   "  la a0, bbcv_sender_addr; la t0, bsg_tx_nonce; ld a1, 0(t0); la a2, bbcv_create_addr\n" ++
@@ -198,7 +198,7 @@ def balCodePreimagesCreateCollisionFunctions : String :=
   "  add a0, t4, t1; addi a0, a0, 1\n" ++
   "  la a1, bbcv_sender_addr; jal ra, address_from_pubkey\n" ++
   "  la t0, bsg_data_off; ld a0, 0(t0); la t0, bsg_data_len; ld a1, 0(t0)\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lbctc2_next_tx\n" ++
   "  la t0, bsg_tx_nonce; sd a0, 0(t0)\n" ++
   "  la a0, bbcv_sender_addr; la t0, bsg_tx_nonce; ld a1, 0(t0); la a2, bbcv_create_addr\n" ++
