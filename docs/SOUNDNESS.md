@@ -1,8 +1,10 @@
-# Soundness preconditions on the guest's inputs
+# Soundness assumptions for the guest
 
-This document records **assumptions the guest is entitled to make about its inputs**. They are not
-implementation details: a caller that violates one is outside the specified interface, and the
-guest's behaviour on such an input carries no soundness guarantee.
+This document separates two kinds of soundness assumptions. Section 1 records **assumptions the
+guest is entitled to make about its inputs**. They are not implementation details: a caller that
+violates one is outside the specified interface, and the guest's behaviour on such an input carries
+no soundness guarantee. Section 2 records the cryptographic assumptions underlying commitment
+checks; those are not caller-violable input preconditions.
 
 Each entry states the assumption, why the guest needs it, and what happens if it is broken.
 
@@ -58,6 +60,62 @@ the 8-byte account field is pervasive through the decoder, the state assertions 
 account-write path. Loosening a single gate would leave the representation assumption in place
 everywhere else while removing the one place it was visible; and since the failure direction is
 a false reject, the narrow gate denies the caller nothing it was ever entitled to.
+
+---
+
+## 2. Cryptographic assumptions (not input preconditions)
+
+Section 1 records assumptions about caller-supplied inputs. The assumption below is different:
+it is a computational assumption about the cryptographic functions used by the commitment checks.
+It is not a caller-violable input precondition, and no guest gate can discharge it by rejecting a
+particular input.
+
+### Collision resistance of commitment hashes
+
+**Assumption.** Keccak-256 is collision resistant for the Keccak commitments used by the BAL,
+post-state-root, and block-hash checks, and SHA-256 is collision resistant for the EIP-7685
+execution-requests commitment. In practical terms, it must be infeasible to construct distinct
+byte strings with the same relevant digest.
+
+**Where it is load-bearing.**
+
+- **BAL digest (Keccak).** `bal_serializer_verify` rebuilds the BAL, hashes the rebuilt and
+  supplied sections, and accepts when their four 64-bit digest words are equal
+  (`EvmAsm/Codegen/Programs/BalSerializer.lean:1159-1167`). This check does not compare the raw
+  BAL bytes. The step from equal digest to equal bytes relies on collision resistance.
+- **Post-state root (Keccak/MPT).** The verdict computes `sv_recomputed` with `block_state_root`
+  and compares it with the supplied 32-byte header root
+  (`EvmAsm/Codegen/Programs/BlockVerdictMtxRuntime.lean:739-748`); the state-root routine's final
+  MPT root is produced by `mpt_bounded_state_root`
+  (`EvmAsm/Codegen/Programs/BlockVerdictStateRoot.lean:445-449`). A collision could let a wrong
+  post-state trie share the claimed root. The same Keccak assumption also supports witness/MPT
+  preimage authentication, where the node database is keyed by Keccak digests
+  (`EvmAsm/Stateless/SpecRef/IncrementalMpt.lean:23-34`).
+- **Block hash (Keccak).** The verdict hashes the reconstructed header RLP with
+  `block_hash_from_header` and compares the result with the supplied block hash
+  (`EvmAsm/Codegen/Programs/BlockVerdictFunction.lean:65-72`); that helper is defined as the
+  Keccak hash of the header RLP (`EvmAsm/Codegen/Programs/Header.lean:1128-1178`). A collision
+  could make a different reconstructed header pass this commitment check.
+- **Execution-requests hash (SHA-256).** The receipts tail calls `requests_hash_verify` and
+  rejects a nonzero status (`EvmAsm/Codegen/Programs/BlockVerdictReceiptsTail.lean:126-135`).
+  The verifier assembles and compares the 32-byte commitment
+  (`EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean:159-215`), and the requests-hash
+  implementation is the EIP-7685 nested SHA-256 construction, not Keccak
+  (`EvmAsm/Codegen/Programs/RequestsHash.lean:1-6,112-136`). A collision could make different
+  derived request bytes pass the header commitment.
+
+**Consequence if broken.** The guest could accept a supplied commitment whose digest matches the
+recomputed digest even though the underlying bytes or structure differ: a BAL serializer/builder
+mismatch, an incorrect post-state trie, an incorrect header, or incorrect execution requests could
+evade its corresponding check. This is separate from an implementation bug that computes the
+wrong digest.
+
+**What this is not.** `zkvm_keccak256_spec_within`
+(`EvmAsm/Codegen/Proofs/HashBridgeKeccakTop.lean:280-292`) proves machine-level correctness of
+the emitted Keccak computation for its input window. It does not prove collision resistance of the
+mathematical Keccak function. Likewise, a machine-level SHA-256 correctness proof would not imply
+SHA-256 collision resistance. The latter belongs in this cryptographic-assumption section, not
+among the input preconditions above.
 
 ---
 
