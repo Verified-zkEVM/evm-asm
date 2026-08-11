@@ -261,6 +261,12 @@ Auditing these produces confident nonsense. Each is a category error, not a gap:
 
 ## 8. How to add a family
 
+This section is two flows, not one. The older single recipe listed them
+interleaved, which read as if every family needed both; pick the flow that
+matches what you are adding.
+
+### 8a. Asm-side audit rows (a guest routine vs its execution-specs counterpart)
+
 1. **Enumerate the rows.** `scripts/asm-fixtures/symbol-addresses.tsv` is the
    full linker-facts list (904 non-local `.text` symbols);
    `EvmAsm/Codegen/GuestAddrs.lean` covers the 402 that are cross-referenced by
@@ -271,16 +277,47 @@ Auditing these produces confident nonsense. Each is a category error, not a gap:
    single most common way an audit lies.
 3. **Pick the boundary** (§5) and write it down.
 4. **Classify the reference** (§6). Vendored ⇒ skip the pin machinery.
-5. **If the family has an executable reference and a shared model**, write a
-   `Subject` (`EvmAsm/Tests/Correspondence/<Family>.lean`) and a corpus
-   generator (`scripts/oracles/<family>.py`), then register both:
-   `EvmAsm/Tests/Correspondence/Registry.lean` and `scripts/spec-oracle.py`.
-   If it does not, the family is prose-only — say so explicitly on its page
-   rather than inventing verdicts.
-6. **Record rows** in `EvmAsm/Progress/Correspondence.lean` with verdict, basis,
+5. **Record rows** in `EvmAsm/Progress/Correspondence.lean` with verdict, basis,
    and an `abbrev` witness for each named spec.
-7. **Write the instance page** `docs/<family>-spec-correspondence.md` using the
+6. **Write the instance page** `docs/<family>-spec-correspondence.md` using the
    rubric in §10.
+
+### 8b. A spec-oracle family (a differential corpus in `scripts/oracles/`)
+
+Only when the family has an **executable reference** and a **shared
+Mathlib-free model**; otherwise the family is prose-only — say so on its page
+rather than inventing verdicts.
+
+1. **Find the model first** — in `SpecRef`/`EL`, not the symbol table (that is
+   flow 8a). Most decode models already exist; census them before writing
+   anything.
+2. **Classify the reference** (§6): vendored ⇒ the gitlink is the pin and you
+   skip the pin machinery; external ⇒ `spec_oracle/pins.py`.
+3. **Python side**: `scripts/oracles/<family>.py` exporting `FAMILY`
+   (`spec_oracle.Family`): an LCG-seeded, byte-reproducible, deduplicated
+   corpus; the oracle (verdict/detail/aux); the reference; an optional
+   `render_input`. Register it in `scripts/spec-oracle.py`'s `REGISTRY`.
+4. **Regenerate ONLY in a pinned environment.** Sync from
+   `execution-specs/uv.lock` (e.g. `uv export --locked --no-hashes` into a
+   venv) — `ethereum_rlp`/`ethereum_types` versions move strictness verdicts:
+   the ambient `0.1.7`/`0.3.0` pair *accepts* what the pinned `0.1.6`/`0.4.1`
+   rejects on FixedBytes widths and leading-zero scalars (measured on #11570,
+   and the trap §6a names). The TSV stamps the gitlink but **not** the
+   pip-level reference versions, so this step is the only defense.
+5. **Commit the corpus** (`tests/correspondence/<family>.tsv`) and verify
+   byte-reproducibility — `scripts/spec-oracle.py --family <f> --check` must
+   print "up to date" — before opening the PR. CI reads the committed corpus;
+   it never runs the generator.
+6. **Lean side**: a `Subject` in `EvmAsm/Tests/Correspondence/<Family>.lean`
+   whose render is byte-identical to the oracle's, plus planted records — one
+   per finding class, including aux — and a `Registry.lean` row. Keep the
+   subject out of the Mathlib closure (`scripts/check-correspondence-deps.sh`).
+7. **Witness before landing**: `lake exe correspondence-check --self-test`
+   must detect your family's planted classes, and
+   `lake exe correspondence-check <family>` on the full corpus must be
+   all-agree (exit 0). A family that lands red is a CI regression, not a
+   finding — genuine divergences go through the verdict row flow of §8a.
+
 
 ## 9. Harness contract
 
