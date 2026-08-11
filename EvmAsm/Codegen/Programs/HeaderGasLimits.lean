@@ -438,7 +438,7 @@ def chainExtractExcessBlobGasFirstLastFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 18\n" ++
   "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lceebgfl_propagate\n" ++
   "  # Advance to last header\n" ++
   "  mv t1, s2\n" ++
@@ -456,7 +456,7 @@ def chainExtractExcessBlobGasFirstLastFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 18\n" ++
   "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lceebgfl_propagate\n" ++
   "  li a0, 0\n" ++
   "  j .Lceebgfl_ret\n" ++
@@ -485,7 +485,8 @@ def ziskChainExtractExcessBlobGasFirstLastPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lceebgfl_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractExcessBlobGasFirstLastFunction ++ "\n" ++
   ".Lceebgfl_pdone:"
 

@@ -70,7 +70,7 @@ def chainComputeMaxExcessBlobGasFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 18\n" ++
   "  la a3, ccmebg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmebg_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -113,7 +113,8 @@ def ziskChainComputeMaxExcessBlobGasPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmebg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxExcessBlobGasFunction ++ "\n" ++
   ".Lccmebg_pdone:"
 
@@ -176,7 +177,7 @@ def chainComputeMinExcessBlobGasFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 18\n" ++
   "  la a3, ccminebg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccminebg_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -221,7 +222,8 @@ def ziskChainComputeMinExcessBlobGasPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccminebg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinExcessBlobGasFunction ++ "\n" ++
   ".Lccminebg_pdone:"
 
@@ -286,7 +288,7 @@ def chainComputeTotalExcessBlobGasFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 18\n" ++
   "  la a3, cctebg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctebg_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -326,7 +328,8 @@ def ziskChainComputeTotalExcessBlobGasPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctebg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalExcessBlobGasFunction ++ "\n" ++
   ".Lcctebg_pdone:"
 

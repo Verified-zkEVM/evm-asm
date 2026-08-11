@@ -159,7 +159,8 @@ def ziskExcessBlobGasAtBlockNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lebgn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   headerExtractExcessBlobGasFunction ++ "\n" ++
   excessBlobGasAtBlockNumberFunction ++ "\n" ++

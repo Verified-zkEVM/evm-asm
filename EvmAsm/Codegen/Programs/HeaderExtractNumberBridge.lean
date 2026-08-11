@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 
-  Model tie for #11351: from `rlp_field_to_u64`'s `Result` at field index 8,
+  Model tie for #11351: from the lenient `rlp_field_to_u64` `Result` at field index 8,
   read off the value the model's `_decode_header` assigns to `number`.
 
   The machine side is `HeaderExtractNumberSpec.header_extract_number_spec_within`;
@@ -35,7 +35,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 open EvmAsm.Codegen.RlpFieldToU64SAsm
 open EvmAsm.Codegen.RlpListNthItemSAsm
 
-/-- **The value tie.**  Under the two strictness restrictions, the guest
+/-- **The value tie.**  Under the explicit width assumption, the lenient guest
     reports success and its output is the big-endian decode of the field
     content — which is exactly what `bytesBEtoNat` computes on the port side. -/
 theorem result_value_of_success

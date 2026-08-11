@@ -16,7 +16,7 @@ chain_validate_blob_gas_used_multiple:
   ld a1, 0(t3)
   mv a0, s2; li a2, 17
   la a3, cvbgm_field
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvbgm_propagate
   la t0, cvbgm_iter_ptr; ld s2, 0(t0)
   la t0, cvbgm_iter_i;   ld s5, 0(t0)

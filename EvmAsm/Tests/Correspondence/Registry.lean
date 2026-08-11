@@ -15,7 +15,9 @@
 
 import EvmAsm.Tests.Correspondence.Harness
 import EvmAsm.Tests.Correspondence.Bal
+import EvmAsm.Tests.Correspondence.Header
 import EvmAsm.Tests.Correspondence.Rlp
+import EvmAsm.Tests.Correspondence.Transaction
 
 namespace EvmAsm.Tests.Correspondence.Registry
 
@@ -29,6 +31,8 @@ structure Family where
 def families : List Family :=
   [ { subject := Rlp.subject, planted := Rlp.plantedRecords }
   , { subject := Bal.subject, planted := Bal.plantedRecords }
+  , { subject := Header.subject, planted := Header.plantedRecords }
+  , { subject := Transaction.subject, planted := Transaction.plantedRecords }
     -- SSZ has no entry: its guest tower was built independently of
     -- SpecRef/SszCodec.lean and its reference codec (`remerkleable`) is a
     -- separate external package, so there is no shared model to differential
