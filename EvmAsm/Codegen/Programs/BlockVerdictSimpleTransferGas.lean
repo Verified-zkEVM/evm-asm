@@ -6,8 +6,13 @@
 
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! Compute the EIP-2780 top-frame recipient state-gas charge for an
     empty-code top-level value transfer.
@@ -167,114 +172,241 @@ def directTransferStateGasChargeAsm (tag : String) : String :=
 
     a0 = simple_transfer_tx_context ptr
     returns a0=status, a1=intrinsic_regular, a2=calldata_floor, a3=intrinsic_state. -/
+def simpleTransferIntrinsicGas_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .LUI .x9 (3 : BitVec 20),
+    .ADDIW .x9 .x9 (-288 : BitVec 12),
+    .LUI .x18 (3 : BitVec 20),
+    .ADDIW .x18 .x18 (-288 : BitVec 12),
+    .LD .x10 .x8 (24 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.bmvmx_sender_addr (GuestAddrs.simple_transfer_intrinsic_gas + 52)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bmvmx_sender_addr (GuestAddrs.simple_transfer_intrinsic_gas + 52)),
+    .JAL .x1 (jalOff GuestAddrs.address_from_pubkey (GuestAddrs.simple_transfer_intrinsic_gas + 60)),
+    .AUIPC .x5 (laHi GuestAddrs.bmvmx_sender_addr (GuestAddrs.simple_transfer_intrinsic_gas + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bmvmx_sender_addr (GuestAddrs.simple_transfer_intrinsic_gas + 64)),
+    .ADDI .x6 .x8 (72 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .BEQ .x7 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 176) (GuestAddrs.simple_transfer_intrinsic_gas + 80)),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (20 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LUI .x30 (1 : BitVec 20),
+    .ADDIW .x30 .x30 (-1096 : BitVec 12),
+    .ADD .x9 .x9 .x30,
+    .ADD .x18 .x18 .x30,
+    .LD .x5 .x8 (96 : BitVec 12),
+    .LD .x6 .x8 (104 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x8 (112 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x8 (120 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .LUI .x30 (1 : BitVec 20),
+    .ADDIW .x30 .x30 (1904 : BitVec 12),
+    .ADD .x9 .x9 .x30,
+    .ADD .x18 .x18 .x30,
+    .LD .x19 .x8 (56 : BitVec 12),
+    .LD .x20 .x8 (64 : BitVec 12),
+    .BEQ .x20 .x0 (44 : BitVec 13),
+    .LBU .x5 .x19 (0 : BitVec 12),
+    .BEQ .x5 .x0 (16 : BitVec 13),
+    .ADDI .x9 .x9 (16 : BitVec 12),
+    .ADDI .x18 .x18 (64 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .ADDI .x9 .x9 (4 : BitVec 12),
+    .ADDI .x18 .x18 (64 : BitVec 12),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .ADDI .x20 .x20 (-1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 228)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 240)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LD .x5 .x8 (160 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 484) (GuestAddrs.simple_transfer_intrinsic_gas + 256)),
+    .LI .x12 (7 : Word),
+    .LI .x6 (1 : Word),
+    .BEQ .x5 .x6 (36 : BitVec 13),
+    .LI .x12 (8 : Word),
+    .LI .x6 (2 : Word),
+    .BEQ .x5 .x6 (24 : BitVec 13),
+    .LI .x6 (3 : Word),
+    .BEQ .x5 .x6 (16 : BitVec 13),
+    .LI .x6 (4 : Word),
+    .BEQ .x5 .x6 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.simple_transfer_intrinsic_gas + 484) (GuestAddrs.simple_transfer_intrinsic_gas + 300)),
+    .LD .x10 .x8 (176 : BitVec 12),
+    .LD .x11 .x8 (184 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 312)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 312)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 320)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 320)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.simple_transfer_intrinsic_gas + 328)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 708) (GuestAddrs.simple_transfer_intrinsic_gas + 332)),
+    .LD .x5 .x8 (176 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 340)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 340)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x10 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 356)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 356)),
+    .LD .x11 .x6 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 368)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 368)),
+    .AUIPC .x13 (laHi GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 376)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 376)),
+    .JAL .x1 (jalOff GuestAddrs.access_list_count (GuestAddrs.simple_transfer_intrinsic_gas + 384)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 708) (GuestAddrs.simple_transfer_intrinsic_gas + 388)),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 392)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_access_list_address_count (GuestAddrs.simple_transfer_intrinsic_gas + 392)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (32 : BitVec 13),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (184 : BitVec 12),
+    .ADD .x9 .x9 .x7,
+    .LI .x7 (1280 : Word),
+    .ADD .x18 .x18 .x7,
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 436)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_access_list_storage_key_count (GuestAddrs.simple_transfer_intrinsic_gas + 436)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (36 : BitVec 13),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (952 : BitVec 12),
+    .ADD .x9 .x9 .x7,
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (-2048 : BitVec 12),
+    .ADD .x18 .x18 .x7,
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LD .x5 .x8 (160 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 608) (GuestAddrs.simple_transfer_intrinsic_gas + 492)),
+    .LD .x10 .x8 (176 : BitVec 12),
+    .LD .x11 .x8 (184 : BitVec 12),
+    .LI .x12 (9 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 508)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 508)),
+    .AUIPC .x14 (laHi GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 516)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 516)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.simple_transfer_intrinsic_gas + 524)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 708) (GuestAddrs.simple_transfer_intrinsic_gas + 528)),
+    .LD .x5 .x8 (176 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 536)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_off (GuestAddrs.simple_transfer_intrinsic_gas + 536)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x10 .x5 .x6,
+    .AUIPC .x6 (laHi GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 552)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bsg_access_len (GuestAddrs.simple_transfer_intrinsic_gas + 552)),
+    .LD .x11 .x6 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.teer_auth_count (GuestAddrs.simple_transfer_intrinsic_gas + 564)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.teer_auth_count (GuestAddrs.simple_transfer_intrinsic_gas + 564)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.simple_transfer_intrinsic_gas + 572)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.simple_transfer_intrinsic_gas + 708) (GuestAddrs.simple_transfer_intrinsic_gas + 576)),
+    .AUIPC .x5 (laHi GuestAddrs.teer_auth_count (GuestAddrs.simple_transfer_intrinsic_gas + 580)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_auth_count (GuestAddrs.simple_transfer_intrinsic_gas + 580)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (2 : BitVec 20),
+    .ADDIW .x7 .x7 (-376 : BitVec 12),
+    .MUL .x6 .x6 .x7,
+    .ADD .x9 .x9 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_calldata_floor (GuestAddrs.simple_transfer_intrinsic_gas + 608)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_calldata_floor (GuestAddrs.simple_transfer_intrinsic_gas + 608)),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_intrinsic_regular (GuestAddrs.simple_transfer_intrinsic_gas + 620)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_intrinsic_regular (GuestAddrs.simple_transfer_intrinsic_gas + 620)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .SD .x2 .x9 (48 : BitVec 12),
+    .SD .x2 .x18 (56 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.simple_transfer_intrinsic_gas + 640)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.simple_transfer_intrinsic_gas + 640)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x9 .x2 (48 : BitVec 12),
+    .LD .x18 .x2 (56 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.simple_transfer_intrinsic_gas + 660)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.simple_transfer_intrinsic_gas + 660)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .ADD .x9 .x9 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_intrinsic_regular (GuestAddrs.simple_transfer_intrinsic_gas + 676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_intrinsic_regular (GuestAddrs.simple_transfer_intrinsic_gas + 676)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .MV .x13 .x6,
+    .JAL .x0 (20 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LI .x13 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `simpleTransferIntrinsicGas_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def simpleTransferIntrinsicGas_relocs : RelocTable :=
+  [ (13, .la .x11 "bmvmx_sender_addr"),
+    (15, .jal .x1 "address_from_pubkey"),
+    (16, .la .x5 "bmvmx_sender_addr"),
+    (57, .la .x5 "runtime_tx_access_list_address_count"),
+    (60, .la .x5 "runtime_tx_access_list_storage_key_count"),
+    (78, .la .x13 "bsg_access_off"),
+    (80, .la .x14 "bsg_access_len"),
+    (82, .jal .x1 "rlp_list_nth_item"),
+    (85, .la .x6 "bsg_access_off"),
+    (89, .la .x6 "bsg_access_len"),
+    (92, .la .x12 "runtime_tx_access_list_address_count"),
+    (94, .la .x13 "runtime_tx_access_list_storage_key_count"),
+    (96, .jal .x1 "access_list_count"),
+    (98, .la .x5 "runtime_tx_access_list_address_count"),
+    (109, .la .x5 "runtime_tx_access_list_storage_key_count"),
+    (127, .la .x13 "bsg_access_off"),
+    (129, .la .x14 "bsg_access_len"),
+    (131, .jal .x1 "rlp_list_nth_item"),
+    (134, .la .x6 "bsg_access_off"),
+    (138, .la .x6 "bsg_access_len"),
+    (141, .la .x12 "teer_auth_count"),
+    (143, .jal .x1 "rlp_list_count_items"),
+    (145, .la .x5 "teer_auth_count"),
+    (152, .la .x5 "runtime_tx_calldata_floor"),
+    (155, .la .x5 "runtime_tx_intrinsic_regular"),
+    (160, .la .x5 "bvgr_tx_state_gas"),
+    (165, .la .x7 "runtime_tx_auth_regular_refund"),
+    (169, .la .x5 "runtime_tx_intrinsic_regular") ]
+
 def simpleTransferIntrinsicGasFunction : String :=
-  "simple_transfer_intrinsic_gas:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  li s1, 12000                 # Amsterdam TX_BASE\n" ++
-  "  li s2, 12000                 # v0.6.0 calldata floor base = TX_BASE + recipient regular gas\n" ++
-  "  ld a0, 24(s0); la a1, bmvmx_sender_addr; jal ra, address_from_pubkey\n" ++
-  "  la t0, bmvmx_sender_addr; addi t1, s0, 72; li t2, 20\n" ++
-  ".Lstig_self_cmp:\n" ++
-  "  beqz t2, .Lstig_sender_done\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lstig_not_self\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lstig_self_cmp\n" ++
-  ".Lstig_not_self:\n" ++
-  "  li t5, 3000; add s1, s1, t5; add s2, s2, t5  # COLD_ACCOUNT_ACCESS (also anchors the floor)\n" ++
-  "  ld t0, 96(s0); ld t1, 104(s0); or t0, t0, t1\n" ++
-  "  ld t1, 112(s0); or t0, t0, t1\n" ++
-  "  ld t1, 120(s0); or t0, t0, t1\n" ++
-  "  beqz t0, .Lstig_sender_done\n" ++
-  "  li t5, 6000; add s1, s1, t5; add s2, s2, t5  # TRANSFER_LOG + TX_VALUE (also anchors the floor)\n" ++
-  ".Lstig_sender_done:\n" ++
-  "  ld s3, 56(s0)                # calldata ptr\n" ++
-  "  ld s4, 64(s0)                # calldata len\n" ++
-  ".Lstig_data_loop:\n" ++
-  "  beqz s4, .Lstig_access_list\n" ++
-  "  lbu t0, 0(s3)\n" ++
-  "  beqz t0, .Lstig_zero_byte\n" ++
-  "  addi s1, s1, 16\n" ++
-  "  addi s2, s2, 64\n" ++
-  "  j .Lstig_data_step\n" ++
-  ".Lstig_zero_byte:\n" ++
-  "  addi s1, s1, 4\n" ++
-  "  addi s2, s2, 64\n" ++
-  ".Lstig_data_step:\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  addi s4, s4, -1\n" ++
-  "  j .Lstig_data_loop\n" ++
-  ".Lstig_access_list:\n" ++
-  "  la t0, runtime_tx_access_list_address_count; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_access_list_storage_key_count; sd zero, 0(t0)\n" ++
-  "  ld t0, 160(s0)\n" ++
-  "  beqz t0, .Lstig_store_done\n" ++
-  "  li a2, 7; li t1, 1; beq t0, t1, .Lstig_access_field\n" ++
-  "  li a2, 8; li t1, 2; beq t0, t1, .Lstig_access_field\n" ++
-  "  li t1, 3; beq t0, t1, .Lstig_access_field\n" ++
-  "  li t1, 4; beq t0, t1, .Lstig_access_field\n" ++
-  "  j .Lstig_store_done\n" ++
-  ".Lstig_access_field:\n" ++
-  "  ld a0, 176(s0); ld a1, 184(s0); la a3, bsg_access_off; la a4, bsg_access_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstig_fail\n" ++
-  "  ld t0, 176(s0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
-  "  la t1, bsg_access_len; ld a1, 0(t1)\n" ++
-  "  la a2, runtime_tx_access_list_address_count; la a3, runtime_tx_access_list_storage_key_count\n" ++
-  "  jal ra, access_list_count\n" ++
-  "  bnez a0, .Lstig_fail\n" ++
-  "  la t0, runtime_tx_access_list_address_count; ld t1, 0(t0)\n" ++
-  ".Lstig_addr_loop:\n" ++
-  "  beqz t1, .Lstig_slot_count\n" ++
-  "  li t2, 4280\n" ++
-  "  add s1, s1, t2\n" ++
-  "  li t2, 1280\n" ++
-  "  add s2, s2, t2\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lstig_addr_loop\n" ++
-  ".Lstig_slot_count:\n" ++
-  "  la t0, runtime_tx_access_list_storage_key_count; ld t1, 0(t0)\n" ++
-  ".Lstig_slot_loop:\n" ++
-  "  beqz t1, .Lstig_store_done\n" ++
-  "  li t2, 5048\n" ++
-  "  add s1, s1, t2\n" ++
-  "  li t2, 2048\n" ++
-  "  add s2, s2, t2\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lstig_slot_loop\n" ++
-  ".Lstig_store_done:\n" ++
-  "  ld t0, 160(s0); li t1, 4; bne t0, t1, .Lstig_auth_done\n" ++
-  "  ld a0, 176(s0); ld a1, 184(s0); li a2, 9; la a3, bsg_access_off; la a4, bsg_access_len\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lstig_fail\n" ++
-  "  ld t0, 176(s0); la t1, bsg_access_off; ld t1, 0(t1); add a0, t0, t1\n" ++
-  "  la t1, bsg_access_len; ld a1, 0(t1); la a2, teer_auth_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lstig_fail\n" ++
-  -- v0.6.0: REGULAR_PER_AUTH_BASE_COST 7816 only (ACCOUNT_WRITE 8000
-  -- left the intrinsic; charged exactly by the auth replay).
-  "  la t0, teer_auth_count; ld t1, 0(t0); li t2, 7816; mul t1, t1, t2; add s1, s1, t1\n" ++
-  ".Lstig_auth_done:\n" ++
-  "  la t0, runtime_tx_calldata_floor; sd s2, 0(t0)\n" ++
-  "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
-  "  sd s1, 48(sp); sd s2, 56(sp)\n" ++
-  -- The common transaction boundary is the sole state-gas writer.  This
-  -- shortcut only consumes its already-materialized state cell and adds the
-  -- live auth regular component to ordinary intrinsic regular gas.
-  "  la t0, bvgr_tx_state_gas; ld t1, 0(t0)\n" ++
-  "  ld s1, 48(sp); ld s2, 56(sp)\n" ++
-  "  la t2, runtime_tx_auth_regular_refund; ld t2, 0(t2); add s1, s1, t2\n" ++
-  "  la t0, runtime_tx_intrinsic_regular; sd s1, 0(t0)\n" ++
-  "  li a0, 0; mv a1, s1; mv a2, s2; mv a3, t1\n" ++
-  "  j .Lstig_ret\n" ++
-  ".Lstig_fail:\n" ++
-  "  li a0, 1; li a1, 0; li a2, 0; li a3, 0\n" ++
-  ".Lstig_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+  "simple_transfer_intrinsic_gas:\n" ++ emitProgramR simpleTransferIntrinsicGas_prog simpleTransferIntrinsicGas_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `simpleTransferIntrinsicGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem simpleTransferIntrinsicGasFunction_eq_prog :
+    simpleTransferIntrinsicGasFunction = "simple_transfer_intrinsic_gas:\n" ++ emitProgramR simpleTransferIntrinsicGas_prog simpleTransferIntrinsicGas_relocs := rfl
 
+#guard simpleTransferIntrinsicGasFunction.startsWith "simple_transfer_intrinsic_gas:\n"
+#guard simpleTransferIntrinsicGas_prog.length = 189
 end EvmAsm.Codegen

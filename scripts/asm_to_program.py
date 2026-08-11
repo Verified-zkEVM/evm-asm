@@ -749,7 +749,7 @@ def lean_camel(entry):
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
-def layout_leaf_path(path, root=""):
+def layout_leaf_path(path, root="", fname=None):
     # GH #10753 layout split: a converted module `<Name>.lean` (the bridge)
     # has its generated program blocks in the leaf `<Name>Prog.lean` next to
     # it.  Return the leaf path (same relative/absolute flavour as `path`)
@@ -757,7 +757,19 @@ def layout_leaf_path(path, root=""):
     # test only, so both repo-relative and absolute callers work.  Shared
     # by check_file's layout detection and guest_image_coverage.py.
     leaf=path[:-len(".lean")]+"Prog.lean"
-    return leaf if os.path.exists(os.path.join(root,leaf)) else None
+    if not os.path.exists(os.path.join(root,leaf)):
+        return None
+    # A sibling *Prog file is not sufficient evidence that this bridge file
+    # uses the layout split: large modules can have a leaf for a different
+    # function.  In that case treating the sibling as the target silently
+    # sends rewrite/check drift into the wrong file (notably TxIntrinsicStateGas
+    # and U256GasPricing).  When a function is known, require its declaration
+    # in the leaf before selecting layout mode.
+    if fname is not None:
+        leaf_text=open(os.path.join(root,leaf)).read()
+        if not re.search(r'(?m)^def\s+'+re.escape(fname)+r'\b', leaf_text):
+            return None
+    return leaf
 
 def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
@@ -1114,7 +1126,7 @@ def rewrite_file(path, funcs):
     # Rewrite the leaf in place while retaining the manifest's bridge path;
     # trying to splice the bridge used to fail after fixture fallback found
     # the right asm.
-    target_path=layout_leaf_path(path) or path
+    target_path=layout_leaf_path(path, fname=funcs[0]) or path
     text=open(target_path).read()
     os.makedirs(FIXDIR, exist_ok=True)
     evaluated={}
@@ -1749,7 +1761,7 @@ def count_bare_j_program_files(man=None):
             files.add(rel); defs += 1; sites += len(hits)
             continue
         prog=lean_camel(entry)+'_prog'
-        leaf=layout_leaf_path(path)
+        leaf=layout_leaf_path(path, fname=fn)
         if leaf:
             source=open(leaf).read()
             j_bare=_gen_with_br_threshold(asm,fn,prog,relocs,True,
@@ -1806,7 +1818,7 @@ def check_file(path, funcs, rendered=None):
     # the manifest file; the render gates above are unchanged (the bridge
     # re-exposes every name, so `lean_render` over the manifest modules sees
     # both the symbolic `{fn}` and the concrete `{fn}#c` views).
-    leaf_path=layout_leaf_path(path)
+    leaf_path=layout_leaf_path(path, fname=funcs[0])
     layout_mode=leaf_path is not None
     leaf_text=open(leaf_path).read() if layout_mode else None
     if rendered is None:
@@ -2141,12 +2153,18 @@ def main():
                 print(f"  scripts/asm-fixtures/{o}: fixture has no MANIFEST.tsv row "
                       "(routine retired? delete the fixture; still live? re-add its row)")
             sys.exit(1)
+        # Most files have one conversion mode, but a bridge can also import a
+        # sibling layout leaf for a different routine.  Group by the selected
+        # leaf as well as the manifest path so check_file never applies one
+        # routine's layout mode to its sibling (e.g. U256GasPricing).
         byfile={}
-        for fn,path in man.items(): byfile.setdefault(path,[]).append(fn)
+        for fn,path in man.items():
+            leaf=layout_leaf_path(path, fname=fn)
+            byfile.setdefault((path, leaf),[]).append(fn)
         root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         rendered=lean_render(man)   # ONE elaborator run for the whole manifest
         allprob=[]
-        for path,fns in sorted(byfile.items()):
+        for (path,_leaf),fns in sorted(byfile.items(), key=lambda item: (item[0][0], item[0][1] or "")):
             allprob += [f"[{path}] "+p for p in check_file(os.path.join(root,path), fns, rendered)]
         # GuestAddrs.lean must match a fresh regeneration from the TSV+manifest.
         gaprob=[]

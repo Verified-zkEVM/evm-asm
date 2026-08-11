@@ -1,40 +1,35 @@
 headers_parent_hash:
-  lbu t0, 0(a0)
-  li t1, 0xc0
-  bltu t0, t1, .Lhph_fail
-  li t1, 0xf8
-  bltu t0, t1, .Lhph_short
-  li t1, 0xf7
-  sub t2, t0, t1
-  li t3, 2
-  bltu t3, t2, .Lhph_fail
-  addi t2, t2, 1
-  add a0, a0, t2
-  sub a1, a1, t2
-  j .Lhph_after_prefix
-.Lhph_short:
-  addi a0, a0, 1
-  addi a1, a1, -1
-.Lhph_after_prefix:
-  li t0, 33
-  bltu a1, t0, .Lhph_fail
-  lbu t1, 0(a0)
-  li t2, 0xa0
-  bne t1, t2, .Lhph_fail
-  li t0, 0
-.Lhph_copy:
-  li t1, 32
-  beq t0, t1, .Lhph_ok
-  addi t2, a0, 1
-  add t2, t2, t0
-  lbu t3, 0(t2)
-  add t2, a2, t0
-  sb t3, 0(t2)
-  addi t0, t0, 1
-  j .Lhph_copy
-.Lhph_ok:
-  li a0, 0
-  ret
-.Lhph_fail:
-  li a0, 1
-  ret
+  lbu x5, 0(x10)
+  li x6, 192
+  bltu x5, x6, .+120
+  li x6, 248
+  bltu x5, x6, .+36
+  li x6, 247
+  sub x7, x5, x6
+  li x28, 2
+  bltu x28, x7, .+96
+  addi x7, x7, 1
+  add x10, x10, x7
+  sub x11, x11, x7
+  jal x0, .+12
+  addi x10, x10, 1
+  addi x11, x11, -1
+  li x5, 33
+  bltu x11, x5, .+64
+  lbu x6, 0(x10)
+  li x7, 160
+  bne x6, x7, .+52
+  li x5, 0
+  li x6, 32
+  beq x5, x6, .+32
+  addi x7, x10, 1
+  add x7, x7, x5
+  lbu x28, 0(x7)
+  add x7, x12, x5
+  sb x28, 0(x7)
+  addi x5, x5, 1
+  jal x0, .-32
+  li x10, 0
+  jalr x0, 0(x1)
+  li x10, 1
+  jalr x0, 0(x1)

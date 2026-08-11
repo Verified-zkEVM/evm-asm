@@ -6,7 +6,13 @@
   Carved out of BlockVerdict.lean to stay within the 1500-line file-size cap.
 -/
 
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
+
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## public_keys_valid -- structural stateless-input public key guard.
     a0 = SSZ_BASE   a1 = exec_payload ptr
@@ -19,80 +25,124 @@ namespace EvmAsm.Codegen
     cheap canonical shape checks that catch malformed optional-proof fixtures:
     each key is exactly an SSZ fixed 65-byte entry, starts with 0x04, and does
     not have an all-zero 64-byte coordinate payload. -/
-def publicKeysValidFunction : String :=
-  "public_keys_valid:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  mv s1, a1                   # exec_payload\n" ++
-  "  # tx_count from the SSZ transactions list.\n" ++
-  "  addi a0, s1, 504; jal ra, bgv_u32le\n" ++
-  "  mv s2, a0                   # transactions_offset\n" ++
-  "  addi a0, s1, 508; jal ra, bgv_u32le\n" ++
-  "  mv s3, a0                   # withdrawals_offset\n" ++
-  "  li s4, 0                    # tx_count\n" ++
-  "  bleu s3, s2, .Lpkv_have_tx_count\n" ++
-  "  sub t0, s3, s2\n" ++
-  "  li t1, 4; bltu t0, t1, .Lpkv_fail\n" ++
-  "  add t2, s1, s2\n" ++
-  "  mv a0, t2; jal ra, bgv_u32le\n" ++
-  "  andi t1, a0, 3; bnez t1, .Lpkv_fail\n" ++
-  "  srli s4, a0, 2\n" ++
-  "  slli t1, s4, 2; bgtu t1, t0, .Lpkv_fail\n" ++
-  ".Lpkv_have_tx_count:\n" ++
-  "  # public_keys start = SSZ_BASE + outer.offsets[3]. End = zisk input\n" ++
-  "  # payload start + host length; host length includes schema id + SSZ bytes.\n" ++
-  "  addi a0, s0, 12; jal ra, bgv_u32le\n" ++
-  "  add s5, s0, a0              # public_keys ptr\n" ++
-  "  li a0, 0x40000008; jal ra, bgv_u64le\n" ++
-  "  li t0, 0x40000010; add s6, t0, a0     # end of host payload\n" ++
-  "  bltu s6, s5, .Lpkv_fail\n" ++
-  "  sub s7, s6, s5              # public_keys byte length\n" ++
-  "  li t0, 65\n" ++
-  "  remu t1, s7, t0; bnez t1, .Lpkv_fail\n" ++
-  "  divu s8, s7, t0             # public key count\n" ++
-  -- xpz16: EXACT-equality count check, restoring the pre-#8558 `bne`. x04we (#8558) relaxed
-  -- this to `bltu` (reject only count < tx_count) on the premise that the spec merely INDEXES
-  -- transaction_public_keys[tx_index] for index in [0, tx_count) (fork.py:1044-1046) so surplus
-  -- keys are harmless -- but that MISSED execute_block (fork.py:308-312), which raises
-  -- InvalidBlock when `transaction_public_keys is not None and len(transaction_public_keys) !=
-  -- len(block.transactions)`. In the stateless path public_keys is ALWAYS non-None (stateless.py
-  -- :382 passes stateless_input.public_keys), so the exact-equality check is active for every
-  -- block: count > tx_count is REJECTED by the reference before any tx runs. The `bltu` therefore
-  -- false-ACCEPTED count > tx_count. Soundness-additive (only adds a reject); no false-reject:
-  -- public_keys is the LAST SszStatelessInput field (stateless_ssz.py:211), so the guest's byte
-  -- length s7 = section_end - public_keys_start is exact and count == tx_count for every valid block.
-  "  bne s8, s4, .Lpkv_fail\n" ++
-  "  la t0, bv_public_keys_ptr; sd s5, 0(t0)\n" ++
-  "  la t0, bv_public_keys_len; sd s7, 0(t0)\n" ++
-  "  li s9, 0\n" ++
-  ".Lpkv_loop:\n" ++
-  "  beq s9, s4, .Lpkv_ok\n" ++   -- xpz16: count == tx_count now (exact-equality above), so [0, tx_count) is every key
-  "  li t0, 65; mul t1, s9, t0; add t2, s5, t1\n" ++
-  "  lbu t3, 0(t2); li t4, 4; bne t3, t4, .Lpkv_fail\n" ++
-  "  li t3, 1; li t4, 0\n" ++
-  ".Lpkv_coord_loop:\n" ++
-  "  li t5, 65; beq t3, t5, .Lpkv_coord_done\n" ++
-  "  add t6, t2, t3; lbu t6, 0(t6); or t4, t4, t6\n" ++
-  "  addi t3, t3, 1; j .Lpkv_coord_loop\n" ++
-  ".Lpkv_coord_done:\n" ++
-  "  beqz t4, .Lpkv_fail\n" ++
-  "  addi s9, s9, 1; j .Lpkv_loop\n" ++
-  ".Lpkv_ok:\n" ++
-  "  li a0, 0; j .Lpkv_ret\n" ++
-  ".Lpkv_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lpkv_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+def publicKeysValid_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x9 (504 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.public_keys_valid + 60)),
+    .MV .x18 .x10,
+    .ADDI .x10 .x9 (508 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.public_keys_valid + 72)),
+    .MV .x19 .x10,
+    .LI .x20 (0 : Word),
+    .BGEU .x18 .x19 (48 : BitVec 13),
+    .SUB .x5 .x19 .x18,
+    .LI .x6 (4 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 96)),
+    .ADD .x7 .x9 .x18,
+    .MV .x10 .x7,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.public_keys_valid + 108)),
+    .ANDI .x6 .x10 (3 : BitVec 12),
+    .BNE .x6 .x0 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 116)),
+    .SRLI .x20 .x10 (2 : BitVec 6),
+    .SLLI .x6 .x20 (2 : BitVec 6),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 128)),
+    .ADDI .x10 .x8 (12 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.public_keys_valid + 136)),
+    .ADD .x21 .x8 .x10,
+    .LUI .x10 (262144 : BitVec 20),
+    .ADDIW .x10 .x10 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.public_keys_valid + 152)),
+    .LUI .x5 (262144 : BitVec 20),
+    .ADDIW .x5 .x5 (16 : BitVec 12),
+    .ADD .x22 .x5 .x10,
+    .BLTU .x22 .x21 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 168)),
+    .SUB .x23 .x22 .x21,
+    .LI .x5 (65 : Word),
+    .REMU .x6 .x23 .x5,
+    .BNE .x6 .x0 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 184)),
+    .DIVU .x24 .x23 .x5,
+    .BNE .x24 .x20 (brOff (GuestAddrs.public_keys_valid + 308) (GuestAddrs.public_keys_valid + 192)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_ptr (GuestAddrs.public_keys_valid + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_ptr (GuestAddrs.public_keys_valid + 196)),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_public_keys_len (GuestAddrs.public_keys_valid + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_public_keys_len (GuestAddrs.public_keys_valid + 208)),
+    .SD .x5 .x23 (0 : BitVec 12),
+    .LI .x25 (0 : Word),
+    .BEQ .x25 .x20 (brOff (GuestAddrs.public_keys_valid + 300) (GuestAddrs.public_keys_valid + 224)),
+    .LI .x5 (65 : Word),
+    .MUL .x6 .x25 .x5,
+    .ADD .x7 .x21 .x6,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .LI .x29 (4 : Word),
+    .BNE .x28 .x29 (60 : BitVec 13),
+    .LI .x28 (1 : Word),
+    .LI .x29 (0 : Word),
+    .LI .x30 (65 : Word),
+    .BEQ .x28 .x30 (24 : BitVec 13),
+    .ADD .x31 .x7 .x28,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .OR .x29 .x29 .x31,
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .BEQ .x29 .x0 (20 : BitVec 13),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.public_keys_valid + 224) (GuestAddrs.public_keys_valid + 296)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `publicKeysValid_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def publicKeysValid_relocs : RelocTable :=
+  [ (15, .jal .x1 "bgv_u32le"),
+    (18, .jal .x1 "bgv_u32le"),
+    (27, .jal .x1 "bgv_u32le"),
+    (34, .jal .x1 "bgv_u32le"),
+    (38, .jal .x1 "bgv_u64le"),
+    (49, .la .x5 "bv_public_keys_ptr"),
+    (52, .la .x5 "bv_public_keys_len") ]
+
+def publicKeysValidFunction : String :=
+  "public_keys_valid:\n" ++ emitProgramR publicKeysValid_prog publicKeysValid_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `publicKeysValid_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem publicKeysValidFunction_eq_prog :
+    publicKeysValidFunction = "public_keys_valid:\n" ++ emitProgramR publicKeysValid_prog publicKeysValid_relocs := rfl
+
+#guard publicKeysValidFunction.startsWith "public_keys_valid:\n"
+#guard publicKeysValid_prog.length = 91
 /-! ## chain_config_valid -- execution-specs validate_chain_config mirror
     (tests-zkevm@v0.6.0, 40f956fab: `ForkConfig` = `{activation}`; the
     Amsterdam-fork and blob-schedule checks are DELETED upstream — fork
@@ -103,91 +153,158 @@ def publicKeysValidFunction : String :=
     This checks the Amsterdam stateless guest's semantic chain-config contract:
     activation sets block_number or timestamp and is active for the target
     payload. -/
-def chainConfigValidFunction : String :=
-  "chain_config_valid:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                   # SSZ_BASE\n" ++
-  "  mv s1, a1                   # exec_payload\n" ++
-  "  addi a0, s0, 8; jal ra, bgv_u32le\n" ++
-  "  add s2, s0, a0              # chain_config ptr\n" ++
-  -- bmvmx.3.2: capture the execution chain_id (SszChainConfig.chain_id is the
-  -- fixed field at offset 0, a u64 LE) into the bv_chain_id global so the
-  -- per-tx sender-recovery gate (verify_public_keys_match_senders) can feed it
-  -- to legacy EIP-155 recovery. chain_config_valid runs early in the verdict
-  -- and its caller rejects on a nonzero return, so bv_chain_id is only consumed
-  -- on the success path. Soundness-inert here (just records a value).
-  "  mv a0, s2; jal ra, bgv_u64le\n" ++
-  "  la t0, bv_chain_id; sd a0, 0(t0)\n" ++
-  "  addi a0, s0, 12; jal ra, bgv_u32le\n" ++
-  "  add s3, s0, a0              # public_keys ptr = chain_config end\n" ++
-  "  bltu s3, s2, .Lccv_fail\n" ++
-  "  sub t0, s3, s2; li t1, 12; bltu t0, t1, .Lccv_fail\n" ++
-  "  addi a0, s2, 8; jal ra, bgv_u32le\n" ++
-  "  li t0, 12; bne a0, t0, .Lccv_fail\n" ++
-  "  add s4, s2, a0              # active_fork (fork_config) ptr\n" ++
-  "  bltu s3, s4, .Lccv_fail\n" ++
-  "  sub s10, s3, s4             # fork_config len (4-byte offset table + activation)\n" ++
-  "  li t0, 12; bltu s10, t0, .Lccv_fail\n" ++
-  -- v0.6.0: SszForkConfig = {activation}. Its one-entry offset table
-  -- must read 4 (canonical); the activation container fills the rest.
-  -- The v0.5.0 fork-enum (li t0, 20) and blob-schedule checks are gone
-  -- with their fields.
-  "  mv a0, s4; jal ra, bgv_u32le\n" ++
-  "  li t0, 4; bne a0, t0, .Lccv_fail   # offset_activation == 4\n" ++
-  "  addi s5, s4, 4              # activation ptr\n" ++
-  "  addi s6, s10, -4            # activation len\n" ++
-  "  li t0, 8; beq s6, t0, .Lccv_fail\n" ++
-  "  li t0, 16; beq s6, t0, .Lccv_activation_len16\n" ++
-  "  li t0, 24; beq s6, t0, .Lccv_activation_len24\n" ++
-  "  j .Lccv_fail\n" ++
-  ".Lccv_activation_len16:\n" ++
-  "  addi a0, s5, 0; jal ra, bgv_u32le\n" ++
-  "  li t0, 8; bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s5, 4; jal ra, bgv_u32le\n" ++
-  "  li t0, 8; beq a0, t0, .Lccv_check_ts_at8\n" ++
-  "  li t0, 16; beq a0, t0, .Lccv_check_bn_at8\n" ++
-  "  j .Lccv_fail\n" ++
-  ".Lccv_activation_len24:\n" ++
-  "  addi a0, s5, 0; jal ra, bgv_u32le\n" ++
-  "  li t0, 8; bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s5, 4; jal ra, bgv_u32le\n" ++
-  "  li t0, 16; bne a0, t0, .Lccv_fail\n" ++
-  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
-  "  mv s9, a0\n" ++
-  "  addi a0, s1, 404; jal ra, bgv_u64le\n" ++
-  "  bltu a0, s9, .Lccv_fail\n" ++
-  "  addi a0, s5, 16; jal ra, bgv_u64le\n" ++
-  "  mv s9, a0\n" ++
-  "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
-  "  bltu a0, s9, .Lccv_fail\n" ++
-  "  j .Lccv_activation_ok\n" ++
-  ".Lccv_check_bn_at8:\n" ++
-  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
-  "  mv s9, a0\n" ++
-  "  addi a0, s1, 404; jal ra, bgv_u64le\n" ++
-  "  bltu a0, s9, .Lccv_fail\n" ++
-  "  j .Lccv_activation_ok\n" ++
-  ".Lccv_check_ts_at8:\n" ++
-  "  addi a0, s5, 8; jal ra, bgv_u64le\n" ++
-  "  mv s9, a0\n" ++
-  "  addi a0, s1, 428; jal ra, bgv_u64le\n" ++
-  "  bltu a0, s9, .Lccv_fail\n" ++
-  -- v0.6.0: no blob-schedule section follows the activation; a valid
-  -- activation is the whole remaining contract.
-  ".Lccv_activation_ok:\n" ++
-  "  li a0, 0; j .Lccv_ret\n" ++
-  ".Lccv_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Lccv_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret"
+def chainConfigValid_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .ADDI .x10 .x8 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 68)),
+    .ADD .x18 .x8 .x10,
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 80)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_chain_id (GuestAddrs.chain_config_valid + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_chain_id (GuestAddrs.chain_config_valid + 84)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .ADDI .x10 .x8 (12 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 100)),
+    .ADD .x19 .x8 .x10,
+    .BLTU .x19 .x18 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 108)),
+    .SUB .x5 .x19 .x18,
+    .LI .x6 (12 : Word),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 120)),
+    .ADDI .x10 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 128)),
+    .LI .x5 (12 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 136)),
+    .ADD .x20 .x18 .x10,
+    .BLTU .x19 .x20 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 144)),
+    .SUB .x26 .x19 .x20,
+    .LI .x5 (12 : Word),
+    .BLTU .x26 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 156)),
+    .MV .x10 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 164)),
+    .LI .x5 (4 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 172)),
+    .ADDI .x21 .x20 (4 : BitVec 12),
+    .ADDI .x22 .x26 (-4 : BitVec 12),
+    .LI .x5 (8 : Word),
+    .BEQ .x22 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 188)),
+    .LI .x5 (16 : Word),
+    .BEQ .x22 .x5 (16 : BitVec 13),
+    .LI .x5 (24 : Word),
+    .BEQ .x22 .x5 (52 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 208)),
+    .ADDI .x10 .x21 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 216)),
+    .LI .x5 (8 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 224)),
+    .ADDI .x10 .x21 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 232)),
+    .LI .x5 (8 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 368) (GuestAddrs.chain_config_valid + 240)),
+    .LI .x5 (16 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 340) (GuestAddrs.chain_config_valid + 248)),
+    .JAL .x0 (jalOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 252)),
+    .ADDI .x10 .x21 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 260)),
+    .LI .x5 (8 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 268)),
+    .ADDI .x10 .x21 (4 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.chain_config_valid + 276)),
+    .LI .x5 (16 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 284)),
+    .ADDI .x10 .x21 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 292)),
+    .MV .x25 .x10,
+    .ADDI .x10 .x9 (404 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 304)),
+    .BLTU .x10 .x25 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 308)),
+    .ADDI .x10 .x21 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 316)),
+    .MV .x25 .x10,
+    .ADDI .x10 .x9 (428 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 328)),
+    .BLTU .x10 .x25 (brOff (GuestAddrs.chain_config_valid + 400) (GuestAddrs.chain_config_valid + 332)),
+    .JAL .x0 (56 : BitVec 21),
+    .ADDI .x10 .x21 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 344)),
+    .MV .x25 .x10,
+    .ADDI .x10 .x9 (404 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 356)),
+    .BLTU .x10 .x25 (40 : BitVec 13),
+    .JAL .x0 (28 : BitVec 21),
+    .ADDI .x10 .x21 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 372)),
+    .MV .x25 .x10,
+    .ADDI .x10 .x9 (428 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.chain_config_valid + 384)),
+    .BLTU .x10 .x25 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainConfigValid_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainConfigValid_relocs : RelocTable :=
+  [ (17, .jal .x1 "bgv_u32le"),
+    (20, .jal .x1 "bgv_u64le"),
+    (21, .la .x5 "bv_chain_id"),
+    (25, .jal .x1 "bgv_u32le"),
+    (32, .jal .x1 "bgv_u32le"),
+    (41, .jal .x1 "bgv_u32le"),
+    (54, .jal .x1 "bgv_u32le"),
+    (58, .jal .x1 "bgv_u32le"),
+    (65, .jal .x1 "bgv_u32le"),
+    (69, .jal .x1 "bgv_u32le"),
+    (73, .jal .x1 "bgv_u64le"),
+    (76, .jal .x1 "bgv_u64le"),
+    (79, .jal .x1 "bgv_u64le"),
+    (82, .jal .x1 "bgv_u64le"),
+    (86, .jal .x1 "bgv_u64le"),
+    (89, .jal .x1 "bgv_u64le"),
+    (93, .jal .x1 "bgv_u64le"),
+    (96, .jal .x1 "bgv_u64le") ]
+
+def chainConfigValidFunction : String :=
+  "chain_config_valid:\n" ++ emitProgramR chainConfigValid_prog chainConfigValid_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainConfigValid_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainConfigValidFunction_eq_prog :
+    chainConfigValidFunction = "chain_config_valid:\n" ++ emitProgramR chainConfigValid_prog chainConfigValid_relocs := rfl
+
+#guard chainConfigValidFunction.startsWith "chain_config_valid:\n"
+#guard chainConfigValid_prog.length = 116
 end EvmAsm.Codegen
