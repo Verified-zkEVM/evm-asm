@@ -74,12 +74,12 @@ def balAccountNonceBeforeIndexFunction : String :=
   "  jal ra, rlp_item_span\n" ++
   "  bnez a0, .Lbanbi_malformed\n" ++
   "  ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)\n" ++
-  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64\n" ++
+  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lbanbi_malformed\n" ++
   "  ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next\n" ++
   "  bltu t0, s6, .Lbanbi_next\n" ++
   "  mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lbanbi_malformed\n" ++
   "  ld s7, 72(sp); li t0, 1; sd t0, 104(sp)\n" ++
   ".Lbanbi_next:\n" ++
