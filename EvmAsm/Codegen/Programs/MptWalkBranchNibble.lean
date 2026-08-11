@@ -10,7 +10,6 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkKindDispatch
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.MptWalkSpec
