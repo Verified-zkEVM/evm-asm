@@ -7,9 +7,10 @@
   #11517 asks for one of three outcomes per pairing — a correspondence theorem, a
   documented pairing with a stated gap, or a divergence — and names this pair as the one
   to start with, *"because the answer is already known and it establishes the template"*.
-  This module delivers a **correspondence for the sentinel constants** (outcome 1) and a
-  **documented gap with a named blocker** for the field contents (outcome 2). No
-  divergence was found; the one that motivated #11517 (#11516) is already repaired.
+  This module delivers a **kernel correspondence for the code-hash sentinel** and a
+  **numeral drift pin for the trie-root sentinel**, plus a **documented gap with a named
+  blocker** for the field contents (outcome 2). No divergence was found; the one that
+  motivated #11517 (#11516) is already repaired.
 
   ## ⭐ What was actually unpinned: the constants, in triplicate
 
@@ -26,18 +27,17 @@
   failure shape (*"the asm-side predicate contradicted the reference model of the same
   spec function, and no gate noticed"*) applied to a constant instead of a length bound.
 
-  ⚠️ **A direct kernel tie is not available**, and the reason is worth recording rather
-  than working around: `adEmptyCodeHashBytes = EMPTY_CODE_HASH` requires the kernel to
-  evaluate Keccak-f[1600], and `decide` exhausts the recursion limit on it. Raising the
-  limit is forbidden (CLAUDE.md; #10780 calls a proof that only closes with a raised limit
-  a failure result), and `native_decide` is out of the trusted base entirely.
+  `adEmptyCodeHashBytes = EMPTY_CODE_HASH` is now a genuine kernel-checked theorem.
+  Its proof isolates the concrete one-block absorption and consumes the pre-existing
+  `Accel.keccakF_kat_empty`; the new lemmas add no recursion-depth or heartbeat option.
+  The KAT's existing `maxRecDepth 8000` is documented in `ZiskAccel.lean` as the
+  intrinsic evaluation depth of its 24 rounds.
 
-  So the pin is built the honest way, through a **written numeral**: each literal is
-  kernel-checked equal to the same hex value that SpecRef's own `#guard`s
-  (`WitnessState.lean:41-46`) check its computed constants against. Editing any one copy
-  breaks a build. The seam is that SpecRef's half is `#guard` — compiler-evaluated, not
-  kernel — so this is a drift gate, not a proof that the literals *are* keccak. That
-  distinction is the point of stating it rather than asserting agreement.
+  `adEmptyTrieRootBytes = EMPTY_TRIE_ROOT` remains a numeral pin.  Its input is
+  `keccak256 [0x80]`, which needs a different 24-round KAT; a direct concrete proof
+  exhausts the default recursion depth, and this change deliberately adds no new limit
+  raise. Thus the trie-root half stays an honest drift gate until an independently
+  justified intrinsic-depth KAT exists, while the code-hash half is proved to be keccak.
 
   ## The fold, and where the pairing bottoms out
 
@@ -67,9 +67,10 @@ open EvmAsm.Stateless.SpecRef (bytesBEtoNat)
 
 /-! ## The sentinel pins
 
-    Each is `decide`-checked: a 32-byte big-endian fold, which the kernel's GMP-backed
-    `Nat` handles directly. The numerals are the ones `WitnessState.lean:41-46` checks
-    `EMPTY_CODE_HASH` and `EMPTY_TRIE_ROOT` against. -/
+    The literal-value pins are `decide`-checked 32-byte big-endian folds, which the
+    kernel's GMP-backed `Nat` handles directly. The numerals are the ones
+    `WitnessState.lean:41-46` checks `EMPTY_CODE_HASH` and `EMPTY_TRIE_ROOT` against;
+    the code-hash copy additionally has the direct Keccak theorem above. -/
 
 /-- `adEmptyTrieRootBytes` is `keccak256(rlp(""))`, pinned through the numeral SpecRef's
     `#guard` uses for `EMPTY_TRIE_ROOT`. -/
@@ -84,6 +85,11 @@ theorem adEmptyCodeHashBytes_value :
     bytesBEtoNat adEmptyCodeHashBytes
       = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 := by
   decide
+
+/-- The account-decoder code-hash sentinel is the SpecRef `EMPTY_CODE_HASH` value. -/
+theorem adEmptyCodeHashBytes_eq_spec :
+    adEmptyCodeHashBytes = EvmAsm.Stateless.SpecRef.EMPTY_CODE_HASH := by
+  exact EvmAsm.Codegen.AccountDecodeSpec.adEmptyCodeHashBytes_eq_spec
 
 /-- The `account_is_eip161_empty` copy is pinned to the same numeral. -/
 theorem aieEmptyCodeHashBytes_value :

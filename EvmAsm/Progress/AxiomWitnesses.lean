@@ -38,6 +38,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
 
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
+
 #print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
 
 #print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
