@@ -111,6 +111,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
 
 namespace EvmAsm.Progress
 
@@ -924,6 +925,11 @@ private noncomputable abbrev _zkvm_sha256_frame_witness :=
   @EvmAsm.Codegen.Proofs.sha256Frame_spec
 private noncomputable abbrev _zkvm_sha256_setup_witness :=
   @EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+-- #12018 phase 2: full-block copy, parameter materialization, and the
+-- external SHA compression seam are composed; the outer loop and wrapper stay
+-- open.
+private noncomputable abbrev _zkvm_sha256_full_block_prefix_witness :=
+  @EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
