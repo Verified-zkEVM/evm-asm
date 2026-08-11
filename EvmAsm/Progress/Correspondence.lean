@@ -891,7 +891,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 35 := by decide
+theorem registry_size : registry.length = 36 := by decide
 theorem rlp_rows : countFamily "rlp" = 21 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
@@ -941,7 +941,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
+    countBasis .machineOnly = 6 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
