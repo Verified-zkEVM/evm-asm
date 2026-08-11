@@ -420,6 +420,7 @@ withdrawalDecodeFunction	EvmAsm/Codegen/Programs/Withdrawal.lean
 withdrawalToPathDeltaFunction	EvmAsm/Codegen/Programs/WithdrawalPath.lean
 withdrawalsStateRootFunction	EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean
 witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
+witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
 zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmSha256Function	EvmAsm/Codegen/Programs/HashBridge.lean

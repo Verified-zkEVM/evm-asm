@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (50 of 424 today — gas helpers etc.
+not linked** (50 of 425 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 905 (374 converted, 531 unconverted)
-- covered by converted `_prog`s: 95608 bytes (27.93%)
-- NOT covered: 246764 bytes (72.07%), 532 ranges
+- symbols in `.text`: 905 (375 converted, 530 unconverted)
+- covered by converted `_prog`s: 96228 bytes (28.11%)
+- NOT covered: 246144 bytes (71.89%), 531 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -94,7 +94,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80002760` | `0x800027e4` | 132 | `sg_htr_be` | UNCONVERTED |
 | `0x800027e4` | `0x800028e4` | 256 | `sg_htr_clist` | UNCONVERTED |
 | `0x800028e4` | `0x80002a5c` | 376 | `ssz_htr_execution_requests` | UNCONVERTED |
-| `0x80003b14` | `0x80003d80` | 620 | `witness_lookup_by_hash` | UNCONVERTED |
 | `0x80003d80` | `0x80003d9c` | 28 | `widx_record_ptr` | UNCONVERTED |
 | `0x80003d9c` | `0x80003ddc` | 64 | `widx_cmp32` | UNCONVERTED |
 | `0x80003ddc` | `0x80003e0c` | 48 | `widx_swap_records` | UNCONVERTED |
