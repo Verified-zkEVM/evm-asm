@@ -88,6 +88,7 @@ import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
@@ -803,6 +804,18 @@ private noncomputable abbrev _reb_rlpItem_routine_witness :=
 -- The corollaries are witnessed separately from the triples on purpose: they are where
 -- the `decode`/`readLength` hypotheses enter, and a reader should be able to see which
 -- claim is the machine result and which is the model identification.
+-- #10780: the TOTAL dispatch — one triple over all five RLP prefix forms, no `SpanForm`
+-- gate. Witnessed but deliberately NOT re-graded: `rlp_item_size` keeps its
+-- `.conditional` row on `rlp_item_size_spec_within`, because the total statement carries a
+-- prefix-dependent step bound and a seven-register footprint where the existing one is
+-- constant-time over two, and which of those a consumer wants is a per-caller decision.
+-- Additive by construction: nothing consuming `SpanForm` changes.
+private noncomputable abbrev _rlp_item_size_total_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+private noncomputable abbrev _rlp_item_size_total_covers_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_covers
+private noncomputable abbrev _rlp_item_size_total_bound_witness :=
+  @EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
 private noncomputable abbrev _rlp_item_size_long_string_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_pinned_spec_within
 private noncomputable abbrev _rlp_item_size_long_list_witness :=
