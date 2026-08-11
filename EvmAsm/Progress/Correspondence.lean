@@ -734,7 +734,7 @@ docs/agents/spec-correspondence.md 6a. See #11513" },
   -- `bgv_u32le` is now witnessed in Routines.lean, and #11342 established that a
   -- witnessed symbol with NO row passes the cross-registry gate vacuously.
   { family := "guest", routine := "bgv_u32le",
-    spec := some "bgvU32leFlat_spec",
+    spec := some "bgv_u32le_offset_spec_within",
     verdict := .agrees, basis := .ported,
     reference := "the fixed-width LE reads of deserialize_stateless_input \
 (SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
@@ -748,7 +748,10 @@ WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differe
 there is no `diff` result to inherit; the row's value is bounded by the port's fidelity to \
 the Python, which the clause table above is what establishes. Was `.machineOnly` when the \
 rung did not exist — that grade's description was false here, since the tie is \
-machine-checked rather than a local restatement. Regraded in #11341" },
+machine-checked rather than a local restatement. Regraded in #11341. \
+#11578 WITNESS SWAP: prior `bgvU32leFlat_spec` required a0 aligned (Region.wf); production \
+unaligned a0 (offs 4/12) needs `bgv_u32le_offset_spec_within` (listBase%8=0, a0=listBase+off). \
+Flat remains aligned corollary; grade stays `.agrees`/`.proven` under the production form" },
 
   -- #11578 rescope: validation-accept prefix of execution_requests_hash.
   -- Anchor is SszCodec.deserializeAux fixed-list shape (not compute_requests_hash).

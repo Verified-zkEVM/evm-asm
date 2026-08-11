@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.BgvU32leSpec
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
@@ -491,14 +492,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "`a0 = 1` with a witnessed `DecodeFailure` — both paths in one triple, "
         ++ "so `.proven` and total (no input-domain gate). The intermediate WP "
         ++ "certificates in `WithdrawalDecode*WP.lean` are the steps this composes"),
-  -- #11352: `bgv_u32le`, row 10 of docs/leaf-routine-targets.md. Guest-input u32
-  -- accessor with 8 fixture in-edges. The flat triple is DERIVED from the SAsm
-  -- `bgvU32leFn_spec` by `Fn.retSpecFlat`, so the machine reasoning is the SAsm proof.
-  routine "bgv_u32le" .proven (some "bgvU32leFlat_spec")
-      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le`: `a0 = leU32 bs 0` for "
-        ++ "a read-only region of >= 4 bytes, region intact. Only ABI hyps (pointer in "
-        ++ "a0, region wf, aligned ra). Tied to the reference by "
-        ++ "`leU32_eq_bytesLEtoNat`"),
+  -- #11352 + #11578: `bgv_u32le`. Guest-input u32 accessor. Witness SWAPPED in
+  -- #11578 from `bgvU32leFlat_spec` (Region.wf ⇒ a0%8=0) to the offset form:
+  -- production callers pass unaligned a0 (erh offs 4/12; BlockVerdict* addi 4).
+  -- Flat remains a valid special case (off=0, aligned) but must not be the
+  -- sole .proven witness — alignment is an input-domain gate the grade denied.
+  routine "bgv_u32le" .proven (some "bgv_u32le_offset_spec_within")
+      (notes := "whole-routine triple at `GuestAddrs.bgv_u32le` via offset form: "
+        ++ "`a0 = listBase+off` (may be unaligned), `bytesRegion listBase bs` with "
+        ++ "listBase%8=0, post a0=leU32 (bs.drop off) 0. Covers production. "
+        ++ "Prior witness `bgvU32leFlat_spec` requires a0 aligned (Region.wf) and "
+        ++ "does NOT cover offs 4/12 — kept as aligned corollary, not the grade. "
+        ++ "Tied to the reference by `leU32_eq_bytesLEtoNat`"),
 
   -- #11349: `check_gas_limit`, row 7 of docs/leaf-routine-targets.md. The machine
   -- triple already existed byte-transparently at the guest address; what this row
@@ -839,7 +844,7 @@ private noncomputable abbrev _rlp_encode_list_prefix_long2_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
-  @EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
+  @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 private noncomputable abbrev _check_gas_limit_routine_witness :=
   @EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
