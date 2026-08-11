@@ -22,6 +22,10 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.AccountFields
+import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
+import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
@@ -101,7 +105,6 @@ import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1Field
@@ -174,11 +177,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_encode_bytes, rlpEncodeBytes_prog),
   (GuestAddrs.rlp_encode_uint_be, rlpEncodeUintBe_prog),
   (GuestAddrs.rlp_encode_list_prefix, rlpEncodeListPrefix_prog),
-  (GuestAddrs.rlp_walk_next, rlpWalkNext_prog),
-  (GuestAddrs.rlp_walk_next_nested, rlpWalkNextNested_prog),
-  (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
-  (GuestAddrs.rlp_validate_payload, rlpValidatePayload_prog),
-  (GuestAddrs.rlp_walk_next_core, rlpWalkNextCore_prog),
   (GuestAddrs.mpt_node_slot_encode, mptNodeSlotEncode_prog),
   (GuestAddrs.bytes_to_nibbles, bytesToNibbles_prog),
   (GuestAddrs.u256_from_u64_be, u256FromU64Be_prog),
@@ -291,6 +289,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bgv_u64le, bgvU64le_prog),
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
+  (GuestAddrs.bal_gas_valid_from_builder, balGasValidFromBuilder_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -329,7 +328,25 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_scalar_mul, secp256k1ScalarMul_prog),
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
+  (GuestAddrs.account_writes_latest_balance, accountWritesLatestBalance_prog),
+  (GuestAddrs.account_writes_latest_balance_block, accountWritesLatestBalanceBlock_prog),
+  (GuestAddrs.account_writes_latest_nonce_block, accountWritesLatestNonceBlock_prog),
+  (GuestAddrs.account_writes_latest_nonce_tx, accountWritesLatestNonceTx_prog),
+  (GuestAddrs.account_writes_auth_current, accountWritesAuthCurrent_prog),
+  (GuestAddrs.account_writes_auth_block, accountWritesAuthBlock_prog),
+  (GuestAddrs.account_writes_created_contains, accountWritesCreatedContains_prog),
+  (GuestAddrs.account_writes_lookup_current, accountWritesLookupCurrent_prog),
+  (GuestAddrs.account_writes_tombstone_balance_zero, accountWritesTombstoneBalanceZero_prog),
+  (GuestAddrs.account_writes_commit_pending, accountWritesCommitPending_prog),
+  (GuestAddrs.account_writes_is_absent, accountWritesIsAbsent_prog),
+  (GuestAddrs.account_writes_emit_builder_tx, accountWritesEmitBuilderTx_prog),
+  (GuestAddrs.account_writes_incorporate_tx, accountWritesIncorporateTx_prog),
+  (GuestAddrs.account_writes_restore_frame, accountWritesRestoreFrame_prog),
+  (GuestAddrs.account_resolve_pre_state, accountResolvePreState_prog),
+  (GuestAddrs.account_resolve_execution_state, accountResolveExecutionState_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
+  (GuestAddrs.account_read_record, accountReadRecord_prog),
+  (GuestAddrs.account_at_header_state_root_tracked, accountAtHeaderStateRootTracked_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
@@ -491,6 +508,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 342
+#guard guestImageEntries.length = 356
 
 end EvmAsm.Codegen

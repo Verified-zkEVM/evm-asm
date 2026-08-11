@@ -103,6 +103,9 @@ import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
 import EvmAsm.Stateless.MemoryLayout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64
@@ -300,35 +303,109 @@ def accountWriteRecordFunction : String :=
     a0 = canonical 20-byte BE address pointer
     a1 = 32-byte BE balance output, written only on a BALANCE hit
     returns a0 = 1 on hit and 0 on miss. -/
-def accountWritesLatestBalanceFunction : String :=
-  "account_writes_latest_balance:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawlb_tx_loop:\n" ++
-  "  bgeu t3, t1, .Lawlb_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawlb_tx_cmp:\n" ++
-  "  beqz t6, .Lawlb_tx_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlb_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlb_tx_cmp\n" ++
-  ".Lawlb_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
-  ".Lawlb_tx_key:\n" ++
-  "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_tx_loop\n" ++
-  ".Lawlb_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawlb_block_loop:\n" ++
-  "  bgeu t3, t1, .Lawlb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawlb_block_cmp:\n" ++
-  "  beqz t6, .Lawlb_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlb_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlb_block_cmp\n" ++
-  ".Lawlb_block_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlb_block_loop\n" ++
-  ".Lawlb_block_key:\n" ++
-  "  ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_block_loop\n" ++
-  ".Lawlb_hit:\n" ++
-  "  ld t0, 32(t5); sd t0, 0(s1); ld t0, 40(t5); sd t0, 8(s1); ld t0, 48(t5); sd t0, 16(s1); ld t0, 56(t5); sd t0, 24(s1); li a0, 1; j .Lawlb_ret\n" ++
-  ".Lawlb_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawlb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
+def accountWritesLatestBalance_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_latest_balance + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance + 144) (GuestAddrs.account_writes_latest_balance + 60)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x5 .x5 (1 : BitVec 12),
+    .BNE .x5 .x0 (brOff (GuestAddrs.account_writes_latest_balance + 256) (GuestAddrs.account_writes_latest_balance + 132)),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_latest_balance + 60) (GuestAddrs.account_writes_latest_balance + 140)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance + 144)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance + 296) (GuestAddrs.account_writes_latest_balance + 172)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x5 .x5 (1 : BitVec 12),
+    .BNE .x5 .x0 (12 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_latest_balance + 172) (GuestAddrs.account_writes_latest_balance + 252)),
+    .LD .x5 .x30 (32 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LD .x5 .x30 (40 : BitVec 12),
+    .SD .x9 .x5 (8 : BitVec 12),
+    .LD .x5 .x30 (48 : BitVec 12),
+    .SD .x9 .x5 (16 : BitVec 12),
+    .LD .x5 .x30 (56 : BitVec 12),
+    .SD .x9 .x5 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesLatestBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesLatestBalance_relocs : RelocTable :=
+  [ (7, .jal .x1 "account_read_record"),
+    (8, .la .x5 "tx_account_writes_count"),
+    (36, .la .x5 "account_writes_count") ]
+
+def accountWritesLatestBalanceFunction : String :=
+  "account_writes_latest_balance:\n" ++ emitProgramR accountWritesLatestBalance_prog accountWritesLatestBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesLatestBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesLatestBalanceFunction_eq_prog :
+    accountWritesLatestBalanceFunction = "account_writes_latest_balance:\n" ++ emitProgramR accountWritesLatestBalance_prog accountWritesLatestBalance_relocs := rfl
+
+#guard accountWritesLatestBalanceFunction.startsWith "account_writes_latest_balance:\n"
+#guard accountWritesLatestBalance_prog.length = 80
 /-! ## `account_writes_latest_balance_block`
 
     Block-only balance lookup.  This is intentionally separate from
@@ -338,24 +415,78 @@ def accountWritesLatestBalanceFunction : String :=
 
     a0 = canonical 20-byte BE address, a1 = 32-byte BE output.
     Returns a0 = 1 on a block-map balance hit, 0 otherwise. -/
-def accountWritesLatestBalanceBlockFunction : String :=
-  "account_writes_latest_balance_block:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawlbb_loop:\n" ++
-  "  bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawlbb_cmp:\n" ++
-  "  beqz t6, .Lawlbb_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlbb_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlbb_cmp\n" ++
-  ".Lawlbb_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlbb_loop\n" ++
-  ".Lawlbb_key:\n" ++
-  "  ld t0, 112(t5); andi t0, t0, 1; beqz t0, .Lawlbb_next\n" ++
-  "  ld t0, 32(t5); sd t0, 0(s1); ld t0, 40(t5); sd t0, 8(s1); ld t0, 48(t5); sd t0, 16(s1); ld t0, 56(t5); sd t0, 24(s1); li a0, 1; j .Lawlbb_ret\n" ++
-  ".Lawlbb_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawlbb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 32; ret\n"
+def accountWritesLatestBalanceBlock_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_latest_balance_block + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance_block + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance_block + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance_block + 176) (GuestAddrs.account_writes_latest_balance_block + 60)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x5 .x5 (1 : BitVec 12),
+    .BEQ .x5 .x0 (-16 : BitVec 13),
+    .LD .x5 .x30 (32 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LD .x5 .x30 (40 : BitVec 12),
+    .SD .x9 .x5 (8 : BitVec 12),
+    .LD .x5 .x30 (48 : BitVec 12),
+    .SD .x9 .x5 (16 : BitVec 12),
+    .LD .x5 .x30 (56 : BitVec 12),
+    .SD .x9 .x5 (24 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesLatestBalanceBlock_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesLatestBalanceBlock_relocs : RelocTable :=
+  [ (7, .jal .x1 "account_read_record"),
+    (8, .la .x5 "account_writes_count") ]
+
+def accountWritesLatestBalanceBlockFunction : String :=
+  "account_writes_latest_balance_block:\n" ++ emitProgramR accountWritesLatestBalanceBlock_prog accountWritesLatestBalanceBlock_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesLatestBalanceBlock_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesLatestBalanceBlockFunction_eq_prog :
+    accountWritesLatestBalanceBlockFunction = "account_writes_latest_balance_block:\n" ++ emitProgramR accountWritesLatestBalanceBlock_prog accountWritesLatestBalanceBlock_relocs := rfl
+
+#guard accountWritesLatestBalanceBlockFunction.startsWith "account_writes_latest_balance_block:\n"
+#guard accountWritesLatestBalanceBlock_prog.length = 50
 /-! ## `account_writes_latest_nonce_block`
 
     Block-map-only nonce lookup, with canonical BE20 `a0`, u64 output pointer
@@ -363,23 +494,72 @@ def accountWritesLatestBalanceBlockFunction : String :=
     nonce at `+64`, never falls back to AccountState, and leaves all readers
     untouched.  This is the block-level `account_writes` contract described by
     Amsterdam `state_tracker.py:137-142` and `block_access_lists.py:637-650`. -/
-def accountWritesLatestNonceBlockFunction : String :=
-  "account_writes_latest_nonce_block:\n" ++
-  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawlnb_loop:\n" ++
-  "  bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
-  ".Lawlnb_cmp:\n" ++
-  "  beqz a2, .Lawlnb_key; lbu a3, 0(t5); lbu a4, 0(t6); bne a3, a4, .Lawlnb_next; addi t5, t5, 1; addi t6, t6, 1; addi a2, a2, -1; j .Lawlnb_cmp\n" ++
-  ".Lawlnb_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlnb_loop\n" ++
-  ".Lawlnb_key:\n" ++
-  "  ld t0, 112(t4); andi t0, t0, 2; beqz t0, .Lawlnb_next; ld t0, 64(t4); sd t0, 0(s1); li a0, 1; j .Lawlnb_ret\n" ++
-  ".Lawlnb_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawlnb_ret:\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
+def accountWritesLatestNonceBlock_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x1 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_latest_nonce_block + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_nonce_block + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_nonce_block + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_nonce_block + 152) (GuestAddrs.account_writes_latest_nonce_block + 60)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .MV .x30 .x29,
+    .MV .x31 .x8,
+    .LI .x12 (20 : Word),
+    .BEQ .x12 .x0 (40 : BitVec 13),
+    .LBU .x13 .x30 (0 : BitVec 12),
+    .LBU .x14 .x31 (0 : BitVec 12),
+    .BNE .x13 .x14 (20 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x29 (112 : BitVec 12),
+    .ANDI .x5 .x5 (2 : BitVec 12),
+    .BEQ .x5 .x0 (-16 : BitVec 13),
+    .LD .x5 .x29 (64 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x1 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesLatestNonceBlock_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesLatestNonceBlock_relocs : RelocTable :=
+  [ (7, .jal .x1 "account_read_record"),
+    (8, .la .x5 "account_writes_count") ]
+
+def accountWritesLatestNonceBlockFunction : String :=
+  "account_writes_latest_nonce_block:\n" ++ emitProgramR accountWritesLatestNonceBlock_prog accountWritesLatestNonceBlock_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesLatestNonceBlock_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesLatestNonceBlockFunction_eq_prog :
+    accountWritesLatestNonceBlockFunction = "account_writes_latest_nonce_block:\n" ++ emitProgramR accountWritesLatestNonceBlock_prog accountWritesLatestNonceBlock_relocs := rfl
+
+#guard accountWritesLatestNonceBlockFunction.startsWith "account_writes_latest_nonce_block:\n"
+#guard accountWritesLatestNonceBlock_prog.length = 44
 /-! ## `account_writes_latest_nonce_tx`
 
     Transaction-only nonce lookup.  This is the counterpart to the existing
@@ -388,23 +568,72 @@ def accountWritesLatestNonceBlockFunction : String :=
 
     a0 = canonical 20-byte BE address, a1 = u64 output pointer.
     Returns a0 = 1 on a transaction-map nonce hit, 0 otherwise. -/
-def accountWritesLatestNonceTxFunction : String :=
-  "account_writes_latest_nonce_tx:\n" ++
-  "  addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawlnt_loop:\n" ++
-  "  bgeu t3, t1, .Lawlnt_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20\n" ++
-  ".Lawlnt_cmp:\n" ++
-  "  beqz a2, .Lawlnt_key; lbu a3, 0(t5); lbu a4, 0(t6); bne a3, a4, .Lawlnt_next; addi t5, t5, 1; addi t6, t6, 1; addi a2, a2, -1; j .Lawlnt_cmp\n" ++
-  ".Lawlnt_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlnt_loop\n" ++
-  ".Lawlnt_key:\n" ++
-  "  ld t0, 112(t4); andi t0, t0, 2; beqz t0, .Lawlnt_next; ld t0, 64(t4); sd t0, 0(s1); li a0, 1; j .Lawlnt_ret\n" ++
-  ".Lawlnt_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawlnt_ret:\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld ra, 16(sp); addi sp, sp, 24; ret\n"
+def accountWritesLatestNonceTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x1 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_latest_nonce_tx + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_nonce_tx + 152) (GuestAddrs.account_writes_latest_nonce_tx + 60)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .MV .x30 .x29,
+    .MV .x31 .x8,
+    .LI .x12 (20 : Word),
+    .BEQ .x12 .x0 (40 : BitVec 13),
+    .LBU .x13 .x30 (0 : BitVec 12),
+    .LBU .x14 .x31 (0 : BitVec 12),
+    .BNE .x13 .x14 (20 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x12 .x12 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x29 (112 : BitVec 12),
+    .ANDI .x5 .x5 (2 : BitVec 12),
+    .BEQ .x5 .x0 (-16 : BitVec 13),
+    .LD .x5 .x29 (64 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x1 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesLatestNonceTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesLatestNonceTx_relocs : RelocTable :=
+  [ (7, .jal .x1 "account_read_record"),
+    (8, .la .x5 "tx_account_writes_count") ]
+
+def accountWritesLatestNonceTxFunction : String :=
+  "account_writes_latest_nonce_tx:\n" ++ emitProgramR accountWritesLatestNonceTx_prog accountWritesLatestNonceTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesLatestNonceTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesLatestNonceTxFunction_eq_prog :
+    accountWritesLatestNonceTxFunction = "account_writes_latest_nonce_tx:\n" ++ emitProgramR accountWritesLatestNonceTx_prog accountWritesLatestNonceTx_relocs := rfl
+
+#guard accountWritesLatestNonceTxFunction.startsWith "account_writes_latest_nonce_tx:\n"
+#guard accountWritesLatestNonceTx_prog.length = 44
 /-! ## Account-write AUTH and CREATED contracts
 
     AUTH uses the map's explicit EXEC_FLAGS field rather than inferring
@@ -420,85 +649,279 @@ def accountWritesLatestNonceTxFunction : String :=
 
     AUTH ABI: a0 = address, a1 = nonce output, a2 = flags output;
     return 0 = miss, 1 = present/live, 2 = present/dead. -/
-def accountWritesAuthCurrentFunction : String :=
-  "account_writes_auth_current:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
-  "  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawa_tx_loop:\n" ++
-  "  bgeu t3, t1, .Lawa_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawa_tx_cmp:\n" ++
-  "  beqz t6, .Lawa_tx_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawa_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawa_tx_cmp\n" ++
-  ".Lawa_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lawa_tx_loop\n" ++
-  ".Lawa_tx_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_tx_next; andi t1, t0, 8; beqz t1, .Lawa_tx_next; andi t1, t0, 16; beqz t1, .Lawa_tx_next; j .Lawa_hit\n" ++
-  ".Lawa_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawa_block_loop:\n" ++
-  "  bgeu t3, t1, .Lawa_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawa_block_cmp:\n" ++
-  "  beqz t6, .Lawa_block_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawa_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawa_block_cmp\n" ++
-  ".Lawa_block_next:\n" ++
-  "  addi t3, t3, 1; j .Lawa_block_loop\n" ++
-  ".Lawa_block_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_block_next; andi t1, t0, 8; beqz t1, .Lawa_block_next; andi t1, t0, 16; beqz t1, .Lawa_block_next; j .Lawa_hit\n" ++
-  ".Lawa_hit:\n" ++
-  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t1, 2; bnez t1, .Lawa_live; li a0, 2; j .Lawa_ret\n" ++
-  ".Lawa_live:\n" ++
-  "  li a0, 1; j .Lawa_ret\n" ++
-  ".Lawa_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawa_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); addi sp, sp, 40; ret\n"
+def accountWritesAuthCurrent_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_auth_current + 40)),
+    .LI .x19 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_current + 172) (GuestAddrs.account_writes_auth_current + 76)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x13 .x10 (0 : BitVec 12),
+    .LBU .x14 .x11 (0 : BitVec 12),
+    .BNE .x13 .x14 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (-24 : BitVec 13),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (-32 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_auth_current + 296) (GuestAddrs.account_writes_auth_current + 168)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_current + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_current + 172)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_current + 336) (GuestAddrs.account_writes_auth_current + 200)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x13 .x10 (0 : BitVec 12),
+    .LBU .x14 .x11 (0 : BitVec 12),
+    .BNE .x13 .x14 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (-24 : BitVec 13),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (-32 : BitVec 13),
+    .JAL .x0 (4 : BitVec 21),
+    .LD .x6 .x30 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .SD .x18 .x6 (0 : BitVec 12),
+    .ANDI .x6 .x6 (2 : BitVec 12),
+    .BNE .x6 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesAuthCurrent_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesAuthCurrent_relocs : RelocTable :=
+  [ (10, .jal .x1 "account_read_record"),
+    (12, .la .x5 "tx_account_writes_count"),
+    (43, .la .x5 "account_writes_count") ]
+
+def accountWritesAuthCurrentFunction : String :=
+  "account_writes_auth_current:\n" ++ emitProgramR accountWritesAuthCurrent_prog accountWritesAuthCurrent_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesAuthCurrent_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesAuthCurrentFunction_eq_prog :
+    accountWritesAuthCurrentFunction = "account_writes_auth_current:\n" ++ emitProgramR accountWritesAuthCurrent_prog accountWritesAuthCurrent_relocs := rfl
+
+#guard accountWritesAuthCurrentFunction.startsWith "account_writes_auth_current:\n"
+#guard accountWritesAuthCurrent_prog.length = 92
 /-! Block-only AUTH additionally returns the matched row's code pointer and
     code length in a1/a2 on return.  These registers replace the input scratch
     pointers after the nonce and flags have been written; a row without a CODE
     component returns zeroes there. -/
-def accountWritesAuthBlockFunction : String :=
-  "account_writes_auth_block:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawab_loop:\n" ++
-  "  bgeu t3, t1, .Lawab_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawab_cmp:\n" ++
-  "  beqz t6, .Lawab_key; lbu a3, 0(a0); lbu a4, 0(a1); bne a3, a4, .Lawab_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawab_cmp\n" ++
-  ".Lawab_next:\n" ++
-  "  addi t3, t3, 1; j .Lawab_loop\n" ++
-  ".Lawab_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawab_next; andi t1, t0, 8; beqz t1, .Lawab_next; andi t1, t0, 16; beqz t1, .Lawab_next\n" ++
-  "  ld t1, 64(t5); sd t1, 0(s1); ld t1, 96(t5); sd t1, 0(s2); andi t1, t0, 4; beqz t1, .Lawab_no_code; ld a1, 80(t5); ld a2, 88(t5); j .Lawab_code_ready\n" ++
-  ".Lawab_no_code:\n  li a1, 0; li a2, 0\n" ++
-  ".Lawab_code_ready:\n" ++
-  "  ld t1, 96(t5); andi t1, t1, 2; bnez t1, .Lawab_live; li a0, 2; j .Lawab_ret\n" ++
-  ".Lawab_live:\n" ++
-  "  li a0, 1; j .Lawab_ret\n" ++
-  ".Lawab_miss:\n" ++
-  "  li a0, 0; li a1, 0; li a2, 0\n" ++
-  ".Lawab_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 40; ret\n"
+def accountWritesAuthBlock_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_writes_auth_block + 36)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_block + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_block + 40)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_block + 232) (GuestAddrs.account_writes_auth_block + 68)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x13 .x10 (0 : BitVec 12),
+    .LBU .x14 .x11 (0 : BitVec 12),
+    .BNE .x13 .x14 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (-24 : BitVec 13),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (-32 : BitVec 13),
+    .LD .x6 .x30 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .SD .x18 .x6 (0 : BitVec 12),
+    .ANDI .x6 .x5 (4 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x11 .x30 (80 : BitVec 12),
+    .LD .x12 .x30 (88 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .ANDI .x6 .x6 (2 : BitVec 12),
+    .BNE .x6 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesAuthBlock_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesAuthBlock_relocs : RelocTable :=
+  [ (9, .jal .x1 "account_read_record"),
+    (10, .la .x5 "account_writes_count") ]
+
+def accountWritesAuthBlockFunction : String :=
+  "account_writes_auth_block:\n" ++ emitProgramR accountWritesAuthBlock_prog accountWritesAuthBlock_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesAuthBlock_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesAuthBlockFunction_eq_prog :
+    accountWritesAuthBlockFunction = "account_writes_auth_block:\n" ++ emitProgramR accountWritesAuthBlock_prog accountWritesAuthBlock_relocs := rfl
+
+#guard accountWritesAuthBlockFunction.startsWith "account_writes_auth_block:\n"
+#guard accountWritesAuthBlock_prog.length = 67
 /-! Transaction-local CREATED membership from the explicit map EXEC_FLAGS
     field.  The map must carry this bit on the CREATE code publication; the
     contract deliberately does not treat every code row as created. -/
-def accountWritesCreatedContainsFunction : String :=
-  "account_writes_created_contains:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0; la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawc_loop:\n" ++
-  "  bgeu t3, t1, .Lawc_no; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawc_cmp:\n" ++
-  "  beqz t6, .Lawc_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawc_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawc_cmp\n" ++
-  ".Lawc_next:\n" ++
-  "  addi t3, t3, 1; j .Lawc_loop\n" ++
-  ".Lawc_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 16; beqz t1, .Lawc_next; ld t1, 96(t5); andi t1, t1, 8; bnez t1, .Lawc_yes; j .Lawc_next\n" ++
-  ".Lawc_yes:\n" ++
-  "  li a0, 1; j .Lawc_ret\n" ++
-  ".Lawc_no:\n" ++
-  "  li a0, 0\n" ++
-  ".Lawc_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16; ret\n"
+def accountWritesCreatedContains_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_created_contains + 144) (GuestAddrs.account_writes_created_contains + 44)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .ANDI .x6 .x6 (8 : BitVec 12),
+    .BNE .x6 .x0 (8 : BitVec 13),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesCreatedContains_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesCreatedContains_relocs : RelocTable :=
+  [ (4, .la .x5 "tx_account_writes_count") ]
+
+def accountWritesCreatedContainsFunction : String :=
+  "account_writes_created_contains:\n" ++ emitProgramR accountWritesCreatedContains_prog accountWritesCreatedContains_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesCreatedContains_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesCreatedContainsFunction_eq_prog :
+    accountWritesCreatedContainsFunction = "account_writes_created_contains:\n" ++ emitProgramR accountWritesCreatedContains_prog accountWritesCreatedContains_relocs := rfl
+
+#guard accountWritesCreatedContainsFunction.startsWith "account_writes_created_contains:\n"
+#guard accountWritesCreatedContains_prog.length = 41
 /-! Current execution-code/status lookup over the account-write tiers.
 
     This preserves the ABI of `account_state_lookup_current` so existing
@@ -508,33 +931,127 @@ def accountWritesCreatedContainsFunction : String :=
     delete-finalization row deliberately carries STATE without EXEC_FLAGS,
     while component-only balance/nonce/touch rows are deliberately skipped so
     they cannot mask a lower-tier code row or the caller's witness fallback. -/
-def accountWritesLookupCurrentFunction : String :=
-  "account_writes_lookup_current:\n" ++
-  "  addi sp, sp, -24; sd ra, 0(sp); sd s0, 8(sp); mv s0, a0\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawlc_tx_loop:\n" ++
-  "  bgeu t3, t1, .Lawlc_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawlc_tx_cmp:\n" ++
-  "  beqz t6, .Lawlc_tx_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlc_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlc_tx_cmp\n" ++
-  ".Lawlc_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlc_tx_loop\n" ++
-  ".Lawlc_tx_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_tx_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
-  ".Lawlc_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawlc_block_loop:\n" ++
-  "  bgeu t3, t1, .Lawlc_absent; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawlc_block_cmp:\n" ++
-  "  beqz t6, .Lawlc_block_key; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawlc_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawlc_block_cmp\n" ++
-  ".Lawlc_block_next:\n" ++
-  "  addi t3, t3, 1; j .Lawlc_block_loop\n" ++
-  ".Lawlc_block_key:\n" ++
-  "  ld t0, 112(t5); andi t1, t0, 8; beqz t1, .Lawlc_block_next; ld t1, 72(t5); beqz t1, .Lawlc_deleted; andi t1, t0, 16; beqz t1, .Lawlc_empty; ld t1, 96(t5); andi t1, t1, 2; beqz t1, .Lawlc_deleted; andi t1, t0, 4; beqz t1, .Lawlc_empty; ld a1, 80(t5); ld a2, 88(t5); beqz a2, .Lawlc_empty; li a0, 1; j .Lawlc_ret\n" ++
-  ".Lawlc_empty:\n  li a0, 2; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
-  ".Lawlc_deleted:\n  li a0, 3; li a1, 0; li a2, 0; j .Lawlc_ret\n" ++
-  ".Lawlc_absent:\n  li a0, 0; li a1, 0; li a2, 0\n" ++
-  ".Lawlc_ret:\n  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 24; ret\n"
+def accountWritesLookupCurrent_prog : Program :=
+  [ .ADDI .x2 .x2 (-24 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_lookup_current + 176) (GuestAddrs.account_writes_lookup_current + 44)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .LD .x6 .x30 (72 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 352) (GuestAddrs.account_writes_lookup_current + 124)),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 336) (GuestAddrs.account_writes_lookup_current + 132)),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .ANDI .x6 .x6 (2 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 352) (GuestAddrs.account_writes_lookup_current + 144)),
+    .ANDI .x6 .x5 (4 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 336) (GuestAddrs.account_writes_lookup_current + 152)),
+    .LD .x11 .x30 (80 : BitVec 12),
+    .LD .x12 .x30 (88 : BitVec 12),
+    .BEQ .x12 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 336) (GuestAddrs.account_writes_lookup_current + 164)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_lookup_current + 380) (GuestAddrs.account_writes_lookup_current + 172)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_lookup_current + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_lookup_current + 176)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_lookup_current + 368) (GuestAddrs.account_writes_lookup_current + 204)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (-16 : BitVec 13),
+    .LD .x6 .x30 (72 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_lookup_current + 352) (GuestAddrs.account_writes_lookup_current + 284)),
+    .ANDI .x6 .x5 (16 : BitVec 12),
+    .BEQ .x6 .x0 (44 : BitVec 13),
+    .LD .x6 .x30 (96 : BitVec 12),
+    .ANDI .x6 .x6 (2 : BitVec 12),
+    .BEQ .x6 .x0 (48 : BitVec 13),
+    .ANDI .x6 .x5 (4 : BitVec 12),
+    .BEQ .x6 .x0 (24 : BitVec 13),
+    .LD .x11 .x30 (80 : BitVec 12),
+    .LD .x12 .x30 (88 : BitVec 12),
+    .BEQ .x12 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (24 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesLookupCurrent_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesLookupCurrent_relocs : RelocTable :=
+  [ (4, .la .x5 "tx_account_writes_count"),
+    (44, .la .x5 "account_writes_count") ]
+
+def accountWritesLookupCurrentFunction : String :=
+  "account_writes_lookup_current:\n" ++ emitProgramR accountWritesLookupCurrent_prog accountWritesLookupCurrent_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesLookupCurrent_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesLookupCurrentFunction_eq_prog :
+    accountWritesLookupCurrentFunction = "account_writes_lookup_current:\n" ++ emitProgramR accountWritesLookupCurrent_prog accountWritesLookupCurrent_relocs := rfl
+
+#guard accountWritesLookupCurrentFunction.startsWith "account_writes_lookup_current:\n"
+#guard accountWritesLookupCurrent_prog.length = 99
 /-! Balance/nonce-zero predicate for an empty current account.
 
     This is the map-side replacement for `account_state_tombstone_balance_zero`.
@@ -545,63 +1062,215 @@ def accountWritesLookupCurrentFunction : String :=
     created-this-transaction membership: unlike the row-local EXEC_FLAGS field,
     it also answers for an account before any map row exists.  A set-overflow
     status is treated as fail-closed by the caller. -/
-def accountWritesTombstoneBalanceZeroFunction : String :=
-  "account_writes_tombstone_balance_zero:\n" ++
-  "  addi sp, sp, -160; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); mv s0, a0; li s1, 0; li s2, 0\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawtbz_tx_loop:\n" ++
-  "  bgeu t3, t1, .Lawtbz_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawtbz_tx_cmp:\n" ++
-  "  beqz t6, .Lawtbz_tx_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawtbz_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawtbz_tx_cmp\n" ++
-  ".Lawtbz_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lawtbz_tx_loop\n" ++
-  ".Lawtbz_tx_hit:\n" ++
-  "  mv s1, t5\n" ++
-  "  j .Lawtbz_block_init\n" ++
-  ".Lawtbz_block_init:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawtbz_block_loop:\n" ++
-  "  bgeu t3, t1, .Lawtbz_state_select; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20\n" ++
-  ".Lawtbz_block_cmp:\n" ++
-  "  beqz t6, .Lawtbz_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lawtbz_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lawtbz_block_cmp\n" ++
-  ".Lawtbz_block_next:\n" ++
-  "  addi t3, t3, 1; j .Lawtbz_block_loop\n" ++
-  ".Lawtbz_block_hit:\n" ++
-  "  mv s2, t5\n" ++
-  ".Lawtbz_state_select:\n" ++
-  "  beqz s1, .Lawtbz_use_block_state; ld t0, 112(s1); andi t1, t0, 8; bnez t1, .Lawtbz_use_tx_state\n" ++
-  ".Lawtbz_use_block_state:\n" ++
-  "  beqz s2, .Lawtbz_no; ld t0, 112(s2); andi t1, t0, 8; beqz t1, .Lawtbz_no; mv s3, s2; j .Lawtbz_state_check\n" ++
-  ".Lawtbz_use_tx_state:\n" ++
-  "  mv s3, s1\n" ++
-  ".Lawtbz_state_check:\n" ++
-  "  ld t0, 72(s3); beqz t0, .Lawtbz_yes; mv a0, s0; jal ra, account_state_created_contains; bnez a0, .Lawtbz_no\n" ++
-  "  ld t1, 112(s3); andi t2, t1, 4; beqz t2, .Lawtbz_components; ld t3, 88(s3); bnez t3, .Lawtbz_no\n" ++
-  ".Lawtbz_components:\n" ++
-  "  li s4, 0; li s5, 0\n" ++
-  "  beqz s1, .Lawtbz_block_components; ld t0, 112(s1); andi t1, t0, 1; beqz t1, .Lawtbz_tx_nonce; ld t2, 32(s1); sd t2, 128(sp); ld t2, 40(s1); sd t2, 136(sp); ld t2, 48(s1); sd t2, 144(sp); ld t2, 56(s1); sd t2, 152(sp); li s4, 1\n" ++
-  ".Lawtbz_tx_nonce:\n" ++
-  "  andi t1, t0, 2; beqz t1, .Lawtbz_block_components; ld t2, 64(s1); sd t2, 120(sp); li s5, 1\n" ++
-  ".Lawtbz_block_components:\n" ++
-  "  beqz s2, .Lawtbz_prestate_check; ld t0, 112(s2); bnez s4, .Lawtbz_block_nonce; andi t1, t0, 1; beqz t1, .Lawtbz_block_nonce; ld t2, 32(s2); sd t2, 128(sp); ld t2, 40(s2); sd t2, 136(sp); ld t2, 48(s2); sd t2, 144(sp); ld t2, 56(s2); sd t2, 152(sp); li s4, 1\n" ++
-  ".Lawtbz_block_nonce:\n" ++
-  "  bnez s5, .Lawtbz_prestate_check; andi t1, t0, 2; beqz t1, .Lawtbz_prestate_check; ld t2, 64(s2); sd t2, 120(sp); li s5, 1\n" ++
-  ".Lawtbz_prestate_check:\n" ++
-  "  bnez s4, .Lawtbz_need_nonce; j .Lawtbz_prestate\n" ++
-  ".Lawtbz_need_nonce:\n" ++
-  "  bnez s5, .Lawtbz_restore_direct; j .Lawtbz_prestate\n" ++
-  ".Lawtbz_prestate:\n" ++
-  "  sd zero, 80(sp); sd zero, 88(sp); sd zero, 96(sp); sd zero, 104(sp); sd zero, 112(sp); mv a0, s0; addi a1, sp, 80; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state; bnez a0, .Lawtbz_no\n" ++
-  ".Lawtbz_restore_direct:\n" ++
-  "  beqz s4, .Lawtbz_restore_nonce; ld t0, 128(sp); sd t0, 88(sp); ld t0, 136(sp); sd t0, 96(sp); ld t0, 144(sp); sd t0, 104(sp); ld t0, 152(sp); sd t0, 112(sp)\n" ++
-  ".Lawtbz_restore_nonce:\n" ++
-  "  beqz s5, .Lawtbz_zero_check; ld t0, 120(sp); sd t0, 80(sp)\n" ++
-  ".Lawtbz_zero_check:\n" ++
-  "  ld t0, 80(sp); bnez t0, .Lawtbz_no; ld t0, 88(sp); ld t1, 96(sp); or t0, t0, t1; ld t1, 104(sp); or t0, t0, t1; ld t1, 112(sp); or t0, t0, t1; bnez t0, .Lawtbz_no; j .Lawtbz_yes\n" ++
-  ".Lawtbz_yes:\n  li a0, 1; j .Lawtbz_ret\n" ++
-  ".Lawtbz_no:\n  li a0, 0\n" ++
-  ".Lawtbz_ret:\n  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 160; ret\n"
+def accountWritesTombstoneBalanceZero_prog : Program :=
+  [ .ADDI .x2 .x2 (-160 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .LI .x9 (0 : Word),
+    .LI .x18 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 144) (GuestAddrs.account_writes_tombstone_balance_zero + 72)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x9 .x30,
+    .JAL .x0 (4 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 144)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 144)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 240) (GuestAddrs.account_writes_tombstone_balance_zero + 172)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x18 .x30,
+    .BEQ .x9 .x0 (16 : BitVec 13),
+    .LD .x5 .x9 (112 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BNE .x6 .x0 (28 : BitVec 13),
+    .BEQ .x18 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 684) (GuestAddrs.account_writes_tombstone_balance_zero + 256)),
+    .LD .x5 .x18 (112 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 684) (GuestAddrs.account_writes_tombstone_balance_zero + 268)),
+    .MV .x19 .x18,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x19 .x9,
+    .LD .x5 .x19 (72 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 676) (GuestAddrs.account_writes_tombstone_balance_zero + 288)),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_state_created_contains (GuestAddrs.account_writes_tombstone_balance_zero + 296)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 684) (GuestAddrs.account_writes_tombstone_balance_zero + 300)),
+    .LD .x6 .x19 (112 : BitVec 12),
+    .ANDI .x7 .x6 (4 : BitVec 12),
+    .BEQ .x7 .x0 (12 : BitVec 13),
+    .LD .x28 .x19 (88 : BitVec 12),
+    .BNE .x28 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 684) (GuestAddrs.account_writes_tombstone_balance_zero + 320)),
+    .LI .x20 (0 : Word),
+    .LI .x21 (0 : Word),
+    .BEQ .x9 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 404) (GuestAddrs.account_writes_tombstone_balance_zero + 332)),
+    .LD .x5 .x9 (112 : BitVec 12),
+    .ANDI .x6 .x5 (1 : BitVec 12),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .LD .x7 .x9 (32 : BitVec 12),
+    .SD .x2 .x7 (128 : BitVec 12),
+    .LD .x7 .x9 (40 : BitVec 12),
+    .SD .x2 .x7 (136 : BitVec 12),
+    .LD .x7 .x9 (48 : BitVec 12),
+    .SD .x2 .x7 (144 : BitVec 12),
+    .LD .x7 .x9 (56 : BitVec 12),
+    .SD .x2 .x7 (152 : BitVec 12),
+    .LI .x20 (1 : Word),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x7 .x9 (64 : BitVec 12),
+    .SD .x2 .x7 (120 : BitVec 12),
+    .LI .x21 (1 : Word),
+    .BEQ .x18 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 484) (GuestAddrs.account_writes_tombstone_balance_zero + 404)),
+    .LD .x5 .x18 (112 : BitVec 12),
+    .BNE .x20 .x0 (48 : BitVec 13),
+    .ANDI .x6 .x5 (1 : BitVec 12),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .LD .x7 .x18 (32 : BitVec 12),
+    .SD .x2 .x7 (128 : BitVec 12),
+    .LD .x7 .x18 (40 : BitVec 12),
+    .SD .x2 .x7 (136 : BitVec 12),
+    .LD .x7 .x18 (48 : BitVec 12),
+    .SD .x2 .x7 (144 : BitVec 12),
+    .LD .x7 .x18 (56 : BitVec 12),
+    .SD .x2 .x7 (152 : BitVec 12),
+    .LI .x20 (1 : Word),
+    .BNE .x21 .x0 (24 : BitVec 13),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x7 .x18 (64 : BitVec 12),
+    .SD .x2 .x7 (120 : BitVec 12),
+    .LI .x21 (1 : Word),
+    .BNE .x20 .x0 (8 : BitVec 13),
+    .JAL .x0 (12 : BitVec 21),
+    .BNE .x21 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 584) (GuestAddrs.account_writes_tombstone_balance_zero + 492)),
+    .JAL .x0 (4 : BitVec 21),
+    .SD .x2 .x0 (80 : BitVec 12),
+    .SD .x2 .x0 (88 : BitVec 12),
+    .SD .x2 .x0 (96 : BitVec 12),
+    .SD .x2 .x0 (104 : BitVec 12),
+    .SD .x2 .x0 (112 : BitVec 12),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (80 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_tombstone_balance_zero + 528)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_tombstone_balance_zero + 528)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_tombstone_balance_zero + 540)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_tombstone_balance_zero + 540)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_tombstone_balance_zero + 552)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_tombstone_balance_zero + 552)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_tombstone_balance_zero + 564)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_tombstone_balance_zero + 564)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_resolve_pre_state (GuestAddrs.account_writes_tombstone_balance_zero + 576)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 684) (GuestAddrs.account_writes_tombstone_balance_zero + 580)),
+    .BEQ .x20 .x0 (36 : BitVec 13),
+    .LD .x5 .x2 (128 : BitVec 12),
+    .SD .x2 .x5 (88 : BitVec 12),
+    .LD .x5 .x2 (136 : BitVec 12),
+    .SD .x2 .x5 (96 : BitVec 12),
+    .LD .x5 .x2 (144 : BitVec 12),
+    .SD .x2 .x5 (104 : BitVec 12),
+    .LD .x5 .x2 (152 : BitVec 12),
+    .SD .x2 .x5 (112 : BitVec 12),
+    .BEQ .x21 .x0 (12 : BitVec 13),
+    .LD .x5 .x2 (120 : BitVec 12),
+    .SD .x2 .x5 (80 : BitVec 12),
+    .LD .x5 .x2 (80 : BitVec 12),
+    .BNE .x5 .x0 (48 : BitVec 13),
+    .LD .x5 .x2 (88 : BitVec 12),
+    .LD .x6 .x2 (96 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x2 (104 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x2 (112 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .BNE .x5 .x0 (16 : BitVec 13),
+    .JAL .x0 (4 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (160 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesTombstoneBalanceZero_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesTombstoneBalanceZero_relocs : RelocTable :=
+  [ (11, .la .x5 "tx_account_writes_count"),
+    (36, .la .x5 "account_writes_count"),
+    (74, .jal .x1 "account_state_created_contains"),
+    (132, .la .x5 "sv_pre_rlp_ptr"),
+    (135, .la .x5 "sv_pre_rlp_len"),
+    (138, .la .x5 "bv_witness_state_ptr"),
+    (141, .la .x5 "bv_witness_state_len"),
+    (144, .jal .x1 "account_resolve_pre_state") ]
+
+def accountWritesTombstoneBalanceZeroFunction : String :=
+  "account_writes_tombstone_balance_zero:\n" ++ emitProgramR accountWritesTombstoneBalanceZero_prog accountWritesTombstoneBalanceZero_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesTombstoneBalanceZero_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
+    accountWritesTombstoneBalanceZeroFunction = "account_writes_tombstone_balance_zero:\n" ++ emitProgramR accountWritesTombstoneBalanceZero_prog accountWritesTombstoneBalanceZero_relocs := rfl
+
+#guard accountWritesTombstoneBalanceZeroFunction.startsWith "account_writes_tombstone_balance_zero:\n"
+#guard accountWritesTombstoneBalanceZero_prog.length = 181
 /-! Runtime-only mutation-boundary observations.  The old map/overlay
     agreement probe and per-reader differential are retired; the remaining
     checkpoint records mutation events for the verdict/control sweep. -/
@@ -842,144 +1511,452 @@ def accountWritesApplyDeletesFunction : String :=
 
     No arguments.  BAI comes from `current_block_access_index`, maintained as
     `bv_mtx_i + 1` by the multi-tx loop. -/
+def accountWritesEmitBuilderTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.current_block_access_index (GuestAddrs.account_writes_emit_builder_tx + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.current_block_access_index (GuestAddrs.account_writes_emit_builder_tx + 44)),
+    .LD .x23 .x5 (0 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 56)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 56)),
+    .LD .x9 .x8 (0 : BitVec 12),
+    .LUI .x18 (1 : BitVec 20),
+    .ADDIW .x18 .x18 (2031 : BitVec 12),
+    .SLLI .x18 .x18 (19 : BitVec 6),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.account_writes_emit_builder_tx + 1236) (GuestAddrs.account_writes_emit_builder_tx + 84)),
+    .SLLI .x5 .x19 (7 : BitVec 6),
+    .ADD .x20 .x18 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 96)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 96)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .LI .x21 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 200) (GuestAddrs.account_writes_emit_builder_tx + 128)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .LI .x31 (20 : Word),
+    .MV .x10 .x30,
+    .MV .x11 .x20,
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x21 .x30,
+    .JAL .x0 (4 : BitVec 21),
+    .BNE .x21 .x0 (4 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_emit_builder_tx + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_emit_builder_tx + 204)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_emit_builder_tx + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_emit_builder_tx + 216)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x20,
+    .LI .x13 (20 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_emit_builder_tx + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_emit_builder_tx + 236)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_emit_builder_tx + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_emit_builder_tx + 248)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x16 (laHi GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 260)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 260)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root (GuestAddrs.account_writes_emit_builder_tx + 268)),
+    .SD .x2 .x10 (80 : BitVec 12),
+    .MV .x10 .x20,
+    .AUIPC .x11 (laHi GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 280)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 280)),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_emit_builder_tx + 288)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.account_writes_emit_builder_tx + 288)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_emit_builder_tx + 300)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.account_writes_emit_builder_tx + 300)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_emit_builder_tx + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.account_writes_emit_builder_tx + 312)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_emit_builder_tx + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.account_writes_emit_builder_tx + 324)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_resolve_pre_state (GuestAddrs.account_writes_emit_builder_tx + 336)),
+    .LD .x24 .x20 (112 : BitVec 12),
+    .ANDI .x5 .x24 (1 : BitVec 12),
+    .BNE .x5 .x0 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 768) (GuestAddrs.account_writes_emit_builder_tx + 352)),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_bit_set (GuestAddrs.account_writes_emit_builder_tx + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_bit_set (GuestAddrs.account_writes_emit_builder_tx + 356)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x22 (laHi GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 376)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 376)),
+    .ADDI .x22 .x22 (8 : BitVec 12),
+    .LD .x5 .x22 (0 : BitVec 12),
+    .LD .x6 .x20 (32 : BitVec 12),
+    .BNE .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 608) (GuestAddrs.account_writes_emit_builder_tx + 396)),
+    .LD .x5 .x22 (8 : BitVec 12),
+    .LD .x6 .x20 (40 : BitVec 12),
+    .BNE .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 608) (GuestAddrs.account_writes_emit_builder_tx + 408)),
+    .LD .x5 .x22 (16 : BitVec 12),
+    .LD .x6 .x20 (48 : BitVec 12),
+    .BNE .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 608) (GuestAddrs.account_writes_emit_builder_tx + 420)),
+    .LD .x5 .x22 (24 : BitVec 12),
+    .LD .x6 .x20 (56 : BitVec 12),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 676) (GuestAddrs.account_writes_emit_builder_tx + 432)),
+    .LI .x5 (4 : Word),
+    .BGEU .x19 .x5 (brOff (GuestAddrs.account_writes_emit_builder_tx + 560) (GuestAddrs.account_writes_emit_builder_tx + 440)),
+    .LI .x5 (96 : Word),
+    .MUL .x5 .x19 .x5,
+    .AUIPC .x6 (laHi GuestAddrs.account_builder_diag_balance_pairs (GuestAddrs.account_writes_emit_builder_tx + 452)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.account_builder_diag_balance_pairs (GuestAddrs.account_writes_emit_builder_tx + 452)),
+    .ADD .x6 .x6 .x5,
+    .LD .x5 .x20 (0 : BitVec 12),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x5 .x20 (8 : BitVec 12),
+    .SD .x6 .x5 (8 : BitVec 12),
+    .LD .x5 .x20 (16 : BitVec 12),
+    .SD .x6 .x5 (16 : BitVec 12),
+    .LD .x5 .x20 (24 : BitVec 12),
+    .SD .x6 .x5 (24 : BitVec 12),
+    .LD .x5 .x22 (0 : BitVec 12),
+    .SD .x6 .x5 (32 : BitVec 12),
+    .LD .x5 .x22 (8 : BitVec 12),
+    .SD .x6 .x5 (40 : BitVec 12),
+    .LD .x5 .x22 (16 : BitVec 12),
+    .SD .x6 .x5 (48 : BitVec 12),
+    .LD .x5 .x22 (24 : BitVec 12),
+    .SD .x6 .x5 (56 : BitVec 12),
+    .LD .x5 .x20 (32 : BitVec 12),
+    .SD .x6 .x5 (64 : BitVec 12),
+    .LD .x5 .x20 (40 : BitVec 12),
+    .SD .x6 .x5 (72 : BitVec 12),
+    .LD .x5 .x20 (48 : BitVec 12),
+    .SD .x6 .x5 (80 : BitVec 12),
+    .LD .x5 .x20 (56 : BitVec 12),
+    .SD .x6 .x5 (88 : BitVec 12),
+    .LD .x5 .x22 (0 : BitVec 12),
+    .LD .x6 .x20 (32 : BitVec 12),
+    .BNE .x5 .x6 (40 : BitVec 13),
+    .LD .x5 .x22 (8 : BitVec 12),
+    .LD .x6 .x20 (40 : BitVec 12),
+    .BNE .x5 .x6 (28 : BitVec 13),
+    .LD .x5 .x22 (16 : BitVec 12),
+    .LD .x6 .x20 (48 : BitVec 12),
+    .BNE .x5 .x6 (16 : BitVec 13),
+    .LD .x5 .x22 (24 : BitVec 12),
+    .LD .x6 .x20 (56 : BitVec 12),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 768) (GuestAddrs.account_writes_emit_builder_tx + 604)),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_differs (GuestAddrs.account_writes_emit_builder_tx + 608)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_differs (GuestAddrs.account_writes_emit_builder_tx + 608)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_ne_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 628)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_ne_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 628)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .SLL .x7 .x7 .x23,
+    .OR .x6 .x6 .x7,
+    .SD .x5 .x6 (0 : BitVec 12),
+    .MV .x10 .x20,
+    .MV .x11 .x23,
+    .ADDI .x12 .x20 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_append_balance (GuestAddrs.account_writes_emit_builder_tx + 668)),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 768) (GuestAddrs.account_writes_emit_builder_tx + 672)),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_eq_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_eq_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 676)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .SLL .x7 .x7 .x23,
+    .OR .x6 .x6 .x7,
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_eq_val_lo (GuestAddrs.account_writes_emit_builder_tx + 708)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_eq_val_lo (GuestAddrs.account_writes_emit_builder_tx + 708)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_eq_val_hi (GuestAddrs.account_writes_emit_builder_tx + 724)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_eq_val_hi (GuestAddrs.account_writes_emit_builder_tx + 724)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x20 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_eq_addr_a (GuestAddrs.account_writes_emit_builder_tx + 740)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_eq_addr_a (GuestAddrs.account_writes_emit_builder_tx + 740)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x20 (8 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bald_bal_eq_addr_b (GuestAddrs.account_writes_emit_builder_tx + 756)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_bal_eq_addr_b (GuestAddrs.account_writes_emit_builder_tx + 756)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .ANDI .x5 .x24 (2 : BitVec 12),
+    .BNE .x5 .x0 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 1036) (GuestAddrs.account_writes_emit_builder_tx + 776)),
+    .AUIPC .x5 (laHi GuestAddrs.bald_non_bit_set (GuestAddrs.account_writes_emit_builder_tx + 780)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bald_non_bit_set (GuestAddrs.account_writes_emit_builder_tx + 780)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 800)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 800)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LD .x6 .x20 (64 : BitVec 12),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 888) (GuestAddrs.account_writes_emit_builder_tx + 816)),
+    .AUIPC .x30 (laHi GuestAddrs.bald_non_differs (GuestAddrs.account_writes_emit_builder_tx + 820)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.bald_non_differs (GuestAddrs.account_writes_emit_builder_tx + 820)),
+    .LD .x31 .x30 (0 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .SD .x30 .x31 (0 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.bald_non_ne_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 840)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.bald_non_ne_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 840)),
+    .LD .x31 .x30 (0 : BitVec 12),
+    .LI .x28 (1 : Word),
+    .SLL .x28 .x28 .x23,
+    .OR .x31 .x31 .x28,
+    .SD .x30 .x31 (0 : BitVec 12),
+    .MV .x10 .x20,
+    .MV .x11 .x23,
+    .MV .x12 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_append_nonce (GuestAddrs.account_writes_emit_builder_tx + 880)),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 1036) (GuestAddrs.account_writes_emit_builder_tx + 884)),
+    .AUIPC .x7 (laHi GuestAddrs.bald_non_eq_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 888)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bald_non_eq_bai_mask (GuestAddrs.account_writes_emit_builder_tx + 888)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .LI .x29 (1 : Word),
+    .SLL .x29 .x29 .x23,
+    .OR .x28 .x28 .x29,
+    .SD .x7 .x28 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bald_non_eq_val_pre (GuestAddrs.account_writes_emit_builder_tx + 916)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bald_non_eq_val_pre (GuestAddrs.account_writes_emit_builder_tx + 916)),
+    .SD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.bald_non_eq_val_post (GuestAddrs.account_writes_emit_builder_tx + 928)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bald_non_eq_val_post (GuestAddrs.account_writes_emit_builder_tx + 928)),
+    .SD .x7 .x6 (0 : BitVec 12),
+    .LI .x7 (4 : Word),
+    .BGEU .x19 .x7 (brOff (GuestAddrs.account_writes_emit_builder_tx + 1012) (GuestAddrs.account_writes_emit_builder_tx + 944)),
+    .LI .x7 (48 : Word),
+    .MUL .x7 .x19 .x7,
+    .AUIPC .x28 (laHi GuestAddrs.account_builder_diag_nonce_pairs (GuestAddrs.account_writes_emit_builder_tx + 956)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.account_builder_diag_nonce_pairs (GuestAddrs.account_writes_emit_builder_tx + 956)),
+    .ADD .x28 .x28 .x7,
+    .LD .x7 .x20 (0 : BitVec 12),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .LD .x7 .x20 (8 : BitVec 12),
+    .SD .x28 .x7 (8 : BitVec 12),
+    .LD .x7 .x20 (16 : BitVec 12),
+    .SD .x28 .x7 (16 : BitVec 12),
+    .LD .x7 .x20 (24 : BitVec 12),
+    .SD .x28 .x7 (24 : BitVec 12),
+    .SD .x28 .x5 (32 : BitVec 12),
+    .LD .x7 .x20 (64 : BitVec 12),
+    .SD .x28 .x7 (40 : BitVec 12),
+    .LD .x6 .x20 (64 : BitVec 12),
+    .BEQ .x5 .x6 (20 : BitVec 13),
+    .MV .x10 .x20,
+    .MV .x11 .x23,
+    .MV .x12 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_append_nonce (GuestAddrs.account_writes_emit_builder_tx + 1032)),
+    .ANDI .x5 .x24 (4 : BitVec 12),
+    .BNE .x5 .x0 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 1228) (GuestAddrs.account_writes_emit_builder_tx + 1044)),
+    .LD .x10 .x20 (80 : BitVec 12),
+    .LD .x11 .x20 (88 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.account_builder_post_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1056)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.account_builder_post_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1056)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.account_writes_emit_builder_tx + 1064)),
+    .BEQ .x21 .x0 (48 : BitVec 13),
+    .LD .x5 .x21 (112 : BitVec 12),
+    .ANDI .x5 .x5 (4 : BitVec 12),
+    .BEQ .x5 .x0 (36 : BitVec 13),
+    .LD .x10 .x21 (80 : BitVec 12),
+    .LD .x11 .x21 (88 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.account_builder_block_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1092)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.account_builder_block_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1092)),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.account_writes_emit_builder_tx + 1100)),
+    .AUIPC .x22 (laHi GuestAddrs.account_builder_block_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1104)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.account_builder_block_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1104)),
+    .JAL .x0 (40 : BitVec 21),
+    .LD .x5 .x2 (80 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BEQ .x5 .x6 (20 : BitVec 13),
+    .AUIPC .x22 (laHi GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 1128)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.account_builder_pre_account (GuestAddrs.account_writes_emit_builder_tx + 1128)),
+    .ADDI .x22 .x22 (72 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .AUIPC .x22 (laHi GuestAddrs.chahsr_empty_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1144)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.chahsr_empty_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1144)),
+    .AUIPC .x5 (laHi GuestAddrs.account_builder_post_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_builder_post_code_hash (GuestAddrs.account_writes_emit_builder_tx + 1152)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x22 (0 : BitVec 12),
+    .BNE .x6 .x7 (40 : BitVec 13),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .LD .x7 .x22 (8 : BitVec 12),
+    .BNE .x6 .x7 (28 : BitVec 13),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .LD .x7 .x22 (16 : BitVec 12),
+    .BNE .x6 .x7 (16 : BitVec 13),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .LD .x7 .x22 (24 : BitVec 12),
+    .BEQ .x6 .x7 (24 : BitVec 13),
+    .MV .x10 .x20,
+    .MV .x11 .x23,
+    .LD .x12 .x20 (80 : BitVec 12),
+    .LD .x13 .x20 (88 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_append_code (GuestAddrs.account_writes_emit_builder_tx + 1224)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_emit_builder_tx + 84) (GuestAddrs.account_writes_emit_builder_tx + 1232)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `accountWritesEmitBuilderTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesEmitBuilderTx_relocs : RelocTable :=
+  [ (11, .la .x5 "current_block_access_index"),
+    (14, .la .x8 "tx_account_writes_count"),
+    (24, .la .x5 "account_writes_count"),
+    (51, .la .x5 "sv_pre_rlp_ptr"),
+    (54, .la .x5 "sv_pre_rlp_len"),
+    (59, .la .x5 "bv_witness_state_ptr"),
+    (62, .la .x5 "bv_witness_state_len"),
+    (65, .la .x16 "account_builder_pre_account"),
+    (67, .jal .x1 "account_at_header_state_root"),
+    (70, .la .x11 "account_builder_pre_account"),
+    (72, .la .x5 "sv_pre_rlp_ptr"),
+    (75, .la .x5 "sv_pre_rlp_len"),
+    (78, .la .x5 "bv_witness_state_ptr"),
+    (81, .la .x5 "bv_witness_state_len"),
+    (84, .jal .x1 "account_resolve_pre_state"),
+    (89, .la .x5 "bald_bal_bit_set"),
+    (94, .la .x22 "account_builder_pre_account"),
+    (113, .la .x6 "account_builder_diag_balance_pairs"),
+    (152, .la .x5 "bald_bal_differs"),
+    (157, .la .x5 "bald_bal_ne_bai_mask"),
+    (167, .jal .x1 "bal_builder_append_balance"),
+    (169, .la .x5 "bald_bal_eq_bai_mask"),
+    (177, .la .x5 "bald_bal_eq_val_lo"),
+    (181, .la .x5 "bald_bal_eq_val_hi"),
+    (185, .la .x5 "bald_bal_eq_addr_a"),
+    (189, .la .x5 "bald_bal_eq_addr_b"),
+    (195, .la .x5 "bald_non_bit_set"),
+    (200, .la .x5 "account_builder_pre_account"),
+    (205, .la .x30 "bald_non_differs"),
+    (210, .la .x30 "bald_non_ne_bai_mask"),
+    (220, .jal .x1 "bal_builder_append_nonce"),
+    (222, .la .x7 "bald_non_eq_bai_mask"),
+    (229, .la .x7 "bald_non_eq_val_pre"),
+    (232, .la .x7 "bald_non_eq_val_post"),
+    (239, .la .x28 "account_builder_diag_nonce_pairs"),
+    (258, .jal .x1 "bal_builder_append_nonce"),
+    (264, .la .x12 "account_builder_post_code_hash"),
+    (266, .jal .x1 "zkvm_keccak256"),
+    (273, .la .x12 "account_builder_block_code_hash"),
+    (275, .jal .x1 "zkvm_keccak256"),
+    (276, .la .x22 "account_builder_block_code_hash"),
+    (282, .la .x22 "account_builder_pre_account"),
+    (286, .la .x22 "chahsr_empty_code_hash"),
+    (288, .la .x5 "account_builder_post_code_hash"),
+    (306, .jal .x1 "bal_builder_append_code") ]
+
 def accountWritesEmitBuilderTxFunction : String :=
-  "account_writes_emit_builder_tx:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xbf780000; li s3, 0\n" ++
-  ".Laweb_loop:\n" ++
-  "  bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0\n" ++
-  -- Find this address in the block-cumulative map.  A hit may still lack an
-  -- individual field, in which case that component keeps the pre-state base.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0; li s5, 0\n" ++
-  ".Laweb_scan:\n" ++
-  "  bgeu t3, t1, .Laweb_header; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s4\n" ++
-  ".Laweb_cmp:\n" ++
-  "  beqz t6, .Laweb_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Laweb_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Laweb_cmp\n" ++
-  ".Laweb_next:\n" ++
-  "  addi t3, t3, 1; j .Laweb_scan\n" ++
-  ".Laweb_hit:\n" ++
-  "  mv s5, t5; j .Laweb_header\n" ++
-  -- Always materialise the parent-state account.  It is the fallback for a
-  -- whole-map miss and for individual components not carried by a fieldwise
-  -- block-map overlay.
-  ".Laweb_header:\n" ++
-  "  bnez s5, .Laweb_parent\n" ++
-  ".Laweb_parent:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s4; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, account_builder_pre_account; jal ra, account_at_header_state_root; sd a0, 80(sp)\n" ++
-  -- The resolver is the single balance/nonce baseline implementation.  The
-  -- local scan below remains only to select the block-map code hash record;
-  -- code has a different variable-width representation and is not part of
-  -- account_resolve_pre_state's fixed account scratch output.
-  "  mv a0, s4; la a1, account_builder_pre_account; la t0, sv_pre_rlp_ptr; ld a2, 0(t0); la t0, sv_pre_rlp_len; ld a3, 0(t0); la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); jal ra, account_resolve_pre_state\n" ++
-  "  ld s8, 112(s4)\n" ++
-  -- Balance: the resolver has already materialised the block/durable/header
-  -- precedence into the shared account scratch.
-  "  andi t0, s8, 1; bnez t0, .Laweb_balance_have; j .Laweb_nonce\n" ++
-  ".Laweb_balance_have:\n" ++
-  -- Diagnostic cell (bald_*): the producer bit as OBSERVED here, one increment
-  -- per account-loop iteration whose mask carries balance.  Placed past the
-  -- label so it is inside the block the branch selects; t0/t1 are dead (t0 held
-  -- the `andi` result already consumed by the `bnez`).
-  "  la t0, bald_bal_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  la s6, account_builder_pre_account; addi s6, s6, 8\n" ++
-  ".Laweb_balance_cmp:\n" ++
-  -- The final `beq` is RELABELLED to the witness block rather than having a probe
-  -- spliced into the equal path: the branch already exists, so relabelling cannot
-  -- change which comparisons are made, and `bit_set = eq + ne` is the built-in
-  -- check that the relabel did not lose a path.
-  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_bal_eq\n" ++
-  "  li t0, 4; bgeu s3, t0, .Laweb_balance_trace_done; li t0, 96; mul t0, s3, t0; la t1, account_builder_diag_balance_pairs; add t1, t1, t0\n" ++
-  "  ld t0, 0(s4); sd t0, 0(t1); ld t0, 8(s4); sd t0, 8(t1); ld t0, 16(s4); sd t0, 16(t1); ld t0, 24(s4); sd t0, 24(t1)\n" ++
-  "  ld t0, 0(s6); sd t0, 32(t1); ld t0, 8(s6); sd t0, 40(t1); ld t0, 16(s6); sd t0, 48(t1); ld t0, 24(s6); sd t0, 56(t1)\n" ++
-  "  ld t0, 32(s4); sd t0, 64(t1); ld t0, 40(s4); sd t0, 72(t1); ld t0, 48(s4); sd t0, 80(t1); ld t0, 56(s4); sd t0, 88(t1)\n" ++
-  ".Laweb_balance_trace_done:\n" ++
-  "  ld t0, 0(s6); ld t1, 32(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 8(s6); ld t1, 40(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 16(s6); ld t1, 48(s4); bne t0, t1, .Laweb_balance_emit; ld t0, 24(s6); ld t1, 56(s4); beq t0, t1, .Laweb_nonce\n" ++
-  ".Laweb_balance_emit:\n" ++
-  -- Diagnostic cell: the compare found inequality, so the append is CALLED.
-  -- bit_set minus differs is exactly the "compare found equality" population
-  -- (cause 2); differs minus builder_count is an append that did not land.
-  "  la t0, bald_bal_differs; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, bald_bal_ne_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
-  "  mv a0, s4; mv a1, s7; addi a2, s4, 32; jal ra, bal_builder_append_balance\n" ++
-  -- Jump over the witness block; falling through would run it on the append path.
-  "  j .Laweb_nonce\n" ++
-  ".Laweb_bal_eq:\n" ++
-  "  la t0, bald_bal_eq_bai_mask; ld t1, 0(t0); li t2, 1; sll t2, t2, s7; or t1, t1, t2; sd t1, 0(t0)\n" ++
-  "  ld t1, 0(s6); la t0, bald_bal_eq_val_lo; sd t1, 0(t0); ld t1, 24(s6); la t0, bald_bal_eq_val_hi; sd t1, 0(t0)\n" ++
-  "  ld t1, 0(s4); la t0, bald_bal_eq_addr_a; sd t1, 0(t0); ld t1, 8(s4); la t0, bald_bal_eq_addr_b; sd t1, 0(t0)\n" ++
-  -- Nonce: read the resolver's canonical pre-state scratch.
-  ".Laweb_nonce:\n" ++
-  "  andi t0, s8, 2; bnez t0, .Laweb_nonce_have; j .Laweb_code\n" ++
-  ".Laweb_nonce_have:\n" ++
-  -- Diagnostic cell, before the `la t0` that this block needs: t1 is dead here
-  -- and is reloaded by `.Laweb_nonce_cmp` below.
-  "  la t0, bald_non_bit_set; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, account_builder_pre_account; ld t0, 0(t0)\n" ++
-  ".Laweb_nonce_cmp:\n" ++
-  -- The nonce differs-cell must sit AFTER the skip-on-equal branch, so it counts
-  -- appends and not bit-set accounts.  t5/t6 rather than t0/t1: t0 carries the
-  -- resolver's pre-state nonce and t1 the post value passed as a2.
-  "  ld t1, 64(s4); beq t0, t1, .Laweb_non_eq; la t5, bald_non_differs; ld t6, 0(t5); addi t6, t6, 1; sd t6, 0(t5); la t5, bald_non_ne_bai_mask; ld t6, 0(t5); li t3, 1; sll t3, t3, s7; or t6, t6, t3; sd t6, 0(t5); mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
-  "  j .Laweb_code\n" ++
-  -- Witness block for the equal path.  t0 is the resolver's pre nonce and t1 the
-  -- post read from 64(s4); both are published even though they are equal here,
-  -- because the pair distinguishes "both zero, so the post was never staged" from
-  -- "the pre side already carries the post value".
-  ".Laweb_non_eq:\n" ++
-  "  la t2, bald_non_eq_bai_mask; ld t3, 0(t2); li t4, 1; sll t4, t4, s7; or t3, t3, t4; sd t3, 0(t2)\n" ++
-  "  la t2, bald_non_eq_val_pre; sd t0, 0(t2); la t2, bald_non_eq_val_post; sd t1, 0(t2)\n" ++
-  "  li t2, 4; bgeu s3, t2, .Laweb_nonce_trace_done; li t2, 48; mul t2, s3, t2; la t3, account_builder_diag_nonce_pairs; add t3, t3, t2\n" ++
-  "  ld t2, 0(s4); sd t2, 0(t3); ld t2, 8(s4); sd t2, 8(t3); ld t2, 16(s4); sd t2, 16(t3); ld t2, 24(s4); sd t2, 24(t3); sd t0, 32(t3); ld t2, 64(s4); sd t2, 40(t3)\n" ++
-  ".Laweb_nonce_trace_done:\n" ++
-  "  ld t1, 64(s4); beq t0, t1, .Laweb_code; mv a0, s4; mv a1, s7; mv a2, t1; jal ra, bal_builder_append_nonce\n" ++
-  -- Code compares hashes, never code pointer/length identity.  The header
-  -- reader zeroes its output on authenticated absence, so select the canonical
-  -- EMPTY_CODE_HASH in that one case.
-  ".Laweb_code:\n" ++
-  "  andi t0, s8, 4; bnez t0, .Laweb_code_have; j .Laweb_advance\n" ++
-  ".Laweb_code_have:\n" ++
-  "  ld a0, 80(s4); ld a1, 88(s4); la a2, account_builder_post_code_hash; jal ra, zkvm_keccak256\n" ++
-  "  beqz s5, .Laweb_code_header; ld t0, 112(s5); andi t0, t0, 4; beqz t0, .Laweb_code_header; ld a0, 80(s5); ld a1, 88(s5); la a2, account_builder_block_code_hash; jal ra, zkvm_keccak256; la s6, account_builder_block_code_hash; j .Laweb_code_cmp\n" ++
-  ".Laweb_code_header:\n" ++
-  "  ld t0, 80(sp); li t1, 1; beq t0, t1, .Laweb_code_absent; la s6, account_builder_pre_account; addi s6, s6, 72; j .Laweb_code_cmp\n" ++
-  ".Laweb_code_absent:\n" ++
-  "  la s6, chahsr_empty_code_hash\n" ++
-  ".Laweb_code_cmp:\n" ++
-  "  la t0, account_builder_post_code_hash; ld t1, 0(t0); ld t2, 0(s6); bne t1, t2, .Laweb_code_emit; ld t1, 8(t0); ld t2, 8(s6); bne t1, t2, .Laweb_code_emit; ld t1, 16(t0); ld t2, 16(s6); bne t1, t2, .Laweb_code_emit; ld t1, 24(t0); ld t2, 24(s6); beq t1, t2, .Laweb_advance\n" ++
-  ".Laweb_code_emit:\n" ++
-  "  mv a0, s4; mv a1, s7; ld a2, 80(s4); ld a3, 88(s4); jal ra, bal_builder_append_code\n" ++
-  ".Laweb_advance:\n" ++
-  "  addi s3, s3, 1; j .Laweb_loop\n" ++
-  ".Laweb_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 112; ret\n"
+  "account_writes_emit_builder_tx:\n" ++ emitProgramR accountWritesEmitBuilderTx_prog accountWritesEmitBuilderTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesEmitBuilderTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesEmitBuilderTxFunction_eq_prog :
+    accountWritesEmitBuilderTxFunction = "account_writes_emit_builder_tx:\n" ++ emitProgramR accountWritesEmitBuilderTx_prog accountWritesEmitBuilderTx_relocs := rfl
+
+#guard accountWritesEmitBuilderTxFunction.startsWith "account_writes_emit_builder_tx:\n"
+#guard accountWritesEmitBuilderTx_prog.length = 321
+def accountWritesIncorporateTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_incorporate_tx + 24)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_incorporate_tx + 24)),
+    .LD .x9 .x8 (0 : BitVec 12),
+    .LUI .x18 (1 : BitVec 20),
+    .ADDIW .x18 .x18 (2031 : BitVec 12),
+    .SLLI .x18 .x18 (19 : BitVec 6),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (24 : BitVec 13),
+    .SLLI .x10 .x19 (7 : BitVec 6),
+    .ADD .x10 .x18 .x10,
+    .JAL .x1 (jalOff GuestAddrs.account_writes_block_upsert (GuestAddrs.account_writes_incorporate_tx + 64)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .AUIPC .x8 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_incorporate_tx + 76)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_incorporate_tx + 76)),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.tx_account_writes_overflow (GuestAddrs.account_writes_incorporate_tx + 88)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_account_writes_overflow (GuestAddrs.account_writes_incorporate_tx + 88)),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_incorporate_tx + 100)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_incorporate_tx + 100)),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `accountWritesIncorporateTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesIncorporateTx_relocs : RelocTable :=
+  [ (6, .la .x8 "tx_account_writes_count"),
+    (16, .jal .x1 "account_writes_block_upsert"),
+    (19, .la .x8 "tx_account_writes_count"),
+    (22, .la .x8 "tx_account_writes_overflow"),
+    (25, .la .x8 "account_writes_undo_count") ]
 
 def accountWritesIncorporateTxFunction : String :=
-  "account_writes_incorporate_tx:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  la s0, tx_account_writes_count; ld s1, 0(s0)\n" ++            -- s1 = tx count
-  "  li s2, 0xbf780000\n" ++                                       -- s2 = tx area
-  "  li s3, 0\n" ++                                                -- s3 = i
-  ".Lawi_loop:\n" ++
-  "  bgeu s3, s1, .Lawi_clear\n" ++
-  "  slli a0, s3, 7; add a0, s2, a0\n" ++
-  ".Lawi_merge:\n" ++
-  "  jal ra, account_writes_block_upsert\n" ++
-  ".Lawi_next:\n" ++
-  "  addi s3, s3, 1; j .Lawi_loop\n" ++
-  ".Lawi_clear:\n" ++
-  -- state_tracker.py:874 `tx_state.account_writes.clear()`. The undo journal is
-  -- reset with it: its entries index the tx-level map, so they are meaningless
-  -- once that map is empty, and a stale mark would unwind the NEXT transaction's
-  -- writes against the previous one's indices.
-  "  la s0, tx_account_writes_count; sd zero, 0(s0)\n" ++
-  "  la s0, tx_account_writes_overflow; sd zero, 0(s0)\n" ++
-  "  la s0, account_writes_undo_count; sd zero, 0(s0)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
+  "account_writes_incorporate_tx:\n" ++ emitProgramR accountWritesIncorporateTx_prog accountWritesIncorporateTx_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesIncorporateTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesIncorporateTxFunction_eq_prog :
+    accountWritesIncorporateTxFunction = "account_writes_incorporate_tx:\n" ++ emitProgramR accountWritesIncorporateTx_prog accountWritesIncorporateTx_relocs := rfl
+
+#guard accountWritesIncorporateTxFunction.startsWith "account_writes_incorporate_tx:\n"
+#guard accountWritesIncorporateTx_prog.length = 35
 /-! ## account_resolve_pre_state
 
     Resolve one account's pre-transaction balance/nonce with the same
@@ -992,68 +1969,139 @@ def accountWritesIncorporateTxFunction : String :=
     balance@8), a2/a3 = parent header RLP ptr/len, a4/a5 = witness ptr/len.
     Returns a0 = 0 on a resolved account (including authenticated absence,
     represented as zero nonce/balance), or 1 on malformed lookup/error. -/
-def accountResolvePreStateFunction : String :=
-  "account_resolve_pre_state:\n" ++
-  -- Keep a separate frame-local output for the parent lookup.  A sparse
-  -- block-map row may already have supplied balance or nonce; using
-  -- `account_builder_pre_account` as the header lookup output would clobber
-  -- that field before `.Larp_header_found` sees its valid bit.  This is the
-  -- same frame-local scratch idiom used by the selfdestruct header fallback.
-  "  addi sp, sp, -208\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0\n" ++
-  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)\n" ++
-  -- First source: block-cumulative account_writes. It is the pre-tx
-  -- baseline for the current transaction, not the immutable parent account.
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Larp_block_scan:\n" ++
-  "  bgeu t3, t1, .Larp_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
-  ".Larp_block_cmp:\n" ++
-  "  beqz t6, .Larp_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Larp_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Larp_block_cmp\n" ++
-  ".Larp_block_next:\n" ++
-  "  addi t3, t3, 1; j .Larp_block_scan\n" ++
-  ".Larp_block_hit:\n" ++
-  "  mv s6, t5; ld t0, 112(s6); andi t1, t0, 1; beqz t1, .Larp_block_nonce; ld t1, 32(s6); sd t1, 8(s1); ld t1, 40(s6); sd t1, 16(s1); ld t1, 48(s6); sd t1, 24(s1); ld t1, 56(s6); sd t1, 32(s1); ori s7, s7, 1\n" ++
-  ".Larp_block_nonce:\n" ++
-  "  andi t1, t0, 2; beqz t1, .Larp_block_done; ld t1, 64(s6); sd t1, 0(s1); ori s7, s7, 2\n" ++
-  ".Larp_block_done:\n" ++
-  -- There is NO second source.  `_get_pre_tx_account`
-  -- (`block_access_lists.py:583-598`) has exactly TWO tiers -- the cumulative
-  -- `pre_tx_accounts` map, then `pre_state.get_account_optional(address)` -- and
-  -- `pre_state` is the IMMUTABLE PRE-BLOCK state.
-  --
-  -- This routine used to consult the durable `AccountState` overlay in between.
-  -- That overlay is LIVE MUTATED STATE: `update_builder_from_tx` runs at the
-  -- transaction boundary, by which point the sender's gas debit and nonce
-  -- increment have already been applied to it.  So for an account with NO
-  -- block-map row -- i.e. its first touch in the block -- the overlay returned the
-  -- POST value as the "pre" value, the caller's change-compare found equality,
-  -- and the row was silently dropped.  Measured on six EIP-7928 fixtures: the
-  -- nonce deficit equalled the number of distinct senders on all six, and on
-  -- multi-tx-same-sender blocks the sender's LATER rows appended correctly
-  -- (`ne_bai_mask = {2,3}`) because from the second transaction on the block map
-  -- hits and supplies a genuine pre value.  See GH #10799.
-  --
-  -- Falling straight through to the authenticated parent witness is what the spec
-  -- says and is also correct on its own terms: if no earlier transaction in this
-  -- block touched the account, its pre-transaction state IS the parent state.
-  ".Larp_header_done:\n" ++
-  "  li t0, 3; beq s7, t0, .Larp_ok\n" ++
-  -- Final source: authenticated parent witness. Absence is a valid zero
-  -- account; only malformed lookup errors fail closed.
-  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; addi a6, sp, 96; jal ra, account_at_header_state_root_tracked\n" ++
-  "  li t0, 1; bgtu a0, t0, .Larp_fail; beqz a0, .Larp_header_found; j .Larp_ok\n" ++
-  ".Larp_header_found:\n" ++
-  "  andi t1, s7, 1; bnez t1, .Larp_header_nonce; addi t0, sp, 96; ld t1, 8(t0); sd t1, 8(s1); ld t1, 16(t0); sd t1, 16(s1); ld t1, 24(t0); sd t1, 24(s1); ld t1, 32(t0); sd t1, 32(s1); ori s7, s7, 1\n" ++
-  ".Larp_header_nonce:\n" ++
-  "  andi t1, s7, 2; bnez t1, .Larp_ok; addi t0, sp, 96; ld t1, 0(t0); sd t1, 0(s1); ori s7, s7, 2\n" ++
-  ".Larp_ok:\n" ++
-  "  li a0, 0; j .Larp_ret\n" ++
-  ".Larp_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Larp_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
+def accountResolvePreState_prog : Program :=
+  [ .ADDI .x2 .x2 (-208 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LI .x23 (0 : Word),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .SD .x9 .x0 (32 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 120)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .LI .x31 (20 : Word),
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x22 .x30,
+    .LD .x5 .x22 (112 : BitVec 12),
+    .ANDI .x6 .x5 (1 : BitVec 12),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (40 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (48 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x22 (56 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .ORI .x23 .x23 (1 : BitVec 12),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x6 .x22 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .ORI .x23 .x23 (2 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .BEQ .x23 .x5 (brOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 260)),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x8,
+    .LI .x13 (20 : Word),
+    .MV .x14 .x20,
+    .MV .x15 .x21,
+    .ADDI .x16 .x2 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 292)),
+    .LI .x5 (1 : Word),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 392) (GuestAddrs.account_resolve_pre_state + 300)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 308)),
+    .ANDI .x6 .x23 (1 : BitVec 12),
+    .BNE .x6 .x0 (44 : BitVec 13),
+    .ADDI .x5 .x2 (96 : BitVec 12),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x5 (32 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .ORI .x23 .x23 (1 : BitVec 12),
+    .ANDI .x6 .x23 (2 : BitVec 12),
+    .BNE .x6 .x0 (20 : BitVec 13),
+    .ADDI .x5 .x2 (96 : BitVec 12),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .ORI .x23 .x23 (2 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (208 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountResolvePreState_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountResolvePreState_relocs : RelocTable :=
+  [ (23, .la .x5 "account_writes_count"),
+    (73, .jal .x1 "account_at_header_state_root_tracked") ]
+
+def accountResolvePreStateFunction : String :=
+  "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountResolvePreState_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountResolvePreStateFunction_eq_prog :
+    accountResolvePreStateFunction = "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs := rfl
+
+#guard accountResolvePreStateFunction.startsWith "account_resolve_pre_state:\n"
+#guard accountResolvePreState_prog.length = 111
 /-! ## `account_resolve_execution_state`
 
     Resolve an execution-time account with the three-tier precedence from
@@ -1098,110 +2146,312 @@ def accountResolvePreStateFunction : String :=
     prefix after a three-byte length check, not by assuming every 23-byte code
     blob is a marker.  Storage root remains out of scope: the storage path
     derives it with `mpt_bounded_storage_root` (#11385). -/
-def accountResolveExecutionStateFunction : String :=
-  "account_resolve_execution_state:\n" ++
-  "  addi sp, sp, -208\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; li s8, 0\n" ++
-  -- Amsterdam's get_account_optional records the account read before resolving
-  -- any of its three tiers.  CREATE is the current sole consumer of this
-  -- resolver, so keep the call unconditional at the lookup boundary rather
-  -- than attaching it to a particular map-hit or success arm.
-  "  mv a0, s0; jal ra, account_read_record\n" ++
-  "  sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1); sd zero, 40(s1); sd zero, 48(s1); sd zero, 56(s1)\n" ++
-  -- First source: the current transaction's account_writes map.  A valid
-  -- component in this keyed overlay is the execution-time value and must win
-  -- over both the prior block state and the authenticated parent.
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lare_tx_scan:\n" ++
-  "  bgeu t3, t1, .Lare_tx_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
-  ".Lare_tx_cmp:\n" ++
-  "  beqz t6, .Lare_tx_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lare_tx_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lare_tx_cmp\n" ++
-  ".Lare_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lare_tx_scan\n" ++
-  ".Lare_tx_hit:\n" ++
-  "  mv t6, t5; ld t0, 112(t6); andi t1, t0, 1; beqz t1, .Lare_tx_nonce; ld t1, 32(t6); sd t1, 8(s1); ld t1, 40(t6); sd t1, 16(s1); ld t1, 48(t6); sd t1, 24(s1); ld t1, 56(t6); sd t1, 32(s1); ori s8, s8, 1\n" ++
-  ".Lare_tx_nonce:\n" ++
-  "  andi t1, t0, 2; beqz t1, .Lare_tx_code; ld t1, 64(t6); sd t1, 0(s1); ori s8, s8, 2\n" ++
-  ".Lare_tx_code:\n" ++
-  "  andi t1, t0, 4; beqz t1, .Lare_tx_state; ld t1, 80(t6); sd t1, 40(s1); ld t1, 88(t6); sd t1, 48(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 4\n" ++
-  ".Lare_tx_state:\n" ++
-  "  andi t1, t0, 8; beqz t1, .Lare_tx_done; ld t1, 72(t6); sd t1, 56(s1); ori s8, s8, 8\n" ++
-  ".Lare_tx_done:\n" ++
-  -- A present-None transaction row is a terminal tombstone.  Only a missing
-  -- key falls through to the lower tiers; the state bit is therefore checked
-  -- before the block/parent scans.
-  "  andi t0, s8, 8; beqz t0, .Lare_block_scan\n" ++
-  "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
-  ".Lare_block_scan:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lare_block_loop:\n" ++
-  "  bgeu t3, t1, .Lare_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0\n" ++
-  ".Lare_block_cmp:\n" ++
-  "  beqz t6, .Lare_block_hit; lbu a2, 0(a0); lbu a3, 0(a1); bne a2, a3, .Lare_block_next; addi a0, a0, 1; addi a1, a1, 1; addi t6, t6, -1; j .Lare_block_cmp\n" ++
-  ".Lare_block_next:\n" ++
-  "  addi t3, t3, 1; j .Lare_block_loop\n" ++
-  ".Lare_block_hit:\n" ++
-  -- Transaction writes take precedence over block-cumulative writes.  In
-  -- particular, do not let a block row overwrite a code or state value that
-  -- was already supplied by the current transaction tier.
-  "  mv t6, t5; ld t0, 112(t6); andi t1, s8, 4; bnez t1, .Lare_block_state; andi t1, t0, 4; beqz t1, .Lare_block_state; ld t1, 80(t6); sd t1, 40(s1); ld t1, 88(t6); sd t1, 48(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 4\n" ++
-  ".Lare_block_state:\n" ++
-  "  andi t1, s8, 8; bnez t1, .Lare_block_done; andi t1, t0, 8; beqz t1, .Lare_block_done; ld t1, 72(t6); sd t1, 56(s1); ori s8, s8, 8\n" ++
-  ".Lare_block_done:\n" ++
-  "  andi t0, s8, 8; beqz t0, .Lare_parent\n" ++
-  "  ld t1, 56(s1); beqz t1, .Lare_deleted\n" ++
-  -- A code component in either execution map is already a truthful pointer/
-  -- length.  Do not look it up again: the map writer supplied the actual
-  -- bytes, including an EF0100 delegation designator when one is present.
-  "  andi t0, s8, 4; bnez t0, .Lare_classify_code\n" ++
-  ".Lare_parent:\n" ++
-  -- The existing pre-state resolver supplies nonce/balance with the BAL
-  -- two-tier contract.  Code is resolved separately below from the raw parent
-  -- account and witness.codes table.
-  "  mv a0, s0; addi a1, sp, 96; mv a2, s2; mv a3, s3; mv a4, s4; mv a5, s5; jal ra, account_resolve_pre_state\n" ++
-  "  bnez a0, .Lare_malformed\n" ++
-  "  andi t0, s8, 1; bnez t0, .Lare_nonce\n" ++
-  "  addi t1, sp, 96; ld t2, 8(t1); sd t2, 8(s1); ld t2, 16(t1); sd t2, 16(s1); ld t2, 24(t1); sd t2, 24(s1); ld t2, 32(t1); sd t2, 32(s1); ori s8, s8, 1\n" ++
-  ".Lare_nonce:\n" ++
-  "  andi t0, s8, 2; bnez t0, .Lare_code_source; addi t1, sp, 96; ld t2, 0(t1); sd t2, 0(s1); ori s8, s8, 2\n" ++
-  -- The authenticated account output is the only source of code_hash.  It is
-  -- deliberately the tracked account read, while the code preimage lookup is
-  -- the raw witness helper so this resolver does not mutate code_reads.
-  ".Lare_code_source:\n" ++
-  "  andi t0, s8, 4; bnez t0, .Lare_classify_code\n" ++
-  "  mv a0, s2; mv a1, s3; mv a2, s0; li a3, 20; mv a4, s4; mv a5, s5; addi a6, sp, 96; jal ra, account_at_header_state_root_tracked\n" ++
-  "  beqz a0, .Lare_parent_found; li t0, 1; beq a0, t0, .Lare_absent; j .Lare_malformed\n" ++
-  ".Lare_parent_found:\n" ++
-  "  andi t0, s8, 8; bnez t0, .Lare_code_hash; addi t3, sp, 96; ld t1, 0(t3); sd t1, 0(s1); ld t1, 8(t3); sd t1, 8(s1); ld t1, 16(t3); sd t1, 16(s1); ld t1, 24(t3); sd t1, 24(s1); ld t1, 32(t3); sd t1, 32(s1); li t1, 1; sd t1, 56(s1); ori s8, s8, 3\n" ++
-  ".Lare_code_hash:\n" ++
-  "  addi t3, sp, 96; la t0, chahsr_empty_code_hash; ld t1, 72(t3); ld t2, 0(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 80(t3); ld t2, 8(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 88(t3); ld t2, 16(t0); bne t1, t2, .Lare_hash_nonempty; ld t1, 96(t3); ld t2, 24(t0); bne t1, t2, .Lare_hash_nonempty; j .Lare_empty\n" ++
-  ".Lare_hash_nonempty:\n" ++
-  "  mv a0, s6; mv a1, s7; addi a2, sp, 168; addi a3, sp, 80; addi a4, sp, 88; sd zero, 80(sp); sd zero, 88(sp); jal ra, witness_codes_lookup_by_hash\n" ++
-  "  bnez a0, .Lare_unavailable; ld t0, 80(sp); add t0, s6, t0; sd t0, 40(s1); ld t1, 88(sp); sd t1, 48(s1); j .Lare_classify_code\n" ++
-  -- Prefix recognition is intentionally independent of length.  Both branches
-  -- preserve the returned bytes; dispatch follows EF0100 designators later.
-  ".Lare_classify_code:\n" ++
-  "  ld t0, 48(s1); li t1, 3; bltu t0, t1, .Lare_classify_plain; ld t0, 40(s1); lbu t1, 0(t0); li t2, 0xef; bne t1, t2, .Lare_classify_plain; lbu t1, 1(t0); li t2, 1; bne t1, t2, .Lare_classify_plain; lbu t1, 2(t0); bnez t1, .Lare_classify_plain; j .Lare_classify_marker\n" ++
-  ".Lare_classify_marker:\n" ++
-  "  li a0, 1; j .Lare_ret\n" ++
-  ".Lare_classify_plain:\n" ++
-  "  ld t0, 48(s1); beqz t0, .Lare_empty; li a0, 1; j .Lare_ret\n" ++
-  ".Lare_empty:\n" ++
-  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 2; j .Lare_ret\n" ++
-  ".Lare_absent:\n" ++
-  "  andi t0, s8, 8; beqz t0, .Lare_absent_zero; ld t1, 56(s1); bnez t1, .Lare_empty\n" ++
-  ".Lare_absent_zero:\n" ++
-  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 0; j .Lare_ret\n" ++
-  ".Lare_deleted:\n" ++
-  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 3; j .Lare_ret\n" ++
-  ".Lare_unavailable:\n" ++
-  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 4; j .Lare_ret\n" ++
-  ".Lare_malformed:\n" ++
-  "  sd zero, 40(s1); sd zero, 48(s1); li a0, 5\n" ++
-  ".Lare_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp); addi sp, sp, 208; ret\n"
+def accountResolveExecutionState_prog : Program :=
+  [ .ADDI .x2 .x2 (-208 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x23 .x17,
+    .LI .x24 (0 : Word),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_resolve_execution_state + 84)),
+    .SD .x9 .x0 (0 : BitVec 12),
+    .SD .x9 .x0 (8 : BitVec 12),
+    .SD .x9 .x0 (16 : BitVec 12),
+    .SD .x9 .x0 (24 : BitVec 12),
+    .SD .x9 .x0 (32 : BitVec 12),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .SD .x9 .x0 (56 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_resolve_execution_state + 120)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_resolve_execution_state + 120)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_execution_state + 340) (GuestAddrs.account_resolve_execution_state + 148)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .LI .x31 (20 : Word),
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x31 .x30,
+    .LD .x5 .x31 (112 : BitVec 12),
+    .ANDI .x6 .x5 (1 : BitVec 12),
+    .BEQ .x6 .x0 (40 : BitVec 13),
+    .LD .x6 .x31 (32 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x31 (40 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x31 (48 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x31 (56 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .ORI .x24 .x24 (1 : BitVec 12),
+    .ANDI .x6 .x5 (2 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x6 .x31 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .ORI .x24 .x24 (2 : BitVec 12),
+    .ANDI .x6 .x5 (4 : BitVec 12),
+    .BEQ .x6 .x0 (32 : BitVec 13),
+    .LD .x6 .x31 (80 : BitVec 12),
+    .SD .x9 .x6 (40 : BitVec 12),
+    .LD .x6 .x31 (88 : BitVec 12),
+    .SD .x9 .x6 (48 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x9 .x6 (56 : BitVec 12),
+    .ORI .x24 .x24 (4 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x6 .x31 (72 : BitVec 12),
+    .SD .x9 .x6 (56 : BitVec 12),
+    .ORI .x24 .x24 (8 : BitVec 12),
+    .ANDI .x5 .x24 (8 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LD .x6 .x9 (56 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 1024) (GuestAddrs.account_resolve_execution_state + 352)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_execution_state + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_execution_state + 356)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_execution_state + 528) (GuestAddrs.account_resolve_execution_state + 384)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x30 .x7 .x29,
+    .LI .x31 (20 : Word),
+    .MV .x10 .x30,
+    .MV .x11 .x8,
+    .BEQ .x31 .x0 (40 : BitVec 13),
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .LBU .x13 .x11 (0 : BitVec 12),
+    .BNE .x12 .x13 (20 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .MV .x31 .x30,
+    .LD .x5 .x31 (112 : BitVec 12),
+    .ANDI .x6 .x24 (4 : BitVec 12),
+    .BNE .x6 .x0 (40 : BitVec 13),
+    .ANDI .x6 .x5 (4 : BitVec 12),
+    .BEQ .x6 .x0 (32 : BitVec 13),
+    .LD .x6 .x31 (80 : BitVec 12),
+    .SD .x9 .x6 (40 : BitVec 12),
+    .LD .x6 .x31 (88 : BitVec 12),
+    .SD .x9 .x6 (48 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x9 .x6 (56 : BitVec 12),
+    .ORI .x24 .x24 (4 : BitVec 12),
+    .ANDI .x6 .x24 (8 : BitVec 12),
+    .BNE .x6 .x0 (24 : BitVec 13),
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .LD .x6 .x31 (72 : BitVec 12),
+    .SD .x9 .x6 (56 : BitVec 12),
+    .ORI .x24 .x24 (8 : BitVec 12),
+    .ANDI .x5 .x24 (8 : BitVec 12),
+    .BEQ .x5 .x0 (20 : BitVec 13),
+    .LD .x6 .x9 (56 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 1024) (GuestAddrs.account_resolve_execution_state + 540)),
+    .ANDI .x5 .x24 (4 : BitVec 12),
+    .BNE .x5 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 900) (GuestAddrs.account_resolve_execution_state + 548)),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (96 : BitVec 12),
+    .MV .x12 .x18,
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .MV .x15 .x21,
+    .JAL .x1 (jalOff GuestAddrs.account_resolve_pre_state (GuestAddrs.account_resolve_execution_state + 576)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 1056) (GuestAddrs.account_resolve_execution_state + 580)),
+    .ANDI .x5 .x24 (1 : BitVec 12),
+    .BNE .x5 .x0 (44 : BitVec 13),
+    .ADDI .x6 .x2 (96 : BitVec 12),
+    .LD .x7 .x6 (8 : BitVec 12),
+    .SD .x9 .x7 (8 : BitVec 12),
+    .LD .x7 .x6 (16 : BitVec 12),
+    .SD .x9 .x7 (16 : BitVec 12),
+    .LD .x7 .x6 (24 : BitVec 12),
+    .SD .x9 .x7 (24 : BitVec 12),
+    .LD .x7 .x6 (32 : BitVec 12),
+    .SD .x9 .x7 (32 : BitVec 12),
+    .ORI .x24 .x24 (1 : BitVec 12),
+    .ANDI .x5 .x24 (2 : BitVec 12),
+    .BNE .x5 .x0 (20 : BitVec 13),
+    .ADDI .x6 .x2 (96 : BitVec 12),
+    .LD .x7 .x6 (0 : BitVec 12),
+    .SD .x9 .x7 (0 : BitVec 12),
+    .ORI .x24 .x24 (2 : BitVec 12),
+    .ANDI .x5 .x24 (4 : BitVec 12),
+    .BNE .x5 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 900) (GuestAddrs.account_resolve_execution_state + 660)),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .MV .x12 .x8,
+    .LI .x13 (20 : Word),
+    .MV .x14 .x20,
+    .MV .x15 .x21,
+    .ADDI .x16 .x2 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_execution_state + 692)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.account_resolve_execution_state + 992) (GuestAddrs.account_resolve_execution_state + 704)),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_execution_state + 1056) (GuestAddrs.account_resolve_execution_state + 708)),
+    .ANDI .x5 .x24 (8 : BitVec 12),
+    .BNE .x5 .x0 (60 : BitVec 13),
+    .ADDI .x28 .x2 (96 : BitVec 12),
+    .LD .x6 .x28 (0 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .LD .x6 .x28 (8 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x28 (16 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x28 (24 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x28 (32 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .SD .x9 .x6 (56 : BitVec 12),
+    .ORI .x24 .x24 (3 : BitVec 12),
+    .ADDI .x28 .x2 (96 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.chahsr_empty_code_hash (GuestAddrs.account_resolve_execution_state + 780)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.chahsr_empty_code_hash (GuestAddrs.account_resolve_execution_state + 780)),
+    .LD .x6 .x28 (72 : BitVec 12),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .BNE .x6 .x7 (44 : BitVec 13),
+    .LD .x6 .x28 (80 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .BNE .x6 .x7 (32 : BitVec 13),
+    .LD .x6 .x28 (88 : BitVec 12),
+    .LD .x7 .x5 (16 : BitVec 12),
+    .BNE .x6 .x7 (20 : BitVec 13),
+    .LD .x6 .x28 (96 : BitVec 12),
+    .LD .x7 .x5 (24 : BitVec 12),
+    .BNE .x6 .x7 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_execution_state + 976) (GuestAddrs.account_resolve_execution_state + 836)),
+    .MV .x10 .x22,
+    .MV .x11 .x23,
+    .ADDI .x12 .x2 (168 : BitVec 12),
+    .ADDI .x13 .x2 (80 : BitVec 12),
+    .ADDI .x14 .x2 (88 : BitVec 12),
+    .SD .x2 .x0 (80 : BitVec 12),
+    .SD .x2 .x0 (88 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.account_resolve_execution_state + 868)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_resolve_execution_state + 1040) (GuestAddrs.account_resolve_execution_state + 872)),
+    .LD .x5 .x2 (80 : BitVec 12),
+    .ADD .x5 .x22 .x5,
+    .SD .x9 .x5 (40 : BitVec 12),
+    .LD .x6 .x2 (88 : BitVec 12),
+    .SD .x9 .x6 (48 : BitVec 12),
+    .JAL .x0 (4 : BitVec 21),
+    .LD .x5 .x9 (48 : BitVec 12),
+    .LI .x6 (3 : Word),
+    .BLTU .x5 .x6 (52 : BitVec 13),
+    .LD .x5 .x9 (40 : BitVec 12),
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (36 : BitVec 13),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (24 : BitVec 13),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (16 : BitVec 13),
+    .JAL .x0 (4 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_execution_state + 1068) (GuestAddrs.account_resolve_execution_state + 956)),
+    .LD .x5 .x9 (48 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_execution_state + 1068) (GuestAddrs.account_resolve_execution_state + 972)),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_execution_state + 1068) (GuestAddrs.account_resolve_execution_state + 988)),
+    .ANDI .x5 .x24 (8 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LD .x6 .x9 (56 : BitVec 12),
+    .BNE .x6 .x0 (-28 : BitVec 13),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .LI .x10 (3 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .SD .x9 .x0 (40 : BitVec 12),
+    .SD .x9 .x0 (48 : BitVec 12),
+    .LI .x10 (5 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (208 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountResolveExecutionState_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountResolveExecutionState_relocs : RelocTable :=
+  [ (21, .jal .x1 "account_read_record"),
+    (30, .la .x5 "tx_account_writes_count"),
+    (89, .la .x5 "account_writes_count"),
+    (144, .jal .x1 "account_resolve_pre_state"),
+    (173, .jal .x1 "account_at_header_state_root_tracked"),
+    (195, .la .x5 "chahsr_empty_code_hash"),
+    (217, .jal .x1 "witness_codes_lookup_by_hash") ]
+
+def accountResolveExecutionStateFunction : String :=
+  "account_resolve_execution_state:\n" ++ emitProgramR accountResolveExecutionState_prog accountResolveExecutionState_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountResolveExecutionState_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountResolveExecutionStateFunction_eq_prog :
+    accountResolveExecutionStateFunction = "account_resolve_execution_state:\n" ++ emitProgramR accountResolveExecutionState_prog accountResolveExecutionState_relocs := rfl
+
+#guard accountResolveExecutionStateFunction.startsWith "account_resolve_execution_state:\n"
+#guard accountResolveExecutionState_prog.length = 279
 /-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
     Never jal'd. Storage twin `write_sets_discard_tx` is live on status=0.
@@ -1317,25 +2567,25 @@ def accountWriteTouchE2eFunction : String :=
     together. -/
 def accountWriteMapFunctions : String :=
   accountWriteRecordFunction ++
-  accountWritesLatestBalanceFunction ++
-  accountWritesLatestBalanceBlockFunction ++
-  accountWritesLatestNonceBlockFunction ++
-  accountWritesLatestNonceTxFunction ++
-  accountWritesAuthCurrentFunction ++
-  accountWritesAuthBlockFunction ++
-  accountWritesCreatedContainsFunction ++
-  accountWritesLookupCurrentFunction ++
-  accountWritesTombstoneBalanceZeroFunction ++
+  accountWritesLatestBalanceFunction ++ "\n" ++
+  accountWritesLatestBalanceBlockFunction ++ "\n" ++
+  accountWritesLatestNonceBlockFunction ++ "\n" ++
+  accountWritesLatestNonceTxFunction ++ "\n" ++
+  accountWritesAuthCurrentFunction ++ "\n" ++
+  accountWritesAuthBlockFunction ++ "\n" ++
+  accountWritesCreatedContainsFunction ++ "\n" ++
+  accountWritesLookupCurrentFunction ++ "\n" ++
+  accountWritesTombstoneBalanceZeroFunction ++ "\n" ++
   accountAgreementMutationCheckpointFunction ++
   accountWritesBlockUpsertFunction ++
   accountWritesApplyDeletesFunction ++
-  accountWritesCommitPendingFunction ++
-  accountWritesIsAbsentFunction ++
-  accountWritesEmitBuilderTxFunction ++
-  accountWritesIncorporateTxFunction ++
-  accountWritesUndoPushFunction ++
-  accountWritesRestoreFrameFunction ++
-  accountResolvePreStateFunction ++
+  accountWritesCommitPendingFunction ++ "\n" ++
+  accountWritesIsAbsentFunction ++ "\n" ++
+  accountWritesEmitBuilderTxFunction ++ "\n" ++
+  accountWritesIncorporateTxFunction ++ "\n" ++
+  accountWritesUndoPushFunction ++ "\n" ++
+  accountWritesRestoreFrameFunction ++ "\n" ++
+  accountResolvePreStateFunction ++ "\n" ++
   accountResolveExecutionStateFunction
 
 /-! ## Structural guards

@@ -211,81 +211,136 @@ theorem balGasValidFunction_eq_prog :
 
     PRE: `bal_serializer_rebuild_hash` returned 0 (builder incorporated + sorted).
     #11172: RLP walker `bal_gas_valid` is probe-only (unlinked from guest). -/
-def balGasValidFromBuilderFunction : String :=
-  "bal_gas_valid_from_builder:\n" ++
-  -- Frame 96 B: saves 0..56 + BE20 scratch at 64..83 (must not overflow into caller).
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0\n" ++                                              -- s0 = gas_limit
-  -- items starts at account_count (one item per address, including empty touches)
-  "  la t0, bal_builder_account_count; ld s1, 0(t0)\n" ++         -- s1 = bal_items
-  -- Unique slots among storage_changes (sorted by addr BE, slot BE, bai LE)
-  "  la t0, bal_builder_storage_change_count; ld s2, 0(t0)\n" ++
-  "  li s3, 0\n" ++                                              -- i
-  "  li s4, 0\n" ++                                              -- prev_valid
-  "  li s6, 0\n" ++                                              -- prev index
-  ".Lbgvfb_ch:\n" ++
-  "  bgeu s3, s2, .Lbgvfb_ch_done\n" ++
-  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add s5, t2, t1\n" ++
-  "  beqz s4, .Lbgvfb_ch_new\n" ++
-  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add t4, t2, t1\n" ++
-  "  li t5, 0\n" ++
-  ".Lbgvfb_ch_acmp:\n" ++
-  "  li t0, 20; beq t5, t0, .Lbgvfb_ch_scmp\n" ++
-  "  add t0, s5, t5; add t1, t4, t5\n" ++
-  "  lbu t2, 0(t0); lbu t3, 0(t1); bne t2, t3, .Lbgvfb_ch_new\n" ++
-  "  addi t5, t5, 1; j .Lbgvfb_ch_acmp\n" ++
-  ".Lbgvfb_ch_scmp:\n" ++
-  "  li t5, 0\n" ++
-  ".Lbgvfb_ch_scmp_loop:\n" ++
-  "  li t0, 32; beq t5, t0, .Lbgvfb_ch_next\n" ++
-  "  addi t0, s5, 32; add t0, t0, t5\n" ++
-  "  addi t1, t4, 32; add t1, t1, t5\n" ++
-  "  lbu t2, 0(t0); lbu t3, 0(t1); bne t2, t3, .Lbgvfb_ch_new\n" ++
-  "  addi t5, t5, 1; j .Lbgvfb_ch_scmp_loop\n" ++
-  ".Lbgvfb_ch_new:\n" ++
-  "  addi s1, s1, 1\n" ++
-  "  mv s6, s3\n" ++
-  "  li s4, 1\n" ++
-  ".Lbgvfb_ch_next:\n" ++
-  "  addi s3, s3, 1; j .Lbgvfb_ch\n" ++
-  ".Lbgvfb_ch_done:\n" ++
-  -- Surviving storage_reads: count reads whose (addr,slot) is not also written
-  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++
-  "  li s3, 0\n" ++
-  ".Lbgvfb_rd:\n" ++
-  "  bgeu s3, s2, .Lbgvfb_test\n" ++
-  "  slli t0, s3, 6; li t1, 0xa1908780; add s5, t1, t0\n" ++
-  -- reverse LE stack-word low 20 bytes → BE20 scratch at sp+64 (fits in 96 B frame)
-  "  li t5, 0\n" ++
-  ".Lbgvfb_rd_rev:\n" ++
-  "  li t0, 20; beq t5, t0, .Lbgvfb_rd_chk\n" ++
-  "  li t0, 19; sub t0, t0, t5; add t0, s5, t0; lbu t1, 0(t0)\n" ++
-  "  addi t0, sp, 64; add t0, t0, t5; sb t1, 0(t0)\n" ++
-  "  addi t5, t5, 1; j .Lbgvfb_rd_rev\n" ++
-  ".Lbgvfb_rd_chk:\n" ++
-  "  addi a0, s5, 32\n" ++
-  "  addi a1, sp, 64\n" ++
-  "  jal ra, bal_serializer_slot_written\n" ++
-  "  bnez a0, .Lbgvfb_rd_next\n" ++
-  "  addi s1, s1, 1\n" ++
-  ".Lbgvfb_rd_next:\n" ++
-  "  addi s3, s3, 1; j .Lbgvfb_rd\n" ++
-  ".Lbgvfb_test:\n" ++
-  -- bal_items * 2000 > gas_limit  ⟺  gas_limit < bal_items * 2000
-  "  li t0, 2000\n" ++
-  "  mul t1, s1, t0\n" ++
-  "  bltu s0, t1, .Lbgvfb_exceed\n" ++
-  "  li a0, 0; j .Lbgvfb_ret\n" ++
-  ".Lbgvfb_exceed:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbgvfb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret\n"
+def balGasValidFromBuilder_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_account_count (GuestAddrs.bal_gas_valid_from_builder + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_account_count (GuestAddrs.bal_gas_valid_from_builder + 40)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_gas_valid_from_builder + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_gas_valid_from_builder + 52)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .LI .x20 (0 : Word),
+    .LI .x22 (0 : Word),
+    .BGEU .x19 .x18 (brOff (GuestAddrs.bal_gas_valid_from_builder + 232) (GuestAddrs.bal_gas_valid_from_builder + 76)),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x19 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_gas_valid_from_builder + 88)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_gas_valid_from_builder + 88)),
+    .ADD .x21 .x7 .x6,
+    .BEQ .x20 .x0 (brOff (GuestAddrs.bal_gas_valid_from_builder + 212) (GuestAddrs.bal_gas_valid_from_builder + 100)),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x22 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_gas_valid_from_builder + 112)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_gas_valid_from_builder + 112)),
+    .ADD .x29 .x7 .x6,
+    .LI .x30 (0 : Word),
+    .LI .x5 (20 : Word),
+    .BEQ .x30 .x5 (32 : BitVec 13),
+    .ADD .x5 .x21 .x30,
+    .ADD .x6 .x29 .x30,
+    .LBU .x7 .x5 (0 : BitVec 12),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (60 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .LI .x5 (32 : Word),
+    .BEQ .x30 .x5 (52 : BitVec 13),
+    .ADDI .x5 .x21 (32 : BitVec 12),
+    .ADD .x5 .x5 .x30,
+    .ADDI .x6 .x29 (32 : BitVec 12),
+    .ADD .x6 .x6 .x30,
+    .LBU .x7 .x5 (0 : BitVec 12),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .BNE .x7 .x28 (12 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .ADDI .x9 .x9 (1 : BitVec 12),
+    .MV .x22 .x19,
+    .LI .x20 (1 : Word),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_gas_valid_from_builder + 76) (GuestAddrs.bal_gas_valid_from_builder + 228)),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_count (GuestAddrs.bal_gas_valid_from_builder + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_count (GuestAddrs.bal_gas_valid_from_builder + 232)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x18 (brOff (GuestAddrs.bal_gas_valid_from_builder + 352) (GuestAddrs.bal_gas_valid_from_builder + 248)),
+    .SLLI .x5 .x19 (6 : BitVec 6),
+    .LUI .x6 (20 : BitVec 20),
+    .ADDIW .x6 .x6 (801 : BitVec 12),
+    .SLLI .x6 .x6 (15 : BitVec 6),
+    .ADDI .x6 .x6 (1920 : BitVec 12),
+    .ADD .x21 .x6 .x5,
+    .LI .x30 (0 : Word),
+    .LI .x5 (20 : Word),
+    .BEQ .x30 .x5 (40 : BitVec 13),
+    .LI .x5 (19 : Word),
+    .SUB .x5 .x5 .x30,
+    .ADD .x5 .x21 .x5,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .ADDI .x5 .x2 (64 : BitVec 12),
+    .ADD .x5 .x5 .x30,
+    .SB .x5 .x6 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .ADDI .x10 .x21 (32 : BitVec 12),
+    .ADDI .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_written (GuestAddrs.bal_gas_valid_from_builder + 332)),
+    .BNE .x10 .x0 (8 : BitVec 13),
+    .ADDI .x9 .x9 (1 : BitVec 12),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_gas_valid_from_builder + 248) (GuestAddrs.bal_gas_valid_from_builder + 348)),
+    .LI .x5 (2000 : Word),
+    .MUL .x6 .x9 .x5,
+    .BLTU .x8 .x6 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balGasValidFromBuilder_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balGasValidFromBuilder_relocs : RelocTable :=
+  [ (10, .la .x5 "bal_builder_account_count"),
+    (13, .la .x5 "bal_builder_storage_change_count"),
+    (22, .la .x7 "bal_builder_storage_changes"),
+    (28, .la .x7 "bal_builder_storage_changes"),
+    (58, .la .x5 "storage_reads_count"),
+    (83, .jal .x1 "bal_serializer_slot_written") ]
+
+def balGasValidFromBuilderFunction : String :=
+  "bal_gas_valid_from_builder:\n" ++ emitProgramR balGasValidFromBuilder_prog balGasValidFromBuilder_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balGasValidFromBuilder_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balGasValidFromBuilderFunction_eq_prog :
+    balGasValidFromBuilderFunction = "bal_gas_valid_from_builder:\n" ++ emitProgramR balGasValidFromBuilder_prog balGasValidFromBuilder_relocs := rfl
+
+#guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
+#guard balGasValidFromBuilder_prog.length = 104
 #guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
 def bgvU32le_prog : Program :=
