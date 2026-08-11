@@ -46,14 +46,36 @@ TEMPLATE = os.path.join(
 TEXT_BASE = 0x80000000
 _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 
-# Coverage floor ratchet (#11923). Absolute covered *bytes*, not ratio:
-# .text growth alone must not fail the gate, and a silent conversion drop
-# must. Bump ONLY in the same commit that lands a conversion extending
-# guestImageEntries (or that shortens .text without losing covered ranges).
-# Measured live on the #12044 merge: 83572 B / 341076 B = 24.50%.
+# Coverage floor ratchet (#11923 / #12136). Absolute covered *bytes*, not ratio.
+# Soundness bar (#12136): a DROP must not pass unnoticed → hard fail when
+# covered/converted < floor. The up-side is intentionally NOT a hard fail:
+# requiring live == floor on every conversion PR serializes the fleet on two
+# constants (same conflict class as layout regen) and is a worse outcome than
+# residual stale-floor drift. Conversion authors SHOULD still bump via
+# `python3 scripts/guest_image_coverage.py --write-floor` in the landing
+# commit; exceed prints paste-ready values on stderr but exits 0.
+# Live-synced after #12139 batch (main b1863a9e4): 96368 B / 376 converted
+# (includes #12135 rlp_item_size +140 B / +1). MEASURED, not assumed.
 EXPECTED_COVERED_BYTES_FLOOR = 96368
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 376
+
+_FLOOR_BYTES_RE = re.compile(
+    r"^(EXPECTED_COVERED_BYTES_FLOOR = )\d+(\s*(?:#.*)?)$", re.M)
+_FLOOR_CONV_RE = re.compile(
+    r"^(EXPECTED_CONVERTED_COUNT_FLOOR = )\d+(\s*(?:#.*)?)$", re.M)
+
+
+def write_floor_constants(covered_bytes: int, n_conv: int) -> None:
+    """Rewrite the two EXPECTED_*_FLOOR assignments in this file to live values."""
+    path = os.path.abspath(__file__)
+    src = open(path).read()
+    src2, n1 = _FLOOR_BYTES_RE.subn(rf"\g<1>{covered_bytes}\2", src, count=1)
+    src3, n2 = _FLOOR_CONV_RE.subn(rf"\g<1>{n_conv}\2", src2, count=1)
+    if n1 != 1 or n2 != 1:
+        sys.exit(f"--write-floor: rewrite failed (bytes={n1} conv={n2}); "
+                 f"edit {path} by hand")
+    open(path, "w").write(src3)
 
 
 def lean_camel(entry: str) -> str:
@@ -370,9 +392,12 @@ def main():
                     help="#11280: GuestAddrs declared start vs TSV actual "
                          "(converted linked only); exit 1 on mismatch")
     ap.add_argument("--check-floor", action="store_true",
-                    help="#11923: fail if covered bytes or converted count "
-                         "drops below EXPECTED_*_FLOOR (also enforced on "
-                         "--check-doc and the default summary path)")
+                    help="#11923/#12136: fail if covered/converted drops "
+                         "below EXPECTED_*_FLOOR (also on --check-doc and "
+                         "default summary). Exceed is stderr paste only.")
+    ap.add_argument("--write-floor", action="store_true",
+                    help="#12136: rewrite EXPECTED_*_FLOOR in this file to "
+                         "live covered/converted (conversion commits; not CI)")
     args = ap.parse_args()
 
     syms, text_end, converted = load_converted()
@@ -451,8 +476,8 @@ def main():
                          "relative to the live generator. Regenerate:\n\n"
                          "    python3 scripts/guest_image_coverage.py --write-doc\n")
             print(f"{os.path.relpath(DOC, ROOT)}: CLEAN")
-    elif args.check_floor:
-        # Quiet: floor line only (CI second pass). Accounting still runs below.
+    elif args.check_floor or args.write_floor:
+        # Quiet: floor line / write-floor only. Accounting still runs below.
         pass
     elif args.md:
         print(f"`.text` = [0x{TEXT_BASE:08x}, 0x{text_end:08x}), "
@@ -489,14 +514,19 @@ def main():
               f"gaps({gap_bytes}) != text({text_size})", file=sys.stderr)
         sys.exit(1)
 
-    # #11923 floor ratchet — skip pure emit/declared-starts/gaps/write-doc/md.
-    # --check-doc and default summary always enforce; --check-floor is the
-    # explicit quiet CI entry.
+    # #11923/#12136 floor ratchet — skip pure emit/declared-starts/gaps/
+    # write-doc/md/write-floor. --check-doc and default summary always
+    # enforce; --check-floor is the explicit quiet CI entry.
     enforce_floor = (
         args.check_floor or args.check_doc
         or not (args.gaps or args.emit_lean or args.check_declared_starts
-                or args.write_doc or args.md)
+                or args.write_doc or args.md or args.write_floor)
     )
+    if args.write_floor:
+        write_floor_constants(covered_bytes, n_conv)
+        print(f"wrote EXPECTED_COVERED_BYTES_FLOOR = {covered_bytes}")
+        print(f"wrote EXPECTED_CONVERTED_COUNT_FLOOR = {n_conv}")
+        return
     if enforce_floor:
         pct = 100 * covered_bytes / text_size if text_size else 0.0
         print(f"coverage floor: covered={covered_bytes} B "
@@ -508,24 +538,28 @@ def main():
         if covered_bytes < EXPECTED_COVERED_BYTES_FLOOR:
             errs.append(
                 f"covered bytes {covered_bytes} < floor "
-                f"{EXPECTED_COVERED_BYTES_FLOOR} — conversion drop or "
-                f"stale floor; restore coverage or lower the floor only "
-                f"with an explicit #11923 justification")
+                f"{EXPECTED_COVERED_BYTES_FLOOR} — conversion drop; "
+                f"restore coverage or lower the floor only with an "
+                f"explicit #11923 justification")
         if n_conv < EXPECTED_CONVERTED_COUNT_FLOOR:
             errs.append(
                 f"converted count {n_conv} < floor "
-                f"{EXPECTED_CONVERTED_COUNT_FLOOR}")
+                f"{EXPECTED_CONVERTED_COUNT_FLOOR} — conversion drop")
         if errs:
             for e in errs:
                 print(f"COVERAGE FLOOR FAIL: {e}", file=sys.stderr)
             sys.exit(1)
+        # Up-side: paste-ready stale warning, exit 0. Hard equality rejected
+        # (#12136 hazard) — every concurrent conversion PR would conflict on
+        # the same two constants. Soundness bar is drop-only.
         if (covered_bytes > EXPECTED_COVERED_BYTES_FLOOR
                 or n_conv > EXPECTED_CONVERTED_COUNT_FLOOR):
             print(
-                f"NOTE: live coverage exceeds floor — bump "
-                f"EXPECTED_COVERED_BYTES_FLOOR to {covered_bytes} and/or "
-                f"EXPECTED_CONVERTED_COUNT_FLOOR to {n_conv} in the same "
-                f"commit that landed the conversion (#11923 ratchet up)",
+                "COVERAGE FLOOR STALE: live exceeds floor — bump in the "
+                "conversion commit (paste), or:\n"
+                "  python3 scripts/guest_image_coverage.py --write-floor\n"
+                f"EXPECTED_COVERED_BYTES_FLOOR = {covered_bytes}\n"
+                f"EXPECTED_CONVERTED_COUNT_FLOOR = {n_conv}",
                 file=sys.stderr)
 
 
