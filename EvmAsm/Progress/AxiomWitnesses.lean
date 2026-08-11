@@ -176,6 +176,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.bnfLtP_spec_specref
 
+#print axioms EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
+
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
 #print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
@@ -405,6 +407,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Evm64.witnessIndexIs_split_at
 
 #print axioms EvmAsm.Evm64.witnessLookupSpec_correct
+
+#print axioms EvmAsm.Rv64.RLP.risLenLoop
+
+#print axioms EvmAsm.Rv64.RLP.risLenLoopBody
 
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
 

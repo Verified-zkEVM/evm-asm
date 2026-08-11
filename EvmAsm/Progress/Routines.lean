@@ -763,6 +763,20 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- that consumes it: this is a machine result about the emitted program, and it is the
 -- piece a later composition will trust without re-checking. No registry row changes --
 -- a block lemma, not a routine triple.
+-- #10780: `rlp_item_size`'s long-form length-byte ACCUMULATION loop (idx25-31) at a
+-- symbolic trip count -- the read/accumulate counterpart of `lpLolLoop`'s write/extract.
+-- Ported from `wi_len_loop` (`rlp_walk_init` idx17-23): the same seven instructions with
+-- counter x30/x30, accumulator x31/x28, scratch x28/x31, cursor x6/x29. This is the
+-- machine half the `SpanForm` long arms need; the model half is already gated as the
+-- `LongSpan` lemmas. ⚠️ The drift guard is witnessed WITH it on purpose: the loop is
+-- proved core-side over a second copy of `rlpItemSize_prog` (core may not import Codegen),
+-- so the guard is the only thing keeping the copy and the emitted program in step.
+private noncomputable abbrev _rlp_item_size_len_loop_witness :=
+  @EvmAsm.Rv64.RLP.risLenLoop
+private noncomputable abbrev _rlp_item_size_len_loop_body_witness :=
+  @EvmAsm.Rv64.RLP.risLenLoopBody
+private noncomputable abbrev _rlp_item_size_prog_drift_guard_witness :=
+  @EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 private noncomputable abbrev _rlp_prefix_lol_loop_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
 private noncomputable abbrev _rlp_prefix_lol_body_witness :=
