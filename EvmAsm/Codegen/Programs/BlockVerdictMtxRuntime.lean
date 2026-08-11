@@ -740,6 +740,9 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bsr_wds_p; ld a3, 0(t0); la t0, bsr_wds_n; ld a4, 0(t0); la a5, sv_recomputed\n" ++
   "  la t0, bsr_ssz_p; ld a6, 0(t0); jal ra, block_state_root\n" ++
   "  mv s2, a0; la t0, bv_state_status; sd s2, 0(t0); bnez s2, .Lbv_state_fail\n" ++
+  -- Spec-alignment: execution-specs compares the state-root digest. Keep this
+  -- digest comparison, rather than comparing a raw post-state representation;
+  -- see docs/agents/spec-alignment-doctrine.md §7.
   "  la t0, sv_recomputed; la t1, bsr_header_state_root_p; ld t1, 0(t1); li t2, 32\n" ++
   ".Lbv_terminal_root_cmp:\n" ++
   "  beqz t2, .Lbv_terminal_root_ok\n" ++

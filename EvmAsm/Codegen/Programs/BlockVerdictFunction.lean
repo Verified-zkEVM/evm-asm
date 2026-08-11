@@ -65,6 +65,8 @@ def blockVerdictFunction : String :=
   "  la t0, bv_block_hash_check_enabled; ld t0, 0(t0); beqz t0, .Lbv_block_hash_ok\n" ++
   "  la a0, sv_this_rlp; la t0, sv_this_rlp_len; ld a1, 0(t0); la a2, bv_block_hash\n" ++
   "  jal ra, block_hash_from_header\n" ++
+  -- Spec-alignment: execution-specs compares the block-hash digest. Do not
+  -- strengthen this to raw-header comparison; see docs/agents/spec-alignment-doctrine.md §7.
   "  la t0, bv_block_hash; ld t1, 0(s0); addi t1, t1, 472; li t2, 32\n" ++
   ".Lbv_block_hash_cmp:\n" ++
   "  beqz t2, .Lbv_block_hash_ok\n" ++
