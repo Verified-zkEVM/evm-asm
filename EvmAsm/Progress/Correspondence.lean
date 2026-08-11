@@ -370,23 +370,26 @@ reubOut_eq_encode_toBytesBE." },
     spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
     verdict := .domainRestricted, basis := .bridged,
     reference := "header of encode_sequence",
-    note := "no unified dispatch theorem — FOUR per-form pinned triples, cited here by \
+    note := "no unified dispatch theorem — FIVE per-form pinned triples, cited here by \
 the short one because this file carries one row per routine. Coverage is \
-`len < 16777216`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
+`len < 4294967296`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
 (`256 ≤ len < 65536`, where the length-byte loop first runs more than once and canonical \
-form stops being vacuous) and long3 (`65536 ≤ len < 16777216`, \
-`…_long3_pinned_spec_within`). ⚠️ THE CUT IS `lenlen ≥ 4` (payload ≥ 16777216 B). It was \
-`lenlen ≥ 2` in this note until long2 landed and `lenlen ≥ 3` until long3 did; \
-`Progress/Routines.lean` carried the rows both times while this row described the previous \
-state, so keep them in step. ⭐ The remaining widths are no longer priced at the \
-~200-lines-per-byte the long2 header warned about: `lpLolLoop` \
+form stops being vacuous), long3 (`65536 ≤ len < 16777216`, \
+`…_long3_pinned_spec_within`) and long4 (`16777216 ≤ len < 4294967296`, \
+`…_long4_pinned_spec_within`). ⚠️ THE CUT IS `lenlen ≥ 5` (payload ≥ 4294967296 B). It \
+was `lenlen ≥ 2` in this note until long2 landed, `lenlen ≥ 3` until long3 did and \
+`lenlen ≥ 4` until long4 did; `Progress/Routines.lean` carried the rows each time while \
+this row described the previous state, so keep them in step. ⭐ The remaining widths are \
+no longer priced at the ~200-lines-per-byte the long2 header warned about: `lpLolLoop` \
 (`RlpEncodeListPrefixLoopSpec`) proves the length-byte loop idx35-idx41 at ANY trip count \
 `≤ 8`, and `first_length_byte_ne_zero` (`RlpEncodeListPrefixCanonical`) discharges \
 canonicality at every width, so each further arm is its ladder path plus the fixed \
-header/epilogue — long3 is the worked instance. ⚠️ At `lenlen = 8` the loop's overflow \
-side condition needs `outPtr.toNat + 9 ≤ 2^64`, which is MORE slack than the 8 that \
-`outPtr.toNat % 8 = 0` alone supplies; that arm needs an explicit bound rather than \
-reusing long3's `omega` step" },
+header/epilogue — long3 and long4 are the worked instances, and long4 measures the \
+per-width cost: three extra dispatch steps, nothing else. ⚠️ At `lenlen = 8` the loop's \
+overflow side condition needs `outPtr.toNat + 9 ≤ 2^64`, which is MORE slack than the 8 \
+that `outPtr.toNat % 8 = 0` alone supplies; that arm needs an explicit bound rather than \
+reusing the `omega` step long3 and long4 share (`+ 4` and `+ 5`, both inside the eight \
+bytes alignment gives)" },
   { family := "rlp", routine := "rlp_encode_bytes",
     spec := some "reb_spec_within",
     verdict := .agrees, basis := .bridged, reference := "encode_bytes",

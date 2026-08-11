@@ -97,6 +97,9 @@ import EvmAsm.Codegen.Programs.BalCanonicalSortDigitSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
+-- #10780 item 3, next width: the 4-length-byte long form. Long3's ladder with
+-- ONE more fall-through, plus `lpLolLoop` cited at `m := 4`.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
@@ -128,6 +131,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
@@ -550,6 +554,29 @@ def routineRegistry : List RoutineEntry := [
         ++ "ladder path plus this same epilogue. Canonical form comes from the "
         ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
         ++ "`long3_first_length_byte_ne_zero`"),
+  -- #10780 item 3, next width: long3's ladder with ONE more fall-through. The only
+  -- two differences from long3 are the extra dispatch triple (idx17-idx19) and the
+  -- loop citation at `m := 4`; header writer, epilogue, frame and clobber set are
+  -- identical, which is what long3's closing note predicted.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long4_pinned_spec_within")
+      (gate := "`16777216 ≤ len.toNat < 4294967296` — the 4-length-byte long form. "
+        ++ "With the short, long1, long2 and long3 rows this covers "
+        ++ "`len < 4294967296`; the cut moves to `lenlen ≥ 5`. ⚠️ INPUT-DOMAIN gate "
+        ++ "ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI obligations "
+        ++ "on the caller-supplied output region, not domain restrictions. coverRef "
+        ++ "is the smallest qualifying input, `len = 16777216` — exactly the "
+        ++ "long3/long4 boundary, so the gate is REACHABLE and adjacent to already "
+        ++ "covered ground rather than merely consistent (#12014)")
+      (notes := "per-form (\"long4\") pinned triple; writes "
+        ++ "`[0xFB, len >>> 24, len >>> 16, len >>> 8, len]` and sets the cell flag "
+        ++ "to 5. Step bound 52 = 14 ladder + 5 header + 29 loop (`7*4+1`) + 3 "
+        ++ "epilogue + 1 `JALR` — long3's 42 with three more dispatch steps and "
+        ++ "seven more loop steps. ⭐ The loop is CITED at `m := 4`, not unrolled. "
+        ++ "Canonical form comes from the all-widths `first_length_byte_ne_zero`, "
+        ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
+        ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
+        ++ "closes from `outPtr.toNat % 8 = 0` alone"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -683,16 +710,16 @@ def routineRegistry : List RoutineEntry := [
   -- Outer absorb uses signedCountdownLoop_reload_spec (hdr=LI at 0x8000368c);
   -- BLT-header signedCountdownLoop_spec does NOT apply (JAL→LI ≠ BLT 0x80003690).
   -- N/rem is length partition (len=136*N+rem, rem≤135), not an input-domain gate.
-  -- Post is operational keccakBodyDigest (guest pad+absorb+squeeze path); pure
-  -- SpecRef keccak256 bridge is residual, not absorbed here.
+  -- Post operational keccakBodyDigest; pure SpecRef bridge absorbed by #12037
+  -- (`keccakBodyDigest_eq_specref` / `_div_eq_specref`). Load-bearing consumer #12038.
   routine "zkvm_keccak256" .proven (some "zkvm_keccak256_spec_within")
       (notes := "whole-routine no-ra frame triple at GuestAddrs.zkvm_keccak256 "
         ++ "over zkvmKeccak256_prog (69 insn). Frame saves x8/x9/x18/x20 only "
         ++ "(not ra); JALR x0,x1 ret. Outer absorb loop: LI-header reload "
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
-        ++ "Post: a0=0, output=keccakBodyDigest (operational). Resource/ABI "
-        ++ "preconditions only → .proven"),
+        ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
+        ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
 
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
@@ -721,10 +748,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 55 := by decide
+theorem routineCount_eq : routineCount = 56 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 18 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 19 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1103,6 +1130,10 @@ private noncomputable abbrev _rlp_encode_list_prefix_long3_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.rlp_encode_list_prefix_long3_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long3_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.long3_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long4_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long4_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
@@ -1143,6 +1174,11 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+-- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
+private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
+  @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
+private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
+  @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 -- #12018 phase 1: SHA-256 frame and setup boundaries are independently
 -- witnessed while the full-block loop and top-level wrapper remain open.
 private noncomputable abbrev _zkvm_sha256_frame_witness :=

@@ -124,6 +124,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
+#print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
+
+#print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
+
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
@@ -155,6 +159,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.long3_first_length_byte_ne_zero
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.rlp_encode_list_prefix_long3_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 
