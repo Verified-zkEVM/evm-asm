@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (42 of 379 today — gas helpers etc.
+not linked** (42 of 384 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053454), 341076 bytes (`RegionMap.textSizeBytes = 0x53454`)
 
-- symbols in `.text`: 905 (337 converted, 568 unconverted)
-- covered by converted `_prog`s: 83572 bytes (24.50%)
-- NOT covered: 257504 bytes (75.50%), 569 ranges
+- symbols in `.text`: 905 (342 converted, 563 unconverted)
+- covered by converted `_prog`s: 84340 bytes (24.73%)
+- NOT covered: 256736 bytes (75.27%), 564 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -111,11 +111,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80004d44` | `0x80004dd0` | 140 | `rlp_item_size` | UNCONVERTED |
 | `0x80004dd0` | `0x80004ea4` | 212 | `rlp_item_span` | UNCONVERTED |
 | `0x80004ea4` | `0x80004f78` | 212 | `rlp_walk_init` | UNCONVERTED |
-| `0x80004f78` | `0x80004fac` | 52 | `rlp_walk_next` | UNCONVERTED |
-| `0x80004fac` | `0x80004fb0` | 4 | `rlp_walk_next_nested` | UNCONVERTED |
-| `0x80004fb0` | `0x80005080` | 208 | `rlp_walk_next_shared` | UNCONVERTED |
-| `0x80005080` | `0x800050dc` | 92 | `rlp_validate_payload` | UNCONVERTED |
-| `0x800050dc` | `0x80005278` | 412 | `rlp_walk_next_core` | UNCONVERTED |
 | `0x80005278` | `0x800052c0` | 72 | `rlp_content_to_u64` | UNCONVERTED |
 | `0x800052c0` | `0x80005328` | 104 | `rlp_content_to_u256_be` | UNCONVERTED |
 | `0x80005328` | `0x80005380` | 88 | `rlp_content_to_u64_strict` | UNCONVERTED |
