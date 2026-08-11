@@ -1172,6 +1172,65 @@ private theorem segments_byte_round_nonrate_spec
   obtain ⟨heq, _⟩ := hq
   exact segments_nonrate_boundary off k hnext heq
 
+private theorem segments_byte_round_rate_spec
+    (cr : CodeReq) (hdr scratchBase inputBase : Word) (v10 : Word)
+    (st0 inp : List (BitVec 8)) (off n k : Nat) (A : Assertion)
+    (hA : A.pcFree) (hk : k < n) (hoff : off + k < 136)
+    (hrate : off + k + 1 = 136)
+    (hst : st0.length = 200) (hinp : n ≤ inp.length) (hn64 : n < 2 ^ 64)
+    (hb8s : scratchBase.toNat % 8 = 0)
+    (hb8i : inputBase.toNat % 8 = 0)
+    (hbaseS : scratchBase.toNat + (off + k) < 2 ^ 64)
+    (hbaseI : inputBase.toNat + k < 2 ^ 64)
+    (hvalidS : isValidByteAccess
+      (scratchBase + BitVec.ofNat 64 (off + k)) = true)
+    (hvalidI : isValidByteAccess
+      (inputBase + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ j, j < 200 →
+      isValidMemAddr (scratchBase + BitVec.ofNat 64 j) = true)
+    (hmem0 : ∀ a i, CodeReq.singleton hdr (.LBU .x5 .x21 0) a = some i → cr a = some i)
+    (hmem1 : ∀ a i, CodeReq.singleton (hdr + 4) (.ADD .x6 .x19 .x20) a = some i → cr a = some i)
+    (hmem2 : ∀ a i, CodeReq.singleton (hdr + 8) (.LBU .x7 .x6 0) a = some i → cr a = some i)
+    (hmem3 : ∀ a i, CodeReq.singleton (hdr + 12) (.XOR .x7 .x7 .x5) a = some i → cr a = some i)
+    (hmem4 : ∀ a i, CodeReq.singleton (hdr + 16) (.SB .x6 .x7 0) a = some i → cr a = some i)
+    (hmem5 : ∀ a i, CodeReq.singleton (hdr + 20) (.ADDI .x21 .x21 1) a = some i → cr a = some i)
+    (hmem6 : ∀ a i, CodeReq.singleton (hdr + 24) (.ADDI .x22 .x22 (-1)) a = some i → cr a = some i)
+    (hmem7 : ∀ a i, CodeReq.singleton (hdr + 28) (.ADDI .x20 .x20 1) a = some i → cr a = some i)
+    (hmemLi : ∀ a i, CodeReq.singleton (hdr + 32) (.LI .x5 (136 : Word)) a = some i → cr a = some i)
+    (hmemBne : ∀ a i, CodeReq.singleton (hdr + 36) (.BNE .x20 .x5 (-40)) a = some i → cr a = some i)
+    (hmemMv : ∀ a i, CodeReq.singleton (hdr + 40) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hmemCsrs : ∀ a i, CodeReq.singleton (hdr + 44) (.CSRS 0x800 .x10) a = some i → cr a = some i)
+    (hmemLi0 : ∀ a i, CodeReq.singleton (hdr + 48) (.LI .x20 (0 : Word)) a = some i → cr a = some i)
+    (hmemJal : ∀ a i, CodeReq.singleton (hdr + 52) (.JAL .x0 (-56)) a = some i → cr a = some i) :
+    cpsTripleWithin 14 hdr (hdr - 4) cr
+      ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k))) **
+        (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 k)) **
+        (.x22 ↦ᵣ (BitVec.ofNat 64 (n - k))) **
+        bytesRegion scratchBase (xorBytesAt st0 inp off k) ** bytesRegion inputBase inp **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (.x10 ↦ᵣ v10) ** regOwns keccakCsrsRest ** A)
+      (((.x10 ↦ᵣ scratchBase) ** (.x19 ↦ᵣ scratchBase) **
+          regOwns keccakCsrsRest **
+          bytesRegion scratchBase
+            (setBytes (xorBytesAt st0 inp off (k + 1)) 0
+              (keccakBytes (xorBytesAt st0 inp off (k + 1)) 0)) **
+          (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
+        ((.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+          (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+          bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 **
+          (⌜BitVec.ofNat 64 (off + k + 1) = (136 : Word)⌝ ** A))) := by
+  have hround := segments_byte_round_spec cr hdr scratchBase inputBase v10 st0 inp off n k A
+    hA hk hoff hst hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI hvalid
+    hmem0 hmem1 hmem2 hmem3 hmem4 hmem5 hmem6 hmem7 hmemLi hmemBne hmemMv hmemCsrs
+    hmemLi0 hmemJal
+  apply cpsBranchWithin_ntakenPath hround
+  intro hp hq
+  extract_pure_deep hq
+  obtain ⟨hne, _⟩ := hq
+  apply hne
+  rw [hrate]
+  rfl
+
 /-! The descriptor counter's control shape is separate from the byte-state
     invariant.  A nonzero descriptor count takes the fall-through byte round
     and returns to the header; exhaustion takes the header branch to the next
