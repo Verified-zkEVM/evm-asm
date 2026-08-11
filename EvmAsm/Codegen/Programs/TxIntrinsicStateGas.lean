@@ -105,7 +105,7 @@ def balAccountNonceBeforeIndex_prog : Program :=
     .LD .x11 .x2 (88 : BitVec 12),
     .LI .x12 (0 : Word),
     .ADDI .x13 .x2 (72 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (balAccountNonceBeforeIndexPc + 184)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (balAccountNonceBeforeIndexPc + 184)),
     .BNE .x10 .x0 (brOff (balAccountNonceBeforeIndexPc + 284) (balAccountNonceBeforeIndexPc + 188)),
     .LD .x5 .x2 (72 : BitVec 12),
     .BGEU .x5 .x18 (48 : BitVec 13),
@@ -115,7 +115,7 @@ def balAccountNonceBeforeIndex_prog : Program :=
     .LD .x11 .x2 (88 : BitVec 12),
     .LI .x12 (1 : Word),
     .ADDI .x13 .x2 (72 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (balAccountNonceBeforeIndexPc + 224)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (balAccountNonceBeforeIndexPc + 224)),
     .BNE .x10 .x0 (56 : BitVec 13),
     .LD .x23 .x2 (72 : BitVec 12),
     .LI .x5 (1 : Word),
@@ -151,8 +151,8 @@ def balAccountNonceBeforeIndex_relocs : RelocTable :=
   [ (16, .jal .x1 "rlp_list_nth_item"),
     (24, .jal .x1 "rlp_list_count_items"),
     (37, .jal .x1 "rlp_item_span"),
-    (46, .jal .x1 "rlp_field_to_u64"),
-    (56, .jal .x1 "rlp_field_to_u64") ]
+    (46, .jal .x1 "rlp_field_to_u64_strict"),
+    (56, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def balAccountNonceBeforeIndexFunction : String :=
   "bal_account_nonce_before_index:\n" ++ emitProgramR balAccountNonceBeforeIndex_prog balAccountNonceBeforeIndex_relocs

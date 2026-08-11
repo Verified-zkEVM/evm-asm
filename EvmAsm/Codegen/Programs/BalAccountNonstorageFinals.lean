@@ -93,7 +93,7 @@ def balAccountCodeAtOrBefore_prog : Program :=
     .MV .x11 .x6,
     .LI .x12 (0 : Word),
     .ADDI .x13 .x2 (120 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483856),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483856),
     .BNE .x10 .x0 (brOff 2147483960 2147483860),
     .LD .x5 .x2 (120 : BitVec 12),
     .BLTU .x19 .x5 (brOff 2147483944 2147483868),
@@ -140,7 +140,7 @@ def balAccountCodeAtOrBefore_relocs : RelocTable :=
   [ (24, .jal .x1 "rlp_list_nth_item"),
     (32, .jal .x1 "rlp_list_count_items"),
     (43, .jal .x1 "rlp_list_nth_item"),
-    (52, .jal .x1 "rlp_field_to_u64"),
+    (52, .jal .x1 "rlp_field_to_u64_strict"),
     (63, .jal .x1 "rlp_list_nth_item") ]
 
 def balAccountCodeAtOrBeforeFunction : String :=
