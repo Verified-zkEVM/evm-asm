@@ -255,8 +255,13 @@ theorem bne_fail_off9 :
     pc 9 + signExtend13
       (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 36)) =
       pc 47 := by
-  unfold pc kindB brOff signExtend13
-  decide
+  unfold pc kindB
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 36 +
+      signExtend13 (brOff (GuestAddrs.mpt_node_kind + 188)
+        (GuestAddrs.mpt_node_kind + 36)) =
+    BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 188
+  exact brOff_correct_base_off GuestAddrs.mpt_node_kind 36 188
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 theorem bne_nt_off9 : pc 9 + 4 = pc 10 := pc_succ 9
 
@@ -425,8 +430,13 @@ private theorem beq_branch_off :
     pc 14 + signExtend13
       (brOff (GuestAddrs.mpt_node_kind + 164) (GuestAddrs.mpt_node_kind + 56)) =
       pc 41 := by
-  unfold pc kindB brOff signExtend13
-  decide
+  unfold pc kindB
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 56 +
+      signExtend13 (brOff (GuestAddrs.mpt_node_kind + 164)
+        (GuestAddrs.mpt_node_kind + 56)) =
+    BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 164
+  exact brOff_correct_base_off GuestAddrs.mpt_node_kind 56 164
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 private theorem jal_branch_to_epi :
     pc 42 + signExtend21 (24 : BitVec 21) = pc 48 := by
@@ -581,7 +591,13 @@ private theorem bne_fail_off16 :
     pc 16 + signExtend13
       (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 64)) =
       pc 47 := by
-  unfold pc kindB brOff signExtend13; decide
+  unfold pc kindB
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 64 +
+      signExtend13 (brOff (GuestAddrs.mpt_node_kind + 188)
+        (GuestAddrs.mpt_node_kind + 64)) =
+    BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 188
+  exact brOff_correct_base_off GuestAddrs.mpt_node_kind 64 188
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- After load at pc14 with `count ≠ 17`: BEQ ntaken, `li t2,2`. -/
 theorem count_ne17_li2
@@ -854,7 +870,13 @@ private theorem bne_fail_off25 :
     pc 25 + signExtend13
       (brOff (GuestAddrs.mpt_node_kind + 188) (GuestAddrs.mpt_node_kind + 100)) =
       pc 47 := by
-  unfold pc kindB brOff signExtend13; decide
+  unfold pc kindB
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 100 +
+      signExtend13 (brOff (GuestAddrs.mpt_node_kind + 188)
+        (GuestAddrs.mpt_node_kind + 100)) =
+    BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 188
+  exact brOff_correct_base_off GuestAddrs.mpt_node_kind 100 188
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- Nth-status not zero: taken BNE to fail, then `li a0, 3`. -/
 theorem nth_fail_arm

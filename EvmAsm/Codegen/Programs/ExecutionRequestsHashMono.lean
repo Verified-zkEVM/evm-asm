@@ -63,22 +63,58 @@ private def bltuOffAt (branchByte : Nat) : BitVec 13 :=
 
 private theorem bne_taken_136 :
     (B + 136) + signExtend13 (bneOffAt 136) = B + 480 := by
-  unfold B bneOffAt brOff signExtend13; decide
+  unfold B bneOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 136 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 136)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 136 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 private theorem bltu_taken_140 :
     (B + 140) + signExtend13 (bltuOffAt 140) = B + 480 := by
-  unfold B bltuOffAt brOff signExtend13; decide
+  unfold B bltuOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 140 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 140)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 140 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 private theorem bltu_taken_144 :
     (B + 144) + signExtend13 (bltuOffAt 144) = B + 480 := by
-  unfold B bltuOffAt brOff signExtend13; decide
+  unfold B bltuOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 144 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 144)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 144 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 private theorem bltu_taken_148 :
     (B + 148) + signExtend13 (bltuOffAt 148) = B + 480 := by
-  unfold B bltuOffAt brOff signExtend13; decide
+  unfold B bltuOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 148 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 148)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 148 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 private theorem bltu_taken_152 :
     (B + 152) + signExtend13 (bltuOffAt 152) = B + 480 := by
-  unfold B bltuOffAt brOff signExtend13; decide
+  unfold B bltuOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 152 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 152)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 152 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 private theorem bltu_taken_156 :
     (B + 156) + signExtend13 (bltuOffAt 156) = B + 480 := by
-  unfold B bltuOffAt brOff signExtend13; decide
+  unfold B bltuOffAt
+  change BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 156 +
+      signExtend13 (brOff (GuestAddrs.execution_requests_hash + 480)
+        (GuestAddrs.execution_requests_hash + 156)) =
+    BitVec.ofNat 64 GuestAddrs.execution_requests_hash + BitVec.ofNat 64 480
+  exact brOff_correct_base_off GuestAddrs.execution_requests_hash 156 480
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-- Word-level offset monotone + deposit offset = 20. -/
 def erhOffsetsMonoW (o : ErhOffsets) : Prop :=
