@@ -42,48 +42,119 @@ open EvmAsm.Rv64
     a4 = consolidation body ptr  a5 = consolidation body length
     a6 = output SSZ section ptr. Builder deposit/exit ptrs and lengths are supplied
     through `aer_bd_*`/`aer_be_*` globals so existing six-argument callers remain
-    ABI-compatible. a0 (output) = total SSZ section length. -/
+    ABI-compatible (kept deliberately — a caller that silently loses its globals is a
+    wrong-value defect r200 need not surface). a0 (output) = total SSZ section length.
+
+    Converted to `Program` under #12011 (maintainer waived byte-identity). Five
+    top-tested byte-copy loops; builder deposit/exit via `aer_bd_*`/`aer_be_*`
+    globals kept deliberately for six-argument caller ABI compatibility. -/
+def assembleExecutionRequests_prog : Program :=
+  [ .LI .x5 (20 : Word),
+    .SW .x16 .x5 (0 : BitVec 12),
+    .ADD .x5 .x5 .x11,
+    .SW .x16 .x5 (4 : BitVec 12),
+    .ADD .x5 .x5 .x13,
+    .SW .x16 .x5 (8 : BitVec 12),
+    .ADD .x5 .x5 .x15,
+    .SW .x16 .x5 (12 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 32)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 32)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x5 .x5 .x28,
+    .SW .x16 .x5 (16 : BitVec 12),
+    .ADDI .x6 .x16 (20 : BitVec 12),
+    .MV .x7 .x10,
+    .MV .x28 .x11,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x7 .x12,
+    .MV .x28 .x13,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x7 .x14,
+    .MV .x28 .x15,
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x7 (laHi GuestAddrs.aer_bd_ptr (GuestAddrs.assemble_execution_requests + 164)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aer_bd_ptr (GuestAddrs.assemble_execution_requests + 164)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 176)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 176)),
+    .LD .x28 .x28 (0 : BitVec 12),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x7 (laHi GuestAddrs.aer_be_ptr (GuestAddrs.assemble_execution_requests + 216)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aer_be_ptr (GuestAddrs.assemble_execution_requests + 216)),
+    .LD .x7 .x7 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.aer_be_len (GuestAddrs.assemble_execution_requests + 228)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.aer_be_len (GuestAddrs.assemble_execution_requests + 228)),
+    .LD .x28 .x28 (0 : BitVec 12),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .LI .x10 (20 : Word),
+    .ADD .x10 .x10 .x11,
+    .ADD .x10 .x10 .x13,
+    .ADD .x10 .x10 .x15,
+    .AUIPC .x7 (laHi GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 284)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aer_bd_len (GuestAddrs.assemble_execution_requests + 284)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x10 .x10 .x28,
+    .AUIPC .x7 (laHi GuestAddrs.aer_be_len (GuestAddrs.assemble_execution_requests + 300)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.aer_be_len (GuestAddrs.assemble_execution_requests + 300)),
+    .LD .x28 .x7 (0 : BitVec 12),
+    .ADD .x10 .x10 .x28,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `assembleExecutionRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def assembleExecutionRequests_relocs : RelocTable :=
+  [ (8, .la .x7 "aer_bd_len"),
+    (41, .la .x7 "aer_bd_ptr"),
+    (44, .la .x28 "aer_bd_len"),
+    (54, .la .x7 "aer_be_ptr"),
+    (57, .la .x28 "aer_be_len"),
+    (71, .la .x7 "aer_bd_len"),
+    (75, .la .x7 "aer_be_len") ]
+
 def assembleExecutionRequestsFunction : String :=
-  "assemble_execution_requests:\n" ++
-  -- 5 u32 little-endian offsets: off0=20, then one offset per preceding body.
-  "  li t0, 20; sw t0, 0(a6)\n" ++
-  "  add t0, t0, a1; sw t0, 4(a6)\n" ++
-  "  add t0, t0, a3; sw t0, 8(a6)\n" ++
-  "  add t0, t0, a5; sw t0, 12(a6)\n" ++
-  "  la t2, aer_bd_len; ld t3, 0(t2); add t0, t0, t3; sw t0, 16(a6)\n" ++
-  "  addi t1, a6, 20              # dst = section + 20 (after the offsets)\n" ++
-  -- copy deposit body
-  "  mv t2, a0; mv t3, a1\n" ++
-  ".Laer_dcopy:\n" ++
-  "  beqz t3, .Laer_dd\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laer_dcopy\n" ++
-  ".Laer_dd:\n" ++
-  -- copy withdrawal body
-  "  mv t2, a2; mv t3, a3\n" ++
-  ".Laer_wcopy:\n" ++
-  "  beqz t3, .Laer_wd\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laer_wcopy\n" ++
-  ".Laer_wd:\n" ++
-  -- copy consolidation body
-  "  mv t2, a4; mv t3, a5\n" ++
-  ".Laer_ccopy:\n" ++
-  "  beqz t3, .Laer_cd\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laer_ccopy\n" ++
-  ".Laer_cd:\n" ++
-  -- copy builder-deposit body
-  "  la t2, aer_bd_ptr; ld t2, 0(t2); la t3, aer_bd_len; ld t3, 0(t3)\n" ++
-  ".Laer_bd_copy:\n" ++
-  "  beqz t3, .Laer_bd_done\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laer_bd_copy\n" ++
-  ".Laer_bd_done:\n" ++
-  -- copy builder-exit body
-  "  la t2, aer_be_ptr; ld t2, 0(t2); la t3, aer_be_len; ld t3, 0(t3)\n" ++
-  ".Laer_be_copy:\n" ++
-  "  beqz t3, .Laer_be_done\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Laer_be_copy\n" ++
-  ".Laer_be_done:\n" ++
-  "  li a0, 20; add a0, a0, a1; add a0, a0, a3; add a0, a0, a5; la t2, aer_bd_len; ld t3, 0(t2); add a0, a0, t3; la t2, aer_be_len; ld t3, 0(t2); add a0, a0, t3\n" ++   -- total length
-  "  ret"
+  "assemble_execution_requests:\n" ++ emitProgramR assembleExecutionRequests_prog assembleExecutionRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `assembleExecutionRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem assembleExecutionRequestsFunction_eq_prog :
+    assembleExecutionRequestsFunction = "assemble_execution_requests:\n" ++ emitProgramR assembleExecutionRequests_prog assembleExecutionRequests_relocs := rfl
+
+#guard assembleExecutionRequestsFunction.startsWith "assemble_execution_requests:\n"
+#guard assembleExecutionRequests_prog.length = 80
 
 /-! ## requests_hash_verify
     Verify the EIP-7685 `requests_hash` derived from the five execution-produced request
