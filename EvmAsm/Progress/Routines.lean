@@ -114,6 +114,7 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
@@ -933,6 +934,20 @@ private noncomputable abbrev _header_extract_number_routine_witness :=
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
+-- #11576: the seventh header-family routine — the one `docs/leaf-routine-targets.md`
+-- singles out as NOT a mechanical fork, because it had only the string↔Program
+-- byte-identity theorem and no triple at all. Domain-restricted to the empty header list
+-- (`hN : encoded = []`), with the restriction IN the statement; the `N ≥ 1` loop is the
+-- named remaining half. No registry row yet: a row would advertise coverage of a routine
+-- whose loop is unproven, and the six exit-path lemmas are the honest unit until then.
+-- `nonce_rule_agrees` is witnessed because it settles the canonical-scalar leniency
+-- question — on an 8-byte field the guest's `u64 = 0` test IS the port's all-zero test.
+private noncomputable abbrev _cvpmf_empty_routine_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
+private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
+private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
 private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
