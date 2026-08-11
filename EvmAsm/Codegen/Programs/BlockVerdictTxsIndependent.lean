@@ -76,7 +76,7 @@ def btiScanTuplesFunction : String :=
   "  bnez a2, .Lbtxi_st_err\n" ++
   "  jal ra, rlp_walk_next                            # item 0 = tx_index field\n" ++
   "  bnez a1, .Lbtxi_st_err\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64\n" ++
+  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Lbtxi_st_err\n" ++
   "  mv t6, a0\n" ++
   ".Lbtxi_st_have:\n" ++

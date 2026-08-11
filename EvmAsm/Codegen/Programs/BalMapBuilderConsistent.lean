@@ -94,13 +94,13 @@ def balMapCheckAccountFieldFunction : String :=
   ".Lbmacf_loop:\n" ++
   "  beq s0, s1, .Lbmacf_ok; mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmacf_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; sd s0, 40(sp); sd s1, 48(sp)\n" ++
   "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_init; bnez a2, .Lbmacf_parse; mv s0, a0; mv s1, a1; sd s0, 56(sp); sd s1, 64(sp)\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmacf_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmacf_parse; sd a0, 72(sp)\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmacf_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmacf_parse; sd a0, 72(sp)\n" ++
   "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmacf_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2\n" ++
   "  li t2, 3; beq s3, t2, .Lbmacf_code\n" ++
   "  li t2, 1; bne s3, t2, .Lbmacf_nonce; mv a0, t0; mv a1, t1; la a2, bame_value; jal ra, rlp_content_to_u256_be; bnez a0, .Lbmacf_parse; mv a0, s2; ld a1, 72(sp); la a2, bame_value; li a3, 32; li a4, 1; jal ra, bal_map_builder_has_row; bnez a0, .Lbmacf_bad\n" ++
   "  j .Lbmacf_next_tuple\n" ++
   ".Lbmacf_nonce:\n" ++
-  "  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmacf_parse; la t2, bame_nonce; sd a0, 0(t2); mv a0, s2; ld a1, 72(sp); mv a2, t2; li a3, 8; li a4, 2; jal ra, bal_map_builder_has_row; bnez a0, .Lbmacf_bad\n" ++
+  "  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmacf_parse; la t2, bame_nonce; sd a0, 0(t2); mv a0, s2; ld a1, 72(sp); mv a2, t2; li a3, 8; li a4, 2; jal ra, bal_map_builder_has_row; bnez a0, .Lbmacf_bad\n" ++
   "  j .Lbmacf_next_tuple\n" ++
   ".Lbmacf_code:\n" ++
   "  mv a0, s2; ld a1, 72(sp); mv a2, t0; mv a3, t1; li a4, 3; jal ra, bal_map_builder_has_row; bnez a0, .Lbmacf_bad\n" ++
@@ -147,12 +147,12 @@ def balMapAccountMatchesFunction : String :=
   "  mv a0, t0; mv a1, t1; jal ra, rlp_walk_init; bnez a2, .Lbmam_parse; mv s0, a0; mv s1, a1\n" ++
   ".Lbmam_loop:\n" ++
   "  beq s0, s1, .Lbmam_miss; mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; sd s0, 64(sp); sd s1, 72(sp); mv a0, t0; mv a1, t1; jal ra, rlp_walk_init; bnez a2, .Lbmam_parse; mv s0, a0; mv s1, a1; sd s0, 80(sp); sd s1, 88(sp)\n" ++
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmam_parse; bne a0, s3, .Lbmam_next_tuple\n" ++
+  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmam_parse; bne a0, s3, .Lbmam_next_tuple\n" ++
   "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next; bnez a1, .Lbmam_parse; mv s0, a0; sub t0, a0, a2; mv t1, a2; li t2, 1; beq s6, t2, .Lbmam_balance; li t2, 2; beq s6, t2, .Lbmam_nonce\n" ++
   "  bne t1, s5, .Lbmam_next_tuple; li t2, 0\n" ++
   ".Lbmam_code_cmp:\n  beq t2, s5, .Lbmam_hit; add t3, t0, t2; add t4, s4, t2; lbu t5, 0(t3); lbu t6, 0(t4); bne t5, t6, .Lbmam_next_tuple; addi t2, t2, 1; j .Lbmam_code_cmp\n" ++
   ".Lbmam_balance:\n  mv a0, t0; mv a1, t1; la a2, bame_value; jal ra, rlp_content_to_u256_be; bnez a0, .Lbmam_parse; la t6, bame_value; ld t2, 0(t6); ld t3, 0(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 8(t6); ld t3, 8(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 16(t6); ld t3, 16(s4); bne t2, t3, .Lbmam_next_tuple; ld t2, 24(t6); ld t3, 24(s4); bne t2, t3, .Lbmam_next_tuple; j .Lbmam_hit\n" ++
-  ".Lbmam_nonce:\n  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64; bnez a1, .Lbmam_parse; ld t2, 0(s4); beq a0, t2, .Lbmam_hit\n" ++
+  ".Lbmam_nonce:\n  mv a0, t0; mv a1, t1; jal ra, rlp_content_to_u64_strict; bnez a1, .Lbmam_parse; ld t2, 0(s4); beq a0, t2, .Lbmam_hit\n" ++
   ".Lbmam_next_tuple:\n  ld s0, 64(sp); ld s1, 72(sp); j .Lbmam_loop\n" ++
   ".Lbmam_hit:\n  li a0, 0; j .Lbmam_ret\n" ++
   ".Lbmam_miss:\n  li a0, 1; j .Lbmam_ret\n" ++
