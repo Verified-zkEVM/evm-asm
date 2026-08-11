@@ -124,6 +124,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
+
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
+
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
+
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
