@@ -10,16 +10,16 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Class | Count | Meaning |
 |---|---:|---|
-| ALREADY-STRUCTURED | 401 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
+| ALREADY-STRUCTURED | 406 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
 | BLOCKED_ON_.6 | 249 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
-| READY-WAVE3 | 141 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
+| READY-WAVE3 | 140 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
 | COMPOSITE | 133 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | CALLER-LOCAL-FRAGMENT | 23 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | CONVERTED-CLEAN | 17 | Parses to a `Program`; the `emitProgram` render assembles `.text`-identically to the original hand-written text. Directly landable (straight-line / local control only). |
 | MULTI-ENTRY-BUNDLE | 5 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
-| **TOTAL** | **969** | |
+| **TOTAL** | **973** | |
 
-## Landed in this PR (378)
+## Landed in this PR (384)
 
 | Function | File | Instrs |
 |---|---|---:|
@@ -42,6 +42,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `addressComputeCreateFunction` | `EvmAsm/Codegen/Programs/Address.lean` | 0 |
 | `addressFromPubkeyFunction` | `EvmAsm/Codegen/Programs/Address.lean` | 0 |
 | `amsterdamBlobGasPriceU256Function` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
+| `assembleExecutionRequestsFunction` | `EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean` | 0 |
 | `b1SenderTableFindFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean` | 0 |
 | `baapDeleteSingleLeafStorageFunction` | `EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean` | 0 |
 | `bahU32leFunction` | `EvmAsm/Codegen/Programs/BlockAccessListHash.lean` | 0 |
@@ -303,6 +304,11 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `rlpListEncodedSizeFunction` | `EvmAsm/Codegen/Programs/BlockRlpSize.lean` | 0 |
 | `rlpListNthItemFunction` | `EvmAsm/Codegen/Programs/RlpRead.lean` | 0 |
 | `rlpListTruncateToNFieldsFunction` | `EvmAsm/Codegen/Programs/TxSigningHash.lean` | 0 |
+| `rlpValidatePayloadFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
+| `rlpWalkNextCoreFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
+| `rlpWalkNextEntryFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
+| `rlpWalkNextNestedFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
+| `rlpWalkNextSharedFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
 | `runningBloomCopyFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `runningBloomZeroFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `runtimeSameBlockDelegationCodeFunction` | `EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean` | 0 |
@@ -404,7 +410,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `zkvmKeccak256SegmentsFunction` | `EvmAsm/Codegen/Programs/HashBridgeProg.lean` | 0 |
 | `zkvmSha256Function` | `EvmAsm/Codegen/Programs/HashBridgeProg.lean` | 0 |
 
-## READY-WAVE3 (141)
+## READY-WAVE3 (140)
 
 | Function | File | Instrs | Note |
 |---|---|---:|---|
@@ -426,7 +432,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `accountWritesCommitPendingFunction` | `EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean` | 20 | 4 reloc sym(s) |
 | `accountWritesIsAbsentFunction` | `EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean` | 61 | 2 reloc sym(s) |
 | `accountWritesRestoreFrameFunction` | `EvmAsm/Codegen/Programs/AccountWriteUndo.lean` | 65 | 2 reloc sym(s) |
-| `assembleExecutionRequestsFunction` | `EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean` | 80 | 4 reloc sym(s) |
 | `balAccountCodeAtOrBeforeFunction` | `EvmAsm/Codegen/Programs/BalAccountNonstorageFinals.lean` | 91 | 3 reloc sym(s) |
 | `balGasValidFromBuilderFunction` | `EvmAsm/Codegen/Programs/BalGasValid.lean` | 104 | 5 reloc sym(s) |
 | `balMapAccountMatchesFunction` | `EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean` | 180 | 5 reloc sym(s) |
@@ -505,7 +510,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `headerExtractGasUsedFunction` | `EvmAsm/Codegen/Programs/HeaderGasExtract.lean` | 8 | 1 reloc sym(s) |
 | `chainExtractExcessBlobGasFirstLastFunction` | `EvmAsm/Codegen/Programs/HeaderGasLimits.lean` | 47 | 1 reloc sym(s) |
 | `chainExtractGasLimitFirstLastFunction` | `EvmAsm/Codegen/Programs/HeaderGasLimits.lean` | 47 | 1 reloc sym(s) |
-| `headerComputeSummaryStructFunction` | `EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean` | 152 | 4 reloc sym(s) |
+| `headerComputeSummaryStructFunction` | `EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean` | 152 | 5 reloc sym(s) |
 | `headerExtractBlobGasUsedFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
 | `headerExtractDifficultyFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
 | `headerExtractExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
@@ -790,7 +795,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessHeadersChainLink.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersSlotAtIndex.lean` | 1 |
 
-## ALREADY-STRUCTURED (401) — by file
+## ALREADY-STRUCTURED (406) — by file
 
 | File | Count |
 |---|---:|
@@ -802,7 +807,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/AccountFieldGetters.lean` | 1 |
 | `EvmAsm/Codegen/Programs/AccountFields.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Address.lean` | 3 |
-| `EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean` | 1 |
+| `EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean` | 2 |
 | `EvmAsm/Codegen/Programs/BalAccountAccessDescriptors.lean` | 1 |
 | `EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean` | 1 |
 | `EvmAsm/Codegen/Programs/BalAccountChangeDescriptor.lean` | 1 |
@@ -902,7 +907,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/RequestsHash.lean` | 2 |
 | `EvmAsm/Codegen/Programs/RlpFieldToU64StrictProgram.lean` | 1 |
 | `EvmAsm/Codegen/Programs/RlpRead.lean` | 7 |
-| `EvmAsm/Codegen/Programs/RlpWalk.lean` | 7 |
+| `EvmAsm/Codegen/Programs/RlpWalk.lean` | 11 |
 | `EvmAsm/Codegen/Programs/RuntimeSameBlockCode.lean` | 1 |
 | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 4 |
 | `EvmAsm/Codegen/Programs/Secp256k1Field.lean` | 22 |
