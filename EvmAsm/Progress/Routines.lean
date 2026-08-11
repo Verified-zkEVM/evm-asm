@@ -97,6 +97,9 @@ import EvmAsm.Codegen.Programs.BalCanonicalSortDigitSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
+-- #10780 item 3, next width: the 4-length-byte long form. Long3's ladder with
+-- ONE more fall-through, plus `lpLolLoop` cited at `m := 4`.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.SpecRefConstantPins
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
@@ -550,6 +553,29 @@ def routineRegistry : List RoutineEntry := [
         ++ "ladder path plus this same epilogue. Canonical form comes from the "
         ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
         ++ "`long3_first_length_byte_ne_zero`"),
+  -- #10780 item 3, next width: long3's ladder with ONE more fall-through. The only
+  -- two differences from long3 are the extra dispatch triple (idx17-idx19) and the
+  -- loop citation at `m := 4`; header writer, epilogue, frame and clobber set are
+  -- identical, which is what long3's closing note predicted.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long4_pinned_spec_within")
+      (gate := "`16777216 ≤ len.toNat < 4294967296` — the 4-length-byte long form. "
+        ++ "With the short, long1, long2 and long3 rows this covers "
+        ++ "`len < 4294967296`; the cut moves to `lenlen ≥ 5`. ⚠️ INPUT-DOMAIN gate "
+        ++ "ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI obligations "
+        ++ "on the caller-supplied output region, not domain restrictions. coverRef "
+        ++ "is the smallest qualifying input, `len = 16777216` — exactly the "
+        ++ "long3/long4 boundary, so the gate is REACHABLE and adjacent to already "
+        ++ "covered ground rather than merely consistent (#12014)")
+      (notes := "per-form (\"long4\") pinned triple; writes "
+        ++ "`[0xFB, len >>> 24, len >>> 16, len >>> 8, len]` and sets the cell flag "
+        ++ "to 5. Step bound 52 = 14 ladder + 5 header + 29 loop (`7*4+1`) + 3 "
+        ++ "epilogue + 1 `JALR` — long3's 42 with three more dispatch steps and "
+        ++ "seven more loop steps. ⭐ The loop is CITED at `m := 4`, not unrolled. "
+        ++ "Canonical form comes from the all-widths `first_length_byte_ne_zero`, "
+        ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
+        ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
+        ++ "closes from `outPtr.toNat % 8 = 0` alone"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -721,10 +747,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 55 := by decide
+theorem routineCount_eq : routineCount = 56 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 18 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 19 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1103,6 +1129,10 @@ private noncomputable abbrev _rlp_encode_list_prefix_long3_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.rlp_encode_list_prefix_long3_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long3_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong3Spec.long3_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long4_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long4_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
