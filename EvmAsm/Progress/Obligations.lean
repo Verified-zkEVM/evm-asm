@@ -182,7 +182,9 @@ fails the build if a `.proven` opcode is ever listed here again" },
       [.infra "55 accelerator-site bridges remain after the landed `zkvm_keccak256` \
 pilot: secp256k1 recovery (0x01), BN254, P256VERIFY, BLS G1, and the curve/complex \
 accelerator families 0x802–0x80A; the 56-site census is recorded in #10552 and the \
-family inventory is `docs/4ch8f-crypto-kernel-inventory.md`"],
+family inventory is `docs/4ch8f-crypto-kernel-inventory.md`; the 56 figure counts \
+decoded CSRRS encodings, while that inventory's 64 counts raw pre-encoded `.4byte` \
+sites, so the two populations are not yet reconciled"],
     auditedAt := some "2026-08-11 @84e000579",
     note := "Pilot landed: `EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within` in \
 `HashBridgeKeccakTop.lean:283`, a genuine accelerator-site triple. One site is \
