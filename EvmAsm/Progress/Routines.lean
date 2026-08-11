@@ -86,6 +86,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
@@ -712,6 +713,16 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #11795: the REFUTATION of `RlpWalkNextStrict`, plus the accept-indexed bridge that
+-- replaces it. Neither changes a registry row -- witnessed because a negative control is
+-- only worth what its axioms are, and this one is load-bearing for the issue's
+-- sequencing: it is what says the residual is FALSE rather than open, so nobody schedules
+-- a proof against it. The replacement is witnessed alongside so the correction and its
+-- repair cannot drift apart.
+private noncomputable abbrev _not_rlpWalkNextStrict_witness :=
+  @EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
+private noncomputable abbrev _rlpItemDecodeBridgesOn_of_accepts_witness :=
+  @EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
 private noncomputable abbrev _account_rlp_walk_init_routine_witness :=
   @EvmAsm.Evm64.account_rlp_walk_init_spec_within
 private noncomputable abbrev _rlp_walk_init_long1_routine_witness :=
