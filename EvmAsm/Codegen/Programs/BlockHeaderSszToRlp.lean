@@ -34,6 +34,8 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 -- (HashBridge provides zkvm_keccak256, used by the probe to hash the
 -- re-encoded header into the block hash, since the 627-byte RLP exceeds
@@ -76,176 +78,487 @@ theorem bhrRevLeBeFunction_eq_prog :
     a4 = requests_hash ptr (32B)      a5 = out RLP buffer ptr
     a6 = u64 out length ptr           a7 = block_access_list_hash ptr (32B)
     a0 (output) = 0. -/
-def blockHeaderSszToRlpFunction : String :=
-  "block_header_ssz_to_rlp:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp)\n" ++
-  "  mv s0, a0                   # payload\n" ++
-  "  mv s1, a1                   # transactions_root\n" ++
-  "  mv s2, a2                   # withdrawals_root\n" ++
-  "  mv s3, a3                   # parent_beacon_block_root\n" ++
-  "  mv s4, a4                   # requests_hash\n" ++
-  "  mv s5, a5                   # out\n" ++
-  "  mv s6, a6                   # out_len\n" ++
-  "  mv s8, a7                   # block_access_list_hash\n" ++
-  "  li s7, 0                    # payload cursor\n" ++
-  -- byte-string field helper: encodes (a0=src, a1=len) at bhr_payload+s7.
-  -- field 1: parent_hash (payload@0, 32)
-  "  addi a0, s0, 0; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 2: ommers_hash (EMPTY_OMMER_HASH const, 32)
-  "  la a0, bhr_empty_ommers; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 3: coinbase (payload@32, 20)
-  "  addi a0, s0, 32; li a1, 20\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 4: state_root (payload@52, 32)
-  "  addi a0, s0, 52; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 5: transactions_root (INPUT s1, 32)
-  "  mv a0, s1; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 6: receipt_root (payload@84, 32)
-  "  addi a0, s0, 84; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 7: bloom (payload@116, 256)
-  "  addi a0, s0, 116; li a1, 256\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 8: difficulty = 0  (uint of zero bytes -> 0x80)
-  "  la a0, bhr_zero8; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- uint field helper: reverse 8 LE bytes at payload@OFF then rlp_encode_uint_be.
-  -- field 9: number (payload@404, u64)
-  "  addi a0, s0, 404; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 10: gas_limit (payload@412)
-  "  addi a0, s0, 412; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 11: gas_used (payload@420)
-  "  addi a0, s0, 420; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 12: timestamp (payload@428)
-  "  addi a0, s0, 428; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 13: extra_data (payload@[extra_off .. tx_off])
-  "  lbu t0, 436(s0); lbu t1, 437(s0); slli t1, t1, 8; or t0, t0, t1\n" ++
-  "  lbu t1, 438(s0); slli t1, t1, 16; or t0, t0, t1\n" ++
-  "  lbu t1, 439(s0); slli t1, t1, 24; or t0, t0, t1   # extra_off\n" ++
-  "  lbu t2, 504(s0); lbu t1, 505(s0); slli t1, t1, 8; or t2, t2, t1\n" ++
-  "  lbu t1, 506(s0); slli t1, t1, 16; or t2, t2, t1\n" ++
-  "  lbu t1, 507(s0); slli t1, t1, 24; or t2, t2, t1   # tx_off\n" ++
-  "  sub a1, t2, t0              # extra_len\n" ++
-  "  add a0, s0, t0              # extra_ptr\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 14: prev_randao (payload@372, 32)
-  "  addi a0, s0, 372; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 15: nonce = Bytes8 zero (rlp_encode_bytes -> 0x88 00..00)
-  "  la a0, bhr_zero8; li a1, 8\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 16: base_fee_per_gas (payload@440, u256 LE -> minimal BE)
-  "  addi a0, s0, 440; li a1, 32; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 32; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 17: withdrawals_root (INPUT s2, 32)
-  "  mv a0, s2; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 18: blob_gas_used (payload@512)
-  "  addi a0, s0, 512; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 19: excess_blob_gas (payload@520)
-  "  addi a0, s0, 520; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- field 20: parent_beacon_block_root (INPUT s3, 32)
-  "  mv a0, s3; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 21: requests_hash (INPUT s4, 32)
-  "  mv a0, s4; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 22: block_access_list_hash (INPUT s8, 32)
-  "  mv a0, s8; li a1, 32\n" ++
-  "  la a2, bhr_payload; add a2, a2, s7; la a3, bhr_flen\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, bhr_flen; ld t1, 0(t0); add s7, s7, t1\n" ++
-  -- field 23: slot_number (payload@532)
-  "  addi a0, s0, 532; li a1, 8; la a2, bhr_uint_be\n" ++
-  "  jal ra, bhr_rev_le_be\n" ++
-  "  la a0, bhr_uint_be; li a1, 8; la a2, bhr_payload; add a2, a2, s7\n" ++
-  "  jal ra, rlp_encode_uint_be\n" ++
-  "  add s7, s7, a0\n" ++
-  -- list prefix into out, then copy payload after it.
-  "  mv a0, s7; mv a1, s5; la a2, bhr_prefix_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, bhr_prefix_len; ld t1, 0(t0)\n" ++
-  "  add t2, s5, t1              # dst = out + prefix_len\n" ++
-  "  la t3, bhr_payload          # src\n" ++
-  "  mv t4, s7                   # remaining\n" ++
-  ".Lbhr_cp:\n" ++
-  "  beqz t4, .Lbhr_cpd\n" ++
-  "  lbu t5, 0(t3); sb t5, 0(t2)\n" ++
-  "  addi t2, t2, 1; addi t3, t3, 1; addi t4, t4, -1\n" ++
-  "  j .Lbhr_cp\n" ++
-  ".Lbhr_cpd:\n" ++
-  "  add t1, t1, s7              # out_len = prefix_len + payload_len\n" ++
-  "  sd t1, 0(s6)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+def blockHeaderSszToRlp_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x24 .x17,
+    .LI .x23 (0 : Word),
+    .ADDI .x10 .x8 (0 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 88)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 88)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 100)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 100)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 108)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 112)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.bhr_empty_ommers (GuestAddrs.block_header_ssz_to_rlp + 128)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_empty_ommers (GuestAddrs.block_header_ssz_to_rlp + 128)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 140)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 140)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 152)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 152)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 160)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 164)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 188)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 188)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 200)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 200)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 208)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 212)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (52 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 236)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 236)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 248)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 248)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 256)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 260)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .MV .x10 .x9,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 284)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 284)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 296)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 296)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 304)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 308)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (84 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 332)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 332)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 344)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 344)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 352)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 356)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (116 : BitVec 12),
+    .LI .x11 (256 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 380)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 380)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 392)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 392)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 400)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 404)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 404)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.bhr_zero8 (GuestAddrs.block_header_ssz_to_rlp + 420)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_zero8 (GuestAddrs.block_header_ssz_to_rlp + 420)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 432)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 432)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 444)),
+    .ADD .x23 .x23 .x10,
+    .ADDI .x10 .x8 (404 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 460)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 460)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 468)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 472)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 472)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 484)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 484)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 496)),
+    .ADD .x23 .x23 .x10,
+    .ADDI .x10 .x8 (412 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 512)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 512)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 520)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 524)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 524)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 536)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 536)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 548)),
+    .ADD .x23 .x23 .x10,
+    .ADDI .x10 .x8 (420 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 564)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 564)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 572)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 576)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 576)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 588)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 588)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 600)),
+    .ADD .x23 .x23 .x10,
+    .ADDI .x10 .x8 (428 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 616)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 616)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 624)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 628)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 628)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 640)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 640)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 652)),
+    .ADD .x23 .x23 .x10,
+    .LBU .x5 .x8 (436 : BitVec 12),
+    .LBU .x6 .x8 (437 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x8 (438 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x6 .x8 (439 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x5 .x5 .x6,
+    .LBU .x7 .x8 (504 : BitVec 12),
+    .LBU .x6 .x8 (505 : BitVec 12),
+    .SLLI .x6 .x6 (8 : BitVec 6),
+    .OR .x7 .x7 .x6,
+    .LBU .x6 .x8 (506 : BitVec 12),
+    .SLLI .x6 .x6 (16 : BitVec 6),
+    .OR .x7 .x7 .x6,
+    .LBU .x6 .x8 (507 : BitVec 12),
+    .SLLI .x6 .x6 (24 : BitVec 6),
+    .OR .x7 .x7 .x6,
+    .SUB .x11 .x7 .x5,
+    .ADD .x10 .x8 .x5,
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 748)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 748)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 760)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 760)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 768)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 772)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 772)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (372 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 796)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 796)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 808)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 808)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 816)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 820)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 820)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.bhr_zero8 (GuestAddrs.block_header_ssz_to_rlp + 836)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_zero8 (GuestAddrs.block_header_ssz_to_rlp + 836)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 848)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 848)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 860)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 860)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 868)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 872)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 872)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (440 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 896)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 896)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 904)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 908)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 908)),
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 920)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 920)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 932)),
+    .ADD .x23 .x23 .x10,
+    .MV .x10 .x18,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 948)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 948)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 960)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 960)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 968)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 972)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 972)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (512 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 996)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 996)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 1004)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1008)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1008)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1020)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1020)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1032)),
+    .ADD .x23 .x23 .x10,
+    .ADDI .x10 .x8 (520 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1048)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1048)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 1056)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1060)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1060)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1072)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1072)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1084)),
+    .ADD .x23 .x23 .x10,
+    .MV .x10 .x19,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1100)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1100)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1112)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1112)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 1120)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1124)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .MV .x10 .x20,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1148)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1148)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1160)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1160)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 1168)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1172)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .MV .x10 .x24,
+    .LI .x11 (32 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1196)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1196)),
+    .ADD .x12 .x12 .x23,
+    .AUIPC .x13 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1208)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1208)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.block_header_ssz_to_rlp + 1216)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_flen (GuestAddrs.block_header_ssz_to_rlp + 1220)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x6,
+    .ADDI .x10 .x8 (532 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1244)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1244)),
+    .JAL .x1 (jalOff GuestAddrs.bhr_rev_le_be (GuestAddrs.block_header_ssz_to_rlp + 1252)),
+    .AUIPC .x10 (laHi GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1256)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bhr_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1256)),
+    .LI .x11 (8 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1268)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1268)),
+    .ADD .x12 .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_uint_be (GuestAddrs.block_header_ssz_to_rlp + 1280)),
+    .ADD .x23 .x23 .x10,
+    .MV .x10 .x23,
+    .MV .x11 .x21,
+    .AUIPC .x12 (laHi GuestAddrs.bhr_prefix_len (GuestAddrs.block_header_ssz_to_rlp + 1296)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bhr_prefix_len (GuestAddrs.block_header_ssz_to_rlp + 1296)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.block_header_ssz_to_rlp + 1304)),
+    .AUIPC .x5 (laHi GuestAddrs.bhr_prefix_len (GuestAddrs.block_header_ssz_to_rlp + 1308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bhr_prefix_len (GuestAddrs.block_header_ssz_to_rlp + 1308)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x21 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1324)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bhr_payload (GuestAddrs.block_header_ssz_to_rlp + 1324)),
+    .MV .x29 .x23,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .SB .x7 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x23,
+    .SD .x22 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockHeaderSszToRlp_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockHeaderSszToRlp_relocs : RelocTable :=
+  [ (22, .la .x12 "bhr_payload"),
+    (25, .la .x13 "bhr_flen"),
+    (27, .jal .x1 "rlp_encode_bytes"),
+    (28, .la .x5 "bhr_flen"),
+    (32, .la .x10 "bhr_empty_ommers"),
+    (35, .la .x12 "bhr_payload"),
+    (38, .la .x13 "bhr_flen"),
+    (40, .jal .x1 "rlp_encode_bytes"),
+    (41, .la .x5 "bhr_flen"),
+    (47, .la .x12 "bhr_payload"),
+    (50, .la .x13 "bhr_flen"),
+    (52, .jal .x1 "rlp_encode_bytes"),
+    (53, .la .x5 "bhr_flen"),
+    (59, .la .x12 "bhr_payload"),
+    (62, .la .x13 "bhr_flen"),
+    (64, .jal .x1 "rlp_encode_bytes"),
+    (65, .la .x5 "bhr_flen"),
+    (71, .la .x12 "bhr_payload"),
+    (74, .la .x13 "bhr_flen"),
+    (76, .jal .x1 "rlp_encode_bytes"),
+    (77, .la .x5 "bhr_flen"),
+    (83, .la .x12 "bhr_payload"),
+    (86, .la .x13 "bhr_flen"),
+    (88, .jal .x1 "rlp_encode_bytes"),
+    (89, .la .x5 "bhr_flen"),
+    (95, .la .x12 "bhr_payload"),
+    (98, .la .x13 "bhr_flen"),
+    (100, .jal .x1 "rlp_encode_bytes"),
+    (101, .la .x5 "bhr_flen"),
+    (105, .la .x10 "bhr_zero8"),
+    (108, .la .x12 "bhr_payload"),
+    (111, .jal .x1 "rlp_encode_uint_be"),
+    (115, .la .x12 "bhr_uint_be"),
+    (117, .jal .x1 "bhr_rev_le_be"),
+    (118, .la .x10 "bhr_uint_be"),
+    (121, .la .x12 "bhr_payload"),
+    (124, .jal .x1 "rlp_encode_uint_be"),
+    (128, .la .x12 "bhr_uint_be"),
+    (130, .jal .x1 "bhr_rev_le_be"),
+    (131, .la .x10 "bhr_uint_be"),
+    (134, .la .x12 "bhr_payload"),
+    (137, .jal .x1 "rlp_encode_uint_be"),
+    (141, .la .x12 "bhr_uint_be"),
+    (143, .jal .x1 "bhr_rev_le_be"),
+    (144, .la .x10 "bhr_uint_be"),
+    (147, .la .x12 "bhr_payload"),
+    (150, .jal .x1 "rlp_encode_uint_be"),
+    (154, .la .x12 "bhr_uint_be"),
+    (156, .jal .x1 "bhr_rev_le_be"),
+    (157, .la .x10 "bhr_uint_be"),
+    (160, .la .x12 "bhr_payload"),
+    (163, .jal .x1 "rlp_encode_uint_be"),
+    (187, .la .x12 "bhr_payload"),
+    (190, .la .x13 "bhr_flen"),
+    (192, .jal .x1 "rlp_encode_bytes"),
+    (193, .la .x5 "bhr_flen"),
+    (199, .la .x12 "bhr_payload"),
+    (202, .la .x13 "bhr_flen"),
+    (204, .jal .x1 "rlp_encode_bytes"),
+    (205, .la .x5 "bhr_flen"),
+    (209, .la .x10 "bhr_zero8"),
+    (212, .la .x12 "bhr_payload"),
+    (215, .la .x13 "bhr_flen"),
+    (217, .jal .x1 "rlp_encode_bytes"),
+    (218, .la .x5 "bhr_flen"),
+    (224, .la .x12 "bhr_uint_be"),
+    (226, .jal .x1 "bhr_rev_le_be"),
+    (227, .la .x10 "bhr_uint_be"),
+    (230, .la .x12 "bhr_payload"),
+    (233, .jal .x1 "rlp_encode_uint_be"),
+    (237, .la .x12 "bhr_payload"),
+    (240, .la .x13 "bhr_flen"),
+    (242, .jal .x1 "rlp_encode_bytes"),
+    (243, .la .x5 "bhr_flen"),
+    (249, .la .x12 "bhr_uint_be"),
+    (251, .jal .x1 "bhr_rev_le_be"),
+    (252, .la .x10 "bhr_uint_be"),
+    (255, .la .x12 "bhr_payload"),
+    (258, .jal .x1 "rlp_encode_uint_be"),
+    (262, .la .x12 "bhr_uint_be"),
+    (264, .jal .x1 "bhr_rev_le_be"),
+    (265, .la .x10 "bhr_uint_be"),
+    (268, .la .x12 "bhr_payload"),
+    (271, .jal .x1 "rlp_encode_uint_be"),
+    (275, .la .x12 "bhr_payload"),
+    (278, .la .x13 "bhr_flen"),
+    (280, .jal .x1 "rlp_encode_bytes"),
+    (281, .la .x5 "bhr_flen"),
+    (287, .la .x12 "bhr_payload"),
+    (290, .la .x13 "bhr_flen"),
+    (292, .jal .x1 "rlp_encode_bytes"),
+    (293, .la .x5 "bhr_flen"),
+    (299, .la .x12 "bhr_payload"),
+    (302, .la .x13 "bhr_flen"),
+    (304, .jal .x1 "rlp_encode_bytes"),
+    (305, .la .x5 "bhr_flen"),
+    (311, .la .x12 "bhr_uint_be"),
+    (313, .jal .x1 "bhr_rev_le_be"),
+    (314, .la .x10 "bhr_uint_be"),
+    (317, .la .x12 "bhr_payload"),
+    (320, .jal .x1 "rlp_encode_uint_be"),
+    (324, .la .x12 "bhr_prefix_len"),
+    (326, .jal .x1 "rlp_encode_list_prefix"),
+    (327, .la .x5 "bhr_prefix_len"),
+    (331, .la .x28 "bhr_payload") ]
+
+def blockHeaderSszToRlpFunction : String :=
+  "block_header_ssz_to_rlp:\n" ++ emitProgramR blockHeaderSszToRlp_prog blockHeaderSszToRlp_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockHeaderSszToRlp_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockHeaderSszToRlpFunction_eq_prog :
+    blockHeaderSszToRlpFunction = "block_header_ssz_to_rlp:\n" ++ emitProgramR blockHeaderSszToRlp_prog blockHeaderSszToRlp_relocs := rfl
+
+#guard blockHeaderSszToRlpFunction.startsWith "block_header_ssz_to_rlp:\n"
+#guard blockHeaderSszToRlp_prog.length = 356
 /-- `zisk_block_header_ssz_to_rlp`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8   payload_len (u64, informational)

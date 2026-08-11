@@ -28,7 +28,7 @@ namespace EvmAsm.Codegen
     a0 = params ptr (the step2_verdict struct)   a1 = SSZ_BASE
     a0 (output) = verdict bit. -/
 def blockVerdictFunction : String :=
-  simpleTransferIntrinsicGasFunction ++
+  simpleTransferIntrinsicGasFunction ++ "\n" ++
   "block_verdict:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++

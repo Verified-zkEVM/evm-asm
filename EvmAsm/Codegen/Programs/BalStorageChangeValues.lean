@@ -35,6 +35,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -52,105 +55,193 @@ open EvmAsm.Rv64
     For each `storage_changes` entry: key = item 0; value = item 1 of the LAST
     tuple of item 1. Lists are consumed with cursor walks so each entry/tuple is
     visited once. -/
-def balStorageChangeValuesFunction : String :=
-  "bal_storage_change_values:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  sd s7, 64(sp); sd s8, 72(sp); sd s9, 80(sp); sd s10, 88(sp); sd s11, 96(sp)\n" ++
-  "  mv s0, a0                    # account ptr\n" ++
-  "  mv s1, a1                    # account len\n" ++
-  "  mv s2, a2                    # out keys ptr\n" ++
-  "  la t0, bscv_vptr; sd a3, 0(t0)   # out values ptr (data label, s-regs are full)\n" ++
-  -- storage_changes = account item 1.
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbscv_fail\n" ++
-  "  mv s3, a1                    # account end\n" ++
-  "  jal ra, rlp_walk_next        # item 0 = address\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  mv a1, s3; jal ra, rlp_walk_next                  # item 1 = storage_changes\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbscv_fail\n" ++
-  "  mv s3, a0                    # storage_changes cursor\n" ++
-  "  mv s4, a1                    # storage_changes end\n" ++
-  "  mv s5, zero                  # count written\n" ++
-  ".Lbscv_loop:\n" ++
-  "  beq s3, s4, .Lbscv_done\n" ++
-  -- entry = nth(storage_changes, i).
-  "  mv a0, s3; mv a1, s4; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  mv s3, a0; sub s7, a0, a2; mv s8, a2              # entry ptr/len\n" ++
-  -- key = nth(entry, 0).
-  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbscv_fail\n" ++
-  "  mv s9, a1                    # entry end\n" ++
-  "  jal ra, rlp_walk_next        # key = item 0\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  mv s10, a0                   # cursor after key\n" ++
-  "  sub t1, a0, a2               # key bytes ptr\n" ++
-  "  mv t4, a2                    # key byte len\n" ++
-  "  li t5, 32; bgtu t4, t5, .Lbscv_fail\n" ++
-  -- write key into keys[count] (= s2 + count*32), left-padded.
-  "  slli t0, s5, 5; add t6, s2, t0                    # key dst base\n" ++
-  "  mv t0, t6; li t5, 32\n" ++
-  ".Lbscv_kzero:\n" ++
-  "  beqz t5, .Lbscv_kzdone\n  sb zero, 0(t0); addi t0, t0, 1; addi t5, t5, -1; j .Lbscv_kzero\n" ++
-  ".Lbscv_kzdone:\n" ++
-  "  li t5, 32; sub t5, t5, t4; add t0, t6, t5         # dst = base + (32 - klen)\n" ++
-  ".Lbscv_kcopy:\n" ++
-  "  beqz t4, .Lbscv_kcdone\n  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbscv_kcopy\n" ++
-  ".Lbscv_kcdone:\n" ++
-  -- value_list = nth(entry, 1).
-  "  mv a0, s10; mv a1, s9; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbscv_fail\n" ++
-  "  beq a0, a1, .Lbscv_fail       # no tuples -> malformed\n" ++
-  "  mv s10, a0; mv s11, a1        # value_list cursor/end\n" ++
-  ".Lbscv_vlist_loop:\n" ++
-  "  beq s10, s11, .Lbscv_vlist_done\n" ++
-  "  mv a0, s10; mv a1, s11; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  mv s10, a0; sub s7, a0, a2; mv s8, a2             # last tuple ptr/len\n" ++
-  "  j .Lbscv_vlist_loop\n" ++
-  ".Lbscv_vlist_done:\n" ++
-  -- new_value = nth(last_tuple, 1).
-  "  mv a0, s7; mv a1, s8; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbscv_fail\n" ++
-  "  mv s9, a1                                        # tuple end\n" ++
-  "  jal ra, rlp_walk_next                            # item 0 = tx_index\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  mv a1, s9; jal ra, rlp_walk_next                 # item 1 = new_value\n" ++
-  "  bnez a1, .Lbscv_fail\n" ++
-  "  sub t1, a0, a2                                   # new_value bytes ptr\n" ++
-  "  mv t4, a2                                        # new_value byte len\n" ++
-  "  li t5, 32; bgtu t4, t5, .Lbscv_fail\n" ++
-  -- write value into values[count] (= bscv_vptr + count*32), left-padded.
-  "  la t0, bscv_vptr; ld t6, 0(t0); slli t0, s5, 5; add t6, t6, t0   # value dst base\n" ++
-  "  mv t0, t6; li t5, 32\n" ++
-  ".Lbscv_vzero:\n" ++
-  "  beqz t5, .Lbscv_vzdone\n  sb zero, 0(t0); addi t0, t0, 1; addi t5, t5, -1; j .Lbscv_vzero\n" ++
-  ".Lbscv_vzdone:\n" ++
-  "  li t5, 32; sub t5, t5, t4; add t0, t6, t5\n" ++
-  ".Lbscv_vcopy:\n" ++
-  "  beqz t4, .Lbscv_vcdone\n  lbu t5, 0(t1); sb t5, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t4, t4, -1; j .Lbscv_vcopy\n" ++
-  ".Lbscv_vcdone:\n" ++
-  "  addi s5, s5, 1; j .Lbscv_loop\n" ++
-  ".Lbscv_done:\n" ++
-  "  mv a0, s5\n" ++
-  "  j .Lbscv_ret\n" ++
-  ".Lbscv_fail:\n" ++
-  "  li a0, 0\n" ++
-  ".Lbscv_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  ld s7, 64(sp); ld s8, 72(sp); ld s9, 80(sp); ld s10, 88(sp); ld s11, 96(sp)\n" ++
-  "  addi sp, sp, 128\n" ++
-  "  ret"
+def balStorageChangeValues_prog : Program :=
+  [ .ADDI .x2 .x2 (-128 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .SD .x2 .x26 (88 : BitVec 12),
+    .SD .x2 .x27 (96 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.bscv_vptr (GuestAddrs.bal_storage_change_values + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bscv_vptr (GuestAddrs.bal_storage_change_values + 68)),
+    .SD .x5 .x13 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_change_values + 88)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 92)),
+    .MV .x19 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 100)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 104)),
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 116)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_change_values + 128)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 132)),
+    .MV .x19 .x10,
+    .MV .x20 .x11,
+    .MV .x21 .x0,
+    .BEQ .x19 .x20 (brOff (GuestAddrs.bal_storage_change_values + 536) (GuestAddrs.bal_storage_change_values + 148)),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 160)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 164)),
+    .MV .x19 .x10,
+    .SUB .x23 .x10 .x12,
+    .MV .x24 .x12,
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_change_values + 188)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 192)),
+    .MV .x25 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 200)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 204)),
+    .MV .x26 .x10,
+    .SUB .x6 .x10 .x12,
+    .MV .x29 .x12,
+    .LI .x30 (32 : Word),
+    .BLTU .x30 .x29 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 224)),
+    .SLLI .x5 .x21 (5 : BitVec 6),
+    .ADD .x31 .x18 .x5,
+    .MV .x5 .x31,
+    .LI .x30 (32 : Word),
+    .BEQ .x30 .x0 (20 : BitVec 13),
+    .SB .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x30 (32 : Word),
+    .SUB .x30 .x30 .x29,
+    .ADD .x5 .x31 .x30,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x10 .x26,
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 312)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 316)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_change_values + 328)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 332)),
+    .BEQ .x10 .x11 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 336)),
+    .MV .x26 .x10,
+    .MV .x27 .x11,
+    .BEQ .x26 .x27 (36 : BitVec 13),
+    .MV .x10 .x26,
+    .MV .x11 .x27,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 360)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 364)),
+    .MV .x26 .x10,
+    .SUB .x23 .x10 .x12,
+    .MV .x24 .x12,
+    .JAL .x0 (-32 : BitVec 21),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_storage_change_values + 392)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 396)),
+    .MV .x25 .x11,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 404)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 408)),
+    .MV .x11 .x25,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_storage_change_values + 416)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 420)),
+    .SUB .x6 .x10 .x12,
+    .MV .x29 .x12,
+    .LI .x30 (32 : Word),
+    .BLTU .x30 .x29 (brOff (GuestAddrs.bal_storage_change_values + 544) (GuestAddrs.bal_storage_change_values + 436)),
+    .AUIPC .x5 (laHi GuestAddrs.bscv_vptr (GuestAddrs.bal_storage_change_values + 440)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bscv_vptr (GuestAddrs.bal_storage_change_values + 440)),
+    .LD .x31 .x5 (0 : BitVec 12),
+    .SLLI .x5 .x21 (5 : BitVec 6),
+    .ADD .x31 .x31 .x5,
+    .MV .x5 .x31,
+    .LI .x30 (32 : Word),
+    .BEQ .x30 .x0 (20 : BitVec 13),
+    .SB .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x30 (32 : Word),
+    .SUB .x30 .x30 .x29,
+    .ADD .x5 .x31 .x30,
+    .BEQ .x29 .x0 (28 : BitVec 13),
+    .LBU .x30 .x6 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_storage_change_values + 148) (GuestAddrs.bal_storage_change_values + 532)),
+    .MV .x10 .x21,
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .LD .x26 .x2 (88 : BitVec 12),
+    .LD .x27 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (128 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balStorageChangeValues_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balStorageChangeValues_relocs : RelocTable :=
+  [ (17, .la .x5 "bscv_vptr"),
+    (22, .jal .x1 "rlp_walk_init"),
+    (25, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (32, .jal .x1 "rlp_walk_init"),
+    (40, .jal .x1 "rlp_walk_next"),
+    (47, .jal .x1 "rlp_walk_init"),
+    (50, .jal .x1 "rlp_walk_next"),
+    (78, .jal .x1 "rlp_walk_next"),
+    (82, .jal .x1 "rlp_walk_init"),
+    (90, .jal .x1 "rlp_walk_next"),
+    (98, .jal .x1 "rlp_walk_init"),
+    (101, .jal .x1 "rlp_walk_next"),
+    (104, .jal .x1 "rlp_walk_next"),
+    (110, .la .x5 "bscv_vptr") ]
+
+def balStorageChangeValuesFunction : String :=
+  "bal_storage_change_values:\n" ++ emitProgramR balStorageChangeValues_prog balStorageChangeValues_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balStorageChangeValues_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balStorageChangeValuesFunction_eq_prog :
+    balStorageChangeValuesFunction = "bal_storage_change_values:\n" ++ emitProgramR balStorageChangeValues_prog balStorageChangeValues_relocs := rfl
+
+#guard balStorageChangeValuesFunction.startsWith "bal_storage_change_values:\n"
+#guard balStorageChangeValues_prog.length = 152
 /-- Scratch data for `bal_storage_change_values`. -/
 def balStorageChangeValuesData : String :=
   ".balign 8\n" ++

@@ -24,6 +24,9 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -60,97 +63,181 @@ open EvmAsm.Rv64
       61 reserved (formerly non-empty calldata/initcode)
       62 reserved (formerly EIP-4844 blob unsupported)
       63 reserved (formerly EIP-7702 set-code unsupported) -/
-def multiTxNthContextFunction : String :=
-  "multi_tx_nth_context:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # output record ptr\n" ++
-  "  mv s4, a1                   # transaction index i\n" ++
-  "  mv t0, s0; li t1, 24\n" ++
-  ".Lmtx_zero:\n" ++
-  "  beqz t1, .Lmtx_zero_done\n" ++
-  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1; j .Lmtx_zero\n" ++
-  ".Lmtx_zero_done:\n" ++
-  "  la t0, bv_tx_list_ptr; ld s1, 0(t0)   # SSZ tx list ptr\n" ++
-  "  la t0, bv_tx_list_len; ld s2, 0(t0)   # tx list len\n" ++
-  "  li t0, 4; bltu s2, t0, .Lmtx_malformed\n" ++
-  "  mv a0, s1; jal ra, bgv_u32le           # offset[0]\n" ++
-  "  andi t0, a0, 3; bnez t0, .Lmtx_malformed\n" ++
-  "  srli s3, a0, 2                         # tx count = offset[0] / 4\n" ++
-  "  bgeu s4, s3, .Lmtx_oob\n" ++
-  "  slli t0, s4, 2; add a0, s1, t0; jal ra, bgv_u32le\n" ++
-  "  mv s5, a0                              # offset[i]\n" ++
-  "  addi t0, s4, 1; beq t0, s3, .Lmtx_last\n" ++
-  "  slli t1, t0, 2; add a0, s1, t1; jal ra, bgv_u32le\n" ++
-  "  mv s6, a0                              # offset[i+1]\n" ++
-  "  j .Lmtx_have_next\n" ++
-  ".Lmtx_last:\n" ++
-  "  mv s6, s2                              # final tx ends at list end\n" ++
-  ".Lmtx_have_next:\n" ++
-  "  slli t0, s3, 2; bltu s5, t0, .Lmtx_malformed   # offset[i] must be past table\n" ++
-  "  bltu s6, s5, .Lmtx_malformed\n" ++
-  "  bgtu s6, s2, .Lmtx_malformed\n" ++
-  "  add s1, s1, s5                         # tx ptr\n" ++
-  "  sub s2, s6, s5                         # tx len\n" ++
-  "  beqz s2, .Lmtx_item_empty\n" ++
-  "  sd s1, 8(s0); sd s2, 16(s0)\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, tea_type; la a3, tea_inner_off\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  beqz a0, .Lmtx_type_ok\n" ++
-  "  li t0, 20; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_type_ok:\n" ++
-  "  la t0, tea_type; ld t1, 0(t0); sd t1, 160(s0)\n" ++
-  "  la t0, tea_inner_off; ld t3, 0(t0); sd t3, 168(s0)\n" ++
-  "  bltu s2, t3, .Lmtx_inner_oob\n" ++
-  "  add t4, s1, t3; sd t4, 176(s0)\n" ++
-  "  sub t4, s2, t3; sd t4, 184(s0)\n" ++
-  "  mv a0, s1; mv a1, s2; la a2, sttc_nonce; addi a3, s0, 40\n" ++
-  "  jal ra, tx_extract_nonce_and_gas\n" ++
-  "  sd a0, 128(s0)\n" ++
-  "  beqz a0, .Lmtx_gas_ok\n" ++
-  "  li t0, 20; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_gas_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 72; addi a3, s0, 48\n" ++
-  "  jal ra, tx_extract_to_address\n" ++
-  "  sd a0, 136(s0)\n" ++
-  "  beqz a0, .Lmtx_to_ok\n" ++
-  "  li t0, 30; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_to_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 96\n" ++
-  "  jal ra, tx_extract_value\n" ++
-  "  sd a0, 144(s0)\n" ++
-  "  beqz a0, .Lmtx_value_ok\n" ++
-  "  li t0, 40; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_value_ok:\n" ++
-  "  mv a0, s1; mv a1, s2; addi a2, s0, 56; addi a3, s0, 64\n" ++
-  "  jal ra, tx_extract_data_section\n" ++
-  "  sd a0, 152(s0)\n" ++
-  "  beqz a0, .Lmtx_data_ok\n" ++
-  "  li t0, 50; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_data_ok:\n" ++
-  ".Lmtx_not_creation:\n" ++
-  -- fhsxz.2.4.2.57.11.6.5 (experiment): allow calldata-bearing txs. ctx+56/+64 hold
-  -- the calldata ptr/len (tx_extract_data_section); dispatch's stage_runtime_payload_code
-  -- stages both, so a non-empty-calldata call dispatches like any self-contained recipient.
-  ".Lmtx_ok:\n" ++
-  "  sd zero, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_malformed:\n" ++
-  "  li t0, 3; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_oob:\n" ++
-  "  li t0, 5; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_item_empty:\n" ++
-  "  li t0, 4; sd t0, 0(s0); j .Lmtx_ret\n" ++
-  ".Lmtx_inner_oob:\n" ++
-  "  li t0, 21; sd t0, 0(s0)\n" ++
-  ".Lmtx_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def multiTxNthContext_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x20 .x11,
+    .MV .x5 .x8,
+    .LI .x6 (24 : Word),
+    .BEQ .x6 .x0 (20 : BitVec 13),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_ptr (GuestAddrs.multi_tx_nth_context + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_ptr (GuestAddrs.multi_tx_nth_context + 72)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_tx_list_len (GuestAddrs.multi_tx_nth_context + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_tx_list_len (GuestAddrs.multi_tx_nth_context + 84)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BLTU .x18 .x5 (brOff (GuestAddrs.multi_tx_nth_context + 476) (GuestAddrs.multi_tx_nth_context + 100)),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.multi_tx_nth_context + 108)),
+    .ANDI .x5 .x10 (3 : BitVec 12),
+    .BNE .x5 .x0 (brOff (GuestAddrs.multi_tx_nth_context + 476) (GuestAddrs.multi_tx_nth_context + 116)),
+    .SRLI .x19 .x10 (2 : BitVec 6),
+    .BGEU .x20 .x19 (brOff (GuestAddrs.multi_tx_nth_context + 488) (GuestAddrs.multi_tx_nth_context + 124)),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x10 .x9 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.multi_tx_nth_context + 136)),
+    .MV .x21 .x10,
+    .ADDI .x5 .x20 (1 : BitVec 12),
+    .BEQ .x5 .x19 (24 : BitVec 13),
+    .SLLI .x6 .x5 (2 : BitVec 6),
+    .ADD .x10 .x9 .x6,
+    .JAL .x1 (jalOff GuestAddrs.bgv_u32le (GuestAddrs.multi_tx_nth_context + 160)),
+    .MV .x22 .x10,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x22 .x18,
+    .SLLI .x5 .x19 (2 : BitVec 6),
+    .BLTU .x21 .x5 (brOff (GuestAddrs.multi_tx_nth_context + 476) (GuestAddrs.multi_tx_nth_context + 180)),
+    .BLTU .x22 .x21 (brOff (GuestAddrs.multi_tx_nth_context + 476) (GuestAddrs.multi_tx_nth_context + 184)),
+    .BLTU .x18 .x22 (brOff (GuestAddrs.multi_tx_nth_context + 476) (GuestAddrs.multi_tx_nth_context + 188)),
+    .ADD .x9 .x9 .x21,
+    .SUB .x18 .x22 .x21,
+    .BEQ .x18 .x0 (brOff (GuestAddrs.multi_tx_nth_context + 500) (GuestAddrs.multi_tx_nth_context + 200)),
+    .SD .x8 .x9 (8 : BitVec 12),
+    .SD .x8 .x18 (16 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.tea_type (GuestAddrs.multi_tx_nth_context + 220)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.tea_type (GuestAddrs.multi_tx_nth_context + 220)),
+    .AUIPC .x13 (laHi GuestAddrs.tea_inner_off (GuestAddrs.multi_tx_nth_context + 228)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.tea_inner_off (GuestAddrs.multi_tx_nth_context + 228)),
+    .JAL .x1 (jalOff GuestAddrs.tx_type_dispatch (GuestAddrs.multi_tx_nth_context + 236)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (20 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.multi_tx_nth_context + 520) (GuestAddrs.multi_tx_nth_context + 252)),
+    .AUIPC .x5 (laHi GuestAddrs.tea_type (GuestAddrs.multi_tx_nth_context + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_type (GuestAddrs.multi_tx_nth_context + 256)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SD .x8 .x6 (160 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tea_inner_off (GuestAddrs.multi_tx_nth_context + 272)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tea_inner_off (GuestAddrs.multi_tx_nth_context + 272)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x8 .x28 (168 : BitVec 12),
+    .BLTU .x18 .x28 (brOff (GuestAddrs.multi_tx_nth_context + 512) (GuestAddrs.multi_tx_nth_context + 288)),
+    .ADD .x29 .x9 .x28,
+    .SD .x8 .x29 (176 : BitVec 12),
+    .SUB .x29 .x18 .x28,
+    .SD .x8 .x29 (184 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.sttc_nonce (GuestAddrs.multi_tx_nth_context + 316)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sttc_nonce (GuestAddrs.multi_tx_nth_context + 316)),
+    .ADDI .x13 .x8 (40 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_nonce_and_gas (GuestAddrs.multi_tx_nth_context + 328)),
+    .SD .x8 .x10 (128 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (20 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.multi_tx_nth_context + 520) (GuestAddrs.multi_tx_nth_context + 348)),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (72 : BitVec 12),
+    .ADDI .x13 .x8 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_to_address (GuestAddrs.multi_tx_nth_context + 368)),
+    .SD .x8 .x10 (136 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (30 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.multi_tx_nth_context + 520) (GuestAddrs.multi_tx_nth_context + 388)),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_value (GuestAddrs.multi_tx_nth_context + 404)),
+    .SD .x8 .x10 (144 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (40 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.multi_tx_nth_context + 520) (GuestAddrs.multi_tx_nth_context + 424)),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .ADDI .x12 .x8 (56 : BitVec 12),
+    .ADDI .x13 .x8 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_extract_data_section (GuestAddrs.multi_tx_nth_context + 444)),
+    .SD .x8 .x10 (152 : BitVec 12),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LI .x5 (50 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (56 : BitVec 21),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x5 (3 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (36 : BitVec 21),
+    .LI .x5 (5 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x5 (4 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x5 (21 : Word),
+    .SD .x8 .x5 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `multiTxNthContext_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def multiTxNthContext_relocs : RelocTable :=
+  [ (18, .la .x5 "bv_tx_list_ptr"),
+    (21, .la .x5 "bv_tx_list_len"),
+    (27, .jal .x1 "bgv_u32le"),
+    (34, .jal .x1 "bgv_u32le"),
+    (40, .jal .x1 "bgv_u32le"),
+    (55, .la .x12 "tea_type"),
+    (57, .la .x13 "tea_inner_off"),
+    (59, .jal .x1 "tx_type_dispatch"),
+    (64, .la .x5 "tea_type"),
+    (68, .la .x5 "tea_inner_off"),
+    (79, .la .x12 "sttc_nonce"),
+    (82, .jal .x1 "tx_extract_nonce_and_gas"),
+    (92, .jal .x1 "tx_extract_to_address"),
+    (101, .jal .x1 "tx_extract_value"),
+    (111, .jal .x1 "tx_extract_data_section") ]
+
+def multiTxNthContextFunction : String :=
+  "multi_tx_nth_context:\n" ++ emitProgramR multiTxNthContext_prog multiTxNthContext_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `multiTxNthContext_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem multiTxNthContextFunction_eq_prog :
+    multiTxNthContextFunction = "multi_tx_nth_context:\n" ++ emitProgramR multiTxNthContext_prog multiTxNthContext_relocs := rfl
+
+#guard multiTxNthContextFunction.startsWith "multi_tx_nth_context:\n"
+#guard multiTxNthContext_prog.length = 140
 /-- `zisk_multi_tx_nth_context`: focused probe for the per-index extractor.
     Input at INPUT_ADDR (0x40000000):
       +8   tx_list_len
