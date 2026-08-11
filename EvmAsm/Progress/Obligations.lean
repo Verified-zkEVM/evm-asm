@@ -184,21 +184,25 @@ fails the build if a `.proven` opcode is ever listed here again" },
     status := .blocked,
     blockedBy :=
       [.infra "trie-walk loop spec for `mpt_walk` over `mptNodeIs`/`nodeDbIs` \
-against `trieLookup` (#11799)",
+against `trieLookup` (#11799) — arm pieces + kind callWithin landed; residual \
+callee `witness_lookup_by_hash` machine triple still open (named hyp \
+`wlCallWithinShape` in MptWalkResiduals.lean). `hp_decode_nibbles` RETIRED \
+(machine predated registration; now `.proven`). Setup/root RETIRED \
+(SetupBody+RootResolve)",
+       .infra "machine triple `witness_lookup_by_hash_spec_within` at \
+GuestAddrs.witness_lookup_by_hash — retires walk residual hyps at root \
+@mpt_walk+140 and branch hop JALs (see MptWalkResiduals.witnessLookupResidualNote)",
        .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
        .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-10 @372162cc2",
-    note := "Re-audited 2026-08-10 (#11803): was `.notStarted` with no blockers, \
-which understated real progress. The MPT assertion vocabulary exists \
-(`Evm64/MptAssertions.lean`) and three of its lemmas are already axiom-gated — \
-`nodeDbIs_snoc`, `nodeDbLookupSpec_eq_build_node_db`, `rlpToMutableNode_rlp` \
-(`Progress/AxiomWitnesses.lean`) — with #11347 (`mpt_node_kind`) and #11422 \
-(`compact_to_nibbles`) closed. Work has begun and the remaining steps are \
-enumerable, which is `.blocked`, not `.notStarted`. Overlaps obligation 10, \
-which consumes the same two triples from the witness-read side" },
+    auditedAt := some "2026-08-11 @11799-residuals",
+    note := "Re-audited 2026-08-11 (#11799 residual audit): mpt_node_kind \
+`.proven` (#11964); hp_decode_nibbles registered `.proven` (machine predated \
+row); walk arm pieces stop at named residual wlCallWithinShape only. \
+Unproven-callee residual is a DEPENDENCY not an input-domain gate (no coverRef). \
+Overlaps obligation 10" },
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
@@ -221,43 +225,29 @@ which consumes the same two triples from the witness-read side" },
     blockedBy :=
       [ .infra "account_decode ↔ decode_account_from_leaf (#11345)",
         .infra "bal_canonical_sort ordering + permutation (#10817)",
-        .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
-against trieLookup (#11799) — carries the three-tier resolve (appended DB / \
-resolve cache / witness section) vs SpecRef's single node source; divergence \
-stated in docs/4ch8f-slstate-specref-correspondence.md:164",
-        .infra "witness-ingest DB builder triples against \
+         .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
+against trieLookup (#11799) — arm pieces + kind callWithin + path-preserve \
+landed; residual only `witness_lookup_by_hash` machine (wlCallWithinShape). \
+hp_decode_nibbles RETIRED (registered `.proven`). Setup/root RETIRED. \
+Three-tier resolve divergence stated in \
+docs/4ch8f-slstate-specref-correspondence.md:164",
+         .infra "machine triple `witness_lookup_by_hash_spec_within` — retires \
+mpt_walk residual hyps (MptWalkResiduals.witnessLookupResidualNote)",
+         .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
-        .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
+         .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
 `witness_codes_lookup_by_hash` — the code-DB *routines* (the predicate side is \
 done; see #11573 / PR #11902)" ],
-    auditedAt := some "2026-08-10 @04de93895",
+    auditedAt := some "2026-08-11 @11799-residuals",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
-2026-08-10 (#11803): three blockers dropped as CLOSED — #11346 \
-(account_is_eip161_empty), #11347 (mpt_node_kind) and #11422 \
-(compact_to_nibbles) — and the two former no-issue-number \"connective gap\" \
-blockers now cite the issues #11579 asked to be filed once their premises \
-closed: #11799 (trie walk) and #11800 (DB builders). ⚠️ CORRECTING MY OWN \
-BLOCKER from that same audit: it read \"codeDbIs predicate for code_db_buckets \
-(#11573)\", and both halves were wrong. `codeDbIs` has existed since \
-`73c8ea6a6` (2026-07-05, `Evm64/WitnessAssertions.lean`), a month before #11573 \
-was filed; and `code_db_buckets` is a DEAD scheme-A anchor whose only mention in \
-the tree is `Codegen/RegionMap.lean:198` — no emitted instruction references it, \
-so no predicate was ever going to be built over it. I took #11573's premise on \
-trust instead of checking the tree, which is the same class of error the #11803 \
-audit was fixing. The live gap is the code-DB *routines* \
-(`witness_codes_index_build` / `witness_codes_lookup_by_hash`, raw asm with \
-whole-guest byte-identity pins and no triple), which is what the blocker now \
-says. A wrong witness read \
-is the false-ACCEPT shape directly: #11508's four witness-missing accepts, \
-#11522's untouched-leaf bytes, #11523's non-canonical leaves. Everything \
-downstream (state tracker, verdict) consumes what this spine produces, and \
-bv_fail=1 (terminal state-root, 447 of 582 rows in #11542) is where its \
-divergences surface unlocalized -- stated triples along the spine turn those \
-investigations from re-derivation into citation. Spine: input deserialize (done) \
--> node/code DB build -> trie walk (#11799 open) -> mpt_node_kind machine \
-`.proven` (#11799 dep landed) -> nibble path (bytes_to_nibbles done, \
+2026-08-11 (#11799 residual audit): mpt_node_kind `.proven`; hp_decode_nibbles \
+registered `.proven` (machine predated row); walk residual is DEPENDENCY \
+wlCallWithinShape only (not domain gate). Spine: input deserialize (done) \
+-> node/code DB build -> trie walk (#11799 open, residual wl) -> mpt_node_kind \
+`.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \
 compact_to_nibbles closed #11422) -> account_decode -> EIP-161 classification. \
 Summit is SpecRef/WitnessReads.lean's get_account_optional" },
+
 ]
 
 /-! ## Counts (kernel-checked) -/

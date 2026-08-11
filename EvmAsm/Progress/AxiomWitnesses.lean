@@ -82,6 +82,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec
+
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within

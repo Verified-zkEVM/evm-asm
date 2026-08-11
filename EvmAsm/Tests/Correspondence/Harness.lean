@@ -98,6 +98,12 @@ structure Subject where
   aux : String → Option Bool := fun _ => none
   /-- Human-readable name of the `aux` axis, used in the report. -/
   auxLabel : String := "aux"
+  /-- A known reference/port divergence deliberately carried by the corpus.
+      Unexpected divergences remain fatal; this hook is for an audited port
+      defect whose exact count is ratcheted below. -/
+  expectedLooser : String → Bool := fun _ => false
+  /-- Exact count of expected looser records. -/
+  expectedLooserCount : Nat := 0
   /-- What the Lean side is, for the result line (e.g. `EL.RLP.decodeFully/encode`). -/
   ourName : String := "our model"
   /-- Instance page an operator should read before "fixing" a divergence. -/
@@ -157,6 +163,8 @@ inductive Outcome where
   | valueMismatch (input expected got : String)
   /-- Both accept and agree on the value; the auxiliary axis disagrees. -/
   | auxMismatch (input : String) (expected got : Bool)
+  /-- The reference/port divergence is explicitly pinned by this family. -/
+  | expectedLooser (input got why : String)
 deriving Inhabited
 
 def classify (s : Subject) (r : Record) : Outcome :=
@@ -173,7 +181,9 @@ def classify (s : Subject) (r : Record) : Outcome :=
         | some ours => if ours == expected then .agree
                        else .auxMismatch r.input expected ours
   | none, true => .stricter r.input r.detail
-  | some got, false => .looser r.input got r.detail
+  | some got, false =>
+      if s.expectedLooser r.input then .expectedLooser r.input got r.detail
+      else .looser r.input got r.detail
 
 structure Tally where
   total : Nat := 0
@@ -182,6 +192,7 @@ structure Tally where
   looser : Nat := 0
   valueMismatch : Nat := 0
   auxMismatch : Nat := 0
+  expectedLooser : Nat := 0
 deriving Inhabited
 
 def Tally.clean (t : Tally) : Bool :=
@@ -213,6 +224,8 @@ def runRecords (s : Subject) (rs : List Record) (maxReport : Nat := 12) :
         t := { t with auxMismatch := t.auxMismatch + 1 }
         if t.auxMismatch ≤ maxReport then
           msgs := msgs ++ [s!"  {s.auxLabel.toUpper}  input={inp}  reference={exp}  ours={got}"]
+    | .expectedLooser _ _ _ =>
+        t := { t with expectedLooser := t.expectedLooser + 1 }
   return (t, msgs)
 
 /-! ## Staleness guard
@@ -355,6 +368,7 @@ def run (s : Subject) (path : System.FilePath) : IO UInt32 := do
   IO.println s!"  agree          {t.agree}"
   IO.println s!"  stricter       {t.stricter}   (reference accepts, {s.ourName} rejects)"
   IO.println s!"  looser         {t.looser}   (reference rejects, {s.ourName} accepts)"
+  IO.println s!"  expected looser {t.expectedLooser} / {s.expectedLooserCount}   (pinned reference/port divergence)"
   IO.println s!"  value mismatch {t.valueMismatch}"
   IO.println s!"  {s.auxLabel} mismatch  {t.auxMismatch}"
   unless msgs.isEmpty do
@@ -362,11 +376,13 @@ def run (s : Subject) (path : System.FilePath) : IO UInt32 := do
     IO.println "findings (first few of each class):"
     for m in msgs do IO.println m
   IO.println ""
-  if t.clean then
+  if t.clean && t.expectedLooser == s.expectedLooserCount then
     IO.println s!"RESULT: {s.ourName} agrees with the pinned reference on every record."
     return 0
   else
-    if t.looser > 0 then
+    if t.expectedLooser != s.expectedLooserCount then
+      IO.println s!"RESULT: expected divergence ratchet moved (expected {s.expectedLooserCount}, observed {t.expectedLooser})."
+    else if t.looser > 0 then
       IO.println "RESULT: LOOSER findings present — we accept input the reference rejects. \
 That is a false-accept: file it before changing either side."
     else
