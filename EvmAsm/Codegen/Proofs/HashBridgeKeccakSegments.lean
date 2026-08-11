@@ -964,6 +964,17 @@ private theorem segments_of_forall3 {nSteps : Nat} {entry exit_ : Word} {cr : Co
         ⟨h5, h6, hd3, hu3, hv1,
           ⟨h7, h8, hd4, hu4, hv2, hv3⟩⟩⟩, hRb⟩ hpc
 
+private theorem segments_nonrate_boundary (off k : Nat) (hnext : off + k + 1 < 136) :
+    BitVec.ofNat 64 (off + k + 1) ≠ (136 : Word) := by
+  intro heq
+  have hnat := congrArg BitVec.toNat heq
+  simp only [BitVec.toNat_ofNat] at hnat
+  have h136 : BitVec.toNat (136 : Word) = 136 := by decide
+  rw [h136] at hnat
+  have hlt64 : off + k + 1 < 2 ^ 64 := by omega
+  rw [Nat.mod_eq_of_lt hlt64] at hnat
+  omega
+
 private theorem segments_byte_round_spec
     (cr : CodeReq) (hdr scratchBase inputBase : Word) (v10 : Word)
     (st0 inp : List (BitVec 8)) (off n k : Nat) (A : Assertion)
