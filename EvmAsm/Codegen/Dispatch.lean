@@ -3051,11 +3051,11 @@ def emitRuntimeDispatcherCallableSetup : String :=
   -- That overlay is the live execution state consumed by delegation
   -- resolution; clearing it here would erase the just-published rows before
   -- the first delegated target is resolved.  Ordinary transactions still
-  -- take the reset path, while an auth-prepared transaction keeps its whole
-  -- AccountState journal across the dispatcher entry.  Keep pending, created,
-  -- and deleted counts together: account_state_commit_pending consumes these
-  -- as one coherent journal, so preserving only pending would desynchronize
-  -- the created/delete sets from their shared cursor state.
+  -- take the reset path, while an auth-prepared transaction keeps its
+  -- AccountState created/delete sets across the dispatcher entry.  Keep the
+  -- created and deleted counts together: the account-writes commit boundary
+  -- consumes the sets as one coherent overlay, so preserving only one would
+  -- desynchronize the created/delete sets from their shared cursor state.
   -- Preserve the overflow latch with them deliberately: clearing an
   -- authorization-arena overflow at this boundary would turn a required
   -- rejection into a later execution attempt.

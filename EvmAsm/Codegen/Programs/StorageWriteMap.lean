@@ -136,10 +136,11 @@ def storageWritesUndoCapacity : Nat := 167652
 
 /-! The undo base is derived from the link-pinned `.bss`/diagnostic end, so it
     floats upward when those sections grow.  Keep the top-end slack visible at
-    the guard: it is currently `0x28c180 = 2,666,368` bytes after the GH #11186
-    high-pack relocate (AW dropped to `0xbdb80000`).  If this check trips, the
-    undo region has floated into the account-writes arena; move one of those
-    arenas before raising a capacity. -/
+    the guard: it is currently `0x73e180 = 7,594,368` bytes — the #11978 dead
+    AccountState journal deletion shrank `.bss` by 4,923,016 B and the undo
+    base floated down with it (from `0x28c180` after the GH #11186 high-pack
+    relocate).  If this check trips, the undo region has floated into the
+    account-writes arena; move one of those arenas before raising a capacity. -/
 def storageWritesUndoHeadroom : Nat :=
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat -
     (storageWritesUndoBase + storageWritesUndoCapacity * 160)
@@ -153,7 +154,7 @@ def storageWritesUndoHeadroom : Nat :=
       "storage undo region has floated into ACCOUNT_WRITES_AREA; " ++
         "move the undo or account-writes arena before raising a capacity"
 
-#guard storageWritesUndoHeadroom == 0x28c180
+#guard storageWritesUndoHeadroom == 0x73e180
 #guard storageWritesUndoBase + storageWritesUndoCapacity * 160 <
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
@@ -701,8 +702,8 @@ def destroyStorageFunction : String :=
     operation — the same reason `read_sets_discard_tx` exists on the read side
     for `fork.py:745-752`'s throwaway state.
 
-    **Why this is required rather than tidy.** `write_sets_incorporate_tx` is
-    called from `account_state_commit_pending`, which the multi-tx loop
+    **Why this is required rather than tidy.** `write_sets_incorporate_tx` runs
+    on the account-writes commit path, which the multi-tx loop
     **skips** on transaction failure (`BlockVerdictMtxRuntime`: a zero receipt
     status with no applied auth phase jumps straight to
     `.Lbv_mtx_code_commit_done`). Without this call the failed transaction's

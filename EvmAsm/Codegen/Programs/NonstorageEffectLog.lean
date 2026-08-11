@@ -460,7 +460,9 @@ def ziskNonstorageEffectLogProbeUnit : BuildUnit := {
   dataAsm     := ziskNonstorageEffectLogDataSection
 }
 
-/-- Shared AccountState and radix-sort scratch used by live dispatcher paths. -/
+/-- Shared scratch block: the live created/delete AccountState tables are
+    `.set`-carved inside it; the `account_state_pending`/`nea_sort_*` aliases
+    are probe-only since the #11533 retirement. -/
 def nonstorageEffectSharedScratch : String :=
   -- This is runtime scratch, not initialized input data.  Name the section
   -- explicitly because the main dispatcher appends it while emitting `.data`.
@@ -468,8 +470,9 @@ def nonstorageEffectSharedScratch : String :=
   -- in the same NOBITS region.
   ".section .bss, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
-  -- The per-transaction AccountState journal and sender-count radix buffers share
-  -- this NOBITS region; both are live dispatcher storage.
+  -- The retired per-transaction AccountState journal alias and the
+  -- sender-count radix buffers share this NOBITS region (probe-only since
+  -- #11533); the live created/delete tables are `.set`-carved inside it.
   "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
   ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
