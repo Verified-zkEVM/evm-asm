@@ -192,6 +192,22 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.divergence_emptyOmmerHashHex
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_adBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_aieBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
