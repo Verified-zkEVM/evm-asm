@@ -758,8 +758,8 @@ docs/agents/spec-correspondence.md 6a. See #11513" },
   -- `bgv_u32le` is now witnessed in Routines.lean, and #11342 established that a
   -- witnessed symbol with NO row passes the cross-registry gate vacuously.
   { family := "guest", routine := "bgv_u32le",
-    spec := some "bgvU32leFlat_spec",
-    verdict := .agrees, basis := .ported,
+    spec := some "bgv_u32le_offset_spec_within",
+    verdict := .domainRestricted, basis := .ported,
     reference := "the fixed-width LE reads of deserialize_stateless_input \
 (SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
     note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). Reference: the \
@@ -768,11 +768,34 @@ fixed-width LE reads in `deserialize_stateless_input` reduce to `bytesLEtoNat` \
 accumulates `b + 256 * rest` where the guest ORs four shifted bytes. That restatement is \
 NOT syntactic and is PROVED, not assumed, by `leU32_eq_bytesLEtoNat` via `toNat_or_shift` \
 (OR past the accumulated width is addition). No other clause differs. \
-WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential, so \
-there is no `diff` result to inherit; the row's value is bounded by the port's fidelity to \
-the Python, which the clause table above is what establishes. Was `.machineOnly` when the \
-rung did not exist — that grade's description was false here, since the tie is \
-machine-checked rather than a local restatement. Regraded in #11341" },
+WHY `.ported` AND NOT `.bridged`: the guest/SSZ family has no executable differential. \
+#11578: witness is offset form (a0=listBase+off may be unaligned). WHY \
+`domainRestricted` AND NOT `agrees`: h_align listBase.toNat%8=0 is a CALLER \
+assumption at production sites (listBase is ABI a0 / buffer start, not a static \
+GuestAddrs pin discharged by decide). coverRef \
+`bgv_u32le_offset_precondition_reachable`. Prior flat_spec had the same gate as \
+Region.wf on a0 and failed offs 4/12; moving alignment to listBase fixed production \
+shape but did not erase the hyp. Value tie unchanged" },
+
+  -- #11578 rescope: validation-accept prefix of execution_requests_hash.
+  -- Anchor is SszCodec.deserializeAux fixed-list shape (not compute_requests_hash).
+  -- Hash half residual; consumers still String asm (parked, not scaffold).
+  { family := "guest", routine := "execution_requests_hash",
+    spec := some "execution_requests_hash_validation_accept",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "SszCodec.deserializeAux fixed-list length/divisibility gates \
+(requests section lengths multiple of stride and under cap)",
+    note := "WHY `domainRestricted`: ACCEPT PATH ONLY. FULL named gates matching \
+the top-triple binder list (not intent): h_align listBase.toNat%8=0 (ABI a0, \
+universally quantified — NOT a static GuestAddrs pin discharged by decide); \
+h_fit 20≤bs.length; h_ge ¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. \
+h_valid/h_over ordinary memory framing only. Reject arms + hash half residual. \
+coverRef `erh_validation_precondition_reachable` (non-empty deposit 192). \
+WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
+hash half (erh_hash_one + zkvm_sha256) unproven. bgv reads use offset form \
+(flat_spec Region.wf a0%8=0 does not cover offs 4/12). \
+NOT leaves: derive_* are 7-insn JAL x0 stage_system_call shims. \
+PARKED: block_state_root + requests_hash_verify still String asm" },
 
   -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
   -- this registration by months; a name search for the routines found nothing
@@ -868,11 +891,11 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 35 := by decide
+theorem registry_size : registry.length = 36 := by decide
 theorem rlp_rows : countFamily "rlp" = 21 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
-/-- #11352. One row so far; the family has no differential (see the row's note). -/
-theorem guest_rows : countFamily "guest" = 1 := by decide
+/-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
+theorem guest_rows : countFamily "guest" = 2 := by decide
 /-- #11349, #11351. No differential for this family -- see the rows' notes. -/
 theorem header_rows : countFamily "header" = 4 := by decide
 /-- #11344 + #11799 dep (`mpt_node_kind`) + `hp_decode_nibbles` residual audit. -/
@@ -904,7 +927,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 9 ∧
+    countVerdict .agrees = 21 ∧ countVerdict .domainRestricted = 11 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -918,7 +941,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
+    countBasis .machineOnly = 6 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
