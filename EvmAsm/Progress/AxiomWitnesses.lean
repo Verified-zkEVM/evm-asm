@@ -200,9 +200,9 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
-#print axioms EvmAsm.Codegen.SpecRefConstantPins.fix_emptyOmmerHashHex
-
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.fix_emptyOmmerHashHex
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_adBytes
 
