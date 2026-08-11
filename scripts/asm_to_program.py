@@ -287,21 +287,27 @@ EXPECTED_BARE_J_SITES = 173
 # The 20-definition READY-WAVE3 pilot adds seven long-B fixture sites; those
 # fixtures remain the byte-identity source while their Lean blocks carry the
 # named `brOff` geometry.  Keep the ratchet aligned with the manifest.
-EXPECTED_BARE_B_SITES = 800
+EXPECTED_BARE_B_SITES = 796
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
     if abs(off) >= BR_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(brOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(brOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 13)
 
 def jal_imm(off, entry, cur):
     """Render a same-function J-type byte offset; long arms use `jalOff`."""
     if abs(off) >= JAL_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(jalOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(jalOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 21)
+
+def pc_expr(entry, offset):
+    """Render a PC expression, using the stable probe-only placeholder."""
+    if entry in SYMMAP:
+        return f"({GA}.{entry} + {offset})"
+    return str(0x80000000 + offset)
 
 def render_insn(mn, ops, off_of):
     R = reg
@@ -413,7 +419,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"la {sym}: symbol not in address table (BLOCKED_ON_.6)")
         externals[sym] = SYMMAP[sym]
         pc = entry_addr + cur
-        pcx = f"({GA}.{entry} + {cur})"
+        pcx = pc_expr(entry, cur)
         lean = [f".AUIPC {reg(rg)} (laHi {GA}.{sym} {pcx})",
                 f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
@@ -437,7 +443,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"unresolved branch/jump target {tgt!r}")
         externals[tgt] = SYMMAP[tgt]
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
-        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} ({GA}.{entry} + {cur}))"]
+        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} {pc_expr(entry, cur)})"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
     if mn == 'li' and not fits(parse_imm(ops[1]), 12):
@@ -752,7 +758,7 @@ def lean_camel(entry):
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
-def layout_leaf_path(path, root=""):
+def layout_leaf_path(path, root="", fname=None):
     # GH #10753 layout split: a converted module `<Name>.lean` (the bridge)
     # has its generated program blocks in the leaf `<Name>Prog.lean` next to
     # it.  Return the leaf path (same relative/absolute flavour as `path`)
@@ -760,7 +766,13 @@ def layout_leaf_path(path, root=""):
     # test only, so both repo-relative and absolute callers work.  Shared
     # by check_file's layout detection and guest_image_coverage.py.
     leaf=path[:-len(".lean")]+"Prog.lean"
-    return leaf if os.path.exists(os.path.join(root,leaf)) else None
+    if not os.path.exists(os.path.join(root,leaf)):
+        return None
+    if fname is not None:
+        leaf_text=open(os.path.join(root,leaf)).read()
+        if not re.search(r'(?m)^def\s+'+re.escape(fname)+r'\b', leaf_text):
+            return None
+    return leaf
 
 def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
@@ -1117,7 +1129,7 @@ def rewrite_file(path, funcs):
     # Rewrite the leaf in place while retaining the manifest's bridge path;
     # trying to splice the bridge used to fail after fixture fallback found
     # the right asm.
-    target_path=layout_leaf_path(path) or path
+    target_path=layout_leaf_path(path, fname=funcs[0]) or path
     text=open(target_path).read()
     os.makedirs(FIXDIR, exist_ok=True)
     evaluated={}
@@ -1289,10 +1301,13 @@ def _collect_guest_addr_syms():
         except ConvError:
             continue
         if entry not in SYMMAP:
-            # Unlinked conversions (entry absent from the TSV) are skipped
-            # entirely — including those with reloc externals.  A probe-only
-            # converted self-test must not force a GuestAddrs entry for a
-            # symbol the guest no longer defines.
+            # Probe-only conversions have no GuestAddrs entry for their own
+            # placeholder PC, but their `la`/cross-`jal` targets may still be
+            # real guest globals. Keep those target constants when present in
+            # the linker facts; only the probe's own entry is omitted.
+            for sym in externals:
+                if sym in SYMMAP:
+                    need.add(sym)
             continue
         # every linked converted function's entry: the guest-image CodeReq
         # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
@@ -1467,6 +1482,8 @@ _B_SOURCE_FORM_RE = re.compile(
 _B_BARE_IMM_RE = re.compile(r'\((-?\d+)\s*:\s*BitVec\s+13\)')
 _B_NAMED_IMM_RE = re.compile(
     r'\bbrOff\s*\(\s*([^()]*)\s*\)\s*\(\s*([^()]*)\s*\)')
+_B_NAMED_NUMERIC_RE = re.compile(
+    r'\bbrOff\s+(-?\d+)\s+(-?\d+)')
 _B_NAMED_EXPR_RE = re.compile(
     r'^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\+\s*(-?\d+)\s*$')
 _PROGRAM_DEF_RE = re.compile(
@@ -1613,6 +1630,10 @@ def _parse_b_source_form(line):
         if target.group(1) != pc.group(1):
             raise ConvError(f'brOff uses different PC bases: {line}')
         return ('named', int(target.group(2)), int(pc.group(2)))
+    numeric = _B_NAMED_NUMERIC_RE.search(line)
+    if numeric:
+        return ('named', int(numeric.group(1)) - 0x80000000,
+                int(numeric.group(2)) - 0x80000000)
     bare = _B_BARE_IMM_RE.search(line)
     if bare:
         return ('bare', int(bare.group(1)))
