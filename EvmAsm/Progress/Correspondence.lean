@@ -410,26 +410,28 @@ reubOut_eq_encode_toBytesBE." },
     spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
     verdict := .domainRestricted, basis := .bridged,
     reference := "header of encode_sequence",
-    note := "no unified dispatch theorem — FIVE per-form pinned triples, cited here by \
+    note := "no unified dispatch theorem — EIGHT per-form pinned triples, cited here by \
 the short one because this file carries one row per routine. Coverage is \
-`len < 4294967296`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
+`len < 2^56`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
 (`256 ≤ len < 65536`, where the length-byte loop first runs more than once and canonical \
-form stops being vacuous), long3 (`65536 ≤ len < 16777216`, \
-`…_long3_pinned_spec_within`) and long4 (`16777216 ≤ len < 4294967296`, \
-`…_long4_pinned_spec_within`). ⚠️ THE CUT IS `lenlen ≥ 5` (payload ≥ 4294967296 B). It \
-was `lenlen ≥ 2` in this note until long2 landed, `lenlen ≥ 3` until long3 did and \
-`lenlen ≥ 4` until long4 did; `Progress/Routines.lean` carried the rows each time while \
-this row described the previous state, so keep them in step. ⭐ The remaining widths are \
-no longer priced at the ~200-lines-per-byte the long2 header warned about: `lpLolLoop` \
-(`RlpEncodeListPrefixLoopSpec`) proves the length-byte loop idx35-idx41 at ANY trip count \
-`≤ 8`, and `first_length_byte_ne_zero` (`RlpEncodeListPrefixCanonical`) discharges \
-canonicality at every width, so each further arm is its ladder path plus the fixed \
-header/epilogue — long3 and long4 are the worked instances, and long4 measures the \
-per-width cost: three extra dispatch steps, nothing else. ⚠️ At `lenlen = 8` the loop's \
-overflow side condition needs `outPtr.toNat + 9 ≤ 2^64`, which is MORE slack than the 8 \
-that `outPtr.toNat % 8 = 0` alone supplies; that arm needs an explicit bound rather than \
-reusing the `omega` step long3 and long4 share (`+ 4` and `+ 5`, both inside the eight \
-bytes alignment gives)" },
+form stops being vacuous), long3 (`65536 ≤ len < 16777216`), long4 \
+(`16777216 ≤ len < 4294967296`), and long5/long6/long7 \
+(`…_long{5,6,7}_pinned_spec_within`, header bytes `0xFC`/`0xFD`/`0xFE`, header lengths \
+6/7/8, step bounds 62/72/82). ⚠️ THE CUT IS `lenlen ≥ 8` (payload ≥ 2^56 B). It \
+was `lenlen ≥ 2` in this note until long2 landed, `≥ 3` until long3, `≥ 4` until long4 \
+and `≥ 5` until long5-7; `Progress/Routines.lean` carried the rows each time while \
+this row described the previous state, so keep them in step. ⭐ The per-width cost long4 \
+measured held exactly across three more widths: three extra dispatch steps and seven extra \
+loop steps each, nothing else — header writer (idx30-34), epilogue (idx42-44), frame and \
+clobber set are identical across long4-long7, and the loop is CITED via `lpLolLoop` at \
+`m := 5/6/7` rather than unrolled. The ladder is fully regular: branch `j` sits at \
+`idx 10+3(j-1)` = `base+40+12(j-1)` with offset `+(80-12(j-1))`, so every branch targets \
+the shared header writer at `base+120`. ⚠️ `lenlen = 8` REMAINS OPEN, and the reason is \
+now MEASURED rather than predicted: `lpLolLoop`'s side condition \
+`outPtr.toNat + (1+m) ≤ 2^64` closes from `outPtr.toNat % 8 = 0` alone at `+6`, `+7` and \
+`+8` — long7's `+8` is the exact boundary — while `+9` does not. Checked directly: \
+`x < 2^64 ∧ x % 8 = 0 ⊢ x + 8 ≤ 2^64` closes under `omega`; the same step at `+9` fails. \
+So `lenlen = 8` needs an explicit bound on `outPtr`, not more alignment" },
   { family := "rlp", routine := "rlp_encode_bytes",
     spec := some "reb_spec_within",
     verdict := .agrees, basis := .bridged, reference := "encode_bytes",
