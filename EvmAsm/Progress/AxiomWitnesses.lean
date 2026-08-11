@@ -88,6 +88,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
+#print axioms EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
+
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
