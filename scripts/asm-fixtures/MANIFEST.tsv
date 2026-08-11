@@ -311,6 +311,7 @@ rlpEncodeU64Function	EvmAsm/Codegen/Programs/Receipt.lean
 rlpEncodeUintBeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpFieldToU256BeFunction	EvmAsm/Codegen/Programs/Tx.lean
 rlpFieldToU64Function	EvmAsm/Codegen/Programs/Tx.lean
+rlpItemSizeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
