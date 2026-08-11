@@ -187,6 +187,16 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashFiveReads
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashEarly
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaResidual
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOne
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneLa
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneCopy
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
 import EvmAsm.Codegen.Programs.SwrRevLeBeSAsm
 import EvmAsm.Codegen.Programs.BhrRevLeBeSAsm

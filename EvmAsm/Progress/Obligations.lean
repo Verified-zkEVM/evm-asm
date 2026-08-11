@@ -146,21 +146,26 @@ unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
     blockedBy :=
        [.infra "no simulation bridge from dispatched handlers to the SpecRef \
 interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
-        .infra "`stage_system_call` has no machine post yet; #11578 rescoped off \
+         .infra "`stage_system_call` has no machine post yet; #11578 rescoped off \
 derive_* shims (NOT leaves) to `execution_requests_hash` validation-accept \
-prefix (landed domainRestricted); hash half + stage_system_call still residual",
-        .infra "`assemble_execution_requests` converted to Program under #12011 \
+prefix (landed domainRestricted); hash half compose + stage_system_call still open",
+         .infra "`assemble_execution_requests` converted to Program under #12011 \
 (byte-identity waived; ELF remained byte-identical). Machine triple + \
-`requests_hash_verify` callWithin still open — not a residual dependency"],
-     auditedAt := some "2026-08-11",
-     note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
+`requests_hash_verify` callWithin still open — not a residual dependency",
+         .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
+(shaCallWithinShape) landed; discharge owner #12018 zkvm_sha256_spec_within \
+(partial frame/loop only — does NOT yet discharge). Hash-half five-slot compose \
+after validation_accept still open"],
+      auditedAt := some "2026-08-11",
+      note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
 M5's runtime fetch/decode/dispatch and 91 wired opcodes, for weeks. The real gap \
 is the simulation relation, which that row was hiding. #11578 lands \
 `execution_requests_hash_validation_accept`; #12011 retargets consumer to \
 `requests_hash_verify` (block_state_root has no jal erh) and lands assemble \
-Program (String residual retired); does not close `stage_system_call`" },
+Program (String residual retired) + erh_hash_one under h_sha DEPENDENCY \
+(not input gate); does not close `stage_system_call`" },
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
@@ -178,8 +183,17 @@ opcodes plus the 14 `.execSpec` rows. `no_proven_opcode_blockers` below now \
 fails the build if a `.proven` opcode is ever listed here again" },
   { id := 6, name := "Accelerator ECALL bridges per `zkvm_accelerators.h`",
     status := .blocked,
-    blockedBy := [.infra "per-precompile EL bridges not yet codegen-wired"],
-    note := "vendored header + EL bridges; not codegen-wired" },
+    blockedBy :=
+      [.infra "55 accelerator-site bridges remain after the landed `zkvm_keccak256` \
+pilot: secp256k1 recovery (0x01), BN254, P256VERIFY, BLS G1, and the curve/complex \
+accelerator families 0x802–0x80A; the 56-site census is recorded in #10552 and the \
+family inventory is `docs/4ch8f-crypto-kernel-inventory.md`; the 56 figure counts \
+decoded CSRRS encodings, while that inventory's 64 counts raw pre-encoded `.4byte` \
+sites, so the two populations are not yet reconciled"],
+    auditedAt := some "2026-08-11 @84e000579",
+    note := "Pilot landed: `EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within` in \
+`HashBridgeKeccakTop.lean:283`, a genuine accelerator-site triple. One site is \
+covered; the other 55 sites and the remaining accelerator families are still open." },
   -- Audited as part of #11803. Not one of the rows that issue named, but the
   -- same defect class pointing the other way: a row understating its own
   -- progress hides that the work is startable, which is just as misleading to
