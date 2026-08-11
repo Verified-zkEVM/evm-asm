@@ -516,6 +516,29 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     incoming nonce does not lower the row) and the mask gates every field, so an
     `.agrees` claim needs nonce-monotonicity + full-mask hypotheses. The capacity arm
     **drops** the write (`accountRowLookup_upsert_of_full`).
+  - **The storage-write writer model** (2026-08-11, #11921 row 2, writer half):
+    `Stateless/State/StorageWriteUpsert.lean`. ⭐ **One model, two tiers** —
+    `storage_write_record` (tx arena) and `storage_writes_block_upsert` (block arena)
+    are the *same* upsert differing only in base and capacity, so capacity is a
+    **parameter**; that also keeps the module core-side, since the capacities
+    (`txStorageWritesCapacity = 5588`, `blockStorageWritesCapacity = 66666`) live in
+    `Codegen`. `storageWriteUpsert_rowsMap` transposes row 1's argument:
+    `StorageWriteRowsMap`'s `Nodup` clause becomes a theorem about the writer, from
+    the empty arena up. Read-visibility is stated over the *existing*
+    `storageRowLookup` (`StorageReadPath.lean:57`) rather than a second scan function.
+    ⭐ **`storageWriteUpsert_baselines` has no row-1 analogue and is the one to keep:**
+    the writer never modifies an existing row's baseline (`+96` is written on **append
+    only**; a hit rewrites `+64` and leaves `+96` frozen). A writer that merged the
+    baseline like the value would keep uniqueness *and* produce a wrong state root —
+    that is #11547 / the 7251 multi-block residual, where a zero-clear of a nonzero
+    parent read back as `0 → 0` and was dropped from the MPT apply. Pinned by a
+    two-write non-vacuity sample, not only stated. ⚠️ **Model-level only**, same as
+    row 1: both routines are raw `String`s (`4ch8f-guest-image-coverage.md:211,213`
+    mark them UNCONVERTED), so no triple can be attached and no registry row is
+    claimed. ⛔ Measured while doing it: **every** routine in #11921 rows 2–5 is
+    `String`-emitted, none is a `Program` — including row 5's, so #11572 is not that
+    row's binding blocker. Rows 3–5 need an SAsm transcription before "triple" is the
+    right word for their deliverable.
     The concrete↔abstract refinement
   map (abstraction functions, divergences, `guestStateCorresponds`
   north-star) is `docs/4ch8f-slstate-specref-correspondence.md`; remaining
