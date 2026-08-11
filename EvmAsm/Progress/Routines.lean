@@ -91,6 +91,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
 import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
+-- #10817: `bal_canonical_sort`'s nibble extractor against a SEMANTICALLY decoded
+-- key. A block lemma over the whole routine's `CodeReq`, not a routine triple.
+import EvmAsm.Codegen.Programs.BalCanonicalSortDigitSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
@@ -871,6 +874,30 @@ private noncomputable abbrev _rlp_prefix_lol_body_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
+-- #10817: `bal_canonical_sort`'s canonical nibble extractor (flat indices 67-94,
+-- `base+268 -> base+380`), proved to agree with a key decoded from the FIELD
+-- SEMANTICS rather than from the sorter's own segment descriptor. That direction is
+-- the whole point: a descriptor-derived key would let a limb swap satisfy both
+-- sortedness and permutation-preservation, which is exactly why
+-- `BalCanonicalSort.lean:41-44` refuses to substitute either property. Witnessed
+-- rather than left to the sortedness theorem that will consume it -- the same
+-- discipline as `lpLolLoop`, and for the same reason: a specification outside the
+-- axiom gate is the #11637 failure mode. The model side is witnessed WITH the
+-- machine side, because a key definition that drifted from the reversal it encodes
+-- would silently re-open the vacuity. No registry row changes: a block lemma over
+-- a pc range, not a routine triple, and no `JALR`.
+private noncomputable abbrev _bal_digit_agree_1seg_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_1seg
+private noncomputable abbrev _bal_digit_agree_2seg_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg
+private noncomputable abbrev _bal_digit_agree_2seg_live_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
+private noncomputable abbrev _bal_digit_at_67_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+private noncomputable abbrev _bal_key_getD_head_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
+private noncomputable abbrev _bal_key_getD_tail_witness :=
+  @EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
 -- #11517 (template pair): the account-leaf sentinels, pinned. `EMPTY_TRIE_ROOT` /
 -- `EMPTY_CODE_HASH` existed in three unconnected copies -- SpecRef's computed pair and two
 -- baked asm literals -- so a typo in one typechecked everywhere and produced a wrong state
