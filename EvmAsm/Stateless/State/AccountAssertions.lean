@@ -314,7 +314,10 @@ theorem decode_account_from_leaf_accountRlp (a : AccountRecord) (hwf : a.WF) :
     cases hch : a.codeHash with
     | nil => rw [hch] at hhash; simp at hhash
     | cons _ _ => rfl
-  rw [hrootne, hhashne]
+  rw [SpecRef.decodeFixedHash32_of_nonempty_of_length
+    "storage_root" SpecRef.EMPTY_TRIE_ROOT a.storageRoot hrootne hroot,
+    SpecRef.decodeFixedHash32_of_nonempty_of_length
+      "code_hash" SpecRef.EMPTY_CODE_HASH a.codeHash hhashne hhash]
   by_cases hn : a.nonce = 0
   · by_cases hb : a.balance = 0
     · simp [hn, hb, Nat.toBytesBE_zero]
