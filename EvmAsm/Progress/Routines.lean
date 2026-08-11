@@ -109,6 +109,8 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 
 namespace EvmAsm.Progress
 
@@ -916,6 +918,12 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+-- #12018 phase 1: SHA-256 frame and setup boundaries are independently
+-- witnessed while the full-block loop and top-level wrapper remain open.
+private noncomputable abbrev _zkvm_sha256_frame_witness :=
+  @EvmAsm.Codegen.Proofs.sha256Frame_spec
+private noncomputable abbrev _zkvm_sha256_setup_witness :=
+  @EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
