@@ -72,6 +72,15 @@ Two reasons it cannot be a `Verdict` constructor, both found in review of #11514
    "port defect" instead, with the invariant still passing. A separate field has
    no such interaction.
 
+The executable harness has the same separation for a **known reference/port
+defect**: a family may carry an `expectedLooser` predicate and an exact expected
+count when the Lean model is the broken side. Those records remain visible in
+the tally as `expected looser`, are not silently treated as guest findings, and
+are a ratchet rather than a permissive allowlist: a count change or a looser
+record outside the predicate fails the check. This mechanism is for a named,
+tracked port defect only; it must never make an unexplained guest false accept
+green.
+
 So grade by asking *"does the guest reject this, or did we merely not prove it?"*
 — and, when the guest does reject, *"is the port the thing that is wrong?"*
 
@@ -338,6 +347,9 @@ What a family inherits, and must not weaken:
   the submodule checked out** — i.e. in CI.
 - **Capped reporting.** Per-class caps; an uncapped dump is one bad corpus away
   from a 200k-line CI log.
+- **Expected port divergences are ratcheted, not hidden.** A family may name a
+  tracked reference/port divergence and its exact count; the runner reports it
+  separately, while any unmarked divergence or count drift remains a failure.
 - **Rejection reasons are NOT compared.** A reference's messages describe its own
   control flow (`ethereum_rlp` reports a bare byte plus trailing data as
   `negative length`) and carry no obligation for a different implementation.
