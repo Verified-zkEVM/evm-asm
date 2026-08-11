@@ -44,6 +44,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.HashBridgeProg
 import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen
@@ -469,6 +470,46 @@ def codeStateData : String :=
   ".balign 8\n" ++
   "create_resolved_account_state:\n  .zero 64\n"
 
+/-- Shared scratch block: the live created/delete AccountState tables are
+    `.set`-carved inside it; the `account_state_pending`/`nea_sort_*` aliases
+    are probe-only since the #11533 retirement. -/
+def nonstorageEffectSharedScratch : String :=
+  -- This is runtime scratch, not initialized input data.  Name the section
+  -- explicitly because the main dispatcher appends it while emitting `.data`.
+  -- In particular, AccountState's phase alias must cover both radix buffers
+  -- in the same NOBITS region.
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  -- The retired per-transaction AccountState journal alias and the
+  -- sender-count radix buffers share this NOBITS region (probe-only since
+  -- #11533); the live created/delete tables are `.set`-carved inside it.
+  "account_state_pending:\nnea_sort_a:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  "nea_sort_b:\n  .zero " ++ toString (nonstorageEffectLogCap * 112) ++ "\n" ++
+  ".set account_state_created, account_state_pending + " ++ toString accountStateTableBytes ++ "\n" ++
+  ".set account_state_delete, account_state_pending + " ++ toString (accountStateTableBytes + accountStateCreatedCapacity * 32) ++ "\n" ++
+  -- Callers append initialized dispatcher storage after this shared scratch.
+  ".section .data\n"
+
+/-- Probe-only AccountState journal cells: `account_state_pending_count`,
+    `account_state_scratch`, `account_state_durable`.
+
+    #11978 deleted these from `codeStateData` with zero guest `.text`
+    references (the journal lifecycle retired in the account-writes
+    migration); the guest `.bss` keeps the full 4,923,040-byte shrink. The
+    `zisk_*_effect_log` probes still compose `account_state_record_nonstorage`
+    / `account_state_record_code`, whose journal logic (dedup find, durable
+    fallback, scratch staging) is written against these cells — so they live
+    here, linked by the two probe data sections only. Do NOT add this def to
+    the guest (`Dispatch.lean`); that would undo #11978. -/
+def accountStateProbeOnlyData : String :=
+  ".section .bss, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  "account_state_pending_count:\n  .zero 8\n" ++
+  ".balign 32\n" ++
+  "account_state_scratch:\n  .zero 128\n" ++
+  ".balign 32\n" ++
+  "account_state_durable:\n  .zero " ++ toString accountStateTableBytes ++ "\n"
+
 /-! ## create_record_code_effect
 
     Append one deployed-code record to the code-effect log.
@@ -789,6 +830,9 @@ def ziskCreateCodeEffectLogPrologue : String :=
   codeStateAddressSetFlagFunction ++ "\n" ++
   findCodeEffectByAddressFunction ++ "\n" ++
   findCodeEffectByHashFunction ++ "\n" ++
+  accountWriteRecordFunction ++ "\n" ++
+  accountWritesUndoPushFunction ++ "\n" ++
+  zkvmKeccak256Function ++ "\n" ++
   ".Lccel_done:"
 
 def ziskCreateCodeEffectLogDataSection : String :=
@@ -799,8 +843,13 @@ def ziskCreateCodeEffectLogDataSection : String :=
   "ccel_addr_c:\n  .zero 20\n" ++
   "ccel_code_a:\n  .zero 8\n" ++
   "ccel_code_b:\n  .zero 8\n" ++
-  createCodeEffectLogData ++
-  codeStateData
+  createCodeEffectLogData ++ "\n" ++
+  codeStateData ++ "\n" ++
+  nonstorageEffectSharedScratch ++ "\n" ++
+  accountWriteMapDataSection ++ "\n" ++
+  accountStateProbeOnlyData ++ "\n" ++
+  ".balign 8\n" ++
+  "zk3_state:\n  .zero 200\n"
 
 def ziskCreateCodeEffectLogProbeUnit : BuildUnit := {
   body        := NOP
