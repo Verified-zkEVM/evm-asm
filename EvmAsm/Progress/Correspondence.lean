@@ -472,32 +472,27 @@ is the ABI contract, not an input-domain gate" },
     verdict := .agrees, basis := .machineOnly,
     reference := "node-shape dispatch of _decode_witness_node \
 (SpecRef/IncrementalMpt.lean:182) — 17-item branch vs 2-item leaf/extension",
-    note := "WHOLE-ROUTINE cpsTripleWithin at `GuestAddrs.mpt_node_kind` (#11799 dep). \
+     note := "WHOLE-ROUTINE cpsTripleWithin at `GuestAddrs.mpt_node_kind` (#11799 dep). \
 Post is operational `MptNodeKindResult` (countFail/branch/badArity/nthFail/emptyPath/path \
 with HP nibble), matching the guest's arity-exact control flow after #11347. POST \
 STRENGTHEN (path preserve, free — NOT a domain restriction): x18..x21 stay concrete \
 at their entry values; the guest restores them through count/nth saves, so the old \
 regOwn export discarded information the machine preserves and blocked every consumer \
 that needed the path. PRE unchanged (kindCallerPre already carried concrete v18..v21 \
-via countAmbient). WHY `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has \
-no executable differential, and the top triple is stated over the operational result \
-rather than over SpecRef `kindTag` — no current caller uses the pure bridge \
-`mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF first needs the \
-missing Result-to-WF/decode bridge. The pure \
+via countAmbient). #12027 WIRING: `MptNodeKindWire.mptNodeKindResult_eq_kindTag` \
+(success arms `kind < 3`) and `mptNodeKindResult_exists_kindTag` tie operational \
+Result to `MptNode.kindTag` under WF via encode-domain count Success + path head \
+HP nibble — does NOT need #11341 (top-level items are `.bytes` only under WF). \
+Fail arms (`kind = 3`) excluded: pure `Failure` is over-broad at exclusive list end. \
+WHY still `.machineOnly` AND NOT `.ported`/`.bridged`: the MPT family has no \
+executable differential; wiring closes the kindTag consumer gap for kind dispatch \
+ONLY — not full SpecRef `decodeNodeItemAux` (leaf/ext value + child-ref checks \
+remain). Port-fidelity clause table for a future `.ported` would need those. The pure \
 `MptAssertions.mptNodeKindSpec` is LOOSER (2 < len → branch) and STALE vs the arity-17 \
-guest; it is NOT the machine post. CLAUSE-FIDELITY ATTEMPT against \
-`incremental_mpt.py:917-970`: full-RLP envelope and 17/2 arity are present in the \
-SpecRef decoder; compact-path flag/nibble behavior is now separately proved by \
-`compact_to_nibbles_eq_hpDecode`. The defeated clause is the CONSUMER tie: the machine \
-triple returns operational `MptNodeKindResult` statuses and path cells, while \
-`decodeNodeItemAux` continues through leaf/extension value and child-reference checks. \
-`mptNodeKindGuest_eq_kindTag` only proves the pure mirror under `MptNode.WF` and is not \
-consumed by the operational triple. No theorem states that triple as the SpecRef node \
-decode result, so no complete port-fidelity table exists and `.machineOnly` remains. FULL \
-DOMAIN: no input-domain gate (ABI hyps only — \
-region wf, alignment, stack free for nth frame). coverRef \
-`mpt_node_kind_precondition_reachable` (branch/ext/leaf/fail). Witnessed in \
-Progress/Routines.lean. Walk body (`mpt_walk`) still open under #11799" },
+guest; it is NOT the machine post. FULL DOMAIN: no input-domain gate (ABI hyps only). \
+coverRef `mpt_node_kind_precondition_reachable`. Witnessed in Progress/Routines.lean. \
+Walk body (`mpt_walk`) still open under #11799" },
+
 
   -- #11799 residual audit: hp_decode_nibbles machine predated registration.
   { family := "mpt", routine := "hp_decode_nibbles",

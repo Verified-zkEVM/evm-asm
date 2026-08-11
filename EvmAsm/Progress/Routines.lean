@@ -98,6 +98,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.MptNodeKindWire
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -542,9 +543,9 @@ def routineRegistry : List RoutineEntry := [
   -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
   -- fail joins) with operational `MptNodeKindResult` post — no input-domain
   -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
-  -- vs the arity-exact guest; do not rest the post on it. No current caller
-  -- uses `mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF
-  -- first needs the missing Result-to-WF/decode bridge.
+  -- vs the arity-exact guest; do not rest the post on it.
+  -- #12027: Result→kindTag wiring under WF (success arms kind < 3) lands in
+  -- MptNodeKindWire; existence + uniqueness witnessed below.
   routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
@@ -554,6 +555,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "entry values — guest restores them via count/nth saves; old regOwn "
         ++ "export discarded that and blocked hop consumers. PRE unchanged "
         ++ "(already concrete v18..v21 in kindCallerPre/countAmbient). "
+        ++ "#12027 wire: `mptNodeKindResult_eq_kindTag` (kind < 3) + "
+        ++ "`mptNodeKindResult_exists_kindTag` under WF; encode-domain count "
+        ++ "Success + path head HP; no #11341 (WF top-level .bytes only). "
         ++ "coverRef `mpt_node_kind_precondition_reachable`. Callees already "
         ++ "`.proven`; first walker-dispatch machine triple"),
 
@@ -941,6 +945,11 @@ private noncomputable abbrev _bytes_to_nibbles_routine_witness :=
 -- #11799 dep: whole-routine mpt_node_kind machine triple.
 private noncomputable abbrev _mpt_node_kind_routine_witness :=
   @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+-- #12027: Result → kindTag wiring under WF (success arms + constructive existence).
+private noncomputable abbrev _mpt_node_kind_result_eq_kindTag_witness :=
+  @EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
+private noncomputable abbrev _mpt_node_kind_result_exists_kindTag_witness :=
+  @EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
 -- #11799 residual audit: hp_decode_nibbles machine already existed; register it.
 private noncomputable abbrev _hp_decode_nibbles_routine_witness :=
