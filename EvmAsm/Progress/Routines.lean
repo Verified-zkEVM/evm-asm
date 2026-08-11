@@ -123,6 +123,8 @@ import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
+-- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
+import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -880,7 +882,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
         ++ "which is the form #12104 will close against once "
         ++ "tx_signing_hash_spec_within exists. Retirement: "
-        ++ "`txSigningHashResidualNote`")
+        ++ "`txSigningHashResidualNote`"),
+  -- #11800, the node-DB half. Whole-routine triple over the emitted
+  -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
+  -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
+  -- not just a model of it. Graded `.proven`, not `.conditional`: there is NO
+  -- input-domain gate and NO unproven-callee dependency. `node_db_lookup` is a
+  -- leaf -- it calls nothing, and in particular it does NOT hash: it compares
+  -- the digest ALREADY STORED in each record against the caller's target, so
+  -- the keccak obligation that `node_db_append` carries simply does not arise
+  -- here. Every hypothesis is resource/ABI: `hsh.length = 32` (the a0 buffer
+  -- the four-dword cascade reads), `(keccak256 m).length = 32` for the stored
+  -- digests -- which is `Stateless.SpecRef.keccak256_length`, unconditionally
+  -- true, so it excludes nothing -- u64-representability of node lengths and
+  -- of the record count, and two-byte return-address alignment. The post is
+  -- TOTAL: both the hit and the miss arm are inside the claim.
+  routine "node_db_lookup" .proven (some "node_db_lookup_spec_within")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.node_db_lookup`, "
+        ++ "step bound `5 + 20 * |nodes| + 3` (prologue ;; per-record round ;; "
+        ++ "exhaustion tail). Post is a `match` on `nodeDbFind`, the "
+        ++ "address-carrying refinement of `MptAssertions.nodeDbLookupSpec`: a "
+        ++ "hit pins `a0 = 0`, `*a1 = cursor + 40` (the record's NODE-BYTES "
+        ++ "address) and `*a2 = |node|` -- two different cells holding two "
+        ++ "different quantities, so the claim would not survive swapping them; "
+        ++ "a miss pins `a0 = 1` and both cells UNCHANGED, not merely owned. "
+        ++ "First-match-ness is real: the loop invariant carries "
+        ++ "`nodeDbLookupSpec (take j) = none`. The four-`BNE` cascade is shown "
+        ++ "to decide a 32-byte comparison exactly (`eq_of_dwords_eq`), and the "
+        ++ "`andi -8` cursor bump to be exactly `nodeDbStride` "
+        ++ "(`roundUp8_eq_alignToDword`). Composition to the spec reference is "
+        ++ "`node_db_lookup_result_eq_build_node_db`, chaining the pre-existing "
+        ++ "`nodeDbLookupSpec_eq_build_node_db` -- so the published length is "
+        ++ "the length of the node `witness_state.py`'s `node_db` maps the hash "
+        ++ "to. Non-vacuity is a COMPILED instantiation, "
+        ++ "`node_db_lookup_sample_witness`: a closed one-record DB whose post "
+        ++ "is reduced to the HIT arm. ⚠️ NOT established here: that "
+        ++ "`node_db_append` establishes the `nodeDbIs` shape this triple "
+        ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
+        ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
+        ++ "derived from the link map")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -892,9 +932,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 60 := by decide
+theorem routineCount_eq : routineCount = 61 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 23 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -909,7 +949,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 41 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 42 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1387,5 +1427,13 @@ private noncomputable abbrev _eip7702_auth_signing_hash_preimage_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 private noncomputable abbrev _eip7702_auth_signing_hash_decodes_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
+-- #11800 node-DB half: whole-routine `node_db_lookup` triple, its compiled
+-- non-vacuity instance, and the composition to `SpecRef.build_node_db`.
+private noncomputable abbrev _node_db_lookup_routine_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
+private noncomputable abbrev _node_db_lookup_sample_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
+private noncomputable abbrev _node_db_lookup_specref_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
 end EvmAsm.Progress
