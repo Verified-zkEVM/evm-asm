@@ -46,6 +46,7 @@ import EvmAsm.Evm64.Swap.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Stateless.State.AccountAssertions
 import EvmAsm.Stateless.State.AccountWriteUpsert
+import EvmAsm.Stateless.State.StorageWriteUpsert
 import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.MptAssertions
@@ -800,6 +801,22 @@ private noncomputable abbrev _accountWriteUpsert_rowsMap_witness :=
   @EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
 private noncomputable abbrev _accountWriteUpsert_keys_dictSet_witness :=
   @EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
+-- #11921 row 2 (writer half): the storage-side counterpart. `storageWriteUpsert_rowsMap`
+-- is the row-1 argument transposed -- `StorageWriteRowsMap`'s `Nodup` clause becomes a
+-- theorem about the writer. `storageWriteUpsert_baselines` has no row-1 analogue and is
+-- the one to keep gated: it says the writer never modifies an existing row's baseline,
+-- and a writer that merged `+96` like `+64` would keep uniqueness while producing a wrong
+-- state root -- which is #11547 / the 7251 multi-block residual, not a hypothetical.
+-- Model-level, same as row 1: both routines are raw `String`s (coverage doc :211,213), so
+-- no triple can be attached and no registry row is claimed.
+private noncomputable abbrev _storageWriteUpsert_rowsMap_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_rowsMap
+private noncomputable abbrev _storageWriteUpsert_nodup_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_nodup
+private noncomputable abbrev _storageWriteUpsert_baselines_witness :=
+  @EvmAsm.Stateless.State.storageWriteUpsert_baselines
+private noncomputable abbrev _storageRowLookup_storageWriteUpsert_witness :=
+  @EvmAsm.Stateless.State.storageRowLookup_storageWriteUpsert
 -- #11346: `account_exists_and_is_empty` split into the address lookup and the
 -- pure `EMPTY_ACCOUNT` kernel, which is the guest routine's comparison point.
 private noncomputable abbrev _accountExistsAndIsEmpty_eq_kernel_witness :=

@@ -42,8 +42,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
-#print axioms EvmAsm.Codegen.BgvU32leSpec.bgvU32leFlat_spec
-
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
@@ -67,6 +65,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
+
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
+
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 
@@ -115,6 +117,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+
+#print axioms EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
+
+#print axioms EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 
@@ -397,6 +403,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_nodup
 
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+
+#print axioms EvmAsm.Stateless.State.storageRowLookup_storageWriteUpsert
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_baselines
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_nodup
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_rowsMap
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 

@@ -144,18 +144,19 @@ unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
   { id := 4, name := "EVM interpreter loop on the decoded block",
     status := .blocked,
     blockedBy :=
-      [.infra "no simulation bridge from dispatched handlers to the SpecRef \
+       [.infra "no simulation bridge from dispatched handlers to the SpecRef \
 interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
-       .infra "`stage_system_call` has no machine post yet; #11578 proves only the \
-pure 0x01/0x02 request framing, with the tail-called dispatcher contract still \
-outstanding"],
-    auditedAt := some "2026-08-10 @76889ef97",
-    note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
+        .infra "`stage_system_call` has no machine post yet; #11578 rescoped off \
+derive_* shims (NOT leaves) to `execution_requests_hash` validation-accept \
+prefix (landed domainRestricted); hash half + stage_system_call still residual"],
+     auditedAt := some "2026-08-11",
+     note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
 M5's runtime fetch/decode/dispatch and 91 wired opcodes, for weeks. The real gap \
-is the simulation relation, which that row was hiding. #11578 adds the request-\
-derive framing bridge but does not close the `stage_system_call` premise" },
+is the simulation relation, which that row was hiding. #11578 lands \
+`execution_requests_hash_validation_accept` (parked until block_state_root + \
+requests_hash_verify port); does not close `stage_system_call`" },
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
