@@ -128,6 +128,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
@@ -683,16 +684,16 @@ def routineRegistry : List RoutineEntry := [
   -- Outer absorb uses signedCountdownLoop_reload_spec (hdr=LI at 0x8000368c);
   -- BLT-header signedCountdownLoop_spec does NOT apply (JAL→LI ≠ BLT 0x80003690).
   -- N/rem is length partition (len=136*N+rem, rem≤135), not an input-domain gate.
-  -- Post is operational keccakBodyDigest (guest pad+absorb+squeeze path); pure
-  -- SpecRef keccak256 bridge is residual, not absorbed here.
+  -- Post operational keccakBodyDigest; pure SpecRef bridge absorbed by #12037
+  -- (`keccakBodyDigest_eq_specref` / `_div_eq_specref`). Load-bearing consumer #12038.
   routine "zkvm_keccak256" .proven (some "zkvm_keccak256_spec_within")
       (notes := "whole-routine no-ra frame triple at GuestAddrs.zkvm_keccak256 "
         ++ "over zkvmKeccak256_prog (69 insn). Frame saves x8/x9/x18/x20 only "
         ++ "(not ra); JALR x0,x1 ret. Outer absorb loop: LI-header reload "
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
-        ++ "Post: a0=0, output=keccakBodyDigest (operational). Resource/ABI "
-        ++ "preconditions only → .proven"),
+        ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
+        ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
 
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
@@ -1143,6 +1144,11 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+-- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
+private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
+  @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
+private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
+  @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 -- #12018 phase 1: SHA-256 frame and setup boundaries are independently
 -- witnessed while the full-block loop and top-level wrapper remain open.
 private noncomputable abbrev _zkvm_sha256_frame_witness :=
