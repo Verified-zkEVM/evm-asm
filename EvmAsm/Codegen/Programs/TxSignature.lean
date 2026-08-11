@@ -17,12 +17,19 @@
   are consumed by one list walk, then canonical-strict content decoders
   validate and decode the scalar payloads.
 
-  No proofs yet -- these are codegen `String` defs only.
+  The six generated source strings are now Program-backed conversions. The
+  reusable String combinator remains above the generated blocks as the source
+  pattern for future extractors; `scripts/asm_to_program.py rewrite` evaluates
+  such combinator calls through Lean before generating the Program, fixture,
+  and `_eq_prog` drift guard.
 -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -129,9 +136,140 @@ private def txSignatureWalkExtractFunction (name p ptrComment : String) (skip : 
         0 : success
         1 : RLP parse failure / fields 6/7/8 missing
         2 : v > 8 bytes (cannot fit in u64) or r/s > 32 bytes -/
-def txLegacyExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "tx_legacy_extract_signature" "Ltlxs" "tx_rlp" 6
+def txLegacyExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_legacy_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 156)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 172)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 176)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 192)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 196)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 212)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 216)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_legacy_extract_signature + 236)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 356) (GuestAddrs.tx_legacy_extract_signature + 240)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 260)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 264)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_legacy_extract_signature + 288)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 356) (GuestAddrs.tx_legacy_extract_signature + 292)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 308)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_legacy_extract_signature + 332)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txLegacyExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txLegacyExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (48, .jal .x1 "rlp_walk_next"),
+    (53, .jal .x1 "rlp_walk_next"),
+    (59, .jal .x1 "rlp_content_to_u64_strict"),
+    (65, .jal .x1 "rlp_walk_next"),
+    (72, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (77, .jal .x1 "rlp_walk_next"),
+    (83, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txLegacyExtractSignatureFunction : String :=
+  "tx_legacy_extract_signature:\n" ++ emitProgramR txLegacyExtractSignature_prog txLegacyExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txLegacyExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txLegacyExtractSignatureFunction_eq_prog :
+    txLegacyExtractSignatureFunction = "tx_legacy_extract_signature:\n" ++ emitProgramR txLegacyExtractSignature_prog txLegacyExtractSignature_relocs := rfl
+
+#guard txLegacyExtractSignatureFunction.startsWith "tx_legacy_extract_signature:\n"
+#guard txLegacyExtractSignature_prog.length = 101
 /-- `zisk_tx_legacy_extract_signature`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx_rlp_len
@@ -213,9 +351,158 @@ def ziskTxLegacyExtractSignatureProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fields 9/10/11 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
-def txEip1559ExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "tx_eip1559_extract_signature" "Ltxes" "inner_rlp" 9
+def txEip1559ExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip1559_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 156)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 172)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 176)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 192)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 196)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 212)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 216)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 232)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 236)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 252)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 256)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 272)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 276)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_eip1559_extract_signature + 296)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 416) (GuestAddrs.tx_eip1559_extract_signature + 300)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 320)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 408) (GuestAddrs.tx_eip1559_extract_signature + 324)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip1559_extract_signature + 348)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_eip1559_extract_signature + 416) (GuestAddrs.tx_eip1559_extract_signature + 352)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip1559_extract_signature + 368)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip1559_extract_signature + 392)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txEip1559ExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip1559ExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (48, .jal .x1 "rlp_walk_next"),
+    (53, .jal .x1 "rlp_walk_next"),
+    (58, .jal .x1 "rlp_walk_next"),
+    (63, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_walk_next"),
+    (74, .jal .x1 "rlp_content_to_u64_strict"),
+    (80, .jal .x1 "rlp_walk_next"),
+    (87, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (92, .jal .x1 "rlp_walk_next"),
+    (98, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txEip1559ExtractSignatureFunction : String :=
+  "tx_eip1559_extract_signature:\n" ++ emitProgramR txEip1559ExtractSignature_prog txEip1559ExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip1559ExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEip1559ExtractSignatureFunction_eq_prog :
+    txEip1559ExtractSignatureFunction = "tx_eip1559_extract_signature:\n" ++ emitProgramR txEip1559ExtractSignature_prog txEip1559ExtractSignature_relocs := rfl
+
+#guard txEip1559ExtractSignatureFunction.startsWith "tx_eip1559_extract_signature:\n"
+#guard txEip1559ExtractSignature_prog.length = 116
 /-- `zisk_tx_eip1559_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : inner_rlp_len
@@ -292,9 +579,152 @@ def ziskTxEip1559ExtractSignatureProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fields 8/9/10 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
-def txEip2930ExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "tx_eip2930_extract_signature" "Lt29es" "inner_rlp" 8
+def txEip2930ExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip2930_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 156)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 172)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 176)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 192)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 196)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 212)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 216)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 232)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 236)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 252)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 256)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_eip2930_extract_signature + 276)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 396) (GuestAddrs.tx_eip2930_extract_signature + 280)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 300)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 388) (GuestAddrs.tx_eip2930_extract_signature + 304)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip2930_extract_signature + 328)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_eip2930_extract_signature + 396) (GuestAddrs.tx_eip2930_extract_signature + 332)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip2930_extract_signature + 348)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip2930_extract_signature + 372)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txEip2930ExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip2930ExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (48, .jal .x1 "rlp_walk_next"),
+    (53, .jal .x1 "rlp_walk_next"),
+    (58, .jal .x1 "rlp_walk_next"),
+    (63, .jal .x1 "rlp_walk_next"),
+    (69, .jal .x1 "rlp_content_to_u64_strict"),
+    (75, .jal .x1 "rlp_walk_next"),
+    (82, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (87, .jal .x1 "rlp_walk_next"),
+    (93, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txEip2930ExtractSignatureFunction : String :=
+  "tx_eip2930_extract_signature:\n" ++ emitProgramR txEip2930ExtractSignature_prog txEip2930ExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip2930ExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEip2930ExtractSignatureFunction_eq_prog :
+    txEip2930ExtractSignatureFunction = "tx_eip2930_extract_signature:\n" ++ emitProgramR txEip2930ExtractSignature_prog txEip2930ExtractSignature_relocs := rfl
+
+#guard txEip2930ExtractSignatureFunction.startsWith "tx_eip2930_extract_signature:\n"
+#guard txEip2930ExtractSignature_prog.length = 111
 /-- `zisk_tx_eip2930_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : inner_rlp_len
@@ -369,9 +799,170 @@ def ziskTxEip2930ExtractSignatureProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fields 11/12/13 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
-def txEip4844ExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "tx_eip4844_extract_signature" "Lt44es" "inner_rlp" 11
+def txEip4844ExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip4844_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 156)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 172)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 176)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 192)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 196)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 212)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 216)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 232)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 236)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 252)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 256)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 272)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 276)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 292)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 296)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 312)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 316)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_eip4844_extract_signature + 336)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 456) (GuestAddrs.tx_eip4844_extract_signature + 340)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 360)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 448) (GuestAddrs.tx_eip4844_extract_signature + 364)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip4844_extract_signature + 388)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_eip4844_extract_signature + 456) (GuestAddrs.tx_eip4844_extract_signature + 392)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip4844_extract_signature + 408)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip4844_extract_signature + 432)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txEip4844ExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip4844ExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (48, .jal .x1 "rlp_walk_next"),
+    (53, .jal .x1 "rlp_walk_next"),
+    (58, .jal .x1 "rlp_walk_next"),
+    (63, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_walk_next"),
+    (73, .jal .x1 "rlp_walk_next"),
+    (78, .jal .x1 "rlp_walk_next"),
+    (84, .jal .x1 "rlp_content_to_u64_strict"),
+    (90, .jal .x1 "rlp_walk_next"),
+    (97, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (102, .jal .x1 "rlp_walk_next"),
+    (108, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txEip4844ExtractSignatureFunction : String :=
+  "tx_eip4844_extract_signature:\n" ++ emitProgramR txEip4844ExtractSignature_prog txEip4844ExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip4844ExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEip4844ExtractSignatureFunction_eq_prog :
+    txEip4844ExtractSignatureFunction = "tx_eip4844_extract_signature:\n" ++ emitProgramR txEip4844ExtractSignature_prog txEip4844ExtractSignature_relocs := rfl
+
+#guard txEip4844ExtractSignatureFunction.startsWith "tx_eip4844_extract_signature:\n"
+#guard txEip4844ExtractSignature_prog.length = 126
 /-- `zisk_tx_eip4844_extract_signature`: probe BuildUnit. -/
 def ziskTxEip4844ExtractSignaturePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -451,9 +1042,164 @@ def ziskTxEip4844ExtractSignatureProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fields 10/11/12 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
-def txEip7702ExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "tx_eip7702_extract_signature" "Lt77es" "inner_rlp" 10
+def txEip7702ExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_eip7702_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 156)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 172)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 176)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 192)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 196)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 212)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 216)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 232)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 236)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 252)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 256)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 272)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 276)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 292)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 296)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_eip7702_extract_signature + 316)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 436) (GuestAddrs.tx_eip7702_extract_signature + 320)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 340)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 428) (GuestAddrs.tx_eip7702_extract_signature + 344)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip7702_extract_signature + 368)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_eip7702_extract_signature + 436) (GuestAddrs.tx_eip7702_extract_signature + 372)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_eip7702_extract_signature + 388)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_eip7702_extract_signature + 412)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `txEip7702ExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def txEip7702ExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (43, .jal .x1 "rlp_walk_next"),
+    (48, .jal .x1 "rlp_walk_next"),
+    (53, .jal .x1 "rlp_walk_next"),
+    (58, .jal .x1 "rlp_walk_next"),
+    (63, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_walk_next"),
+    (73, .jal .x1 "rlp_walk_next"),
+    (79, .jal .x1 "rlp_content_to_u64_strict"),
+    (85, .jal .x1 "rlp_walk_next"),
+    (92, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (97, .jal .x1 "rlp_walk_next"),
+    (103, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def txEip7702ExtractSignatureFunction : String :=
+  "tx_eip7702_extract_signature:\n" ++ emitProgramR txEip7702ExtractSignature_prog txEip7702ExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `txEip7702ExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem txEip7702ExtractSignatureFunction_eq_prog :
+    txEip7702ExtractSignatureFunction = "tx_eip7702_extract_signature:\n" ++ emitProgramR txEip7702ExtractSignature_prog txEip7702ExtractSignature_relocs := rfl
+
+#guard txEip7702ExtractSignatureFunction.startsWith "tx_eip7702_extract_signature:\n"
+#guard txEip7702ExtractSignature_prog.length = 121
 /-- `zisk_tx_eip7702_extract_signature`: probe BuildUnit. -/
 def ziskTxEip7702ExtractSignaturePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -537,9 +1283,122 @@ def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / fields 3/4/5 missing
         2 : y_parity > 8 bytes or r/s > 32 bytes -/
-def eip7702AuthorizationExtractSignatureFunction : String :=
-  txSignatureWalkExtractFunction "eip7702_authorization_extract_signature" "Lta77es" "tuple_rlp" 3
+def eip7702AuthorizationExtractSignature_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.eip7702_authorization_extract_signature + 68)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 72)),
+    .MV .x21 .x10,
+    .MV .x22 .x11,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 92)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 96)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 112)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 116)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 132)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 136)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 152)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 156)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.eip7702_authorization_extract_signature + 176)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 296) (GuestAddrs.eip7702_authorization_extract_signature + 180)),
+    .SD .x18 .x10 (0 : BitVec 12),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 200)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 288) (GuestAddrs.eip7702_authorization_extract_signature + 204)),
+    .SUB .x5 .x10 .x12,
+    .MV .x23 .x10,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.eip7702_authorization_extract_signature + 228)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.eip7702_authorization_extract_signature + 296) (GuestAddrs.eip7702_authorization_extract_signature + 232)),
+    .MV .x21 .x23,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.eip7702_authorization_extract_signature + 248)),
+    .BNE .x11 .x0 (36 : BitVec 13),
+    .SUB .x5 .x10 .x12,
+    .MV .x10 .x5,
+    .MV .x11 .x12,
+    .MV .x12 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.eip7702_authorization_extract_signature + 272)),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702AuthorizationExtractSignature_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702AuthorizationExtractSignature_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (28, .jal .x1 "rlp_walk_next"),
+    (33, .jal .x1 "rlp_walk_next"),
+    (38, .jal .x1 "rlp_walk_next"),
+    (44, .jal .x1 "rlp_content_to_u64_strict"),
+    (50, .jal .x1 "rlp_walk_next"),
+    (57, .jal .x1 "rlp_content_to_u256_be_strict"),
+    (62, .jal .x1 "rlp_walk_next"),
+    (68, .jal .x1 "rlp_content_to_u256_be_strict") ]
+
+def eip7702AuthorizationExtractSignatureFunction : String :=
+  "eip7702_authorization_extract_signature:\n" ++ emitProgramR eip7702AuthorizationExtractSignature_prog eip7702AuthorizationExtractSignature_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702AuthorizationExtractSignature_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702AuthorizationExtractSignatureFunction_eq_prog :
+    eip7702AuthorizationExtractSignatureFunction = "eip7702_authorization_extract_signature:\n" ++ emitProgramR eip7702AuthorizationExtractSignature_prog eip7702AuthorizationExtractSignature_relocs := rfl
+
+#guard eip7702AuthorizationExtractSignatureFunction.startsWith "eip7702_authorization_extract_signature:\n"
+#guard eip7702AuthorizationExtractSignature_prog.length = 86
 /-- `zisk_eip7702_authorization_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : tuple_rlp_len
