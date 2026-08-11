@@ -22,7 +22,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose4
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 open EvmAsm.Evm64.Terminating (copyIntoRegion)
 
 /-! ## CONT-side reshape (K34 boundary)
@@ -228,7 +228,7 @@ theorem wdBBField3
     (hf2 : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2)
     (hl2 : l2.toNat = 20) :
     let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin ((4 + (1 + n34) + 1) + 8) (WB + 180) raSaved fullCode
       ((((.x1 : Reg) ↦ᵣ raEntry) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -420,7 +420,7 @@ theorem wdField2ContEpi
         s5 := s5 }
     cpsTripleWithin (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))
       (WB + 116) raIn fullCode
       (k20ContPost spW listBase saved2 bytes listLen **
        (wdStackK20Deep spW ** (spW ↦ₘ raIn) ** ((spW + 8) ↦ₘ s0Old) **
@@ -726,7 +726,7 @@ theorem wdBBField2
     cpsTripleWithin ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8))))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))
       (WB + 80) raSaved fullCode
       ((((.x1 : Reg) ↦ᵣ raEntry) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ outBase) ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
@@ -754,7 +754,7 @@ theorem wdBBField2
   -- fail edge → DecodeFailure.field2List via wdK20FailArm
   have h_t : cpsTripleWithin (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))
       (WB + 212) raSaved fullCode
       (k20FailPost spW listBase wOldOff wOldLen
         { ra := WB + 112, s0 := listBase, s1 := len, s2 := outBase, s3 := s3, s4 := s4,
@@ -831,11 +831,11 @@ theorem wdBBField1
       isValidByteAccess ((outBase + 16) + BitVec.ofNat 64 k) = true)
     (hf0 : Result bytes listBase listLen 0 (0 : Word) v0) :
     cpsTripleWithin ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))))
       (WB + 56) raSaved fullCode
       ((((.x1 : Reg) ↦ᵣ raEntry) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -876,13 +876,13 @@ theorem wdBBField1
     (show (7 : Nat) ≤ ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))) from by omega)
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))) from by omega)
     harm
   -- continue edge → field-1 Result pinned, K34→K20 reshape, field-2 backbone
   have h_f : cpsTripleWithin ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
       (5 + (5 + (6 * (19 + 1)) +
       ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8))))
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))
       (WB + 80) raSaved fullCode
       (k34ContPost spW newSp listBase (WB + 76) { ra := WB + 76, s0 := listBase, s1 := len }
         { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3, s4 := s4,
@@ -1000,13 +1000,13 @@ theorem wdBBField0
     (houtvalid : ∀ k, k < 20 →
       isValidByteAccess ((outBase + 16) + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8))))))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))))
       (WB + 32) raSaved fullCode
       ((((.x1 : Reg) ↦ᵣ raEntry) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
         (.x18 ↦ᵣ outBase) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -1045,19 +1045,19 @@ theorem wdBBField0
       xperm_hyp hp)
   have h_t := cpsTripleWithin_mono_nSteps
     (show (7 : Nat) ≤ ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8))))) from by omega)
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8))))) from by omega)
     harm
   -- continue edge → field-0 Result pinned, K34→K34 passthrough, field-1 backbone
   have h_f : cpsTripleWithin ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
-      ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+      ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
       ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
       (5 + (5 + (6 * (19 + 1)) +
       ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))))
       (WB + 56) raSaved fullCode
       (k34ContPost spW newSp listBase (WB + 52) { ra := WB + 52, s0 := listBase, s1 := len }
         { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3, s4 := s4,
@@ -1174,13 +1174,13 @@ theorem withdrawal_decode_spec_within
       isValidByteAccess ((outBase + 16) + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (8 +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
-        ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
         ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
         (5 + (5 + (6 * (19 + 1)) +
         ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
-          ((1 + ((7 + (1 + (7 * bytes.length + 11))) + 5)) + 5))) + 1) + 8)))))))
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))))))
       WB raSaved fullCode
       (stackFree spW 12 ** (.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ raSaved) ** (.x8 ↦ᵣ s0Old) **
        (.x9 ↦ᵣ s1Old) ** (.x18 ↦ᵣ s2Old) ** (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ len) **

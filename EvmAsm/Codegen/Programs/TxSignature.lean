@@ -57,19 +57,19 @@ private def txSignatureWalkExtractFunction (name p ptrComment : String) (skip : 
   "  # ---- Signature field 0: y_parity/v (canonical uint <= 8 bytes) -> u64 ----\n" ++
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
   "  sub t0, a0, a2; mv s7, a0; mv a0, t0; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, ." ++ p ++ "_size\n" ++
   "  sd a0, 0(s2); mv s5, s7\n" ++
   "  # ---- Signature field 1: r (canonical u256 BE <= 32 bytes) ----\n" ++
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
   "  sub t0, a0, a2; mv s7, a0; mv a0, t0; mv a1, a2; mv a2, s3\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, ." ++ p ++ "_size\n" ++
   "  mv s5, s7\n" ++
   "  # ---- Signature field 2: s (canonical u256 BE <= 32 bytes) ----\n" ++
   "  mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, ." ++ p ++ "_fail\n" ++
   "  sub t0, a0, a2; mv a0, t0; mv a1, a2; mv a2, s4\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, ." ++ p ++ "_size\n" ++
   "  li a0, 0\n" ++
   "  j ." ++ p ++ "_ret\n" ++

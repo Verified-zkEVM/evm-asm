@@ -1182,6 +1182,13 @@ def _collect_guest_addr_syms():
         'runtime_tx_settle_regular_gas_left',
         'runtime_tx_settle_state_gas_left',
         'runtime_tx_settle_state_gas_used',
+        # Canonical-strict RLP siblings are hand-maintained SAsm programs,
+        # not entries in the legacy asm-fixture manifest.  Their wrappers and
+        # leaves are nevertheless linked into the guest closure and therefore
+        # must be retained when GuestAddrs is regenerated from the ELF.
+        'rlp_content_to_u64_strict',
+        'rlp_content_to_u256_be_strict',
+        'rlp_field_to_u64_strict',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

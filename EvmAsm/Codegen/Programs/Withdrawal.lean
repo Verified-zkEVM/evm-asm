@@ -403,13 +403,13 @@ def withdrawalDecode_prog : Program :=
     .MV .x11 .x9,
     .LI .x12 (0 : Word),
     .MV .x13 .x18,
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 48)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 48)),
     .BNE .x10 .x0 (160 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .LI .x12 (1 : Word),
     .ADDI .x13 .x18 (8 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 72)),
     .BNE .x10 .x0 (136 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
@@ -440,7 +440,7 @@ def withdrawalDecode_prog : Program :=
     .MV .x11 .x9,
     .LI .x12 (3 : Word),
     .ADDI .x13 .x18 (40 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 196)),
     .BNE .x10 .x0 (12 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
@@ -456,14 +456,14 @@ def withdrawalDecode_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def withdrawalDecode_relocs : RelocTable :=
-  [ (12, .jal .x1 "rlp_field_to_u64"),
-    (18, .jal .x1 "rlp_field_to_u64"),
+  [ (12, .jal .x1 "rlp_field_to_u64_strict"),
+    (18, .jal .x1 "rlp_field_to_u64_strict"),
     (23, .la .x13 "wd_offset"),
     (25, .la .x14 "wd_length"),
     (27, .jal .x1 "rlp_list_nth_item"),
     (29, .la .x5 "wd_length"),
     (34, .la .x5 "wd_offset"),
-    (49, .jal .x1 "rlp_field_to_u64") ]
+    (49, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def withdrawalDecodeFunction : String :=
   "withdrawal_decode:\n" ++ emitProgramR withdrawalDecode_prog withdrawalDecode_relocs
@@ -502,8 +502,8 @@ def ziskWithdrawalDecodePrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lwd_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   ".Lwd_pdone:"
 
@@ -761,7 +761,8 @@ def ziskProcessWithdrawalsBlockPrologue : String :=
   "  j .Lpwb_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   u256FromU64BeFunction ++ "\n" ++
   u256MulU64BeFunction ++ "\n" ++
@@ -917,7 +918,8 @@ def ziskWithdrawalsSumAmountsPrologue : String :=
   "  j .Lwsa_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   withdrawalDecodeFunction ++ "\n" ++
   withdrawalsSumAmountsFunction ++ "\n" ++
   ".Lwsa_pdone:"

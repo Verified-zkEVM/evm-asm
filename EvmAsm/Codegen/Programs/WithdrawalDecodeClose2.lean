@@ -491,7 +491,7 @@ theorem wdField2Setup (v10 v11 v12 v13 v14 listBase len : Word) :
 
 /-! ## Field-0 call adapter: arg shuffle ;; jal ;; strict K34 selector -/
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-0 RLP call adapter [8]-[12] + the strict `rlp_field_to_u64` selector:
     the arg shuffle establishes K34's `flatPre` for index 0 / output `outBase`,
@@ -513,7 +513,7 @@ theorem wdField0Call
       { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 32) (WB + 52) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -557,12 +557,18 @@ theorem wdField0Call
     (by decide) (by decide) hsalign hslack hover hvalid
     (by show (WB + 52) &&& ~~~(1 : Word) = WB + 52; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
-  have hcall := callWithin_spec (WB + 48) B raIn
-    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 48))
+  dsimp [outer] at hflatC
+  have hcall := callWithin_spec
+    (P := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPre spW newSp listBase len
+      (0 : Word) outBase oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes)
+    (Q := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spW newSp listBase
+      oldOffset oldLen outer saved bytes listLen 0)
+    (WB + 48) B raIn
+    (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 48))
     n34 (by show (WB + 48) + signExtend21 _ = B; decide)
     (fun a i hi => wd_mono a i
       (CodeReq.ofProg_mem_at WB (WB + 48) withdrawalDecode_prog 12
-        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 48)))
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 48)))
         (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi))
     (by unfold flatPre wholeRest; pcf) hflatC
   rw [show (WB + 48 + 4 : Word) = WB + 52 from by bv_omega] at hcall
@@ -573,7 +579,7 @@ theorem wdField0Call
 
 /-! ## Field-1 call adapter [14]-[18] + K34 -/
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-1 RLP call adapter [14]-[18] + `rlp_field_to_u64` (index 1, output
     `outBase+8`), `ra := WB+76`. -/
@@ -593,7 +599,7 @@ theorem wdField1Call
       { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 56) (WB + 76) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -635,12 +641,18 @@ theorem wdField1Call
     (by decide) (by decide) hsalign hslack hover hvalid
     (by show (WB + 76) &&& ~~~(1 : Word) = WB + 76; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
-  have hcall := callWithin_spec (WB + 72) B raIn
-    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72))
+  dsimp [outer] at hflatC
+  have hcall := callWithin_spec
+    (P := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPre spW newSp listBase len
+      (1 : Word) (outBase + 8) oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes)
+    (Q := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spW newSp listBase
+      oldOffset oldLen outer saved bytes listLen 1)
+    (WB + 72) B raIn
+    (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 72))
     n34 (by show (WB + 72) + signExtend21 _ = B; decide)
     (fun a i hi => wd_mono a i
       (CodeReq.ofProg_mem_at WB (WB + 72) withdrawalDecode_prog 18
-        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 72)))
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 72)))
         (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi))
     (by unfold flatPre wholeRest; pcf) hflatC
   rw [show (WB + 72 + 4 : Word) = WB + 76 from by bv_omega] at hcall
@@ -650,7 +662,7 @@ theorem wdField1Call
 
 /-! ## Field-3 call adapter [45]-[49] + K34 -/
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-3 RLP call adapter [45]-[49] + `rlp_field_to_u64` (index 3, output
     `outBase+40`), `ra := WB+200`. -/
@@ -670,7 +682,7 @@ theorem wdField3Call
       { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsTripleWithin (4 + (1 + n34)) (WB + 180) (WB + 200) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -712,12 +724,18 @@ theorem wdField3Call
     (by decide) (by decide) hsalign hslack hover hvalid
     (by show (WB + 200) &&& ~~~(1 : Word) = WB + 200; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
-  have hcall := callWithin_spec (WB + 196) B raIn
-    (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196))
+  dsimp [outer] at hflatC
+  have hcall := callWithin_spec
+    (P := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPre spW newSp listBase len
+      (3 : Word) (outBase + 40) oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes)
+    (Q := EvmAsm.Codegen.RlpFieldToU64StrictSAsm.flatPost spW newSp listBase
+      oldOffset oldLen outer saved bytes listLen 3)
+    (WB + 196) B raIn
+    (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 196))
     n34 (by show (WB + 196) + signExtend21 _ = B; decide)
     (fun a i hi => wd_mono a i
       (CodeReq.ofProg_mem_at WB (WB + 196) withdrawalDecode_prog 49
-        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.withdrawal_decode + 196)))
+        (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.withdrawal_decode + 196)))
         (by bv_omega) (by rw [wd_length]; decide) rfl (by rw [wd_length]; decide) a i hi))
     (by unfold flatPre wholeRest; pcf) hflatC
   rw [show (WB + 196 + 4 : Word) = WB + 200 from by bv_omega] at hcall

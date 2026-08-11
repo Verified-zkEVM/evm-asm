@@ -400,6 +400,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   blockVerdictFunction ++ "\n" ++
   -- #10685 PR2: bv_emit_single_tx_tl7708 unlinked from guest; KEEP Function for probes.
   rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   bgvU32leFunction ++ "\n" ++
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
