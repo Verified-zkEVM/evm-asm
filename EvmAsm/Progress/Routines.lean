@@ -99,6 +99,10 @@ import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
+-- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
+-- (no whole-routine row yet; witnesses still required for axiom gate).
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
@@ -975,5 +979,12 @@ private noncomputable abbrev _zkvm_sha256_full_block_loop_witness :=
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
+-- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha.
+-- No Routines ROW yet (whole erh/rhv still open); witnesses still required so
+-- check-axioms covers these modules (same pattern as #12018 phase witnesses).
+private noncomputable abbrev _erh_hash_one_empty_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
+private noncomputable abbrev _erh_hash_one_nonempty_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
 
 end EvmAsm.Progress
