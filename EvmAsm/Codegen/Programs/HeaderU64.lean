@@ -56,7 +56,7 @@ def headerExtractDifficulty_prog : Program :=
     .SD .x2 .x1 (0 : BitVec 12),
     .MV .x13 .x12,
     .LI .x12 (7 : Word),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 2147483664),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483664),
     .LD .x1 .x2 (0 : BitVec 12),
     .ADDI .x2 .x2 (16 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
@@ -65,7 +65,7 @@ def headerExtractDifficulty_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtractDifficulty_relocs : RelocTable :=
-  [ (4, .jal .x1 "rlp_field_to_u64") ]
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
 
 def headerExtractDifficultyFunction : String :=
   "header_extract_difficulty:\n" ++ emitProgramR headerExtractDifficulty_prog headerExtractDifficulty_relocs
@@ -91,7 +91,7 @@ def ziskHeaderExtractDifficultyPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhed_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractDifficultyFunction ++ "\n" ++
   ".Lhed_pdone:"
 
