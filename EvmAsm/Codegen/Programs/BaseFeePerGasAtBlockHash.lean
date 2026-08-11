@@ -34,7 +34,7 @@ def headerExtractBaseFeeU64BhFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 15\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -43,7 +43,7 @@ def headerExtractBaseFeeU64BhFunction : String :=
 
     Hash-keyed extractor for
     `header.block.base_fee_per_gas` (RLP field 15, u64 BE
-    in practice; u256 in spec).
+    in practice; Uint in spec).
 
     Pipeline (composes K19 + the
     `header_extract_base_fee_u64` helper from
@@ -138,7 +138,7 @@ def ziskBaseFeePerGasAtBlockHashPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBaseFeeU64BhFunction ++ "\n" ++
   baseFeePerGasAtBlockHashFunction ++ "\n" ++
   ".Lbfbh_pdone:"

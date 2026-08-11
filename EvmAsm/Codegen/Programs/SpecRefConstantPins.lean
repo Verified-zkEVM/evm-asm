@@ -31,39 +31,35 @@
   already pinned. The other three are the hex-`String` constants in
   `EvmAsm/Stateless/Constants.lean` — and one of those is **wrong**.
 
-  ## ⛔ DIVERGENCE FOUND: `emptyOmmerHashHex` is the empty-*trie* root
+  ## ✅ DIVERGENCE REPAIRED (#12081): `emptyOmmerHashHex` now holds the empty-ommers hash
 
-  `EvmAsm/Stateless/Constants.lean:63` reads
+  `EvmAsm/Stateless/Constants.lean:63` previously read
 
       def emptyOmmerHashHex : String := emptyTrieRootHex
 
-  which makes it `56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421`.
-  The empty ommers hash is **not** that value. `EMPTY_OMMER_HASH = keccak256(rlp([]))`
-  hashes the RLP of the empty **list** (`0xc0`), whereas `EMPTY_TRIE_ROOT =
-  keccak256(rlp(b""))` hashes the RLP of the empty **byte string** (`0x80`). The two
-  differ:
+  which made it `56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421` —
+  the empty-*trie* root. `EMPTY_OMMER_HASH = keccak256(rlp([]))` hashes the RLP of the
+  empty **list** (`0xc0`), whereas `EMPTY_TRIE_ROOT = keccak256(rlp(b""))` hashes the
+  RLP of the empty **byte string** (`0x80`); the two differ. The slip's mechanism: the
+  old docstring glossed `keccak256(rlp_encode([]))` as `keccak256(0x80)`, conflating
+  the empty list with the empty string, and the alias inherited the conflation.
 
-  * `EMPTY_OMMER_HASH  = 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347`
-  * `emptyOmmerHashHex = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421`
+  #12082 recorded the divergence here as the kernel-checked theorems
+  `divergence_emptyOmmerHashHex` / `divergence_emptyOmmerHashHex_eq_trieRoot` and
+  deliberately deferred the repair to #12081 so defect and fix were reviewed on their
+  own terms. #12081 landed the repair: the constant now holds the correct literal, the
+  docs were corrected, and the two divergence theorems were **retired** — their content
+  *was* the bug, so inverting them would have stated the fix twice under a misleading
+  name. The record survives here and in the `fix_emptyOmmerHashHex` theorems below.
 
-  The docstring at `Constants.lean:52` shows where the slip came from — it glosses
-  `keccak256(rlp_encode([]))` as `keccak256(0x80)`, conflating the empty list with the
-  empty string; the alias at line 60 then inherits the conflation.
-
-  Both other witnesses of the constant have the *correct* value:
-  `EvmAsm.Stateless.SpecRef.EMPTY_OMMER_HASH` (`SeamShell.lean:111`) is
-  `keccak256 (encS (.list []))`, and all twelve emitted `.data` copies begin
-  `0x1d, 0xcc, 0x4d, 0xe8`. `emptyOmmerHashHex` is the only outlier.
-
-  **This module records the divergence; it does not repair it.** The repair belongs in
-  `Constants.lean` and is deliberately left to a separate change so the defect and its
-  fix are reviewed on their own terms. `divergence_emptyOmmerHashHex` below is the
-  kernel-checked statement of it. Mitigating (not exonerating) fact: nothing currently
-  reads `emptyOmmerHashHex` — the only consumer of `EvmAsm.Stateless.Constants` today is
-  `BlockVerdictParams.lean:282`, which takes `resourceBlockGasLimit`. So this is a loaded
-  gun rather than a fired one: the module's own docstring advertises it as the "single
-  source of truth" for exactly these constants, so the first consumer to reach for the
-  named constant instead of an inline literal gets the wrong hash.
+  Verified at the repair: `keccak256(0xc0) =
+  1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347` and
+  `keccak256(0x80) = 56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421`
+  (both computed, not transcribed). The SpecRef witness
+  (`EvmAsm.Stateless.SpecRef.EMPTY_OMMER_HASH`, `SeamShell.lean:111`, which computes
+  `keccak256 (encS (.list []))`) and all twelve emitted `.data` copies
+  (`0x1d, 0xcc, 0x4d, 0xe8`) already carried the correct value; the pinned `String`
+  constant now agrees with them.
 
   ## What this module pins
 
@@ -206,26 +202,22 @@ theorem trieRoot_ne_codeHash : hexNat? emptyTrieRootHex ≠ hexNat? keccak256Emp
     Stated, not repaired. See the module docstring for the provenance of the slip and for
     the two witnesses that carry the correct value. -/
 
-/-- ⛔ **`emptyOmmerHashHex` does not hold the empty-ommers hash.**
+/-- ✅ **`emptyOmmerHashHex` holds the empty-ommers hash** (the #12081 fix pin,
+    replacing the retired `divergence_emptyOmmerHashHex`).
 
-    The first conjunct is the value it actually holds — the empty-*trie* root. The second
-    is the value it is named for, `keccak256(rlp([])) = keccak256(0xc0)`, which is what
-    `EvmAsm.Stateless.SpecRef.EMPTY_OMMER_HASH` computes and what all twelve emitted
-    `.data` copies contain. The third records that the alias is literally the trie-root
-    constant, which is the mechanism of the defect rather than a coincidence of values. -/
-theorem divergence_emptyOmmerHashHex :
+    The first conjunct is the value it now holds, `keccak256(0xc0)`. The second is the
+    trie-root value it *used* to alias — kept in the statement so the record of the
+    divergence is itself kernel-checked rather than only narrated above. The third
+    records, in the caller-facing form the retired
+    `divergence_emptyOmmerHashHex_eq_trieRoot` used, that reaching for the named
+    ommers constant no longer yields the storage-root sentinel. -/
+theorem fix_emptyOmmerHashHex :
     hexNat? emptyOmmerHashHex
+        = some 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
+      ∧ hexNat? emptyTrieRootHex
         = some 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421
-      ∧ hexNat? emptyOmmerHashHex
-        ≠ some 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347
-      ∧ emptyOmmerHashHex = emptyTrieRootHex := by
-  refine ⟨by decide, by decide, rfl⟩
-
-/-- The consequence in the form a caller would meet it: anything that reaches for the
-    named ommers constant gets the storage-root sentinel instead. -/
-theorem divergence_emptyOmmerHashHex_eq_trieRoot :
-    hexNat? emptyOmmerHashHex = hexNat? emptyTrieRootHex := by
-  decide
+      ∧ hexNat? emptyOmmerHashHex ≠ hexNat? emptyTrieRootHex := by
+  refine ⟨by decide, by decide, by decide⟩
 
 /-! ## Beyond the sentinels: the *derived* SpecRef constants
 

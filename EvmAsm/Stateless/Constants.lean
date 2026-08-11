@@ -49,17 +49,20 @@ def resourceBlockGasLimit : Nat := 200000000
 def keccak256EmptyHashHex : String :=
   "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
 
-/-- Hex string of `keccak256(rlp_encode([])) =
-    keccak256(0x80)`. The MPT root of an empty trie; accounts with
-    no storage have `storage_root = emptyTrieRootHex`. Also the
-    post-merge `ommers_hash` constant -- since post-merge headers
-    never reference ommers, the field is always this fixed value. -/
+/-- Hex string of `keccak256(rlp_encode("")) = keccak256(0x80)`
+    — keccak of the RLP empty BYTE STRING. The MPT root of an empty trie;
+    accounts with no storage have `storage_root = emptyTrieRootHex`. This is
+    NOT the post-merge `ommers_hash` constant (that is `emptyOmmerHashHex`
+    below, keccak of the RLP empty LIST `0xc0`). -/
 def emptyTrieRootHex : String :=
   "56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
-/-- Alias for `emptyTrieRootHex`. Post-merge headers carry
-    `ommers_hash = keccak256(rlp([]))` because there are no ommer
-    blocks in proof-of-stake. -/
-def emptyOmmerHashHex : String := emptyTrieRootHex
+/-- `EMPTY_OMMER_HASH = keccak256(rlp([]))` — keccak of the RLP empty LIST
+    (`0xc0`). Post-merge headers carry this fixed `ommers_hash` value because
+    there are no ommer blocks in proof-of-stake. Distinct from
+    `emptyTrieRootHex` (keccak of `0x80`); the two were aliased until
+    GH #12081. -/
+def emptyOmmerHashHex : String :=
+  "1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 
 end EvmAsm.Stateless.Constants
