@@ -872,7 +872,8 @@ private theorem segments_rate_branch_spec
         (((.x10 ↦ᵣ scratchBase) ** (.x19 ↦ᵣ scratchBase) **
           regOwns keccakCsrsRest **
           bytesRegion scratchBase (setBytes st 0 (keccakBytes st 0)) **
-          (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) ** A) := by
+          (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
+          (⌜vOffset = (136 : Word)⌝ ** A)) := by
   let Arate : Assertion :=
     (.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
       bytesRegion scratchBase st ** A
@@ -895,23 +896,25 @@ private theorem segments_rate_branch_spec
       rw [show signExtend13 (-40 : BitVec 13) = (-40 : Word) from by decide]
       bv_omega] using hRate
   have hCont := segments_rate_continuation_spec cr hdr scratchBase v10 st
-    ((.x5 ↦ᵣ (136 : Word)) ** A)
-    (pcFree_sepConj (by pcf) hA) hst hb8 hvalid hmemMv hmemCsrs hmemLi0 hmemJal
+    ((.x5 ↦ᵣ (136 : Word)) ** (⌜vOffset = (136 : Word)⌝ ** A))
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hA))
+    hst hb8 hvalid hmemMv hmemCsrs hmemLi0 hmemJal
   have hCont' : cpsTripleWithin 4 (hdr + 40) (hdr - 4) cr
       (((.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
         bytesRegion scratchBase st ** (.x20 ↦ᵣ (136 : Word)) **
-        (.x5 ↦ᵣ (136 : Word))) ** A)
+        (.x5 ↦ᵣ (136 : Word))) ** (⌜vOffset = (136 : Word)⌝ ** A))
       (((.x10 ↦ᵣ scratchBase) ** (.x19 ↦ᵣ scratchBase) **
         regOwns keccakCsrsRest **
         bytesRegion scratchBase (setBytes st 0 (keccakBytes st 0)) **
-        (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) ** A) := by
+        (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
+        (⌜vOffset = (136 : Word)⌝ ** A)) := by
     simpa only [sepConj_assoc'] using hCont
   have hperm : ∀ h,
       (((.x20 ↦ᵣ vOffset) ** (.x5 ↦ᵣ (136 : Word)) **
         ⌜vOffset = (136 : Word)⌝) ** Arate) h →
       (((.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
         bytesRegion scratchBase st ** (.x20 ↦ᵣ (136 : Word)) **
-        (.x5 ↦ᵣ (136 : Word))) ** A) h := by
+        (.x5 ↦ᵣ (136 : Word))) ** (⌜vOffset = (136 : Word)⌝ ** A)) h := by
     intro h hp
     have hp' :
         ((.x20 ↦ᵣ vOffset) ** (.x5 ↦ᵣ (136 : Word)) ** Arate **
@@ -919,7 +922,6 @@ private theorem segments_rate_branch_spec
       simpa only [Arate] using (by
         have := hp
         xperm_hyp this)
-    have hp'' := sepConj_strip_pure_end3 h hp'
     have heq : vOffset = (136 : Word) := by
       have hp'''' :
           (((.x20 ↦ᵣ vOffset) ** (.x5 ↦ᵣ (136 : Word)) ** Arate) **
@@ -929,10 +931,16 @@ private theorem segments_rate_branch_spec
         (.x20 ↦ᵣ vOffset) ** (.x5 ↦ᵣ (136 : Word)) ** Arate) h).1 hp''''
       exact hinner.2
     have hp''' :
-        ((.x20 ↦ᵣ (136 : Word)) ** (.x5 ↦ᵣ (136 : Word)) ** Arate) h := by
-      simpa only [heq] using hp''
-    simp only [Arate] at hp''' ⊢
-    xperm_hyp hp'''
+        ((.x20 ↦ᵣ (136 : Word)) ** (.x5 ↦ᵣ (136 : Word)) ** Arate **
+          ⌜vOffset = (136 : Word)⌝) h := by
+      simpa only [heq] using hp'
+    have hp'''' :
+        ((.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
+          bytesRegion scratchBase st ** (.x20 ↦ᵣ (136 : Word)) **
+          (.x5 ↦ᵣ (136 : Word)) ** ⌜vOffset = (136 : Word)⌝ ** A) h := by
+      simp only [Arate] at hp''' ⊢
+      xperm_hyp hp'''
+    simpa only [sepConj_assoc'] using hp''''
   exact cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
     hRate' hperm hCont' (fun h hp => by
       simp only [Arate] at hp ⊢
@@ -1011,7 +1019,8 @@ private theorem segments_byte_round_spec
           (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
           ((.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
             (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
-            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 ** A)) h) := by
+            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 **
+            (⌜BitVec.ofNat 64 (off + k + 1) = (136 : Word)⌝ ** A))) h) := by
   let F : Assertion := (.x10 ↦ᵣ v10) ** regOwns keccakCsrsRest ** A
   have hF : F.pcFree := by
     simp only [F]
