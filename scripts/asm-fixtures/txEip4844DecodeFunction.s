@@ -15,7 +15,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2             # content_ptr = advanced - len
   mv a1, a2                  # content_len
-  jal ra, rlp_content_to_u64 # a0=u64, a1=status
+  jal ra, rlp_content_to_u64_strict # a0=u64, a1=status
   bnez a1, .Lt48_fail
   sd a0, 0(s2)
   # Field 1: nonce (u64 at offset 8)
@@ -24,7 +24,7 @@ tx_eip4844_decode:
   mv s3, a0
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt48_fail
   sd a0, 8(s2)
   # Field 2: max_priority_fee_per_gas (u256 at offset 16)
@@ -34,7 +34,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 16
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt48_fail
   # Field 3: max_fee_per_gas (u256 at offset 48)
   mv a0, s3; mv a1, s1
@@ -43,7 +43,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 48
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt48_fail
   # Field 4: gas_limit (u64 at offset 80)
   mv a0, s3; mv a1, s1
@@ -51,7 +51,7 @@ tx_eip4844_decode:
   mv s3, a0
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt48_fail
   sd a0, 80(s2)
   # Field 5: to (0 or 20 bytes at 88; to_present u32 at 108)
@@ -82,7 +82,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 112
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt48_fail
   # Field 7: data (offset+length u32 at 144/148)
   mv a0, s3; mv a1, s1
@@ -111,7 +111,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   la a2, tcbg_blob_fee_be
-  jal ra, rlp_content_to_u256_be  # persists full u256 BE -> tcbg; a0=status
+  jal ra, rlp_content_to_u256_be_strict  # persists full u256 BE -> tcbg; a0=status
   bnez a0, .Lt48_fail
   la t0, tcbg_blob_fee_be
   lbu t1, 24(t0); slli t1, t1, 56
@@ -138,7 +138,7 @@ tx_eip4844_decode:
   mv s3, a0
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
-  jal ra, rlp_content_to_u64
+  jal ra, rlp_content_to_u64_strict
   bnez a1, .Lt48_fail
   sd a0, 176(s2)
   # Field 12: r (u256 at offset 184)
@@ -148,7 +148,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 184
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt48_fail
   # Field 13: s (u256 at offset 216)
   mv a0, s3; mv a1, s1
@@ -157,7 +157,7 @@ tx_eip4844_decode:
   bnez a1, .Lt48_fail
   sub a0, a0, a2; mv a1, a2
   addi a2, s2, 216
-  jal ra, rlp_content_to_u256_be
+  jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Lt48_fail
   li a0, 0
   j .Lt48_ret

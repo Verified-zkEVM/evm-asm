@@ -43,6 +43,8 @@ import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.ContentToU256Be
+import EvmAsm.Rv64.RLP.ContentToU64Strict
+import EvmAsm.Rv64.RLP.ContentToU256BeStrict
 import EvmAsm.Rv64.RLP.Field0ToU64
 
 namespace EvmAsm.Codegen
@@ -305,6 +307,29 @@ theorem rlpContentToU64Function_eq_verified_prog :
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
 #guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
+/-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
+
+    This is the typed-transaction / typed-withdrawal surface.  It is kept
+    beside the lenient witness/account decoder because the two callers have
+    different reference semantics: typed scalar decoding rejects a leading
+    zero, while account and BAL state witnesses use `int.from_bytes`.
+
+    The strict leaf returns status `3` for a nonempty payload whose first byte
+    is zero, status `2` for a payload wider than eight bytes, and status `0`
+    otherwise. -/
+def rlpContentToU64StrictFunction : String :=
+  "rlp_content_to_u64_strict:\n" ++
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog
+
+theorem rlpContentToU64StrictFunction_eq_verified_prog :
+    rlpContentToU64StrictFunction =
+      "rlp_content_to_u64_strict:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog :=
+  rfl
+
+#guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
+
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
     Right-align a big-endian byte string (the prefix-stripped
@@ -349,6 +374,24 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
 #guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
 #guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
+/-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
+
+    The strict typed-scalar counterpart of the lenient state-witness helper.
+    It uses the same output-buffer ABI and adds status `3` for a nonempty
+    leading-zero payload. -/
+def rlpContentToU256BeStrictFunction : String :=
+  "rlp_content_to_u256_be_strict:\n" ++
+    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog
+
+theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
+    rlpContentToU256BeStrictFunction =
+      "rlp_content_to_u256_be_strict:\n" ++
+        emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog :=
+  rfl
+
+#guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
+
 /-! ## rlp_field0_to_u64 -- fixed-offset first-field u64 wrapper
 
     Experimental verified-layout alternative to the index-based
@@ -380,32 +423,36 @@ theorem rlpField0ToU64Function_eq_verified_prog :
 #guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
 #guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
-/-! The four cursor-walk primitives concatenated as a single helper block.
+/-! The cursor-walk primitives concatenated as a single helper block.
 
     Standalone debug probes that embed the tx/header decoders (which now use
     the single-pass cursor walker) must link these bodies too. Mirrors the
     index-based RLP primitives each such probe already bundles; centralised
-    here so new probes don't hand-copy four lines (the documented closure-drift
+    here so new probes don't hand-copy the six helper definitions (the documented closure-drift
     pattern, see `BlockVerdictV2.lean` ziskStatelessVerdictV2ProbeUnit). -/
 def rlpWalkHelpersClosure : String :=
   rlpWalkInitFunction ++ "\n" ++
   rlpWalkNextFunction ++ "\n" ++
   rlpContentToU64Function ++ "\n" ++
-  rlpContentToU256BeFunction
+  rlpContentToU256BeFunction ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpContentToU256BeStrictFunction
 
 /-- Kernel-checked drift guard: the closure is exactly the concatenation of
-    the four guarded helper definitions, so future edits cannot quietly
+    the six guarded helper definitions, so future edits cannot quietly
     bypass one of them (each helper is itself tied to its verified Rv64
     program by `rlpWalkInitFunction_eq_verified_prog`,
     `rlpWalkNextCoreFunction_eq_verified_prog`,
     `rlpContentToU64Function_eq_verified_prog`, and
-    `rlpContentToU256BeFunction_eq_verified_prog`). -/
+    `rlpContentToU256BeFunction_eq_verified_prog` and their strict counterparts). -/
 theorem rlpWalkHelpersClosure_eq_helpers :
     rlpWalkHelpersClosure =
       rlpWalkInitFunction ++ "\n" ++
       rlpWalkNextFunction ++ "\n" ++
       rlpContentToU64Function ++ "\n" ++
-      rlpContentToU256BeFunction :=
+      rlpContentToU256BeFunction ++ "\n" ++
+      rlpContentToU64StrictFunction ++ "\n" ++
+      rlpContentToU256BeStrictFunction :=
   rfl
 
 end EvmAsm.Codegen
