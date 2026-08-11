@@ -502,10 +502,8 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- 3 RETIRED (#11183 ROW 10 parse-bail); 4 storage proof/slot lookup; 5 payload cap; 6 staging;
   -- 7 access-list unsupported/parse/count. Nonzero still means conservative bail.
   "bv_dispatch_runtime_status:\n  .zero 8\n" ++
-  -- Runtime-gas completeness classifier: 0 complete/unknown, 1 gas-result arena tx/count/cap,
-  -- 2 runtime_count/pointer mismatch, 3 single-tx dispatch unsupported,
-  -- 4 multi-tx dispatch unsupported, 5 multi-tx generic bail. Nonzero is debug-only.
-  "bv_runtime_completeness_status:\n  .zero 8\n" ++
+  -- #12064: bv_runtime_completeness_status removed (vestigial debug-only; never gated).
+
   -- Contract-recipient dispatch scratch (evm-asm-fhsxz.2.4.2.57.11.6.4.3.2).
   -- GH #11176: bvcd_keys/preload GONE. #11183 ROW 10: bvcd_acct_ptr/len GONE with
   -- supplied-BAL parse-bail (no spec counterpart; CHECK not BIND).

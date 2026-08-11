@@ -61,7 +61,6 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.EL.RLP.Properties
 import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 

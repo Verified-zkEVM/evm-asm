@@ -1038,12 +1038,7 @@ format_verdict_debug() {
     value="${words[0]:-?}"
     dbg="${dbg:+$dbg }dispatch_runtime_status=$value"
   fi
-  if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 472 ]]; then
-    raw="$(od -An -v -tu8 -j 464 -N 8 "$out" 2>/dev/null | xargs || true)"
-    read -r -a words <<< "$raw"
-    value="${words[0]:-?}"
-    dbg="${dbg:+$dbg }runtime_completeness_status=$value"
-  fi
+  # #12064: runtime_completeness_status dump retired (vestigial debug cell deleted).
   if [[ "$(stat -c%s "$out" 2>/dev/null || echo 0)" -ge 488 ]]; then
     raw="$(od -An -v -tu8 -j 472 -N 16 "$out" 2>/dev/null | xargs || true)"
     read -r -a words <<< "$raw"

@@ -16,7 +16,7 @@ bti_scan_tuples:
   bnez a2, .Lbtxi_st_err
   jal ra, rlp_walk_next                            # item 0 = tx_index field
   bnez a1, .Lbtxi_st_err
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lbtxi_st_err
   mv t6, a0
 .Lbtxi_st_have:

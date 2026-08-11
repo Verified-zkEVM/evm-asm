@@ -54,6 +54,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_1seg
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
+
+#print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
@@ -75,6 +87,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
 
 #print axioms EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
+
+#print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
+
+#print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
@@ -101,6 +119,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
+
+#print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
+
+#print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
@@ -150,6 +172,24 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
+
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
+
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_encode_length_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_encode_length_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_covers
+
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
+
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
@@ -169,6 +209,22 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.fix_emptyOmmerHashHex
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_adBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_aieBytes
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
+
+#print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
@@ -417,6 +473,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Rv64.RLP.risLenLoop
 
 #print axioms EvmAsm.Rv64.RLP.risLenLoopBody
+
+#print axioms EvmAsm.Rv64.RLP.rlpItemDecodeStrictW_of_decodeAux
 
 #print axioms EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
 

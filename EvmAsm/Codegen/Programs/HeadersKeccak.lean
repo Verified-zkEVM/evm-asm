@@ -270,13 +270,13 @@ def ziskHeadersKeccakArrayProbeUnit : BuildUnit := {
 def headersParentHash_prog : Program :=
   [ .LBU .x5 .x10 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (112 : BitVec 13),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.headers_parent_hash + 128) (GuestAddrs.headers_parent_hash + 8)),
     .LI .x6 (248 : Word),
     .BLTU .x5 .x6 (36 : BitVec 13),
     .LI .x6 (247 : Word),
     .SUB .x7 .x5 .x6,
     .LI .x28 (2 : Word),
-    .BLTU .x28 .x7 (88 : BitVec 13),
+    .BLTU .x28 .x7 (brOff (GuestAddrs.headers_parent_hash + 128) (GuestAddrs.headers_parent_hash + 32)),
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADD .x10 .x10 .x7,
     .SUB .x11 .x11 .x7,
@@ -284,18 +284,20 @@ def headersParentHash_prog : Program :=
     .ADDI .x10 .x10 (1 : BitVec 12),
     .ADDI .x11 .x11 (-1 : BitVec 12),
     .LI .x5 (33 : Word),
-    .BLTU .x11 .x5 (56 : BitVec 13),
+    .BLTU .x11 .x5 (brOff (GuestAddrs.headers_parent_hash + 128) (GuestAddrs.headers_parent_hash + 64)),
     .LBU .x6 .x10 (0 : BitVec 12),
     .LI .x7 (160 : Word),
-    .BNE .x6 .x7 (44 : BitVec 13),
-    .LD .x5 .x10 (1 : BitVec 12),
-    .SD .x12 .x5 (0 : BitVec 12),
-    .LD .x5 .x10 (9 : BitVec 12),
-    .SD .x12 .x5 (8 : BitVec 12),
-    .LD .x5 .x10 (17 : BitVec 12),
-    .SD .x12 .x5 (16 : BitVec 12),
-    .LD .x5 .x10 (25 : BitVec 12),
-    .SD .x12 .x5 (24 : BitVec 12),
+    .BNE .x6 .x7 (52 : BitVec 13),
+    .LI .x5 (0 : Word),
+    .LI .x6 (32 : Word),
+    .BEQ .x5 .x6 (32 : BitVec 13),
+    .ADDI .x7 .x10 (1 : BitVec 12),
+    .ADD .x7 .x7 .x5,
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .ADD .x7 .x12 .x5,
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12),
     .LI .x10 (1 : Word),
@@ -312,7 +314,7 @@ theorem headersParentHashFunction_eq_prog :
     headersParentHashFunction = "headers_parent_hash:\n" ++ emitProgram headersParentHash_prog := rfl
 
 #guard headersParentHashFunction.startsWith "headers_parent_hash:\n"
-#guard headersParentHash_prog.length = 32
+#guard headersParentHash_prog.length = 34
 /-- `zisk_headers_parent_hash`: probe BuildUnit that reads an
     RLP-encoded header from host input and writes
     `(status, parent_hash)` to OUTPUT.

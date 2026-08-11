@@ -70,10 +70,10 @@ def statelessGuestValidatorPipeline : String :=
   "  mv t2, s2                   # t2 = i (counts down from N)\n" ++
   ".Lsg_bl:\n" ++
   "  beqz t2, .Lsg_bl_done\n" ++
-  "  lwu t3, 0(t0)               # t3 = inner_offset[i]\n" ++
+  "  # #12057 u32 LE t0+0\n  lbu t3, 0(t0)\n  lbu t4, 1(t0); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 2(t0); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 3(t0); slli t4, t4, 24; or t3, t3, t4\n" ++
   "  addi t4, t2, -1\n" ++
   "  beqz t4, .Lsg_bl_last       # if last header, end = section_len\n" ++
-  "  lwu t5, 4(t0)               # t5 = inner_offset[i+1]\n" ++
+  "  # #12057 u32 LE t0+4\n  lbu t5, 4(t0)\n  lbu t4, 5(t0); slli t4, t4, 8; or t5, t5, t4\n  lbu t4, 6(t0); slli t4, t4, 16; or t5, t5, t4\n  lbu t4, 7(t0); slli t4, t4, 24; or t5, t5, t4\n" ++
   "  j .Lsg_bl_diff\n" ++
   ".Lsg_bl_last:\n" ++
   "  mv t5, s4                   # t5 = section_len\n" ++
@@ -349,28 +349,14 @@ def statelessGuestEpilogue : String :=
   "  # chunk_0 lives at SSZ_BASE + 16 + 44 + 116 = +176\n" ++
   "  # chunk_1 lives at SSZ_BASE + 16 + 44 + 148 = +208\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 176(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 184(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 192(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 200(s6); sd t2, 24(t1)\n" ++
-  "  ld t2, 208(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 216(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 224(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 232(s6); sd t2, 56(t1)\n" ++
+  "  # #12057: memcpy 64B from s6+176 -> t1 (unaligned-safe)\n  mv a0, t1\n  addi a1, s6, 176\n  li a2, 64\n  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_leaf_4_logs_bloom_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_0_1 -> npr_leaf_4_logs_bloom_scratch\n" ++
   "  # Dynamic node_2_3 = sha256(chunk_2 || chunk_3)\n" ++
   "  # chunk_2 @ SSZ_BASE + 16 + 44 + 180 = +240\n" ++
   "  # chunk_3 @ SSZ_BASE + 16 + 44 + 212 = +272\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 240(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 248(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 256(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 264(s6); sd t2, 24(t1)\n" ++
-  "  ld t2, 272(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 280(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 288(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 296(s6); sd t2, 56(t1)\n" ++
+  "  # #12057: memcpy 64B from s6+240 -> t1 (unaligned-safe)\n  mv a0, t1\n  addi a1, s6, 240\n  li a2, 64\n  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_logs_bloom_node_2_3_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_2_3 -> npr_logs_bloom_node_2_3_scratch\n" ++
   "  # node_0_3 = sha256(node_0_1 || node_2_3)\n" ++
@@ -446,10 +432,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  ld t2, 432(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 440(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 448(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 456(s6); sd t2, 56(t1)\n" ++
+  "  # #12057: memcpy 32B from s6+432 -> t1+32\n  addi a0, t1, 32\n  addi a1, s6, 432\n  li a2, 32\n  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_4_5_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_4_5 -> npr_node_4_5_scratch\n" ++
   "  # \n" ++
@@ -477,10 +460,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  ld t2, 500(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 508(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 516(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 524(s6); sd t2, 56(t1)\n" ++
+  "  # #12057: memcpy 32B from s6+500 -> t1+32\n  addi a0, t1, 32\n  addi a1, s6, 500\n  li a2, 32\n  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_10_11_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_10_11 -> npr_node_10_11_scratch\n" ++
   "  # \n" ++
@@ -494,7 +474,7 @@ def statelessGuestEpilogue : String :=
   "  ld t2,  8(t3); sd t2,  8(t1)\n" ++
   "  ld t2, 16(t3); sd t2, 16(t1)\n" ++
   "  ld t2, 24(t3); sd t2, 24(t1)\n" ++
-  "  ld t2, 572(s6); sd t2, 32(t1)\n" ++
+  "  # #12057: memcpy 8B from s6+572 -> t1+32\n  addi a0, t1, 32\n  addi a1, s6, 572\n  li a2, 8\n  jal ra, sg_memcpy\n" ++
   "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_14_15_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_14_15 -> npr_node_14_15_scratch\n" ++
@@ -504,10 +484,7 @@ def statelessGuestEpilogue : String :=
   "  # `npr_leaf_13_transactions_root` constant.\n" ++
   "  # block_hash (Bytes32 @ SSZ_BASE + 16 + 44 + 472 = +532)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 532(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 540(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 548(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 556(s6); sd t2, 24(t1)\n" ++
+  "  # #12057: memcpy 32B from s6+532 -> t1 (unaligned-safe)\n  mv a0, t1\n  addi a1, s6, 532\n  li a2, 32\n  jal ra, sg_memcpy\n" ++
   "  la t3, npr_dynamic_tx_root\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++
@@ -537,10 +514,10 @@ def statelessGuestEpilogue : String :=
   "  #   leaf_9 = timestamp (u64 LE @ SSZ_BASE + 16 + 44 + 428 = +488)\n" ++
   "  #            || 24 bytes of zero padding\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 480(s6)              # gas_used\n" ++
+  "  # #12057 u64              # gas_used\n  lbu t2, 480(s6)\n  lbu t3, 481(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 482(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 483(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 484(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 485(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 486(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 487(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  ld t2, 488(s6)              # timestamp\n" ++
+  "  # #12057 u64              # timestamp\n  lbu t2, 488(s6)\n  lbu t3, 489(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 490(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 491(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 492(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 493(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 494(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 495(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2, 32(t1)\n" ++
   "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
@@ -578,10 +555,10 @@ def statelessGuestEpilogue : String :=
   "  # leaf_7 = gas_limit    (u64 LE @ SSZ_BASE + 16 + 44 + 412 = +472)\n" ++
   "  #          || 24 bytes of zero padding\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 464(s6)              # block_number\n" ++
+  "  # #12057 u64              # block_number\n  lbu t2, 464(s6)\n  lbu t3, 465(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 466(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 467(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 468(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 469(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 470(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 471(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
-  "  ld t2, 472(s6)              # gas_limit\n" ++
+  "  # #12057 u64              # gas_limit\n  lbu t2, 472(s6)\n  lbu t3, 473(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 474(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 475(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 476(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 477(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 478(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 479(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2, 32(t1)\n" ++
   "  sd zero, 40(t1); sd zero, 48(t1); sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_sha_subtree\n" ++
@@ -610,13 +587,20 @@ def statelessGuestEpilogue : String :=
   "  # We use npr_node_0_3_scratch as both temp (for node_0_1) and final\n" ++
   "  # (for node_0_3) since sha256 reads input then writes output.\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2,  60(s6); sd t2,  0(t1)\n" ++
-  "  ld t2,  68(s6); sd t2,  8(t1)\n" ++
-  "  ld t2,  76(s6); sd t2, 16(t1)\n" ++
-  "  ld t2,  84(s6); sd t2, 24(t1)\n" ++
-  "  ld t2,  92(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 100(s6); sd t2, 40(t1)\n" ++
-  "  lwu t2, 108(s6); sd t2, 48(t1)\n" ++
+  "  # #12057 parent_hash 32B from s6+60\n" ++
+  "  mv a0, t1; addi a1, s6, 60; li a2, 32; jal ra, sg_memcpy\n" ++
+  "  # fee_recipient first 8B at s6+92 (may be unaligned)\n" ++
+  "  lbu t2, 92(s6)\n" ++
+  "  lbu t3, 93(s6); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 94(s6); slli t3, t3, 16; or t2, t2, t3\n" ++
+  "  lbu t3, 95(s6); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  lbu t3, 96(s6); slli t3, t3, 32; or t2, t2, t3\n" ++
+  "  lbu t3, 97(s6); slli t3, t3, 40; or t2, t2, t3\n" ++
+  "  lbu t3, 98(s6); slli t3, t3, 48; or t2, t2, t3\n" ++
+  "  lbu t3, 99(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
+  "  sd t2, 32(t1)\n" ++
+  "  # #12057: memcpy 8B from s6+100 -> t1+40\n  addi a0, t1, 40\n  addi a1, s6, 100\n  li a2, 8\n  jal ra, sg_memcpy\n" ++
+  "  lbu t2, 108(s6)\n  lbu t3, 109(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 110(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 111(s6); slli t3, t3, 24; or t2, t2, t3\n  sd t2, 48(t1)\n" ++
   "  sd zero, 56(t1)\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_0_3_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_0_1 -> npr_node_0_3_scratch\n" ++
@@ -624,14 +608,7 @@ def statelessGuestEpilogue : String :=
   "  #   state_root    (Bytes32 @ SSZ_BASE + 16 + 44 + 52  = +112)\n" ++
   "  #   receipts_root (Bytes32 @ SSZ_BASE + 16 + 44 + 84  = +144)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 112(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 120(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 128(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 136(s6); sd t2, 24(t1)\n" ++
-  "  ld t2, 144(s6); sd t2, 32(t1)\n" ++
-  "  ld t2, 152(s6); sd t2, 40(t1)\n" ++
-  "  ld t2, 160(s6); sd t2, 48(t1)\n" ++
-  "  ld t2, 168(s6); sd t2, 56(t1)\n" ++
+  "  # #12057: memcpy 64B from s6+112 -> t1 (unaligned-safe)\n  mv a0, t1\n  addi a1, s6, 112\n  li a2, 64\n  jal ra, sg_memcpy\n" ++
   "  la a0, npr_sha_input; li a1, 64; la a2, npr_node_2_3_scratch\n" ++
   "  jal ra, zkvm_sha256         # node_2_3 -> npr_node_2_3_scratch\n" ++
   "  # node_0_3 = sha256(node_0_1 || node_2_3)\n" ++
@@ -684,7 +661,7 @@ def statelessGuestEpilogue : String :=
   "  #   leaf_17 = npr_leaf_17_bal_root (block_access_list_root for\n" ++
   "  #             the empty/default ByteList -- constant)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 580(s6)              # excess_blob_gas\n" ++
+  "  # #12057 u64              # excess_blob_gas\n  lbu t2, 580(s6)\n  lbu t3, 581(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 582(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 583(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 584(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 585(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 586(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 587(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
   "  la t3, npr_dynamic_bal_root\n" ++
@@ -697,7 +674,7 @@ def statelessGuestEpilogue : String :=
   "  # leaf_18 = slot_number (u64 LE at SSZ_BASE + 16 + 44 + 532 = +592)\n" ++
   "  #          || 24 bytes of zero padding\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 592(s6)              # slot_number\n" ++
+  "  # #12057 u64              # slot_number\n  lbu t2, 592(s6)\n  lbu t3, 593(s6); slli t3, t3, 8; or t2, t2, t3\n  lbu t3, 594(s6); slli t3, t3, 16; or t2, t2, t3\n  lbu t3, 595(s6); slli t3, t3, 24; or t2, t2, t3\n  lbu t3, 596(s6); slli t3, t3, 32; or t2, t2, t3\n  lbu t3, 597(s6); slli t3, t3, 40; or t2, t2, t3\n  lbu t3, 598(s6); slli t3, t3, 48; or t2, t2, t3\n  lbu t3, 599(s6); slli t3, t3, 56; or t2, t2, t3\n" ++
   "  sd t2,  0(t1)\n" ++
   "  sd zero,  8(t1); sd zero, 16(t1); sd zero, 24(t1)\n" ++
   "  # bytes [32..64) = ssz_zero_hash[0] = leaf_19\n" ++
@@ -780,10 +757,7 @@ def statelessGuestEpilogue : String :=
   "  jal ra, zkvm_sha256         # left_subtree -> npr_left_subtree_scratch\n" ++
   "  # right_subtree = sha256(parent_beacon_block_root || npr_exec_requests_root)\n" ++
   "  la t1, npr_sha_input\n" ++
-  "  ld t2, 24(s6); sd t2,  0(t1)\n" ++
-  "  ld t2, 32(s6); sd t2,  8(t1)\n" ++
-  "  ld t2, 40(s6); sd t2, 16(t1)\n" ++
-  "  ld t2, 48(s6); sd t2, 24(t1)\n" ++
+  "  # #12057: memcpy 32B from s6+24 -> t1 (unaligned-safe)\n  mv a0, t1\n  addi a1, s6, 24\n  li a2, 32\n  jal ra, sg_memcpy\n" ++
   "  la t3, npr_exec_requests_dyn\n" ++
   "  ld t2,  0(t3); sd t2, 32(t1)\n" ++
   "  ld t2,  8(t3); sd t2, 40(t1)\n" ++

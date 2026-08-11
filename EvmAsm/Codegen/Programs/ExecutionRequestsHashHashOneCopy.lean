@@ -24,7 +24,6 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.LoopFuel
 import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOne
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
