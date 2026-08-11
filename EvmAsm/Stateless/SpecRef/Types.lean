@@ -13,8 +13,8 @@
     width enforcement lives in the SSZ codec (`Ssz.lean`), matching how the
     Python `remerkleable` types apply width only at (de)serialization.
   * Fixed-width byte fields (`Hash32`, `Root`, `Address`, `Bloom`,
-    `VersionedHash`) are raw `Bytes`; their length is a codec invariant, not
-    a type-level one (mirrors `bytes(x)` in the Python conversions).
+    `VersionedHash`) are raw `Bytes`; their length is validated at the
+    boundary that constructs the fixed field, rather than at the type level.
 -/
 
 import EvmAsm.Stateless.SpecRef.Crypto
@@ -64,6 +64,9 @@ inductive SpecError where
   | inactiveForkConfig
   /-- `_decode_account_from_leaf`: leaf RLP is not a 4-item list. -/
   | accountLeafMalformed
+  /-- `_decode_account_from_leaf`: a non-empty fixed-width account field is
+      not exactly 32 bytes (`FixedBytes` construction in the reference). -/
+  | accountFieldWrongLength (field : String) (len : Nat)
   /-- `_trie_lookup`: hit an unresolved `HashedNode`. -/
   | unresolvedHashedNode
   /-- `decode_witness_to_mpt`: `node_db[root_hash]` raised `KeyError` — the

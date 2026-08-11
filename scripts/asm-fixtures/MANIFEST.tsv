@@ -18,6 +18,7 @@ addressComputeCreate2Function	EvmAsm/Codegen/Programs/Address.lean
 addressComputeCreateFunction	EvmAsm/Codegen/Programs/Address.lean
 addressFromPubkeyFunction	EvmAsm/Codegen/Programs/Address.lean
 amsterdamBlobGasPriceU256Function	EvmAsm/Codegen/Programs/Header.lean
+assembleExecutionRequestsFunction	EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean
 b1SenderTableFindFunction	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean
 baapDeleteSingleLeafStorageFunction	EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean
 bahU32leFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean

@@ -36,6 +36,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
+
+#print axioms EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
+
 #print axioms EvmAsm.Codegen.AccountDecodeSpec.account_decode_spec_within
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.account_is_eip161_empty_spec_within
@@ -86,6 +96,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
+#print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
+
+#print axioms EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
+
+#print axioms EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
+
+#print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
@@ -105,6 +123,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.long2_first_length_byte_ne_zero
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong2Spec.rlp_encode_list_prefix_long2_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 

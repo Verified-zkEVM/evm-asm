@@ -111,31 +111,50 @@ def trieLookup (root : Option MutableNode) (keyHash : Hash32) :
 
 /-! ## `_decode_account_from_leaf` (`witness_state.py:102`) -/
 
+/- The Python reference constructs `Root`/`Hash32` as `FixedBytes`: an empty
+   field selects the corresponding sentinel, while a non-empty field must be
+   exactly 32 bytes.  Keep the aliases raw in the model, but enforce that
+   boundary at this decoder. -/
+private def decodeFixedHash32 (field : String) (emptyValue : Hash32) (bs : Bytes) :
+    Except SpecError Hash32 := do
+  if bs.isEmpty then
+    pure emptyValue
+  else if bs.length == 32 then
+    pure bs
+  else
+    throw (.accountFieldWrongLength field bs.length)
+
+theorem decodeFixedHash32_of_nonempty_of_length (field : String)
+    (emptyValue : Hash32) (bs : Bytes) (h_empty : bs.isEmpty = false)
+    (h_len : bs.length = 32) :
+    decodeFixedHash32 field emptyValue bs = .ok bs := by
+  simp [decodeFixedHash32, h_empty, h_len] <;> rfl
+
 /-- Decode `(nonce, balance, storage_root, code_hash)` from a trie leaf.
     Returns the `Account` and the `storage_root` separately (mirrors the
-    Python tuple return). -/
+    Python tuple return). Non-empty `storage_root` and `code_hash` fields
+    must be exactly 32 bytes, matching their `FixedBytes` constructors. -/
 def decode_account_from_leaf (leaf_value : Bytes) :
     Except SpecError (Account × Root) := do
   match decodeFully leaf_value with
   | some (.list [.bytes n, .bytes b, .bytes sr, .bytes ch]) =>
       let nonce : Uint := if n.isEmpty then 0 else bytesBEtoNat n
       let balance : U256 := if b.isEmpty then 0 else bytesBEtoNat b
-      let storageRoot : Root := if sr.isEmpty then EMPTY_TRIE_ROOT else sr
-      let codeHash : Hash32 := if ch.isEmpty then EMPTY_CODE_HASH else ch
+      let storageRoot ← decodeFixedHash32 "storage_root" EMPTY_TRIE_ROOT sr
+      let codeHash ← decodeFixedHash32 "code_hash" EMPTY_CODE_HASH ch
       pure ({ nonce, balance, codeHash }, storageRoot)
   | _ => .error .accountLeafMalformed
 
 /-- Inversion of a successful account-leaf decode, in a form a caller can use
     without re-deriving the four-way pattern match.
 
-    ⚠️ Note what the reference ACCEPTS, because the guest is stricter on every
-    field: the nonce and balance fields may be ANY length (`bytesBEtoNat` has no
-    width cap), and an EMPTY storage-root or code-hash field is folded to
-    `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH` rather than rejected.  `account_decode`
-    caps nonce at 8 bytes and balance at 32, and requires both hash fields to be
-    EXACTLY 32 bytes — so it rejects leaves this function accepts.  That gap is
-    the substance of #11345's domain restriction, and it is invisible from
-    `AccountRecord.WF`, which is defined as the guest's checks. -/
+    Note the reference's `FixedBytes` boundary and the separate guest-local
+    bounds: it accepts nonce and balance fields of any length
+    (`bytesBEtoNat` has no width cap), folds empty hash fields to
+    `EMPTY_TRIE_ROOT` / `EMPTY_CODE_HASH`, and requires every non-empty hash
+    field to be exactly 32 bytes through its `FixedBytes` constructors.
+    Downstream `account_decode` may impose additional guest-local bounds on
+    nonce and balance; those are separate from this model-level decoder. -/
 theorem decode_account_from_leaf_inv {leaf : Bytes} {acct : Account} {root : Root}
     (h : decode_account_from_leaf leaf = .ok (acct, root)) :
     ∃ n b sr ch,
@@ -147,14 +166,23 @@ theorem decode_account_from_leaf_inv {leaf : Bytes} {acct : Account} {root : Roo
   unfold decode_account_from_leaf at h
   split at h
   · rename_i n b sr ch hfull
-    have hpair := Except.ok.inj h
-    have h1 := congrArg Prod.fst hpair
-    have h2 := congrArg Prod.snd hpair
-    simp only at h1 h2
-    subst h1
-    subst h2
-    exact ⟨n, b, sr, ch, hfull, rfl, rfl, rfl, rfl⟩
-  · exact absurd h (by simp)
+    by_cases h_sr_empty : sr = [] <;>
+      by_cases h_sr_len : sr.length = 32 <;>
+      by_cases h_ch_empty : ch = [] <;>
+      by_cases h_ch_len : ch.length = 32
+    all_goals simp [decodeFixedHash32, h_sr_empty, h_sr_len,
+      h_ch_empty, h_ch_len] at h
+    all_goals try
+      (have hpair := Except.ok.inj h
+       have h1 := congrArg Prod.fst hpair
+       have h2 := congrArg Prod.snd hpair
+       simp only at h1 h2
+       subst h1
+       subst h2
+       exact ⟨n, b, sr, ch, hfull, by simp, by simp, by simp [h_sr_empty],
+         by simp [h_ch_empty]⟩)
+    all_goals cases h
+  · cases h
 
 /-! ## Sanity checks -/
 

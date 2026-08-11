@@ -90,8 +90,6 @@
   | `STATELESS_WORK_BASE`        | `0xa0020000`     | base ref    |
   | `SSZ_INPUT_DECODED`          | `0xa0020000`     | 64 KiB      |
   | `EXECUTION_WITNESS_AREA`     | `0xa0030000`     | 1 MiB       |
-  | `NODE_DB_BUCKETS`            | `0xa0130000`     | 4 MiB       |
-  | `CODE_DB_BUCKETS`            | `0xa0530000`     | 1 MiB       |
   | `STATE_TRACKER_AREA`         | `0xa0630000`     | 4 MiB legacy |
   | `EVM_FRAME_STACK`            | `0xa0a30000`     | 256 KiB     |
   | `EVM_VALUE_STACK`            | `0xa0a70000`     | 1 MiB       |
@@ -162,19 +160,12 @@ def SSZ_INPUT_DECODED       : Word := 0xa0020000
     `Codegen/Programs/SszWitnessState.lean`); assertion vocabulary in
     `EvmAsm/Evm64/WitnessAssertions.lean`. -/
 def EXECUTION_WITNESS_AREA  : Word := 0xa0030000
-/-- ASPIRATIONAL — no emitted instruction references it
-    (`Stateless/Witness/NodeDb/*` are scaffolds). Emitted reality: the
-    node DB is the `mset_db_*` append log in `.data` (8 MiB,
-    `Codegen/Programs/MptSetAcc.lean`); assertion vocabulary in
-    `EvmAsm/Evm64/MptAssertions.lean`. -/
-def NODE_DB_BUCKETS         : Word := 0xa0130000
-/-- ASPIRATIONAL — no emitted instruction references it
-    (`Stateless/Witness/CodeDb/*` are scaffolds). Emitted reality: the
-    code DB is the `wcidx_*` sorted 48-byte-record index over the
-    in-place SSZ codes section (`Codegen/Programs/MptWitnessIndex.lean`,
-    `WitnessCodeLookup.lean`); assertion vocabulary in
-    `EvmAsm/Evm64/WitnessAssertions.lean`. -/
-def CODE_DB_BUCKETS         : Word := 0xa0530000
+-- GH #11995: NODE_DB_BUCKETS (0xa0130000, 4 MiB) and CODE_DB_BUCKETS
+-- (0xa0530000, 1 MiB) deleted — aspirational anchors for the removed
+-- Stateless/Witness/{NodeDb,CodeDb} scaffolds; nothing emitted ever
+-- referenced either base. Real node DB: `mset_db_*` append log in `.data`;
+-- real code DB: the `wcidx_*` sorted index over the in-place SSZ codes
+-- section.
 /-- **LEGACY M24 port-contract anchor**: the persistent 2 MiB runtime arena at
     `0xa0630000` has been retired. The emitted guest keeps the transient
     128-byte-row log at `0xa0830000`, modeled by `RegionMap`'s
