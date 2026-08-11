@@ -73,7 +73,7 @@ def chainValidateExcessBlobGasNonDecreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 18\n" ++
   "  la a3, cvebnd_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvebnd_propagate\n" ++
   "  la t0, cvebnd_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -90,7 +90,7 @@ def chainValidateExcessBlobGasNonDecreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 18\n" ++
   "  la a3, cvebnd_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvebnd_propagate\n" ++
   "  la t0, cvebnd_field;        ld t3, 0(t0)\n" ++
   "  la t0, cvebnd_iter_prev;    ld t4, 0(t0)\n" ++
@@ -137,7 +137,8 @@ def ziskChainValidateExcessBlobGasNonDecreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvebnd_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateExcessBlobGasNonDecreasingFunction ++ "\n" ++
   ".Lcvebnd_pdone:"
 
@@ -203,7 +204,7 @@ def chainValidateExcessBlobGasNonIncreasingFunction : String :=
   "  mv a0, s2\n" ++
   "  li a2, 18\n" ++
   "  la a3, cvebni_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvebni_propagate\n" ++
   "  la t0, cvebni_field; ld s5, 0(t0)\n" ++
   "  ld t0, 0(s1)\n" ++
@@ -220,7 +221,7 @@ def chainValidateExcessBlobGasNonIncreasingFunction : String :=
   "  mv a0, t1\n" ++
   "  li a2, 18\n" ++
   "  la a3, cvebni_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvebni_propagate\n" ++
   "  la t0, cvebni_field;        ld t3, 0(t0)\n" ++
   "  la t0, cvebni_iter_prev;    ld t4, 0(t0)\n" ++
@@ -267,7 +268,8 @@ def ziskChainValidateExcessBlobGasNonIncreasingPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvebni_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateExcessBlobGasNonIncreasingFunction ++ "\n" ++
   ".Lcvebni_pdone:"
 
@@ -354,7 +356,7 @@ def chainValidateBlobGasUsedUnderMax_prog : Program :=
     .LI .x12 (17 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 116)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvbgum_field (GuestAddrs.chain_validate_blob_gas_used_under_max + 116)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)),
     .BNE .x10 .x0 (88 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 132)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvbgum_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_under_max + 132)),
@@ -397,7 +399,7 @@ def chainValidateBlobGasUsedUnderMax_relocs : RelocTable :=
   [ (18, .la .x5 "cvbgum_iter_ptr"),
     (21, .la .x5 "cvbgum_iter_i"),
     (29, .la .x13 "cvbgum_field"),
-    (31, .jal .x1 "rlp_field_to_u64"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
     (33, .la .x5 "cvbgum_iter_ptr"),
     (36, .la .x5 "cvbgum_iter_i"),
     (39, .la .x5 "cvbgum_field") ]
@@ -429,7 +431,8 @@ def ziskChainValidateBlobGasUsedUnderMaxPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvbgum_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
   ".Lcvbgum_pdone:"
 
@@ -513,7 +516,7 @@ def chainValidateBlobGasUsedMultiple_prog : Program :=
     .LI .x12 (17 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 116)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvbgm_field (GuestAddrs.chain_validate_blob_gas_used_multiple + 116)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_blob_gas_used_multiple + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_blob_gas_used_multiple + 124)),
     .BNE .x10 .x0 (96 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 132)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvbgm_iter_ptr (GuestAddrs.chain_validate_blob_gas_used_multiple + 132)),
@@ -558,7 +561,7 @@ def chainValidateBlobGasUsedMultiple_relocs : RelocTable :=
   [ (18, .la .x5 "cvbgm_iter_ptr"),
     (21, .la .x5 "cvbgm_iter_i"),
     (29, .la .x13 "cvbgm_field"),
-    (31, .jal .x1 "rlp_field_to_u64"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
     (33, .la .x5 "cvbgm_iter_ptr"),
     (36, .la .x5 "cvbgm_iter_i"),
     (39, .la .x5 "cvbgm_field") ]
@@ -590,7 +593,8 @@ def ziskChainValidateBlobGasUsedMultiplePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvbgm_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
   ".Lcvbgm_pdone:"
 

@@ -29,7 +29,7 @@ local macro "pcfx" : tactic =>
       | exact bytesRegion_pcFree _ _ | exact pcFree_frameSlotsOwn _ _
       | exact pcFree_stackFree _ _
       | exact pcFree_wordArray _ _ | exact pcFree_wordArrayFrom _ _ _ | unfold savedFrame
-      | unfold EvmAsm.Codegen.RlpFieldToU64SAsm.savedFrame)
+      | unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.savedFrame)
 
 /-- Step budget for the loop with `r = N − i` iterations remaining: each full
     iteration is `cvbgumIter`'s cost, the exhausted guard + all-valid exit is
@@ -92,7 +92,7 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
             payload hdrBase lenBase bigBytes lengths ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
             regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame
+            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame
               (spC + signExtend12 (-32 : BitVec 12)) **
             stackFree (spC + signExtend12 (-32 : BitVec 12)) 8) ** regOwn .x1) **
           regOwn .x10)
@@ -108,7 +108,7 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
             payload hdrBase lenBase bigBytes lengths ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
             regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame
+            frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame
               (spC + signExtend12 (-32 : BitVec 12)) **
             stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
             (.x10 ↦ᵣ o10)) ** regOwn .x1)
@@ -134,7 +134,7 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         (firstBadPtr ↦ₘ (0 : Word)) ** payload hdrBase lenBase bigBytes lengths **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
         regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-        (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame
+        (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame
           (spC + signExtend12 (-32 : BitVec 12)) **
         stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
         savedFrame spC csaved) (by unfold payload; pcfx) htaken
@@ -143,7 +143,7 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         (payload hdrBase lenBase bigBytes lengths ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
           regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame
             (spC + signExtend12 (-32 : BitVec 12)) **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8 **
           (validPtr ↦ₘ (1 : Word)) ** (firstBadPtr ↦ₘ (0 : Word)))
@@ -222,7 +222,7 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
         wordArray lenBase lengths ** bytesRegion hdrBase bigBytes **
         memOwn Field ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterPtr ** memOwn IterI **
         regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+        frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
         stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)
       (cvbgumPost sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths) := by
@@ -236,7 +236,7 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
     (wordArray lenBase lengths ** bytesRegion hdrBase bigBytes **
       memOwn Field ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterPtr ** memOwn IterI **
       regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
+      frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame (spC + signExtend12 (-32 : BitVec 12)) **
       stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)
     (by pcfx)
     (cpsTripleWithin_extend_code cvbgum_mono
@@ -263,7 +263,7 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
           memOwn Field ** memOwn RfuOff ** memOwn RfuLen ** memOwn IterPtr ** memOwn IterI **
           regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame
+          frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame
             (spC + signExtend12 (-32 : BitVec 12)) **
           stackFree (spC + signExtend12 (-32 : BitVec 12)) 8)) h := by
       rw [hnWord] at hp; xperm_hyp hp

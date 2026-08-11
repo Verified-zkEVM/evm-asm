@@ -10,7 +10,7 @@
     K217  header_extract_nonce            (field 14, 8 B BE u64)
     K218  header_validate_nonce_zero      (field 14 all-zero)
     K219  header_validate_difficulty_zero (field 7 length 0)
-    K233  header_extract_number           (field 8,  u64)
+    K233  header_extract_number           (field 8,  Uint projected to u64)
 
   All six functions are thin wrappers around `rlp_list_nth_item`
   + `rlp_field_to_u64` (or a small byte-level body), depending
@@ -444,7 +444,9 @@ def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
 
 /-! ## header_extract_number -- PR-K233
 
-    Extract `block.number` (field 8, u64 BE) from a header RLP.
+    Extract `block.number` (field 8, reference `Uint`, projected to u64 BE)
+    from a header RLP.  `Uint` is intentionally routed through lenient K34;
+    the caller's width assumption is recorded by HeaderExtractNumberBridge.
     Cross-fork — every header has a number.
 
     Calling convention:
@@ -641,7 +643,7 @@ def headerExtractBlobGasUsedFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 17\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -657,7 +659,8 @@ def ziskHeaderExtractBlobGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhebgu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBlobGasUsedFunction ++ "\n" ++
   ".Lhebgu_pdone:"
 
@@ -705,7 +708,7 @@ def headerExtractExcessBlobGasFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 18\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -721,7 +724,8 @@ def ziskHeaderExtractExcessBlobGasPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhebg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractExcessBlobGasFunction ++ "\n" ++
   ".Lhebg_pdone:"
 
