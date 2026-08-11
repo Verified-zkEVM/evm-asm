@@ -7,10 +7,10 @@
 
   ## Layout faithfulness — what the guest ACTUALLY keeps
 
-  **Important**: the reserved scheme-A anchor `NODE_DB_BUCKETS =
-  0xa0130000` (4 MiB, `EvmAsm/Stateless/MemoryLayout.lean`) is
-  *aspirational* — no emitted guest instruction references it (the
-  `Stateless/Witness/NodeDb/*` modules are scaffolds). The real node
+  **Note**: the scheme-A anchor `NODE_DB_BUCKETS = 0xa0130000` (4 MiB) was
+  deleted (GH #11995) — it was *aspirational*: no emitted guest instruction
+  ever referenced it, and the `Stateless/Witness/NodeDb/*` scaffold modules
+  it anchored are removed (GH #11994). The real node
   structures, which this module describes, are:
 
   1. **Raw RLP nodes** — the MPT routines all consume RLP-encoded node
