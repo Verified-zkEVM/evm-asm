@@ -2566,26 +2566,26 @@ def accountWriteTouchE2eFunction : String :=
     `account_writes_block_upsert`, so the complete map helper family is emitted
     together. -/
 def accountWriteMapFunctions : String :=
-  accountWriteRecordFunction ++
-  accountWritesLatestBalanceFunction ++
-  accountWritesLatestBalanceBlockFunction ++
-  accountWritesLatestNonceBlockFunction ++
-  accountWritesLatestNonceTxFunction ++
-  accountWritesAuthCurrentFunction ++
-  accountWritesAuthBlockFunction ++
-  accountWritesCreatedContainsFunction ++
-  accountWritesLookupCurrentFunction ++
-  accountWritesTombstoneBalanceZeroFunction ++
-  accountAgreementMutationCheckpointFunction ++
-  accountWritesBlockUpsertFunction ++
-  accountWritesApplyDeletesFunction ++
-  accountWritesCommitPendingFunction ++
-  accountWritesIsAbsentFunction ++
-  accountWritesEmitBuilderTxFunction ++
-  accountWritesIncorporateTxFunction ++
-  accountWritesUndoPushFunction ++
-  accountWritesRestoreFrameFunction ++
-  accountResolvePreStateFunction ++
+  accountWriteRecordFunction ++ "\n" ++
+  accountWritesLatestBalanceFunction ++ "\n" ++
+  accountWritesLatestBalanceBlockFunction ++ "\n" ++
+  accountWritesLatestNonceBlockFunction ++ "\n" ++
+  accountWritesLatestNonceTxFunction ++ "\n" ++
+  accountWritesAuthCurrentFunction ++ "\n" ++
+  accountWritesAuthBlockFunction ++ "\n" ++
+  accountWritesCreatedContainsFunction ++ "\n" ++
+  accountWritesLookupCurrentFunction ++ "\n" ++
+  accountWritesTombstoneBalanceZeroFunction ++ "\n" ++
+  accountAgreementMutationCheckpointFunction ++ "\n" ++
+  accountWritesBlockUpsertFunction ++ "\n" ++
+  accountWritesApplyDeletesFunction ++ "\n" ++
+  accountWritesCommitPendingFunction ++ "\n" ++
+  accountWritesIsAbsentFunction ++ "\n" ++
+  accountWritesEmitBuilderTxFunction ++ "\n" ++
+  accountWritesIncorporateTxFunction ++ "\n" ++
+  accountWritesUndoPushFunction ++ "\n" ++
+  accountWritesRestoreFrameFunction ++ "\n" ++
+  accountResolvePreStateFunction ++ "\n" ++
   accountResolveExecutionStateFunction
 
 /-! ## Structural guards
