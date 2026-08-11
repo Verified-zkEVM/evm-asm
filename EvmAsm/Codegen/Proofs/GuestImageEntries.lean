@@ -37,7 +37,6 @@ import EvmAsm.Codegen.Programs.BalGasValid
 import EvmAsm.Codegen.Programs.BalMapBuilderConsistent
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.BalSerializer
-import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
@@ -105,7 +104,6 @@ import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
-import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Codegen.Programs.Receipt
@@ -177,7 +175,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.chain_validate_consecutive_numbers, chainValidateConsecutiveNumbers_prog),
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
-  (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -535,6 +532,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 375
+#guard guestImageEntries.length = 374
 
 end EvmAsm.Codegen
