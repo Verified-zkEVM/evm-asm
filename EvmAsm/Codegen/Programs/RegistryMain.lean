@@ -116,6 +116,7 @@ import EvmAsm.Codegen.Programs.WitnessCodeLookup
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.TxTail
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.Eip7702Authority

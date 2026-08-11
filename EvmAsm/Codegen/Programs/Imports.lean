@@ -361,6 +361,8 @@ import EvmAsm.Codegen.Programs.GasRoutinesSAsm
 import EvmAsm.Codegen.Programs.CallExtraGasSAsm
 import EvmAsm.Codegen.Programs.MemoryExpansionGasSAsm
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.BalSerializerTail
+import EvmAsm.Codegen.Programs.TxTail
 import EvmAsm.Codegen.Programs.TxValidateAgainstBlockSAsm
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
