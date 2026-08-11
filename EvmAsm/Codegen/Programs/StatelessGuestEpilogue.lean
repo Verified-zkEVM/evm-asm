@@ -1148,7 +1148,7 @@ def statelessGuestEpilogue : String :=
   "  ld ra,0(sp); ld s0,8(sp); ld s1,16(sp); ld s2,24(sp)\n" ++
   "  ld s3,32(sp); ld s4,40(sp); ld s5,48(sp); ld s6,56(sp); ld s7,64(sp); addi sp,sp,80; ret\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
   chainValidateExtraDataLengthFunction ++ "\n" ++
