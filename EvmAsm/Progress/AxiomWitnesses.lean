@@ -162,6 +162,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_pinned_spec_within
 
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_covers
+
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
+
+#print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
