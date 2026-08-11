@@ -102,6 +102,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
+#print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
+
+#print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
+
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec

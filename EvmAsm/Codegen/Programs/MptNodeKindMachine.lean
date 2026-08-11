@@ -8,8 +8,9 @@
 
   Domain for registry: NO input-domain gate for an honest full-guest post
   (arity-exact 17|2). Pure `mptNodeKindSpec` is looser and is NOT the machine
-  post — use `mptNodeKindGuest` / Result composition. Under `MptNode.WF`,
-  `mptNodeKindGuest_eq_kindTag` bridges to `kindTag`.
+  post — use operational `MptNodeKindResult`. Under `MptNode.WF`,
+  `MptNodeKindWire.mptNodeKindResult_eq_kindTag` recovers `kindTag` (success
+  arms). The pure `mptNodeKindGuest` def remains for coverRef only.
 -/
 
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
