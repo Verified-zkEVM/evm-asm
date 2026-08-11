@@ -101,13 +101,12 @@ def subject : Subject :=
     run := runDecode
     aux := runCanonicalRlp
     auxLabel := "canonical-rlp"
-    -- At the pinned main (05c9c08f6), SpecRef's `Root`/`Hash32` aliases do
-    -- not enforce the FixedBytes widths enforced by the Python reference.
-    -- Keep the resulting account-only port defect visible (tracked in #12008)
-    -- and ratchet its population: a count change or a non-account divergence
-    -- is a failure.
-    expectedLooser := fun line => line.startsWith "account|"
-    expectedLooserCount := 138
+    -- #12008 aligns the decoder's `Root`/`Hash32` boundary with the Python
+    -- reference, so the account-only port divergence carried by PR3 is gone.
+    -- Keep the ratchet at zero: any future looser record is an ordinary
+    -- correspondence failure rather than an expected port divergence.
+    expectedLooser := fun _ => false
+    expectedLooserCount := 0
     ourName := "SpecRef.compact_to_nibbles/decode_witness_to_mpt/decode_account_from_leaf"
     docPage := "docs/agents/spec-correspondence.md" }
 
