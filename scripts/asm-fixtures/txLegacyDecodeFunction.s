@@ -1,0 +1,113 @@
+tx_legacy_decode:
+  addi sp, sp, -64
+  sd ra,  0(sp)
+  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  mv s0, a0                  # tx_rlp ptr (list base)
+  mv s2, a2                  # struct out
+  jal ra, rlp_walk_init      # a0=cursor, a1=end, a2=status
+  bnez a2, .Ltxd_fail
+  mv s1, a1                  # end
+  mv s3, a0                  # cursor
+  # Field 0: nonce (u64 at offset 0)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next      # a0=advanced, a1=status, a2=content_len
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2             # content_ptr = advanced - len
+  mv a1, a2                  # content_len
+  jal ra, rlp_content_to_u64_strict # a0=u64, a1=status
+  bnez a1, .Ltxd_fail
+  sd a0, 0(s2)
+  # Field 1: gas_price (u256 BE at offset 8)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  addi a2, s2, 8
+  jal ra, rlp_content_to_u256_be_strict
+  bnez a0, .Ltxd_fail
+  # Field 2: gas_limit (u64 at offset 40)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  jal ra, rlp_content_to_u64_strict
+  bnez a1, .Ltxd_fail
+  sd a0, 40(s2)
+  # Field 3: to (0 or 20 bytes at offset 48; to_present u64 at 68)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  beqz a2, .Ltxd_to_creation
+  li t0, 20
+  bne a2, t0, .Ltxd_fail
+  sub t3, a0, a2             # content_ptr
+  addi t4, s2, 48
+  ld t5,  0(t3); sd t5, 0(t4)
+  ld t5,  8(t3); sd t5, 8(t4)
+  lwu t5, 16(t3); sw t5, 16(t4)
+  li t5, 1
+  sd t5, 68(s2)              # to_present = 1
+  j .Ltxd_after_to
+.Ltxd_to_creation:
+  addi t4, s2, 48
+  sd zero, 0(t4); sd zero, 8(t4); sw zero, 16(t4)
+  sd zero, 68(s2)            # to_present = 0
+.Ltxd_after_to:
+  # Field 4: value (u256 BE at offset 76)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  addi a2, s2, 76
+  jal ra, rlp_content_to_u256_be_strict
+  bnez a0, .Ltxd_fail
+  # Field 5: data (offset+length u64 at 108/116)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub t3, a0, a2             # content_ptr
+  sub t1, t3, s0             # offset = content_ptr - base
+  sd t1, 108(s2)
+  sd a2, 116(s2)             # content_len
+  # Field 6: v (u64 at offset 124)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  jal ra, rlp_content_to_u64_strict
+  bnez a1, .Ltxd_fail
+  sd a0, 124(s2)
+  # Field 7: r (u256 BE at offset 132)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  addi a2, s2, 132
+  jal ra, rlp_content_to_u256_be_strict
+  bnez a0, .Ltxd_fail
+  # Field 8: s (u256 BE at offset 164)
+  mv a0, s3; mv a1, s1
+  jal ra, rlp_walk_next
+  mv s3, a0
+  bnez a1, .Ltxd_fail
+  sub a0, a0, a2; mv a1, a2
+  addi a2, s2, 164
+  jal ra, rlp_content_to_u256_be_strict
+  bnez a0, .Ltxd_fail
+  li a0, 0
+  j .Ltxd_ret
+.Ltxd_fail:
+  li a0, 1
+.Ltxd_ret:
+  ld ra,  0(sp)
+  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+  addi sp, sp, 64
+  ret
