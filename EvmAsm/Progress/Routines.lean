@@ -88,6 +88,7 @@ import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
+import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
@@ -763,6 +764,19 @@ private noncomputable abbrev _rlp_prefix_lol_body_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
+-- #11517 (template pair): the account-leaf sentinels, pinned. `EMPTY_TRIE_ROOT` /
+-- `EMPTY_CODE_HASH` existed in three unconnected copies -- SpecRef's computed pair and two
+-- baked asm literals -- so a typo in one typechecked everywhere and produced a wrong state
+-- root. These are the ties. Gated deliberately: the value of a drift pin is that CI
+-- rechecks it, and a pin outside the gate is a comment.
+private noncomputable abbrev _ad_empty_trie_root_value_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
+private noncomputable abbrev _ad_empty_code_hash_value_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
+private noncomputable abbrev _aie_empty_code_hash_value_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
+private noncomputable abbrev _ad_empty_code_hash_eq_aie_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
 private noncomputable abbrev _rlp_prefix_first_length_byte_ne_zero_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
 private noncomputable abbrev _rlp_prefix_pow_le_u64ByteLen_witness :=
