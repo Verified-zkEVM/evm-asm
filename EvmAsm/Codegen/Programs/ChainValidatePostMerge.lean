@@ -9,9 +9,10 @@
   Future EIP-3675-only predicates (e.g. nonce_zero,
   ommers_hash_empty_uncle_list) will land here.
 
-  All predicates compose K20 `rlp_list_nth_item` + K34
-  `rlp_field_to_u64` helpers, shared with the rest of the
-  validators.
+  All predicates compose K20 `rlp_list_nth_item` with the appropriate
+  K34 scalar helper. Difficulty uses `rlp_field_to_u64_strict`; fixed-width
+  Bytes8 fields retain the lenient helper where that is the existing
+  contract.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
